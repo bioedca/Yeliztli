@@ -116,7 +116,6 @@ V2_PAYLOAD: dict = {
 def _clear_cache_and_env(monkeypatch):
     """Each test starts with an empty cache and no env override."""
     monkeypatch.delenv(manifest_mod.MANIFEST_PATH_ENV, raising=False)
-    monkeypatch.delenv(manifest_mod.LEGACY_MANIFEST_PATH_ENV, raising=False)
     reset_cache()
     yield
     reset_cache()
@@ -172,28 +171,6 @@ class TestLocalOverride:
         assert m.bundles["lai_bundle"].version == "v1.1.0"
         assert m.bundles["lai_bundle"].size_bytes == 523_801_111
         assert m.pipeline_pins["dbnsfp"].last_known_version == "5.3.1a"
-
-    def test_legacy_env_var_still_resolves(self, tmp_path: Path, monkeypatch):
-        """Deprecated GENOMEINSIGHT_MANIFEST_PATH is honored as a one-release fallback."""
-        path = _write_manifest(tmp_path / "manifest.json", SAMPLE_PAYLOAD)
-        monkeypatch.delenv(manifest_mod.MANIFEST_PATH_ENV, raising=False)
-        monkeypatch.setenv(manifest_mod.LEGACY_MANIFEST_PATH_ENV, str(path))
-
-        m = fetch_manifest()
-        assert m.schema_version == 1
-        assert m.bundles["lai_bundle"].version == "v1.1.0"
-
-    def test_canonical_env_var_wins_over_legacy(self, tmp_path: Path, monkeypatch):
-        """When both manifest-path env vars are set, the canonical YELIZTLI_ wins."""
-        canonical = _write_manifest(tmp_path / "canonical.json", SAMPLE_PAYLOAD)
-        legacy_payload = json.loads(json.dumps(SAMPLE_PAYLOAD))
-        legacy_payload["bundles"]["lai_bundle"]["version"] = "v9.9.9"
-        legacy = _write_manifest(tmp_path / "legacy.json", legacy_payload)
-        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(canonical))
-        monkeypatch.setenv(manifest_mod.LEGACY_MANIFEST_PATH_ENV, str(legacy))
-
-        m = fetch_manifest()
-        assert m.bundles["lai_bundle"].version == "v1.1.0"  # canonical wins, not v9.9.9
 
     def test_local_override_skips_network(self, tmp_path: Path, monkeypatch):
         path = _write_manifest(tmp_path / "manifest.json", SAMPLE_PAYLOAD)

@@ -226,8 +226,7 @@ Yeliztli reads configuration from `~/.yeliztli/config.toml`. Settings can also b
 
 ```toml
 # All settings live under the [yeliztli] table (the setup wizard writes them here;
-# hand-edits must be under this header too). A legacy [genomeinsight] table is still
-# read for one release.
+# hand-edits must be under this header too).
 [yeliztli]
 # Server
 host = "127.0.0.1"

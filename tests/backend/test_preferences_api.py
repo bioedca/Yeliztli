@@ -40,7 +40,7 @@ def prefs_client(tmp_data_dir: Path) -> TestClient:
             import tomllib
 
             data = tomllib.loads(config_path.read_text())
-            section = data.get("yeliztli") or data.get("genomeinsight") or {}
+            section = data.get("yeliztli") or {}
             if "theme" in section:
                 kwargs["theme"] = section["theme"]
         return Settings(**kwargs)

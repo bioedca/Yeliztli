@@ -19,8 +19,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from backend.config import migrate_legacy_data_dir, warn_deprecated_env
-
 # ── Constants ──────────────────────────────────────────────
 
 DATA_DIR = Path.home() / ".yeliztli"
@@ -76,14 +74,7 @@ def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedPr
 
 
 def ensure_data_dir() -> None:
-    """Create the ~/.yeliztli directory structure.
-
-    First-boot back-compat: rename a pre-rebrand ~/.genomeinsight data dir to
-    ~/.yeliztli before creating anything, so an upgrade keeps existing data
-    (best-effort; never raises). Also warns on deprecated GENOMEINSIGHT_* env vars.
-    """
-    migrate_legacy_data_dir()
-    warn_deprecated_env()
+    """Create the ~/.yeliztli directory structure."""
     dirs = [
         DATA_DIR,
         DATA_DIR / "samples",

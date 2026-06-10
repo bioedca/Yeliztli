@@ -3,9 +3,7 @@
 Asserts the repository contains NO ``genomeinsight`` reference (case-insensitive)
 except an explicit allow-list of:
 
-* one-release back-compat shims (deprecated ``GENOMEINSIGHT_*`` env vars, the legacy
-  ``[genomeinsight]`` config table, ``~/.genomeinsight`` data-dir migration, the
-  ``genomeinsight_backup_`` download validator),
+* the ``genomeinsight_backup_`` restore validator (reads pre-rebrand backup archives),
 * immutable published-asset filenames (``genomeinsight_lai_bundle_*.tar.gz`` — kept
   verbatim; only the org-slug in their URLs was rebranded),
 * append-only history / published-asset runbook docs, and
@@ -46,34 +44,16 @@ SELF = "tests/backend/test_rename_guard.py"
 # it contains at least one of the listed (case-sensitive) tokens. Anything else fails —
 # including a stray ``genomeinsight`` in a file not listed here at all.
 ALLOWED_BY_FILE: dict[str, list[str]] = {
-    # ── one-release back-compat shims ────────────────────────────────────────────
-    "backend/config.py": [
-        "GENOMEINSIGHT_",
-        ".genomeinsight",
-        "[genomeinsight]",
-        '"genomeinsight"',
-    ],
-    "backend/db/manifest.py": ["GENOMEINSIGHT_"],
-    "backend/installer.py": [".genomeinsight", "GENOMEINSIGHT_"],
-    "backend/main.py": [".genomeinsight", "GENOMEINSIGHT_"],
-    "backend/tasks/huey_tasks.py": [".genomeinsight", "GENOMEINSIGHT_"],
+    # backup-archive filename back-compat: restore a legacy genomeinsight_backup_ archive
     "backend/api/routes/backup.py": ["genomeinsight_backup_"],
-    "docs/setup-guide.md": ["[genomeinsight]"],
-    "tests/backend/test_config.py": ["GENOMEINSIGHT_", "[genomeinsight]", ".genomeinsight"],
-    "tests/backend/test_cross_platform.py": [".genomeinsight"],
-    "tests/backend/test_setup_api.py": ["[genomeinsight]", "GenomeInsight -> Yeliztli"],
-    "tests/backend/test_preferences_api.py": ['"genomeinsight"'],
     "tests/backend/test_backup_api.py": ["genomeinsight_backup_"],
-    "tests/e2e/global-setup.ts": ["GENOMEINSIGHT_"],
     # ── immutable published-asset filenames (org-slug rebranded, filename kept) ───
     "backend/db/database_registry.py": ["genomeinsight_lai_bundle"],
     "bundles/manifest.json": ["genomeinsight_lai_bundle"],
     "tests/fixtures/manifest_v2.json": ["genomeinsight_lai_bundle"],
     "tests/backend/test_lai_bundle_registry.py": ["genomeinsight_lai_bundle"],
     "tests/backend/test_database_registry_lai.py": ["genomeinsight_lai_bundle"],
-    "tests/backend/test_manifest.py": ["genomeinsight_lai_bundle", "GENOMEINSIGHT_"],
-    "docs/setup-update-plan.md": ["genomeinsight_lai_bundle", "GENOMEINSIGHT_"],
-    "docs/setup-update-steps.md": ["genomeinsight_lai_bundle", "GENOMEINSIGHT_"],
+    "tests/backend/test_manifest.py": ["genomeinsight_lai_bundle"],
     # ── ignore-pattern for the still-published legacy asset (kept alongside yeliztli_) ─
     ".gitignore": ["genomeinsight_lai_bundle"],
     # ── Docker named-volume migration note (PR-D) ────────────────────────────────

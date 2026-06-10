@@ -743,28 +743,6 @@ class TestSetStoragePath:
         assert 'log_level = "DEBUG"' in content
         assert str(new_path) in content
 
-    def test_legacy_config_section_read(self, setup_client: TestClient, tmp_path: Path) -> None:
-        """A legacy [genomeinsight] config is read via fallback and rewritten under
-        the canonical [yeliztli] table, preserving values (one-release back-compat
-        for the GenomeInsight -> Yeliztli rebrand)."""
-        new_path = tmp_path / "gi_legacy_section"
-        new_path.mkdir(parents=True)
-        config_path = new_path / "config.toml"
-        config_path.write_text('[genomeinsight]\ntheme = "dark"\nlog_level = "DEBUG"\n')
-
-        resp = setup_client.post(
-            "/api/setup/set-storage-path",
-            json={"path": str(new_path)},
-        )
-        assert resp.status_code == 200
-
-        content = config_path.read_text()
-        assert "[yeliztli]" in content  # migrated to the canonical table
-        assert "[genomeinsight]" not in content  # legacy table dropped
-        assert 'theme = "dark"' in content  # legacy values preserved
-        assert 'log_level = "DEBUG"' in content
-        assert str(new_path) in content
-
     def test_tilde_expansion(
         self,
         setup_client: TestClient,

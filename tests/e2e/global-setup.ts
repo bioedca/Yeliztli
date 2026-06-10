@@ -13,7 +13,6 @@ import * as path from 'path'
 
 export default async function globalSetup() {
   const dataDir = process.env.YELIZTLI_DATA_DIR
-    ?? process.env.GENOMEINSIGHT_DATA_DIR
     ?? path.join(process.env.HOME ?? '/tmp', '.yeliztli')
   fs.mkdirSync(dataDir, { recursive: true })
 

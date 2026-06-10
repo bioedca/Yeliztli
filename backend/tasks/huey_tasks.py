@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,32 +16,17 @@ import structlog
 from huey import SqliteHuey, crontab
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.config import get_settings, migrate_legacy_data_dir
+from backend.config import get_settings
 from backend.db.build_guard import build_lock
 
 logger = structlog.get_logger(__name__)
-
-# First-boot data-dir migration (~/.genomeinsight -> ~/.yeliztli) MUST run before
-# the mkdir below — otherwise an empty new dir would pre-empt the rename and orphan
-# the legacy data. This module is imported eagerly by both services (the API app
-# and the huey consumer), so it is the earliest code path to touch the data dir.
-# migrate_legacy_data_dir() guards on PYTEST_CURRENT_TEST, but that var is unset
-# during pytest *collection* (when this module is imported), so gate the call on
-# sys.modules to keep the developer's real ~/.genomeinsight untouched by tests.
-if "pytest" not in sys.modules:
-    migrate_legacy_data_dir()
 
 _settings = get_settings()
 _settings.data_dir.mkdir(parents=True, exist_ok=True)
 _huey_db = str(_settings.data_dir / "huey.db")
 
-# Allow override for testing (immediate mode runs tasks inline). Canonical
-# YELIZTLI_HUEY_IMMEDIATE with a one-release deprecated GENOMEINSIGHT_ fallback.
-_immediate = (
-    os.environ.get("YELIZTLI_HUEY_IMMEDIATE")
-    or os.environ.get("GENOMEINSIGHT_HUEY_IMMEDIATE")
-    or ""
-).lower() in (
+# Allow override for testing (immediate mode runs tasks inline).
+_immediate = (os.environ.get("YELIZTLI_HUEY_IMMEDIATE") or "").lower() in (
     "1",
     "true",
     "yes",

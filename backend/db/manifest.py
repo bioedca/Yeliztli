@@ -7,8 +7,7 @@ bundles (`lai_bundle`, `vep_bundle`, `ancestry_pca`) and pinned upstream URLs
 for pipeline DBs (`pipeline_pins`).
 
 For tests and offline development, set the ``YELIZTLI_MANIFEST_PATH``
-environment variable (deprecated alias: ``GENOMEINSIGHT_MANIFEST_PATH``) to load
-the manifest from a local file instead of HTTP.
+environment variable to load the manifest from a local file instead of HTTP.
 
 Caching
 -------
@@ -39,10 +38,8 @@ _structlog = structlog.get_logger(__name__)
 
 MANIFEST_URL = "https://raw.githubusercontent.com/bioedca/Yeliztli/main/bundles/manifest.json"
 CACHE_TTL_SECONDS = 3600.0
-# Canonical override env var; the legacy GENOMEINSIGHT_ name is read for one
-# release as a deprecated fallback (see fetch_manifest).
+# Override env var to load the manifest from a local file (tests / offline dev).
 MANIFEST_PATH_ENV = "YELIZTLI_MANIFEST_PATH"
-LEGACY_MANIFEST_PATH_ENV = "GENOMEINSIGHT_MANIFEST_PATH"
 DEFAULT_TIMEOUT = 15.0
 
 
@@ -239,15 +236,14 @@ def fetch_manifest(
 
     Caching: a successful fetch is cached in-memory for ``CACHE_TTL_SECONDS``.
     Set ``force_refresh=True`` to bypass the cache. Set the
-    ``YELIZTLI_MANIFEST_PATH`` env var (deprecated alias:
-    ``GENOMEINSIGHT_MANIFEST_PATH``) to load from a local JSON file
+    ``YELIZTLI_MANIFEST_PATH`` env var to load from a local JSON file
     (the env override is never cached so tests can swap files freely).
 
     Raises ``ManifestFetchError`` if the manifest cannot be loaded or parsed.
     """
     global _cached_manifest, _cached_at
 
-    override = os.environ.get(MANIFEST_PATH_ENV) or os.environ.get(LEGACY_MANIFEST_PATH_ENV)
+    override = os.environ.get(MANIFEST_PATH_ENV)
     if override:
         return _load_local(Path(override))
 

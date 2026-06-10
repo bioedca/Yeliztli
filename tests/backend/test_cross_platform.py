@@ -170,7 +170,7 @@ class TestDataDirectory:
     """Verify data directory creation works."""
 
     def test_ensure_data_dir_creates_structure(self, tmp_path, monkeypatch):
-        fake_data = tmp_path / ".genomeinsight"
+        fake_data = tmp_path / ".yeliztli"
         monkeypatch.setattr("backend.installer.DATA_DIR", fake_data)
         ensure_data_dir()
         assert fake_data.is_dir()
@@ -179,7 +179,7 @@ class TestDataDirectory:
         assert (fake_data / "logs").is_dir()
 
     def test_ensure_data_dir_idempotent(self, tmp_path, monkeypatch):
-        fake_data = tmp_path / ".genomeinsight"
+        fake_data = tmp_path / ".yeliztli"
         monkeypatch.setattr("backend.installer.DATA_DIR", fake_data)
         ensure_data_dir()
         ensure_data_dir()  # Should not raise
