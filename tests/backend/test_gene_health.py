@@ -358,7 +358,15 @@ class TestSNPScoring:
     ) -> None:
         """Gene Health must not diverge from the gated Parkinson's LRRK2 framing."""
         snp = self._get_snp(panel, "rs34637584")
-        parkinsons_model = load_parkinsons_panel().genotype_models[0]
+        parkinsons_model = next(
+            (
+                model
+                for model in load_parkinsons_panel().genotype_models
+                if model.primary_rsid == "rs34637584"
+            ),
+            None,
+        )
+        assert parkinsons_model is not None
 
         assert snp.evidence_level == parkinsons_model.evidence_stars == 2
         assert snp.cross_module is not None
@@ -376,6 +384,9 @@ class TestSNPScoring:
         for genotype in ("GA", "AG", "AA"):
             result = _score_snp(snp, genotype)
             assert result.category == MODERATE
+
+        result_ref = _score_snp(snp, "GG")
+        assert result_ref.category == STANDARD
 
 
 # -- Pathway level determination tests ----------------------------------------
