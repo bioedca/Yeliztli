@@ -106,8 +106,8 @@ CAVEAT_REGISTRY: dict[str, str] = {
     ),
     "apol1_ancestry_gated": (
         "These variants arose on, and are validated in, recent African-ancestry "
-        "backgrounds; they are near-absent elsewhere. This result is reported as "
-        "actionable only for individuals of inferred African ancestry."
+        "backgrounds; they are near-absent elsewhere. Interpret the result with "
+        "extra validation caution when inferred African ancestry is absent or low."
     ),
     "off_chip_partial": (
         "One or more interrogated positions were not typed on this array, so the "
@@ -803,7 +803,9 @@ def classify(
             calls = [indeterminate]
 
     # Ancestry gate (e.g. APOL1): suppress or caveat calls outside the validated
-    # ancestry so risk is never overstated for non-target populations.
+    # ancestry so risk is never overstated for non-target populations. Some
+    # panels may still suppress indeterminate-only disclosures while caveating a
+    # directly observed genotype.
     gate = panel.ancestry_gate
     if gate and calls:
         required = gate.get("required_ancestry")
@@ -825,6 +827,12 @@ def classify(
                 # risk call, but record the suppression on the assessment.
                 calls = []
             else:  # caveat: keep but annotate
+                if gate.get("suppress_indeterminate"):
+                    observed_calls = [
+                        call for call in calls if not call.detail.get("indeterminate")
+                    ]
+                    assessment.ancestry_suppressed = len(observed_calls) < len(calls)
+                    calls = observed_calls
                 calls = [_with_caveat(c, note) for c in calls]
 
     assessment.calls = calls

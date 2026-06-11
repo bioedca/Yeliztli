@@ -2,14 +2,15 @@
   "module": "apol1",
   "version": "1.0.0",
   "category": "risk_genotype",
-  "description": "APOL1 kidney-risk panel (African-ancestry-gated, recessive): G1 = rs73885319 (S342G, risk G) + rs60910145 (I384M, risk G, in cis); G2 = rs71785313 (6-bp deletion p.Asn388_Tyr389del; off-chip on most arrays; gnomAD also labels this deletion rs1317778148); N264K modifier = rs73885316 (risk-attenuating allele A/Lys). High risk requires TWO risk alleles across G1/G2 (recessive). G1 dosage is counted from the rs73885319 tag SNP ONLY in total_risk_dosage; rs60910145 is read for transparency/QC but deliberately NOT summed, because the two G1 SNPs are in cis on one haplotype — summing both would double-count G1 and mis-call a single-G1 heterozygote (one risk allele = low risk) as two-allele high-risk. N264K present attenuates G2-associated risk. Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #27.",
+  "description": "APOL1 kidney-risk panel (African-ancestry-contextualized, recessive): G1 = rs73885319 (S342G, risk G) + rs60910145 (I384M, risk G, in cis); G2 = rs71785313 (6-bp deletion p.Asn388_Tyr389del; off-chip on most arrays; gnomAD also labels this deletion rs1317778148); N264K modifier = rs73885316 (risk-attenuating allele A/Lys). High risk requires TWO risk alleles across G1/G2 (recessive). G1 dosage is counted from the rs73885319 tag SNP ONLY in total_risk_dosage; rs60910145 is read for transparency/QC but deliberately NOT summed, because the two G1 SNPs are in cis on one haplotype — summing both would double-count G1 and mis-call a single-G1 heterozygote (one risk allele = low risk) as two-allele high-risk. Directly observed two-risk-allele genotypes are reported with an ancestry/validation caveat when top global ancestry is not predominantly AFR; indeterminate partial-only genotypes remain suppressed outside the validated ancestry context. N264K present attenuates G2-associated risk. Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #27.",
   "evaluation": "first_match",
   "sex_stratified": false,
   "ancestry_gate": {
     "required_ancestry": "AFR",
-    "mode": "suppress",
+    "mode": "caveat",
     "min_fraction": 0.5,
-    "note": "APOL1 G1/G2 risk alleles arose on, and are validated in, recent African-ancestry backgrounds and are near-absent elsewhere; this high-risk genotype is reported as actionable only for inferred African ancestry."
+    "suppress_indeterminate": true,
+    "note": "APOL1 G1/G2 risk estimates are validated primarily in recent African-ancestry backgrounds. Top global ancestry does not prove local ancestry at APOL1, so this directly observed genotype is shown with extra validation caution when inferred African ancestry is absent or below 50%; confirm clinically before any medical action."
   },
   "disclaimer_key": "APOL1",
   "loci": [

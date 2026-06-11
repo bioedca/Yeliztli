@@ -1,12 +1,13 @@
 """APOL1 kidney-risk module (G1/G2 + N264K modifier) — §9 / roadmap #27.
 
 Thin adapter over the shared declarative risk-genotype caller, injecting the
-sample's inferred ancestry so the engine's ancestry gate can apply. APOL1 risk
-is **recessive** (two risk alleles, any combination of G1 and G2), **ancestry-
-gated** (the G1/G2 alleles are near-absent and unvalidated outside recent
-African ancestry), and modified by **N264K** (rs73885316), which attenuates
-G2-associated risk. The G2 allele is a 6-bp deletion (rs71785313) that is often
-off-chip; an untyped G2 yields a partial genotype, never a false low-risk call.
+sample's inferred ancestry so the engine can add APOL1's validation context.
+APOL1 risk is **recessive** (two risk alleles, any combination of G1 and G2),
+**ancestry-contextualized** (the G1/G2 alleles are near-absent and best validated
+in recent African ancestry), and modified by **N264K** (rs73885316), which
+attenuates G2-associated risk. The G2 allele is a 6-bp deletion (rs71785313) that
+is often off-chip; an untyped G2 yields a partial genotype, never a false
+low-risk call.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def load_apol1_panel(panel_path: Path | None = None) -> RiskPanel:
 
 
 def assess_apol1(panel: RiskPanel, sample_engine: sa.Engine) -> RiskAssessment:
-    """Read APOL1 G1/G2/N264K genotypes and classify with ancestry gating."""
+    """Read APOL1 G1/G2/N264K genotypes and classify with ancestry context."""
     readouts = read_genotypes(panel, sample_engine)
     dosages = compute_dosages(panel, readouts)
     inferred_ancestry = get_inferred_ancestry(sample_engine)

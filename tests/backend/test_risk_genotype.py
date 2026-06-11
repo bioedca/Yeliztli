@@ -180,6 +180,31 @@ class TestAncestryGate:
         assert len(assessment.calls) == 1
         assert assessment.ancestry_suppressed is False
 
+    def test_caveat_mode_keeps_off_target_call(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [{"rsid": "rsA", "chrom": "6", "pos": 1, "genotype": "AA"}])
+        model = GenotypeModel(
+            id="high_risk",
+            match={"rsA": {"dosage": 2}},
+            risk_classification="High risk",
+            evidence_stars=3,
+            finding_text="High risk {genotype}",
+        )
+        panel = _panel(
+            [model],
+            ancestry_gate={
+                "required_ancestry": "AFR",
+                "mode": "caveat",
+                "min_fraction": 0.5,
+                "note": "Off-target ancestry caveat.",
+            },
+        )
+        readouts = read_genotypes(panel, sample_engine)
+        dosages = compute_dosages(panel, readouts)
+        assessment = classify(panel, dosages, readouts, inferred_ancestry="EUR")
+        assert len(assessment.calls) == 1
+        assert assessment.ancestry_suppressed is False
+        assert "Off-target ancestry caveat." in assessment.calls[0].finding_text
+
 
 class TestAncestrySpecificOdds:
     def _or_panel(self) -> RiskPanel:
@@ -457,6 +482,40 @@ class TestPartialDisclosure:
         a = _assess(panel, sample_engine, inferred_ancestry="EUR")
         assert a.calls == []
         assert a.ancestry_suppressed is True
+
+    def test_caveat_mode_can_still_suppress_indeterminate(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [{"rsid": "rsG1", "chrom": "22", "pos": 1, "genotype": "AG"}])
+        panel = _recessive_panel(
+            partial=True,
+            ancestry_gate={
+                "required_ancestry": "AFR",
+                "mode": "caveat",
+                "min_fraction": 0.5,
+                "suppress_indeterminate": True,
+                "note": "Off-target ancestry caveat.",
+            },
+        )
+        a = _assess(panel, sample_engine, inferred_ancestry="EUR")
+        assert a.calls == []
+        assert a.ancestry_suppressed is True
+
+    def test_caveat_mode_keeps_observed_recessive_call(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [{"rsid": "rsG1", "chrom": "22", "pos": 1, "genotype": "AA"}])
+        panel = _recessive_panel(
+            partial=True,
+            ancestry_gate={
+                "required_ancestry": "AFR",
+                "mode": "caveat",
+                "min_fraction": 0.5,
+                "suppress_indeterminate": True,
+                "note": "Off-target ancestry caveat.",
+            },
+        )
+        a = _assess(panel, sample_engine, inferred_ancestry="EUR")
+        assert len(a.calls) == 1
+        assert a.ancestry_suppressed is False
+        assert a.calls[0].detail["partial_genotype"] is True
+        assert "Off-target ancestry caveat." in a.calls[0].finding_text
 
 
 class TestPartialGuardrail:

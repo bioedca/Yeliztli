@@ -1,8 +1,10 @@
-"""Tests for the APOL1 kidney-risk module (G1/G2 + N264K, ancestry-gated, recessive).
+"""Tests for the APOL1 kidney-risk module (G1/G2 + N264K, ancestry-contextualized, recessive).
 
-APOL1 risk is recessive (two risk alleles across G1/G2), African-ancestry-gated,
-and modified by N264K (rs73885316). The honesty guardrails under test: non-AFR /
-unknown ancestry is suppressed (no actionable high-risk finding); the G2 indel
+APOL1 risk is recessive (two risk alleles across G1/G2), interpreted with
+African-ancestry validation context, and modified by N264K (rs73885316). The
+honesty guardrails under test: directly observed high-risk genotypes are reported
+with an ancestry caveat when global ancestry is not predominantly AFR; partial
+indeterminate calls are suppressed outside that ancestry context; the G2 indel
 being off-chip yields a partial genotype, never a false low-risk; an unassessed
 N264K caveats a high-risk call rather than overstating it; common risk alleles
 write clinvar_significance=NULL.
@@ -123,19 +125,37 @@ class TestHighRiskAFR:
 
 
 class TestAncestryGate:
-    def test_eur_suppressed(self, panel, sample_engine: sa.Engine) -> None:
+    def test_eur_observed_high_risk_caveated(self, panel, sample_engine: sa.Engine) -> None:
         _seed_ancestry(sample_engine, "EUR")
         _seed(sample_engine, [_g1("AA"), _g2("DD"), _n264k("CC")])
         a = assess_apol1(panel, sample_engine)
-        assert a.calls == []  # no actionable high-risk finding for non-African ancestry
-        assert a.ancestry_suppressed is True
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
+        assert a.ancestry_suppressed is False
+        assert (
+            "Top global ancestry does not prove local ancestry at APOL1" in a.calls[0].finding_text
+        )
 
-    def test_no_ancestry_suppressed(self, panel, sample_engine: sa.Engine) -> None:
-        # No ancestry finding seeded -> inferred ancestry unknown -> treated as not-AFR.
+    def test_afr_below_half_observed_high_risk_caveated(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        _seed_ancestry(sample_engine, "AFR", fraction=0.49)
         _seed(sample_engine, [_g1("AA"), _g2("DD"), _n264k("CC")])
         a = assess_apol1(panel, sample_engine)
-        assert a.calls == []
-        assert a.ancestry_suppressed is True
+        assert len(a.calls) == 1
+        assert a.ancestry_suppressed is False
+        assert "extra validation caution" in a.calls[0].finding_text
+
+    def test_no_ancestry_observed_high_risk_caveated(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # No ancestry finding seeded -> inferred ancestry unknown, but the observed
+        # two-risk-allele genotype is still reported with a validation caveat.
+        _seed(sample_engine, [_g1("AA"), _g2("DD"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert len(a.calls) == 1
+        assert a.ancestry_suppressed is False
+        assert "extra validation caution" in a.calls[0].finding_text
 
 
 class TestN264KModifier:
@@ -175,8 +195,21 @@ class TestStorageAndGuardrails:
         assert row.gene_symbol == "APOL1"
         assert row.evidence_level == 3  # high-risk recessive model is 3 stars
 
-    def test_suppressed_stores_nothing(self, panel, sample_engine: sa.Engine) -> None:
+    def test_observed_non_afr_high_risk_stores_caveated_finding(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
         _seed_ancestry(sample_engine, "EUR")
         _seed(sample_engine, [_g1("AA"), _g2("DD"), _n264k("CC")])
         a = assess_apol1(panel, sample_engine)
+        assert store_apol1_findings(a, sample_engine) == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == "apol1")).fetchone()
+        assert "Top global ancestry does not prove local ancestry at APOL1" in row.finding_text
+
+    def test_indeterminate_non_afr_stores_nothing(self, panel, sample_engine: sa.Engine) -> None:
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_g1("AG")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.calls == []
+        assert a.ancestry_suppressed is True
         assert store_apol1_findings(a, sample_engine) == 0

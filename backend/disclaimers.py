@@ -531,10 +531,12 @@ near-absent in other populations.
 
 **Please understand the following before reviewing:**
 
-1. **Ancestry-specific.** This module is reported as actionable only for \
-individuals of inferred African ancestry. The G1/G2 alleles are essentially \
-absent elsewhere, and the risk estimates were established in African-ancestry \
-cohorts. For other inferred ancestries, no actionable high-risk result is shown.
+1. **Ancestry context.** The G1/G2 risk estimates were established mainly in \
+African-ancestry cohorts, and these alleles are rare outside recent \
+African-ancestry backgrounds. Because global ancestry is not the same as local \
+ancestry at APOL1, a directly observed two-risk-allele genotype may still be \
+shown for other inferred ancestries with an extra validation caveat; partial \
+APOL1 genotypes may remain hidden when ancestry context is not supportive.
 
 2. **Recessive — two risk alleles are needed.** Increased kidney-disease risk \
 requires two risk alleles (any combination of G1 and G2). Carrying a single \
@@ -561,6 +563,10 @@ counselor; confirm in a CLIA/accredited laboratory before any medical action. \
 This is a research/educational result, not a clinical test.
 
 **Resources:**
+- APOL1 genetic variants in focal segmental glomerulosclerosis and \
+HIV-associated nephropathy (Kopp et al., 2011): https://doi.org/10.1681/ASN.2011040388
+- Carrying APOL1 G1 allele is associated with cardiovascular complications \
+during COVID-19 in an admixed population (Cadore et al., 2025): https://doi.org/10.1186/s40246-025-00790-1
 - National Kidney Foundation: https://www.kidney.org/
 - American Society of Nephrology (APOL1): https://www.asn-online.org/
 - National Society of Genetic Counselors: https://findageneticcounselor.nsgc.org/\
