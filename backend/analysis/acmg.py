@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 CITATION_PMIDS = [
     "25741868",  # Richards 2015 — ACMG/AMP guidelines
+    "34859531",  # Gudmundsson 2021 — using gnomAD population data
     "28132688",  # Li 2017 — InterVar
     "29300386",  # Tavtigian 2018 — Bayesian framework
     "31843900",  # Tavtigian 2020 — point system
@@ -99,8 +100,10 @@ BA1_AF_MIN = 0.05
 # BS1: "allele frequency greater than expected for the disorder" — a general 1%
 # default (gene/disease-specific thresholds would be stricter; flagged as general).
 BS1_AF_MIN = 0.01
-# PM2_Supporting: absent or extremely low frequency (ClinGen SVI downgraded PM2 to
-# Supporting). Applied when popmax is absent or below 0.01%.
+# PM2_Supporting: absent or extremely low frequency (ClinGen SVI downgraded
+# PM2 to Supporting). This draft engine only applies PM2 when it has a numeric
+# population AF below 0.01%; a NULL local annotation is treated as missing
+# frequency evidence, not confirmed absence from gnomAD.
 PM2_AF_MAX = 1e-4
 # PP2: missense in a missense-constrained gene (gnomAD mis_z ≥ 3.09 ≈ top decile).
 PP2_MISZ_MIN = 3.09
@@ -234,14 +237,15 @@ def criterion_pvs1(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 def criterion_pm2(ev: AcmgEvidence) -> AcmgCriterion | None:
     af = _effective_af(ev)
-    if af is None or af < PM2_AF_MAX:
-        where = "absent from gnomAD" if af is None else f"popmax AF {af:.2g} < 0.01%"
+    if af is None:
+        return None
+    if af < PM2_AF_MAX:
         return AcmgCriterion(
             "PM2",
             "pathogenic",
             "Supporting",
             _points_for("pathogenic", "Supporting"),
-            f"Rare/absent in population databases ({where}); applied at Supporting "
+            f"Rare in population databases (popmax AF {af:.2g} < 0.01%); applied at Supporting "
             "per the ClinGen SVI down-weighting of PM2.",
         )
     return None
@@ -432,6 +436,9 @@ def assess_sample_acmg(
         )
         .where(
             av.c.gene_symbol.isnot(None),
+            # Keep AF-null rows available for otherwise notable variants, but
+            # criterion_pm2() treats NULL as missing frequency evidence, not
+            # confirmed population absence.
             sa.or_(
                 av.c.clinvar_significance.isnot(None),
                 eff_af.is_(None),

@@ -38,6 +38,7 @@ _VARIANTS = {
     "rs_lof": ("LOFGENE", "stop_gained", None, None, None),
     "rs_validity_lof": ("VALIDGENE", "stop_gained", None, None, None),
     "rs_mis": ("MISGENE", "missense_variant", None, 0.95, None),
+    "rs_mis_rare": ("MISGENE", "missense_variant", 1e-5, 0.95, None),
     "rs_common": ("MISGENE", "missense_variant", 0.06, 0.2, "Benign"),
     "rs_benign": ("MISGENE", "missense_variant", 0.005, 0.2, "Benign"),
     "rs_syn": ("MISGENE", "synonymous_variant", None, None, None),  # not a candidate
@@ -127,6 +128,7 @@ class TestAcmgEndpoint:
             "rs_lof",
             "rs_validity_lof",
             "rs_mis",
+            "rs_mis_rare",
             "rs_common",
             "rs_benign",
         }
@@ -134,17 +136,26 @@ class TestAcmgEndpoint:
     def test_lof_constraint_alone_does_not_apply_pvs1(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_lof"]
         assert v["acmg_classification"] == "Uncertain significance"
-        assert v["points"] == 1
-        assert {c["code"] for c in v["criteria"]} == {"PM2"}
+        assert v["points"] == 0
+        assert v["criteria"] == []
 
     def test_gene_validity_alone_does_not_apply_pvs1(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_validity_lof"]
         assert v["acmg_classification"] == "Uncertain significance"
-        assert v["points"] == 1
-        assert {c["code"] for c in v["criteria"]} == {"PM2"}
+        assert v["points"] == 0
+        assert v["criteria"] == []
 
-    def test_high_revel_missense_is_likely_pathogenic(self, acmg_client: TestClient) -> None:
+    def test_high_revel_missense_missing_af_stays_uncertain(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_mis"]
+        assert v["acmg_classification"] == "Uncertain significance"
+        assert v["points"] == 5
+        codes = {c["code"] for c in v["criteria"]}
+        assert codes == {"PP3", "PP2"}
+
+    def test_high_revel_missense_confirmed_rare_is_likely_pathogenic(
+        self, acmg_client: TestClient
+    ) -> None:
+        v = self._by_rsid(acmg_client)["rs_mis_rare"]
         assert v["acmg_classification"] == "Likely pathogenic"
         codes = {c["code"] for c in v["criteria"]}
         assert {"PP3", "PP2", "PM2"} <= codes
@@ -161,8 +172,8 @@ class TestAcmgEndpoint:
 
         data = acmg_client.get("/api/analysis/acmg?sample_id=1").json()
         assert data["truncated"] is False
-        assert data["total_candidates"] == 5
-        assert len(data["variants"]) == 5  # guard against a vacuous loop
+        assert data["total_candidates"] == 6
+        assert len(data["variants"]) == 6  # guard against a vacuous loop
         for v in data["variants"]:
             assert v["is_draft"] is True
             assert v["note"]
