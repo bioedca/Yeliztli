@@ -20,6 +20,7 @@ CYP2C19,clopidogrel,Rapid Metabolizer,Use label-recommended dosing.,A,https://cp
 CYP2C19,clopidogrel,Ultrarapid Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
 CYP2C19,voriconazole,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Poor Metabolizer,Use alternative antifungal agent.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Rapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Ultrarapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C9,warfarin,Normal Metabolizer,Use label-recommended dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
 CYP2C9,warfarin,Intermediate Metabolizer,Reduce initial dose by 25-50%. Use pharmacogenetic dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/

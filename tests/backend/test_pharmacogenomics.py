@@ -408,6 +408,20 @@ def pgx_reference_engine() -> sa.Engine:
             "classification": "A",
             "guideline_url": "https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/",
         },
+        # CYP2C19 voriconazole — Rapid Metabolizer row guards the gap fixed in
+        # issue #8 (CYP2C19 *1/*17 is callable as Rapid Metabolizer but had no
+        # voriconazole guideline, so the actionable drug-gene pair was silently
+        # skipped). CPIC groups Rapid and Ultrarapid metabolizers under the same
+        # voriconazole recommendation. Only the Rapid row is seeded here to keep
+        # the curated fixture's other alert-count assertions unchanged.
+        {
+            "gene": "CYP2C19",
+            "drug": "voriconazole",
+            "phenotype": "Rapid Metabolizer",
+            "recommendation": "Use alternative antifungal agent or increase dose with TDM.",
+            "classification": "A",
+            "guideline_url": "https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/",
+        },
         # TPMT mercaptopurine
         {
             "gene": "TPMT",
@@ -1296,6 +1310,37 @@ class TestGeneratePrescribingAlerts:
         assert "alternative antiplatelet" in alerts[0].recommendation
         assert alerts[0].call_confidence == CallConfidence.COMPLETE
 
+    def test_cyp2c19_rapid_metabolizer_voriconazole(self, pgx_reference_engine: sa.Engine):
+        """CYP2C19 *1/*17 Rapid Metabolizer should generate a voriconazole alert.
+
+        Regression for issue #8: the rapid metabolizer phenotype is callable but
+        the bundled CPIC table had no CYP2C19/voriconazole/Rapid Metabolizer row,
+        so this actionable drug-gene pair was silently skipped despite voriconazole
+        being primarily CYP2C19-metabolized.
+        """
+        results = [
+            StarAlleleResult(
+                gene="CYP2C19",
+                allele1="*1",
+                allele2="*17",
+                diplotype="*1/*17",
+                phenotype="Rapid Metabolizer",
+                call_confidence=CallConfidence.COMPLETE,
+                confidence_note="All defining positions assessed.",
+                involved_rsids={"rs12248560"},
+            ),
+        ]
+
+        alerts = generate_prescribing_alerts(results, pgx_reference_engine)
+        vori = [a for a in alerts if a.drug == "voriconazole"]
+        assert len(vori) == 1
+        assert vori[0].gene == "CYP2C19"
+        assert vori[0].diplotype == "*1/*17"
+        assert vori[0].phenotype == "Rapid Metabolizer"
+        assert "alternative antifungal" in vori[0].recommendation
+        assert vori[0].classification == "A"
+        assert vori[0].evidence_level == 4  # CPIC A → ★★★★
+
     def test_insufficient_confidence_excluded(self, pgx_reference_engine: sa.Engine):
         """Genes with Insufficient confidence produce no alerts."""
         results = [
@@ -1335,17 +1380,17 @@ class TestGeneratePrescribingAlerts:
         results = [
             StarAlleleResult(
                 gene="CYP2C19",
-                allele1="*1",
+                allele1="*17",
                 allele2="*17",
-                diplotype="*1/*17",
-                phenotype="Rapid Metabolizer",
+                diplotype="*17/*17",
+                phenotype="Ultrarapid Metabolizer",
                 call_confidence=CallConfidence.COMPLETE,
                 confidence_note="All defining positions assessed.",
             ),
         ]
 
         alerts = generate_prescribing_alerts(results, pgx_reference_engine)
-        # No Rapid Metabolizer guidelines seeded for clopidogrel
+        # No Ultrarapid Metabolizer guidelines seeded for CYP2C19 in this fixture
         assert len(alerts) == 0
 
     def test_multiple_genes_multiple_alerts(self, pgx_reference_engine: sa.Engine):

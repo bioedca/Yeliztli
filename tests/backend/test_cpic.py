@@ -188,8 +188,8 @@ class TestParseGuidelinesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
-        assert len(rows) == 46  # 46 data rows (last row is empty line)
-        assert stats.guidelines_loaded == 46
+        assert len(rows) == 47  # 47 data rows (last row is empty line)
+        assert stats.guidelines_loaded == 47
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):
