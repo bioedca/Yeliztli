@@ -498,6 +498,23 @@ class TestScorePathways:
         assert fads1.present_in_sample is True
         assert fads1.category == ELEVATED
 
+    def test_fads1_rs174547_tt_keeps_omega3_standard(
+        self,
+        panel: NutrigenomicsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Runtime scoring must not elevate rs174547 non-carriers."""
+        _seed_variants(sample_engine, [("rs174547", "11", 61597212, "TT")])
+
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        omega3 = next(pr for pr in result.pathway_results if pr.pathway_id == "omega_3")
+        fads1 = next(s for s in omega3.snp_results if s.rsid == "rs174547")
+
+        assert omega3.level == STANDARD
+        assert fads1.present_in_sample is True
+        assert fads1.category == STANDARD
+
 
 class TestStoreFindingsIntegration:
     def test_store_and_retrieve_findings(
