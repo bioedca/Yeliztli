@@ -47,6 +47,7 @@ export function useRunMetabolic(sampleId: number | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
+      if (sampleId == null) throw new Error("Cannot run metabolic analysis: sample ID is required")
       const res = await fetch(`/api/analysis/metabolic/run?sample_id=${sampleId}`, {
         method: "POST",
       })

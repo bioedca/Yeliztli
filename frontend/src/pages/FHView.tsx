@@ -85,9 +85,9 @@ export default function FHView() {
             <h2 className="text-lg font-semibold mb-3">Monogenic findings (LDLR / APOB / PCSK9)</h2>
             {a.has_monogenic ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {a.monogenic.map((m) => (
+                {a.monogenic.map((m, i) => (
                   <article
-                    key={`${m.gene}-${m.rsid}`}
+                    key={`${m.gene}-${m.rsid ?? "na"}-${i}`}
                     className="rounded-lg border bg-card p-4"
                     data-testid="fh-monogenic-card"
                   >

@@ -23,6 +23,7 @@ export function useRunFh(sampleId: number | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
+      if (sampleId == null) throw new Error("Cannot run FH analysis: sample ID is required")
       const res = await fetch(`/api/analysis/fh/run?sample_id=${sampleId}`, { method: "POST" })
       if (!res.ok) {
         const text = await res.text().catch(() => "")

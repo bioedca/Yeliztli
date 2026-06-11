@@ -23,6 +23,7 @@ export function useRunEbmd(sampleId: number | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
+      if (sampleId == null) throw new Error("Cannot run eBMD analysis: sample ID is required")
       const res = await fetch(`/api/analysis/ebmd/run?sample_id=${sampleId}`, { method: "POST" })
       if (!res.ok) {
         const text = await res.text().catch(() => "")
