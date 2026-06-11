@@ -43,6 +43,7 @@ class DBRegistry:
         self._vep_engine: sa.Engine | None = None
         self._gnomad_engine: sa.Engine | None = None
         self._dbnsfp_engine: sa.Engine | None = None
+        self._alphamissense_engine: sa.Engine | None = None
         self._encode_ccres_engine: sa.Engine | None = None
 
     @property
@@ -129,6 +130,17 @@ class DBRegistry:
         return self._dbnsfp_engine
 
     @property
+    def alphamissense_engine(self) -> sa.Engine:
+        """Lazy-loaded AlphaMissense engine (read-only missense predictions)."""
+        if self._alphamissense_engine is None:
+            self._alphamissense_engine = self._create_engine(
+                self._settings.alphamissense_db_path,
+                wal=self._settings.wal_mode,
+                read_optimized=True,
+            )
+        return self._alphamissense_engine
+
+    @property
     def encode_ccres_engine(self) -> sa.Engine:
         """Lazy-loaded ENCODE cCREs engine (read-only, ~30 MB)."""
         if self._encode_ccres_engine is None:
@@ -185,6 +197,9 @@ class DBRegistry:
         if self._dbnsfp_engine is not None:
             self._dbnsfp_engine.dispose()
             self._dbnsfp_engine = None
+        if self._alphamissense_engine is not None:
+            self._alphamissense_engine.dispose()
+            self._alphamissense_engine = None
         if self._encode_ccres_engine is not None:
             self._encode_ccres_engine.dispose()
             self._encode_ccres_engine = None

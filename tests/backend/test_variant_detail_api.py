@@ -107,6 +107,8 @@ SAMPLE_VARIANT_VUS = {
     "revel": 0.75,
     "metasvm": 0.8,
     "metalr": 0.7,
+    "alphamissense_pathogenicity": 0.91,
+    "alphamissense_class": "likely_pathogenic",
     "deleterious_count": 4,
     "evidence_conflict": True,
     "ensemble_pathogenic": True,
@@ -361,6 +363,18 @@ class TestGetVariantDetail:
         assert data["deleterious_count"] == 4
         # F25: the k-of-present denominator is surfaced alongside the count.
         assert data["deleterious_total_assessed"] == 4
+
+    def test_returns_alphamissense_context_badge(self, client):
+        tc, sid = client
+        data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
+
+        assert data["alphamissense_pathogenicity"] == pytest.approx(0.91)
+        assert data["alphamissense_class"] == "likely_pathogenic"
+        badge = data["alphamissense_badge"]
+        assert badge["predictor"] == "AlphaMissense"
+        assert badge["context_only"] is True
+        assert badge["acmg_vote"] is False
+        assert badge["revel_concordance"] == "concordant"
 
 
 # ═══════════════════════════════════════════════════════════════════════

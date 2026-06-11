@@ -18,6 +18,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.api.dependencies import require_fresh_sample
@@ -140,6 +141,11 @@ class VariantDetailResponse(BaseModel):
     phylop: float | None = None
     mpc: float | None = None
     primateai: float | None = None
+
+    # AlphaMissense (context-only complement to REVEL)
+    alphamissense_pathogenicity: float | None = None
+    alphamissense_class: str | None = None
+    alphamissense_badge: dict[str, Any] | None = None
 
     # dbSNP
     dbsnp_build: int | None = None
@@ -361,6 +367,16 @@ def _build_evidence_conflict_detail(
     )
 
 
+def _attach_alphamissense_badge(data: dict[str, Any]) -> None:
+    """Attach the context-only AlphaMissense badge to a response payload."""
+    data["alphamissense_badge"] = alphamissense_badge_for_variant(
+        data.get("alphamissense_pathogenicity"),
+        data.get("alphamissense_class"),
+        revel=data.get("revel"),
+        consequence=data.get("consequence"),
+    )
+
+
 # ── Endpoint ─────────────────────────────────────────────────────────
 
 
@@ -409,6 +425,8 @@ def get_variant_detail(
 
     # 6. Build evidence conflict detail
     evidence_conflict_detail = _build_evidence_conflict_detail(row)
+
+    _attach_alphamissense_badge(data)
 
     return VariantDetailResponse(
         **data,

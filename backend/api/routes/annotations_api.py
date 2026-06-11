@@ -18,6 +18,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -98,6 +99,11 @@ class AnnotatedVariantRow(BaseModel):
     phylop: float | None = None
     mpc: float | None = None
     primateai: float | None = None
+
+    # AlphaMissense (context-only complement to REVEL)
+    alphamissense_pathogenicity: float | None = None
+    alphamissense_class: str | None = None
+    alphamissense_badge: dict[str, Any] | None = None
 
     # dbSNP
     dbsnp_build: int | None = None
@@ -259,6 +265,12 @@ def _row_to_annotated_variant(row: sa.Row) -> AnnotatedVariantRow:
     data: dict[str, Any] = {}
     for col in _TABLE.c:
         data[col.name] = getattr(row, col.name, None)
+    data["alphamissense_badge"] = alphamissense_badge_for_variant(
+        data.get("alphamissense_pathogenicity"),
+        data.get("alphamissense_class"),
+        revel=data.get("revel"),
+        consequence=data.get("consequence"),
+    )
     return AnnotatedVariantRow(**data)
 
 

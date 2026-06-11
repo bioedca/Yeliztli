@@ -38,6 +38,7 @@ _COVERAGE_BITS: tuple[tuple[int, str], ...] = (
     (0b0010000, "gene_phenotype"),
     (0b0100000, "GWAS"),
     (0b1000000, "CPIC"),
+    (0b10000000, "AlphaMissense"),
 )
 
 

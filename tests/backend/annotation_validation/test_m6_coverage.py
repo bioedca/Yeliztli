@@ -28,6 +28,7 @@ def test_cpic_bit_distinct_from_gene_phenotype_bit() -> None:
         "GENE_PHENOTYPE": engine_mod.GENE_PHENOTYPE_BIT,
         "GWAS": engine_mod.GWAS_BIT,
         "CPIC": engine_mod.CPIC_BIT,
+        "ALPHAMISSENSE": engine_mod.ALPHAMISSENSE_BIT,
     }
     assert engine_mod.CPIC_BIT != engine_mod.GENE_PHENOTYPE_BIT
     assert len(set(bits.values())) == len(bits), f"coverage bits collide: {bits}"
@@ -79,6 +80,16 @@ def test_coverage_bit_implies_source_column(build_live_run) -> None:
                 "REVEL_score": "0.7",
             }
         ],
+        alphamissense_rows=[
+            {
+                "chrom": "7",
+                "pos": 100,
+                "ref": "G",
+                "alt": "A",
+                "am_pathogenicity": 0.91,
+                "am_class": "likely_pathogenic",
+            }
+        ],
         gene_phenotype_rows=[
             {
                 "gene_symbol": "GENEX",
@@ -102,6 +113,9 @@ def test_coverage_bit_implies_source_column(build_live_run) -> None:
             assert row.gnomad_af_global is not None
         if cov & engine_mod.DBNSFP_BIT:
             assert row.cadd_phred is not None
+        if cov & engine_mod.ALPHAMISSENSE_BIT:
+            assert row.alphamissense_pathogenicity is not None
+            assert row.alphamissense_class is not None
         if cov & engine_mod.GENE_PHENOTYPE_BIT:
             assert row.disease_name is not None
     # ...and the fully-seeded variant must actually exercise all five bits, so
@@ -114,6 +128,7 @@ def test_coverage_bit_implies_source_column(build_live_run) -> None:
         engine_mod.CLINVAR_BIT,
         engine_mod.GNOMAD_BIT,
         engine_mod.DBNSFP_BIT,
+        engine_mod.ALPHAMISSENSE_BIT,
         engine_mod.GENE_PHENOTYPE_BIT,
     ):
         assert cov & bit, f"expected coverage bit {bit} set for the fully-seeded variant"

@@ -26,6 +26,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
+from backend.annotation.alphamissense import create_alphamissense_table
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
     create_dbnsfp_tables,
@@ -33,6 +34,7 @@ from backend.annotation.dbnsfp import (
     lookup_dbnsfp_by_rsids,
 )
 from backend.annotation.engine import (
+    ALPHAMISSENSE_BIT,
     CLINVAR_BIT,
     DBNSFP_BIT,
     GENE_PHENOTYPE_BIT,
@@ -43,6 +45,7 @@ from backend.annotation.engine import (
     _bulk_upsert,
     _dbnsfp_annot_to_dict,
     _delete_all_annotations,
+    _lookup_alphamissense,
     _lookup_clinvar,
     _lookup_dbnsfp,
     _lookup_gene_phenotype,
@@ -282,11 +285,32 @@ def dbnsfp_engine() -> sa.Engine:
 
 
 @pytest.fixture
+def alphamissense_engine() -> sa.Engine:
+    """In-memory AlphaMissense DB with one missense prediction."""
+    engine = sa.create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    create_alphamissense_table(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO alphamissense_scores "
+                "(chrom, pos, ref, alt, am_pathogenicity, am_class) "
+                "VALUES ('1', 11856378, 'G', 'A', 0.91, 'likely_pathogenic')"
+            )
+        )
+    return engine
+
+
+@pytest.fixture
 def mock_registry(
     reference_engine: sa.Engine,
     vep_engine_inmemory: sa.Engine,
     gnomad_engine: sa.Engine,
     dbnsfp_engine: sa.Engine,
+    alphamissense_engine: sa.Engine,
 ) -> MagicMock:
     """Mock DBRegistry with all annotation source engines."""
     registry = MagicMock()
@@ -294,6 +318,7 @@ def mock_registry(
     type(registry).vep_engine = property(lambda self: vep_engine_inmemory)
     type(registry).gnomad_engine = property(lambda self: gnomad_engine)
     type(registry).dbnsfp_engine = property(lambda self: dbnsfp_engine)
+    registry.alphamissense_engine = alphamissense_engine
     return registry
 
 
@@ -308,6 +333,7 @@ class TestAnnotationEngineResult:
         assert r.total_variants == 0
         assert r.total_matched == 0
         assert r.errors == []
+        assert r.alphamissense_matched == 0
         # §5.6 coverage telemetry — empty by default; only populated by run_annotation.
         assert r.coverage_stats == {}
 
@@ -396,6 +422,54 @@ class TestLookupDbnsfp:
         assert len(result) == 0
 
 
+class TestLookupAlphaMissense:
+    def test_returns_context_for_missense_position(
+        self,
+        sample_with_variants: sa.Engine,
+        vep_engine_inmemory: sa.Engine,
+        alphamissense_engine: sa.Engine,
+    ) -> None:
+        with sample_with_variants.connect() as conn:
+            raw_rows = conn.execute(sa.select(raw_variants)).fetchall()
+        raw_by_rsid = {r.rsid: r for r in raw_rows}
+        vep = _lookup_vep(["rs1801133"], raw_by_rsid, vep_engine_inmemory)
+
+        result = _lookup_alphamissense(
+            ["rs1801133"],
+            raw_by_rsid,
+            vep,
+            {"rs1801133": {"ref": "G", "alt": "A"}},
+            alphamissense_engine,
+        )
+
+        assert result["rs1801133"]["alphamissense_pathogenicity"] == pytest.approx(0.91)
+        assert result["rs1801133"]["alphamissense_class"] == "likely_pathogenic"
+
+    def test_skips_non_missense(
+        self,
+        sample_with_variants: sa.Engine,
+        vep_engine_inmemory: sa.Engine,
+        alphamissense_engine: sa.Engine,
+    ) -> None:
+        with sample_with_variants.connect() as conn:
+            raw_rows = conn.execute(sa.select(raw_variants)).fetchall()
+        raw_by_rsid = {r.rsid: r for r in raw_rows}
+        vep = {
+            "rs1801133": {"consequence": "synonymous_variant", "_vep_ref": "G", "_vep_alt": "A"}
+        }
+
+        assert (
+            _lookup_alphamissense(
+                ["rs1801133"],
+                raw_by_rsid,
+                vep,
+                {},
+                alphamissense_engine,
+            )
+            == {}
+        )
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Merge + bitmask
 # ═══════════════════════════════════════════════════════════════════════
@@ -460,6 +534,27 @@ class TestMergeAnnotations:
         assert len(merged) == 1
         assert merged[0]["rsid"] == "rs_none"
         assert merged[0]["annotation_coverage"] == 0
+
+    def test_alphamissense_sets_context_and_coverage_bit(self) -> None:
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, genotype TEXT)")
+            )
+            conn.execute(sa.text("INSERT INTO t VALUES ('rs1', '1', 100, 'AG')"))
+            row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
+
+        alpha = {
+            "rs1": {
+                "alphamissense_pathogenicity": 0.91,
+                "alphamissense_class": "likely_pathogenic",
+            }
+        }
+        merged = _merge_annotations([row], {}, {}, {}, {}, alphamissense_data=alpha)
+
+        assert merged[0]["alphamissense_pathogenicity"] == pytest.approx(0.91)
+        assert merged[0]["alphamissense_class"] == "likely_pathogenic"
+        assert merged[0]["annotation_coverage"] == ALPHAMISSENSE_BIT
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -571,6 +666,7 @@ class TestRunAnnotation:
         assert result.clinvar_matched > 0
         assert result.gnomad_matched > 0
         assert result.dbnsfp_matched > 0
+        assert result.alphamissense_matched > 0
         assert result.batches_processed >= 1
         assert result.errors == []
 
@@ -673,6 +769,25 @@ class TestRunAnnotation:
         # ...and an unmatched variant has no source-derived data.
         assert row.clinvar_significance is None
         assert row.zygosity is None
+
+    def test_alphamissense_context_attached_without_mutating_core_evidence(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        run_annotation(sample_with_variants, mock_registry)
+
+        with sample_with_variants.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs1801133")
+            ).fetchone()
+
+        assert row is not None
+        assert row.alphamissense_pathogenicity == pytest.approx(0.91)
+        assert row.alphamissense_class == "likely_pathogenic"
+        assert (row.annotation_coverage & ALPHAMISSENSE_BIT) == ALPHAMISSENSE_BIT
+        assert row.revel is not None
+        assert row.clinvar_significance == "drug_response"
 
     def test_crash_recovery_clears_previous(
         self,

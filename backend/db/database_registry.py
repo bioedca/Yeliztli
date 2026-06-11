@@ -800,7 +800,7 @@ def get_database_status(db_info: DatabaseInfo, settings: Settings) -> dict:
         downloaded = _check_db_version_exists(db_info.name, settings)
         file_size = None
     elif db_info.build_mode == "pipeline" and db_info.target_db == "standalone":
-        # Standalone pipeline DB (gnomad, dbnsfp): require both the file
+        # Standalone pipeline DB (gnomad, dbnsfp, alphamissense): require both the file
         # AND a database_versions entry. A file alone may be a partial
         # write from a crashed build.
         dest = db_info.dest_path(settings)

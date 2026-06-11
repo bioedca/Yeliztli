@@ -200,6 +200,9 @@ class TestSampleSchema:
         # dbNSFP
         for col in ["cadd_phred", "sift_score", "revel"]:
             assert col in cols, f"Missing column: {col}"
+        # AlphaMissense
+        for col in ["alphamissense_pathogenicity", "alphamissense_class"]:
+            assert col in cols, f"Missing column: {col}"
         # Bitmask
         assert "annotation_coverage" in cols
 
@@ -588,3 +591,67 @@ class TestSchemaMigration:
         assert row[0] == "cancer"
         assert row[1] == "rs80357906"
         assert row[2] is None, "pre-existing rows have NULL provenance until re-annotation"
+
+    def _create_v11_sample_db(self, db_path: Path) -> sa.Engine:
+        """Create a sample DB at v11 without AlphaMissense columns."""
+        engine = sa.create_engine(f"sqlite:///{db_path}")
+        with engine.connect() as conn:
+            conn.execute(sa.text("PRAGMA journal_mode=WAL"))
+            conn.execute(
+                sa.text(
+                    """CREATE TABLE annotated_variants (
+                        rsid TEXT PRIMARY KEY,
+                        chrom TEXT NOT NULL,
+                        pos INTEGER NOT NULL,
+                        ref TEXT,
+                        alt TEXT,
+                        genotype TEXT,
+                        revel REAL,
+                        annotation_coverage INTEGER
+                    )"""
+                )
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO annotated_variants "
+                    "(rsid, chrom, pos, ref, alt, genotype, revel, annotation_coverage) "
+                    "VALUES ('rs1801133', '1', 11856378, 'G', 'A', 'AG', 0.75, 15)"
+                )
+            )
+            conn.execute(sa.text("PRAGMA user_version = 11"))
+            conn.commit()
+        return engine
+
+    def test_upgrade_v11_adds_alphamissense_columns(self, tmp_path):
+        """v11 → v12 adds AlphaMissense context columns to annotated_variants."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v11_sample_db(db_path)
+
+        cols_before = _get_columns(db_path, "annotated_variants")
+        assert "alphamissense_pathogenicity" not in cols_before
+        assert "alphamissense_class" not in cols_before
+
+        updated = ensure_sample_schema_current(engine)
+        assert updated is True
+
+        cols_after = _get_columns(db_path, "annotated_variants")
+        assert "alphamissense_pathogenicity" in cols_after
+        assert "alphamissense_class" in cols_after
+
+    def test_upgrade_v11_preserves_existing_annotated_rows(self, tmp_path):
+        """The v11 → v12 upgrade preserves annotated rows and NULLs AlphaMissense fields."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v11_sample_db(db_path)
+        ensure_sample_schema_current(engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text(
+                    "SELECT rsid, revel, alphamissense_pathogenicity, alphamissense_class "
+                    "FROM annotated_variants"
+                )
+            ).fetchone()
+        assert row[0] == "rs1801133"
+        assert row[1] == 0.75
+        assert row[2] is None
+        assert row[3] is None

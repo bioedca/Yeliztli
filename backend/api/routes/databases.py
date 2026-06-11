@@ -725,6 +725,8 @@ def _execute_build(
                 target_engine = registry.gnomad_engine
             elif db_info.name == "dbnsfp":
                 target_engine = registry.dbnsfp_engine
+            elif db_info.name == "alphamissense":
+                target_engine = registry.alphamissense_engine
             else:
                 target_engine = engine
 
@@ -774,6 +776,14 @@ def _execute_build(
 
         # Call the build function — signatures vary slightly
         if db_info.name in ("gnomad", "dbnsfp"):
+            build_fn(
+                target_engine,
+                settings.data_dir,
+                download_progress=on_download_progress,
+                parse_progress=on_parse_progress,
+                reference_engine=engine,
+            )
+        elif db_info.name == "alphamissense":
             build_fn(
                 target_engine,
                 settings.data_dir,

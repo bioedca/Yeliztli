@@ -615,6 +615,17 @@ annotated_variants = sa.Table(
     sa.Column("phylop", sa.Float),
     sa.Column("mpc", sa.Float),
     sa.Column("primateai", sa.Float),
+    # AlphaMissense context-only missense predictions (bitmask bit 7)
+    sa.Column(
+        "alphamissense_pathogenicity",
+        sa.Float,
+        comment="AlphaMissense am_pathogenicity score; context only, not ACMG evidence",
+    ),
+    sa.Column(
+        "alphamissense_class",
+        sa.Text,
+        comment="AlphaMissense am_class label; context only, not ACMG evidence",
+    ),
     # dbSNP cross-reference
     sa.Column("dbsnp_build", sa.Integer, comment="dbSNP build where rsid first appeared"),
     sa.Column(
@@ -647,7 +658,8 @@ annotated_variants = sa.Table(
     # Evidence & conflict
     sa.Column("evidence_conflict", sa.Boolean, server_default=sa.text("0")),
     sa.Column("ensemble_pathogenic", sa.Boolean, server_default=sa.text("0")),
-    # Annotation coverage bitmask (6-bit: VEP|ClinVar|gnomAD|dbNSFP|CPIC|GWAS)
+    # Annotation coverage bitmask:
+    # VEP|ClinVar|gnomAD|dbNSFP|gene phenotype|GWAS|CPIC|AlphaMissense
     sa.Column("annotation_coverage", sa.Integer),
     # GRCh38 liftover (P4-19) — parallel coordinates, NULL if unmapped
     sa.Column("chrom_grch38", sa.Text, comment="GRCh38 chromosome (lifted from GRCh37)"),

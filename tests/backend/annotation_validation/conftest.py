@@ -39,6 +39,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.run_all import run_all_analyses
+from backend.annotation.alphamissense import create_alphamissense_table
 from backend.annotation.dbnsfp import create_dbnsfp_tables, load_dbnsfp_from_tsv
 from backend.annotation.engine import run_annotation
 from backend.annotation.gnomad import create_gnomad_tables
@@ -305,6 +306,24 @@ def _build_dbnsfp_db(db_path: Path, dbnsfp_rows: list[dict]) -> None:
         engine.dispose()
 
 
+def _build_alphamissense_db(db_path: Path, alphamissense_rows: list[dict]) -> None:
+    engine = sa.create_engine(f"sqlite:///{db_path}")
+    try:
+        create_alphamissense_table(engine)
+        if alphamissense_rows:
+            with engine.begin() as conn:
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO alphamissense_scores "
+                        "(chrom, pos, ref, alt, am_pathogenicity, am_class) "
+                        "VALUES (:chrom, :pos, :ref, :alt, :am_pathogenicity, :am_class)"
+                    ),
+                    alphamissense_rows,
+                )
+    finally:
+        engine.dispose()
+
+
 def _register_sample(
     registry: DBRegistry,
     *,
@@ -390,6 +409,7 @@ def build_live_run(tmp_data_dir: Path):
         vep: list[dict] | None = None,
         gnomad: list[dict] | None = None,
         dbnsfp_rows: list[dict] | None = None,
+        alphamissense_rows: list[dict] | None = None,
         run_analyses: bool = True,
     ) -> LiveRun:
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
@@ -407,6 +427,8 @@ def build_live_run(tmp_data_dir: Path):
         _build_vep_db(settings.vep_bundle_db_path, vep or [])
         _build_gnomad_db(settings.gnomad_db_path, gnomad or [])
         _build_dbnsfp_db(settings.dbnsfp_db_path, dbnsfp_rows or [])
+        if alphamissense_rows is not None:
+            _build_alphamissense_db(settings.alphamissense_db_path, alphamissense_rows)
 
         patcher = patch("backend.db.connection.get_settings", return_value=settings)
         patcher.start()

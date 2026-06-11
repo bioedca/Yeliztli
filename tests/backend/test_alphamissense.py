@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from backend.analysis.alphamissense import (
     ALPHAMISSENSE_PMID,
     alphamissense_badge,
+    alphamissense_badge_for_variant,
     classify_am_pathogenicity,
 )
 from backend.annotation import alphamissense as am
@@ -158,3 +159,28 @@ class TestBadge:
     def test_class_derived_from_score_when_missing(self) -> None:
         b = alphamissense_badge(0.95, None)
         assert b["am_class"] == "likely_pathogenic"
+
+    def test_variant_helper_uses_revel_criterion_without_casting_vote(self) -> None:
+        b = alphamissense_badge_for_variant(
+            0.95,
+            "likely_pathogenic",
+            revel=0.8,
+            consequence="missense_variant",
+        )
+        assert b["revel_concordance"] == "concordant"
+        assert b["acmg_vote"] is False
+
+    def test_variant_detail_payload_helper_attaches_context_badge(self) -> None:
+        from backend.api.routes.variant_detail import _attach_alphamissense_badge
+
+        payload = {
+            "alphamissense_pathogenicity": 0.95,
+            "alphamissense_class": "likely_pathogenic",
+            "revel": 0.8,
+            "consequence": "missense_variant",
+        }
+        _attach_alphamissense_badge(payload)
+
+        assert payload["alphamissense_badge"]["predictor"] == "AlphaMissense"
+        assert payload["alphamissense_badge"]["context_only"] is True
+        assert payload["alphamissense_badge"]["acmg_vote"] is False

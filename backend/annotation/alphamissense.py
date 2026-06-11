@@ -288,6 +288,7 @@ def download_and_load_alphamissense(
     download_progress: Callable[[int, int | None], None] | None = None,
     parse_progress: Callable[[int], None] | None = None,
     timeout: float = 1800.0,
+    reference_engine: sa.Engine | None = None,
 ) -> AlphaMissenseLoadStats:
     """Build-mode entry point: download AlphaMissense hg19 and load into ``alphamissense.db``.
 
@@ -314,7 +315,7 @@ def download_and_load_alphamissense(
     stats.version = ALPHAMISSENSE_VERSION
     stats.sha256 = _file_digest(tsv_path, "sha256")
     record_alphamissense_version(
-        engine,
+        reference_engine or engine,
         file_path=str(tsv_path),
         file_size_bytes=tsv_path.stat().st_size if tsv_path.exists() else None,
         checksum=stats.sha256,

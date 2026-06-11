@@ -1,6 +1,6 @@
 """Annotation engine orchestrator.
 
-Coordinates all annotation sources (VEP bundle, ClinVar, gnomAD, dbNSFP,
+Coordinates all annotation sources (VEP bundle, ClinVar, gnomAD, dbNSFP, AlphaMissense,
 gene-phenotype) via the DBRegistry batch lookup pattern.  Processes raw
 variants in 10k-variant batches with **concurrent lookups** across sources
 using ``ThreadPoolExecutor``, merges results in Python, computes the
@@ -24,12 +24,15 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.analysis.insilico_tiers import is_missense_consequence
 from backend.analysis.zygosity import classify_zygosity
+from backend.annotation.alphamissense import lookup_alphamissense_by_positions
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
     is_ensemble_pathogenic,
@@ -59,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 # Batch size for reading raw variants and writing annotations
 ENGINE_BATCH_SIZE = 10_000
+_VEP_ALLELE_BATCH_SIZE = 500
 
 # Annotation source bitmask bits (must match individual modules)
 VEP_BIT = 0b000001  # bit 0 = 1
@@ -71,6 +75,7 @@ GWAS_BIT = 0b0100000  # bit 5 = 32 (GWAS Catalog — P3-09a)
 # variant covered by gene-phenotype was otherwise indistinguishable from one
 # covered by CPIC. Bit 6 = 64 is the next free bit above GWAS.
 CPIC_BIT = 0b1000000  # bit 6 = 64 (CPIC/PharmGKB — P3-04a)
+ALPHAMISSENSE_BIT = 0b10000000  # bit 7 = 128 (AlphaMissense context — issue #55)
 
 # F22: ClinVar significances that disqualify a variant from inheriting its
 # gene's disease label. gene→phenotype is a *gene-level* association, so
@@ -124,6 +129,7 @@ class AnnotationEngineResult:
     clinvar_matched: int = 0
     gnomad_matched: int = 0
     dbnsfp_matched: int = 0
+    alphamissense_matched: int = 0
     gene_phenotype_matched: int = 0
     rows_written: int = 0
     batches_processed: int = 0
@@ -138,6 +144,7 @@ class AnnotationEngineResult:
     timing_clinvar_s: float = 0.0
     timing_gnomad_s: float = 0.0
     timing_dbnsfp_s: float = 0.0
+    timing_alphamissense_s: float = 0.0
     timing_gene_phenotype_s: float = 0.0
     timing_merge_s: float = 0.0
     timing_upsert_s: float = 0.0
@@ -203,6 +210,71 @@ def _lookup_vep(
             "mane_select": annot.mane_select,
         }
     return results
+
+
+def _lookup_vep_alleles(
+    rsids: list[str],
+    raw_by_rsid: dict[str, sa.Row],
+    matched_rsids: set[str],
+    vep_engine: sa.Engine,
+) -> dict[str, dict]:
+    """Fetch private VEP ref/alt allele identity for already matched variants."""
+    if not matched_rsids:
+        return {}
+
+    out: dict[str, dict] = {}
+    matched_list = [rsid for rsid in rsids if rsid in matched_rsids]
+
+    with vep_engine.connect() as conn:
+        for i in range(0, len(matched_list), _VEP_ALLELE_BATCH_SIZE):
+            batch = matched_list[i : i + _VEP_ALLELE_BATCH_SIZE]
+            placeholders = ", ".join(f":r{j}" for j in range(len(batch)))
+            params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
+            rows = conn.execute(
+                sa.text(
+                    "SELECT rsid, ref, alt FROM vep_annotations "  # noqa: S608
+                    f"WHERE rsid IN ({placeholders})"
+                ),
+                params,
+            ).fetchall()
+            for row in rows:
+                out.setdefault(row.rsid, {"_vep_ref": row.ref, "_vep_alt": row.alt})
+
+        remaining = [rsid for rsid in matched_list if rsid not in out]
+        for i in range(0, len(remaining), _VEP_ALLELE_BATCH_SIZE):
+            batch = remaining[i : i + _VEP_ALLELE_BATCH_SIZE]
+            clauses: list[str] = []
+            params: dict[str, str | int] = {}
+            for j, rsid in enumerate(batch):
+                raw = raw_by_rsid.get(rsid)
+                if raw is None:
+                    continue
+                chrom = getattr(raw, "chrom", None)
+                pos = getattr(raw, "pos", None)
+                if chrom is None or pos is None:
+                    continue
+                clauses.append(f"(chrom = :c{j} AND pos = :p{j})")
+                params[f"c{j}"] = str(chrom)
+                params[f"p{j}"] = int(pos)
+            if not clauses:
+                continue
+            rows = conn.execute(
+                sa.text(
+                    "SELECT chrom, pos, ref, alt FROM vep_annotations "
+                    f"WHERE {' OR '.join(clauses)}"
+                ),
+                params,
+            ).fetchall()
+            by_pos = {(str(row.chrom), int(row.pos)): row for row in rows}
+            for rsid in batch:
+                raw = raw_by_rsid.get(rsid)
+                if raw is None:
+                    continue
+                hit = by_pos.get((str(raw.chrom), int(raw.pos)))
+                if hit is not None:
+                    out[rsid] = {"_vep_ref": hit.ref, "_vep_alt": hit.alt}
+
+    return out
 
 
 def _lookup_clinvar(
@@ -392,6 +464,64 @@ def _lookup_dbnsfp(
     return results
 
 
+def _lookup_alphamissense(
+    rsids: list[str],
+    raw_by_rsid: dict[str, sa.Row],
+    vep_data: dict[str, dict],
+    clinvar_data: dict[str, dict],
+    alphamissense_engine: sa.Engine,
+) -> dict[str, dict]:
+    """Look up AlphaMissense context for missense variants by position/allele.
+
+    The AlphaMissense database is keyed by GRCh37 ``(chrom, pos, ref, alt)``.
+    Chip rows do not always carry ref/alt, so this adapter derives allele
+    identity from ClinVar when available and otherwise from the matched VEP row.
+    Only missense VEP consequences are queried; AlphaMissense is not meaningful
+    for non-missense changes.
+    """
+    if not rsids:
+        return {}
+
+    positions: list[tuple[str, int, str, str]] = []
+    key_to_rsids: dict[tuple[str, int, str, str], list[str]] = {}
+
+    for rsid in rsids:
+        raw = raw_by_rsid.get(rsid)
+        vep = vep_data.get(rsid)
+        if raw is None or not vep or not is_missense_consequence(vep.get("consequence")):
+            continue
+
+        chrom = getattr(raw, "chrom", None)
+        pos = getattr(raw, "pos", None)
+        if chrom is None or pos is None:
+            continue
+
+        clinvar = clinvar_data.get(rsid, {})
+        ref = clinvar.get("ref") or vep.get("_vep_ref") or getattr(raw, "ref", None)
+        alt = clinvar.get("alt") or vep.get("_vep_alt") or getattr(raw, "alt", None)
+        if not ref or not alt:
+            continue
+
+        try:
+            key = (str(chrom), int(pos), str(ref), str(alt))
+        except (TypeError, ValueError):
+            continue
+        if key not in key_to_rsids:
+            positions.append(key)
+        key_to_rsids.setdefault(key, []).append(rsid)
+
+    hits = lookup_alphamissense_by_positions(positions, alphamissense_engine)
+
+    results: dict[str, dict] = {}
+    for key, hit in hits.items():
+        for rsid in key_to_rsids.get(key, []):
+            results[rsid] = {
+                "alphamissense_pathogenicity": hit.get("am_pathogenicity"),
+                "alphamissense_class": hit.get("am_class"),
+            }
+    return results
+
+
 def _lookup_gene_phenotype(
     vep_data: dict[str, dict],
     reference_engine: sa.Engine,
@@ -473,6 +603,7 @@ def _merge_annotations(
     gnomad_data: dict[str, dict],
     dbnsfp_data: dict[str, dict],
     gene_phenotype_data: dict[str, dict] | None = None,
+    alphamissense_data: dict[str, dict] | None = None,
     merged_rsid_map: dict[str, str] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
@@ -485,6 +616,8 @@ def _merge_annotations(
     """
     if gene_phenotype_data is None:
         gene_phenotype_data = {}
+    if alphamissense_data is None:
+        alphamissense_data = {}
     if merged_rsid_map is None:
         merged_rsid_map = {}
 
@@ -520,6 +653,10 @@ def _merge_annotations(
         if rsid in dbnsfp_data:
             row_data.update(dbnsfp_data[rsid])
             bitmask |= DBNSFP_BIT
+
+        if rsid in alphamissense_data:
+            row_data.update(alphamissense_data[rsid])
+            bitmask |= ALPHAMISSENSE_BIT
 
         # F22: gate the gene-level disease label on the variant *not* being a
         # confident benign call. ClinVar is merged above, so ``clinvar_significance``
@@ -632,6 +769,9 @@ _UPSERT_COLUMNS = [
     "deleterious_count",
     "deleterious_total_assessed",
     "ensemble_pathogenic",
+    # AlphaMissense
+    "alphamissense_pathogenicity",
+    "alphamissense_class",
     # Gene-phenotype
     "disease_name",
     "disease_id",
@@ -981,6 +1121,24 @@ def _check_engine_available(
         return None
 
 
+def _registry_supports_engine(registry: DBRegistry, attr: str) -> bool:
+    """Return True when a registry-like object explicitly exposes an engine."""
+    return attr in dir(type(registry)) or attr in dir(registry)
+
+
+def _resolve_alphamissense_engine(registry: DBRegistry) -> sa.Engine:
+    """Resolve the optional AlphaMissense engine without creating an empty DB file."""
+    if not _registry_supports_engine(registry, "alphamissense_engine"):
+        raise FileNotFoundError("alphamissense engine is not configured")
+
+    settings = getattr(registry, "settings", None)
+    db_path = getattr(settings, "alphamissense_db_path", None)
+    if isinstance(db_path, Path) and not db_path.exists():
+        raise FileNotFoundError(f"AlphaMissense database not installed: {db_path}")
+
+    return registry.alphamissense_engine
+
+
 # ── Main entry point ─────────────────────────────────────────────────────
 
 
@@ -993,10 +1151,9 @@ def run_annotation(
 ) -> AnnotationEngineResult:
     """Run the full annotation engine on a sample.
 
-    Coordinates VEP bundle, ClinVar, gnomAD, dbNSFP, and gene-phenotype
-    lookups in parallel via ThreadPoolExecutor, merges results, computes
-    the annotation_coverage bitmask, and bulk-upserts into
-    annotated_variants.
+    Coordinates VEP bundle, ClinVar, gnomAD, dbNSFP, AlphaMissense, and
+    gene-phenotype lookups, merges results, computes the annotation_coverage
+    bitmask, and bulk-upserts into annotated_variants.
 
     Crash recovery: deletes all existing annotations before starting,
     then re-annotates from scratch.
@@ -1042,6 +1199,11 @@ def run_annotation(
     reference_engine = registry.reference_engine  # always available
     gnomad_engine = _check_engine_available(lambda: registry.gnomad_engine, "gnomad", result)
     dbnsfp_engine = _check_engine_available(lambda: registry.dbnsfp_engine, "dbnsfp", result)
+    alphamissense_engine = _check_engine_available(
+        lambda: _resolve_alphamissense_engine(registry),
+        "alphamissense",
+        result,
+    )
 
     # 3b. dbSNP merge reconciliation (F18): a chip may carry a deprecated rsid
     # whose ClinVar/gnomAD/dbNSFP record now lives under its current rsid. Build
@@ -1098,6 +1260,7 @@ def run_annotation(
             clinvar_data: dict[str, dict] = {}
             gnomad_data: dict[str, dict] = {}
             dbnsfp_data: dict[str, dict] = {}
+            alphamissense_data: dict[str, dict] = {}
 
             # Per-source timing: each future records its own wall-clock time.
             # Since sources run concurrently, we track per-source time for
@@ -1222,6 +1385,44 @@ def run_annotation(
                 else:
                     result.vep_coord_fallback_matched += vep_coord_count
 
+            if vep_engine is not None and vep_data:
+                try:
+                    for rsid, alleles in _lookup_vep_alleles(
+                        batch_rsids,
+                        raw_by_rsid,
+                        set(vep_data),
+                        vep_engine,
+                    ).items():
+                        vep_data[rsid].update(alleles)
+                except Exception as exc:
+                    msg = f"vep allele lookup failed: {exc}"
+                    logger.warning(
+                        "annotation_source_error",
+                        extra={"source": "vep_alleles", "error": str(exc)},
+                    )
+                    result.errors.append(msg)
+
+            # 5b. AlphaMissense context lookup (depends on VEP/ClinVar allele identity).
+            # It is context-only and never contributes an ACMG PP3/BP4 vote.
+            if alphamissense_engine is not None and vep_data:
+                try:
+                    t_am = time.perf_counter()
+                    alphamissense_data = _lookup_alphamissense(
+                        batch_rsids,
+                        raw_by_rsid,
+                        vep_data,
+                        clinvar_data,
+                        alphamissense_engine,
+                    )
+                    result.timing_alphamissense_s += time.perf_counter() - t_am
+                except Exception as exc:
+                    msg = f"alphamissense lookup failed: {exc}"
+                    logger.warning(
+                        "annotation_source_error",
+                        extra={"source": "alphamissense", "error": str(exc)},
+                    )
+                    result.errors.append(msg)
+
             # Per-source bucket attribution (Plan §5.6 / §15.1 MRG-09b).
             # For merged samples ``raw.source`` is ``"S1"`` / ``"S2"`` /
             # ``"both"``; for unmerged samples it is the empty-string default
@@ -1237,7 +1438,7 @@ def run_annotation(
                 else:
                     _bump_source(source_value, "vep_misses")
 
-            # 5b. Gene-phenotype lookup (depends on VEP gene_symbol results)
+            # 5c. Gene-phenotype lookup (depends on VEP gene_symbol results)
             gene_phenotype_data: dict[str, dict] = {}
             if vep_data:
                 try:
@@ -1261,6 +1462,7 @@ def run_annotation(
                 gnomad_data,
                 dbnsfp_data,
                 gene_phenotype_data,
+                alphamissense_data=alphamissense_data,
                 merged_rsid_map=current_by_old,
             )
 
@@ -1282,6 +1484,7 @@ def run_annotation(
             result.clinvar_matched += len(clinvar_data)
             result.gnomad_matched += len(gnomad_data)
             result.dbnsfp_matched += len(dbnsfp_data)
+            result.alphamissense_matched += len(alphamissense_data)
             result.gene_phenotype_matched += len(gene_phenotype_data)
             result.batches_processed += 1
 
@@ -1323,6 +1526,7 @@ def run_annotation(
             "clinvar": result.clinvar_matched,
             "gnomad": result.gnomad_matched,
             "dbnsfp": result.dbnsfp_matched,
+            "alphamissense": result.alphamissense_matched,
             "gene_phenotype": result.gene_phenotype_matched,
             "written": result.rows_written,
             "batches": result.batches_processed,
@@ -1331,6 +1535,7 @@ def run_annotation(
             "timing_clinvar_s": round(result.timing_clinvar_s, 3),
             "timing_gnomad_s": round(result.timing_gnomad_s, 3),
             "timing_dbnsfp_s": round(result.timing_dbnsfp_s, 3),
+            "timing_alphamissense_s": round(result.timing_alphamissense_s, 3),
             "timing_gene_phenotype_s": round(result.timing_gene_phenotype_s, 3),
             "timing_merge_s": round(result.timing_merge_s, 3),
             "timing_upsert_s": round(result.timing_upsert_s, 3),

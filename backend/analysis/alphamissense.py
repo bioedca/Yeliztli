@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.analysis.insilico_tiers import is_missense_consequence, revel_to_acmg_tier
 from backend.annotation.alphamissense import AM_BENIGN_MAX, AM_PATHOGENIC_MIN
 from backend.disclaimers import ALPHAMISSENSE_CONTEXT_ONLY
 
@@ -103,3 +104,27 @@ def alphamissense_badge(
         "pmid_citations": [ALPHAMISSENSE_PMID],
         "note": ALPHAMISSENSE_CONTEXT_ONLY,
     }
+
+
+def alphamissense_badge_for_variant(
+    am_pathogenicity: float | None,
+    am_class: str | None,
+    *,
+    revel: float | None,
+    consequence: str | None,
+) -> dict[str, Any] | None:
+    """Build the context-only badge for a variant row.
+
+    REVEL remains the only source of a PP3/BP4 computational evidence tier.
+    AlphaMissense only reports whether its direction is concordant with that
+    REVEL tier when one exists.
+    """
+    revel_tier = revel_to_acmg_tier(
+        revel,
+        is_missense=is_missense_consequence(consequence),
+    )
+    return alphamissense_badge(
+        am_pathogenicity,
+        am_class,
+        revel_criterion=revel_tier.criterion if revel_tier is not None else None,
+    )

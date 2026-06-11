@@ -30,7 +30,9 @@ logger = structlog.get_logger(__name__)
 #      (validation strategy F15 — population-max rarity denominator)
 # v11: Add provenance column to findings
 #      (SW-A4 #8 — per-finding source-release + version pinning, audit metadata)
-SAMPLE_SCHEMA_VERSION = 11
+# v12: Add AlphaMissense context-only columns to annotated_variants
+#      (missense pathogenicity prediction metadata; never ACMG evidence)
+SAMPLE_SCHEMA_VERSION = 12
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -286,6 +288,33 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 with engine.begin() as conn:
                     conn.execute(sa.text("ALTER TABLE findings ADD COLUMN provenance TEXT"))
                 logger.info("findings_provenance_column_added", from_version=from_version)
+                added = True
+
+    if from_version < 12:
+        # AlphaMissense is stored as context-only metadata alongside dbNSFP/REVEL.
+        # NULL on existing rows until the sample is re-annotated.
+        inspector = sa.inspect(engine)
+        if "annotated_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
+            added_alpha = False
+            with engine.begin() as conn:
+                if "alphamissense_pathogenicity" not in existing_cols:
+                    conn.execute(
+                        sa.text(
+                            "ALTER TABLE annotated_variants "
+                            "ADD COLUMN alphamissense_pathogenicity REAL"
+                        )
+                    )
+                    added_alpha = True
+                if "alphamissense_class" not in existing_cols:
+                    conn.execute(
+                        sa.text(
+                            "ALTER TABLE annotated_variants ADD COLUMN alphamissense_class TEXT"
+                        )
+                    )
+                    added_alpha = True
+            if added_alpha:
+                logger.info("alphamissense_columns_added", from_version=from_version)
                 added = True
 
     return added

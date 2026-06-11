@@ -255,6 +255,7 @@ class TestStampFindingsProvenance:
             engine.GENE_PHENOTYPE_BIT: "gene_phenotype",
             engine.GWAS_BIT: "GWAS",
             engine.CPIC_BIT: "CPIC",
+            engine.ALPHAMISSENSE_BIT: "AlphaMissense",
         }
         assert dict(_COVERAGE_BITS) == expected
 

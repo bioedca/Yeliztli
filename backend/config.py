@@ -158,6 +158,10 @@ class Settings(BaseSettings):
         return self.data_dir / "dbnsfp.db"
 
     @property
+    def alphamissense_db_path(self) -> Path:
+        return self.data_dir / "alphamissense.db"
+
+    @property
     def encode_ccres_db_path(self) -> Path:
         return self.data_dir / "encode_ccres.db"
 

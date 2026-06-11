@@ -187,12 +187,14 @@ def test_annotation_result_has_timing_fields() -> None:
     assert hasattr(result, "timing_clinvar_s")
     assert hasattr(result, "timing_gnomad_s")
     assert hasattr(result, "timing_dbnsfp_s")
+    assert hasattr(result, "timing_alphamissense_s")
     assert hasattr(result, "timing_gene_phenotype_s")
     assert hasattr(result, "timing_merge_s")
     assert hasattr(result, "timing_upsert_s")
     # All start at 0
     assert result.timing_vep_s == 0.0
     assert result.timing_dbnsfp_s == 0.0
+    assert result.timing_alphamissense_s == 0.0
 
 
 def test_annotation_populates_timing() -> None:
@@ -366,6 +368,7 @@ def test_annotation_10k_with_timing() -> None:
         + result.timing_clinvar_s
         + result.timing_gnomad_s
         + result.timing_dbnsfp_s
+        + result.timing_alphamissense_s
     )
     assert total_source_time > 0, "Source timing not populated"
 
@@ -375,6 +378,7 @@ def test_annotation_10k_with_timing() -> None:
     print(f"    ClinVar: {result.timing_clinvar_s:.3f}s")
     print(f"    gnomAD:  {result.timing_gnomad_s:.3f}s")
     print(f"    dbNSFP:  {result.timing_dbnsfp_s:.3f}s")
+    print(f"    AlphaM:  {result.timing_alphamissense_s:.3f}s")
     print(f"    GenePhe: {result.timing_gene_phenotype_s:.3f}s")
     print(f"    Merge:   {result.timing_merge_s:.3f}s")
     print(f"    Upsert:  {result.timing_upsert_s:.3f}s")
