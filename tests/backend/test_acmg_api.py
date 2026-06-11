@@ -141,6 +141,7 @@ class TestAcmgEndpoint:
         data = acmg_client.get("/api/analysis/acmg?sample_id=1").json()
         assert data["truncated"] is False
         assert data["total_candidates"] == 4
+        assert len(data["variants"]) == 4  # guard against a vacuous loop
         for v in data["variants"]:
             assert v["is_draft"] is True
             assert v["note"]
