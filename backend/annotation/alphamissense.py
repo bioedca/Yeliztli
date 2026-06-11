@@ -23,6 +23,7 @@ NOT a third independent in-silico vote — see :mod:`backend.analysis.alphamisse
 from __future__ import annotations
 
 import gzip
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -122,6 +123,15 @@ def _parse_float(value: str | None) -> float | None:
         return None
 
 
+def _file_digest(path: Path, algo: str) -> str:
+    """Streaming hex digest of a (possibly multi-GB) file."""
+    h = hashlib.new(algo)
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def create_alphamissense_table(engine: sa.Engine) -> None:
     """Create the alphamissense table + index if absent (idempotent)."""
     with bulk_write_connection(engine) as conn:
@@ -208,10 +218,15 @@ def load_alphamissense_from_csv(csv_path: Path, engine: sa.Engine) -> AlphaMisse
             if chrom is None or not row.get("pos"):
                 stats.skipped += 1
                 continue
+            try:
+                pos = int(row["pos"])
+            except (ValueError, TypeError):
+                stats.skipped += 1
+                continue
             batch.append(
                 {
                     "chrom": chrom,
-                    "pos": int(row["pos"]),
+                    "pos": pos,
                     "ref": (row.get("ref") or "").strip(),
                     "alt": (row.get("alt") or "").strip(),
                     "am_pathogenicity": _parse_float(row.get("am_pathogenicity")),
@@ -284,12 +299,25 @@ def download_and_load_alphamissense(
     tsv_path = download_alphamissense(
         dest_dir, progress_callback=download_progress, timeout=timeout
     )
+
+    # Integrity: verify the pinned MD5 before loading; a corrupt/truncated download
+    # must never silently populate the table with partial/garbage data.
+    actual_md5 = _file_digest(tsv_path, "md5")
+    if actual_md5 != ALPHAMISSENSE_MD5:
+        tsv_path.unlink(missing_ok=True)
+        raise ValueError(
+            f"AlphaMissense MD5 mismatch for {tsv_path.name}: expected "
+            f"{ALPHAMISSENSE_MD5}, got {actual_md5} — download corrupt, aborting."
+        )
+
     stats = load_alphamissense_from_tsv(tsv_path, engine)
     stats.version = ALPHAMISSENSE_VERSION
+    stats.sha256 = _file_digest(tsv_path, "sha256")
     record_alphamissense_version(
         engine,
         file_path=str(tsv_path),
         file_size_bytes=tsv_path.stat().st_size if tsv_path.exists() else None,
+        checksum=stats.sha256,
     )
     if download_progress is not None:
         download_progress(100, 100)

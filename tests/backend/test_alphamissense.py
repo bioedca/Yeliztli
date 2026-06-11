@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.alphamissense import (
@@ -11,8 +12,12 @@ from backend.analysis.alphamissense import (
     alphamissense_badge,
     classify_am_pathogenicity,
 )
+from backend.annotation import alphamissense as am
 from backend.annotation.alphamissense import (
+    ALPHAMISSENSE_MD5,
     create_alphamissense_table,
+    download_and_load_alphamissense,
+    load_alphamissense_from_csv,
     load_alphamissense_from_tsv,
     lookup_alphamissense_by_positions,
 )
@@ -74,6 +79,41 @@ def test_create_table_idempotent(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
     create_alphamissense_table(engine)
     create_alphamissense_table(engine)  # no error on second call
+
+
+def test_csv_invalid_pos_skipped(tmp_path: Path) -> None:
+    csv_path = tmp_path / "am.csv"
+    csv_path.write_text(
+        "chrom,pos,ref,alt,am_pathogenicity,am_class\n"
+        "chr1,100,G,A,0.9,likely_pathogenic\n"
+        "chr1,notanint,G,C,0.1,likely_benign\n",  # bad pos → skipped, not a crash
+        encoding="utf-8",
+    )
+    engine = _engine(tmp_path)
+    stats = load_alphamissense_from_csv(csv_path, engine)
+    assert stats.loaded == 1
+    assert stats.skipped == 1
+
+
+def test_md5_mismatch_aborts_and_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupt download (MD5 mismatch) must raise and not load anything."""
+
+    def fake_download(dest_dir: Path, **_kw: object) -> Path:
+        p = Path(dest_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        f = p / "AlphaMissense_hg19.tsv.gz"
+        f.write_bytes(b"corrupt-not-the-real-file")  # wrong MD5
+        return f
+
+    monkeypatch.setattr(am, "download_alphamissense", fake_download)
+    engine = _engine(tmp_path)
+    dl_dir = tmp_path / "dl"
+    with pytest.raises(ValueError, match="MD5 mismatch"):
+        download_and_load_alphamissense(engine, dl_dir)
+    assert ALPHAMISSENSE_MD5  # the pinned constant is what we validate against
+    assert not (dl_dir / "AlphaMissense_hg19.tsv.gz").exists()  # corrupt file removed
 
 
 def test_classify_thresholds() -> None:
