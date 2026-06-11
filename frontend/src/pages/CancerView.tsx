@@ -25,6 +25,7 @@ import type { CancerVariant } from "@/types/cancer"
 import VariantCard from "@/components/cancer/VariantCard"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import VariantDetailPanel from "@/components/cancer/VariantDetailPanel"
+import AbsoluteRiskOverlay from "@/components/cancer/AbsoluteRiskOverlay"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
 import ClinicalConfirmationGate from "@/components/ui/ClinicalConfirmationGate"
 
@@ -197,6 +198,9 @@ export default function CancerView() {
               <TraitArchitectureCard />
             </section>
           )}
+
+          {/* Opt-in breast absolute-risk overlay (SW-B8) */}
+          <AbsoluteRiskOverlay sampleId={sampleId} />
 
           {/* Empty state for PRS */}
           {prsQuery.data && prsQuery.data.items.length === 0 && (

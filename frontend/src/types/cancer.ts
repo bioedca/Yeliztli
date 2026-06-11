@@ -72,3 +72,29 @@ export interface CancerDisclaimerResponse {
   title: string
   text: string
 }
+
+/** Breast absolute-risk overlay (SW-B8, opt-in). Shape varies by consent. */
+export interface AbsoluteRiskMonogenic {
+  gene: string
+  cumulative_risk_to_80_pct: number | null
+  ci: string | null
+  pmid: string | null
+  note?: string
+}
+
+export interface AbsoluteRiskResponse {
+  consented: boolean
+  opt_in_required?: boolean
+  opt_in_prompt?: string
+  disclaimer: string
+  population_baseline?: {
+    lifetime_risk_pct: number
+    source: string
+    source_url: string
+    note: string
+  }
+  has_monogenic?: boolean
+  monogenic?: AbsoluteRiskMonogenic[]
+  prs_note?: string
+  canrisk?: { tool: string; url: string; pmid: string; note: string }
+}

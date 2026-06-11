@@ -1,7 +1,8 @@
 /** React Query hooks for cancer module API (P3-18). */
 
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
+  AbsoluteRiskResponse,
   CancerVariantsListResponse,
   CancerPRSListResponse,
   CancerDisclaimerResponse,
@@ -68,5 +69,41 @@ export function useCancerDisclaimer() {
       return res.json()
     },
     staleTime: Infinity,
+  })
+}
+
+/** Breast absolute-risk overlay (SW-B8, opt-in). */
+export function useAbsoluteRisk(sampleId: number | null) {
+  return useQuery({
+    queryKey: ["cancer-absolute-risk", sampleId],
+    queryFn: async (): Promise<AbsoluteRiskResponse> => {
+      const res = await fetch(`/api/analysis/cancer/absolute-risk?sample_id=${sampleId}`)
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(`Absolute risk failed: ${res.status}${text ? ` - ${text}` : ""}`)
+      }
+      return res.json()
+    },
+    enabled: sampleId != null,
+    staleTime: Infinity,
+  })
+}
+
+/** Set the breast absolute-risk opt-in consent, then refetch the overlay. */
+export function useSetAbsoluteRiskConsent(sampleId: number | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (consented: boolean) => {
+      const res = await fetch(
+        `/api/analysis/cancer/absolute-risk/consent?sample_id=${sampleId}&consented=${consented}`,
+        { method: "POST" },
+      )
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(`Consent failed: ${res.status}${text ? ` - ${text}` : ""}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cancer-absolute-risk", sampleId] }),
   })
 }
