@@ -15,9 +15,9 @@ guidance — the same "dropped diplotype" defect fixed for TPMT (#5) and DPYD.
 Phenotypes follow the CPIC CYP2C9 activity-score scheme (Normal function ``*1``=1,
 decreased ``*2``/``*8``/``*11``=0.5, ``*3``/``*5``/``*6`` contribute 0 to the
 phenotype-determining score): activity score 2 → Normal Metabolizer, 1.0–1.5 →
-Intermediate Metabolizer, 0–0.5 → Poor Metabolizer. (The ``activity_score`` CSV
-column itself is the naive allele-value sum, matching the pre-existing
-``*2/*3``→PM@1.0 and ``*3/*3``→PM@1.0 rows.)
+Intermediate Metabolizer, 0–0.5 → Poor Metabolizer. The ``activity_score`` CSV
+column uses the same allele-value sum, so ``*3`` contributes 0 in both phenotype
+translation and reported activity scores.
 
 CYP2C9 ``*6`` caveat — rs9332131 is a single-base deletion. The caller can type
 the allele when raw data represents the site with D/I tokens (``DI`` ->
@@ -64,30 +64,40 @@ _CYP2C9_SNP = {
 _CYP2C9_INDEL = {"rs9332131": ("10", 96709038, "GA", "G")}  # *6 deletion
 
 # Every diplotype row added for issue #14 -> (expected phenotype, activity_score).
-# activity_score is the naive allele-value sum (*1=1, *2/*3/*8/*11=0.5, *5/*6=0).
+# activity_score is the CPIC allele-value sum (*1=1, *2/*8/*11=0.5, *3/*5/*6=0).
 _NEW_DIPLOTYPES = {
     "*1/*5": ("Intermediate Metabolizer", 1.0),
     "*2/*5": ("Poor Metabolizer", 0.5),
-    "*3/*5": ("Poor Metabolizer", 0.5),
+    "*3/*5": ("Poor Metabolizer", 0.0),
     "*5/*5": ("Poor Metabolizer", 0.0),
     "*5/*6": ("Poor Metabolizer", 0.0),
     "*5/*8": ("Poor Metabolizer", 0.5),
     "*5/*11": ("Poor Metabolizer", 0.5),
     "*1/*6": ("Intermediate Metabolizer", 1.0),
     "*2/*6": ("Poor Metabolizer", 0.5),
-    "*3/*6": ("Poor Metabolizer", 0.5),
+    "*3/*6": ("Poor Metabolizer", 0.0),
     "*6/*6": ("Poor Metabolizer", 0.0),
     "*6/*8": ("Poor Metabolizer", 0.5),
     "*6/*11": ("Poor Metabolizer", 0.5),
     "*1/*8": ("Intermediate Metabolizer", 1.5),
     "*2/*8": ("Intermediate Metabolizer", 1.0),
-    "*3/*8": ("Poor Metabolizer", 1.0),
+    "*3/*8": ("Poor Metabolizer", 0.5),
     "*8/*8": ("Intermediate Metabolizer", 1.0),
     "*8/*11": ("Intermediate Metabolizer", 1.0),
     "*1/*11": ("Intermediate Metabolizer", 1.5),
     "*2/*11": ("Intermediate Metabolizer", 1.0),
-    "*3/*11": ("Poor Metabolizer", 1.0),
+    "*3/*11": ("Poor Metabolizer", 0.5),
     "*11/*11": ("Intermediate Metabolizer", 1.0),
+}
+
+_STAR3_DIPLOTYPES = {
+    "*1/*3": ("Intermediate Metabolizer", 1.0),
+    "*2/*3": ("Poor Metabolizer", 0.5),
+    "*3/*3": ("Poor Metabolizer", 0.0),
+    "*3/*5": ("Poor Metabolizer", 0.0),
+    "*3/*6": ("Poor Metabolizer", 0.0),
+    "*3/*8": ("Poor Metabolizer", 0.5),
+    "*3/*11": ("Poor Metabolizer", 0.5),
 }
 
 
@@ -154,6 +164,32 @@ def test_new_diplotype_rows_resolve_to_expected_phenotype(
     assert row["ehr_notation"] == f"CYP2C9 {expected_phenotype}"
 
 
+def test_star3_allele_is_no_function(reference_engine: sa.Engine) -> None:
+    """CYP2C9*3 contributes 0 to activity-score calculations."""
+    star3 = next(
+        allele
+        for allele in _fetch_alleles_for_gene("CYP2C9", reference_engine)
+        if allele["allele_name"] == "*3"
+    )
+
+    assert star3["function"] == "No function"
+    assert star3["activity_score"] == 0.0
+
+
+@pytest.mark.parametrize(("diplotype", "expected"), sorted(_STAR3_DIPLOTYPES.items()))
+def test_star3_diplotype_rows_use_no_function_activity(
+    reference_engine: sa.Engine, diplotype: str, expected: tuple[str, float]
+) -> None:
+    """Every shipped CYP2C9*3 diplotype uses the *3=0 activity value."""
+    expected_phenotype, expected_activity = expected
+    row = _fetch_diplotype_phenotype("CYP2C9", diplotype, reference_engine)
+
+    assert row is not None, f"CYP2C9 {diplotype} has no diplotype→phenotype row"
+    assert row["phenotype"] == expected_phenotype
+    assert row["activity_score"] == expected_activity
+    assert row["ehr_notation"] == f"CYP2C9 {expected_phenotype}"
+
+
 def test_reference_is_normal_metabolizer(reference_engine: sa.Engine) -> None:
     """A plus-strand homozygous-reference CYP2C9 sample is *1/*1 Normal.
 
@@ -190,6 +226,45 @@ def test_star6_di_encoded_indel_is_callable(
     assert "*6" not in result.indeterminate_alleles
     if "*6" in diplotype:
         assert "rs9332131" in result.involved_rsids
+
+
+@pytest.mark.parametrize(
+    ("overrides", "diplotype", "phenotype", "activity_score"),
+    [
+        ({"rs1057910": "AC"}, "*1/*3", "Intermediate Metabolizer", 1.0),
+        (
+            {"rs1799853": "CT", "rs1057910": "AC"},
+            "*2/*3",
+            "Poor Metabolizer",
+            0.5,
+        ),
+        ({"rs1057910": "CC"}, "*3/*3", "Poor Metabolizer", 0.0),
+    ],
+)
+def test_star3_calls_use_no_function_activity(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    diplotype: str,
+    phenotype: str,
+    activity_score: float,
+) -> None:
+    """Caller and alert payloads report CYP2C9*3 as a no-function allele."""
+    result = _call_cyp2c9(reference_engine, _cyp2c9_genotypes(**overrides))
+    assert result.diplotype == diplotype
+    assert result.phenotype == phenotype
+    assert result.activity_score == activity_score
+
+    sample = _make_sample(_cyp2c9_genotypes(**overrides))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    cyp2c9_alerts = [a for a in alerts if a.gene == "CYP2C9"]
+    assert cyp2c9_alerts
+    assert {a.drug for a in cyp2c9_alerts} == {"warfarin", "phenytoin"}
+    for alert in cyp2c9_alerts:
+        assert alert.diplotype == diplotype
+        assert alert.phenotype == phenotype
+        assert alert.activity_score == activity_score
 
 
 @pytest.mark.parametrize(

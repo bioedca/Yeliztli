@@ -17,7 +17,7 @@ CYP2C19,*4,"[{""rsid"":""rs28399504"",""ref"":""A"",""alt"":""G""}]",No function
 CYP2C19,*17,"[{""rsid"":""rs12248560"",""ref"":""C"",""alt"":""T""}]",Increased function,1.5
 CYP2C9,*1,"[]",Normal function,1.0
 CYP2C9,*2,"[{""rsid"":""rs1799853"",""ref"":""C"",""alt"":""T""}]",Decreased function,0.5
-CYP2C9,*3,"[{""rsid"":""rs1057910"",""ref"":""A"",""alt"":""C""}]",Decreased function,0.5
+CYP2C9,*3,"[{""rsid"":""rs1057910"",""ref"":""A"",""alt"":""C""}]",No function,0.0
 CYP2C9,*5,"[{""rsid"":""rs28371686"",""ref"":""C"",""alt"":""G""}]",No function,0.0
 CYP2C9,*6,"[{""rsid"":""rs9332131"",""ref"":""GA"",""alt"":""G""}]",No function,0.0
 CYP2C9,*8,"[{""rsid"":""rs7900194"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.5
