@@ -46,6 +46,7 @@ from backend.db.tables import (
 # ``Depends(require_fresh_sample)`` after step 13).
 _FULLY_GATED_MODULES = frozenset(
     {
+        "acmg",
         "allergy",
         "alpha1",
         "amd",

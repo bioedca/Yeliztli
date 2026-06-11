@@ -11,6 +11,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from backend.api.routes.acmg import router as acmg_router
 from backend.api.routes.admin import router as admin_router
 from backend.api.routes.allergy import router as allergy_router
 from backend.api.routes.alpha1 import router as alpha1_router
@@ -178,6 +179,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": VERSION}
 
     # API routes (must be included BEFORE static mount)
+    api_router.include_router(acmg_router)
     api_router.include_router(admin_router)
     api_router.include_router(auth_router)
     api_router.include_router(allergy_router)

@@ -873,6 +873,28 @@ GENE_VALIDITY_CONTEXT_ONLY = (
 )
 
 
+# ── DRAFT ACMG/AMP classification disclosure (SW-F1 / roadmap #13) ─────────────
+# Attached to every draft ACMG/AMP classification (backend.analysis.acmg). This is
+# an automated, NON-CLINICAL reimplementation of a subset of the 2015 ACMG/AMP
+# criteria (Richards 2015) combined with the Tavtigian (2018/2020) Bayesian point
+# system, with PVS1 following the Abou-Tayoun (2018) decision tree. It is a
+# computational starting point only: it cannot apply the case-level, segregation,
+# de-novo, functional, or phasing criteria that require clinical data, and from
+# unphased array genotypes PM3 (in-trans) is never assessable. It NEVER changes a
+# finding's stored evidence level or ClinVar significance, and a draft "Pathogenic"
+# is not a clinical diagnosis.
+
+ACMG_DRAFT_CONTEXT_ONLY = (
+    "DRAFT automated ACMG/AMP classification (non-clinical; context only). This is a "
+    "computational estimate from a subset of ACMG/AMP criteria (Richards 2015) scored "
+    "with the Tavtigian point system; it does NOT replace clinical variant curation. "
+    "Many criteria (functional studies, segregation, de novo, phase/in-trans) cannot "
+    "be assessed from array data, so the draft can differ from an expert/ClinVar "
+    "classification. It does NOT change this finding's evidence level or ClinVar "
+    "significance — confirm any actionable variant in a CLIA/accredited laboratory."
+)
+
+
 # ── DPYD fluoropyrimidine absent-allele / fatal-toxicity caveat (SW-E5) ───────
 # Attached to every DPYD prescribing-alert finding (gene_caveat in detail_json,
 # surfaced by backend.api.routes.pharma). DPYD encodes dihydropyrimidine
