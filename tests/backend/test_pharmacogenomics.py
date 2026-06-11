@@ -511,6 +511,21 @@ class TestCountAltAlleles:
     def test_indel_alleles(self):
         assert _count_alt_alleles("CT", "CT", "C") is None
 
+    def test_deletion_indel_het(self):
+        assert _count_alt_alleles("DI", "AT", "A") == 1
+
+    def test_deletion_indel_hom_ref(self):
+        assert _count_alt_alleles("II", "AT", "A") == 0
+
+    def test_deletion_indel_hom_alt(self):
+        assert _count_alt_alleles("DD", "AT", "A") == 2
+
+    def test_insertion_indel_het(self):
+        assert _count_alt_alleles("DI", "A", "AT") == 1
+
+    def test_equal_length_repeat_alleles_stay_uncallable(self):
+        assert _count_alt_alleles("DI", "TA6", "TA7") is None
+
     def test_empty_genotype(self):
         assert _count_alt_alleles("", "C", "T") is None
 

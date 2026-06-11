@@ -60,6 +60,11 @@ CYP3A5,*1/*3,Intermediate Metabolizer,CYP3A5 Intermediate Metabolizer,1.0
 CYP3A5,*3/*3,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
 CYP3A5,*1/*6,Intermediate Metabolizer,CYP3A5 Intermediate Metabolizer,1.0
 CYP3A5,*3/*6,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
+CYP3A5,*1/*7,Intermediate Metabolizer,CYP3A5 Intermediate Metabolizer,1.0
+CYP3A5,*3/*7,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
+CYP3A5,*6/*6,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
+CYP3A5,*6/*7,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
+CYP3A5,*7/*7,Poor Metabolizer,CYP3A5 Poor Metabolizer,0.0
 DPYD,*1/*1,Normal Metabolizer,DPYD Normal Metabolizer,2.0
 DPYD,*1/*2A,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
 DPYD,*2A/*2A,Poor Metabolizer,DPYD Poor Metabolizer,0.0

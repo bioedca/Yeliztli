@@ -1,10 +1,11 @@
-"""SW-E1 panel expansion — NUDT15 + UGT1A1, production-CSV-backed.
+"""SW-E1 panel expansion and PGx regressions, production-CSV-backed.
 
 Validates the shipped ``backend/data/cpic/*.csv`` definitions the caller and
 prescribing-alert generator actually consume: NUDT15 thiopurine metabolizer
-calls, UGT1A1 irinotecan/atazanavir calls, and the explicit *indeterminate*
-flag for the UGT1A1*28 TATA-box TA-repeat (which a SNP array cannot type).
-All genotypes are GRCh37 plus/forward strand (as real 23andMe data is).
+calls, UGT1A1 irinotecan/atazanavir calls, CYP3A5 tacrolimus calls, and the
+explicit *indeterminate* flag for the UGT1A1*28 TATA-box TA-repeat (which a SNP
+array cannot type). All genotypes are GRCh37 plus/forward strand (as real
+23andMe data is); simple indels use the parser's canonical D/I tokens.
 """
 
 from __future__ import annotations
@@ -35,6 +36,11 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 _NUDT15_RS = "rs116855232"  # *3 c.415C>T No function; ref=C alt=T
 _UGT1A1_6 = "rs4148323"  # *6 c.211G>A Decreased; ref=G alt=A
 _UGT1A1_28 = "rs8175347"  # *28 TA-repeat (non-SNV) — not array-typeable
+_CYP3A5 = {
+    "rs776746": "T",  # *3
+    "rs10264272": "C",  # *6
+    "rs41303343": "I",  # *7 deletion, reference allele is insertion/present sequence
+}
 
 
 @pytest.fixture(scope="module")
@@ -53,6 +59,12 @@ def reference_engine() -> sa.Engine:
 def _call(gene: str, genotypes: dict[str, str], reference_engine: sa.Engine):
     alleles = _fetch_alleles_for_gene(gene, reference_engine)
     return call_star_alleles_for_gene(gene, alleles, genotypes, reference_engine)
+
+
+def _cyp3a5_genotypes(**overrides: str) -> dict[str, str]:
+    geno = {rsid: ref * 2 for rsid, ref in _CYP3A5.items()}
+    geno.update(overrides)
+    return geno
 
 
 def _make_sample(genotypes: dict[str, str]) -> sa.Engine:
@@ -142,6 +154,56 @@ def test_ugt1a1_star6_hom_is_poor_with_irinotecan_alert(reference_engine: sa.Eng
     for a in alerts:
         if a.gene == "UGT1A1":
             assert "*28" in a.indeterminate_alleles
+
+
+# ── CYP3A5 (tacrolimus) + typed *7 deletion ──────────────────────────────────
+
+
+def test_cyp3a5_star7_het_is_intermediate(reference_engine: sa.Engine) -> None:
+    result = _call(
+        "CYP3A5",
+        _cyp3a5_genotypes(rs41303343="DI"),
+        reference_engine,
+    )
+    assert result.diplotype == "*1/*7"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "rs41303343" in result.involved_rsids
+    assert "rs41303343" not in result.uncalled_rsids
+
+
+@pytest.mark.parametrize(
+    ("overrides", "diplotype", "phenotype"),
+    [
+        ({"rs776746": "TC", "rs41303343": "DI"}, "*3/*7", "Poor Metabolizer"),
+        ({"rs10264272": "TT"}, "*6/*6", "Poor Metabolizer"),
+        ({"rs10264272": "CT", "rs41303343": "DI"}, "*6/*7", "Poor Metabolizer"),
+        ({"rs41303343": "DD"}, "*7/*7", "Poor Metabolizer"),
+    ],
+)
+def test_cyp3a5_no_function_star7_diplotypes_are_mapped(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    diplotype: str,
+    phenotype: str,
+) -> None:
+    result = _call("CYP3A5", _cyp3a5_genotypes(**overrides), reference_engine)
+    assert result.diplotype == diplotype
+    assert result.phenotype == phenotype
+
+
+def test_cyp3a5_star7_het_emits_tacrolimus_alert(reference_engine: sa.Engine) -> None:
+    sample = _make_sample(_cyp3a5_genotypes(rs41303343="DI"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*1/*7"
+    assert cyp3a5.phenotype == "Intermediate Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert tac
+    assert tac[0].diplotype == "*1/*7"
+    assert tac[0].phenotype == "Intermediate Metabolizer"
 
 
 # ── PharmVar versioning ───────────────────────────────────────────────────────

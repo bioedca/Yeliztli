@@ -72,6 +72,7 @@ from backend.disclaimers import CYP2D6_CNV_CAVEAT, DPYD_FLUOROPYRIMIDINE_CAVEAT
 logger = structlog.get_logger(__name__)
 
 _STAR_ALLELE_RE = re.compile(r"^\*?(\d+)(.*)")
+_TRUE_NO_CALLS: frozenset[str] = frozenset({"", "--", "??", "-", "0", "00"})
 
 # Genes with known structural variant complexity (copy number variation,
 # gene conversion, hybrid alleles) that array genotyping cannot resolve.
@@ -160,6 +161,42 @@ class StarAlleleResult:
         return max(0, self.defining_rsid_count - len(unusable))
 
 
+def _indel_alt_token(ref: str, alt: str) -> str | None:
+    """Return the D/I token for a simple indel whose ALT defines the star allele."""
+    ref = ref.upper()
+    alt = alt.upper()
+    if not ref or not alt or len(ref) == len(alt):
+        return None
+    if len(ref) > len(alt):
+        return "D" if ref.startswith(alt) or ref.endswith(alt) else None
+    return "I" if alt.startswith(ref) or alt.endswith(ref) else None
+
+
+def _count_indel_alt_alleles(genotype: str | None, ref: str, alt: str) -> int | None:
+    """Count copies of a declared simple indel ALT from I/D raw genotype tokens."""
+    if genotype is None:
+        return None
+    gt = genotype.strip().upper()
+    if gt in _TRUE_NO_CALLS:
+        return None
+
+    alt_token = _indel_alt_token(ref, alt)
+    if alt_token is None:
+        return None
+    ref_token = "I" if alt_token == "D" else "D"
+
+    if len(gt) == 1:
+        alleles = [gt]
+    elif len(gt) == 2:
+        alleles = list(gt)
+    else:
+        return None
+
+    if any(a not in {ref_token, alt_token} for a in alleles):
+        return None
+    return min(sum(1 for a in alleles if a == alt_token), 2)
+
+
 def _count_alt_alleles(genotype: str, ref: str, alt: str) -> int | None:
     """Count how many copies of the alt allele are in a genotype string.
 
@@ -170,15 +207,14 @@ def _count_alt_alleles(genotype: str, ref: str, alt: str) -> int | None:
 
     Returns:
         Number of alt alleles (0, 1, or 2), or None if the genotype
-        cannot be interpreted (no-call, indel, unexpected bases).
+        cannot be interpreted (no-call, unsupported indel, unexpected bases).
     """
+    if len(ref) > 1 or len(alt) > 1:
+        return _count_indel_alt_alleles(genotype, ref, alt)
+
     if is_no_call(genotype):
         return None
     if len(genotype) < 2:
-        return None
-
-    # For indel-type alleles (multi-char ref or alt), array data is unreliable
-    if len(ref) > 1 or len(alt) > 1:
         return None
 
     g1, g2 = genotype[0], genotype[1]
