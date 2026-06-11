@@ -39,6 +39,12 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
     create_sample_tables(sample_engine)
 
+    # A second sample (non-carrier female negative control): a dummy non-PAR chrX
+    # het makes her dispositive XX, with a reference G6PD allele → "normal".
+    noncarrier_db_path = tmp_data_dir / "samples" / "sample_2.db"
+    noncarrier_engine = sa.create_engine(f"sqlite:///{noncarrier_db_path}")
+    create_sample_tables(noncarrier_engine)
+
     with ref_engine.begin() as conn:
         conn.execute(
             samples.insert().values(
@@ -49,6 +55,15 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 file_hash="abc123",
             )
         )
+        conn.execute(
+            samples.insert().values(
+                id=2,
+                name="Non-carrier",
+                db_path="samples/sample_2.db",
+                file_format="v5",
+                file_hash="def456",
+            )
+        )
     # A heterozygous non-PAR chrX call is dispositive for XX; a het A- allele then
     # yields the safety-critical "variable" phenotype (X-inactivation).
     with sample_engine.begin() as conn:
@@ -56,9 +71,20 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             raw_variants.insert(),
             [{"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CT"}],
         )
+    with noncarrier_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                # Dummy non-PAR chrX het → dispositive XX.
+                {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
+                # Reference G6PD A- allele → no deficiency.
+                {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CC"},
+            ],
+        )
 
     ref_engine.dispose()
     sample_engine.dispose()
+    noncarrier_engine.dispose()
 
     with (
         patch("backend.main.get_settings", return_value=settings),
@@ -87,6 +113,14 @@ class TestG6pdEndpoint:
         assert data["any_called"] is True
         assert data["note"]
         assert data["pmid_citations"]
+
+    def test_noncarrier_is_normal(self, g6pd_client: TestClient) -> None:
+        # Negative control: non-carrier female → normal, no risk surfaced.
+        data = g6pd_client.get("/api/analysis/g6pd?sample_id=2").json()
+        assert data["inferred_sex"] == "XX"
+        assert data["phenotype"] == "normal"
+        assert data["at_risk"] is False
+        assert data["high_risk_drugs"] == []
 
     def test_invalid_sample_returns_404(self, g6pd_client: TestClient) -> None:
         assert g6pd_client.get("/api/analysis/g6pd?sample_id=999").status_code == 404

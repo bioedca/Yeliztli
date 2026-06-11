@@ -112,10 +112,19 @@ class TestAssessG6pd:
         # A- het + Mediterranean het = two deficient X's → deficient.
         r = self._assess("XX", {G6PD_A_MINUS_RSID: "CT", G6PD_MED_RSID: "GA"})
         assert r["phenotype"] == "deficient"
+        assert r["at_risk"] is True
+        assert r["high_risk_drugs"]  # drug context surfaced for the deficient compound
+        # Both deficiency loci were callable and each contributed an allele.
+        by_rsid = {v["rsid"]: v for v in r["variants"]}
+        assert by_rsid[G6PD_A_MINUS_RSID]["deficiency_alleles"] == 1
+        assert by_rsid[G6PD_MED_RSID]["deficiency_alleles"] == 1
 
     def test_female_reference_normal(self) -> None:
+        # Negative control: no deficiency allele → no risk surfaced.
         r = self._assess("XX", {G6PD_A_MINUS_RSID: "CC", G6PD_MED_RSID: "GG"})
         assert r["phenotype"] == "normal"
+        assert r["at_risk"] is False
+        assert r["high_risk_drugs"] == []
 
     def test_unknown_sex_with_deficiency_surfaces_drug_warning(self) -> None:
         r = self._assess("unknown", {G6PD_A_MINUS_RSID: "CT"})
