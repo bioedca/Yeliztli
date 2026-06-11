@@ -919,6 +919,27 @@ G6PD_PGX_CONTEXT_ONLY = (
 )
 
 
+PGX_SOURCES_CONTEXT_ONLY = (
+    "Cross-source pharmacogenomic evidence (PharmGKB + DPWG + FDA; context only). For each "
+    "drug your CPIC report already flags, this shows the corroborating evidence from other "
+    "authorities: the PharmGKB Level of Evidence (1A is the strongest, guideline-backed), "
+    "whether the Dutch Pharmacogenetics Working Group (DPWG) also publishes a recommendation, "
+    "and the FDA pharmacogenomic labeling status. It is interpretive context that does NOT "
+    "change any finding or the CPIC recommendation; prescribing decisions belong with your "
+    "care team. PharmGKB data is reused under CC-BY-SA 4.0 (see NOTICE)."
+)
+
+
+GTEX_EQTL_CONTEXT_ONLY = (
+    "GTEx eQTL regulatory context (GTEx v8; context only). An eQTL means a variant is "
+    "statistically ASSOCIATED with a gene's expression level in a tissue — it is NOT proof "
+    "that the variant causes the expression change or any disease (the true causal variant is "
+    "often a correlated neighbor in linkage disequilibrium). This regulatory context is shown "
+    "for typed non-coding variants only; it NEVER changes a finding and is deliberately NOT "
+    "counted as ACMG evidence (no PP3/PS3 uplift). Discuss interpretation with your care team."
+)
+
+
 ALPHAMISSENSE_CONTEXT_ONLY = (
     "AlphaMissense missense pathogenicity (Cheng 2023; context only). A structure-based "
     "AI prediction shown as a COMPLEMENT to the REVEL in-silico evidence — because "

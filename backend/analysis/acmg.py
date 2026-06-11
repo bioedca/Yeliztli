@@ -24,6 +24,9 @@ cannot provide are deliberately *not assessed* (see ``UNASSESSABLE_CRITERIA``):
   does not ship.
 
 Computed criteria: PVS1, PM2, PM4, PP2, PP3, BA1, BS1, BP4, BP7.
+PP2 is applied only when explicit curated evidence says pathogenic missense is a
+common disease mechanism for the gene; gnomAD missense constraint alone is not
+enough.
 """
 
 from __future__ import annotations
@@ -106,7 +109,10 @@ BS1_AF_MIN = 0.01
 # population AF below 0.01%; a NULL local annotation is treated as missing
 # frequency evidence, not confirmed absence from gnomAD.
 PM2_AF_MAX = 1e-4
-# PP2: missense in a missense-constrained gene (gnomAD mis_z ≥ 3.09 ≈ top decile).
+# PP2: missense in a gene where benign missense variation is low and pathogenic
+# missense variation is a common disease mechanism. gnomAD mis_z approximates the
+# low-benign-rate condition; a curated disease-mechanism signal must satisfy the
+# independent common-pathogenic-missense condition.
 PP2_MISZ_MIN = 3.09
 
 # SO consequence tokens.
@@ -163,6 +169,9 @@ class AcmgEvidence:
     # Gene-level context from an explicit, mechanism-specific source.
     gene_lof_mechanism: bool = False  # LoF is a plausible disease mechanism for the gene
     gene_missense_z: float | None = None
+    gene_missense_pathogenic_mechanism: bool | None = None
+    # True only when curated gene/disease evidence says pathogenic missense is a
+    # common disease mechanism. None means this engine has no such source.
     clinvar_significance: str | None = None
 
 
@@ -268,6 +277,7 @@ def criterion_pm4(ev: AcmgEvidence) -> AcmgCriterion | None:
 def criterion_pp2(ev: AcmgEvidence) -> AcmgCriterion | None:
     if (
         is_missense_consequence(ev.consequence)
+        and ev.gene_missense_pathogenic_mechanism is True
         and ev.gene_missense_z is not None
         and ev.gene_missense_z >= PP2_MISZ_MIN
     ):
@@ -276,8 +286,9 @@ def criterion_pp2(ev: AcmgEvidence) -> AcmgCriterion | None:
             "pathogenic",
             "Supporting",
             _points_for("pathogenic", "Supporting"),
-            f"Missense in a missense-constrained gene (gnomAD mis_z "
-            f"{ev.gene_missense_z:.2f} ≥ {PP2_MISZ_MIN}).",
+            "Missense in a gene with curated pathogenic-missense disease "
+            f"mechanism evidence and low benign missense variation (gnomAD "
+            f"mis_z {ev.gene_missense_z:.2f} ≥ {PP2_MISZ_MIN}).",
         )
     return None
 
@@ -374,11 +385,17 @@ def classify_acmg(ev: AcmgEvidence) -> AcmgResult:
     total = sum(c.points for c in criteria)
     standalone_benign = any(c.code == "BA1" for c in criteria)
     classification = classify_points(total, standalone_benign=standalone_benign)
+    unassessable = dict(UNASSESSABLE_CRITERIA)
+    if ev.gene_missense_pathogenic_mechanism is None:
+        unassessable["PP2"] = (
+            "needs curated evidence that pathogenic missense variation is a common "
+            "disease mechanism for the gene; missense constraint alone is context"
+        )
     return AcmgResult(
         classification=classification,
         points=total,
         criteria=criteria,
-        unassessable=dict(UNASSESSABLE_CRITERIA),
+        unassessable=unassessable,
     )
 
 
@@ -468,8 +485,8 @@ def assess_sample_acmg(
         constraint = constraints.get(gene or "")
         # The sample endpoint currently has no curated disease-mechanism or
         # dosage-sensitivity source. gnomAD constraint and ClinGen gene-disease
-        # validity are context-only and must not substitute for PVS1 LoF
-        # mechanism evidence.
+        # validity are context-only and must not substitute for PVS1 LoF or PP2
+        # pathogenic-missense mechanism evidence.
         lof_mechanism = False
         evidence = AcmgEvidence(
             rsid=r.rsid,
@@ -480,6 +497,7 @@ def assess_sample_acmg(
             revel=r.revel,
             gene_lof_mechanism=lof_mechanism,
             gene_missense_z=constraint.get("mis_z") if constraint else None,
+            gene_missense_pathogenic_mechanism=None,
             clinvar_significance=r.clinvar_significance,
         )
         result = classify_acmg(evidence)

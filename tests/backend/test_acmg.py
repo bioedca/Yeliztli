@@ -91,18 +91,57 @@ class TestOtherCriteria:
     def test_pm4_stop_loss(self) -> None:
         assert criterion_pm4(AcmgEvidence(consequence="stop_lost")).points == 2
 
-    def test_pp2_missense_constrained(self) -> None:
-        c = criterion_pp2(AcmgEvidence(consequence="missense_variant", gene_missense_z=3.5))
+    def test_pp2_missense_constrained_with_curated_missense_mechanism(self) -> None:
+        c = criterion_pp2(
+            AcmgEvidence(
+                consequence="missense_variant",
+                gene_missense_z=3.5,
+                gene_missense_pathogenic_mechanism=True,
+            )
+        )
         assert c is not None and c.points == 1
+
+    def test_pp2_not_applied_from_constraint_alone(self) -> None:
+        assert (
+            criterion_pp2(AcmgEvidence(consequence="missense_variant", gene_missense_z=3.5))
+            is None
+        )
+
+    def test_pp2_not_applied_when_missense_not_disease_mechanism(self) -> None:
+        assert (
+            criterion_pp2(
+                AcmgEvidence(
+                    consequence="missense_variant",
+                    gene_missense_z=3.5,
+                    gene_missense_pathogenic_mechanism=False,
+                )
+            )
+            is None
+        )
 
     def test_pp2_not_applied_unconstrained(self) -> None:
         assert (
-            criterion_pp2(AcmgEvidence(consequence="missense_variant", gene_missense_z=2.0))
+            criterion_pp2(
+                AcmgEvidence(
+                    consequence="missense_variant",
+                    gene_missense_z=2.0,
+                    gene_missense_pathogenic_mechanism=True,
+                )
+            )
             is None
         )
 
     def test_pp2_not_applied_non_missense(self) -> None:
-        assert criterion_pp2(AcmgEvidence(consequence="stop_gained", gene_missense_z=5.0)) is None
+        assert (
+            criterion_pp2(
+                AcmgEvidence(
+                    consequence="stop_gained",
+                    gene_missense_z=5.0,
+                    gene_missense_pathogenic_mechanism=True,
+                )
+            )
+            is None
+        )
 
     def test_pp3_strong_revel(self) -> None:
         c = criterion_pp3_bp4(AcmgEvidence(consequence="missense_variant", revel=0.95))
@@ -163,8 +202,9 @@ class TestClassifyAcmg:
         assert result.classification == LIKELY_PATHOGENIC
         assert {c.code for c in result.criteria} == {"PVS1"}
 
-    def test_high_revel_missense_constrained_rare_lp(self) -> None:
-        # PP3 Strong (+4) + PP2 (+1) + PM2 (+1) = 6 → Likely pathogenic.
+    def test_high_revel_missense_constraint_alone_remains_vus(self) -> None:
+        # PP3 Strong (+4) + PM2 (+1) = 5 → VUS. PP2 needs a curated
+        # pathogenic-missense disease-mechanism signal, not constraint alone.
         ev = AcmgEvidence(
             gene_symbol="G",
             consequence="missense_variant",
@@ -173,8 +213,10 @@ class TestClassifyAcmg:
             gnomad_af_popmax=1e-5,
         )
         result = classify_acmg(ev)
-        assert result.points == 6
-        assert result.classification == LIKELY_PATHOGENIC
+        assert result.points == 5
+        assert result.classification == UNCERTAIN
+        assert {c.code for c in result.criteria} == {"PP3", "PM2"}
+        assert "PP2" in result.unassessable
 
     def test_high_revel_missense_missing_frequency_data_stays_uncertain(self) -> None:
         ev = AcmgEvidence(
@@ -185,9 +227,25 @@ class TestClassifyAcmg:
             gnomad_af_popmax=None,
         )
         result = classify_acmg(ev)
-        assert result.points == 5
+        assert result.points == 4
         assert result.classification == UNCERTAIN
-        assert {c.code for c in result.criteria} == {"PP2", "PP3"}
+        assert {c.code for c in result.criteria} == {"PP3"}
+        assert "PP2" in result.unassessable
+
+    def test_high_revel_curated_missense_mechanism_rare_lp(self) -> None:
+        # PP3 Strong (+4) + PP2 (+1) + PM2 (+1) = 6 → Likely pathogenic.
+        ev = AcmgEvidence(
+            gene_symbol="G",
+            consequence="missense_variant",
+            revel=0.95,
+            gene_missense_z=3.5,
+            gene_missense_pathogenic_mechanism=True,
+            gnomad_af_popmax=1e-5,
+        )
+        result = classify_acmg(ev)
+        assert result.points == 6
+        assert result.classification == LIKELY_PATHOGENIC
+        assert {c.code for c in result.criteria} == {"PP3", "PP2", "PM2"}
 
     def test_common_variant_is_standalone_benign(self) -> None:
         ev = AcmgEvidence(gene_symbol="G", consequence="missense_variant", gnomad_af_popmax=0.06)

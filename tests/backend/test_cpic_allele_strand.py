@@ -101,6 +101,7 @@ EXPECTED_PLUS_STRAND: dict[str, tuple[str, str]] = {
     # CYP2B6 (plus strand) — efavirenz (SW-E1b)
     "rs3745274": ("G", "T"),  # *9/*6 516G>T (p.Gln172His)
     "rs2279343": ("A", "G"),  # *6   785A>G (p.Lys262Arg)
+    "rs28399499": ("T", "C"),  # *18 983T>C (p.Ile328Thr)
 }
 
 # Single-base rows that are NOT verifiable plus-strand SNVs and are intentionally

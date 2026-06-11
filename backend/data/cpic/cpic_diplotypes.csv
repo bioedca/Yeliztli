@@ -135,6 +135,10 @@ NAT2,*14/*14,Slow Acetylator,NAT2 Slow Acetylator,0.0
 CYP2B6,*1/*1,Normal Metabolizer,CYP2B6 Normal Metabolizer,2.0
 CYP2B6,*1/*6,Intermediate Metabolizer,CYP2B6 Intermediate Metabolizer,1.5
 CYP2B6,*1/*9,Intermediate Metabolizer,CYP2B6 Intermediate Metabolizer,1.5
+CYP2B6,*1/*18,Intermediate Metabolizer,CYP2B6 Intermediate Metabolizer,1.0
 CYP2B6,*6/*6,Poor Metabolizer,CYP2B6 Poor Metabolizer,1.0
 CYP2B6,*6/*9,Poor Metabolizer,CYP2B6 Poor Metabolizer,1.0
+CYP2B6,*6/*18,Poor Metabolizer,CYP2B6 Poor Metabolizer,0.5
 CYP2B6,*9/*9,Poor Metabolizer,CYP2B6 Poor Metabolizer,1.0
+CYP2B6,*9/*18,Poor Metabolizer,CYP2B6 Poor Metabolizer,0.5
+CYP2B6,*18/*18,Poor Metabolizer,CYP2B6 Poor Metabolizer,0.0

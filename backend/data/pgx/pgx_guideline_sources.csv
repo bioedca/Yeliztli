@@ -1,0 +1,21 @@
+gene,drug,pharmgkb_loe,dpwg_guideline,fda_pgx_level
+CYP2D6,codeine,1A,yes,Actionable PGx
+CYP2D6,tramadol,1A,yes,Actionable PGx
+CYP2C19,clopidogrel,1A,yes,Actionable PGx
+CYP2D6,ondansetron,1A,no,No Clinical PGx
+CYP2D6,tamoxifen,1A,yes,Informative PGx
+CYP2C19,voriconazole,1A,yes,Informative PGx
+CYP2C9,warfarin,1A,yes,Actionable PGx
+CYP2C9,phenytoin,1A,yes,Actionable PGx
+CYP3A5,tacrolimus,1A,yes,FDA label (no testing level)
+DPYD,fluorouracil,1A,yes,Testing Required
+DPYD,capecitabine,1A,yes,Testing Required
+TPMT,mercaptopurine,1A,yes,Testing Recommended
+TPMT,azathioprine,1A,yes,Testing Recommended
+SLCO1B1,simvastatin,1A,yes,FDA label (no testing level)
+NUDT15,mercaptopurine,1A,yes,Testing Recommended
+NUDT15,azathioprine,1A,yes,Testing Recommended
+UGT1A1,atazanavir,1A,yes,
+UGT1A1,irinotecan,1A,yes,Testing Recommended
+CYP2B6,efavirenz,1A,yes,Informative PGx
+NAT2,isoniazid,1B,no,Informative PGx

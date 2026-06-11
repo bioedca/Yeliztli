@@ -176,17 +176,17 @@ class TestAcmgEndpoint:
     def test_high_revel_missense_missing_af_stays_uncertain(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_mis"]
         assert v["acmg_classification"] == "Uncertain significance"
-        assert v["points"] == 5
+        assert v["points"] == 4
         codes = {c["code"] for c in v["criteria"]}
-        assert codes == {"PP3", "PP2"}
+        assert codes == {"PP3"}
 
-    def test_high_revel_missense_confirmed_rare_is_likely_pathogenic(
+    def test_high_revel_missense_confirmed_rare_without_mechanism_remains_vus(
         self, acmg_client: TestClient
     ) -> None:
         v = self._by_rsid(acmg_client)["rs_mis_rare"]
-        assert v["acmg_classification"] == "Likely pathogenic"
-        codes = {c["code"] for c in v["criteria"]}
-        assert {"PP3", "PP2", "PM2"} <= codes
+        assert v["acmg_classification"] == "Uncertain significance"
+        assert v["points"] == 5
+        assert {c["code"] for c in v["criteria"]} == {"PP3", "PM2"}
 
     def test_common_variant_drafts_benign_alongside_clinvar(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_common"]
