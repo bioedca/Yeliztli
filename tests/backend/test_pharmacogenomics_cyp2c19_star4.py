@@ -133,6 +133,7 @@ def test_star1_star1_emits_only_normal_metabolizer_guidance(
     alerts = generate_prescribing_alerts(results, reference_engine)
 
     cyp2c19_alerts = [a for a in alerts if a.gene == "CYP2C19"]
+    assert cyp2c19_alerts, "expected CYP2C19 alerts for *1/*1 Normal Metabolizer"
     assert {a.drug for a in cyp2c19_alerts} == {"clopidogrel", "voriconazole"}
     for alert in cyp2c19_alerts:
         assert alert.diplotype == "*1/*1"
