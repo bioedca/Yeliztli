@@ -101,16 +101,44 @@ def test_nat2_single_slow_is_intermediate(reference_engine: sa.Engine) -> None:
 
 
 def test_nat2_two_slow_in_trans_is_slow(reference_engine: sa.Engine) -> None:
-    # Het *5 (341T>C) + het *6 (590G>A) → *5/*6 Slow (unphased trans assumption).
+    # Het *5 (341T>C) + het *6 (590G>A) → *5/*6 Slow. The trans (compound-het)
+    # configuration is the standard SNP-panel inference, but phase is not directly
+    # determined, so the call is flagged PARTIAL with a phase-inference note (#40).
     result = _call("NAT2", _nat2_geno(rs1801280="TC", rs1799930="GA"), reference_engine)
     assert result.diplotype == "*5/*6"
     assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
+    assert "cis" in result.confidence_note
+
+
+def test_nat2_two_slow_compound_het_other_pairs_are_phase_flagged(
+    reference_engine: sa.Engine,
+) -> None:
+    # Any two distinct slow markers heterozygous → compound-het trans inference,
+    # phase-flagged. *5 (rs1801280) + *7 (rs1799931).
+    result = _call("NAT2", _nat2_geno(rs1801280="TC", rs1799931="GA"), reference_engine)
+    assert result.diplotype == "*5/*7"
+    assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
+
+
+def test_nat2_single_slow_is_not_phase_flagged(reference_engine: sa.Engine) -> None:
+    # *4/*5 has only one non-reference allele — unambiguous, no phase inference.
+    result = _call("NAT2", _nat2_geno(rs1801280="TC"), reference_engine)
+    assert result.diplotype == "*4/*5"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "unphased" not in result.confidence_note
 
 
 def test_nat2_homozygous_slow_is_slow(reference_engine: sa.Engine) -> None:
+    # *6/*6 is homozygous (both haplotypes carry *6) — no phase ambiguity.
     result = _call("NAT2", _nat2_geno(rs1799930="AA"), reference_engine)
     assert result.diplotype == "*6/*6"
     assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "unphased" not in result.confidence_note
 
 
 def test_nat2_slow_emits_isoniazid_alert(reference_engine: sa.Engine) -> None:
@@ -119,6 +147,22 @@ def test_nat2_slow_emits_isoniazid_alert(reference_engine: sa.Engine) -> None:
     alerts = generate_prescribing_alerts(results, reference_engine)
     iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
     assert iso and iso[0].phenotype == "Slow Acetylator"
+
+
+def test_nat2_compound_het_isoniazid_alert_carries_phase_caveat(
+    reference_engine: sa.Engine,
+) -> None:
+    # The compound-het slow call still fires the isoniazid alert (PARTIAL is not
+    # suppressed), but the alert carries the phase-inference caveat so it is not an
+    # unqualified Slow Acetylator result (#40).
+    sample = _make_sample(_nat2_geno(rs1801280="TC", rs1799930="GA"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NAT2"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
+    assert iso, "compound-het slow acetylator must still emit the isoniazid alert"
+    assert iso[0].phenotype == "Slow Acetylator"
+    assert iso[0].call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in iso[0].confidence_note
 
 
 # ── CYP2B6 efavirenz (structural-variant gene → PARTIAL) ──────────────────────

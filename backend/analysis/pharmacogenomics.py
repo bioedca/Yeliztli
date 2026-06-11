@@ -86,6 +86,16 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
     "CYP2D6": ("*5",),
 }
 
+# Genes whose diplotype must be flagged as phase-inferred when two *different*
+# non-reference alleles are called from unphased SNP genotypes (a compound
+# heterozygote). For NAT2 the trans (slow) configuration is the standard,
+# high-accuracy SNP-panel assumption (Hein & Doll 2011, PMID 22092036), but SNP
+# arrays do not resolve phase — ambiguous diplotypes occur and can misclassify
+# acetylator status (Agundez 2008, PMID 18664443) — and the slow-acetylator call
+# drives isoniazid hepatotoxicity advice, so the inference must be surfaced rather
+# than presented as a directly phased result (issue #40).
+_PHASE_INFERENCE_GENES: frozenset[str] = frozenset({"NAT2"})
+
 # Gene-specific interpretive caveats attached to prescribing-alert findings
 # (detail_json["gene_caveat"]) and surfaced by the pharma route. Context only —
 # they never change metabolizer_status or evidence_level.
@@ -557,6 +567,31 @@ def call_star_alleles_for_gene(
             f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
             "defining variant(s) or structural/copy-number state not assayed on this array."
         ).strip()
+
+    # Phase-inference guard (issue #40): a diplotype built from two *different*
+    # non-reference alleles is a compound heterozygote inferred from UNPHASED SNP
+    # genotypes. For NAT2 these markers are assumed in trans (the standard,
+    # high-accuracy SNP-panel inference), but phase was not directly determined —
+    # a rare cis configuration could instead be intermediate. Flag it (PARTIAL,
+    # never overriding a worse confidence) and carry the caveat into the alert so
+    # the acetylator status is not presented as a directly phased Slow call.
+    if (
+        gene in _PHASE_INFERENCE_GENES
+        and diplo_data is not None
+        and allele1 != ref_allele_name
+        and allele2 != ref_allele_name
+        and allele1 != allele2
+    ):
+        phase_note = (
+            f"{gene} {diplotype} combines two different non-reference alleles called "
+            "from unphased SNP genotypes; the trans (compound-heterozygous) "
+            "configuration is assumed per standard NAT2 SNP-panel inference, but phase "
+            "was not directly determined and a cis configuration could instead yield an "
+            "intermediate phenotype. Treat the acetylator status as a SNP-panel inference."
+        )
+        confidence_note = f"{confidence_note} {phase_note}".strip()
+        if call_confidence == CallConfidence.COMPLETE:
+            call_confidence = CallConfidence.PARTIAL
 
     return StarAlleleResult(
         gene=gene,
