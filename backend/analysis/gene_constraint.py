@@ -4,10 +4,12 @@ EXPANSION_STRATEGY.md §7 / roadmap #12. Reads the ``gnomad_gene_constraint``
 table (gnomAD v2.1.1, GRCh37) from ``reference.db`` and produces a gene-level
 "this gene doesn't tolerate loss-of-function" *context* badge.
 
-This is **context only** — it powers the human reading of PVS1/PP2/BP1 reasoning
-but **never auto-upgrades an ACMG classification** and never mutates a finding's
-``evidence_level`` / ``clinvar_significance`` (a falsely-called LoF SNP in a
-constrained gene must never become "Pathogenic" on the strength of a badge).
+This is **context only** — it can inform human reading of ACMG mechanism
+criteria, but it is not itself PVS1, PP2, or BP1 mechanism evidence, **never
+auto-upgrades an ACMG classification**, and never mutates a finding's
+``evidence_level`` / ``clinvar_significance`` (a falsely-called LoF SNP or a
+missense variant in a constrained gene must never become "Pathogenic" on the
+strength of a badge).
 
 ``lof_constrained`` is derived here (not stored): a gene is LoF-constrained when
 ``loeuf < 0.35`` (first LOEUF decile is enriched for haploinsufficient/disease
