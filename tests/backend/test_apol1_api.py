@@ -95,7 +95,7 @@ class TestDisclaimer:
         assert data["title"] == APOL1_DISCLAIMER_TITLE
         assert data["text"] == APOL1_DISCLAIMER_TEXT
         assert "recessive" in data["text"].lower()
-        assert "african ancestry" in data["text"].lower()
+        assert "african-ancestry" in data["text"].lower()
 
 
 class TestRunAndList:
