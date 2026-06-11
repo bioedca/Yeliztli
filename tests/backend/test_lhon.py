@@ -61,11 +61,33 @@ class TestPrimaryMutations:
         a = assess_lhon(panel, sample_engine)
         assert any(c.detail["model_id"] == "m11778ga" for c in a.calls)
 
-    def test_m14484_minus_strand_equivalent(self, panel, sample_engine: sa.Engine) -> None:
-        # "G" is the reverse-strand complement of plus-strand risk "C" (ref T → "A").
-        _seed(sample_engine, [_m14484("G")])
+    def test_m14484_plus_frame_risk_fires(self, panel, sample_engine: sa.Engine) -> None:
+        # Plus/canonical-strand risk "C" is the actual m.14484T>C primary mutation.
+        _seed(sample_engine, [_m14484("C")])
         a = assess_lhon(panel, sample_engine)
         assert any(c.detail["model_id"] == "m14484tc" for c in a.calls)
+
+    def test_plus_frame_complement_bases_are_indeterminate_not_calls(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """A plus-frame base that merely *complements* the risk allele is a
+        different mtDNA substitution, not a reverse-strand reading, so it must be
+        indeterminate (strand provenance required) — never a false-positive LHON
+        primary-mutation call (issue #31).
+
+        These mitochondrial loci are reported on the rCRS/plus strand, so the
+        complement fallback is disabled (``allow_strand_complement: false``):
+          - m.11778G>A / m.3460G>A (risk A): plus-frame ``T`` complements risk A.
+          - m.14484T>C (risk C): plus-frame ``G`` complements risk C.
+        Before the fix, ``risk_dosage`` complemented these to the risk allele and
+        fired all three findings.
+        """
+        _seed(sample_engine, [_m11778("T"), _m3460("T"), _m14484("G")])
+        a = assess_lhon(panel, sample_engine)
+        assert a.calls == []
+        assert "rs199476112" in a.indeterminate_loci
+        assert "rs199476118" in a.indeterminate_loci
+        assert "rs199476104" in a.indeterminate_loci
 
     def test_m3460_fires(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_m3460("A")])
