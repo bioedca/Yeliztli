@@ -895,6 +895,17 @@ WARFARIN_PGX_CONTEXT_ONLY = (
 )
 
 
+BCHE_PGX_CONTEXT_ONLY = (
+    "BCHE (butyrylcholinesterase) deficiency pharmacogenomics (Zhu 2020; context only). "
+    "The atypical/dibucaine-resistant (rs1799807) and K/Kalow (rs1803274) variants reduce "
+    "BChE activity, which can prolong neuromuscular blockade (apnea) after the muscle "
+    "relaxants succinylcholine (suxamethonium) or mivacurium. This is interpretive context, "
+    "NOT a diagnosis: BChE deficiency is confirmed by an enzyme-activity (dibucaine-number) "
+    "assay, an array types only two of the relevant variants, and it cannot phase compound "
+    "genotypes. It changes no finding; discuss anesthesia planning only with your care team."
+)
+
+
 ALPHAMISSENSE_CONTEXT_ONLY = (
     "AlphaMissense missense pathogenicity (Cheng 2023; context only). A structure-based "
     "AI prediction shown as a COMPLEMENT to the REVEL in-silico evidence — because "

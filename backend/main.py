@@ -24,6 +24,7 @@ from backend.api.routes.apol1 import router as apol1_router
 from backend.api.routes.array_confidence import router as array_confidence_router
 from backend.api.routes.auth import router as auth_router
 from backend.api.routes.backup import router as backup_router
+from backend.api.routes.bche import router as bche_router
 from backend.api.routes.cancer import router as cancer_router
 from backend.api.routes.cardiovascular import router as cardiovascular_router
 from backend.api.routes.carrier import router as carrier_router
@@ -193,6 +194,7 @@ def create_app() -> FastAPI:
     api_router.include_router(backup_router)
     api_router.include_router(annotation_router)
     api_router.include_router(annotations_api_router)
+    api_router.include_router(bche_router)
     api_router.include_router(cancer_router)
     api_router.include_router(carrier_router)
     api_router.include_router(cardiovascular_router)

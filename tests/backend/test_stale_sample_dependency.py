@@ -55,6 +55,7 @@ _FULLY_GATED_MODULES = frozenset(
         "apoe",
         "apol1",
         "array_confidence",
+        "bche",
         "cancer",
         "cardiovascular",
         "carrier",
