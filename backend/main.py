@@ -60,6 +60,7 @@ from backend.api.routes.nuclear import router as nuclear_router
 from backend.api.routes.nutrigenomics import router as nutrigenomics_router
 from backend.api.routes.overlays import router as overlays_router
 from backend.api.routes.parkinsons import router as parkinsons_router
+from backend.api.routes.pgx_guidelines import router as pgx_guidelines_router
 from backend.api.routes.pharma import router as pharma_router
 from backend.api.routes.preferences import router as preferences_router
 from backend.api.routes.qc import router as qc_router
@@ -225,6 +226,7 @@ def create_app() -> FastAPI:
     api_router.include_router(nutrigenomics_router)
     api_router.include_router(overlays_router)
     api_router.include_router(parkinsons_router)
+    api_router.include_router(pgx_guidelines_router)
     api_router.include_router(pharma_router)
     api_router.include_router(preferences_router)
     api_router.include_router(qc_router)

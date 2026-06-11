@@ -75,6 +75,16 @@
     "mondo_hpo": {
       "url": "https://data.monarchinitiative.org/monarch-kg/latest/tsv/gene_associations/gene_disease.9606.tsv.gz",
       "last_known_version": ""
+    },
+    "pharmgkb": {
+      "url": "https://api.pharmgkb.org/v1/download/file/data/clinicalAnnotations.zip",
+      "last_known_version": "2025-07-05",
+      "license": "CC-BY-SA-4.0"
+    },
+    "fda_pgx": {
+      "url": "https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenomic-biomarkers-drug-labeling",
+      "last_known_version": "2026-06-11",
+      "license": "public-domain-US-gov"
     }
   }
 }

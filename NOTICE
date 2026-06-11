@@ -61,3 +61,38 @@ Citation: Cheng, J., Novati, G., Pan, J. et al. "Accurate proteome-wide missense
 "AlphaMissense" and "Google DeepMind" are used here solely for source attribution.
 Yeliztli is an independent project and is not affiliated with or endorsed by
 Google DeepMind.
+
+PharmGKB (cross-source pharmacogenomic evidence: LoE + DPWG)
+-----------------------------------------------------------
+Source:   https://www.pharmgkb.org/ (clinical annotations, guideline annotations,
+          drug labels — downloads accessed 2026-06-11)
+License:  CC-BY-4.0 ShareAlike (CC-BY-SA 4.0). **ShareAlike honored:** the
+          PharmGKB-derived data redistributed here (the PharmGKB Level of Evidence
+          and DPWG-guideline-presence columns of
+          `backend/data/pgx/pgx_guideline_sources.csv`) is itself made available
+          under CC-BY-SA 4.0; recipients who reuse it are subject to the same
+          license. PharmGKB data is not sold for commercial use.
+Scope:    Per-(gene, drug) best PharmGKB Level of Evidence (1A-4) and whether a
+          DPWG recommendation exists — context-only evidence layered over CPIC,
+          never altering a finding or recommendation.
+Citation: Whirl-Carrillo, M., Huddart, R., Gong, L. et al. "An Evidence-Based
+          Framework for Evaluating Pharmacogenomics Knowledge for Personalized
+          Medicine." Clin. Pharmacol. Ther. 110(3), 563-572 (2021).
+          doi:10.1002/cpt.2350 — and cite PharmGKB per
+          https://www.pharmgkb.org/page/citingPharmgkb
+
+"PharmGKB" and "DPWG" are used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by PharmGKB, Stanford
+University, or the Royal Dutch Pharmacists Association (KNMP).
+
+FDA Pharmacogenomic Labeling
+----------------------------
+Source:   U.S. Food & Drug Administration — "Table of Pharmacogenomic Biomarkers
+          in Drug Labeling" / pharmacogenomic drug-label annotations (via PharmGKB
+          FDA-sourced labels, accessed 2026-06-11).
+License:  U.S. Government work — public domain (17 U.S.C. § 105).
+Scope:    Per-(gene, drug) FDA pharmacogenomic testing level (e.g. Actionable PGx,
+          Testing Required) — context-only, never altering a finding.
+
+"FDA" is used here solely for source attribution. Yeliztli is an independent
+project and is not affiliated with or endorsed by the U.S. FDA.

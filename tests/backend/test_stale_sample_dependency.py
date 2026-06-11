@@ -78,6 +78,7 @@ _FULLY_GATED_MODULES = frozenset(
         "nutrigenomics",
         "overlays",
         "parkinsons",
+        "pgx_guidelines",
         "pharma",
         "qc",
         "query_builder",
