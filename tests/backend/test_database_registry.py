@@ -414,6 +414,49 @@ def test_gnomad_registry_matches_manifest_bundle() -> None:
     assert reg.expected_size_bytes == entry["size_bytes"]
 
 
+# ── SW-B8 follow-up: pgs_scores bundle wiring ─────────────────────────
+
+
+def test_pgs_scores_registry_entry_is_bundled() -> None:
+    """The PGS Catalog scores DB ships as a downloadable standalone bundle."""
+    from backend.db.database_registry import DATABASES
+
+    entry = DATABASES["pgs_scores"]
+    assert entry.build_mode == "bundled"
+    assert entry.target_db == "standalone"
+    assert entry.filename == "pgs_scores.db"
+    assert entry.required is False
+    assert entry.sha256 is None  # manifest is the source of truth in bundled mode
+    assert entry.url.endswith("/releases/download/pgs-scores-v1.0.0/pgs_scores.db")
+
+
+def test_pgs_scores_registry_matches_manifest_bundle() -> None:
+    """Registry url + expected_size_bytes byte-match bundles.pgs_scores."""
+    import json
+
+    import pytest
+
+    from backend.db.database_registry import DATABASES
+
+    repo_manifest = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
+    if not repo_manifest.is_file():
+        pytest.skip("bundles/manifest.json not present in this checkout")
+    payload = json.loads(repo_manifest.read_text(encoding="utf-8"))
+    entry = payload["bundles"]["pgs_scores"]
+    reg = DATABASES["pgs_scores"]
+    assert reg.url == entry["url"]
+    assert reg.expected_size_bytes == entry["size_bytes"]
+
+
+def test_pgs_scores_db_health_spec() -> None:
+    """db_health checks pgs_score_weights (must be non-empty) + pgs_score_metadata."""
+    from backend.db.db_health import _STANDALONE_TABLE_SPEC
+
+    spec = dict(_STANDALONE_TABLE_SPEC["pgs_scores"])
+    assert spec["pgs_score_weights"] is True
+    assert spec["pgs_score_metadata"] is False
+
+
 # ── F30: genome-build provenance ──────────────────────────────────────
 
 

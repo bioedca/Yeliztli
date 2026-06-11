@@ -337,6 +337,27 @@ DATABASES: dict[str, DatabaseInfo] = {
         build_mode="pipeline",
         target_db="standalone",
     ),
+    "pgs_scores": DatabaseInfo(
+        name="pgs_scores",
+        display_name="PGS Catalog scores",
+        description=(
+            "Bundle-eligible CC-BY PGS Catalog GRCh37-harmonized polygenic scores "
+            "(T2D, BMI, LDL-C) for the Wave-B disease-PRS modules"
+        ),
+        # In bundled mode the runner reads the authoritative url/sha/size from the
+        # manifest (bundles["pgs_scores"]); this URL is documentation/fallback and
+        # points at the published pgs-scores-v1.0.0 release asset.
+        url="https://github.com/bioedca/Yeliztli/releases/download/pgs-scores-v1.0.0/pgs_scores.db",
+        filename="pgs_scores.db",
+        # Byte-matches bundles/manifest.json -> bundles.pgs_scores.size_bytes.
+        expected_size_bytes=103_874_560,
+        # sha256 unpinned in bundled mode — the manifest entry is authoritative.
+        sha256=None,
+        required=False,
+        phase=2,
+        build_mode="bundled",
+        target_db="standalone",
+    ),
     "cpic": DatabaseInfo(
         name="cpic",
         display_name="CPIC",
@@ -527,6 +548,7 @@ EXPECTED_GENOME_BUILD: dict[str, str] = {
     "vep_bundle": "GRCh37",
     "gnomad_constraint": "GRCh37",
     "alphamissense": "GRCh37",
+    "pgs_scores": "GRCh37",
     "dbnsfp": "GRCh38",
 }
 

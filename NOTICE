@@ -122,3 +122,27 @@ Citation: GTEx Consortium. "The GTEx Consortium atlas of genetic regulatory
 
 "GTEx" is used here solely for source attribution. Yeliztli is an independent
 project and is not affiliated with or endorsed by the GTEx Consortium or the NIH.
+
+PGS Catalog (polygenic scores)
+------------------------------
+Source:   PGS Catalog (https://www.pgscatalog.org/) — GRCh37-harmonized scoring
+          files (hmPOS) for published polygenic scores, ingested into a standalone
+          pgs_scores.db for the Wave-B disease-PRS modules.
+License:  Per-score. Only clearly redistributable scores are bundled here — all
+          three are Creative Commons Attribution 4.0 (CC-BY-4.0): PGS000713
+          (type 2 diabetes; Sinnott-Armstrong, Tanigawa et al. 2021), PGS005198
+          (body mass index, multi-ancestry PRS-CS; Smit et al. 2025), and
+          PGS000688 (LDL cholesterol; Sinnott-Armstrong, Tanigawa et al. 2021).
+          Non-commercial / author-restricted scores are NOT bundled (user-fetch
+          only); see backend/annotation/pgs_catalog.classify_pgs_license.
+Scope:    Per-variant effect weights (GRCh37 coordinates + effect/other allele)
+          used as Research-Use-Only polygenic context, never clinical risk.
+Citation: Lambert, S.A., Wingfield, B., Gibson, J.T. et al. "Enhancing the
+          Polygenic Score Catalog with tools for score calculation and ancestry
+          normalization." Nat. Genet. 56, 1989-1994 (2024).
+          doi:10.1038/s41588-024-01937-x  — plus each score's own publication
+          (PMIDs 33462484, 40691366) recorded in pgs_score_metadata.citation.
+
+"PGS Catalog" is used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by the PGS Catalog,
+EMBL-EBI, or the score authors.

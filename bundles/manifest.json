@@ -33,6 +33,14 @@
       "sha256": "8518eb9ff105646b088e761c405e993f26127bcf05fd93d47c5eeef40579ad79",
       "size_bytes": 1952698368,
       "min_app_version": "0.2.0"
+    },
+    "pgs_scores": {
+      "version": "v1.0.0",
+      "build_date": "2026-06-11",
+      "url": "https://github.com/bioedca/Yeliztli/releases/download/pgs-scores-v1.0.0/pgs_scores.db",
+      "sha256": "d6fab8a58038c4c2305d6f623ffe4e0e051cafb3570511319b06689dae8edbb8",
+      "size_bytes": 103874560,
+      "min_app_version": "0.2.0"
     }
   },
   "pipeline_pins": {
