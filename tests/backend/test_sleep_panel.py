@@ -7,7 +7,7 @@ Covers:
     Sleep Quality, Sleep Disorders)
   - CYP1A2 metabolizer status special calling (rapid/intermediate/slow)
   - PER3 VNTR proxy with coverage note
-  - HLA-DQB1*06:02 proxy (rs2858884) with accuracy caveat
+  - rs2858884 HLA-DQ region marker (informational, not a DQB1*06:02 proxy)
   - Genotype effects categories are valid (Elevated/Moderate/Standard)
   - Evidence levels within expected range
   - CYP1A2 cross-module reference to Pharmacogenomics
@@ -38,7 +38,7 @@ EXPECTED_RSIDS = {
     "rs57875989",  # PER3 VNTR proxy
     "rs2300478",  # MEIS1
     "rs9357271",  # BTBD9
-    "rs2858884",  # HLA-DQB1*06:02 proxy
+    "rs2858884",  # HLA-DQ region marker (not a DQB1*06:02 proxy)
 }
 
 EXPECTED_PATHWAYS = {
@@ -457,21 +457,26 @@ class TestPathwayAllocation:
     def test_sleep_disorders_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "sleep_disorders")
         rsids = {s["rsid"] for s in pw["snps"]}
-        assert "rs2858884" in rsids  # HLA-DQB1*06:02 proxy
+        assert "rs2858884" in rsids  # HLA-DQ region marker (not a DQB1*06:02 proxy)
 
 
-# ── HLA-DQB1*06:02 proxy tests ───────────────────────────────────────────
+# ── rs2858884 HLA-DQ region marker tests ─────────────────────────────────
 
 
 class TestHLAProxy:
-    """Validate HLA-DQB1*06:02 narcolepsy proxy SNP."""
+    """Validate rs2858884 is curated as an informational HLA-DQ region marker.
+
+    rs2858884 is NOT a valid proxy for HLA-DQB1*06:02 carriage or narcolepsy
+    risk (the defining GWAS matched cases/controls on DQB1*06:02; the signal is
+    protective and conditional). No genotype may yield a narcolepsy risk call.
+    """
 
     def _get_hla(self, panel_data: dict) -> dict:
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 if snp["rsid"] == "rs2858884":
                     return snp
-        pytest.fail("HLA-DQB1 rs2858884 not found in panel")
+        pytest.fail("rs2858884 not found in panel")
 
     def test_hla_has_coverage_note(self, panel_data: dict) -> None:
         hla = self._get_hla(panel_data)
@@ -479,35 +484,33 @@ class TestHLAProxy:
         assert "proxy" in hla["coverage_note"].lower()
         assert "hla-dqb1" in hla["coverage_note"].lower()
 
-    def test_hla_coverage_note_includes_accuracy_caveat(self, panel_data: dict) -> None:
-        """Coverage note must warn about proxy accuracy variation by ancestry."""
+    def test_hla_coverage_note_explains_misclassification(self, panel_data: dict) -> None:
+        """Coverage note must explain why this is not a DQB1*06:02 proxy."""
         hla = self._get_hla(panel_data)
         note = hla["coverage_note"].lower()
-        assert "ancestry" in note
-        assert "not" in note  # "not a direct HLA typing result" or similar
+        assert "not" in note
+        assert "dqb1*06:02" in note
+        assert "matched" in note  # GWAS matched cases/controls on DQB1*06:02
+        assert "protective" in note
 
-    def test_hla_cc_standard(self, panel_data: dict) -> None:
-        """CC → Standard (no proxy signal for HLA-DQB1*06:02)."""
+    def test_hla_all_genotypes_standard(self, panel_data: dict) -> None:
+        """No genotype yields a narcolepsy risk call — all map to Standard."""
         hla = self._get_hla(panel_data)
-        assert hla["genotype_effects"]["CC"]["category"] == "Standard"
+        for genotype in ("CC", "CT", "TC", "TT"):
+            assert hla["genotype_effects"][genotype]["category"] == "Standard"
 
-    def test_hla_ct_moderate(self, panel_data: dict) -> None:
-        """CT → Moderate (one copy of narcolepsy-associated proxy)."""
+    def test_hla_no_risk_allele(self, panel_data: dict) -> None:
+        """No risk allele is asserted for this informational marker."""
         hla = self._get_hla(panel_data)
-        assert hla["genotype_effects"]["CT"]["category"] == "Moderate"
-
-    def test_hla_tt_elevated(self, panel_data: dict) -> None:
-        """TT → Elevated (homozygous proxy for HLA-DQB1*06:02)."""
-        hla = self._get_hla(panel_data)
-        assert hla["genotype_effects"]["TT"]["category"] == "Elevated"
-        assert "narcolepsy" in hla["genotype_effects"]["TT"]["effect_summary"].lower()
+        assert hla["risk_allele"] is None
 
     def test_hla_evidence_level(self, panel_data: dict) -> None:
         hla = self._get_hla(panel_data)
         assert hla["evidence_level"] == 2
 
     def test_hla_in_special_calling(self, panel_data: dict) -> None:
-        assert "HLA_DQB1_narcolepsy_proxy" in panel_data["special_calling"]
-        sc = panel_data["special_calling"]["HLA_DQB1_narcolepsy_proxy"]
+        assert "HLA_DQ_region_marker" in panel_data["special_calling"]
+        sc = panel_data["special_calling"]["HLA_DQ_region_marker"]
         assert sc["rsid"] == "rs2858884"
         assert "proxy_accuracy_note" in sc
+        assert sc["proxy_target"] is None

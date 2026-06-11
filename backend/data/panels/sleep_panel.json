@@ -1,7 +1,7 @@
 {
   "module": "sleep",
   "version": "1.0.0",
-  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 4 sleep pathways (Caffeine & Sleep, Chronotype & Circadian Rhythm, Sleep Quality, Sleep Disorders) with 6 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations. CYP1A2 rs762551 has cross-module reference to Pharmacogenomics. PER3 rs57875989 is a VNTR proxy with coverage caveat. HLA-DQB1*06:02 proxy (rs2858884) for narcolepsy susceptibility with accuracy caveat.",
+  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 4 sleep pathways (Caffeine & Sleep, Chronotype & Circadian Rhythm, Sleep Quality, Sleep Disorders) with 6 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations. CYP1A2 rs762551 has cross-module reference to Pharmacogenomics. PER3 rs57875989 is a VNTR proxy with coverage caveat. rs2858884 is retained as a non-diagnostic HLA-DQ region marker only — it is NOT a validated HLA-DQB1*06:02 / narcolepsy-risk proxy and no narcolepsy risk is inferred from it.",
   "pathways": [
     {
       "id": "caffeine_sleep",
@@ -177,37 +177,37 @@
     {
       "id": "sleep_disorders",
       "name": "Sleep Disorders",
-      "description": "Variants associated with narcolepsy and other sleep disorders via HLA allele proxies.",
+      "description": "HLA class II region marker for narcolepsy context. Narcolepsy type 1 genetic risk is driven by HLA-DQB1*06:02, which is not directly typed by SNP-array panels; no validated SNP-array proxy is currently included.",
       "snps": [
         {
           "rsid": "rs2858884",
           "gene": "HLA-DQB1",
-          "variant_name": "HLA-DQB1*06:02 proxy",
+          "variant_name": "HLA-DQ region marker (rs2858884) — not a DQB1*06:02 proxy",
           "hgvs_protein": null,
-          "risk_allele": "T",
+          "risk_allele": null,
           "ref_allele": "C",
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "No proxy signal for HLA-DQB1*06:02. Lower baseline genetic susceptibility to narcolepsy type 1."
+              "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
             "CT": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous proxy for HLA-DQB1*06:02. One copy of the narcolepsy-associated HLA allele proxy. Mildly increased genetic susceptibility to narcolepsy type 1."
+              "category": "Standard",
+              "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
             "TC": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous proxy for HLA-DQB1*06:02. One copy of the narcolepsy-associated HLA allele proxy. Mildly increased genetic susceptibility to narcolepsy type 1."
+              "category": "Standard",
+              "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
             "TT": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous proxy for HLA-DQB1*06:02. Strongest proxy signal for the narcolepsy-associated HLA allele. HLA-DQB1*06:02 is present in >98% of narcolepsy type 1 patients, but also in ~25% of the general population."
+              "category": "Standard",
+              "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             }
           },
-          "coverage_note": "rs2858884 is a tag SNP in linkage disequilibrium with HLA-DQB1*06:02, the primary HLA allele associated with narcolepsy type 1. This is a proxy — not a direct HLA typing result. Proxy accuracy varies by ancestry (r² ~0.7–0.9 in European populations, lower in others). HLA-DQB1*06:02 is necessary but not sufficient for narcolepsy; most carriers never develop the condition. A positive result does NOT diagnose narcolepsy.",
+          "coverage_note": "rs2858884 was previously curated as a tag-SNP proxy for HLA-DQB1*06:02 and narcolepsy type 1 risk. That is not scientifically supported. The GWAS that identified rs2858884 in narcolepsy (Hor et al. 2010, Nat Genet, PMID 20711174) matched cases and controls on HLA-DRB1*15:01-DQB1*06:02, so rs2858884 cannot tag DQB1*06:02 carriage; its associated HLA-region signal is protective and linked to other haplotypes (DRB1*03-DQB1*02 and DRB1*13:01-DQB1*06:03), and is interpretable only conditional on DQB1*06:02 status. Direct HLA-DQB1*06:02 typing (Tafti et al. 2014, Sleep, PMID 24381371) — not an array tag SNP — is required for narcolepsy genetic risk. This SNP is retained as a non-diagnostic HLA-region marker only; no narcolepsy risk is inferred from any genotype.",
           "evidence_level": 2,
-          "pmids": ["10694420", "19412173", "25680519"],
-          "recommendation_text": "HLA-DQB1*06:02 is the strongest known genetic risk factor for narcolepsy type 1, but most carriers are unaffected. This proxy result is not diagnostic. If excessive daytime sleepiness, cataplexy, or other narcolepsy symptoms are present, consult a sleep specialist for clinical evaluation including polysomnography and MSLT."
+          "pmids": ["20711174", "24381371"],
+          "recommendation_text": "Narcolepsy type 1 is strongly associated with HLA-DQB1*06:02, but that allele is not directly typed by SNP-array panels and rs2858884 is not a valid substitute for it. No narcolepsy risk is inferred from this marker. If excessive daytime sleepiness, cataplexy, or other narcolepsy symptoms are present, consult a sleep specialist for clinical evaluation, including direct HLA-DQB1*06:02 typing, polysomnography, and MSLT."
         }
       ]
     }
@@ -240,11 +240,11 @@
         }
       }
     },
-    "HLA_DQB1_narcolepsy_proxy": {
-      "description": "HLA-DQB1*06:02 is the primary HLA allele associated with narcolepsy type 1. rs2858884 is a tag SNP proxy, not a direct HLA typing result.",
+    "HLA_DQ_region_marker": {
+      "description": "HLA-DQB1*06:02 is the primary HLA allele associated with narcolepsy type 1, but it is not directly typed by SNP-array panels. rs2858884 is an HLA-DQ region marker, NOT a validated proxy for HLA-DQB1*06:02 carriage.",
       "rsid": "rs2858884",
-      "proxy_target": "HLA-DQB1*06:02",
-      "proxy_accuracy_note": "Linkage disequilibrium between rs2858884 and HLA-DQB1*06:02 varies by ancestry (r² ~0.7–0.9 in Europeans, lower in other populations). This proxy does not replace clinical HLA typing. A positive proxy signal indicates possible HLA-DQB1*06:02 carriage, not narcolepsy diagnosis."
+      "proxy_target": null,
+      "proxy_accuracy_note": "rs2858884 is not a valid proxy for HLA-DQB1*06:02. The defining narcolepsy GWAS (Hor et al. 2010, PMID 20711174) matched cases and controls on HLA-DRB1*15:01-DQB1*06:02, so this SNP cannot tag DQB1*06:02 carriage; its associated HLA-region signal is protective and conditional on DQB1*06:02 status. No narcolepsy risk is inferred from this marker; direct HLA-DQB1*06:02 typing (PMID 24381371) is required for narcolepsy genetic risk assessment."
     },
     "PER3_VNTR_proxy": {
       "description": "PER3 variable number tandem repeat (54-bp VNTR, 4-repeat vs. 5-repeat) is not directly genotyped on SNP arrays. rs57875989 is used as a proxy SNP in linkage disequilibrium with the VNTR.",

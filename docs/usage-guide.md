@@ -161,7 +161,7 @@ Athletic trait analysis covering 4 pathways: Endurance Capacity, Power & Strengt
 
 ### Sleep
 
-Sleep phenotype analysis with 4 pathways: Caffeine Sensitivity (CYP1A2 metabolizer status), Chronotype, Sleep Quality, and Sleep Disorders. Includes HLA-DQB1*06:02 proxy for narcolepsy risk.
+Sleep phenotype analysis with 4 pathways: Caffeine Sensitivity (CYP1A2 metabolizer status), Chronotype, Sleep Quality, and Sleep Disorders. The Sleep Disorders pathway includes the HLA-DQ region marker rs2858884 for informational context only — narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which is not directly typed by SNP-array panels, so no narcolepsy risk is inferred.
 
 ### Skin
 

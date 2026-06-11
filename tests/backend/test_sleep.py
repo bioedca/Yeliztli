@@ -3,7 +3,7 @@
 Covers:
   - Panel loading and dataclass construction
   - CYP1A2 caffeine metabolizer calling (rapid/intermediate/slow)
-  - HLA-DQB1*06:02 proxy with accuracy caveat
+  - rs2858884 HLA-DQ region marker (informational, not a DQB1*06:02 proxy)
   - PER3 VNTR proxy with coverage note
   - Genotype normalization
   - SNP scoring with evidence-level gating
@@ -170,7 +170,7 @@ class TestPanelLoading:
         assert panel.special_calling is not None
         assert "CYP1A2_metabolizer" in panel.special_calling
         assert "PER3_VNTR_proxy" in panel.special_calling
-        assert "HLA_DQB1_narcolepsy_proxy" in panel.special_calling
+        assert "HLA_DQ_region_marker" in panel.special_calling
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -256,7 +256,7 @@ class TestCYP1A2Metabolizer:
         assert cyp.cross_module["module"] == "pharmacogenomics"
 
 
-# ── HLA-DQB1*06:02 proxy tests ──────────────────────────────────────────
+# ── rs2858884 HLA-DQ region marker tests ────────────────────────────────
 
 
 class TestHLAProxy:
@@ -265,42 +265,39 @@ class TestHLAProxy:
             for snp in pw.snps:
                 if snp.rsid == "rs2858884":
                     return snp
-        pytest.fail("HLA-DQB1 not found")
+        pytest.fail("rs2858884 not found")
 
     def test_hla_has_coverage_note(self, panel: SleepPanel) -> None:
         hla = self._get_hla(panel)
         assert hla.coverage_note is not None
+        # The marker must be explicitly flagged as NOT a valid proxy.
+        assert "not" in hla.coverage_note.lower()
         assert "proxy" in hla.coverage_note.lower()
 
-    def test_hla_coverage_note_accuracy_caveat(self, panel: SleepPanel) -> None:
-        """T3-51: HLA proxy produces finding with accuracy caveat text."""
+    def test_hla_coverage_note_explains_misclassification(self, panel: SleepPanel) -> None:
+        """Coverage note must explain why rs2858884 is not a DQB1*06:02 proxy."""
         hla = self._get_hla(panel)
         assert hla.coverage_note is not None
         note = hla.coverage_note.lower()
-        assert "ancestry" in note
-        assert "not" in note  # "not a direct HLA typing result"
+        assert "dqb1*06:02" in note
+        assert "matched" in note  # GWAS matched cases/controls on DQB1*06:02
+        assert "protective" in note
 
-    def test_hla_tt_elevated(self, panel: SleepPanel) -> None:
-        """TT → Elevated (homozygous proxy for narcolepsy-associated HLA)."""
+    def test_hla_all_genotypes_standard(self, panel: SleepPanel) -> None:
+        """No genotype yields a narcolepsy risk call — all map to Standard."""
         hla = self._get_hla(panel)
-        result = _score_snp(hla, "TT", panel)
-        assert result.category == ELEVATED
-        assert result.coverage_note is not None
+        for genotype in ("CC", "CT", "TC", "TT"):
+            result = _score_snp(hla, genotype, panel)
+            assert result.category == STANDARD, f"{genotype} should be Standard"
+            assert result.coverage_note is not None
 
-    def test_hla_ct_moderate(self, panel: SleepPanel) -> None:
-        """CT → Moderate."""
+    def test_hla_no_risk_allele(self, panel: SleepPanel) -> None:
+        """No risk allele is asserted for this informational marker."""
         hla = self._get_hla(panel)
-        result = _score_snp(hla, "CT", panel)
-        assert result.category == MODERATE
-
-    def test_hla_cc_standard(self, panel: SleepPanel) -> None:
-        """CC → Standard."""
-        hla = self._get_hla(panel)
-        result = _score_snp(hla, "CC", panel)
-        assert result.category == STANDARD
+        assert hla.risk_allele is None
 
     def test_hla_no_metabolizer_state(self, panel: SleepPanel) -> None:
-        """HLA proxy should not have a metabolizer state."""
+        """The HLA marker should not have a metabolizer state."""
         hla = self._get_hla(panel)
         result = _score_snp(hla, "TT", panel)
         assert result.metabolizer_state is None
@@ -537,7 +534,7 @@ class TestScorePathways:
                 ("rs57875989", "1", 7845023, "AA"),  # PER3 eveningness proxy
                 ("rs2300478", "2", 66662600, "GG"),  # MEIS1 RLS risk
                 ("rs9357271", "6", 38165204, "TT"),  # BTBD9 PLMS risk
-                ("rs2858884", "6", 32632760, "TT"),  # HLA narcolepsy proxy
+                ("rs2858884", "6", 32632760, "TT"),  # HLA-DQ marker (informational)
             ],
         )
         _seed_gwas(
@@ -567,10 +564,10 @@ class TestScorePathways:
         quality = next(pr for pr in result.pathway_results if pr.pathway_id == "sleep_quality")
         assert quality.level == ELEVATED
 
-        # Sleep Disorders: HLA TT=Elevated (star2)
-        #   → pathway = Elevated
+        # Sleep Disorders: rs2858884 is an informational HLA-DQ marker (Standard)
+        #   → pathway = Standard (no narcolepsy risk inferred)
         disorders = next(pr for pr in result.pathway_results if pr.pathway_id == "sleep_disorders")
-        assert disorders.level == ELEVATED
+        assert disorders.level == STANDARD
 
         # GWAS matches
         assert "rs762551" in result.gwas_matched_rsids
@@ -605,14 +602,15 @@ class TestScorePathways:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """HLA-DQB1*06:02 proxy produces finding with accuracy caveat."""
+        """rs2858884 is scored Standard (no narcolepsy risk) and keeps its caveat."""
         _seed_variants(sample_engine, [("rs2858884", "6", 32632760, "TT")])
         result = score_sleep_pathways(panel, sample_engine, reference_engine)
 
         disorders = next(pr for pr in result.pathway_results if pr.pathway_id == "sleep_disorders")
         hla = next(s for s in disorders.called_snps if s.rsid == "rs2858884")
-        assert hla.category == ELEVATED
+        assert hla.category == STANDARD
         assert hla.coverage_note is not None
+        assert "not" in hla.coverage_note.lower()
         assert "proxy" in hla.coverage_note.lower()
 
     def test_missing_snps_default_standard(
@@ -739,7 +737,11 @@ class TestStoreFindingsIntegration:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """HLA SNP finding includes coverage_note in detail_json."""
+        """rs2858884 coverage_note surfaces in the Sleep Disorders pathway detail.
+
+        The marker is scored Standard (no narcolepsy risk), so it produces no
+        standalone snp_finding; its caveat rides along in the pathway summary.
+        """
         _seed_variants(sample_engine, [("rs2858884", "6", 32632760, "TT")])
 
         result = score_sleep_pathways(panel, sample_engine, reference_engine)
@@ -750,15 +752,19 @@ class TestStoreFindingsIntegration:
                 sa.select(findings).where(
                     sa.and_(
                         findings.c.module == MODULE_NAME,
-                        findings.c.rsid == "rs2858884",
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Sleep Disorders",
                     )
                 )
             ).first()
 
         assert row is not None
         detail = json.loads(row.detail_json)
-        assert "coverage_note" in detail
-        assert "proxy" in detail["coverage_note"].lower()
+        hla_detail = next(s for s in detail["snp_details"] if s["rsid"] == "rs2858884")
+        assert hla_detail["category"] == "Standard"
+        assert hla_detail["coverage_note"] is not None
+        assert "not" in hla_detail["coverage_note"].lower()
+        assert "proxy" in hla_detail["coverage_note"].lower()
 
     def test_store_clears_previous_findings(
         self,
@@ -818,7 +824,7 @@ class TestStoreFindingsIntegration:
                 ("rs57875989", "1", 7845023, "AA"),  # PER3 → Moderate (capped)
                 ("rs2300478", "2", 66662600, "GG"),  # MEIS1 → Elevated
                 ("rs9357271", "6", 38165204, "TT"),  # BTBD9 → Moderate (capped)
-                ("rs2858884", "6", 32632760, "TT"),  # HLA → Elevated
+                ("rs2858884", "6", 32632760, "TT"),  # HLA-DQ marker → Standard (informational)
             ],
         )
 

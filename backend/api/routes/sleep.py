@@ -2,7 +2,8 @@
 
 Categorical pathway scoring results — Elevated / Moderate / Standard
 per sleep pathway with per-SNP drill-down, CYP1A2 metabolizer calling,
-HLA-DQB1*06:02 proxy, and PGx cross-module reference.
+an HLA-DQ region marker (rs2858884; informational, not a DQB1*06:02 proxy),
+and PGx cross-module reference.
 
 GET  /api/analysis/sleep/pathways?sample_id=N           — All pathway results
 GET  /api/analysis/sleep/pathway/{pathway_id}?sample_id=N — Single pathway detail

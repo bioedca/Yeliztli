@@ -5,7 +5,8 @@ Implements P3-49:
     Circadian Rhythm, Sleep Quality, Sleep Disorders).
   - CYP1A2 caffeine metabolizer three-state calling (rapid/intermediate/slow).
   - CYP1A2 cross-module reference to Pharmacogenomics (read, not re-compute).
-  - HLA-DQB1*06:02 proxy (rs2858884) with accuracy caveat.
+  - rs2858884 HLA-DQ region marker (NOT a DQB1*06:02 / narcolepsy proxy;
+    informational only, no narcolepsy risk inferred).
   - PER3 VNTR proxy with coverage note.
   - Categorical outputs only (Elevated / Moderate / Standard).
 
