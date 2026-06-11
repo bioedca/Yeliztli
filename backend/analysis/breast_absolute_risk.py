@@ -118,6 +118,8 @@ def set_consent(reference_engine: sa.Engine, sample_id: int, consented: bool) ->
                 sample_id=sample_id,
                 feature=FEATURE,
                 consented=1 if consented else 0,
+                # Record the grant time only when opting in; NULL on opt-out.
+                consented_at=sa.func.now() if consented else None,
             )
         )
     logger.info("risk_overlay_consent_set", sample_id=sample_id, consented=consented)

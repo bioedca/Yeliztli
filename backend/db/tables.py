@@ -524,7 +524,9 @@ risk_overlay_consent = sa.Table(
         comment="Overlay feature key, e.g. 'breast_absolute_risk'",
     ),
     sa.Column("consented", sa.Integer, nullable=False, server_default="0"),
-    sa.Column("consented_at", sa.DateTime, server_default=sa.func.now()),
+    # Set only when consent is granted (NULL otherwise) — an audit timestamp of
+    # *when consent was given*, mirroring apoe_gate.acknowledged_at.
+    sa.Column("consented_at", sa.DateTime),
 )
 
 sa.Index(

@@ -41,7 +41,8 @@ def upgrade() -> None:
             comment="Overlay feature key, e.g. 'breast_absolute_risk'",
         ),
         sa.Column("consented", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("consented_at", sa.DateTime, server_default=sa.func.now()),
+        # Set only when consent is granted (NULL otherwise) — audit timestamp.
+        sa.Column("consented_at", sa.DateTime),
     )
     op.create_index(
         "idx_risk_overlay_consent_sample_feature",
