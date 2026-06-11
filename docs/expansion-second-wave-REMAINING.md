@@ -27,7 +27,7 @@
 | **D** — HLA / HIBAG | 6 | 0 | — | 6 (**separately-scheduled**) |
 | **E** — Pharmacogenomics expansion | 6 | 5 (E1/E3/E4/E5/E6) | — | 1 (E2) |
 | **F** — Deeper variant interpretation | 3 | 1 (F1) | — | 2 (F3; F2 **separately-scheduled**) |
-| **Total** | **42** | **18** | — | **~24** (9 of them separately-scheduled) |
+| **Total** | **42** | **18** | — | **~24** (14 separately-scheduled — Wave C: 7, Wave D: 6, SW-F2: 1) |
 
 **Done & merged this session (bioedca fork, 2026-06-11):**
 - **SW-A11** (full) — ClinGen gene-disease-validity guardrail + manifest `license`/NOTICE scaffolding.
