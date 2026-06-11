@@ -41,6 +41,7 @@ from backend.api.routes.encode_ccres import router as encode_ccres_router
 from backend.api.routes.export import router as export_router
 from backend.api.routes.findings import router as findings_router
 from backend.api.routes.fitness import router as fitness_router
+from backend.api.routes.g6pd import router as g6pd_router
 from backend.api.routes.gene_health import router as gene_health_router
 from backend.api.routes.gene_validity import router as gene_validity_router
 from backend.api.routes.genes import cache_router as uniprot_cache_router
@@ -205,6 +206,7 @@ def create_app() -> FastAPI:
     api_router.include_router(export_router)
     api_router.include_router(findings_router)
     api_router.include_router(fitness_router)
+    api_router.include_router(g6pd_router)
     api_router.include_router(gene_health_router)
     api_router.include_router(gene_validity_router)
     api_router.include_router(gout_router)

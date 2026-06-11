@@ -63,6 +63,7 @@ _FULLY_GATED_MODULES = frozenset(
         "export",
         "findings",
         "fitness",
+        "g6pd",
         "gene_health",
         "gene_validity",
         "genes",

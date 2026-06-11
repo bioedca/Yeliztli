@@ -906,6 +906,19 @@ BCHE_PGX_CONTEXT_ONLY = (
 )
 
 
+G6PD_PGX_CONTEXT_ONLY = (
+    "G6PD deficiency pharmacogenomics (CPIC 2022; context only). G6PD is X-linked: a single "
+    "deficiency allele makes a male (XY) deficient, whereas a heterozygous female (XX) has a "
+    "WIDE range of activity (random X-inactivation) and may test normal yet still be at risk "
+    "— so a heterozygous result is reported as 'variable', not reassurance. In G6PD "
+    "deficiency, oxidative drugs (e.g., rasburicase, primaquine, tafenoquine, dapsone, "
+    "methylene blue) can trigger acute hemolytic anemia. This is interpretive context, NOT a "
+    "diagnosis: an array types only a few of 200+ variants and biological sex is inferred, "
+    "not recorded; G6PD status is confirmed by an enzyme-activity assay. It changes no "
+    "finding; discuss any oxidative-drug exposure with your care team."
+)
+
+
 ALPHAMISSENSE_CONTEXT_ONLY = (
     "AlphaMissense missense pathogenicity (Cheng 2023; context only). A structure-based "
     "AI prediction shown as a COMPLEMENT to the REVEL in-silico evidence — because "
