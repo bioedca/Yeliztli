@@ -345,6 +345,14 @@ def load_cpic_into_db(
     Returns:
         CPICLoadStats with counts.
     """
+    # Guard: refuse a destructive clear when there is nothing to load (an empty
+    # or malformed parse must never silently wipe all three CPIC tables).
+    if clear_existing and not (allele_rows or diplotype_rows or guideline_rows):
+        raise ValueError(
+            "Refusing to clear the CPIC tables with 0 rows to load "
+            "(likely an empty or malformed CPIC source)."
+        )
+
     stats = CPICLoadStats(
         alleles_loaded=len(allele_rows),
         diplotypes_loaded=len(diplotype_rows),

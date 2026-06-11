@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 
 from backend.annotation.cpic import (
@@ -298,6 +299,24 @@ class TestLoadCPICIntoDB:
         with reference_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(cpic_alleles)).scalar()
             assert count == 1  # Not 2
+
+    def test_empty_load_refuses_to_clear(self, reference_engine: sa.Engine):
+        """A clear_existing load with no rows must NOT wipe the CPIC tables."""
+        row = [
+            {
+                "gene": "CYP2D6",
+                "allele_name": "*1",
+                "defining_variants": "[]",
+                "function": "Normal function",
+                "activity_score": 1.0,
+            }
+        ]
+        load_cpic_into_db(row, [], [], reference_engine)
+        with pytest.raises(ValueError, match="0 rows"):
+            load_cpic_into_db([], [], [], reference_engine, clear_existing=True)
+        with reference_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(cpic_alleles)).scalar()
+            assert count == 1  # untouched
 
     def test_no_clear_appends(self, reference_engine: sa.Engine):
         row = [

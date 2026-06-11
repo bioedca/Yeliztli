@@ -173,6 +173,7 @@ class TestGeneValidityEndpoint:
         from backend.analysis.gene_validity import CLINGEN_FRAMEWORK_PMID
 
         data = gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        assert data  # guard against a vacuous loop
         for d in data:
             assert d["context_only"] is True
             assert d["note"]

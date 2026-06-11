@@ -205,7 +205,17 @@ def load_clingen_into_db(
     *,
     clear_existing: bool = True,
 ) -> ClinGenLoadStats:
-    """Bulk-load parsed ClinGen rows into ``clingen_gene_validity``."""
+    """Bulk-load parsed ClinGen rows into ``clingen_gene_validity``.
+
+    Guard: a destructive ``clear_existing`` with **zero** rows to load is refused
+    — an empty/corrupt parse (e.g. an upstream format change) must never silently
+    wipe the existing curated table to nothing.
+    """
+    if clear_existing and not rows:
+        raise ValueError(
+            "Refusing to clear clingen_gene_validity with 0 rows to load "
+            "(likely an empty or malformed ClinGen source)."
+        )
     stats = ClinGenLoadStats(rows_loaded=len(rows))
     for row in rows:
         stats.genes_found.add(row["gene_symbol"])

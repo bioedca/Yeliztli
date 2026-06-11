@@ -134,3 +134,19 @@ def test_download_and_load_uses_committed_csv(ref_engine: sa.Engine, tmp_path: P
     # A well-known Definitive gene-disease pair is present.
     curations = lookup_gene_validity(ref_engine, "BRCA1")
     assert any(c["classification"] == "Definitive" for c in curations)
+
+
+def test_empty_load_refuses_to_wipe(fixture_csv: Path, ref_engine: sa.Engine) -> None:
+    """A clear_existing load with 0 rows must NOT wipe the curated table."""
+    from backend.annotation.clingen import load_clingen_into_db
+
+    load_clingen_from_csv(fixture_csv, ref_engine)  # 3 rows present
+    with pytest.raises(ValueError, match="0 rows"):
+        load_clingen_into_db([], ref_engine, clear_existing=True)
+    with ref_engine.connect() as conn:
+        total = conn.execute(
+            sa.select(sa.func.count()).select_from(clingen_gene_validity)
+        ).scalar_one()
+    assert total == 3  # untouched
+    # A non-destructive empty load is a safe no-op (no raise).
+    load_clingen_into_db([], ref_engine, clear_existing=False)
