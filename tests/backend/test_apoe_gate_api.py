@@ -258,7 +258,18 @@ class TestAPOEGateAcknowledge:
 
 
 class TestAPOEGenotype:
-    """Tests for the APOE genotype endpoint (not gate-protected)."""
+    """Tests for the APOE genotype endpoint (ε4 fields gate-protected, issue #46)."""
+
+    # Every sensitive field that must NOT leak before gate acknowledgment.
+    _SENSITIVE_FIELDS = (
+        "diplotype",
+        "has_e4",
+        "e4_count",
+        "has_e2",
+        "e2_count",
+        "rs429358_genotype",
+        "rs7412_genotype",
+    )
 
     def test_not_run_before_analysis(self, apoe_client: TestClient) -> None:
         """Should return not_run status when analysis hasn't been run."""
@@ -268,9 +279,35 @@ class TestAPOEGenotype:
         assert data["status"] == "not_run"
         assert data["diplotype"] is None
 
-    def test_returns_genotype_after_run(self, apoe_client: TestClient) -> None:
-        """Should return genotype info after running analysis."""
+    def test_genotype_locked_before_acknowledgment(self, apoe_client: TestClient) -> None:
+        """A determined genotype must be locked (no ε4 fields) until the gate is acked."""
         apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        # Gate NOT acknowledged
+        resp = apoe_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "determined_but_locked"
+        for field in self._SENSITIVE_FIELDS:
+            assert data[field] is None, f"{field} leaked before gate acknowledgment"
+
+    def test_e4_status_hidden_before_acknowledgment(self, apoe_e4_client: TestClient) -> None:
+        """For an actual ε4 carrier, ε4 status must not be readable before the gate.
+
+        This is the core defect (#46): the user must be able to choose whether to
+        learn their Alzheimer-risk ε4 status, so it cannot be exposed pre-gate.
+        """
+        apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        resp = apoe_e4_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "determined_but_locked"
+        for field in self._SENSITIVE_FIELDS:
+            assert data[field] is None, f"{field} leaked ε4 status before acknowledgment"
+
+    def test_returns_genotype_after_acknowledgment(self, apoe_client: TestClient) -> None:
+        """Full genotype is returned once the gate is acknowledged."""
+        apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        apoe_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
         resp = apoe_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
         assert resp.status_code == 200
         data = resp.json()
@@ -279,17 +316,10 @@ class TestAPOEGenotype:
         assert data["has_e4"] is False
         assert data["e4_count"] == 0
 
-    def test_genotype_not_gate_protected(self, apoe_client: TestClient) -> None:
-        """Genotype endpoint should work WITHOUT gate acknowledgment."""
-        apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
-        # Gate NOT acknowledged
-        resp = apoe_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
-        assert resp.status_code == 200
-        assert resp.json()["diplotype"] is not None
-
-    def test_e4_carrier_genotype(self, apoe_e4_client: TestClient) -> None:
-        """Should correctly report ε4 carrier status."""
+    def test_e4_carrier_genotype_after_acknowledgment(self, apoe_e4_client: TestClient) -> None:
+        """ε4 carrier status is reported correctly once the gate is acknowledged."""
         apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        apoe_e4_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
         resp = apoe_e4_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
         assert resp.status_code == 200
         data = resp.json()

@@ -2,8 +2,13 @@
  *
  * Layout:
  * 1. Page header (Brain icon, title, subtitle)
- * 2. Genotype card (always visible — not gate-protected)
- * 3. Gate component (if not acknowledged) OR finding cards (if acknowledged)
+ * 2. Gate component (if not acknowledged) OR genotype card + finding cards
+ *    (if acknowledged)
+ *
+ * The genotype card is rendered only after the gate is acknowledged: APOE ε4
+ * status is itself the sensitive Alzheimer-risk disclosure, so it must not be
+ * shown ahead of the gate (issue #46). The backend likewise withholds the ε4
+ * fields until acknowledgment.
  *
  * The gate is non-dismissible: user must actively choose "Show Results"
  * or "Skip". Declining navigates back to the dashboard.
@@ -110,58 +115,61 @@ export default function APOEView() {
       {/* Main content */}
       {!isLoading && !hasError && (
         <div className="space-y-6">
-          {/* Genotype card — always visible (not gate-protected) */}
-          {genotypeQuery.data && (
-            <section aria-label="APOE genotype">
-              <APOEGenotypeCard genotype={genotypeQuery.data} />
-            </section>
-          )}
-
-          {/* Gate OR Findings */}
+          {/* Gate (not acknowledged) OR genotype card + findings (acknowledged).
+              The genotype card reveals ε4 status, so it is gated too (issue #46). */}
           {gateAcknowledged ? (
-            /* ── Findings (gate acknowledged) ── */
-            <section aria-label="APOE findings">
-              <h2 className="text-lg font-semibold mb-3">Findings</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Detailed APOE-associated risk assessments based on your genotype
-              </p>
-
-              {findingsQuery.isLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
+            <>
+              {/* ── Genotype card (gate acknowledged) ── */}
+              {genotypeQuery.data && (
+                <section aria-label="APOE genotype">
+                  <APOEGenotypeCard genotype={genotypeQuery.data} />
+                </section>
               )}
 
-              {findingsQuery.isError && (
-                <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-medium text-destructive">Failed to load findings</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {findingsQuery.error instanceof Error
-                          ? findingsQuery.error.message
-                          : "An unexpected error occurred."}
-                      </p>
+              {/* ── Findings (gate acknowledged) ── */}
+              <section aria-label="APOE findings">
+                <h2 className="text-lg font-semibold mb-3">Findings</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Detailed APOE-associated risk assessments based on your genotype
+                </p>
+
+                {findingsQuery.isLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+
+                {findingsQuery.isError && (
+                  <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium text-destructive">Failed to load findings</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {findingsQuery.error instanceof Error
+                            ? findingsQuery.error.message
+                            : "An unexpected error occurred."}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {findingsQuery.data && findingsQuery.data.items.length > 0 ? (
-                <div className="space-y-4" data-testid="apoe-findings-list">
-                  {findingsQuery.data.items.map((finding) => (
-                    <APOEFindingCard key={finding.category} finding={finding} />
-                  ))}
-                </div>
-              ) : findingsQuery.data && findingsQuery.data.items.length === 0 ? (
-                <PageEmpty
-                  icon={Brain}
-                  title="No APOE findings available."
-                  description="Run the APOE analysis first."
-                />
-              ) : null}
-            </section>
+                {findingsQuery.data && findingsQuery.data.items.length > 0 ? (
+                  <div className="space-y-4" data-testid="apoe-findings-list">
+                    {findingsQuery.data.items.map((finding) => (
+                      <APOEFindingCard key={finding.category} finding={finding} />
+                    ))}
+                  </div>
+                ) : findingsQuery.data && findingsQuery.data.items.length === 0 ? (
+                  <PageEmpty
+                    icon={Brain}
+                    title="No APOE findings available."
+                    description="Run the APOE analysis first."
+                  />
+                ) : null}
+              </section>
+            </>
           ) : (
             /* ── Gate (not yet acknowledged) ── */
             <section aria-label="APOE disclosure gate">

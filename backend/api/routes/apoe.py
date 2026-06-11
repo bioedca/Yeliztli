@@ -7,7 +7,7 @@ the per-sample DB (apoe_gate table) and checked on every findings request.
 GET  /api/analysis/apoe/disclaimer                   — APOE gate disclosure text
 GET  /api/analysis/apoe/gate-status?sample_id=N      — Check gate acknowledgment
 POST /api/analysis/apoe/acknowledge-gate?sample_id=N — Acknowledge the gate
-GET  /api/analysis/apoe/genotype?sample_id=N         — Basic genotype (no findings)
+GET  /api/analysis/apoe/genotype?sample_id=N         — Genotype status (ε4 fields gate-protected)
 GET  /api/analysis/apoe/findings?sample_id=N         — Findings (gate-protected)
 POST /api/analysis/apoe/run?sample_id=N              — Run APOE analysis
 """
@@ -65,9 +65,16 @@ class APOEGateAcknowledgeResponse(BaseModel):
 
 
 class APOEGenotypeResponse(BaseModel):
-    """Basic APOE genotype information (not gate-protected)."""
+    """Basic APOE genotype status.
 
-    status: str  # determined / missing_snps / no_call / ambiguous / not_run
+    The ε4-bearing fields (``diplotype``, ``has_e4``, ``e4_count``, ``has_e2``,
+    ``e2_count``, raw SNP genotypes) are gate-protected: they are populated only
+    after the APOE disclosure gate is acknowledged. Before acknowledgment a
+    determined genotype is reported as ``determined_but_locked`` with every
+    sensitive field ``None`` (issue #46).
+    """
+
+    status: str  # determined / determined_but_locked / not_run
     diplotype: str | None = None
     has_e4: bool | None = None
     e4_count: int | None = None
@@ -255,12 +262,20 @@ def acknowledge_gate(
 def get_apoe_genotype(
     sample_id: int = Query(..., description="Sample ID"),
 ) -> APOEGenotypeResponse:
-    """Get basic APOE genotype information for a sample.
+    """Get APOE genotype status for a sample, gated on the disclosure acknowledgment.
 
-    This endpoint returns the genotype determination result (diplotype,
-    has_e4, e4_count, etc.) WITHOUT the detailed findings. It is NOT
-    gate-protected — it indicates whether ε4 is present but does not
-    reveal the clinical implications.
+    APOE ε4 status is itself the sensitive Alzheimer-risk disclosure (the gate
+    exists precisely to let a user choose whether to learn it), so the ε4-bearing
+    fields are released only after the gate is acknowledged. Before that:
+
+    - no genotype stored  → ``not_run``
+    - genotype stored      → ``determined_but_locked`` with all sensitive fields
+      (``diplotype``/``has_e4``/``e4_count``/``has_e2``/``e2_count``/raw SNPs)
+      ``None``
+
+    After acknowledgment the full genotype is returned (status ``determined``).
+    This mirrors the gate on ``/findings`` so ε4 status cannot be read ahead of
+    the disclosure (issue #46).
 
     Example: ``GET /api/analysis/apoe/genotype?sample_id=1``
     """
@@ -276,6 +291,13 @@ def get_apoe_genotype(
 
     if row is None:
         return APOEGenotypeResponse(status="not_run")
+
+    # Gate boundary: a determined genotype exists, but ε4/diplotype must not be
+    # disclosed until the user acknowledges the APOE gate. Report only that a
+    # result is present-but-locked, with no sensitive fields.
+    acknowledged, _ = _is_gate_acknowledged(sample_engine)
+    if not acknowledged:
+        return APOEGenotypeResponse(status="determined_but_locked")
 
     detail: dict[str, Any] = {}
     if row.detail_json:
