@@ -51,7 +51,7 @@ import structlog
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.insilico_tiers import insilico_block
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HET, ZYG_HOM_ALT
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -391,6 +391,69 @@ def extract_cardiovascular_variants(
 # ── Findings storage ─────────────────────────────────────────────────────
 
 
+# Disease-status classes for a P/LP variant in the user-facing finding.
+DISEASE_AFFECTED = "affected"
+DISEASE_CARRIER = "carrier"
+DISEASE_POSSIBLE_BIALLELIC = "possible_biallelic"
+
+
+def classify_disease_status(
+    variant: CardiovascularVariantResult,
+    variants: list[CardiovascularVariantResult],
+) -> str:
+    """Classify whether a P/LP variant supports an affected-disease finding.
+
+    Autosomal-dominant (AD) variants are disease-relevant when heterozygous.
+    Autosomal-recessive (AR) conditions — e.g. ABCG5/ABCG8 sitosterolemia —
+    require a biallelic genotype, so a single heterozygous P/LP allele is a
+    *carrier* state, not an affected diagnosis (issue #36).
+
+    Returns:
+        - ``DISEASE_AFFECTED``: AD variant, or AR variant homozygous for the alt
+          (biallelic at one locus).
+        - ``DISEASE_POSSIBLE_BIALLELIC``: AR gene with ≥2 heterozygous P/LP loci —
+          a possible compound heterozygote, but genotype data cannot phase the
+          alleles, so biallelic status is unconfirmed.
+        - ``DISEASE_CARRIER``: AR gene with a single heterozygous P/LP allele.
+    """
+    if variant.inheritance != "AR":
+        return DISEASE_AFFECTED
+    if variant.zygosity == ZYG_HOM_ALT:
+        return DISEASE_AFFECTED
+    gene_het_plp = sum(
+        1 for v in variants if v.gene_symbol == variant.gene_symbol and v.zygosity == ZYG_HET
+    )
+    if gene_het_plp >= 2:
+        return DISEASE_POSSIBLE_BIALLELIC
+    return DISEASE_CARRIER
+
+
+def _cardiovascular_finding_text(variant: CardiovascularVariantResult, status: str) -> str:
+    """Render the user-facing finding text, gated by AR disease status (issue #36)."""
+    condition_text = (
+        ", ".join(variant.conditions) if variant.conditions else "Cardiovascular condition"
+    )
+    sig = variant.clinvar_significance
+    head = f"{variant.gene_symbol} {variant.rsid} ({variant.genotype})"
+    if status == DISEASE_CARRIER:
+        return (
+            f"{head} — {sig}, heterozygous carrier. {condition_text} is autosomal "
+            f"recessive and requires biallelic (two-copy) variants, so a single "
+            f"pathogenic allele is a carrier state — not an affected diagnosis. "
+            f"Array data may not exclude a second untyped allele; biochemical "
+            f"(plant-sterol) or clinical confirmation is needed if indicated."
+        )
+    if status == DISEASE_POSSIBLE_BIALLELIC:
+        return (
+            f"{head} — {sig}, heterozygous (one of multiple {variant.gene_symbol} "
+            f"pathogenic alleles). {condition_text} is autosomal recessive; genotype "
+            f"data cannot phase these alleles, so biallelic (compound-heterozygous) "
+            f"status is possible but unconfirmed and requires clinical/biochemical "
+            f"confirmation."
+        )
+    return f"{head} — {sig} for {condition_text}"
+
+
 def store_cardiovascular_findings(
     result: CardiovascularAnalysisResult,
     sample_engine: sa.Engine,
@@ -422,12 +485,11 @@ def store_cardiovascular_findings(
         )
 
     for v in result.variants:
-        # Build human-readable finding text
-        sig_display = v.clinvar_significance
-        condition_text = ", ".join(v.conditions) if v.conditions else "Cardiovascular condition"
-        finding_text = (
-            f"{v.gene_symbol} {v.rsid} ({v.genotype}) — {sig_display} for {condition_text}"
-        )
+        # Build human-readable finding text, gating autosomal-recessive conditions
+        # (e.g. ABCG5/ABCG8 sitosterolemia) so a single heterozygous P/LP allele is
+        # framed as a carrier rather than an affected diagnosis (issue #36).
+        disease_status = classify_disease_status(v, result.variants)
+        finding_text = _cardiovascular_finding_text(v, disease_status)
 
         detail = {
             "clinvar_accession": v.clinvar_accession,
@@ -436,6 +498,7 @@ def store_cardiovascular_findings(
             "conditions": v.conditions,
             "cardiovascular_category": v.cardiovascular_category,
             "inheritance": v.inheritance,
+            "disease_status": disease_status,
             "cross_links": v.cross_links,
             # Additive, DRAFT in-silico evidence tag (Pejaver 2022, REVEL-only).
             # Never mutates evidence_level / clinvar_significance below.

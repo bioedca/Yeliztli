@@ -31,6 +31,9 @@ from backend.analysis.cardiovascular import (
     CATEGORY_CHANNELOPATHY,
     CATEGORY_FH,
     CATEGORY_LIPID,
+    DISEASE_AFFECTED,
+    DISEASE_CARRIER,
+    DISEASE_POSSIBLE_BIALLELIC,
     FH_STATUS_NEGATIVE,
     FH_STATUS_POSITIVE,
     CardiovascularAnalysisResult,
@@ -38,6 +41,7 @@ from backend.analysis.cardiovascular import (
     CardiovascularVariantResult,
     FHStatus,
     _assign_evidence_level,
+    classify_disease_status,
     determine_fh_status,
     extract_cardiovascular_variants,
     load_cardiovascular_panel,
@@ -1322,3 +1326,146 @@ class TestStoreFHStatusFinding:
         assert detail["status"] == FH_STATUS_POSITIVE
         assert "LDLR" in detail["affected_genes"]
         assert "PCSK9" in detail["affected_genes"]
+
+
+# ── Autosomal-recessive (ABCG5/ABCG8 sitosterolemia) inheritance gating (#36) ──
+
+
+def _abcg_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
+    """An ABCG5 ClinVar P/LP annotated_variants row for AR-gating tests."""
+    return {
+        "rsid": rsid,
+        "chrom": "2",
+        "pos": pos,
+        "genotype": genotype,
+        "zygosity": zygosity,
+        "gene_symbol": "ABCG5",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 2,
+        "clinvar_accession": "VCV000000001",
+        "clinvar_conditions": "Sitosterolemia",
+        "annotation_coverage": 2,
+    }
+
+
+def _store_and_fetch(
+    panel: CardiovascularPanel, engine: sa.Engine, rows: list[dict]
+) -> tuple[CardiovascularAnalysisResult, list]:
+    with engine.begin() as conn:
+        conn.execute(sa.insert(annotated_variants), rows)
+    result = extract_cardiovascular_variants(panel, engine)
+    store_cardiovascular_findings(result, engine)
+    with engine.connect() as conn:
+        finding_rows = (
+            conn.execute(sa.select(findings).where(findings.c.module == "cardiovascular"))
+            .mappings()
+            .all()
+        )
+    return result, finding_rows
+
+
+class TestRecessiveInheritanceGating:
+    """A single heterozygous ABCG5/ABCG8 P/LP allele is a carrier, not affected (#36)."""
+
+    def test_classify_single_het_ar_is_carrier(self) -> None:
+        v = CardiovascularVariantResult(
+            rsid="rs1",
+            gene_symbol="ABCG5",
+            genotype="CT",
+            zygosity="het",
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=2,
+            clinvar_accession="VCV1",
+            clinvar_conditions="Sitosterolemia",
+            conditions=["Sitosterolemia"],
+            cardiovascular_category="lipid_metabolism",
+            inheritance="AR",
+            evidence_level=3,
+            cross_links=[],
+            pmids=[],
+        )
+        assert classify_disease_status(v, [v]) == DISEASE_CARRIER
+
+    def test_classify_homozygous_ar_is_affected(self) -> None:
+        v = CardiovascularVariantResult(
+            rsid="rs1",
+            gene_symbol="ABCG5",
+            genotype="TT",
+            zygosity="hom_alt",
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=2,
+            clinvar_accession="VCV1",
+            clinvar_conditions="Sitosterolemia",
+            conditions=["Sitosterolemia"],
+            cardiovascular_category="lipid_metabolism",
+            inheritance="AR",
+            evidence_level=3,
+            cross_links=[],
+            pmids=[],
+        )
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    def test_classify_ad_het_is_affected(self) -> None:
+        v = CardiovascularVariantResult(
+            rsid="rs2",
+            gene_symbol="LDLR",
+            genotype="CT",
+            zygosity="het",
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=3,
+            clinvar_accession="VCV2",
+            clinvar_conditions="Familial hypercholesterolemia",
+            conditions=["Familial hypercholesterolemia"],
+            cardiovascular_category="fh",
+            inheritance="AD",
+            evidence_level=4,
+            cross_links=[],
+            pmids=[],
+        )
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    def test_single_het_abcg5_finding_is_carrier_not_affected(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """The issue's core case: one het ABCG5 P/LP must NOT read as affected disease."""
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_abcg_variant("rs1", 44039611, "CT", "het")]
+        )
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "carrier" in text.lower()
+        assert "autosomal recessive" in text.lower()
+        # Must NOT assert the affected-disease phrasing for a single allele.
+        assert "Pathogenic for Sitosterolemia" not in text
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_CARRIER
+
+    def test_homozygous_abcg5_finding_is_affected(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """A homozygous (biallelic) ABCG5 genotype still reads as affected disease."""
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_abcg_variant("rs1", 44039611, "TT", "hom_alt")]
+        )
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "Pathogenic for Sitosterolemia" in text
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_AFFECTED
+
+    def test_two_het_abcg5_is_possible_biallelic(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Two het P/LP loci in one AR gene → possible compound het, flagged unconfirmed."""
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                _abcg_variant("rs1", 44039611, "CT", "het"),
+                _abcg_variant("rs2", 44042000, "AG", "het"),
+            ],
+        )
+        assert len(rows) == 2
+        for row in rows:
+            text = row["finding_text"]
+            assert "Pathogenic for Sitosterolemia" not in text
+            assert json.loads(row["detail_json"])["disease_status"] == DISEASE_POSSIBLE_BIALLELIC
+            assert "compound" in text.lower() or "unconfirmed" in text.lower()
