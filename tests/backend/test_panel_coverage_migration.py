@@ -26,9 +26,9 @@ from backend.db.tables import (
 class TestPanelCoverageSchema:
     """Test panel_coverage table definition and creation."""
 
-    def test_schema_version_is_11(self) -> None:
-        """SAMPLE_SCHEMA_VERSION is 11 (v10=gnomad_af_popmax, v11=findings.provenance, SW-A4)."""
-        assert SAMPLE_SCHEMA_VERSION == 11
+    def test_schema_version_is_current(self) -> None:
+        """SAMPLE_SCHEMA_VERSION tracks the latest additive sample DB migration."""
+        assert SAMPLE_SCHEMA_VERSION == 12
 
     def test_table_created_on_new_sample(self, sample_engine: sa.Engine) -> None:
         """panel_coverage exists in freshly created sample DBs."""

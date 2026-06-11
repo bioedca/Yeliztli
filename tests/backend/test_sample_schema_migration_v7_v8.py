@@ -246,9 +246,8 @@ class TestUpgradeStamping:
 
         with engine.connect() as conn:
             row = conn.execute(sa.text("PRAGMA user_version")).fetchone()
+        # v7 -> current stamps the latest version after all additive migrations.
         assert row[0] == SAMPLE_SCHEMA_VERSION
-        # v7 → current stamps the latest version (v11 after the SW-A4 provenance add).
-        assert row[0] == 11
 
     def test_upgrade_is_idempotent(self, tmp_path: Path) -> None:
         engine = _create_v7_sample_db(tmp_path / "sample_001.db")
