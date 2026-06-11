@@ -77,6 +77,7 @@ from backend.api.routes.traits import router as traits_router
 from backend.api.routes.updates import router as updates_router
 from backend.api.routes.variant_detail import router as variant_detail_router
 from backend.api.routes.variants import router as variants_router
+from backend.api.routes.warfarin import router as warfarin_router
 from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
 from backend.config import get_settings
@@ -238,6 +239,7 @@ def create_app() -> FastAPI:
     api_router.include_router(traits_router)
     api_router.include_router(updates_router)
     api_router.include_router(variants_router)
+    api_router.include_router(warfarin_router)
     api_router.include_router(watches_router)
     api_router.include_router(variant_detail_router)
     app.include_router(api_router)

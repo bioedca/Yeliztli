@@ -884,6 +884,17 @@ GENE_VALIDITY_CONTEXT_ONLY = (
 # finding's stored evidence level or ClinVar significance, and a draft "Pathogenic"
 # is not a clinical diagnosis.
 
+WARFARIN_PGX_CONTEXT_ONLY = (
+    "Warfarin pharmacogenomics (CPIC 2017; context only). VKORC1 c.-1639G>A and "
+    "CYP4F2*3 genotypes modulate warfarin dose requirement together with CYP2C9 — "
+    "the VKORC1 A allele increases warfarin sensitivity (lower dose) and CYP4F2*3 "
+    "modestly raises the dose requirement. This is interpretive context, NOT a dose: "
+    "CPIC dosing requires a validated pharmacogenetic algorithm plus clinical factors "
+    "and INR monitoring. It does not change any finding; discuss warfarin dosing only "
+    "with your care team."
+)
+
+
 ALPHAMISSENSE_CONTEXT_ONLY = (
     "AlphaMissense missense pathogenicity (Cheng 2023; context only). A structure-based "
     "AI prediction shown as a COMPLEMENT to the REVEL in-silico evidence — because "

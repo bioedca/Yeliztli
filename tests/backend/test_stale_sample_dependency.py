@@ -90,6 +90,7 @@ _FULLY_GATED_MODULES = frozenset(
         "traits",
         "variant_detail",
         "variants",
+        "warfarin",
         "watches",
     }
 )
