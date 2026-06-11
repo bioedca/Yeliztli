@@ -124,7 +124,9 @@ def test_star4_calls_resolve_to_cpic_phenotypes(
     assert result.call_confidence == CallConfidence.COMPLETE
 
 
-def test_star1_star4_emits_clopidogrel_alert(reference_engine: sa.Engine) -> None:
+def test_star1_star4_emits_clopidogrel_and_voriconazole_alerts(
+    reference_engine: sa.Engine,
+) -> None:
     sample = _make_sample(_cyp2c19_genotypes(rs28399504="AG"))
 
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C19"}))
@@ -132,7 +134,9 @@ def test_star1_star4_emits_clopidogrel_alert(reference_engine: sa.Engine) -> Non
 
     cyp2c19_alerts = [a for a in alerts if a.gene == "CYP2C19"]
     assert cyp2c19_alerts, "expected CYP2C19 alerts for *1/*4 Intermediate Metabolizer"
-    assert {a.drug for a in cyp2c19_alerts} == {"clopidogrel"}
+    # voriconazole IM coverage added in issue #23 (CPIC: standard dosing + TDM),
+    # closing the silent gap where IM got a clopidogrel alert but no voriconazole one.
+    assert {a.drug for a in cyp2c19_alerts} == {"clopidogrel", "voriconazole"}
     for alert in cyp2c19_alerts:
         assert alert.diplotype == "*1/*4"
         assert alert.phenotype == "Intermediate Metabolizer"

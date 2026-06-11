@@ -758,6 +758,23 @@ def _fetch_guidelines_for_gene_phenotype(
     ]
 
 
+def _fetch_guideline_phenotypes_for_gene(
+    gene: str,
+    reference_engine: sa.Engine,
+) -> set[str]:
+    """Return the set of phenotypes that have any guideline row for a gene.
+
+    Used to distinguish a gene that is generally covered (rows exist for
+    other phenotypes) from one with no guidelines at all, so a missing row
+    for a single phenotype can be flagged as a likely coverage gap.
+    """
+    with reference_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(cpic_guidelines.c.phenotype).where(cpic_guidelines.c.gene == gene).distinct()
+        ).fetchall()
+    return {row.phenotype for row in rows}
+
+
 def generate_prescribing_alerts(
     star_allele_results: list[StarAlleleResult],
     reference_engine: sa.Engine,
@@ -803,11 +820,28 @@ def generate_prescribing_alerts(
         )
 
         if not guidelines:
-            logger.debug(
-                "pgx_no_guidelines",
-                gene=result.gene,
-                phenotype=result.phenotype,
+            # No guideline row matched this callable, confidently-called
+            # phenotype. Distinguish a likely *missing* row (the gene is
+            # otherwise covered) from a gene with no guidelines at all, so a
+            # silently-dropped actionable pair becomes a visible warning
+            # rather than an invisible gap. See issue #23.
+            covered_phenotypes = _fetch_guideline_phenotypes_for_gene(
+                result.gene, reference_engine
             )
+            if covered_phenotypes:
+                logger.warning(
+                    "pgx_phenotype_no_guideline_row",
+                    gene=result.gene,
+                    phenotype=result.phenotype,
+                    diplotype=result.diplotype,
+                    covered_phenotypes=sorted(covered_phenotypes),
+                )
+            else:
+                logger.debug(
+                    "pgx_no_guidelines",
+                    gene=result.gene,
+                    phenotype=result.phenotype,
+                )
             continue
 
         for guideline in guidelines:
