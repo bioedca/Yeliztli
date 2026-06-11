@@ -72,7 +72,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -226,6 +226,12 @@ class AncestryResult:
     knn_fractions: dict[str, float] | None = None
     nnls_ci_low: dict[str, float] | None = None
     nnls_ci_high: dict[str, float] | None = None
+    # Honesty fields (PCA fix): "confident" → top_population is one of POPULATIONS;
+    # "admixed" → top_population == "ADMIXED" (between clusters); "uncertain" →
+    # top_population == "UNCERTAIN" (too little data to call). quality_flags carries
+    # machine-readable reasons (e.g. "low_coverage", "low_centroid_margin").
+    classification_status: str = "confident"
+    quality_flags: list[str] = field(default_factory=list)
 
     @property
     def n_components(self) -> int:
@@ -402,8 +408,26 @@ def _encode_dosage(genotype: str | None, alt_allele: str) -> float | None:
 
 # ── PCA projection ────────────────────────────────────────────────────────
 
-# Minimum fraction of SNPs required for a meaningful projection
-_MIN_COVERAGE = 0.3
+# Minimum fraction of AIMs that must be genotyped before a confident call. Real
+# 23andMe v5 covers ~98% of these AIMs; correct, stable calls in the validation
+# set (real PGP-HMS genomes) all sit ≥0.97 coverage, while every misclassification
+# clustered at 0.30-0.53. Below this floor, missing AIMs are mean-imputed to the
+# panel mean, which drags the projection toward the PCA origin — and the CSA
+# centroid happens to sit nearest the origin, so low-coverage samples were being
+# *confidently* mislabelled "Central/South Asian" (Privé 2022; the projection
+# shrinks toward the null with missing data). We refuse a single-population call
+# below this and report "UNCERTAIN" instead.
+_MIN_COVERAGE = 0.55
+
+# A confident single-population call requires the sample to sit decisively closest
+# to ONE centroid: the 2nd-nearest centroid must be at least this many times
+# farther (squared-distance ratio) than the nearest. Below this the sample lies
+# between clusters — admixed or poorly-fit — and we report "ADMIXED" rather than a
+# misleading single population. Calibrated on real PGP genomes: confident
+# continental calls had ratios ≥13 (EUR/AFR) and a genuine admixed African/European
+# individual sat at 2.79, while a true (genuinely-distant) Admixed-American sat at
+# 3.49; 3.0 cleanly separates them and errs toward the honest "admixed" verdict.
+_CONFIDENT_MARGIN_RATIO = 3.0
 
 
 def _project_onto_pca(
@@ -484,6 +508,46 @@ def _classify_nearest_centroid(
             best_pop = pop
 
     return best_pop, distances
+
+
+# Honest non-call outcomes (never one of the 7 super-population codes).
+UNCERTAIN = "UNCERTAIN"
+ADMIXED = "ADMIXED"
+
+
+def _classify_with_confidence(
+    coverage: float,
+    distances: dict[str, float],
+) -> tuple[str, str, list[str]]:
+    """Assign a population only when it is both data-sufficient AND unambiguous.
+
+    The honesty core of the PCA fix. Returns ``(top_population, status,
+    quality_flags)`` where ``top_population`` is a super-population code, or
+    :data:`UNCERTAIN` (too little data) / :data:`ADMIXED` (between clusters):
+
+    1. coverage below :data:`_MIN_COVERAGE` → ``UNCERTAIN`` — a sparse projection
+       collapses toward the PCA origin (≈ the CSA centroid) and must not yield a
+       confident label.
+    2. otherwise take the **nearest centroid** (not the degenerate NNLS argmax),
+       and require the 2nd-nearest to be ≥ :data:`_CONFIDENT_MARGIN_RATIO`× farther
+       (squared distance). If not, the sample sits between clusters → ``ADMIXED``.
+    3. else → the nearest-centroid population, ``confident``.
+    """
+    flags: list[str] = []
+    if coverage < _MIN_COVERAGE:
+        flags.append("low_coverage")
+        return UNCERTAIN, "uncertain", flags
+
+    ranked = sorted(distances.items(), key=lambda kv: kv[1])
+    nearest_pop, nearest_dist = ranked[0]
+    second_dist = ranked[1][1] if len(ranked) > 1 else float("inf")
+    margin_ratio = (second_dist / nearest_dist) if nearest_dist > 0 else float("inf")
+
+    if margin_ratio < _CONFIDENT_MARGIN_RATIO:
+        flags.append("low_centroid_margin")
+        return ADMIXED, "admixed", flags
+
+    return nearest_pop, "confident", flags
 
 
 def estimate_admixture_nnls(
@@ -874,13 +938,16 @@ def infer_ancestry(
     # Bootstrap 95% CI for NNLS fractions
     ci_low, ci_high = bootstrap_admixture_nnls(pc_scores, bundle, genotype_map, n_iterations=100)
 
-    # Top population from NNLS
-    top_pop = max(nnls_fracs, key=lambda p: nnls_fracs[p])
-
     # Missing AIM rate
     missing_rate = compute_missing_aim_rate(genotype_map, bundle)
 
     coverage = snps_used / bundle.snp_count if bundle.snp_count > 0 else 0.0
+
+    # Honest top-population: nearest-centroid gated by coverage + margin (PCA fix).
+    # NNLS argmax is retained only for the admixture *breakdown* (nnls_fractions) —
+    # it is degenerate as a top-1 label (a clean sample can tie on a meaningless
+    # population), and on its own it mislabelled low-coverage/admixed samples as CSA.
+    top_pop, classification_status, quality_flags = _classify_with_confidence(coverage, distances)
     is_sufficient = coverage >= _MIN_COVERAGE
 
     result = AncestryResult(
@@ -901,11 +968,15 @@ def infer_ancestry(
         knn_fractions=knn_fracs,
         nnls_ci_low=ci_low,
         nnls_ci_high=ci_high,
+        classification_status=classification_status,
+        quality_flags=quality_flags,
     )
 
     logger.info(
         "ancestry_inferred",
         top_population=result.top_population,
+        classification_status=result.classification_status,
+        quality_flags=result.quality_flags,
         snps_used=result.snps_used,
         snps_total=result.snps_total,
         coverage=result.coverage_fraction,
@@ -957,6 +1028,14 @@ def store_ancestry_findings(
     sorted_admixture = sorted(result.admixture_fractions.items(), key=lambda x: x[1], reverse=True)
     admixture_parts = [f"{pop} {frac:.0%}" for pop, frac in sorted_admixture[:3] if frac >= 0.01]
     admixture_summary = ", ".join(admixture_parts) if admixture_parts else result.top_population
+    # Honest headline: never assert a single population for an admixed/between-clusters
+    # sample (the NNLS breakdown follows as supporting detail, not a verdict).
+    if result.classification_status == "admixed":
+        ancestry_label = (
+            f"Admixed / low-confidence ancestry (no single population): {admixture_summary}"
+        )
+    else:
+        ancestry_label = f"Inferred ancestry: {admixture_summary}"
 
     # Row 1: PCA projection
     pca_detail = {
@@ -990,6 +1069,8 @@ def store_ancestry_findings(
     nnls_detail: dict = {
         "top_population": result.top_population,
         "inferred_ancestry": result.top_population,
+        "classification_status": result.classification_status,
+        "quality_flags": result.quality_flags,
         "admixture_fractions": result.nnls_fractions or result.admixture_fractions,
         "admixture_method": "nnls",
         "confidence": result.confidence,
@@ -1008,7 +1089,7 @@ def store_ancestry_findings(
         "category": "nnls_admixture",
         "evidence_level": ANCESTRY_EVIDENCE_LEVEL,
         "finding_text": (
-            f"Inferred ancestry: {admixture_summary} "
+            f"{ancestry_label} "
             f"({result.snps_used}/{result.snps_total} markers, "
             f"{result.coverage_fraction:.0%} coverage)"
         ),

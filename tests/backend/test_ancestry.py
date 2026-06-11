@@ -24,11 +24,14 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.ancestry import (
+    ADMIXED,
+    UNCERTAIN,
     AncestryAIM,
     AncestryBundle,
     AncestryResult,
     PCACoordinates,
     _classify_nearest_centroid,
+    _classify_with_confidence,
     _encode_dosage,
     _project_onto_pca,
     bootstrap_admixture_nnls,
@@ -146,11 +149,14 @@ def eur_sample(sample_engine: sa.Engine) -> sa.Engine:
 
     High ref allele frequencies → low dosage for many SNPs.
     """
+    # Dosages [0, 0, 2, 2] project to PC≈[-1.2, 2.24] — squarely in the EUR cluster
+    # (centroid [-1, 1.5], dist 0.6; 2nd-nearest EAS is ~31x farther), so it clears
+    # the PCA confidence gate as a decisive EUR call (not the old EUR/EAS borderline).
     genotypes = [
-        {"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AA"},  # 0 alt
-        {"rsid": "rs2", "chrom": "2", "pos": 200, "genotype": "CC"},  # 0 alt
-        {"rsid": "rs3", "chrom": "3", "pos": 300, "genotype": "GA"},  # 1 alt
-        {"rsid": "rs4", "chrom": "4", "pos": 400, "genotype": "TT"},  # 0 alt
+        {"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AA"},  # 0 alt (ref A)
+        {"rsid": "rs2", "chrom": "2", "pos": 200, "genotype": "CC"},  # 0 alt (ref C)
+        {"rsid": "rs3", "chrom": "3", "pos": 300, "genotype": "AA"},  # 2 alt (alt A)
+        {"rsid": "rs4", "chrom": "4", "pos": 400, "genotype": "CC"},  # 2 alt (alt C)
     ]
     return _insert_raw_genotypes(sample_engine, genotypes)
 
@@ -611,38 +617,207 @@ class TestInferAncestry:
 class TestEURClassification:
     """T3-25: PCA projection places known EUR-ancestry sample in EUR cluster."""
 
-    def test_eur_sample_classified_as_eur_or_nearest(
+    def test_eur_sample_classified_as_eur(
         self,
         bundle: AncestryBundle,
         sample_engine: sa.Engine,
     ) -> None:
-        """With realistic bundle, a EUR-like genotype pattern should classify
-        near EUR. We insert genotypes that are homozygous ref for most AIMs
-        (typical of EUR for most ancestry-informative markers).
+        """A realistic EUR genome must classify *confidently* as EUR.
+
+        Uses the synthetic clean-EUR fixture (genotypes sampled from EUR allele
+        frequencies — projects squarely into the EUR cluster). A homozygous-ref
+        pattern is NOT a valid EUR proxy: it is geometrically ambiguous and the
+        PCA fix correctly reports it as ADMIXED, so this test uses a realistic
+        EUR genotype profile instead.
         """
-        # Insert genotypes for all bundle SNPs as homozygous ref
-        # (broadly EUR-like pattern for most AIMs)
-        genotypes = [
-            {
-                "rsid": snp.rsid,
-                "chrom": snp.chrom,
-                "pos": snp.pos,
-                "genotype": snp.ref * 2,  # homozygous reference
-            }
-            for snp in bundle.snps
-        ]
+        fixture = Path(__file__).resolve().parent.parent / "fixtures" / "synthetic_eur_23andme.txt"
+        genotypes = []
+        for line in fixture.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            rsid, chrom, pos, geno = line.split("\t")
+            genotypes.append({"rsid": rsid, "chrom": chrom, "pos": int(pos), "genotype": geno})
         _insert_raw_genotypes(sample_engine, genotypes)
 
         result = infer_ancestry(bundle, sample_engine)
         assert result.is_sufficient
         assert result.snps_used == bundle.snp_count
-        # T3-25 acceptance: a homozygous-reference (broadly EUR-like) AIM
-        # pattern must land in the EUR cluster — not merely "some known
-        # population" (vacuously true for any classification, so a regression
-        # misclassifying EUR as MID/AFR/EAS would have passed).
+        # T3-25 acceptance: a realistic EUR genome must land *confidently* in EUR —
+        # not vacuously "some population", and not the honest ADMIXED/UNCERTAIN
+        # fallbacks (which would mean we lost the ability to make a clean call).
+        assert result.classification_status == "confident"
         assert result.top_population == "EUR", (
-            f"EUR-like genotype classified as {result.top_population!r}, expected 'EUR'"
+            f"EUR genome classified as {result.top_population!r}, expected 'EUR'"
         )
+
+
+# ── Confidence-gated classification (PCA fix) ────────────────────────────
+
+
+class TestClassifyWithConfidence:
+    """Lock the PCA honesty fix against the real-data oracle.
+
+    The distance vectors below are the *actual* nearest-centroid squared distances
+    measured by running the production bundle on real public PGP-HMS genomes
+    (https://my.pgp-hms.org/public_genetic_data) with self-reported ancestry. Before
+    the fix, every low-coverage and admixed sample was confidently mislabelled
+    "CSA" (the centroid nearest the PCA origin). The fix must report the honest
+    EUR/AFR/AMR calls, ADMIXED for the between-clusters case, and UNCERTAIN for the
+    low-coverage cases — never a confident wrong continental label.
+    """
+
+    # huid: (coverage, {pop: squared_distance}, expected_top, expected_status)
+    ORACLE = {
+        # Confident continental calls (must be preserved).
+        "huD8A898(White)": (
+            0.975,
+            {
+                "EUR": 3.8,
+                "MID": 184.0,
+                "CSA": 725.4,
+                "AFR": 2203.0,
+                "EAS": 2998.2,
+                "AMR": 11129.0,
+                "OCE": 19466.2,
+            },
+            "EUR",
+            "confident",
+        ),
+        "hu1BDBA5(White)": (
+            0.983,
+            {
+                "EUR": 21.5,
+                "MID": 282.2,
+                "CSA": 685.3,
+                "AFR": 2052.9,
+                "EAS": 2790.0,
+                "AMR": 10658.4,
+                "OCE": 19243.2,
+            },
+            "EUR",
+            "confident",
+        ),
+        "huA2ED68(AFR)": (
+            0.992,
+            {
+                "AFR": 56.2,
+                "MID": 1220.7,
+                "CSA": 1342.5,
+                "EUR": 1487.0,
+                "EAS": 2784.3,
+                "AMR": 11478.2,
+                "OCE": 18794.1,
+            },
+            "AFR",
+            "confident",
+        ),
+        "huA08F4D(AmInd/Hispanic)": (
+            0.98,
+            {
+                "AMR": 1065.0,
+                "EAS": 3717.4,
+                "CSA": 4661.0,
+                "EUR": 5439.5,
+                "MID": 5867.1,
+                "AFR": 6609.5,
+                "OCE": 20168.8,
+            },
+            "AMR",
+            "confident",
+        ),
+        # Admixed (98% coverage, Black+White): was confidently "CSA" → must be ADMIXED.
+        "hu7ECB9C(Black+White)": (
+            0.981,
+            {
+                "CSA": 103.7,
+                "EUR": 289.2,
+                "MID": 356.6,
+                "AFR": 1511.3,
+                "EAS": 1776.9,
+                "AMR": 10153.1,
+                "OCE": 16620.0,
+            },
+            ADMIXED,
+            "admixed",
+        ),
+        # Low coverage (old 23andMe v4): was confidently "CSA" → must be UNCERTAIN.
+        "hu8DD170(White,30%)": (
+            0.305,
+            {
+                "CSA": 225.2,
+                "EUR": 284.6,
+                "MID": 341.2,
+                "AFR": 1336.0,
+                "EAS": 1535.8,
+                "AMR": 9681.4,
+                "OCE": 17011.5,
+            },
+            UNCERTAIN,
+            "uncertain",
+        ),
+        "hu1EF1AF(Black,30%)": (
+            0.305,
+            {
+                "CSA": 318.3,
+                "MID": 473.1,
+                "EUR": 511.9,
+                "AFR": 887.2,
+                "EAS": 1444.9,
+                "AMR": 9805.1,
+                "OCE": 16718.2,
+            },
+            UNCERTAIN,
+            "uncertain",
+        ),
+    }
+
+    def test_real_pgp_oracle(self) -> None:
+        for name, (cov, dists, exp_pop, exp_status) in self.ORACLE.items():
+            pop, status, _flags = _classify_with_confidence(cov, dists)
+            assert pop == exp_pop, f"{name}: got {pop!r}, expected {exp_pop!r}"
+            assert status == exp_status, f"{name}: status {status!r}, expected {exp_status!r}"
+
+    def test_no_oracle_sample_is_confidently_csa(self) -> None:
+        # The headline regression: nobody is ever confidently called CSA via the sink.
+        for name, (cov, dists, _exp_pop, _exp_status) in self.ORACLE.items():
+            pop, status, _ = _classify_with_confidence(cov, dists)
+            assert not (pop == "CSA" and status == "confident"), f"{name} confidently CSA again"
+
+    def test_origin_low_coverage_is_uncertain(self) -> None:
+        # An origin-collapsed projection (CSA nearest) below the coverage floor → UNCERTAIN.
+        origin_dists = {
+            "CSA": 244.85,
+            "MID": 626.6,
+            "EUR": 643.2,
+            "AFR": 1071.6,
+            "EAS": 1119.6,
+            "AMR": 9310.5,
+            "OCE": 16310.4,
+        }
+        pop, status, flags = _classify_with_confidence(0.10, origin_dists)
+        assert pop == UNCERTAIN and status == "uncertain"
+        assert "low_coverage" in flags
+
+    def test_origin_high_coverage_is_admixed_not_csa(self) -> None:
+        # Even at full coverage, a near-origin projection (CSA nearest but low margin)
+        # must be ADMIXED, never a confident CSA.
+        origin_dists = {
+            "CSA": 244.85,
+            "MID": 626.6,
+            "EUR": 643.2,
+            "AFR": 1071.6,
+            "EAS": 1119.6,
+            "AMR": 9310.5,
+            "OCE": 16310.4,
+        }
+        pop, status, _ = _classify_with_confidence(1.0, origin_dists)
+        assert pop == ADMIXED and status == "admixed"
+
+    def test_coverage_boundary(self) -> None:
+        clean = {"EUR": 3.8, "MID": 184.0, "CSA": 725.4, "AFR": 2203.0}
+        # Just below the floor → UNCERTAIN; at/above with a decisive margin → confident.
+        assert _classify_with_confidence(0.54, clean)[0] == UNCERTAIN
+        assert _classify_with_confidence(0.55, clean) == ("EUR", "confident", [])
 
 
 # ── Findings storage tests ───────────────────────────────────────────────
