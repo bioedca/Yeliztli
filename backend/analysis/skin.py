@@ -39,7 +39,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import lookup_by_genotype
+from backend.analysis.genotype_lookup import genotype_candidates, lookup_by_genotype
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -367,6 +367,31 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> str:
 # ── MC1R multi-allele calling ────────────────────────────────────────────
 
 
+def _r_allele_dosage(genotype: str, risk_allele: str, ref_allele: str) -> int | None:
+    """Strand- and order-aware count of risk ('R') alleles in a genotype.
+
+    Mirrors the harmonization in :func:`lookup_by_genotype` (reference strand and
+    allele order first, Watson–Crick complement as a fallback) so the MC1R
+    aggregate counts the SAME R-allele dosage that individual SNP scoring already
+    resolved. A chip that reports rs1805007 R151C on the reverse strand (e.g.
+    ``"AG"`` for the curated ``C/T`` SNP) is scored as a one-R-allele carrier by
+    ``_score_snp``; the previous raw ``genotype.count("T")`` returned 0 for that
+    representation and undercounted it in the aggregate (issue #24).
+
+    Returns the risk-allele dosage (0, 1, or 2), or ``None`` when no strand/order
+    frame explains the genotype with the curated ``{risk, ref}`` allele pair (e.g.
+    an off-panel or triallelic call) — the caller then leaves it uncounted rather
+    than guessing.
+    """
+    risk = risk_allele.upper()
+    ref = ref_allele.upper()
+    for candidate in genotype_candidates(genotype):
+        alleles = candidate.split("/") if "/" in candidate else list(candidate)
+        if set(alleles) <= {risk, ref}:
+            return alleles.count(risk)
+    return None
+
+
 def _compute_mc1r_aggregate(
     pathway_results: list[PathwayResult],
     panel: SkinPanel,
@@ -418,21 +443,27 @@ def _compute_mc1r_aggregate(
         if snp_result.genotype is None:
             continue
 
-        # Find the risk allele for this SNP from panel
+        # Find the risk/ref alleles for this SNP from panel
         risk_allele = None
+        ref_allele = None
         for pathway in panel.pathways:
             for snp in pathway.snps:
                 if snp.rsid == snp_result.rsid:
                     risk_allele = snp.risk_allele
+                    ref_allele = snp.ref_allele
                     break
+            if risk_allele is not None:
+                break
 
-        if risk_allele is None:
+        if risk_allele is None or ref_allele is None:
             continue
 
-        # Count occurrences of risk allele in genotype
-        count = snp_result.genotype.count(risk_allele)
-        if count > 0:
-            r_allele_count += count
+        # Count risk-allele dosage strand-/order-aware (consistent with the
+        # per-SNP lookup), so a reverse-strand-complemented carrier is not
+        # undercounted to 0 (issue #24).
+        dosage = _r_allele_dosage(snp_result.genotype, risk_allele, ref_allele)
+        if dosage:
+            r_allele_count += dosage
             r_allele_rsids.append(snp_result.rsid)
 
     # Determine risk state

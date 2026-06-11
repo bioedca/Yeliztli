@@ -34,6 +34,7 @@ from backend.analysis.skin import (
     SNPResult,
     _determine_pathway_level,
     _normalize_genotype,
+    _r_allele_dosage,
     _score_snp,
     load_skin_panel,
     score_skin_pathways,
@@ -358,6 +359,80 @@ class TestMC1RMultiAllele:
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 2
         assert result.mc1r_aggregate.risk_label == "High UV Sensitivity"
+
+    def test_mc1r_aggregate_counts_reverse_strand_het(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Reverse-strand R151C het (``AG`` ≡ ``CT``) counts as 1 R allele (issue #24).
+
+        ``_score_snp`` scores ``"AG"`` as Moderate via the strand-complement
+        fallback, so the aggregate must agree — previously ``genotype.count("T")``
+        returned 0 and produced an internally inconsistent "0 R alleles" /
+        "Low UV Sensitivity" summary for a scored R-allele carrier.
+        """
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1805007", "16", 89919736, "AG"),  # reverse-strand of CT
+                ("rs1805008", "16", 89919746, "CC"),
+                ("rs1805009", "16", 89919709, "GG"),
+                ("rs885479", "16", 89919722, "GG"),
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+
+        # The individual SNP is scored as an R-allele carrier (Moderate)...
+        pigmentation = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "pigmentation_uv"
+        )
+        r151c = next(s for s in pigmentation.snp_results if s.rsid == "rs1805007")
+        assert r151c.category == "Moderate"
+
+        # ...so the aggregate must count it, not drop it to 0.
+        assert result.mc1r_aggregate is not None
+        assert result.mc1r_aggregate.r_allele_count == 1
+        assert "rs1805007" in result.mc1r_aggregate.r_allele_rsids
+        assert result.mc1r_aggregate.risk_label == "Moderate UV Sensitivity"
+
+    def test_mc1r_aggregate_counts_reverse_strand_homozygous(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Reverse-strand R151C hom (``AA`` ≡ ``TT``) counts as 2 R alleles (issue #24)."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1805007", "16", 89919736, "AA"),  # reverse-strand of TT
+                ("rs1805008", "16", 89919746, "CC"),
+                ("rs1805009", "16", 89919709, "GG"),
+                ("rs885479", "16", 89919722, "GG"),
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        assert result.mc1r_aggregate is not None
+        assert result.mc1r_aggregate.r_allele_count == 2
+        assert result.mc1r_aggregate.risk_label == "High UV Sensitivity"
+
+    def test_r_allele_dosage_is_strand_and_order_aware(self) -> None:
+        """``_r_allele_dosage`` mirrors ``lookup_by_genotype``'s harmonization."""
+        # rs1805007 R151C: ref C, risk T (C/T SNP — not strand-ambiguous).
+        assert _r_allele_dosage("CC", "T", "C") == 0
+        assert _r_allele_dosage("CT", "T", "C") == 1
+        assert _r_allele_dosage("TC", "T", "C") == 1  # allele order
+        assert _r_allele_dosage("TT", "T", "C") == 2
+        assert _r_allele_dosage("AG", "T", "C") == 1  # reverse strand of CT
+        assert _r_allele_dosage("AA", "T", "C") == 2  # reverse strand of TT
+        # rs1805009 D294H: ref G, risk A.
+        assert _r_allele_dosage("GA", "A", "G") == 1
+        assert _r_allele_dosage("CT", "A", "G") == 1  # reverse strand of GA
+        # Off-panel / triallelic call cannot be resolved → None (left uncounted).
+        assert _r_allele_dosage("GG", "T", "C") == 0  # ref hom on complement frame
+        assert _r_allele_dosage("AC", "T", "C") is None
 
     def test_mc1r_r_allele_does_not_count_mild(
         self,
