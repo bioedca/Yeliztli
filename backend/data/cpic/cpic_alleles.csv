@@ -43,6 +43,7 @@ SLCO1B1,*15,"[{""rsid"":""rs2306283"",""ref"":""A"",""alt"":""G""},{""rsid"":""r
 SLCO1B1,*17,"[{""rsid"":""rs2306283"",""ref"":""A"",""alt"":""G""},{""rsid"":""rs4149015"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.5
 NUDT15,*1,"[]",Normal function,1.0
 NUDT15,*3,"[{""rsid"":""rs116855232"",""ref"":""C"",""alt"":""T""}]",No function,0.0
+NUDT15,*4,"[{""rsid"":""rs147390019"",""ref"":""G"",""alt"":""A""}]",No function,0.0
 UGT1A1,*1,"[]",Normal function,1.0
 UGT1A1,*6,"[{""rsid"":""rs4148323"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.5
 UGT1A1,*28,"[{""rsid"":""rs8175347"",""ref"":""TA6"",""alt"":""TA7""}]",Decreased function,0.5

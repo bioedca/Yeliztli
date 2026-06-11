@@ -89,6 +89,7 @@ EXPECTED_PLUS_STRAND: dict[str, tuple[str, str]] = {
     "rs4149015": ("G", "A"),  # *17 c.-910G>A
     # NUDT15 (plus strand) — thiopurine myelosuppression (SW-E1)
     "rs116855232": ("C", "T"),  # *3  c.415C>T (p.Arg139Cys); ref genome C = normal
+    "rs147390019": ("G", "A"),  # *4  c.416G>A (p.Arg139His); adjacent codon-139 base (#39)
     # UGT1A1 (plus strand) — irinotecan/atazanavir (SW-E1)
     "rs4148323": ("G", "A"),  # *6  c.211G>A (p.Gly71Arg); ref genome G = normal
     # (UGT1A1 *28 rs8175347 is a TATA-box TA-repeat, not an SNV — handled as indeterminate)

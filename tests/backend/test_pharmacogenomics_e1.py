@@ -34,6 +34,7 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 
 # Plus-strand defining variants (match cpic_alleles.csv + test_cpic_allele_strand).
 _NUDT15_RS = "rs116855232"  # *3 c.415C>T No function; ref=C alt=T
+_NUDT15_R139H = "rs147390019"  # *4 c.416G>A No function; ref=G alt=A (#39)
 _UGT1A1_6 = "rs4148323"  # *6 c.211G>A Decreased; ref=G alt=A
 _UGT1A1_28 = "rs8175347"  # *28 TA-repeat (non-SNV) — not array-typeable
 _CYP3A5 = {
@@ -87,20 +88,34 @@ def test_nudt15_added_to_panel() -> None:
 
 
 def test_nudt15_reference_is_normal(reference_engine: sa.Engine) -> None:
-    result = _call("NUDT15", {_NUDT15_RS: "CC"}, reference_engine)
+    # A confident *1/*1 Normal call requires BOTH defining positions assessed as
+    # reference; with only rs116855232 typed, *4 cannot be excluded (see
+    # test_nudt15_normal_cannot_exclude_star4_when_unassayed).
+    result = _call("NUDT15", {_NUDT15_RS: "CC", _NUDT15_R139H: "GG"}, reference_engine)
     assert result.diplotype == "*1/*1"
     assert result.phenotype == "Normal Metabolizer"
     assert result.call_confidence == CallConfidence.COMPLETE
+    assert result.indeterminate_alleles == []
+
+
+def test_nudt15_normal_cannot_exclude_star4_when_unassayed(reference_engine: sa.Engine) -> None:
+    # rs116855232 reference but the *4 defining variant (rs147390019) is off-chip:
+    # the *1 fill is an assumption, so *4 must be flagged indeterminate and the
+    # call downgraded — never a silent confident Normal. Regression for issue #39.
+    result = _call("NUDT15", {_NUDT15_RS: "CC"}, reference_engine)
+    assert result.diplotype == "*1/*1"
+    assert "*4" in result.indeterminate_alleles
+    assert result.call_confidence != CallConfidence.COMPLETE
 
 
 def test_nudt15_het_is_intermediate(reference_engine: sa.Engine) -> None:
-    result = _call("NUDT15", {_NUDT15_RS: "CT"}, reference_engine)
+    result = _call("NUDT15", {_NUDT15_RS: "CT", _NUDT15_R139H: "GG"}, reference_engine)
     assert result.diplotype == "*1/*3"
     assert result.phenotype == "Intermediate Metabolizer"
 
 
 def test_nudt15_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) -> None:
-    sample = _make_sample({_NUDT15_RS: "TT"})
+    sample = _make_sample({_NUDT15_RS: "TT", _NUDT15_R139H: "GG"})
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
     nudt15 = next(r for r in results if r.gene == "NUDT15")
     assert nudt15.diplotype == "*3/*3"
@@ -109,6 +124,35 @@ def test_nudt15_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) 
     alerts = generate_prescribing_alerts(results, reference_engine)
     drugs = {a.drug for a in alerts if a.gene == "NUDT15"}
     assert {"azathioprine", "mercaptopurine"} <= drugs
+
+
+def test_nudt15_star4_het_is_intermediate(reference_engine: sa.Engine) -> None:
+    # rs147390019 het (*4 R139H, No function) with rs116855232 reference → *1/*4 IM.
+    # Regression for issue #39: a non-*3 actionable allele is now callable rather
+    # than silently reported as *1/*1 Normal.
+    result = _call("NUDT15", {_NUDT15_RS: "CC", _NUDT15_R139H: "GA"}, reference_engine)
+    assert result.diplotype == "*1/*4"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.COMPLETE
+
+
+def test_nudt15_star4_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) -> None:
+    sample = _make_sample({_NUDT15_RS: "CC", _NUDT15_R139H: "AA"})
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
+    nudt15 = next(r for r in results if r.gene == "NUDT15")
+    assert nudt15.diplotype == "*4/*4"
+    assert nudt15.phenotype == "Poor Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    drugs = {a.drug for a in alerts if a.gene == "NUDT15"}
+    assert {"azathioprine", "mercaptopurine"} <= drugs
+
+
+def test_nudt15_star3_star4_compound_het_is_poor(reference_engine: sa.Engine) -> None:
+    # No-function / no-function across two distinct alleles → Poor Metabolizer.
+    result = _call("NUDT15", {_NUDT15_RS: "CT", _NUDT15_R139H: "GA"}, reference_engine)
+    assert result.diplotype == "*3/*4"
+    assert result.phenotype == "Poor Metabolizer"
 
 
 # ── UGT1A1 (irinotecan / atazanavir) + explicit indeterminate flag ────────────
