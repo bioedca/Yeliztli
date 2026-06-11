@@ -57,10 +57,10 @@ UGT1A1,atazanavir,Intermediate Metabolizer,Use label-recommended dosing; low lik
 UGT1A1,atazanavir,Poor Metabolizer,Consider an alternative agent; risk of jaundice/hyperbilirubinemia may reduce adherence.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
 UGT1A1,irinotecan,Normal Metabolizer,Use label-recommended dosing.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
 UGT1A1,irinotecan,Intermediate Metabolizer,Use label-recommended starting dose; consider reduction for high-dose regimens.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
-UGT1A1,irinotecan,Poor Metabolizer,Reduce the irinotecan starting dose (e.g., by ~30%) and monitor for neutropenia/diarrhea.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
+UGT1A1,irinotecan,Poor Metabolizer,"Reduce the irinotecan starting dose (e.g., by ~30%) and monitor for neutropenia/diarrhea.",B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
 CYP2B6,efavirenz,Normal Metabolizer,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
 CYP2B6,efavirenz,Intermediate Metabolizer,Use label-recommended dosing; consider a reduced dose if CNS side effects occur.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Poor Metabolizer,Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma exposure raises CNS-toxicity risk.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Poor Metabolizer,"Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma exposure raises CNS-toxicity risk.",A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
 NAT2,isoniazid,Rapid Acetylator,Use label-recommended dosing; rapid acetylators have lower isoniazid exposure.,C,https://www.pharmgkb.org/gene/PA18/guidelineAnnotation
 NAT2,isoniazid,Intermediate Acetylator,Use label-recommended dosing.,C,https://www.pharmgkb.org/gene/PA18/guidelineAnnotation
 NAT2,isoniazid,Slow Acetylator,Slow acetylators have higher isoniazid exposure and increased hepatotoxicity risk; monitor liver function and consider dose adjustment.,C,https://www.pharmgkb.org/gene/PA18/guidelineAnnotation

@@ -200,3 +200,12 @@ def test_cyp2b6_star6_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engi
     alerts = generate_prescribing_alerts(results, reference_engine)
     efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
     assert efv and efv[0].phenotype == "Poor Metabolizer"
+    assert efv[0].recommendation == (
+        "Consider initiating at a decreased dose (e.g., 400 mg/day); "
+        "higher plasma exposure raises CNS-toxicity risk."
+    )
+    assert efv[0].classification == "A"
+    assert efv[0].evidence_level == 4
+    assert efv[0].guideline_url == (
+        "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+    )

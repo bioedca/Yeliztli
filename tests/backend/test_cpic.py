@@ -12,12 +12,14 @@ Covers:
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 
 from backend.annotation.cpic import (
+    CPIC_DATA_DIR,
     CPIC_GENES,
     _parse_float,
     load_cpic_from_csvs,
@@ -186,6 +188,43 @@ class TestParseDiplotypesCSV:
 
 
 class TestParseGuidelinesCSV:
+    @pytest.mark.parametrize(
+        "csv_path",
+        [
+            SEED_DIR / "cpic_guidelines_seed.csv",
+            CPIC_DATA_DIR / "cpic_guidelines.csv",
+        ],
+    )
+    def test_guideline_csv_column_integrity(self, csv_path: Path):
+        expected_columns = [
+            "gene",
+            "drug",
+            "phenotype",
+            "recommendation",
+            "classification",
+            "guideline_url",
+        ]
+        valid_classifications = {"A", "B", "C", "D"}
+        errors: list[str] = []
+
+        with csv_path.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            assert reader.fieldnames == expected_columns
+
+            for line_number, row in enumerate(reader, start=2):
+                if row.get(None):
+                    errors.append(f"line {line_number}: extra fields {row[None]!r}")
+
+                classification = (row.get("classification") or "").strip()
+                if classification not in valid_classifications:
+                    errors.append(f"line {line_number}: invalid classification {classification!r}")
+
+                guideline_url = (row.get("guideline_url") or "").strip()
+                if not guideline_url.startswith(("http://", "https://")):
+                    errors.append(f"line {line_number}: invalid guideline_url {guideline_url!r}")
+
+        assert not errors, "\n".join(errors)
+
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
@@ -202,6 +241,26 @@ class TestParseGuidelinesCSV:
         assert first["phenotype"] == "Normal Metabolizer"
         assert first["classification"] == "A"
         assert "cpicpgx.org" in first["guideline_url"]
+
+    def test_cyp2b6_efavirenz_poor_metabolizer_row_preserves_fields(self):
+        rows, _ = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
+
+        row = next(
+            row
+            for row in rows
+            if row["gene"] == "CYP2B6"
+            and row["drug"] == "efavirenz"
+            and row["phenotype"] == "Poor Metabolizer"
+        )
+
+        assert row["recommendation"] == (
+            "Consider initiating at a decreased dose (e.g., 400 mg/day); "
+            "higher plasma exposure raises CNS-toxicity risk."
+        )
+        assert row["classification"] == "A"
+        assert row["guideline_url"] == (
+            "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+        )
 
     def test_empty_csv(self, tmp_path: Path):
         csv_path = tmp_path / "empty.csv"
