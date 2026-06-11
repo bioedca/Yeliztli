@@ -135,6 +135,10 @@ class TestAncestryGate:
         assert (
             "Top global ancestry does not prove local ancestry at APOL1" in a.calls[0].finding_text
         )
+        assert any(
+            "Top global ancestry does not prove local ancestry at APOL1" in caveat
+            for caveat in a.calls[0].detail["caveats"]
+        )
 
     def test_afr_below_half_observed_high_risk_caveated(
         self, panel, sample_engine: sa.Engine
@@ -145,6 +149,7 @@ class TestAncestryGate:
         assert len(a.calls) == 1
         assert a.ancestry_suppressed is False
         assert "extra validation caution" in a.calls[0].finding_text
+        assert any("extra validation caution" in caveat for caveat in a.calls[0].detail["caveats"])
 
     def test_no_ancestry_observed_high_risk_caveated(
         self, panel, sample_engine: sa.Engine
@@ -156,6 +161,7 @@ class TestAncestryGate:
         assert len(a.calls) == 1
         assert a.ancestry_suppressed is False
         assert "extra validation caution" in a.calls[0].finding_text
+        assert any("extra validation caution" in caveat for caveat in a.calls[0].detail["caveats"])
 
 
 class TestN264KModifier:
@@ -205,6 +211,11 @@ class TestStorageAndGuardrails:
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings).where(findings.c.module == "apol1")).fetchone()
         assert "Top global ancestry does not prove local ancestry at APOL1" in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert any(
+            "Top global ancestry does not prove local ancestry at APOL1" in caveat
+            for caveat in detail["caveats"]
+        )
 
     def test_indeterminate_non_afr_stores_nothing(self, panel, sample_engine: sa.Engine) -> None:
         _seed_ancestry(sample_engine, "EUR")
