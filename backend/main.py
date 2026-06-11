@@ -54,6 +54,7 @@ from backend.api.routes.ingest import router as ingest_router
 from backend.api.routes.kinship import router as kinship_router
 from backend.api.routes.lhon import router as lhon_router
 from backend.api.routes.liftover import router as liftover_router
+from backend.api.routes.metabolic import router as metabolic_router
 from backend.api.routes.methylation import router as methylation_router
 from backend.api.routes.mt_rnr1 import router as mt_rnr1_router
 from backend.api.routes.nuclear import router as nuclear_router
@@ -220,6 +221,7 @@ def create_app() -> FastAPI:
     api_router.include_router(kinship_router)
     api_router.include_router(lhon_router)
     api_router.include_router(liftover_router)
+    api_router.include_router(metabolic_router)
     api_router.include_router(methylation_router)
     api_router.include_router(mt_rnr1_router)
     api_router.include_router(nuclear_router)

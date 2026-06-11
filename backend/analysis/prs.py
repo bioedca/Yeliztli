@@ -871,6 +871,8 @@ def store_prs_findings(
     results: list[PRSResult],
     sample_engine: sa.Engine,
     module: str,
+    *,
+    store_insufficient: bool = False,
 ) -> int:
     """Store PRS findings in the sample database.
 
@@ -882,6 +884,12 @@ def store_prs_findings(
         results: List of PRSResult objects to store.
         sample_engine: SQLAlchemy engine for the sample database.
         module: Module name for clearing/storing (e.g. "cancer", "traits").
+        store_insufficient: When True, also store findings whose SNP coverage is
+            below the sufficiency threshold (with the percentile withheld and a
+            coverage caveat in the text). Genome-wide PGS Catalog scores scored
+            on an un-imputed array routinely fall below 50% coverage (SW-B5); a
+            module may still want to surface them transparently rather than emit
+            nothing. Curated modules (cancer/traits) keep the default skip.
 
     Returns:
         Number of findings inserted.
@@ -889,7 +897,7 @@ def store_prs_findings(
     rows: list[dict] = []
 
     for r in results:
-        if not r.is_sufficient:
+        if not r.is_sufficient and not store_insufficient:
             logger.info(
                 "prs_finding_skipped_insufficient",
                 trait=r.trait,
@@ -897,7 +905,15 @@ def store_prs_findings(
             )
             continue
 
-        if not r.calibrated:
+        if not r.is_sufficient:
+            # Stored for transparency but coverage too low for a reliable score —
+            # percentile withheld regardless of calibration state.
+            finding_text = (
+                f"{r.weight_set_name}: coverage too low for a reliable polygenic "
+                f"estimate ({r.coverage_fraction:.0%} of {r.snps_total} score "
+                f"variants typed) — percentile withheld — Research Use Only"
+            )
+        elif not r.calibrated:
             # No validated reference distribution → percentile is withheld
             # rather than computed from a placeholder mean/SD (issue #7).
             finding_text = (

@@ -28,6 +28,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 import structlog
+from sqlalchemy.pool import NullPool
 
 from backend.analysis.prs import PRSSNPWeight, PRSWeightSet
 from backend.annotation.pgs_catalog import (
@@ -40,6 +41,27 @@ logger = structlog.get_logger(__name__)
 _REGISTRY_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "panels" / "pgs_score_registry.json"
 )
+
+# Standalone PGS scores DB filename (SW-B1 ingestion target / SW-B5 bundle).
+PGS_SCORES_DB_FILENAME = "pgs_scores.db"
+
+
+def get_pgs_scores_engine(data_dir: Path | None = None) -> sa.Engine | None:
+    """Return a read engine for ``pgs_scores.db``, or None when it is absent.
+
+    The score DB is an optional bundle: when it is not installed (CI, fresh
+    installs that have not fetched it) the consuming module degrades gracefully
+    and emits nothing rather than erroring.
+    """
+    if data_dir is None:
+        from backend.config import get_settings
+
+        data_dir = get_settings().data_dir
+    db_path = Path(data_dir) / PGS_SCORES_DB_FILENAME
+    if not db_path.exists():
+        logger.info("pgs_scores_db_absent", path=str(db_path))
+        return None
+    return sa.create_engine(f"sqlite:///{db_path}", poolclass=NullPool)
 
 
 @dataclass

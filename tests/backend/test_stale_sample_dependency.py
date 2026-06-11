@@ -73,6 +73,7 @@ _FULLY_GATED_MODULES = frozenset(
         "kinship",
         "lhon",
         "liftover",
+        "metabolic",
         "methylation",
         "mt_rnr1",
         "nutrigenomics",
