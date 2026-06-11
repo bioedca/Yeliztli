@@ -79,6 +79,13 @@ _TRUE_NO_CALLS: frozenset[str] = frozenset({"", "--", "??", "-", "0", "00"})
 # These always receive "Partial" confidence at best.
 STRUCTURAL_VARIANT_GENES: frozenset[str] = frozenset({"CYP2D6", "CYP2B6"})
 
+# Structural / copy-number alleles represented in CPIC tables but not callable
+# from SNP-array genotypes. Keep these out of empty-definition reference-allele
+# selection and surface them as indeterminate rather than silently assuming *1.
+STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
+    "CYP2D6": ("*5",),
+}
+
 # Gene-specific interpretive caveats attached to prescribing-alert findings
 # (detail_json["gene_caveat"]) and surfaced by the pharma route. Context only —
 # they never change metabolizer_status or evidence_level.
@@ -441,9 +448,12 @@ def call_star_alleles_for_gene(
     # Separate reference allele (no defining variants) from non-reference
     ref_allele_name: str | None = None
     non_ref_alleles: list[dict] = []
+    structural_uncallable = set(STRUCTURAL_UNCALLABLE_ALLELES.get(gene, ()))
 
     for allele in alleles:
         if not allele["defining_variants"]:
+            if allele["allele_name"] in structural_uncallable:
+                continue
             if ref_allele_name is None:
                 ref_allele_name = allele["allele_name"]
         else:
@@ -535,16 +545,17 @@ def call_star_alleles_for_gene(
     # SNP array cannot type). Surface these so a "Normal"/reference call is not
     # mistaken for confident exclusion of every star allele.
     unusable_rsids = missing_rsids | uncalled_rsids
-    indeterminate_alleles = sorted(
+    snp_indeterminate_alleles = {
         a["allele_name"]
         for a in non_ref_alleles
         if a["allele_name"] not in called_alleles
         and any(v["rsid"] in unusable_rsids for v in a["defining_variants"])
-    )
+    }
+    indeterminate_alleles = sorted(snp_indeterminate_alleles | structural_uncallable)
     if indeterminate_alleles:
         confidence_note = (
             f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
-            "defining variant(s) not assayed on this array."
+            "defining variant(s) or structural/copy-number state not assayed on this array."
         ).strip()
 
     return StarAlleleResult(

@@ -17,6 +17,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.pharmacogenomics import (
+    STRUCTURAL_UNCALLABLE_ALLELES,
     STRUCTURAL_VARIANT_GENES,
     CallConfidence,
     call_all_star_alleles,
@@ -73,6 +74,25 @@ def _sample(**overrides: str) -> sa.Engine:
 
 def test_cyp2d6_is_a_structural_variant_gene() -> None:
     assert "CYP2D6" in STRUCTURAL_VARIANT_GENES
+    assert STRUCTURAL_UNCALLABLE_ALLELES["CYP2D6"] == ("*5",)
+
+
+def test_cyp2d6_star5_is_structurally_indeterminate_not_reference(
+    reference_engine: sa.Engine,
+) -> None:
+    """A reference-looking array call cannot exclude the CYP2D6*5 deletion."""
+    sample = _sample()
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2D6"}))
+    (result,) = results
+
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "*5" not in result.diplotype
+    assert "*5" in result.indeterminate_alleles
+    assert "Cannot exclude" in result.confidence_note
+    assert "*5" in result.confidence_note
+    assert "copy-number" in result.confidence_note or "copy number" in result.confidence_note
 
 
 def test_cyp2d6_alert_carries_cnv_caveat(reference_engine: sa.Engine) -> None:
@@ -83,9 +103,11 @@ def test_cyp2d6_alert_carries_cnv_caveat(reference_engine: sa.Engine) -> None:
     assert result.diplotype == "*1/*4"
     # Structural-variant gene is always Partial (CNV cannot be excluded), never Complete.
     assert result.call_confidence == CallConfidence.PARTIAL
+    assert "*5" in result.indeterminate_alleles
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     assert alerts, "expected CYP2D6 prescribing alerts (e.g. codeine)"
+    assert all("*5" in alert.indeterminate_alleles for alert in alerts)
     store_prescribing_alerts(alerts, sample)
 
     with sample.connect() as conn:
@@ -99,6 +121,9 @@ def test_cyp2d6_alert_carries_cnv_caveat(reference_engine: sa.Engine) -> None:
         detail = json.loads(detail_json)
         caveat = detail.get("gene_caveat")
         assert caveat == CYP2D6_CNV_CAVEAT
+        assert "*5" in detail["indeterminate_alleles"]
+        assert "Cannot exclude" in detail["confidence_note"]
+        assert "*5" in detail["confidence_note"]
         lower = caveat.lower()
         assert "copy-number" in lower or "copy number" in lower
         assert "duplicat" in lower and "deletion" in lower
