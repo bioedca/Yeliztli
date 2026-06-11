@@ -150,10 +150,10 @@ def test_ugt1a1_star6_hom_is_poor_with_irinotecan_alert(reference_engine: sa.Eng
 def test_pharmvar_version_recorded_on_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    import json
+
     from backend.db.manifest import reset_cache
     from backend.db.update_manager import get_current_version
-
-    import json
 
     # Point the manifest pin lookup at the in-repo manifest (offline/deterministic).
     repo_manifest = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
