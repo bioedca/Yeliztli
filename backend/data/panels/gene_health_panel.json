@@ -1,7 +1,7 @@
 {
   "module": "gene_health",
   "version": "1.0.0",
-  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to APOE, Allergy, Methylation, Nutrigenomics, and Traits modules.",
+  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to APOE, Parkinson's, Allergy, Methylation, Nutrigenomics, and Traits modules.",
   "evidence_cap": null,
   "module_disclaimer": "Gene Health findings are based on published genetic association studies and ClinVar pathogenic classifications. Results indicate statistical associations, not diagnoses. Many conditions have complex environmental and lifestyle components. Consult a healthcare provider or genetic counselor for clinical interpretation.",
   "pathways": [
@@ -114,21 +114,25 @@
               "effect_summary": "No LRRK2 G2019S variant detected. Baseline population risk for Parkinson's disease at this locus."
             },
             "GA": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous LRRK2 G2019S. This is the most common genetic cause of familial Parkinson's disease. Penetrance is age-dependent: approximately 28% by age 59, 51% by age 69, and 74% by age 79."
+              "category": "Moderate",
+              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
             },
             "AG": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous LRRK2 G2019S. This is the most common genetic cause of familial Parkinson's disease. Penetrance is age-dependent: approximately 28% by age 59, 51% by age 69, and 74% by age 79."
+              "category": "Moderate",
+              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous LRRK2 G2019S. Very rare genotype. High risk of Parkinson's disease with increased kinase activity. Clinical presentation is typically similar to idiopathic Parkinson's disease."
+              "category": "Moderate",
+              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
             }
           },
-          "evidence_level": 4,
-          "pmids": ["15541309", "18322019", "30957308"],
-          "recommendation_text": "LRRK2 G2019S is the most common cause of autosomal dominant Parkinson's disease, found in ~1-2% of sporadic and ~5% of familial cases. Carriers should discuss screening and monitoring with a neurologist. Clinical trials targeting LRRK2 kinase inhibitors are active. Genetic counseling is recommended for family planning."
+          "evidence_level": 2,
+          "pmids": ["26062626", "28639421", "38804604", "40926580"],
+          "recommendation_text": "LRRK2 G2019S should be interpreted through the dedicated Parkinson's risk module and, if confirmed clinically, discussed with a neurologist or genetics professional. It is a reduced-penetrance risk factor rather than a diagnosis; there is no proven prevention strategy, but clinical monitoring and research trial eligibility may be relevant.",
+          "cross_module": {
+            "module": "parkinsons",
+            "note": "Dedicated Parkinson's module uses reduced-penetrance, opt-in framing for LRRK2 G2019S."
+          }
         },
         {
           "rsid": "rs76763715",
@@ -1304,6 +1308,11 @@
       "description": "Alzheimer's disease risk overlaps with APOE epsilon 4 findings"
     },
     {
+      "to_module": "parkinsons",
+      "link_type": "shared_variant",
+      "description": "LRRK2 G2019S uses the dedicated Parkinson's module for reduced-penetrance opt-in framing"
+    },
+    {
       "to_module": "allergy",
       "link_type": "phenotype_correlation",
       "description": "Celiac disease findings overlap with HLA-DQ2/DQ8 proxy results in Allergy module"
@@ -1356,6 +1365,6 @@
     "elevated_requires_genotype": "clinically_meaningful",
     "pathway_level_determination": "highest_category_across_snps",
     "condition_grouping": "SNPs are grouped by disease condition within each pathway. Each condition may have multiple contributing variants. Pathway-level status reflects the highest-risk condition within that pathway.",
-    "cross_module_deduplication": "Shared variants (rs429358, rs9939609, rs1801133, rs747302) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module) and rs9939609 (canonical in Nutrigenomics module)."
+        "cross_module_deduplication": "Shared variants (rs429358, rs34637584, rs9939609, rs1801133, rs747302) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module), rs34637584 (canonical in Parkinson's module), and rs9939609 (canonical in Nutrigenomics module)."
   }
 }

@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,7 @@ PANEL_PATH = (
     / "panels"
     / "gene_health_panel.json"
 )
+PARKINSONS_PANEL_PATH = PANEL_PATH.with_name("parkinsons_panel.json")
 
 
 @pytest.fixture()
@@ -122,7 +124,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs429358", "19", 44908684, "TC"),  # APOE e4 det het -> Elevated
     ("rs3764650", "19", 1046520, "TG"),  # ABCA7 het -> Moderate
     ("rs11136000", "8", 27464519, "CT"),  # CLU het -> Moderate
-    ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Elevated
+    ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Moderate
     ("rs76763715", "1", 155205634, "CT"),  # GBA N370S het -> Elevated
     ("rs356219", "4", 90626111, "AG"),  # SNCA het -> Moderate
     ("rs3135388", "6", 32408274, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
@@ -205,8 +207,7 @@ class TestPanelLoading:
                     assert effect["category"] in (ELEVATED, MODERATE, STANDARD)
 
     def test_cross_module_links_present(self, panel: GeneHealthPanel) -> None:
-        """Cross-links: rs429358->apoe, rs9939609->nutrigenomics, rs1801133->methylation,
-        rs747302->traits, rs6822844->allergy."""
+        """Cross-links include dedicated modules for shared interpretations."""
         cross_modules: dict[str, str] = {}
         for pathway in panel.pathways:
             for snp in pathway.snps:
@@ -214,10 +215,42 @@ class TestPanelLoading:
                     cross_modules[snp.rsid] = snp.cross_module["module"]
 
         assert cross_modules.get("rs429358") == "apoe"
+        assert cross_modules.get("rs34637584") == "parkinsons"
         assert cross_modules.get("rs9939609") == "nutrigenomics"
         assert cross_modules.get("rs1801133") == "methylation"
         assert cross_modules.get("rs747302") == "traits"
         assert cross_modules.get("rs6822844") == "allergy"
+
+    def test_lrrk2_gene_health_matches_parkinsons_reduced_penetrance_source(self) -> None:
+        """Gene Health must not drift from the dedicated Parkinson's LRRK2 framing."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        parkinsons = json.loads(PARKINSONS_PANEL_PATH.read_text(encoding="utf-8"))
+        lrrk2 = next(
+            snp
+            for pathway in gene_health["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] == "rs34637584"
+        )
+        parkinsons_model = parkinsons["genotype_models"][0]
+        shared_risk_sentence = (
+            "Published age-80 estimates vary by cohort design, ancestry, and modifier burden"
+        )
+
+        assert lrrk2["evidence_level"] == parkinsons_model["evidence_stars"] == 2
+        assert lrrk2["cross_module"]["module"] == "parkinsons"
+        assert any(link["to_module"] == "parkinsons" for link in gene_health["cross_module_links"])
+        assert shared_risk_sentence in parkinsons_model["finding_text"]
+        assert lrrk2["pmids"] == parkinsons_model["pmids"]
+
+        for genotype in ("GA", "AG", "AA"):
+            effect = lrrk2["genotype_effects"][genotype]
+            assert effect["category"] == MODERATE
+            assert "24-49%" in effect["effect_summary"]
+            assert "25-42.5%" in effect["effect_summary"]
+            assert shared_risk_sentence in effect["effect_summary"]
+            assert "28% by age 59" not in effect["effect_summary"]
+            assert "51% by age 69" not in effect["effect_summary"]
+            assert "74% by age 79" not in effect["effect_summary"]
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -302,6 +335,27 @@ class TestSNPScoring:
         for genotype in ("AA", "AG", "GA", "GG"):
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
+
+    def test_lrrk2_g2019s_uses_reduced_penetrance_parkinsons_framing(
+        self,
+        panel: GeneHealthPanel,
+    ) -> None:
+        """LRRK2 G2019S should be reduced-penetrance and two-star in Gene Health."""
+        snp = self._get_snp(panel, "rs34637584")
+        assert snp.evidence_level == 2
+        assert snp.cross_module is not None
+        assert snp.cross_module["module"] == "parkinsons"
+
+        for genotype in ("GA", "AG", "AA"):
+            result = _score_snp(snp, genotype)
+            assert result.category == MODERATE
+            assert result.evidence_level == 2
+            assert "reduced-penetrance" in result.effect_summary
+            assert "24-49%" in result.effect_summary
+            assert "25-42.5%" in result.effect_summary
+            assert "28% by age 59" not in result.effect_summary
+            assert "51% by age 69" not in result.effect_summary
+            assert "74% by age 79" not in result.effect_summary
 
     def test_not_genotyped_returns_standard(self, panel: GeneHealthPanel) -> None:
         """Missing genotype -> Standard with not present flag."""
@@ -567,6 +621,54 @@ class TestFullScoring:
 
         assert il23r_findings == []
         assert autoimmune_summary == STANDARD
+
+    def test_lrrk2_g2019s_alone_is_moderate_not_high_confidence(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """LRRK2 G2019S alone must not surface as high-confidence Gene Health risk."""
+        _seed_variants(sample_engine, [("rs34637584", "12", 40340400, "GA")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
+        lrrk2 = next(snp for snp in neurological.snp_results if snp.rsid == "rs34637584")
+
+        assert lrrk2.category == MODERATE
+        assert lrrk2.evidence_level == 2
+        assert neurological.level == MODERATE
+
+        parkinsons_links = [
+            finding
+            for finding in result.cross_module_findings
+            if finding.target_module == "parkinsons"
+        ]
+        assert len(parkinsons_links) == 1
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            lrrk2_row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs34637584",
+                    findings.c.category == "snp_finding",
+                )
+            ).fetchone()
+            neurological_summary = conn.execute(
+                sa.select(findings.c.pathway_level).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == neurological.pathway_name,
+                )
+            ).scalar_one()
+
+        assert lrrk2_row is not None
+        assert lrrk2_row.evidence_level == 2
+        assert lrrk2_row.pathway_level == MODERATE
+        assert "24-49%" in lrrk2_row.finding_text
+        assert "74% by age 79" not in lrrk2_row.finding_text
+        assert neurological_summary == MODERATE
 
 
 # -- Findings storage tests ---------------------------------------------------

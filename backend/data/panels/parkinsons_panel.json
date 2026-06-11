@@ -2,7 +2,7 @@
   "module": "parkinsons",
   "version": "1.0.0",
   "category": "risk_genotype",
-  "description": "Parkinson's disease risk panel: LRRK2 G2019S (rs34637584; c.6055G>A p.Gly2019Ser; ref G, risk A on the GRCh37 plus strand — LRRK2 is transcribed on the plus strand). G2019S is the most common known genetic risk factor for Parkinson's, but penetrance is reduced and age-dependent (~25-42.5% lifetime risk by age 80), so most carriers never develop the disease. The variant is more common in Ashkenazi Jewish and North African Berber ancestry. Surfaced behind an APOE-style ethical opt-in gate; stored at evidence_level 2 so it does not auto-surface in the ungated dashboard high-confidence section. GBA1 is DELIBERATELY EXCLUDED from this array panel: the adjacent GBAP1 pseudogene makes array/short-read GBA1 genotyping unreliable, so we do not call GBA1 variants here (documented in the disclaimer). Common risk variant, not a deterministic ClinVar call -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #41.",
+  "description": "Parkinson's disease risk panel: LRRK2 G2019S (rs34637584; c.6055G>A p.Gly2019Ser; ref G, risk A on the GRCh37 plus strand — LRRK2 is transcribed on the plus strand). G2019S is the most common known genetic risk factor for Parkinson's, but penetrance is reduced and age-dependent. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%; most carriers never develop Parkinson's. The variant is more common in Ashkenazi Jewish and North African Berber ancestry. Surfaced behind an APOE-style ethical opt-in gate; stored at evidence_level 2 so it does not auto-surface in the ungated dashboard high-confidence section. GBA1 is DELIBERATELY EXCLUDED from this array panel: the adjacent GBAP1 pseudogene makes array/short-read GBA1 genotyping unreliable, so we do not call GBA1 variants here (documented in the disclaimer). Common risk variant, not a deterministic ClinVar call -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #41.",
   "evaluation": "collect_all",
   "sex_stratified": false,
   "ancestry_gate": null,
@@ -27,9 +27,9 @@
       "risk_classification": "LRRK2 G2019S — Parkinson's disease risk factor (reduced penetrance)",
       "zygosity": null,
       "evidence_stars": 2,
-      "finding_text": "LRRK2 G2019S (rs34637584 {genotype}) detected. This is the most common known genetic risk factor for Parkinson's disease, but its penetrance is reduced and age-dependent: lifetime risk for carriers is estimated at roughly 25-42.5% by age 80, so the majority of carriers never develop Parkinson's. Risk also varies by ancestry (the variant is more common in Ashkenazi Jewish and North African Berber populations) and is modified by other genetic and environmental factors. A positive result is not a diagnosis and not a prediction that you will develop Parkinson's.",
+      "finding_text": "LRRK2 G2019S (rs34637584 {genotype}) detected. This is the most common known genetic risk factor for Parkinson's disease, but its penetrance is reduced and age-dependent. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's. Risk also varies by ancestry (the variant is more common in Ashkenazi Jewish and North African Berber populations) and is modified by other genetic and environmental factors. A positive result is not a diagnosis and not a prediction that you will develop Parkinson's.",
       "caveats": ["reduced_penetrance", "parkinsons_no_prevention", "negative_not_clear", "confirm_clinically"],
-      "pmids": ["31958187"]
+      "pmids": ["26062626", "28639421", "38804604", "40926580"]
     }
   ]
 }
