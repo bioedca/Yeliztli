@@ -37,6 +37,7 @@ from backend.api.routes.databases import (
 from backend.api.routes.databases import (
     router as databases_router,
 )
+from backend.api.routes.ebmd import router as ebmd_router
 from backend.api.routes.encode_ccres import router as encode_ccres_router
 from backend.api.routes.export import router as export_router
 from backend.api.routes.fh import router as fh_router
@@ -205,6 +206,7 @@ def create_app() -> FastAPI:
     api_router.include_router(column_presets_router)
     api_router.include_router(custom_panels_router)
     api_router.include_router(databases_router)
+    api_router.include_router(ebmd_router)
     api_router.include_router(encode_ccres_router)
     api_router.include_router(export_router)
     api_router.include_router(fh_router)

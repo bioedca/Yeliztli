@@ -55,6 +55,24 @@
         "bundle_ok": true,
         "monogenic_genes": ["LDLR", "APOB", "PCSK9"]
       }
+    ],
+    "heel_ebmd": [
+      {
+        "pgs_id": "PGS000657",
+        "module": "ebmd",
+        "name": "Heel eBMD speed-of-sound (gSOS, UK Biobank)",
+        "trait_label": "Heel estimated bone mineral density",
+        "method": "LASSO (gSOS)",
+        "multi_ancestry": false,
+        "ancestries": ["EUR"],
+        "source_study": "Forgetta et al. 2020 (PLoS Medicine)",
+        "source_pmid": "32614825",
+        "sample_size": 346784,
+        "license": "CC-BY-NC-ND-4.0",
+        "source_url": "https://www.pgscatalog.org/score/PGS000657/",
+        "bundle_ok": false,
+        "monogenic_genes": []
+      }
     ]
   }
 }

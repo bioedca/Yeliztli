@@ -109,6 +109,7 @@ _FULLY_OPT_OUT_MODULES = frozenset(
         "backup",
         "column_presets",
         "databases",
+        "ebmd",
         "encode_ccres",
         "individuals",  # added in Phase 2 (step 47); no `sample_id` today
         "ingest",
