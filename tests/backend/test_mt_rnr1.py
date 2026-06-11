@@ -78,11 +78,19 @@ class TestHighEvidenceVariants:
         a = assess_mt_rnr1(panel, sample_engine)
         assert any(c.detail["model_id"] == "m1555ag" for c in a.calls)
 
-    def test_m1555_minus_strand_equivalent(self, panel, sample_engine: sa.Engine) -> None:
-        # "C" is the reverse-strand complement of plus-strand risk "G".
+    def test_m1555_complement_only_call_is_indeterminate(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # "C" is the Watson–Crick complement of the plus-strand risk "G", but
+        # MT-RNR1 is haploid mtDNA reported on a single strand: a literal
+        # plus-strand "C" at m.1555 is an A>C variant, NOT the pathogenic A>G.
+        # Without reverse-strand provenance it must be indeterminate, never the
+        # CPIC aminoglycoside-avoidance finding. Regression for issue #30.
         _seed(sample_engine, [_m1555("C")])
         a = assess_mt_rnr1(panel, sample_engine)
-        assert any(c.detail["model_id"] == "m1555ag" for c in a.calls)
+        assert not any(c.detail["model_id"] == "m1555ag" for c in a.calls)
+        assert a.dosages["rs267606617"] is None
+        assert "rs267606617" in a.indeterminate_loci
 
     def test_m1494_fires_three_star(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_m1494("T")])

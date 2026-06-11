@@ -16,7 +16,8 @@
       "ref_allele": "A",
       "canonical_strand": "plus",
       "off_chip_risk": "high",
-      "allele_type": "snv"
+      "allele_type": "snv",
+      "allow_strand_complement": false
     },
     {
       "rsid": "rs267606619",
@@ -26,7 +27,8 @@
       "ref_allele": "C",
       "canonical_strand": "plus",
       "off_chip_risk": "high",
-      "allele_type": "snv"
+      "allele_type": "snv",
+      "allow_strand_complement": false
     },
     {
       "rsid": "rs267606618",
@@ -36,7 +38,8 @@
       "ref_allele": "T",
       "canonical_strand": "plus",
       "off_chip_risk": "high",
-      "allele_type": "snv"
+      "allele_type": "snv",
+      "allow_strand_complement": false
     }
   ],
   "genotype_models": [

@@ -191,16 +191,23 @@ def canonical_alleles(
     genotype: str | None,
     ref: str | None,
     alt: str | None,
+    *,
+    allow_complement: bool = True,
 ) -> set[str] | None:
     """Resolve a genotype's alleles into the ``{ref, alt}`` frame, or None.
 
-    Reference-strand comparison is tried first, then the Watson–Crick complement
-    (for chip probes reported on the reverse strand). Returns the allele set
-    expressed on the strand that matched ``{ref, alt}``, or ``None`` when the
-    genotype is a no-call, ``ref``/``alt`` are not single-base SNVs, or the
-    alleles match neither strand. This is the same resolution
-    :func:`backend.analysis.zygosity.classify_zygosity` performs, exposed for
-    the risk-genotype caller's dosage counting.
+    Reference-strand comparison is tried first, then (when ``allow_complement``)
+    the Watson–Crick complement for chip probes reported on the reverse strand.
+    Returns the allele set expressed on the strand that matched ``{ref, alt}``,
+    or ``None`` when the genotype is a no-call, ``ref``/``alt`` are not
+    single-base SNVs, or the alleles match neither strand. This is the same
+    resolution :func:`backend.analysis.zygosity.classify_zygosity` performs,
+    exposed for the risk-genotype caller's dosage counting.
+
+    ``allow_complement=False`` disables the reverse-strand fallback: a
+    complemented-only observation returns ``None`` (indeterminate). This is for
+    haploid mtDNA loci, where a complemented single base is a different variant
+    rather than a strand flip (see :class:`RiskLocus.allow_strand_complement`).
     """
     if is_no_call(genotype):
         return None
@@ -215,6 +222,8 @@ def canonical_alleles(
         return None
     if alleles <= {ref_u, alt_u}:
         return alleles
+    if not allow_complement:
+        return None
     cref, calt = COMPLEMENT[ref_u], COMPLEMENT[alt_u]
     if alleles <= {cref, calt}:
         # Re-express the reverse-strand observation on the reference strand so
@@ -227,24 +236,31 @@ def risk_dosage(
     genotype: str | None,
     risk_allele: str,
     ref_allele: str,
+    *,
+    allow_complement: bool = True,
 ) -> int | None:
     """Count copies of ``risk_allele`` carried at a locus, or ``None``.
 
     Resolves the observed genotype into the ``{risk, ref}`` frame (handling the
-    reverse-strand representation), then counts copies of the risk allele.
-    Returns ``None`` (indeterminate — never a false negative) when the probe is a
-    no-call or the alleles are explained by neither strand.
+    reverse-strand representation when ``allow_complement``), then counts copies
+    of the risk allele. Returns ``None`` (indeterminate — never a false negative)
+    when the probe is a no-call or the alleles are explained by neither strand.
 
     This is the counting primitive for the by-rsID risk-genotype caller; it is
     what makes the minus-strand Factor V Leiden ``rs6025`` and Prothrombin
     ``rs1799963`` carriers call correctly regardless of the vendor's strand.
+
+    ``allow_complement=False`` (haploid mtDNA loci) treats a complemented-only
+    observation as indeterminate rather than a reverse-strand risk allele, so a
+    literal plus-strand base that merely *complements* the risk allele does not
+    fire a false-positive finding (see :class:`RiskLocus.allow_strand_complement`).
     """
     risk_u = risk_allele.strip().upper()
     ref_u = ref_allele.strip().upper()
     if risk_u not in COMPLEMENT or ref_u not in COMPLEMENT:
         return None
     # Canonicalize into the {ref, risk} frame (ref-strand or complemented).
-    resolved = canonical_alleles(genotype, ref_u, risk_u)
+    resolved = canonical_alleles(genotype, ref_u, risk_u, allow_complement=allow_complement)
     if resolved is None:
         return None
     gt = genotype.strip().upper()  # type: ignore[union-attr]  # not a no-call here

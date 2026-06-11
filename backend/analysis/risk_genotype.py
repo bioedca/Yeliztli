@@ -150,6 +150,13 @@ class RiskLocus:
     canonical_strand: str = "plus"  # "plus" | "minus" (minus flags cross-vendor pitfalls)
     off_chip_risk: str = "low"  # "high" → may be absent on arrays (e.g. indels)
     allele_type: str = ALLELE_TYPE_SNV  # "snv" | "indel" (indel uses literal I/D tokens)
+    # Whether a Watson–Crick-complemented observation may be accepted as a
+    # reverse-strand reading of this locus. True for nuclear SNP-array loci where
+    # the probe strand varies by vendor. False for haploid mtDNA loci (MT-RNR1,
+    # LHON), which are reported on a single strand: a complemented single base is
+    # a *different* variant, not a strand flip, so accepting it would be a false
+    # positive. When False, complement-only observations are indeterminate. (#30)
+    allow_strand_complement: bool = True
 
 
 @dataclass(frozen=True)
@@ -279,6 +286,7 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             canonical_strand=loc.get("canonical_strand", "plus"),
             off_chip_risk=loc.get("off_chip_risk", "low"),
             allele_type=loc.get("allele_type", ALLELE_TYPE_SNV),
+            allow_strand_complement=loc.get("allow_strand_complement", True),
         )
         for loc in data["loci"]
     ]
@@ -418,7 +426,12 @@ def compute_dosages(panel: RiskPanel, readouts: dict[str, ProbeReadout]) -> dict
         if loc.allele_type == ALLELE_TYPE_INDEL:
             dosages[loc.rsid] = _indel_dosage(readout.genotype, loc.risk_allele, loc.ref_allele)
         else:
-            dosages[loc.rsid] = risk_dosage(readout.genotype, loc.risk_allele, loc.ref_allele)
+            dosages[loc.rsid] = risk_dosage(
+                readout.genotype,
+                loc.risk_allele,
+                loc.ref_allele,
+                allow_complement=loc.allow_strand_complement,
+            )
     return dosages
 
 

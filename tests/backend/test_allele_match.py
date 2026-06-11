@@ -146,3 +146,30 @@ class TestRiskDosage:
         # "CC" is the reverse-strand representation of hom-ref "GG" → dosage 0
         # (resolvable, not indeterminate).
         assert risk_dosage("CC", "A", "G") == 0
+
+
+class TestRiskDosageNoComplement:
+    """``allow_complement=False`` for haploid mtDNA loci (issue #30).
+
+    A complemented-only observation must be indeterminate (None), not a
+    reverse-strand risk allele, while plus-strand reference/risk bases still
+    count. Uses MT-RNR1 m.1555A>G framing: ref A, risk G, complement pair {T, C}.
+    """
+
+    def test_complement_only_is_indeterminate(self) -> None:
+        # Plus-strand "C" merely complements risk "G"; without reverse-strand
+        # provenance it is a different variant, not the m.1555A>G allele.
+        assert risk_dosage("C", "G", "A", allow_complement=False) is None
+        assert risk_dosage("CC", "G", "A", allow_complement=False) is None
+        # Complement of ref "A" is "T" — also indeterminate, not hom-ref.
+        assert risk_dosage("T", "G", "A", allow_complement=False) is None
+
+    def test_plus_strand_still_counts(self) -> None:
+        assert risk_dosage("G", "G", "A", allow_complement=False) == 1
+        assert risk_dosage("GG", "G", "A", allow_complement=False) == 2
+        assert risk_dosage("A", "G", "A", allow_complement=False) == 0
+
+    def test_default_still_complements(self) -> None:
+        # The flag defaults to True, preserving nuclear strand-flip resolution.
+        assert risk_dosage("C", "G", "A") == 1
+        assert risk_dosage("TC", "A", "G") == 1
