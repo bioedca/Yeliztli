@@ -648,11 +648,19 @@ class TestCrossModuleIntegration:
     # ── No duplicate findings ──────────────────────────────────────────
 
     def test_no_exact_duplicate_findings(self, cross_module_client: TestClient) -> None:
-        """No two findings share the same (module, rsid, gene_symbol) triple.
+        """No two findings of the same category share a variant within a module.
 
         Different modules CAN produce findings for the same gene (e.g.,
-        BRCA1 in cancer AND carrier), but within a single module there
-        should be no duplicates for the same variant.
+        BRCA1 in cancer AND carrier). A single module can also legitimately
+        surface one variant under two *different* categories — gene_health
+        reports MTHFR rs1801133 both as a per-SNP finding (``snp_finding``)
+        and as a cross-module pointer to the Methylation module
+        (``cross_module``). Those are distinct finding types, not duplicates.
+
+        The bug this guards against is a module emitting the *same kind* of
+        finding twice for one variant (e.g. a variant placed in two pathways
+        yielding two ``snp_finding`` rows), so the identity key includes
+        ``category``.
         """
         client = cross_module_client
         sample_id = self._upload_and_annotate(client)
@@ -664,9 +672,9 @@ class TestCrossModuleIntegration:
 
         seen = set()
         for f in findings:
-            key = (f["module"], f.get("rsid"), f.get("gene_symbol"))
+            key = (f["module"], f.get("category"), f.get("rsid"), f.get("gene_symbol"))
             # Skip findings without rsid (e.g., pathway summaries)
-            if key[1] is None:
+            if f.get("rsid") is None:
                 continue
             assert key not in seen, f"Duplicate finding: {key}"
             seen.add(key)

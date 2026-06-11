@@ -609,6 +609,68 @@ class TestFindingsStorage:
             ).fetchall()
         assert len(cross) > 0
 
+    def test_no_same_category_duplicate_findings(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """No two stored findings of the same category share a variant.
+
+        Fast, CI-visible guard for the invariant checked by the slow
+        ``test_no_exact_duplicate_findings`` integration test. A cross-linked
+        SNP legitimately yields both an ``snp_finding`` and a ``cross_module``
+        row for the same variant, so the identity key must include
+        ``category``; a genuine bug (the same category emitted twice for one
+        variant) would still be caught.
+        """
+        _seed_variants(sample_engine, ALL_GENE_HEALTH_VARIANTS)
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        store_gene_health_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
+            ).fetchall()
+
+        seen: set[tuple] = set()
+        for row in rows:
+            if row.rsid is None:  # pathway summaries carry no variant
+                continue
+            key = (row.category, row.rsid, row.gene_symbol)
+            assert key not in seen, f"Duplicate finding: {key}"
+            seen.add(key)
+
+    def test_cross_linked_variant_emitted_under_both_categories(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A cross-linked SNP appears as both snp_finding and cross_module.
+
+        Locks the intended dual emission so a future de-dup "fix" cannot
+        silently drop the per-SNP finding or the cross-module pointer. Uses
+        MTHFR rs1801133 (-> Methylation), the variant originally reported in
+        issue #13.
+        """
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "GA")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        store_gene_health_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            categories = {
+                row.category
+                for row in conn.execute(
+                    sa.select(findings).where(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.rsid == "rs1801133",
+                        findings.c.gene_symbol == "MTHFR",
+                    )
+                ).fetchall()
+            }
+        assert categories == {"snp_finding", "cross_module"}
+
 
 # -- Panel coverage tests ----------------------------------------------------
 
