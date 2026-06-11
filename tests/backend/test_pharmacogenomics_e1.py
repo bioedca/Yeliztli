@@ -153,16 +153,22 @@ def test_pharmvar_version_recorded_on_build(
     from backend.db.manifest import reset_cache
     from backend.db.update_manager import get_current_version
 
+    import json
+
     # Point the manifest pin lookup at the in-repo manifest (offline/deterministic).
     repo_manifest = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
+    expected_pharmvar = json.loads(repo_manifest.read_text())["pipeline_pins"]["pharmvar"][
+        "last_known_version"
+    ]
     monkeypatch.setenv("YELIZTLI_MANIFEST_PATH", str(repo_manifest))
     reset_cache()
     try:
         engine = sa.create_engine("sqlite://")
         reference_metadata.create_all(engine)
         download_and_load_cpic(engine, tmp_path)
-        # Both CPIC and the PharmVar definition-source version are tracked.
+        # Both CPIC and the PharmVar definition-source version (from the manifest pin)
+        # are tracked in database_versions.
         assert get_current_version(engine, "cpic") is not None
-        assert get_current_version(engine, "pharmvar") == "6.2"
+        assert get_current_version(engine, "pharmvar") == expected_pharmvar
     finally:
         reset_cache()
