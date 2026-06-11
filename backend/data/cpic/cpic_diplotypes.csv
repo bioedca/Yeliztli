@@ -55,6 +55,7 @@ DPYD,c.2846A>T/c.2846A>T,Intermediate Metabolizer,DPYD Intermediate Metabolizer,
 DPYD,c.1129-5923C>G/c.1129-5923C>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
 TPMT,*1/*1,Normal Metabolizer,TPMT Normal Metabolizer,2.0
 TPMT,*1/*3A,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
+TPMT,*1/*3B,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
 TPMT,*1/*3C,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
 TPMT,*3A/*3A,Poor Metabolizer,TPMT Poor Metabolizer,0.0
 TPMT,*1/*2,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
