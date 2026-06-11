@@ -66,6 +66,7 @@ class CancerPRSResponse(BaseModel):
 
     trait: str
     name: str
+    calibrated: bool = True
     percentile: float | None = None
     z_score: float | None = None
     bootstrap_ci_lower: float | None = None
@@ -292,6 +293,7 @@ def list_cancer_prs(
             CancerPRSResponse(
                 trait=detail.get("trait", ""),
                 name=detail.get("name", ""),
+                calibrated=detail.get("calibrated", True),
                 percentile=row.prs_percentile,
                 z_score=detail.get("z_score"),
                 bootstrap_ci_lower=detail.get("bootstrap_ci_lower"),

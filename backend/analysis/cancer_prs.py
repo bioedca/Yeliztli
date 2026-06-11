@@ -149,6 +149,10 @@ def load_cancer_prs_weights(
                     weights=weights,
                     reference_mean=ws_data["reference_mean"],
                     reference_std=ws_data["reference_std"],
+                    # Conservative default: a bundled weight set is treated as
+                    # uncalibrated unless it explicitly declares a validated
+                    # reference distribution (issue #7).
+                    calibrated=ws_data.get("calibrated", False),
                 )
             )
         except KeyError as e:

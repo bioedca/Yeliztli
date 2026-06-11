@@ -14,6 +14,7 @@ Covers:
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -156,9 +157,12 @@ class TestLoadCancerPRSWeights:
                 assert w.effect_allele in ("A", "C", "G", "T")
                 assert isinstance(w.weight, float)
 
-    def test_reference_distribution_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
+    def test_bundled_sets_are_uncalibrated(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
+        """Shipped cancer weight sets carry only placeholder reference params, so
+        they must load as uncalibrated and the engine withholds the percentile
+        (issue #7)."""
         for ws in cancer_weight_sets:
-            assert ws.reference_std > 0
+            assert ws.calibrated is False
 
     def test_file_not_found_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -184,9 +188,12 @@ class TestRunCancerPRS:
         traits = {r.trait for r in result.results}
         assert traits == CANCER_PRS_TRAITS
 
-    def test_all_results_have_percentile(
+    def test_uncalibrated_sets_withhold_percentile(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
+        """The bundled sets are uncalibrated, so percentile / z-score / CI are
+        withheld even when coverage is sufficient — no miscalibrated number is
+        emitted (issue #7). raw_score is still computed."""
         result = run_cancer_prs(
             cancer_weight_sets,
             sample_with_prs_snps,
@@ -194,23 +201,31 @@ class TestRunCancerPRS:
             rng_seed=42,
         )
         for r in result.results:
-            if r.is_sufficient:
-                assert r.percentile is not None
-                assert 0 <= r.percentile <= 100
+            assert r.calibrated is False
+            assert r.percentile is None
+            assert r.z_score is None
+            assert r.has_bootstrap_ci is False
+            assert r.raw_score is not None
 
-    def test_all_results_have_bootstrap_ci(
+    def test_calibrated_set_still_emits_percentile(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
+        """Guardrail is conditional: a weight set declaring a validated reference
+        distribution (calibrated=True) still produces a percentile + bootstrap CI."""
+        ws = replace(cancer_weight_sets[0], calibrated=True, reference_mean=0.5, reference_std=0.5)
         result = run_cancer_prs(
-            cancer_weight_sets,
+            [ws],
             sample_with_prs_snps,
             n_bootstrap=100,
             rng_seed=42,
         )
-        for r in result.results:
-            if r.is_sufficient:
-                assert r.has_bootstrap_ci
-                assert r.bootstrap_ci_lower <= r.bootstrap_ci_upper
+        r = result.results[0]
+        if r.is_sufficient:
+            assert r.calibrated is True
+            assert r.percentile is not None
+            assert 0 <= r.percentile <= 100
+            assert r.has_bootstrap_ci
+            assert r.bootstrap_ci_lower <= r.bootstrap_ci_upper
 
     def test_all_evidence_level_is_1(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -440,6 +455,28 @@ class TestStoreCancerPRSFindings:
             rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
         for row in rows:
             assert "Research Use Only" in row.finding_text
+
+    def test_uncalibrated_finding_text_and_percentile(
+        self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
+    ) -> None:
+        """Stored uncalibrated findings report no percentile, both in the column
+        and the human-readable text (issue #7)."""
+        prs_result = run_cancer_prs(
+            cancer_weight_sets,
+            sample_with_prs_snps,
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        store_cancer_prs_findings(prs_result, sample_with_prs_snps)
+
+        with sample_with_prs_snps.connect() as conn:
+            rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
+        assert rows  # sufficient-coverage findings are still stored
+        for row in rows:
+            assert row.prs_percentile is None
+            assert "percentile" in row.finding_text.lower()
+            assert "uncalibrated" in row.finding_text.lower()
+            assert json.loads(row.detail_json)["calibrated"] is False
 
     def test_detail_json_has_trait(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine

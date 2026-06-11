@@ -47,6 +47,7 @@ const TP53_VARIANT: CancerVariant = {
 const BREAST_PRS: CancerPRS = {
   trait: "breast_cancer",
   name: "Breast Cancer",
+  calibrated: true,
   percentile: 72.3,
   z_score: 0.59,
   bootstrap_ci_lower: 65.1,
@@ -69,6 +70,7 @@ const BREAST_PRS: CancerPRS = {
 const MISMATCH_PRS: CancerPRS = {
   trait: "prostate_cancer",
   name: "Prostate Cancer",
+  calibrated: true,
   percentile: 55.0,
   z_score: 0.13,
   bootstrap_ci_lower: 48.2,
@@ -92,6 +94,7 @@ const MISMATCH_PRS: CancerPRS = {
 const INSUFFICIENT_PRS: CancerPRS = {
   trait: "melanoma",
   name: "Melanoma",
+  calibrated: true,
   percentile: null,
   z_score: null,
   bootstrap_ci_lower: null,
@@ -105,6 +108,29 @@ const INSUFFICIENT_PRS: CancerPRS = {
   source_study: "Meta-analysis",
   source_pmid: "00000000",
   sample_size: 50000,
+  ancestry_mismatch: false,
+  ancestry_warning_text: null,
+  evidence_level: 1,
+  research_use_only: true,
+}
+
+const UNCALIBRATED_PRS: CancerPRS = {
+  trait: "colorectal_cancer",
+  name: "Colorectal Cancer",
+  calibrated: false,
+  percentile: null,
+  z_score: null,
+  bootstrap_ci_lower: null,
+  bootstrap_ci_upper: null,
+  bootstrap_iterations: 0,
+  snps_used: 18,
+  snps_total: 20,
+  coverage_fraction: 0.9,
+  is_sufficient: true,
+  source_ancestry: "EUR",
+  source_study: "CRC",
+  source_pmid: "30510241",
+  sample_size: 125478,
   ancestry_mismatch: false,
   ancestry_warning_text: null,
   evidence_level: 1,
@@ -264,6 +290,15 @@ describe("PRSGaugeCard", () => {
   it("shows insufficient coverage message", () => {
     render(<PRSGaugeCard prs={INSUFFICIENT_PRS} />)
     expect(screen.getByText(/Insufficient SNP coverage \(20%\)/)).toBeInTheDocument()
+  })
+
+  it("shows uncalibrated message (no percentile) when calibrated is false", () => {
+    render(<PRSGaugeCard prs={UNCALIBRATED_PRS} />)
+    expect(screen.getByTestId("prs-uncalibrated")).toBeInTheDocument()
+    expect(screen.getByText(/no validated reference distribution/)).toBeInTheDocument()
+    // The misleading percentile and the insufficient-coverage message must NOT appear.
+    expect(screen.queryByText("th percentile")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Insufficient SNP coverage/)).not.toBeInTheDocument()
   })
 
   it("has accessible label", () => {

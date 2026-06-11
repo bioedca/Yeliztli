@@ -112,6 +112,15 @@ class PRSWeightSet:
         weights: List of SNP weight entries.
         reference_mean: Mean PRS in the reference population.
         reference_std: Standard deviation of PRS in the reference population.
+        calibrated: Whether ``reference_mean``/``reference_std`` are a validated
+            reference distribution for *this exact* shipped score (SNP subset,
+            harmonization, and target ancestry). When ``False`` the engine
+            refuses to emit a population percentile / z-score / bootstrap CI,
+            because converting a raw weighted-allele sum through an
+            uncalibrated mean/SD (e.g. the ``0.0``/``1.0`` placeholder) yields a
+            number that looks calibrated but is not (see issue #7). Defaults to
+            ``True`` so programmatically constructed weight sets keep their
+            historical behaviour; data loaders should pass it explicitly.
     """
 
     name: str
@@ -124,6 +133,7 @@ class PRSWeightSet:
     weights: list[PRSSNPWeight]
     reference_mean: float
     reference_std: float
+    calibrated: bool = True
 
     @property
     def snp_count(self) -> int:
@@ -203,6 +213,9 @@ class PRSResult:
     ancestry_mismatch: bool = False
     ancestry_warning_text: str | None = None
     evidence_level: int = PRS_EVIDENCE_LEVEL  # PRS components = ★☆☆☆
+    # False → no validated reference distribution for this score, so percentile,
+    # z-score and bootstrap CI are deliberately withheld (left None). See #7.
+    calibrated: bool = True
 
     @property
     def is_sufficient(self) -> bool:
@@ -598,14 +611,28 @@ def run_prs(
         Complete PRSResult.
     """
     result = compute_prs(weight_set, sample_engine)
-    result = compute_prs_percentile(result, weight_set.reference_mean, weight_set.reference_std)
-    result = compute_prs_bootstrap_ci(
-        result,
-        weight_set.reference_mean,
-        weight_set.reference_std,
-        n_iterations=n_bootstrap,
-        rng_seed=rng_seed,
-    )
+    result.calibrated = weight_set.calibrated
+    if weight_set.calibrated:
+        result = compute_prs_percentile(
+            result, weight_set.reference_mean, weight_set.reference_std
+        )
+        result = compute_prs_bootstrap_ci(
+            result,
+            weight_set.reference_mean,
+            weight_set.reference_std,
+            n_iterations=n_bootstrap,
+            rng_seed=rng_seed,
+        )
+    else:
+        # No validated reference distribution: withhold percentile / z-score /
+        # CI rather than emit a miscalibrated number (issue #7). raw_score and
+        # coverage are still computed and surfaced as a research-use qualitative
+        # state.
+        logger.info(
+            "prs_uncalibrated_percentile_withheld",
+            trait=result.trait,
+            raw_score=result.raw_score,
+        )
     result = check_ancestry_mismatch(result, inferred_ancestry, top_ancestry_fraction)
     return result
 
@@ -668,16 +695,25 @@ def store_prs_findings(
             )
             continue
 
-        percentile_text = f"{r.percentile:.0f}th" if r.percentile is not None else "N/A"
-        z_text = f"z = {r.z_score:.2f}" if r.z_score is not None else ""
-        ci_text = ""
-        if r.has_bootstrap_ci:
-            ci_text = f" (95% CI: {r.bootstrap_ci_lower:.0f}th–{r.bootstrap_ci_upper:.0f}th)"
+        if not r.calibrated:
+            # No validated reference distribution → percentile is withheld
+            # rather than computed from a placeholder mean/SD (issue #7).
+            finding_text = (
+                f"{r.weight_set_name}: population percentile not reported — score "
+                "lacks a validated reference distribution (uncalibrated) — "
+                "Research Use Only"
+            )
+        else:
+            percentile_text = f"{r.percentile:.0f}th" if r.percentile is not None else "N/A"
+            z_text = f"z = {r.z_score:.2f}" if r.z_score is not None else ""
+            ci_text = ""
+            if r.has_bootstrap_ci:
+                ci_text = f" (95% CI: {r.bootstrap_ci_lower:.0f}th–{r.bootstrap_ci_upper:.0f}th)"
 
-        finding_text = (
-            f"{r.weight_set_name}: {percentile_text} percentile{ci_text}"
-            f" [{z_text}] — Research Use Only"
-        )
+            finding_text = (
+                f"{r.weight_set_name}: {percentile_text} percentile{ci_text}"
+                f" [{z_text}] — Research Use Only"
+            )
 
         detail = {
             "trait": r.trait,
@@ -694,6 +730,7 @@ def store_prs_findings(
             "snps_ambiguous_dropped": r.snps_ambiguous_dropped,
             "snps_strand_flipped": r.snps_strand_flipped,
             "snps_unresolved": r.snps_unresolved,
+            "calibrated": r.calibrated,
             "z_score": r.z_score,
             "bootstrap_ci_lower": r.bootstrap_ci_lower,
             "bootstrap_ci_upper": r.bootstrap_ci_upper,

@@ -1,7 +1,7 @@
 {
   "module": "cancer",
   "version": "1.1.0",
-  "description": "Cancer PRS weight sets for breast, prostate, colorectal, and melanoma. Weights derived from published large-scale GWAS meta-analyses. Displayed as population percentile with bootstrap CI — never as raw PRS or absolute lifetime risk. Each weight may include an optional 'other_allele' (the non-effect allele); when present, the PRS engine harmonizes strand (reverse-strand flip resolution and strand-ambiguous-palindrome dropping). When absent, the effect allele is counted literally (legacy behaviour).",
+  "description": "Cancer PRS weight sets for breast, prostate, colorectal, and melanoma. Weights derived from published large-scale GWAS meta-analyses. Each set carries a 'calibrated' flag: when false, the bundled reference_mean/reference_std are NOT a validated reference distribution for this exact score, so the engine withholds the population percentile, z-score and bootstrap CI (issue #7) and reports only a qualitative research-use state. When calibrated, displayed as population percentile with bootstrap CI — never as raw PRS or absolute lifetime risk. Each weight may include an optional 'other_allele' (the non-effect allele); when present, the PRS engine harmonizes strand (reverse-strand flip resolution and strand-ambiguous-palindrome dropping). When absent, the effect allele is counted literally (legacy behaviour).",
   "weight_sets": [
     {
       "name": "Breast cancer (BCAC)",
@@ -12,6 +12,8 @@
       "sample_size": 228951,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "weights": [
         {"rsid": "rs2981582", "effect_allele": "G", "weight": 0.263},
         {"rsid": "rs3803662", "effect_allele": "A", "weight": 0.204},
@@ -49,6 +51,8 @@
       "sample_size": 140306,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "weights": [
         {"rsid": "rs1447295", "effect_allele": "A", "weight": 0.223},
         {"rsid": "rs16901979", "effect_allele": "A", "weight": 0.507},
@@ -81,6 +85,8 @@
       "sample_size": 125478,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "weights": [
         {"rsid": "rs6983267", "effect_allele": "G", "weight": 0.198},
         {"rsid": "rs4939827", "effect_allele": "T", "weight": -0.163},
@@ -113,6 +119,8 @@
       "sample_size": 36760,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "weights": [
         {"rsid": "rs1805007", "effect_allele": "T", "weight": 0.423},
         {"rsid": "rs1805008", "effect_allele": "T", "weight": 0.302},

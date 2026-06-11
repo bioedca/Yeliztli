@@ -28,6 +28,8 @@ export interface CancerVariantsListResponse {
 export interface CancerPRS {
   trait: string
   name: string
+  /** False → no validated reference distribution, so percentile is withheld (issue #7). */
+  calibrated: boolean
   percentile: number | null
   z_score: number | null
   bootstrap_ci_lower: number | null
