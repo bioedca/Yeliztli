@@ -134,7 +134,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs10166942", "2", 234825093, "CT"),  # TRPM8 het -> Moderate
     # --- Metabolic (10 SNPs) ---
     ("rs7903146", "10", 112998590, "CT"),  # TCF7L2 het -> Moderate
-    ("rs1801282", "3", 12393125, "CG"),  # PPARG Pro12Ala het -> Moderate
+    ("rs1801282", "3", 12393125, "CG"),  # PPARG Pro12Ala het (protective Ala12) -> Standard
     ("rs5219", "11", 17409572, "CT"),  # KCNJ11 E23K het -> Moderate
     ("rs13266634", "8", 117172544, "TC"),  # SLC30A8 R325W het -> Moderate
     ("rs9939609", "16", 53820527, "TA"),  # FTO het -> Moderate
@@ -278,6 +278,18 @@ class TestSNPScoring:
         snp = self._get_snp(panel, "rs7903146")
         result = _score_snp(snp, "CC")
         assert result.category == STANDARD
+
+    def test_pparg_ala12_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
+        """PPARG Pro12Ala (rs1801282): the protective Ala12 (G) allele must not be
+        scored as risk. All genotypes map to Standard so a protective genotype
+        cannot inflate the metabolic pathway level (gh #11).
+        """
+        snp = self._get_snp(panel, "rs1801282")
+        # C/Pro12 is the higher-risk direction; G/Ala12 is protective.
+        assert snp.risk_allele == "C"
+        for genotype in ("GG", "GC", "CG", "CC"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
     def test_not_genotyped_returns_standard(self, panel: GeneHealthPanel) -> None:
         """Missing genotype -> Standard with not present flag."""

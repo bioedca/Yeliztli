@@ -444,25 +444,25 @@
           "ref_allele": "G",
           "genotype_effects": {
             "GG": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous for the Ala12 variant. This is actually the protective allele associated with improved insulin sensitivity and reduced type 2 diabetes risk."
+              "category": "Standard",
+              "effect_summary": "Homozygous Ala12 (rs1801282 G/G). Ala12 is the protective direction at this locus, associated with improved insulin sensitivity and modestly reduced type 2 diabetes risk. This is not a risk-elevating finding."
             },
             "GC": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous Pro12Ala. Intermediate insulin sensitivity. The Ala12 allele confers modest protection against type 2 diabetes."
+              "category": "Standard",
+              "effect_summary": "Heterozygous Pro12Ala (one Ala12 / G allele). The Ala12 allele confers modest protection against type 2 diabetes; this genotype is not risk-elevating at this locus."
             },
             "CG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous Pro12Ala. Intermediate insulin sensitivity. The Ala12 allele confers modest protection against type 2 diabetes."
+              "category": "Standard",
+              "effect_summary": "Heterozygous Pro12Ala (one Ala12 / G allele). The Ala12 allele confers modest protection against type 2 diabetes; this genotype is not risk-elevating at this locus."
             },
             "CC": {
               "category": "Standard",
-              "effect_summary": "Homozygous Pro12 (common allele). Standard PPARG activity. This is the more common genotype associated with baseline type 2 diabetes risk at this locus."
+              "effect_summary": "Homozygous Pro12 (rs1801282 C/C), the common genotype. Pro12 is the higher-risk direction at this locus, but the per-allele effect is small (per-allele T2D OR ~1.16 relative to the protective Ala12 allele) and this is the population-baseline genotype."
             }
           },
           "evidence_level": 3,
-          "pmids": ["10862766", "16702423", "17463246"],
-          "recommendation_text": "PPARG Pro12Ala is a well-replicated type 2 diabetes locus. The Pro12 allele (common) confers modestly increased risk. PPARG is the molecular target of thiazolidinedione drugs. Lifestyle intervention remains effective regardless of genotype."
+          "pmids": ["10862766", "16702423", "17463246", "20179158", "32728045"],
+          "recommendation_text": "PPARG Pro12Ala is a well-replicated type 2 diabetes locus where the minor Ala12 (G) allele is protective (per-allele OR ~0.86; Gouda 2010, Sarhangi 2020). The common Pro12 (C) allele is the higher-risk direction, but the effect is small and Ala12-carrying genotypes are not risk-elevating. PPARG is the molecular target of thiazolidinedione drugs. Lifestyle intervention remains effective regardless of genotype."
         },
         {
           "rsid": "rs5219",
