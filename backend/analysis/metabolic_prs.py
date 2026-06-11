@@ -26,10 +26,14 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.allele_match import match_effect_allele_dosage
 from backend.analysis.evidence import EVIDENCE_MODERATE
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
-from backend.analysis.prs import PRSResult, run_prs, store_prs_findings
+from backend.analysis.prs import (
+    PRSResult,
+    _count_effect_allele,
+    run_prs,
+    store_prs_findings,
+)
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -119,7 +123,17 @@ class MetabolicResult:
 
 
 def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult]:
-    """Resolve genotype + effect-allele dosage for a trait's anchor SNPs."""
+    """Resolve genotype + effect-allele dosage for a trait's anchor SNPs.
+
+    Anchors are single, directly-typed variants reported with their raw
+    genotype, so the effect-allele dosage is a **literal** count of that
+    genotype (always 0/1/2 when typed) rather than the strand-aware,
+    palindrome-dropping PRS matcher — the latter would return an indeterminate
+    ``None`` for palindromic anchors (e.g. FTO rs9939609 is A/T near MAF 0.5)
+    and drop the most informative locus. Strand orientation is a general array
+    caveat covered by the module disclaimer; the displayed genotype keeps it
+    transparent.
+    """
     anchors = ANCHOR_SNPS.get(trait, [])
     if not anchors:
         return []
@@ -129,25 +143,20 @@ def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult
             sa.select(
                 annotated_variants.c.rsid,
                 annotated_variants.c.genotype,
-                annotated_variants.c.gnomad_af_global,
             ).where(annotated_variants.c.rsid.in_(rsids))
         ).fetchall()
     geno = {r.rsid: r.genotype for r in rows}
-    af = {r.rsid: r.gnomad_af_global for r in rows}
 
     out: list[AnchorResult] = []
     for a in anchors:
         genotype = geno.get(a["rsid"])
-        match = match_effect_allele_dosage(
-            genotype, a["effect_allele"], a.get("other_allele"), af.get(a["rsid"])
-        )
         out.append(
             AnchorResult(
                 rsid=a["rsid"],
                 gene=a["gene"],
                 effect_allele=a["effect_allele"],
                 genotype=genotype,
-                dosage=match.dosage if match.dosage is not None else 0,
+                dosage=_count_effect_allele(genotype, a["effect_allele"]),
                 summary=a["summary"],
                 pmid=a["pmid"],
                 trait=trait,

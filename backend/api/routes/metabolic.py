@@ -229,13 +229,14 @@ def run_metabolic_analysis(
 
     sample_engine = _get_sample_engine(sample_id)
     pgs_engine = get_pgs_scores_engine()
-    inferred = get_inferred_ancestry(sample_engine)
-    top_fraction = get_top_ancestry_fraction(sample_engine)
-
-    result = run_metabolic_prs(sample_engine, pgs_engine, inferred, top_fraction)
-    count = store_metabolic_findings(result, sample_engine)
-    if pgs_engine is not None:
-        pgs_engine.dispose()
+    try:
+        inferred = get_inferred_ancestry(sample_engine)
+        top_fraction = get_top_ancestry_fraction(sample_engine)
+        result = run_metabolic_prs(sample_engine, pgs_engine, inferred, top_fraction)
+        count = store_metabolic_findings(result, sample_engine)
+    finally:
+        if pgs_engine is not None:
+            pgs_engine.dispose()
 
     typed_anchors = sum(1 for a in result.anchors if a.genotype is not None)
     return MetabolicRunResponse(
