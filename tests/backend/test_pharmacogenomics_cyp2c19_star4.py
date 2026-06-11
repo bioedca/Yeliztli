@@ -124,6 +124,22 @@ def test_star4_calls_resolve_to_cpic_phenotypes(
     assert result.call_confidence == CallConfidence.COMPLETE
 
 
+def test_star1_star1_emits_only_normal_metabolizer_guidance(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample(_cyp2c19_genotypes())
+
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C19"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    cyp2c19_alerts = [a for a in alerts if a.gene == "CYP2C19"]
+    assert {a.drug for a in cyp2c19_alerts} == {"clopidogrel", "voriconazole"}
+    for alert in cyp2c19_alerts:
+        assert alert.diplotype == "*1/*1"
+        assert alert.phenotype == "Normal Metabolizer"
+        assert alert.recommendation == "Use label-recommended dosing."
+
+
 def test_star1_star4_emits_clopidogrel_and_voriconazole_alerts(
     reference_engine: sa.Engine,
 ) -> None:
