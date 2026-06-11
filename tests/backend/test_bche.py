@@ -102,6 +102,18 @@ class TestAssessBche:
         result = assess_bche(engine)
         assert result["any_called"] is False
         assert result["risk_category"] is None
+        assert "neither" in result["detail"].lower()
+
+    def test_k_called_but_atypical_uncalled_is_unassessed_not_typical(self) -> None:
+        # K reference-only with the major-determinant atypical variant uncalled must
+        # NOT read as "typical" — risk is None but any_called is True (CodeRabbit #61).
+        engine = _make_sample({BCHE_ATYPICAL_RSID: "--", BCHE_K_RSID: "CC"})
+        result = assess_bche(engine)
+        assert result["any_called"] is True
+        assert result["risk_category"] is None
+        assert "atypical" in result["detail"].lower()
+        assert "not assessed" in result["detail"].lower()
+        assert "neither" not in result["detail"].lower()
 
     def test_context_only_disclosure_and_citation(self) -> None:
         engine = _make_sample({BCHE_ATYPICAL_RSID: "TT", BCHE_K_RSID: "CC"})

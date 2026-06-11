@@ -168,19 +168,32 @@ def assess_bche(sample_engine: sa.Engine) -> dict[str, Any]:
     )
 
     risk = bche_risk(atypical["reduced_activity_alleles"], k_variant["reduced_activity_alleles"])
+    any_called = atypical["called"] or k_variant["called"]
+
+    if risk is not None:
+        detail = risk["detail"]
+    elif any_called:
+        # The only way to reach here is K called with no reduced-activity allele while
+        # the atypical (major-determinant) variant was NOT callable — so a "typical"
+        # verdict would be misleading; the dominant locus is simply unknown.
+        detail = (
+            "Only the K variant was callable and showed no reduced-activity allele; the "
+            "atypical (major-determinant) variant was not called, so BChE status was not "
+            "assessed."
+        )
+    else:
+        detail = (
+            "Neither BChE reduced-activity variant could be called from this array; "
+            "BChE status was not assessed."
+        )
 
     return {
         "variants": [atypical, k_variant],
-        "any_called": atypical["called"] or k_variant["called"],
+        "any_called": any_called,
         "coverage_complete": atypical["called"] and k_variant["called"],
         "risk_category": risk["risk_category"] if risk else None,
         "phenotype": risk["phenotype"] if risk else None,
-        "detail": risk["detail"]
-        if risk
-        else (
-            "Neither BChE reduced-activity variant could be called from this array; "
-            "BChE status was not assessed."
-        ),
+        "detail": detail,
         "context_only": True,
         "note": BCHE_PGX_CONTEXT_ONLY,
         "pmid_citations": BCHE_PMID_CITATIONS,
