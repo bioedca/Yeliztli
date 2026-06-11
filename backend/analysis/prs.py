@@ -90,6 +90,11 @@ class PRSSNPWeight:
     effect_allele: str
     weight: float
     other_allele: str | None = None
+    # GRCh37 coordinates (SW-B4). Enable positional matching for PGS Catalog
+    # scores whose harmonized files carry no rsID (e.g. PGS005198). When ``rsid``
+    # is empty/None, the SNP is matched against the sample by (chrom, pos).
+    chrom: str | None = None
+    pos: int | None = None
 
 
 @dataclass
@@ -287,6 +292,86 @@ def _count_effect_allele(genotype: str | None, effect_allele: str) -> int:
 
 # ── Core PRS computation ────────────────────────────────────────────────
 
+# Above this weight count, fetch genotypes with a single full-table scan rather
+# than a ``rsid IN (...)`` query. A genome-wide PGS Catalog score can carry
+# 10^5–10^6 weights — far past SQLite's bound-parameter limit — so a scan is both
+# necessary (correctness) and cheaper than chunked IN queries. Small curated
+# scores (cancer/traits, ≤ a few hundred SNPs) keep the targeted IN query.
+_SCAN_THRESHOLD = 2000
+
+
+def _norm_chrom(chrom: str | None) -> str | None:
+    """Normalize a chromosome label for positional matching (strip ``chr``)."""
+    if chrom is None:
+        return None
+    c = str(chrom).strip()
+    if c[:3].lower() == "chr":
+        c = c[3:]
+    return c.upper()
+
+
+def _load_sample_genotypes(
+    weight_set: PRSWeightSet,
+    sample_engine: sa.Engine,
+) -> tuple[
+    dict[str, str | None],
+    dict[str, float | None],
+    dict[tuple[str | None, int], str | None],
+    dict[tuple[str | None, int], float | None],
+]:
+    """Load genotype + gnomAD global AF for a weight set's SNPs.
+
+    Returns ``(rsid_geno, rsid_af, pos_geno, pos_af)`` where the positional maps
+    are keyed by ``(normalized_chrom, pos)``. SNPs carrying an rsID are matched
+    by rsID; rsID-less SNPs (PGS Catalog scores without ``hm_rsID``) are matched
+    positionally. Large or positionally-matched weight sets use one full-table
+    scan; small rsID-only sets keep the targeted ``IN`` query.
+    """
+    has_positional = any(not w.rsid for w in weight_set.weights)
+    use_scan = has_positional or weight_set.snp_count > _SCAN_THRESHOLD
+
+    rsid_geno: dict[str, str | None] = {}
+    rsid_af: dict[str, float | None] = {}
+    pos_geno: dict[tuple[str | None, int], str | None] = {}
+    pos_af: dict[tuple[str | None, int], float | None] = {}
+
+    if not use_scan:
+        rsids = list(weight_set.rsid_set())
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.genotype,
+                    annotated_variants.c.gnomad_af_global,
+                ).where(annotated_variants.c.rsid.in_(rsids))
+            ).fetchall()
+        rsid_geno = {row.rsid: row.genotype for row in rows}
+        rsid_af = {row.rsid: row.gnomad_af_global for row in rows}
+        return rsid_geno, rsid_af, pos_geno, pos_af
+
+    # Scan path: stream the whole annotated_variants table once, building only
+    # the maps this weight set actually needs.
+    need_rsid = any(w.rsid for w in weight_set.weights)
+    with sample_engine.connect() as conn:
+        result = conn.execution_options(stream_results=True).execute(
+            sa.select(
+                annotated_variants.c.rsid,
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.genotype,
+                annotated_variants.c.gnomad_af_global,
+            )
+        )
+        for row in result:
+            if need_rsid and row.rsid:
+                rsid_geno[row.rsid] = row.genotype
+                rsid_af[row.rsid] = row.gnomad_af_global
+            if has_positional and row.pos is not None:
+                key = (_norm_chrom(row.chrom), row.pos)
+                pos_geno[key] = row.genotype
+                pos_af[key] = row.gnomad_af_global
+    return rsid_geno, rsid_af, pos_geno, pos_af
+
 
 def compute_prs(
     weight_set: PRSWeightSet,
@@ -304,21 +389,12 @@ def compute_prs(
     Returns:
         PRSResult with raw_score and per-SNP contributions.
     """
-    rsids = list(weight_set.rsid_set())
-
-    # Fetch genotype + gnomAD MAF for all weight set SNPs in one query. The MAF
-    # (already annotated on the same row) is needed only to drop strand-ambiguous
-    # palindromes near 0.5 during harmonization.
-    with sample_engine.connect() as conn:
-        stmt = sa.select(
-            annotated_variants.c.rsid,
-            annotated_variants.c.genotype,
-            annotated_variants.c.gnomad_af_global,
-        ).where(annotated_variants.c.rsid.in_(rsids))
-        rows = conn.execute(stmt).fetchall()
-
-    genotype_map = {row.rsid: row.genotype for row in rows}
-    af_map = {row.rsid: row.gnomad_af_global for row in rows}
+    # Fetch genotype + gnomAD MAF for all weight set SNPs. The MAF (already
+    # annotated on the same row) is needed only to drop strand-ambiguous
+    # palindromes near 0.5 during harmonization. SNPs without an rsID are matched
+    # positionally by (chrom, pos) — required for genome-wide PGS Catalog scores
+    # whose harmonized files omit hm_rsID (SW-B4).
+    rsid_geno, rsid_af, pos_geno, pos_af = _load_sample_genotypes(weight_set, sample_engine)
 
     contributions: list[PRSSNPContribution] = []
     raw_score = 0.0
@@ -329,11 +405,16 @@ def compute_prs(
     snps_unresolved = 0
 
     for w in weight_set.weights:
-        genotype = genotype_map.get(w.rsid)
-        present = w.rsid in genotype_map and genotype is not None
-        match = match_effect_allele_dosage(
-            genotype, w.effect_allele, w.other_allele, af_map.get(w.rsid)
-        )
+        if w.rsid:
+            genotype = rsid_geno.get(w.rsid)
+            present = w.rsid in rsid_geno and genotype is not None
+            af = rsid_af.get(w.rsid)
+        else:
+            key = (_norm_chrom(w.chrom), w.pos)
+            genotype = pos_geno.get(key)
+            present = key in pos_geno and genotype is not None
+            af = pos_af.get(key)
+        match = match_effect_allele_dosage(genotype, w.effect_allele, w.other_allele, af)
 
         # A SNP contributes to the score only when it resolved to a real dosage
         # (matched on the reference or complemented strand). No-call /

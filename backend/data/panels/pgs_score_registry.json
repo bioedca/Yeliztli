@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "description": "Curated PGS Catalog score registry (SW-B4). One or more candidate scores per trait, each tagged with development ancestry, method, and a multi_ancestry flag so the bridge can prefer multi-ancestry / PRS-CSx scores and select per the sample's inferred ancestry (Kachuri et al., Nat Rev Genet 2023; Ding et al., Nature 2023). Only CC0/CC-BY scores are bundle-eligible (posture A); bundle_ok=false scores are user-fetch only. All scores are GRCh37-harmonized (PGS Catalog hmPOS).",
+  "scores": {
+    "type_2_diabetes": [
+      {
+        "pgs_id": "PGS000713",
+        "module": "metabolic",
+        "name": "Type 2 diabetes (snpnet, UK Biobank)",
+        "trait_label": "Type 2 diabetes",
+        "method": "snpnet (Lasso)",
+        "multi_ancestry": false,
+        "ancestries": ["EUR"],
+        "source_study": "Sinnott-Armstrong, Tanigawa et al. 2021 (Nat Genet)",
+        "source_pmid": "33462484",
+        "sample_size": 223327,
+        "license": "CC-BY-4.0",
+        "source_url": "https://www.pgscatalog.org/score/PGS000713/",
+        "bundle_ok": true,
+        "monogenic_genes": []
+      }
+    ],
+    "body_mass_index": [
+      {
+        "pgs_id": "PGS005198",
+        "module": "metabolic",
+        "name": "Body mass index (multi-ancestry PRS-CS, GIANT)",
+        "trait_label": "Body mass index",
+        "method": "PRS-CS",
+        "multi_ancestry": true,
+        "ancestries": ["AFR", "AMR", "EAS", "EUR", "SAS"],
+        "source_study": "Smit et al. 2025 (Nat Med)",
+        "source_pmid": "40691366",
+        "sample_size": 1630000,
+        "license": "CC-BY-4.0",
+        "source_url": "https://www.pgscatalog.org/score/PGS005198/",
+        "bundle_ok": true,
+        "monogenic_genes": []
+      }
+    ],
+    "ldl_cholesterol": [
+      {
+        "pgs_id": "PGS000688",
+        "module": "cardiovascular",
+        "name": "LDL cholesterol, statin-adjusted (snpnet, UK Biobank)",
+        "trait_label": "LDL cholesterol",
+        "method": "snpnet (Lasso)",
+        "multi_ancestry": false,
+        "ancestries": ["EUR"],
+        "source_study": "Sinnott-Armstrong, Tanigawa et al. 2021 (Nat Genet)",
+        "source_pmid": "33462484",
+        "sample_size": 255256,
+        "license": "CC-BY-4.0",
+        "source_url": "https://www.pgscatalog.org/score/PGS000688/",
+        "bundle_ok": true,
+        "monogenic_genes": ["LDLR", "APOB", "PCSK9"]
+      }
+    ]
+  }
+}
