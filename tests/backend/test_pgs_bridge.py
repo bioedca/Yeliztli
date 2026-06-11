@@ -291,6 +291,7 @@ class TestBuildWeightSet:
             _pgs_engine(), spec, "body_mass_index", inferred_ancestry="AFR"
         )
         assert ws is not None
+        assert ws.snp_count == 2  # guard the all() checks against a vacuous pass
         # No rsIDs → positional weights carry chrom/pos and empty rsid.
         assert all(w.rsid == "" for w in ws.weights)
         assert all(w.chrom and w.pos for w in ws.weights)
