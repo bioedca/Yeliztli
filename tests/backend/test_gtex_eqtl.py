@@ -110,10 +110,17 @@ class TestIngestion:
             ).scalar()
         assert n == 2  # not duplicated
 
-    def test_create_tables_idempotent(self, tmp_path: Path) -> None:
+    def test_create_tables_idempotent_and_usable(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
         create_gtex_tables(engine)
-        create_gtex_tables(engine)
+        create_gtex_tables(engine)  # second call must not error
+        # Table exists and is usable: an insert + count round-trips.
+        from backend.annotation.gtex_eqtl import gtex_eqtl
+
+        with engine.begin() as conn:
+            conn.execute(gtex_eqtl.insert().values(rsid="rsX", gene_id="ENSG", tissue="T", pos=1))
+        with engine.connect() as conn:
+            assert conn.execute(sa.select(sa.func.count()).select_from(gtex_eqtl)).scalar() == 1
 
 
 class TestRegulatoryContext:
