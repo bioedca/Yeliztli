@@ -59,6 +59,14 @@ TPMT,*1/*3B,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
 TPMT,*1/*3C,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
 TPMT,*3A/*3A,Poor Metabolizer,TPMT Poor Metabolizer,0.0
 TPMT,*1/*2,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
+TPMT,*2/*2,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*2/*3A,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*2/*3B,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*2/*3C,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*3A/*3B,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*3A/*3C,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*3B/*3B,Poor Metabolizer,TPMT Poor Metabolizer,0.0
+TPMT,*3C/*3C,Poor Metabolizer,TPMT Poor Metabolizer,0.0
 SLCO1B1,*1A/*1A,Normal function,SLCO1B1 Normal function,2.0
 SLCO1B1,*1A/*5,Decreased function,SLCO1B1 Decreased function,1.5
 SLCO1B1,*5/*5,Poor function,SLCO1B1 Poor function,1.0

@@ -125,3 +125,90 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
     for alert in tpmt_alerts:
         assert alert.diplotype == "*1/*3B"
         assert alert.phenotype == "Intermediate Metabolizer"
+
+
+# Issue #12: no-function / no-function diplotypes that the greedy star-allele
+# caller can reach but which had no cpic_diplotypes.csv row, so they resolved to
+# phenotype=None and were silently skipped by generate_prescribing_alerts(). Two
+# no-function TPMT alleles = Poor Metabolizer (CPIC thiopurine guideline, Relling
+# et al. Clin Pharmacol Ther 2019, PMID 30447069), the highest-toxicity group.
+# Each tuple is (expected diplotype, plus-strand genotype overrides) and was
+# verified to be produced by call_star_alleles_for_gene over the production CSVs.
+# *3B/*3C is intentionally absent: the caller assigns the 2-variant *3A first, so
+# a double-het at rs1800460+rs1142345 is called *1/*3A, never *3B/*3C.
+_TPMT_POOR_METABOLIZERS = [
+    ("*2/*2", {"rs1800462": "GG"}),
+    ("*2/*3A", {"rs1800462": "CG", "rs1800460": "CT", "rs1142345": "TC"}),
+    ("*2/*3B", {"rs1800462": "CG", "rs1800460": "CT"}),
+    ("*2/*3C", {"rs1800462": "CG", "rs1142345": "TC"}),
+    ("*3A/*3B", {"rs1800460": "TT", "rs1142345": "TC"}),
+    ("*3A/*3C", {"rs1800460": "CT", "rs1142345": "CC"}),
+    ("*3B/*3B", {"rs1800460": "TT"}),
+    ("*3C/*3C", {"rs1142345": "CC"}),
+]
+
+
+@pytest.mark.parametrize("expected_diplotype,overrides", _TPMT_POOR_METABOLIZERS)
+def test_no_function_diplotypes_are_poor_metabolizers(
+    reference_engine: sa.Engine, expected_diplotype: str, overrides: dict[str, str]
+) -> None:
+    """Each callable no-fn/no-fn TPMT diplotype maps to Poor Metabolizer (issue #12).
+
+    Before the fix these resolved to phenotype=None at Complete confidence, so a
+    TPMT Poor Metabolizer — the group at highest risk of thiopurine-induced
+    myelosuppression — received no azathioprine/mercaptopurine warning at all.
+    """
+    result = _call_tpmt(reference_engine, _tpmt_genotypes(**overrides))
+    assert result.diplotype == expected_diplotype
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.activity_score == 0.0
+    assert result.call_confidence == CallConfidence.COMPLETE
+
+
+@pytest.mark.parametrize("expected_diplotype,overrides", _TPMT_POOR_METABOLIZERS)
+def test_poor_metabolizers_emit_thiopurine_alerts(
+    reference_engine: sa.Engine, expected_diplotype: str, overrides: dict[str, str]
+) -> None:
+    """A TPMT Poor Metabolizer gets azathioprine + mercaptopurine alerts (issue #12).
+
+    End-to-end patient-safety guard: the missing diplotype rows previously made
+    generate_prescribing_alerts() skip the gene for the highest-toxicity group.
+    """
+    sample = _make_sample(_tpmt_genotypes(**overrides))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    tpmt_alerts = [a for a in alerts if a.gene == "TPMT"]
+    assert tpmt_alerts, f"expected TPMT alerts for Poor Metabolizer {expected_diplotype}"
+    drugs = {a.drug for a in tpmt_alerts}
+    assert {"azathioprine", "mercaptopurine"} <= drugs
+    for alert in tpmt_alerts:
+        assert alert.diplotype == expected_diplotype
+        assert alert.phenotype == "Poor Metabolizer"
+
+
+def test_every_callable_tpmt_diplotype_has_a_phenotype(reference_engine: sa.Engine) -> None:
+    """No greedily-callable TPMT diplotype resolves to phenotype=None (issue #12).
+
+    Drives the caller over every {ref, het, hom} combination of the three TPMT
+    defining loci. Any call made at Complete confidence (i.e. all defining
+    variants observed) must map to a phenotype — otherwise it would be silently
+    dropped by the prescribing-alert generator. This locks the whole TPMT
+    diplotype space, not just the eight rows added for this issue.
+    """
+    states = {
+        "rs1800462": ["CC", "CG", "GG"],  # *2  ref C / alt G
+        "rs1800460": ["CC", "CT", "TT"],  # *3B ref C / alt T
+        "rs1142345": ["TT", "TC", "CC"],  # *3C ref T / alt C
+    }
+    unmapped: list[str] = []
+    for g2 in states["rs1800462"]:
+        for g3b in states["rs1800460"]:
+            for g3c in states["rs1142345"]:
+                geno = {"rs1800462": g2, "rs1800460": g3b, "rs1142345": g3c}
+                result = _call_tpmt(reference_engine, geno)
+                if result.call_confidence == CallConfidence.COMPLETE and result.phenotype is None:
+                    unmapped.append(f"{result.diplotype} from {geno}")
+    assert not unmapped, "callable TPMT diplotypes with no phenotype mapping: " + "; ".join(
+        unmapped
+    )
