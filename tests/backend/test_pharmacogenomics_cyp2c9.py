@@ -19,13 +19,14 @@ Intermediate Metabolizer, 0–0.5 → Poor Metabolizer. (The ``activity_score`` 
 column itself is the naive allele-value sum, matching the pre-existing
 ``*2/*3``→PM@1.0 and ``*3/*3``→PM@1.0 rows.)
 
-CYP2C9 caveat — ``*6`` (rs9332131) is a single-base deletion, which the
-array-genotype caller cannot type (``_count_alt_alleles`` rejects indels), so the
-``*6`` diplotype rows are reachable only from sequencing/VCF-derived diplotypes,
-and SNP-array CYP2C9 calls are PARTIAL confidence (``*6`` cannot be excluded)
-rather than COMPLETE. Alerts still fire for PARTIAL calls; only INSUFFICIENT is
-suppressed. All genotypes below are GRCh37 plus/forward strand; star-allele
-calling is keyed on rsid, so the chrom/pos are realistic but not load-bearing.
+CYP2C9 ``*6`` caveat — rs9332131 is a single-base deletion. The caller can type
+the allele when raw data represents the site with D/I tokens (``DI`` ->
+``*1/*6``, ``DD`` -> ``*6/*6``, ``II`` -> observed reference). If rs9332131 is
+absent or present in an unsupported base-coded form, ``*6`` remains
+indeterminate and CYP2C9 is PARTIAL confidence (``*6`` cannot be excluded).
+Alerts still fire for PARTIAL calls; only INSUFFICIENT is suppressed. All
+genotypes below are GRCh37 plus/forward strand; star-allele calling is keyed on
+rsid, so the chrom/pos are realistic but not load-bearing.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ _CYP2C9_SNP = {
     "rs7900194": ("10", 96702066, "G", "A"),  # *8   decreased function
     "rs28371685": ("10", 96740981, "C", "T"),  # *11  decreased function
 }
-_CYP2C9_INDEL = {"rs9332131": ("10", 96709038, "GA", "G")}  # *6 (indel, untypable)
+_CYP2C9_INDEL = {"rs9332131": ("10", 96709038, "GA", "G")}  # *6 deletion
 
 # Every diplotype row added for issue #14 -> (expected phenotype, activity_score).
 # activity_score is the naive allele-value sum (*1=1, *2/*3/*8/*11=0.5, *5/*6=0).
@@ -93,8 +94,9 @@ _NEW_DIPLOTYPES = {
 def _cyp2c9_genotypes(**overrides: str) -> dict[str, str]:
     """Plus-strand CYP2C9 SNP genotypes; defaults to homozygous reference.
 
-    Only the five SNP-typable positions are included (a realistic SNP array does
-    not type the *6 deletion). Pass e.g. rs28371686="CG" for a *5 heterozygote.
+    Only the five SNP positions are included by default. Pass e.g.
+    ``rs28371686="CG"`` for a *5 heterozygote, or ``rs9332131="DI"`` for a
+    D/I-encoded *6 deletion heterozygote.
     """
     geno = {rsid: ref * 2 for rsid, (_c, _p, ref, _a) in _CYP2C9_SNP.items()}
     geno.update(overrides)
@@ -155,14 +157,39 @@ def test_new_diplotype_rows_resolve_to_expected_phenotype(
 def test_reference_is_normal_metabolizer(reference_engine: sa.Engine) -> None:
     """A plus-strand homozygous-reference CYP2C9 sample is *1/*1 Normal.
 
-    Confidence is PARTIAL (not COMPLETE) because the *6 deletion (rs9332131) is an
-    indel the SNP array cannot type, so *6 cannot be excluded.
+    Confidence is PARTIAL (not COMPLETE) when rs9332131 is absent, because the
+    *6 deletion cannot be excluded from the observed data.
     """
     result = _call_cyp2c9(reference_engine, _cyp2c9_genotypes())
     assert result.diplotype == "*1/*1"
     assert result.phenotype == "Normal Metabolizer"
     assert result.call_confidence == CallConfidence.PARTIAL
     assert "*6" in result.indeterminate_alleles
+
+
+@pytest.mark.parametrize(
+    ("genotype", "diplotype", "phenotype"),
+    [
+        ("II", "*1/*1", "Normal Metabolizer"),
+        ("DI", "*1/*6", "Intermediate Metabolizer"),
+        ("DD", "*6/*6", "Poor Metabolizer"),
+    ],
+)
+def test_star6_di_encoded_indel_is_callable(
+    reference_engine: sa.Engine,
+    genotype: str,
+    diplotype: str,
+    phenotype: str,
+) -> None:
+    """A D/I-encoded rs9332131 deletion is typed instead of forced indeterminate."""
+    result = _call_cyp2c9(reference_engine, _cyp2c9_genotypes(rs9332131=genotype))
+
+    assert result.diplotype == diplotype
+    assert result.phenotype == phenotype
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "*6" not in result.indeterminate_alleles
+    if "*6" in diplotype:
+        assert "rs9332131" in result.involved_rsids
 
 
 @pytest.mark.parametrize(
@@ -204,6 +231,7 @@ def test_compound_het_star2_star5_is_poor(reference_engine: sa.Engine) -> None:
     ("overrides", "diplotype", "phenotype"),
     [
         ({"rs28371686": "CG"}, "*1/*5", "Intermediate Metabolizer"),
+        ({"rs9332131": "DI"}, "*1/*6", "Intermediate Metabolizer"),
         ({"rs7900194": "GA"}, "*1/*8", "Intermediate Metabolizer"),
         ({"rs28371685": "CT"}, "*1/*11", "Intermediate Metabolizer"),
         ({"rs1799853": "CT", "rs28371686": "CG"}, "*2/*5", "Poor Metabolizer"),
@@ -225,17 +253,27 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     assert cyp2c9_alerts, f"expected CYP2C9 alerts for {diplotype} {phenotype}"
     drugs = {a.drug for a in cyp2c9_alerts}
     assert {"warfarin", "phenytoin"} <= drugs
+    expected_confidence = (
+        CallConfidence.COMPLETE if "rs9332131" in overrides else CallConfidence.PARTIAL
+    )
     for alert in cyp2c9_alerts:
         assert alert.diplotype == diplotype
         assert alert.phenotype == phenotype
+        assert alert.call_confidence == expected_confidence
+        if "rs9332131" in overrides:
+            assert "*6" not in alert.indeterminate_alleles
+        else:
+            assert "*6" in alert.indeterminate_alleles
 
 
-def test_star6_indel_cannot_be_array_called(reference_engine: sa.Engine) -> None:
-    """*6 (rs9332131) is an indel: any genotype is indeterminate, never called.
+def test_star6_base_coded_indel_is_uncalled_and_indeterminate(
+    reference_engine: sa.Engine,
+) -> None:
+    """Unsupported base-coded rs9332131 genotypes remain indeterminate.
 
-    Documents why the *6 diplotype rows are mapping-only for SNP-array data — the
-    caller flags *6 as "cannot exclude" rather than assigning it, so no *6
-    diplotype is ever emitted from array genotypes (a *6 carrier looks reference).
+    Simple deletion calls must use D/I tokens. A raw ``GG`` at the GA>G deletion
+    cannot distinguish an observed reference allele from an unsupported encoding,
+    so the caller flags *6 as "cannot exclude" rather than assigning it.
     """
     result = _call_cyp2c9(
         reference_engine,
@@ -243,3 +281,4 @@ def test_star6_indel_cannot_be_array_called(reference_engine: sa.Engine) -> None
     )
     assert "*6" not in result.diplotype
     assert "*6" in result.indeterminate_alleles
+    assert result.call_confidence == CallConfidence.PARTIAL
