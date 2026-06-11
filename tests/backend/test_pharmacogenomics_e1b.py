@@ -209,3 +209,20 @@ def test_cyp2b6_star6_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engi
     assert efv[0].guideline_url == (
         "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
     )
+
+
+def test_cyp2b6_normal_metabolizer_has_label_recommended_efavirenz_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample(_cyp2b6_geno())
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    cyp = next(r for r in results if r.gene == "CYP2B6")
+    assert cyp.diplotype == "*1/*1"
+    assert cyp.phenotype == "Normal Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert efv and efv[0].phenotype == "Normal Metabolizer"
+    assert efv[0].recommendation == "Use label-recommended dosing (600 mg/day)."
+    assert efv[0].classification == "A"
+    assert efv[0].evidence_level == 4
