@@ -84,7 +84,9 @@ def _insert_monogenic(engine: sa.Engine, gene: str, *, sig: str, zyg: str) -> No
         )
 
 
-def _insert_apob_fdb(engine: sa.Engine, *, genotype: str, sig: str | None) -> None:
+def _insert_apob_fdb(
+    engine: sa.Engine, *, genotype: str, sig: str | None, zygosity: str = "het"
+) -> None:
     with engine.begin() as conn:
         conn.execute(
             sa.insert(annotated_variants),
@@ -94,6 +96,7 @@ def _insert_apob_fdb(engine: sa.Engine, *, genotype: str, sig: str | None) -> No
                     "chrom": "2",
                     "pos": 21229160,
                     "genotype": genotype,
+                    "zygosity": zygosity,
                     "clinvar_significance": sig,
                     "annotation_coverage": 0,
                 }
@@ -115,15 +118,25 @@ class TestMonogenicDetection:
 
 class TestApobFdb:
     def test_pathogenic_carrier(self, sample_engine: sa.Engine) -> None:
-        _insert_apob_fdb(sample_engine, genotype="CT", sig="Pathogenic")
+        _insert_apob_fdb(sample_engine, genotype="CT", sig="Pathogenic", zygosity="het")
         fdb = detect_apob_fdb(sample_engine)
         assert fdb.present is True
+        assert fdb.is_carrier is True
         assert fdb.genotype == "CT"
         assert fdb.gene == "APOB"
+
+    def test_typed_non_carrier_excluded(self, sample_engine: sa.Engine) -> None:
+        # Negative control: variant typed but homozygous-reference (non-carrier),
+        # even when ClinVar-classified Pathogenic, must not be flagged as a carrier.
+        _insert_apob_fdb(sample_engine, genotype="CC", sig="Pathogenic", zygosity="hom_ref")
+        fdb = detect_apob_fdb(sample_engine)
+        assert fdb.present is True  # site is typed
+        assert fdb.is_carrier is False  # but not a carrier
 
     def test_absent_when_not_typed(self, sample_engine: sa.Engine) -> None:
         fdb = detect_apob_fdb(sample_engine)
         assert fdb.present is False
+        assert fdb.is_carrier is False
         assert fdb.genotype is None
 
 
@@ -165,6 +178,18 @@ class TestAssessAndStore:
             ).fetchone()
         assert len(prs) == 1
         assert fdb is not None and fdb.gene_symbol == "APOB"
+
+    def test_non_carrier_fdb_not_stored(self, sample_engine: sa.Engine) -> None:
+        _insert_apob_fdb(sample_engine, genotype="CC", sig="Pathogenic", zygosity="hom_ref")
+        a = assess_fh(sample_engine, None, inferred_ancestry="EUR")
+        store_fh_findings(a, sample_engine)
+        with sample_engine.connect() as conn:
+            fdb = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "fh", findings.c.category == "fdb_variant"
+                )
+            ).fetchall()
+        assert fdb == []  # non-carrier → no FDB finding
 
     def test_rerun_replaces_fdb(self, sample_engine: sa.Engine) -> None:
         _insert_apob_fdb(sample_engine, genotype="CT", sig="Pathogenic")

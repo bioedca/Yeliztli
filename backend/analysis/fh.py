@@ -72,6 +72,16 @@ FH_CRITERIA_CONTEXT: dict[str, str] = {
 }
 
 
+def _is_pathogenic(significance: str | None) -> bool:
+    """Whether a ClinVar significance string is (likely) pathogenic, not conflicting."""
+    if not significance:
+        return False
+    s = significance.lower()
+    if "conflicting" in s:
+        return False
+    return "pathogenic" in s  # matches both "pathogenic" and "likely_pathogenic"
+
+
 @dataclass
 class ApobFdbResult:
     """APOB rs5742904 (FDB) genotype state for a sample."""
@@ -80,8 +90,10 @@ class ApobFdbResult:
     gene: str
     protein: str
     genotype: str | None
+    zygosity: str | None
     clinvar_significance: str | None
-    present: bool  # typed in this sample
+    present: bool  # variant site is typed in this sample
+    is_carrier: bool  # carries a non-reference allele (het/hom_alt)
 
 
 @dataclass
@@ -136,21 +148,25 @@ def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
 
 
 def detect_apob_fdb(sample_engine: sa.Engine) -> ApobFdbResult:
-    """Resolve the APOB rs5742904 (FDB) genotype for a sample."""
+    """Resolve the APOB rs5742904 (FDB) genotype + carrier status for a sample."""
     with sample_engine.connect() as conn:
         row = conn.execute(
             sa.select(
                 annotated_variants.c.genotype,
+                annotated_variants.c.zygosity,
                 annotated_variants.c.clinvar_significance,
             ).where(annotated_variants.c.rsid == APOB_FDB_RSID)
         ).fetchone()
+    zygosity = row.zygosity if row else None
     return ApobFdbResult(
         rsid=APOB_FDB_RSID,
         gene="APOB",
         protein=APOB_FDB_PROTEIN,
         genotype=row.genotype if row else None,
+        zygosity=zygosity,
         clinvar_significance=row.clinvar_significance if row else None,
         present=row is not None and row.genotype is not None,
+        is_carrier=zygosity in ("het", "hom_alt"),
     )
 
 
@@ -210,11 +226,12 @@ def store_fh_findings(assessment: FHAssessment, sample_engine: sa.Engine) -> int
                 findings.c.category == "fdb_variant",
             )
         )
-        if fdb is not None and fdb.present:
-            is_pathogenic = bool(fdb.clinvar_significance) and (
-                "pathogenic" in fdb.clinvar_significance.lower()
-            )
-            status = "carrier" if is_pathogenic else "genotype observed"
+        # Emit a finding only when the sample actually carries a non-reference
+        # allele (het/hom_alt). A typed homozygous-reference genotype is a
+        # non-carrier and is intentionally not surfaced as a finding.
+        if fdb is not None and fdb.is_carrier:
+            is_pathogenic = _is_pathogenic(fdb.clinvar_significance)
+            status = "pathogenic carrier" if is_pathogenic else "carrier"
             conn.execute(
                 sa.insert(findings),
                 [
