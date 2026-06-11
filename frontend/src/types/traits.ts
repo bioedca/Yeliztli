@@ -88,6 +88,16 @@ export interface TraitsPRS {
   calibrated: boolean
   research_use_only: boolean
   evidence_level: number
+  /** Per-PGS provenance + monogenic exclusion (SW-B3). */
+  pgs_id: string | null
+  pgs_license: string | null
+  development_method: string | null
+  genome_build: string | null
+  variants_number: number | null
+  source_url: string | null
+  monogenic_genes: string[]
+  monogenic_carrier_genes: string[]
+  monogenic_note: string | null
 }
 
 /** All PRS results for the traits module. */

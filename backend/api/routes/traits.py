@@ -84,6 +84,16 @@ class PRSFinding(BaseModel):
     calibrated: bool = True
     research_use_only: bool = True
     evidence_level: int = 1
+    # Per-PGS provenance + monogenic exclusion (SW-B3).
+    pgs_id: str | None = None
+    pgs_license: str | None = None
+    development_method: str | None = None
+    genome_build: str | None = None
+    variants_number: int | None = None
+    source_url: str | None = None
+    monogenic_genes: list[str] = []
+    monogenic_carrier_genes: list[str] = []
+    monogenic_note: str | None = None
 
 
 class CrossModuleItem(BaseModel):
@@ -407,6 +417,15 @@ def list_prs(
                 calibrated=detail.get("calibrated", True),
                 research_use_only=detail.get("research_use_only", True),
                 evidence_level=pf["evidence_level"] or 1,
+                pgs_id=detail.get("pgs_id"),
+                pgs_license=detail.get("pgs_license"),
+                development_method=detail.get("development_method"),
+                genome_build=detail.get("genome_build"),
+                variants_number=detail.get("variants_number"),
+                source_url=detail.get("source_url"),
+                monogenic_genes=detail.get("monogenic_genes", []),
+                monogenic_carrier_genes=detail.get("monogenic_carrier_genes", []),
+                monogenic_note=detail.get("monogenic_note"),
             )
         )
 

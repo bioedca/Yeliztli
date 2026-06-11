@@ -134,6 +134,21 @@ class PRSWeightSet:
     reference_mean: float
     reference_std: float
     calibrated: bool = True
+    # ── Per-PGS provenance (SW-B3) ──────────────────────────────────────
+    # Populated when the weight set is sourced from the PGS Catalog (via the
+    # SW-B4 bridge); ``None`` for hand-curated weight sets. Surfaced on every
+    # finding so a percentile is always traceable to its score of origin.
+    pgs_id: str | None = None  # PGS Catalog accession, e.g. "PGS000713"
+    pgs_license: str | None = None  # license string (e.g. "CC-BY-4.0")
+    development_method: str | None = None  # e.g. "PRS-CS", "snpnet", "C+T"
+    genome_build: str | None = None  # build the weights were harmonized to
+    variants_number: int | None = None  # catalog-declared total variant count
+    source_url: str | None = None  # link to the score / publication
+    # Disease monogenic / large-effect genes that this *polygenic* score does
+    # NOT capture and that are assessed separately (SW-B3 monogenic exclusion).
+    # A percentile here reflects common-variant burden only; carriers of a
+    # monogenic finding in one of these genes are cross-referenced at runtime.
+    monogenic_genes: list[str] = field(default_factory=list)
 
     @property
     def snp_count(self) -> int:
@@ -216,6 +231,22 @@ class PRSResult:
     # False → no validated reference distribution for this score, so percentile,
     # z-score and bootstrap CI are deliberately withheld (left None). See #7.
     calibrated: bool = True
+    # ── Per-PGS provenance (SW-B3), copied from the weight set ───────────
+    pgs_id: str | None = None
+    pgs_license: str | None = None
+    development_method: str | None = None
+    genome_build: str | None = None
+    variants_number: int | None = None
+    source_url: str | None = None
+    # ── Monogenic exclusion (SW-B3) ─────────────────────────────────────
+    # Disease monogenic genes this polygenic score does not capture (static).
+    monogenic_genes: list[str] = field(default_factory=list)
+    # Subset of monogenic_genes for which THIS sample carries a reportable
+    # monogenic finding (computed at runtime by annotate_monogenic_exclusion).
+    monogenic_carrier_genes: list[str] = field(default_factory=list)
+    # Human-readable disclosure that the percentile is common-variant-only and
+    # is reported independently of any monogenic finding (None until annotated).
+    monogenic_note: str | None = None
 
     @property
     def is_sufficient(self) -> bool:
@@ -583,6 +614,87 @@ def check_ancestry_mismatch(
     return result
 
 
+# ── Monogenic exclusion (SW-B3) ──────────────────────────────────────────
+
+# APOE is a special, gated locus: its genotype is withheld behind an explicit
+# acknowledgment (routes/apoe.py). A PRS annotation must NEVER query the APOE
+# genotype (that would bypass the gate), so APOE is only ever *named* as an
+# excluded large-effect locus in the static disclosure — never carrier-checked.
+_GATED_MONOGENIC_GENES = frozenset({"APOE"})
+
+
+def annotate_monogenic_exclusion(
+    result: PRSResult,
+    sample_engine: sa.Engine,
+) -> PRSResult:
+    """Disclose that a polygenic percentile is independent of monogenic risk.
+
+    Published disease polygenic scores capture *common-variant* burden; they do
+    not include — and must not be read as a substitute for — rare large-effect
+    (monogenic) variants in the same disease genes, which are reported
+    separately and are a far larger, qualitatively different risk signal
+    (Khera et al., Nat Genet 2018; the monogenic finding, when present, is the
+    dominant result). This attaches that disclosure to ``result`` and, when the
+    sample carries a reportable monogenic finding in one of the score's
+    ``monogenic_genes``, cross-references it.
+
+    ``monogenic_genes`` listed in :data:`_GATED_MONOGENIC_GENES` (APOE) are only
+    named in the static disclosure — never carrier-checked — to preserve the
+    APOE non-disclosure gate.
+
+    Args:
+        result: PRSResult whose ``monogenic_genes`` have been populated.
+        sample_engine: SQLAlchemy engine for the sample database.
+
+    Returns:
+        The same PRSResult with ``monogenic_carrier_genes`` and
+        ``monogenic_note`` populated (no-op when ``monogenic_genes`` is empty).
+    """
+    if not result.monogenic_genes:
+        return result
+
+    checkable = [g for g in result.monogenic_genes if g.upper() not in _GATED_MONOGENIC_GENES]
+    carriers: list[str] = []
+    if checkable:
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.gene_symbol)
+                .where(
+                    findings.c.category == "monogenic_variant",
+                    findings.c.gene_symbol.in_(checkable),
+                    findings.c.zygosity.in_(("het", "hom_alt")),
+                )
+                .distinct()
+            ).fetchall()
+        carriers = sorted({r.gene_symbol for r in rows if r.gene_symbol})
+
+    result.monogenic_carrier_genes = carriers
+
+    genes_text = ", ".join(result.monogenic_genes)
+    note = (
+        f"This polygenic score reflects common-variant burden only. It is "
+        f"reported independently of rare large-effect (monogenic) variants in "
+        f"{genes_text}, which are assessed separately and not included here."
+    )
+    if carriers:
+        carriers_text = ", ".join(carriers)
+        note += (
+            f" You carry a reportable monogenic finding in {carriers_text}: a "
+            f"monogenic pathogenic variant is a separate, much larger risk "
+            f"signal — interpret it as the dominant result. This percentile "
+            f"neither includes nor modifies it."
+        )
+    result.monogenic_note = note
+
+    logger.info(
+        "prs_monogenic_exclusion_annotated",
+        trait=result.trait,
+        monogenic_genes=result.monogenic_genes,
+        carrier_genes=carriers,
+    )
+    return result
+
+
 # ── Full PRS pipeline ───────────────────────────────────────────────────
 
 
@@ -612,6 +724,14 @@ def run_prs(
     """
     result = compute_prs(weight_set, sample_engine)
     result.calibrated = weight_set.calibrated
+    # Carry per-PGS provenance through to the result (SW-B3).
+    result.pgs_id = weight_set.pgs_id
+    result.pgs_license = weight_set.pgs_license
+    result.development_method = weight_set.development_method
+    result.genome_build = weight_set.genome_build
+    result.variants_number = weight_set.variants_number
+    result.source_url = weight_set.source_url
+    result.monogenic_genes = list(weight_set.monogenic_genes)
     if weight_set.calibrated:
         result = compute_prs_percentile(
             result, weight_set.reference_mean, weight_set.reference_std
@@ -634,6 +754,7 @@ def run_prs(
             raw_score=result.raw_score,
         )
     result = check_ancestry_mismatch(result, inferred_ancestry, top_ancestry_fraction)
+    result = annotate_monogenic_exclusion(result, sample_engine)
     return result
 
 
@@ -740,6 +861,16 @@ def store_prs_findings(
             "ancestry_warning_text": r.ancestry_warning_text,
             "research_use_only": True,
             "architecture": PRS_TRAIT_ARCHITECTURE,
+            # Per-PGS provenance + monogenic exclusion (SW-B3).
+            "pgs_id": r.pgs_id,
+            "pgs_license": r.pgs_license,
+            "development_method": r.development_method,
+            "genome_build": r.genome_build,
+            "variants_number": r.variants_number,
+            "source_url": r.source_url,
+            "monogenic_genes": r.monogenic_genes,
+            "monogenic_carrier_genes": r.monogenic_carrier_genes,
+            "monogenic_note": r.monogenic_note,
         }
         detail["return_framing"] = prs_return_framing(detail)
 

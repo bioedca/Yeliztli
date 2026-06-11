@@ -47,6 +47,16 @@ export interface CancerPRS {
   ancestry_warning_text: string | null
   evidence_level: number
   research_use_only: boolean
+  /** Per-PGS provenance + monogenic exclusion (SW-B3). */
+  pgs_id: string | null
+  pgs_license: string | null
+  development_method: string | null
+  genome_build: string | null
+  variants_number: number | null
+  source_url: string | null
+  monogenic_genes: string[]
+  monogenic_carrier_genes: string[]
+  monogenic_note: string | null
 }
 
 /** All cancer PRS results for a sample. */

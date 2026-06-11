@@ -14,32 +14,143 @@
       "reference_std": 1.0,
       "calibrated": false,
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
+      "monogenic_genes": [
+        "BRCA1",
+        "BRCA2",
+        "PALB2",
+        "ATM",
+        "CHEK2",
+        "TP53",
+        "PTEN",
+        "CDH1",
+        "STK11"
+      ],
       "weights": [
-        {"rsid": "rs2981582", "effect_allele": "G", "weight": 0.263},
-        {"rsid": "rs3803662", "effect_allele": "A", "weight": 0.204},
-        {"rsid": "rs889312", "effect_allele": "C", "weight": 0.131},
-        {"rsid": "rs13387042", "effect_allele": "A", "weight": 0.120},
-        {"rsid": "rs13281615", "effect_allele": "G", "weight": 0.089},
-        {"rsid": "rs981782", "effect_allele": "T", "weight": 0.074},
-        {"rsid": "rs3817198", "effect_allele": "C", "weight": 0.078},
-        {"rsid": "rs4973768", "effect_allele": "T", "weight": 0.096},
-        {"rsid": "rs6504950", "effect_allele": "A", "weight": -0.075},
-        {"rsid": "rs10941679", "effect_allele": "G", "weight": 0.117},
-        {"rsid": "rs2046210", "effect_allele": "A", "weight": 0.099},
-        {"rsid": "rs11249433", "effect_allele": "G", "weight": 0.087},
-        {"rsid": "rs999737", "effect_allele": "C", "weight": -0.115},
-        {"rsid": "rs10995190", "effect_allele": "A", "weight": -0.153},
-        {"rsid": "rs704010", "effect_allele": "T", "weight": 0.072},
-        {"rsid": "rs614367", "effect_allele": "T", "weight": 0.168},
-        {"rsid": "rs11814448", "effect_allele": "A", "weight": 0.279},
-        {"rsid": "rs1562430", "effect_allele": "T", "weight": 0.099},
-        {"rsid": "rs1011970", "effect_allele": "T", "weight": 0.076},
-        {"rsid": "rs865686", "effect_allele": "T", "weight": -0.097},
-        {"rsid": "rs2823093", "effect_allele": "G", "weight": -0.083},
-        {"rsid": "rs10771399", "effect_allele": "A", "weight": -0.151},
-        {"rsid": "rs17356907", "effect_allele": "A", "weight": -0.082},
-        {"rsid": "rs132390", "effect_allele": "C", "weight": 0.095},
-        {"rsid": "rs6001930", "effect_allele": "T", "weight": 0.119}
+        {
+          "rsid": "rs2981582",
+          "effect_allele": "G",
+          "weight": 0.263
+        },
+        {
+          "rsid": "rs3803662",
+          "effect_allele": "A",
+          "weight": 0.204
+        },
+        {
+          "rsid": "rs889312",
+          "effect_allele": "C",
+          "weight": 0.131
+        },
+        {
+          "rsid": "rs13387042",
+          "effect_allele": "A",
+          "weight": 0.12
+        },
+        {
+          "rsid": "rs13281615",
+          "effect_allele": "G",
+          "weight": 0.089
+        },
+        {
+          "rsid": "rs981782",
+          "effect_allele": "T",
+          "weight": 0.074
+        },
+        {
+          "rsid": "rs3817198",
+          "effect_allele": "C",
+          "weight": 0.078
+        },
+        {
+          "rsid": "rs4973768",
+          "effect_allele": "T",
+          "weight": 0.096
+        },
+        {
+          "rsid": "rs6504950",
+          "effect_allele": "A",
+          "weight": -0.075
+        },
+        {
+          "rsid": "rs10941679",
+          "effect_allele": "G",
+          "weight": 0.117
+        },
+        {
+          "rsid": "rs2046210",
+          "effect_allele": "A",
+          "weight": 0.099
+        },
+        {
+          "rsid": "rs11249433",
+          "effect_allele": "G",
+          "weight": 0.087
+        },
+        {
+          "rsid": "rs999737",
+          "effect_allele": "C",
+          "weight": -0.115
+        },
+        {
+          "rsid": "rs10995190",
+          "effect_allele": "A",
+          "weight": -0.153
+        },
+        {
+          "rsid": "rs704010",
+          "effect_allele": "T",
+          "weight": 0.072
+        },
+        {
+          "rsid": "rs614367",
+          "effect_allele": "T",
+          "weight": 0.168
+        },
+        {
+          "rsid": "rs11814448",
+          "effect_allele": "A",
+          "weight": 0.279
+        },
+        {
+          "rsid": "rs1562430",
+          "effect_allele": "T",
+          "weight": 0.099
+        },
+        {
+          "rsid": "rs1011970",
+          "effect_allele": "T",
+          "weight": 0.076
+        },
+        {
+          "rsid": "rs865686",
+          "effect_allele": "T",
+          "weight": -0.097
+        },
+        {
+          "rsid": "rs2823093",
+          "effect_allele": "G",
+          "weight": -0.083
+        },
+        {
+          "rsid": "rs10771399",
+          "effect_allele": "A",
+          "weight": -0.151
+        },
+        {
+          "rsid": "rs17356907",
+          "effect_allele": "A",
+          "weight": -0.082
+        },
+        {
+          "rsid": "rs132390",
+          "effect_allele": "C",
+          "weight": 0.095
+        },
+        {
+          "rsid": "rs6001930",
+          "effect_allele": "T",
+          "weight": 0.119
+        }
       ]
     },
     {
@@ -53,27 +164,112 @@
       "reference_std": 1.0,
       "calibrated": false,
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
+      "monogenic_genes": [
+        "BRCA2",
+        "ATM",
+        "CHEK2"
+      ],
       "weights": [
-        {"rsid": "rs1447295", "effect_allele": "A", "weight": 0.223},
-        {"rsid": "rs16901979", "effect_allele": "A", "weight": 0.507},
-        {"rsid": "rs6983267", "effect_allele": "G", "weight": 0.210},
-        {"rsid": "rs10993994", "effect_allele": "T", "weight": 0.174},
-        {"rsid": "rs4430796", "effect_allele": "A", "weight": 0.156},
-        {"rsid": "rs7931342", "effect_allele": "G", "weight": 0.135},
-        {"rsid": "rs10896449", "effect_allele": "G", "weight": 0.122},
-        {"rsid": "rs2735839", "effect_allele": "G", "weight": -0.188},
-        {"rsid": "rs17021918", "effect_allele": "C", "weight": -0.109},
-        {"rsid": "rs12621278", "effect_allele": "A", "weight": -0.308},
-        {"rsid": "rs11568818", "effect_allele": "G", "weight": 0.088},
-        {"rsid": "rs2242652", "effect_allele": "T", "weight": -0.140},
-        {"rsid": "rs1859962", "effect_allele": "G", "weight": 0.159},
-        {"rsid": "rs103294", "effect_allele": "T", "weight": 0.095},
-        {"rsid": "rs7679673", "effect_allele": "C", "weight": -0.116},
-        {"rsid": "rs12653946", "effect_allele": "T", "weight": 0.135},
-        {"rsid": "rs11672691", "effect_allele": "G", "weight": 0.100},
-        {"rsid": "rs10486567", "effect_allele": "G", "weight": -0.133},
-        {"rsid": "rs2660753", "effect_allele": "T", "weight": 0.138},
-        {"rsid": "rs9364554", "effect_allele": "T", "weight": 0.089}
+        {
+          "rsid": "rs1447295",
+          "effect_allele": "A",
+          "weight": 0.223
+        },
+        {
+          "rsid": "rs16901979",
+          "effect_allele": "A",
+          "weight": 0.507
+        },
+        {
+          "rsid": "rs6983267",
+          "effect_allele": "G",
+          "weight": 0.21
+        },
+        {
+          "rsid": "rs10993994",
+          "effect_allele": "T",
+          "weight": 0.174
+        },
+        {
+          "rsid": "rs4430796",
+          "effect_allele": "A",
+          "weight": 0.156
+        },
+        {
+          "rsid": "rs7931342",
+          "effect_allele": "G",
+          "weight": 0.135
+        },
+        {
+          "rsid": "rs10896449",
+          "effect_allele": "G",
+          "weight": 0.122
+        },
+        {
+          "rsid": "rs2735839",
+          "effect_allele": "G",
+          "weight": -0.188
+        },
+        {
+          "rsid": "rs17021918",
+          "effect_allele": "C",
+          "weight": -0.109
+        },
+        {
+          "rsid": "rs12621278",
+          "effect_allele": "A",
+          "weight": -0.308
+        },
+        {
+          "rsid": "rs11568818",
+          "effect_allele": "G",
+          "weight": 0.088
+        },
+        {
+          "rsid": "rs2242652",
+          "effect_allele": "T",
+          "weight": -0.14
+        },
+        {
+          "rsid": "rs1859962",
+          "effect_allele": "G",
+          "weight": 0.159
+        },
+        {
+          "rsid": "rs103294",
+          "effect_allele": "T",
+          "weight": 0.095
+        },
+        {
+          "rsid": "rs7679673",
+          "effect_allele": "C",
+          "weight": -0.116
+        },
+        {
+          "rsid": "rs12653946",
+          "effect_allele": "T",
+          "weight": 0.135
+        },
+        {
+          "rsid": "rs11672691",
+          "effect_allele": "G",
+          "weight": 0.1
+        },
+        {
+          "rsid": "rs10486567",
+          "effect_allele": "G",
+          "weight": -0.133
+        },
+        {
+          "rsid": "rs2660753",
+          "effect_allele": "T",
+          "weight": 0.138
+        },
+        {
+          "rsid": "rs9364554",
+          "effect_allele": "T",
+          "weight": 0.089
+        }
       ]
     },
     {
@@ -87,27 +283,115 @@
       "reference_std": 1.0,
       "calibrated": false,
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
+      "monogenic_genes": [
+        "MLH1",
+        "MSH2",
+        "MSH6",
+        "PMS2",
+        "APC",
+        "MUTYH"
+      ],
       "weights": [
-        {"rsid": "rs6983267", "effect_allele": "G", "weight": 0.198},
-        {"rsid": "rs4939827", "effect_allele": "T", "weight": -0.163},
-        {"rsid": "rs10795668", "effect_allele": "A", "weight": -0.123},
-        {"rsid": "rs3802842", "effect_allele": "C", "weight": 0.123},
-        {"rsid": "rs4444235", "effect_allele": "C", "weight": 0.089},
-        {"rsid": "rs9929218", "effect_allele": "G", "weight": -0.093},
-        {"rsid": "rs16892766", "effect_allele": "C", "weight": 0.227},
-        {"rsid": "rs10411210", "effect_allele": "T", "weight": -0.140},
-        {"rsid": "rs961253", "effect_allele": "A", "weight": 0.100},
-        {"rsid": "rs6691170", "effect_allele": "T", "weight": 0.075},
-        {"rsid": "rs10936599", "effect_allele": "C", "weight": -0.087},
-        {"rsid": "rs11169552", "effect_allele": "C", "weight": 0.082},
-        {"rsid": "rs4779584", "effect_allele": "T", "weight": 0.131},
-        {"rsid": "rs7136702", "effect_allele": "T", "weight": 0.068},
-        {"rsid": "rs1321311", "effect_allele": "A", "weight": 0.114},
-        {"rsid": "rs3824999", "effect_allele": "C", "weight": 0.072},
-        {"rsid": "rs59336", "effect_allele": "T", "weight": 0.083},
-        {"rsid": "rs174537", "effect_allele": "G", "weight": 0.078},
-        {"rsid": "rs10774214", "effect_allele": "T", "weight": 0.070},
-        {"rsid": "rs2427308", "effect_allele": "C", "weight": 0.065}
+        {
+          "rsid": "rs6983267",
+          "effect_allele": "G",
+          "weight": 0.198
+        },
+        {
+          "rsid": "rs4939827",
+          "effect_allele": "T",
+          "weight": -0.163
+        },
+        {
+          "rsid": "rs10795668",
+          "effect_allele": "A",
+          "weight": -0.123
+        },
+        {
+          "rsid": "rs3802842",
+          "effect_allele": "C",
+          "weight": 0.123
+        },
+        {
+          "rsid": "rs4444235",
+          "effect_allele": "C",
+          "weight": 0.089
+        },
+        {
+          "rsid": "rs9929218",
+          "effect_allele": "G",
+          "weight": -0.093
+        },
+        {
+          "rsid": "rs16892766",
+          "effect_allele": "C",
+          "weight": 0.227
+        },
+        {
+          "rsid": "rs10411210",
+          "effect_allele": "T",
+          "weight": -0.14
+        },
+        {
+          "rsid": "rs961253",
+          "effect_allele": "A",
+          "weight": 0.1
+        },
+        {
+          "rsid": "rs6691170",
+          "effect_allele": "T",
+          "weight": 0.075
+        },
+        {
+          "rsid": "rs10936599",
+          "effect_allele": "C",
+          "weight": -0.087
+        },
+        {
+          "rsid": "rs11169552",
+          "effect_allele": "C",
+          "weight": 0.082
+        },
+        {
+          "rsid": "rs4779584",
+          "effect_allele": "T",
+          "weight": 0.131
+        },
+        {
+          "rsid": "rs7136702",
+          "effect_allele": "T",
+          "weight": 0.068
+        },
+        {
+          "rsid": "rs1321311",
+          "effect_allele": "A",
+          "weight": 0.114
+        },
+        {
+          "rsid": "rs3824999",
+          "effect_allele": "C",
+          "weight": 0.072
+        },
+        {
+          "rsid": "rs59336",
+          "effect_allele": "T",
+          "weight": 0.083
+        },
+        {
+          "rsid": "rs174537",
+          "effect_allele": "G",
+          "weight": 0.078
+        },
+        {
+          "rsid": "rs10774214",
+          "effect_allele": "T",
+          "weight": 0.07
+        },
+        {
+          "rsid": "rs2427308",
+          "effect_allele": "C",
+          "weight": 0.065
+        }
       ]
     },
     {
@@ -121,22 +405,87 @@
       "reference_std": 1.0,
       "calibrated": false,
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
+      "monogenic_genes": [
+        "CDKN2A",
+        "BAP1",
+        "PTEN"
+      ],
       "weights": [
-        {"rsid": "rs1805007", "effect_allele": "T", "weight": 0.423},
-        {"rsid": "rs1805008", "effect_allele": "T", "weight": 0.302},
-        {"rsid": "rs1805009", "effect_allele": "C", "weight": 0.379},
-        {"rsid": "rs258322", "effect_allele": "A", "weight": 0.190},
-        {"rsid": "rs12913832", "effect_allele": "A", "weight": 0.262},
-        {"rsid": "rs1126809", "effect_allele": "A", "weight": 0.220},
-        {"rsid": "rs910873", "effect_allele": "C", "weight": 0.185},
-        {"rsid": "rs1015362", "effect_allele": "G", "weight": 0.163},
-        {"rsid": "rs4911414", "effect_allele": "T", "weight": 0.165},
-        {"rsid": "rs2218220", "effect_allele": "T", "weight": 0.131},
-        {"rsid": "rs7023329", "effect_allele": "A", "weight": -0.115},
-        {"rsid": "rs401681", "effect_allele": "C", "weight": 0.123},
-        {"rsid": "rs13016963", "effect_allele": "A", "weight": 0.138},
-        {"rsid": "rs1393350", "effect_allele": "A", "weight": 0.178},
-        {"rsid": "rs11648785", "effect_allele": "A", "weight": 0.122}
+        {
+          "rsid": "rs1805007",
+          "effect_allele": "T",
+          "weight": 0.423
+        },
+        {
+          "rsid": "rs1805008",
+          "effect_allele": "T",
+          "weight": 0.302
+        },
+        {
+          "rsid": "rs1805009",
+          "effect_allele": "C",
+          "weight": 0.379
+        },
+        {
+          "rsid": "rs258322",
+          "effect_allele": "A",
+          "weight": 0.19
+        },
+        {
+          "rsid": "rs12913832",
+          "effect_allele": "A",
+          "weight": 0.262
+        },
+        {
+          "rsid": "rs1126809",
+          "effect_allele": "A",
+          "weight": 0.22
+        },
+        {
+          "rsid": "rs910873",
+          "effect_allele": "C",
+          "weight": 0.185
+        },
+        {
+          "rsid": "rs1015362",
+          "effect_allele": "G",
+          "weight": 0.163
+        },
+        {
+          "rsid": "rs4911414",
+          "effect_allele": "T",
+          "weight": 0.165
+        },
+        {
+          "rsid": "rs2218220",
+          "effect_allele": "T",
+          "weight": 0.131
+        },
+        {
+          "rsid": "rs7023329",
+          "effect_allele": "A",
+          "weight": -0.115
+        },
+        {
+          "rsid": "rs401681",
+          "effect_allele": "C",
+          "weight": 0.123
+        },
+        {
+          "rsid": "rs13016963",
+          "effect_allele": "A",
+          "weight": 0.138
+        },
+        {
+          "rsid": "rs1393350",
+          "effect_allele": "A",
+          "weight": 0.178
+        },
+        {
+          "rsid": "rs11648785",
+          "effect_allele": "A",
+          "weight": 0.122
+        }
       ]
     }
   ]

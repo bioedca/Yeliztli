@@ -8,6 +8,7 @@
 import { cn } from "@/lib/utils"
 import type { CancerPRS } from "@/types/cancer"
 import EvidenceStars from "@/components/ui/EvidenceStars"
+import PRSProvenance from "@/components/ui/PRSProvenance"
 import { AlertTriangle, FlaskConical } from "lucide-react"
 
 interface PRSGaugeCardProps {
@@ -186,6 +187,9 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
           Source: {prs.source_study} ({prs.source_ancestry}, n={prs.sample_size.toLocaleString()})
         </p>
       </div>
+
+      {/* Per-PGS provenance + monogenic exclusion (SW-B3) */}
+      <PRSProvenance prs={prs} />
     </article>
   )
 }

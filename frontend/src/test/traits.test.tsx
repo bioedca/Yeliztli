@@ -46,6 +46,19 @@ const BEHAVIORAL_PATHWAY: PathwaySummary = {
   pmids: [],
 }
 
+/** Provenance + monogenic-exclusion defaults (SW-B3) — unset unless overridden. */
+const PRS_PROV_DEFAULTS = {
+  pgs_id: null,
+  pgs_license: null,
+  development_method: null,
+  genome_build: null,
+  variants_number: null,
+  source_url: null,
+  monogenic_genes: [] as string[],
+  monogenic_carrier_genes: [] as string[],
+  monogenic_note: null,
+}
+
 const SUFFICIENT_PRS: TraitsPRS = {
   trait: "educational_attainment",
   name: "Educational Attainment",
@@ -64,6 +77,7 @@ const SUFFICIENT_PRS: TraitsPRS = {
   calibrated: true,
   research_use_only: true,
   evidence_level: 2,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const INSUFFICIENT_PRS: TraitsPRS = {
@@ -84,6 +98,7 @@ const INSUFFICIENT_PRS: TraitsPRS = {
   calibrated: true,
   research_use_only: true,
   evidence_level: 2,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const UNCALIBRATED_PRS: TraitsPRS = {
@@ -104,6 +119,7 @@ const UNCALIBRATED_PRS: TraitsPRS = {
   calibrated: false,
   research_use_only: true,
   evidence_level: 2,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const MISMATCH_PRS: TraitsPRS = {
@@ -124,6 +140,7 @@ const MISMATCH_PRS: TraitsPRS = {
   calibrated: true,
   research_use_only: true,
   evidence_level: 2,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const BIG_FIVE_SNPS: SNPDetail[] = [

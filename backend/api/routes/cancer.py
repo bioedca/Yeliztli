@@ -84,6 +84,16 @@ class CancerPRSResponse(BaseModel):
     ancestry_warning_text: str | None = None
     evidence_level: int = 1
     research_use_only: bool = True
+    # Per-PGS provenance + monogenic exclusion (SW-B3).
+    pgs_id: str | None = None
+    pgs_license: str | None = None
+    development_method: str | None = None
+    genome_build: str | None = None
+    variants_number: int | None = None
+    source_url: str | None = None
+    monogenic_genes: list[str] = []
+    monogenic_carrier_genes: list[str] = []
+    monogenic_note: str | None = None
 
 
 class CancerPRSListResponse(BaseModel):
@@ -311,6 +321,15 @@ def list_cancer_prs(
                 ancestry_warning_text=detail.get("ancestry_warning_text"),
                 evidence_level=row.evidence_level or 1,
                 research_use_only=True,
+                pgs_id=detail.get("pgs_id"),
+                pgs_license=detail.get("pgs_license"),
+                development_method=detail.get("development_method"),
+                genome_build=detail.get("genome_build"),
+                variants_number=detail.get("variants_number"),
+                source_url=detail.get("source_url"),
+                monogenic_genes=detail.get("monogenic_genes", []),
+                monogenic_carrier_genes=detail.get("monogenic_carrier_genes", []),
+                monogenic_note=detail.get("monogenic_note"),
             )
         )
 

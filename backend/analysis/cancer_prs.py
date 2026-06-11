@@ -153,6 +153,9 @@ def load_cancer_prs_weights(
                     # uncalibrated unless it explicitly declares a validated
                     # reference distribution (issue #7).
                     calibrated=ws_data.get("calibrated", False),
+                    # Monogenic genes assessed separately from this polygenic
+                    # score (SW-B3 monogenic exclusion / cross-reference).
+                    monogenic_genes=ws_data.get("monogenic_genes", []),
                 )
             )
         except KeyError as e:

@@ -8,6 +8,7 @@
 import { cn } from "@/lib/utils"
 import type { TraitsPRS } from "@/types/traits"
 import EvidenceStars from "@/components/ui/EvidenceStars"
+import PRSProvenance from "@/components/ui/PRSProvenance"
 import { AlertTriangle, FlaskConical } from "lucide-react"
 
 interface TraitsPRSGaugeCardProps {
@@ -185,6 +186,9 @@ export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
           {prs.snps_used}/{prs.snps_total} SNPs ({coveragePct}%)
         </span>
       </div>
+
+      {/* Per-PGS provenance + monogenic exclusion (SW-B3) */}
+      <PRSProvenance prs={prs} />
     </article>
   )
 }

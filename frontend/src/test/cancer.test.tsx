@@ -44,6 +44,19 @@ const TP53_VARIANT: CancerVariant = {
   pmids: ["19454582"],
 }
 
+/** Provenance + monogenic-exclusion defaults (SW-B3) — unset unless overridden. */
+const PRS_PROV_DEFAULTS = {
+  pgs_id: null,
+  pgs_license: null,
+  development_method: null,
+  genome_build: null,
+  variants_number: null,
+  source_url: null,
+  monogenic_genes: [] as string[],
+  monogenic_carrier_genes: [] as string[],
+  monogenic_note: null,
+}
+
 const BREAST_PRS: CancerPRS = {
   trait: "breast_cancer",
   name: "Breast Cancer",
@@ -65,6 +78,27 @@ const BREAST_PRS: CancerPRS = {
   ancestry_warning_text: null,
   evidence_level: 2,
   research_use_only: true,
+  ...PRS_PROV_DEFAULTS,
+  monogenic_genes: ["BRCA1", "BRCA2"],
+  monogenic_note:
+    "This polygenic score reflects common-variant burden only. It is reported " +
+    "independently of rare large-effect (monogenic) variants in BRCA1, BRCA2, " +
+    "which are assessed separately and not included here.",
+}
+
+/** A PRS that came from the PGS Catalog and whose carrier carries a monogenic finding. */
+const PROVENANCE_PRS: CancerPRS = {
+  ...BREAST_PRS,
+  pgs_id: "PGS000713",
+  pgs_license: "CC-BY-4.0",
+  development_method: "snpnet",
+  genome_build: "GRCh37",
+  variants_number: 183830,
+  source_url: "https://www.pgscatalog.org/score/PGS000713/",
+  monogenic_carrier_genes: ["BRCA2"],
+  monogenic_note:
+    "This polygenic score reflects common-variant burden only. You carry a " +
+    "reportable monogenic finding in BRCA2: interpret it as the dominant result.",
 }
 
 const MISMATCH_PRS: CancerPRS = {
@@ -89,6 +123,7 @@ const MISMATCH_PRS: CancerPRS = {
     "PRS weights derived from EUR population. Your inferred ancestry (AFR) differs. Interpret with caution.",
   evidence_level: 1,
   research_use_only: true,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const INSUFFICIENT_PRS: CancerPRS = {
@@ -112,6 +147,7 @@ const INSUFFICIENT_PRS: CancerPRS = {
   ancestry_warning_text: null,
   evidence_level: 1,
   research_use_only: true,
+  ...PRS_PROV_DEFAULTS,
 }
 
 const UNCALIBRATED_PRS: CancerPRS = {
@@ -135,6 +171,7 @@ const UNCALIBRATED_PRS: CancerPRS = {
   ancestry_warning_text: null,
   evidence_level: 1,
   research_use_only: true,
+  ...PRS_PROV_DEFAULTS,
 }
 
 // ── VariantCard tests ─────────────────────────────────────────────────
@@ -306,6 +343,38 @@ describe("PRSGaugeCard", () => {
     expect(
       screen.getByRole("article", { name: "Breast Cancer polygenic risk score" }),
     ).toBeInTheDocument()
+  })
+
+  // ── SW-B3: provenance + monogenic exclusion ──────────────────────────
+  it("shows the monogenic-exclusion disclosure", () => {
+    render(<PRSGaugeCard prs={BREAST_PRS} />)
+    const note = screen.getByTestId("prs-monogenic-note")
+    expect(note).toBeInTheDocument()
+    expect(note).toHaveTextContent(/common-variant burden only/)
+    expect(note).toHaveTextContent(/BRCA1, BRCA2/)
+  })
+
+  it("renders PGS Catalog provenance with a source link", () => {
+    render(<PRSGaugeCard prs={PROVENANCE_PRS} />)
+    const prov = screen.getByTestId("prs-provenance")
+    expect(prov).toHaveTextContent("PGS000713")
+    expect(prov).toHaveTextContent("snpnet")
+    expect(prov).toHaveTextContent("183,830 variants")
+    expect(prov).toHaveTextContent("CC-BY-4.0")
+    const link = screen.getByRole("link", { name: "PGS000713" })
+    expect(link).toHaveAttribute("href", "https://www.pgscatalog.org/score/PGS000713/")
+  })
+
+  it("escalates the monogenic note when the sample is a carrier", () => {
+    render(<PRSGaugeCard prs={PROVENANCE_PRS} />)
+    expect(screen.getByTestId("prs-monogenic-note")).toHaveTextContent(
+      /reportable monogenic finding in BRCA2/,
+    )
+  })
+
+  it("omits provenance line when no PGS metadata is present", () => {
+    render(<PRSGaugeCard prs={MISMATCH_PRS} />)
+    expect(screen.queryByTestId("prs-provenance")).not.toBeInTheDocument()
   })
 })
 
