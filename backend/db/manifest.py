@@ -61,6 +61,9 @@ class BundleManifestEntry:
 class PipelinePinEntry:
     url: str
     last_known_version: str
+    # SPDX-ish license identifier of the upstream source (SW-A12 / §9.3); ``None``
+    # when not yet recorded. Honored alongside the NOTICE attribution file.
+    license: str | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,7 @@ def _parse_manifest(payload: Any) -> Manifest:
             pins[name] = PipelinePinEntry(
                 url=_required_str(entry, "url", context=ctx),
                 last_known_version=str(entry.get("last_known_version", "") or ""),
+                license=(str(entry["license"]) if entry.get("license") else None),
             )
     except (KeyError, TypeError, ValueError) as exc:
         raise ManifestFetchError(f"Manifest payload malformed: {exc}") from exc

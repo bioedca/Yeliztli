@@ -41,3 +41,23 @@ Citation: Strande, N.T., Riggs, E.R., Buchanan, A.H. et al. "Evaluating the
 "ClinGen" and "Clinical Genome Resource" are used here solely for source
 attribution. Yeliztli is an independent project and is not affiliated with or
 endorsed by ClinGen or the NIH.
+
+AlphaMissense (proteome-wide missense pathogenicity)
+----------------------------------------------------
+Source:   https://zenodo.org/records/10813168 (DOI 10.5281/zenodo.10813168)
+License:  CC-BY-4.0 — per the Zenodo record's authoritative metadata grant, the
+          deliberately-chosen redistributable release (distinct from the original
+          CC-BY-NC-SA records 8208688 / 8360242). NOTE: the data file still embeds
+          a stale "# Licensed under CC BY-NC-SA 4.0" header from that original
+          release; the record-level CC-BY-4.0 grant governs this redistribution.
+Scope:    hg19 (GRCh37) per-variant am_pathogenicity + am_class only (standalone
+          `alphamissense.db`), used as a context-only complement to REVEL — never
+          a separate ACMG in-silico vote.
+Version:  AlphaMissense hg19 predictions, Zenodo record 10813168 (v3, 2023-09-19).
+Citation: Cheng, J., Novati, G., Pan, J. et al. "Accurate proteome-wide missense
+          variant effect prediction with AlphaMissense." Science 381, eadg7492
+          (2023). doi:10.1126/science.adg7492
+
+"AlphaMissense" and "Google DeepMind" are used here solely for source attribution.
+Yeliztli is an independent project and is not affiliated with or endorsed by
+Google DeepMind.

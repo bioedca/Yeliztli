@@ -42,19 +42,27 @@
     },
     "dbnsfp": {
       "url": "https://dist.genos.us/academic/e55b09/dbNSFP5.3.1a.zip",
-      "last_known_version": "5.3.1a"
+      "last_known_version": "5.3.1a",
+      "license": "dbNSFP academic license (non-commercial)"
     },
     "cpic": {
       "url": "https://api.github.com/repos/cpicpgx/cpic-data/releases/latest",
-      "last_known_version": "v1.58.0"
+      "last_known_version": "v1.58.0",
+      "license": "CC0-1.0"
     },
     "clingen": {
       "url": "https://search.clinicalgenome.org/kb/gene-validity/download",
-      "last_known_version": "2026-06-11"
+      "last_known_version": "2026-06-11",
+      "license": "CC0-1.0"
     },
     "pharmvar": {
       "url": "https://www.pharmvar.org/download",
       "last_known_version": "6.2"
+    },
+    "alphamissense": {
+      "url": "https://zenodo.org/records/10813168/files/AlphaMissense_hg19.tsv.gz?download=1",
+      "last_known_version": "hg19-2023",
+      "license": "CC-BY-4.0"
     },
     "gwas_catalog": {
       "url": "https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-associations_ontology-annotated-full.zip",

@@ -322,6 +322,21 @@ DATABASES: dict[str, DatabaseInfo] = {
         build_mode="pipeline",
         target_db="standalone",
     ),
+    "alphamissense": DatabaseInfo(
+        name="alphamissense",
+        display_name="AlphaMissense",
+        description=(
+            "Proteome-wide missense pathogenicity predictions (hg19, CC-BY-4.0); "
+            "context-only complement to REVEL"
+        ),
+        url="",
+        filename="alphamissense.db",
+        expected_size_bytes=3_500_000_000,  # ~3.5 GB built SQLite (71M rows)
+        required=False,
+        phase=2,
+        build_mode="pipeline",
+        target_db="standalone",
+    ),
     "cpic": DatabaseInfo(
         name="cpic",
         display_name="CPIC",
@@ -458,6 +473,7 @@ _BUILD_FN_REGISTRY: dict[str, tuple[str, str]] = {
     # bundle (build_mode="bundled"). get_build_fn("gnomad") now returns None so the
     # setup wizard / scheduler route it through run_gnomad_bundle_update instead.
     "dbnsfp": ("backend.annotation.dbnsfp", "download_and_load_dbnsfp"),
+    "alphamissense": ("backend.annotation.alphamissense", "download_and_load_alphamissense"),
     "gwas_catalog": ("backend.annotation.gwas", "download_and_load_gwas"),
     "dbsnp": ("backend.annotation.dbsnp", "download_and_load_rsmerge"),
     "mondo_hpo": ("backend.annotation.mondo_hpo", "download_and_load_mondo_hpo"),
@@ -510,6 +526,7 @@ EXPECTED_GENOME_BUILD: dict[str, str] = {
     "cpic": "GRCh37",
     "vep_bundle": "GRCh37",
     "gnomad_constraint": "GRCh37",
+    "alphamissense": "GRCh37",
     "dbnsfp": "GRCh38",
 }
 

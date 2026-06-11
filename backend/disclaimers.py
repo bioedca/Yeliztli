@@ -884,6 +884,16 @@ GENE_VALIDITY_CONTEXT_ONLY = (
 # finding's stored evidence level or ClinVar significance, and a draft "Pathogenic"
 # is not a clinical diagnosis.
 
+ALPHAMISSENSE_CONTEXT_ONLY = (
+    "AlphaMissense missense pathogenicity (Cheng 2023; context only). A structure-based "
+    "AI prediction shown as a COMPLEMENT to the REVEL in-silico evidence — because "
+    "REVEL and AlphaMissense are correlated meta-predictors, AlphaMissense is NOT counted "
+    "as a separate ACMG PP3/BP4 vote (that would double-count). It does NOT change this "
+    "finding's classification or evidence level; concordance with REVEL is supportive "
+    "context, discordance is a flag to interpret with extra caution."
+)
+
+
 ACMG_DRAFT_CONTEXT_ONLY = (
     "DRAFT automated ACMG/AMP classification (non-clinical; context only). This is a "
     "computational estimate from a subset of ACMG/AMP criteria (Richards 2015) scored "
