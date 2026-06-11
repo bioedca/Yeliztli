@@ -18,6 +18,7 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    clingen_gene_validity,
     gnomad_gene_constraint,
     reference_metadata,
     samples,
@@ -35,6 +36,7 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 # rsid → (gene, consequence, af_popmax, revel, clinvar_sig)
 _VARIANTS = {
     "rs_lof": ("LOFGENE", "stop_gained", None, None, None),
+    "rs_validity_lof": ("VALIDGENE", "stop_gained", None, None, None),
     "rs_mis": ("MISGENE", "missense_variant", None, 0.95, None),
     "rs_common": ("MISGENE", "missense_variant", 0.06, 0.2, "Benign"),
     "rs_benign": ("MISGENE", "missense_variant", 0.005, 0.2, "Benign"),
@@ -72,6 +74,13 @@ def acmg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         conn.execute(
             gnomad_gene_constraint.insert().values(
                 gene_symbol="MISGENE", loeuf=1.5, pli=0.1, mis_z=3.5
+            )
+        )
+        conn.execute(
+            clingen_gene_validity.insert().values(
+                gene_symbol="VALIDGENE",
+                disease_label="Valid disease relationship",
+                classification="Definitive",
             )
         )
 
@@ -114,13 +123,25 @@ class TestAcmgEndpoint:
     def test_synonymous_excluded_from_candidates(self, acmg_client: TestClient) -> None:
         by_rsid = self._by_rsid(acmg_client)
         assert "rs_syn" not in by_rsid
-        assert set(by_rsid) == {"rs_lof", "rs_mis", "rs_common", "rs_benign"}
+        assert set(by_rsid) == {
+            "rs_lof",
+            "rs_validity_lof",
+            "rs_mis",
+            "rs_common",
+            "rs_benign",
+        }
 
-    def test_lof_in_constrained_gene_is_likely_pathogenic(self, acmg_client: TestClient) -> None:
+    def test_lof_constraint_alone_does_not_apply_pvs1(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_lof"]
-        assert v["acmg_classification"] == "Likely pathogenic"
-        assert v["points"] == 9
-        assert any(c["code"] == "PVS1" and c["strength"] == "Very Strong" for c in v["criteria"])
+        assert v["acmg_classification"] == "Uncertain significance"
+        assert v["points"] == 1
+        assert {c["code"] for c in v["criteria"]} == {"PM2"}
+
+    def test_gene_validity_alone_does_not_apply_pvs1(self, acmg_client: TestClient) -> None:
+        v = self._by_rsid(acmg_client)["rs_validity_lof"]
+        assert v["acmg_classification"] == "Uncertain significance"
+        assert v["points"] == 1
+        assert {c["code"] for c in v["criteria"]} == {"PM2"}
 
     def test_high_revel_missense_is_likely_pathogenic(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_mis"]
@@ -140,8 +161,8 @@ class TestAcmgEndpoint:
 
         data = acmg_client.get("/api/analysis/acmg?sample_id=1").json()
         assert data["truncated"] is False
-        assert data["total_candidates"] == 4
-        assert len(data["variants"]) == 4  # guard against a vacuous loop
+        assert data["total_candidates"] == 5
+        assert len(data["variants"]) == 5  # guard against a vacuous loop
         for v in data["variants"]:
             assert v["is_draft"] is True
             assert v["note"]

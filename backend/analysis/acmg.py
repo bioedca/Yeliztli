@@ -156,7 +156,7 @@ class AcmgEvidence:
     gnomad_af_global: float | None = None
     gnomad_af_popmax: float | None = None
     revel: float | None = None
-    # Gene-level context (from gnomAD constraint + ClinGen validity).
+    # Gene-level context from an explicit, mechanism-specific source.
     gene_lof_mechanism: bool = False  # LoF is a plausible disease mechanism for the gene
     gene_missense_z: float | None = None
     clinvar_significance: str | None = None
@@ -417,8 +417,6 @@ def assess_sample_acmg(
     import sqlalchemy as sa
 
     from backend.analysis.gene_constraint import lookup_gene_constraints
-    from backend.analysis.gene_validity import best_curation, is_established
-    from backend.annotation.clingen import lookup_gene_validities
     from backend.db.tables import annotated_variants as av
 
     eff_af = sa.func.coalesce(av.c.gnomad_af_popmax, av.c.gnomad_af_global)
@@ -452,18 +450,16 @@ def assess_sample_acmg(
 
     genes = sorted({r.gene_symbol for r in candidates if r.gene_symbol})
     constraints = lookup_gene_constraints(reference_engine, genes) if genes else {}
-    validities = lookup_gene_validities(reference_engine, genes) if genes else {}
 
     out: list[dict[str, Any]] = []
     for r in candidates:
         gene = r.gene_symbol
         constraint = constraints.get(gene or "")
-        curations = validities.get(gene or "", [])
-        best = best_curation(curations)
-        gene_established = is_established(best.get("classification") if best else None)
-        lof_mechanism = bool(
-            (constraint and constraint.get("lof_constrained")) or gene_established
-        )
+        # The sample endpoint currently has no curated disease-mechanism or
+        # dosage-sensitivity source. gnomAD constraint and ClinGen gene-disease
+        # validity are context-only and must not substitute for PVS1 LoF
+        # mechanism evidence.
+        lof_mechanism = False
         evidence = AcmgEvidence(
             rsid=r.rsid,
             gene_symbol=gene,
