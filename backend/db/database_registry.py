@@ -337,9 +337,7 @@ DATABASES: dict[str, DatabaseInfo] = {
     "clingen": DatabaseInfo(
         name="clingen",
         display_name="ClinGen Gene-Disease Validity",
-        description=(
-            "ClinGen gene-disease validity classifications (guardrail context; CC0)"
-        ),
+        description=("ClinGen gene-disease validity classifications (guardrail context; CC0)"),
         url="",
         filename="clingen.db",
         expected_size_bytes=1_200_000,  # ~1.1 MB committed CSV

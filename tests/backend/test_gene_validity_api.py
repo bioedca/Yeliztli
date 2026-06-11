@@ -136,9 +136,9 @@ class TestGeneValidityEndpoint:
         assert "rs_benign" not in {d["rsid"] for d in data}
 
     def test_definitive_gene_no_caution(self, gv_client: TestClient) -> None:
-        by_rsid = {d["rsid"]: d for d in gv_client.get(
-            "/api/analysis/gene-validity?sample_id=1"
-        ).json()}
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
         brca1 = by_rsid["rs_brca1"]
         assert brca1["has_clingen_curation"] is True
         assert brca1["best_classification"] == "Definitive"
@@ -146,24 +146,24 @@ class TestGeneValidityEndpoint:
         assert brca1["caution"] is False
 
     def test_limited_gene_triggers_caution(self, gv_client: TestClient) -> None:
-        by_rsid = {d["rsid"]: d for d in gv_client.get(
-            "/api/analysis/gene-validity?sample_id=1"
-        ).json()}
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
         ttn = by_rsid["rs_ttn"]
         assert ttn["best_classification"] == "Limited"
         assert ttn["caution"] is True
 
     def test_disputed_gene_triggers_caution(self, gv_client: TestClient) -> None:
-        by_rsid = {d["rsid"]: d for d in gv_client.get(
-            "/api/analysis/gene-validity?sample_id=1"
-        ).json()}
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
         assert by_rsid["rs_foo"]["best_classification"] == "Disputed"
         assert by_rsid["rs_foo"]["caution"] is True
 
     def test_uncurated_gene_is_not_caution(self, gv_client: TestClient) -> None:
-        by_rsid = {d["rsid"]: d for d in gv_client.get(
-            "/api/analysis/gene-validity?sample_id=1"
-        ).json()}
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
         z = by_rsid["rs_uncurated"]
         assert z["has_clingen_curation"] is False
         assert z["caution"] is False
