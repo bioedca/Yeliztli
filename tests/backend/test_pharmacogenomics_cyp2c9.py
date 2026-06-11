@@ -91,13 +91,10 @@ _NEW_DIPLOTYPES = {
 }
 
 _STAR3_DIPLOTYPES = {
+    **{diplotype: expected for diplotype, expected in _NEW_DIPLOTYPES.items() if "*3" in diplotype},
     "*1/*3": ("Intermediate Metabolizer", 1.0),
     "*2/*3": ("Poor Metabolizer", 0.5),
     "*3/*3": ("Poor Metabolizer", 0.0),
-    "*3/*5": ("Poor Metabolizer", 0.0),
-    "*3/*6": ("Poor Metabolizer", 0.0),
-    "*3/*8": ("Poor Metabolizer", 0.5),
-    "*3/*11": ("Poor Metabolizer", 0.5),
 }
 
 
