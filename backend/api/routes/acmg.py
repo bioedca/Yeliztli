@@ -40,6 +40,8 @@ class AcmgCriterionResponse(BaseModel):
 class AcmgVariantResponse(BaseModel):
     rsid: str | None = None
     gene_symbol: str | None = None
+    genotype: str | None = None
+    zygosity: str | None = None
     consequence: str | None = None
     clinvar_significance: str | None = None
     acmg_classification: str
@@ -62,10 +64,11 @@ def list_acmg(
 ) -> AcmgResponse:
     """DRAFT ACMG/AMP classifications for the sample's notable variants.
 
-    Scope: ClinVar-listed, predicted loss-of-function / in-frame, and PP3-eligible
-    (REVEL ≥ 0.644) missense variants. ``acmg_classification`` is a DRAFT,
-    non-clinical estimate (Tavtigian points over a computable ACMG/AMP subset) and
-    is shown alongside ``clinvar_significance`` for context — it never overrides it.
+    Scope: carried ClinVar-listed, predicted loss-of-function / in-frame, and
+    PP3-eligible (REVEL ≥ 0.644) missense variants. ``acmg_classification`` is a
+    DRAFT, non-clinical estimate (Tavtigian points over a computable ACMG/AMP
+    subset) and is shown alongside ``clinvar_significance`` for context — it
+    never overrides it.
     """
     sample_engine = resolve_sample_engine(sample_id)
     reference_engine = get_registry().reference_engine

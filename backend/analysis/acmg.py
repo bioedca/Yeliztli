@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from backend.analysis.insilico_tiers import is_missense_consequence, revel_to_acmg_tier
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.disclaimers import ACMG_DRAFT_CONTEXT_ONLY
 
 if TYPE_CHECKING:
@@ -411,7 +412,7 @@ def assess_sample_acmg(
     *,
     max_variants: int = _DEFAULT_MAX_VARIANTS,
 ) -> dict[str, Any]:
-    """DRAFT ACMG/AMP classification for the notable variants in a sample.
+    """DRAFT ACMG/AMP classification for notable carried variants in a sample.
 
     Read-only. Returns ``{"variants": [...], "truncated": bool, "total_candidates": int}``.
     Never mutates any finding. Each variant row carries the draft classification,
@@ -428,6 +429,8 @@ def assess_sample_acmg(
         sa.select(
             av.c.rsid,
             av.c.gene_symbol,
+            av.c.genotype,
+            av.c.zygosity,
             av.c.consequence,
             av.c.gnomad_af_global,
             av.c.gnomad_af_popmax,
@@ -436,6 +439,7 @@ def assess_sample_acmg(
         )
         .where(
             av.c.gene_symbol.isnot(None),
+            av.c.zygosity.in_(list(CARRIED_ZYGOSITIES)),
             # Keep AF-null rows available for otherwise notable variants, but
             # criterion_pm2() treats NULL as missing frequency evidence, not
             # confirmed population absence.
@@ -483,6 +487,8 @@ def assess_sample_acmg(
             {
                 "rsid": r.rsid,
                 "gene_symbol": gene,
+                "genotype": r.genotype,
+                "zygosity": r.zygosity,
                 "consequence": r.consequence,
                 "clinvar_significance": r.clinvar_significance,
                 "acmg_classification": result.classification,

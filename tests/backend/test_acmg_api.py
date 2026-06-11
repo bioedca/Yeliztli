@@ -33,15 +33,27 @@ def tmp_data_dir(tmp_path: Path) -> Path:
     return data_dir
 
 
-# rsid → (gene, consequence, af_popmax, revel, clinvar_sig)
+# rsid → (gene, consequence, af_popmax, revel, clinvar_sig, genotype, zygosity)
 _VARIANTS = {
-    "rs_lof": ("LOFGENE", "stop_gained", None, None, None),
-    "rs_validity_lof": ("VALIDGENE", "stop_gained", None, None, None),
-    "rs_mis": ("MISGENE", "missense_variant", None, 0.95, None),
-    "rs_mis_rare": ("MISGENE", "missense_variant", 1e-5, 0.95, None),
-    "rs_common": ("MISGENE", "missense_variant", 0.06, 0.2, "Benign"),
-    "rs_benign": ("MISGENE", "missense_variant", 0.005, 0.2, "Benign"),
-    "rs_syn": ("MISGENE", "synonymous_variant", None, None, None),  # not a candidate
+    "rs_lof": ("LOFGENE", "stop_gained", None, None, None, "AG", "het"),
+    "rs_validity_lof": ("VALIDGENE", "stop_gained", None, None, None, "AG", "het"),
+    "rs_mis": ("MISGENE", "missense_variant", None, 0.95, None, "AG", "het"),
+    "rs_mis_rare": ("MISGENE", "missense_variant", 1e-5, 0.95, None, "AG", "het"),
+    "rs_common": ("MISGENE", "missense_variant", 0.06, 0.2, "Benign", "GG", "hom_alt"),
+    "rs_benign": ("MISGENE", "missense_variant", 0.005, 0.2, "Benign", "AG", "het"),
+    # Negative carriage controls: neither should be returned even though both
+    # would otherwise satisfy the candidate prefilter.
+    "rs_hom_ref_pathogenic": (
+        "MISGENE",
+        "missense_variant",
+        None,
+        0.95,
+        "Pathogenic",
+        "AA",
+        "hom_ref",
+    ),
+    "rs_unknown_zygosity_lof": ("LOFGENE", "stop_gained", None, None, None, "--", None),
+    "rs_syn": ("MISGENE", "synonymous_variant", None, None, None, "AG", "het"),
 }
 
 
@@ -86,12 +98,14 @@ def acmg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         )
 
     with sample_engine.begin() as conn:
-        for rsid, (gene, csq, popmax, revel, clinvar) in _VARIANTS.items():
+        for rsid, (gene, csq, popmax, revel, clinvar, genotype, zygosity) in _VARIANTS.items():
             conn.execute(
                 annotated_variants.insert().values(
                     rsid=rsid,
                     chrom="1",
                     pos=1000,
+                    genotype=genotype,
+                    zygosity=zygosity,
                     gene_symbol=gene,
                     consequence=csq,
                     gnomad_af_popmax=popmax,
@@ -132,6 +146,20 @@ class TestAcmgEndpoint:
             "rs_common",
             "rs_benign",
         }
+
+    def test_non_carried_rows_excluded_from_candidates(self, acmg_client: TestClient) -> None:
+        by_rsid = self._by_rsid(acmg_client)
+        assert "rs_hom_ref_pathogenic" not in by_rsid
+        assert "rs_unknown_zygosity_lof" not in by_rsid
+
+    def test_returned_variants_include_carriage_state(self, acmg_client: TestClient) -> None:
+        by_rsid = self._by_rsid(acmg_client)
+        assert by_rsid  # guard against a vacuous loop
+        for variant in by_rsid.values():
+            assert variant["genotype"]
+            assert variant["zygosity"] in {"het", "hom_alt"}
+        assert by_rsid["rs_lof"]["genotype"] == "AG"
+        assert by_rsid["rs_lof"]["zygosity"] == "het"
 
     def test_lof_constraint_alone_does_not_apply_pvs1(self, acmg_client: TestClient) -> None:
         v = self._by_rsid(acmg_client)["rs_lof"]
