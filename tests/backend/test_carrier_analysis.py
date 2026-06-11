@@ -4,7 +4,7 @@ Covers:
   - Het P/LP extraction from annotated variants in carrier panel genes
   - Homozygous P/LP exclusion (disease, not carrier)
   - Evidence level assignment based on ClinVar review stars
-  - Findings storage (module='carrier', category='autosomal_recessive_carrier')
+  - Findings storage (module='carrier', category split by carrier context)
   - BRCA1/2 dual-role cross-links to cancer module
   - Reproductive framing in finding text
   - Empty results when no P/LP variants exist
@@ -451,7 +451,10 @@ class TestStoreCarrierFindings:
         assert len(rows) == 5
         for row in rows:
             assert row.module == "carrier"
-            assert row.category == "autosomal_recessive_carrier"
+            if row.gene_symbol in {"BRCA1", "BRCA2"}:
+                assert row.category == "autosomal_dominant_dual_role_carrier"
+            else:
+                assert row.category == "autosomal_recessive_carrier"
 
     def test_all_findings_have_het_zygosity(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
@@ -483,6 +486,71 @@ class TestStoreCarrierFindings:
         assert "carry one copy" in row.finding_text
         assert "family planning" in row.finding_text
         assert "typically unaffected" in row.finding_text
+
+    def test_brca_finding_text_uses_dual_role_framing(
+        self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
+    ) -> None:
+        """BRCA carrier findings must not use classic AR unaffected framing."""
+        result = extract_carrier_variants(panel, sample_with_carrier_variants)
+        store_carrier_findings(result, sample_with_carrier_variants)
+
+        with sample_with_carrier_variants.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs80357906")
+            ).fetchone()
+        assert row is not None
+        assert row.category == "autosomal_dominant_dual_role_carrier"
+        assert "BRCA1" in row.finding_text
+        assert "rs80357906" in row.finding_text
+        assert "family planning" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+        assert "personal hereditary cancer risk" in row.finding_text
+        assert "Cancer module" in row.finding_text
+
+        detail = json.loads(row.detail_json)
+        assert "cancer" in detail["cross_links"]
+        pmids = json.loads(row.pmid_citations)
+        assert "28632866" in pmids
+        assert "33406487" in pmids
+
+    def test_ad_non_cancer_finding_text_does_not_use_cancer_module(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """AD carrier findings without a cancer cross-link must avoid BRCA wording."""
+        result = CarrierAnalysisResult(
+            variants=[
+                CarrierVariantResult(
+                    rsid="rs_ad_example",
+                    gene_symbol="ADGENE",
+                    genotype="AG",
+                    zygosity="het",
+                    clinvar_significance="Pathogenic",
+                    clinvar_review_stars=2,
+                    clinvar_accession="VCV000000001",
+                    clinvar_conditions="Example autosomal dominant condition",
+                    conditions=["Example Autosomal Dominant Condition"],
+                    inheritance="AD",
+                    evidence_level=3,
+                    cross_links=[],
+                    pmids=[],
+                    notes="Synthetic AD non-cancer carrier-panel example.",
+                )
+            ]
+        )
+        count = store_carrier_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_ad_example")
+            ).fetchone()
+        assert count == 1
+        assert row is not None
+        assert row.category == "autosomal_dominant_dual_role_carrier"
+        assert "family planning" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+        assert "Cancer module" not in row.finding_text
+        assert "cancer-predisposition" not in row.finding_text
+        assert "genetics professional" in row.finding_text
 
     def test_detail_json_has_clinvar_data(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine

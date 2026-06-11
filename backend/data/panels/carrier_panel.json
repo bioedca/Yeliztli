@@ -115,7 +115,7 @@
         "rs80357975",
         "rs80358152"
       ],
-      "pmids": ["20301425", "29446198"],
+      "pmids": ["20301425", "29446198", "28632866", "33406487"],
       "notes": "Dual-role gene: produces both cancer predisposition finding (disease risk, Cancer module) and carrier status finding (reproductive risk, Carrier module). Included in carrier panel for reproductive planning context — heterozygous carriers may pass variant to offspring."
     },
     {
@@ -138,7 +138,7 @@
         "rs276174802",
         "rs80359688"
       ],
-      "pmids": ["20301425", "29446198"],
+      "pmids": ["20301425", "29446198", "28632866", "33406487"],
       "notes": "Dual-role gene: produces both cancer predisposition finding (disease risk, Cancer module) and carrier status finding (reproductive risk, Carrier module). Included in carrier panel for reproductive planning context — heterozygous carriers may pass variant to offspring."
     },
     {

@@ -192,6 +192,8 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 
 # ClinVar significance values considered pathogenic
 _PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
+_AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
+_DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
 
 
 @dataclass
@@ -253,6 +255,46 @@ def _assign_carrier_evidence_level(
         clinvar_review_stars,
         gene_baseline=gene_evidence_level,
     )
+
+
+def _has_cancer_crosslink(variant: CarrierVariantResult) -> bool:
+    """Return whether the carrier finding cross-links to the Cancer module."""
+    return "cancer" in variant.cross_links
+
+
+def _has_personal_risk_context(variant: CarrierVariantResult) -> bool:
+    """Return whether the carrier finding also has personal disease-risk context."""
+    return variant.inheritance == "AD" or _has_cancer_crosslink(variant)
+
+
+def _carrier_finding_category(variant: CarrierVariantResult) -> str:
+    """Return the storage category for a carrier finding."""
+    if _has_personal_risk_context(variant):
+        return _DUAL_ROLE_CARRIER_CATEGORY
+    return _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY
+
+
+def _carrier_finding_text(variant: CarrierVariantResult) -> str:
+    """Build the user-facing carrier finding text for one variant."""
+    condition_text = ", ".join(variant.conditions) if variant.conditions else "carrier status"
+    base = (
+        f"{variant.gene_symbol}: You carry one copy of a "
+        f"{variant.clinvar_significance.lower()} variant ({variant.rsid}) "
+        f"associated with {condition_text}. "
+    )
+    if _has_cancer_crosslink(variant):
+        return (
+            base + "This may be relevant for family planning. Because this gene also has "
+            "cancer-predisposition implications, the same result may indicate "
+            "personal hereditary cancer risk; review it in the Cancer module and "
+            "with a genetics professional."
+        )
+    if _has_personal_risk_context(variant):
+        return (
+            base + "This may be relevant for family planning. Review this result with "
+            "a genetics professional."
+        )
+    return base + "Carriers are typically unaffected. This may be relevant for family planning."
 
 
 def extract_carrier_variants(
@@ -372,9 +414,10 @@ def store_carrier_findings(
 ) -> int:
     """Store carrier status findings in the sample database.
 
-    Creates one finding per heterozygous P/LP variant with
-    module='carrier' and category='autosomal_recessive_carrier'.
-    Each finding uses reproductive framing language.
+    Creates one finding per heterozygous P/LP variant with module='carrier'.
+    Classic autosomal-recessive findings use reproductive framing language;
+    dual-role BRCA1/2 findings preserve reproductive context without hiding
+    their personal hereditary-cancer-risk implications.
 
     BRCA1/2 findings are stored with cross_links in detail_json,
     enabling the UI to show a dual-role banner linking to the
@@ -390,12 +433,7 @@ def store_carrier_findings(
     rows: list[dict] = []
 
     for v in result.variants:
-        condition_text = ", ".join(v.conditions) if v.conditions else "carrier status"
-        finding_text = (
-            f"{v.gene_symbol}: You carry one copy of a {v.clinvar_significance.lower()} "
-            f"variant ({v.rsid}) associated with {condition_text}. "
-            f"Carriers are typically unaffected. This may be relevant for family planning."
-        )
+        finding_text = _carrier_finding_text(v)
 
         detail = {
             "clinvar_accession": v.clinvar_accession,
@@ -411,7 +449,7 @@ def store_carrier_findings(
         rows.append(
             {
                 "module": "carrier",
-                "category": "autosomal_recessive_carrier",
+                "category": _carrier_finding_category(v),
                 "evidence_level": v.evidence_level,
                 "gene_symbol": v.gene_symbol,
                 "rsid": v.rsid,

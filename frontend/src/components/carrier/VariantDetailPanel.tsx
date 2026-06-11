@@ -26,6 +26,10 @@ export default function VariantDetailPanel({
   onClose,
 }: VariantDetailPanelProps) {
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
+  const shouldMentionCancerModule = hasCancerCrossLink
+  const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
+  const isAutosomalRecessive = variant.inheritance === "AR"
+  const usesPersonalRiskStyle = shouldMentionCancerModule || isADOnly
 
   return (
     <aside
@@ -55,10 +59,45 @@ export default function VariantDetailPanel({
         </div>
 
         {/* Carrier status banner */}
-        <div className="rounded-md bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 mb-5">
-          <p className="text-sm text-teal-800 dark:text-teal-300">
-            Heterozygous carrier — typically unaffected. This information may be
-            relevant for family planning.
+        <div
+          className={cn(
+            "rounded-md border p-3 mb-5",
+            usesPersonalRiskStyle
+              ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+              : "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-800",
+          )}
+        >
+          <p
+            className={cn(
+              "text-sm",
+              usesPersonalRiskStyle
+                ? "text-blue-800 dark:text-blue-300"
+                : "text-teal-800 dark:text-teal-300",
+            )}
+          >
+            {shouldMentionCancerModule ? (
+              <>
+                Heterozygous {variant.gene_symbol} variant. This information may
+                be relevant for family planning and may also indicate personal
+                hereditary cancer risk. Review the Cancer module for that perspective.
+              </>
+            ) : isADOnly ? (
+              <>
+                Heterozygous {variant.gene_symbol} variant. This information may
+                be relevant for family planning. Review this result with a genetics
+                professional.
+              </>
+            ) : isAutosomalRecessive ? (
+              <>
+                Heterozygous carrier - typically unaffected. This information may
+                be relevant for family planning.
+              </>
+            ) : (
+              <>
+                Heterozygous carrier. This information may be relevant for family
+                planning.
+              </>
+            )}
           </p>
         </div>
 
