@@ -186,8 +186,8 @@ def _count_indel_alt_alleles(genotype: str | None, ref: str, alt: str) -> int | 
     ref_token = "I" if alt_token == "D" else "D"
 
     if len(gt) == 1:
-        alleles = [gt]
-    elif len(gt) == 2:
+        return None
+    if len(gt) == 2:
         alleles = list(gt)
     else:
         return None

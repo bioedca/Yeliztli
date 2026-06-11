@@ -206,6 +206,21 @@ def test_cyp3a5_star7_het_emits_tacrolimus_alert(reference_engine: sa.Engine) ->
     assert tac[0].phenotype == "Intermediate Metabolizer"
 
 
+def test_cyp3a5_star7_non_carrier_does_not_emit_star7_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample(_cyp3a5_genotypes(rs41303343="II"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*1/*1"
+    assert "*7" not in cyp3a5.diplotype
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert tac
+    assert all("*7" not in a.diplotype for a in tac)
+
+
 # ── PharmVar versioning ───────────────────────────────────────────────────────
 
 

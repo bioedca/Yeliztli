@@ -520,6 +520,9 @@ class TestCountAltAlleles:
     def test_deletion_indel_hom_alt(self):
         assert _count_alt_alleles("DD", "AT", "A") == 2
 
+    def test_deletion_indel_haploid_marker_is_uncallable(self):
+        assert _count_alt_alleles("D", "AT", "A") is None
+
     def test_insertion_indel_het(self):
         assert _count_alt_alleles("DI", "A", "AT") == 1
 
