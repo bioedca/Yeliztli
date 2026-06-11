@@ -152,6 +152,9 @@ class GeneCoverageSummary(BaseModel):
     ehr_notation: str | None = None
     evidence_level: int | None = None
     gene_caveat: str | None = None
+    # Star alleles that could not be excluded — a defining variant was not assayed
+    # on the array (e.g. the UGT1A1*28 TA-repeat). SW-E1.
+    indeterminate_alleles: list[str] = []
 
 
 class MedicationSafetyReportResponse(BaseModel):
@@ -579,6 +582,7 @@ def medication_safety_report(
                 ehr_notation=detail.get("ehr_notation"),
                 evidence_level=row.evidence_level,
                 gene_caveat=detail.get("gene_caveat"),
+                indeterminate_alleles=detail.get("indeterminate_alleles", []),
             )
 
         recommendation = detail.get("recommendation")

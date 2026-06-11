@@ -62,6 +62,7 @@ CPIC_GENES = frozenset(
         "DPYD",
         "TPMT",
         "UGT1A1",
+        "NUDT15",
     }
 )
 
@@ -412,6 +413,32 @@ def record_cpic_version(
     )
 
 
+def record_pharmvar_version(
+    engine: sa.Engine,
+    *,
+    version: str,
+    checksum: str | None = None,
+) -> None:
+    """Record the PharmVar star-allele-definition source version (SW-E1).
+
+    PharmVar (pharmvar.org) is the canonical, versioned source of star-allele
+    definitions; the bundled CPIC allele table is aligned to this release. Tracked
+    as its own ``database_versions`` row so the provenance/version of the
+    definitions is auditable alongside CPIC. Definition source is gene/allele-keyed
+    (GRCh37 plus-strand rsids), so no separate ``genome_build`` is recorded — it is
+    intentionally absent from ``EXPECTED_GENOME_BUILD``.
+    """
+    from backend.db.database_registry import _record_db_version
+
+    _record_db_version(
+        engine,
+        db_name="pharmvar",
+        version=version,
+        file_size_bytes=None,
+        sha256=checksum,
+    )
+
+
 def check_cpic_update(
     reference_engine: sa.Engine,
     settings: object | None = None,
@@ -610,6 +637,16 @@ def download_and_load_cpic(
     stats = load_cpic_from_csvs(
         alleles_csv, diplotypes_csv, guidelines_csv, engine, version=bundled_version
     )
+
+    # SW-E1: record the PharmVar definition-source version alongside CPIC, so the
+    # provenance of the star-allele definitions is auditable.
+    pharmvar_pin = get_pipeline_pin("pharmvar", timeout=timeout)
+    pharmvar_version = (
+        pharmvar_pin.last_known_version
+        if pharmvar_pin and pharmvar_pin.last_known_version
+        else "bundled"
+    )
+    record_pharmvar_version(engine, version=pharmvar_version)
 
     if download_progress is not None:
         download_progress(100, 100)

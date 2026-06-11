@@ -141,6 +141,10 @@ class StarAlleleResult:
     defining_rsid_count: int = 0
     call_confidence: CallConfidence = CallConfidence.COMPLETE
     confidence_note: str = ""
+    # Non-reference alleles that could NOT be excluded because a defining variant
+    # was not assayed/callable on the array (the reference *1 fill is an assumption,
+    # not an observation). SW-E1.
+    indeterminate_alleles: list[str] = field(default_factory=list)
 
     @property
     def coverage_assessed(self) -> int:
@@ -489,6 +493,24 @@ def call_star_alleles_for_gene(
         gene, all_defining_rsids, missing_rsids, uncalled_rsids
     )
 
+    # Explicit indeterminate flag (SW-E1): a non-reference allele whose defining
+    # variant(s) were not assayed/callable cannot be excluded — the reference fill
+    # is an assumption, not an observation (e.g. the UGT1A1*28 TA-repeat, which a
+    # SNP array cannot type). Surface these so a "Normal"/reference call is not
+    # mistaken for confident exclusion of every star allele.
+    unusable_rsids = missing_rsids | uncalled_rsids
+    indeterminate_alleles = sorted(
+        a["allele_name"]
+        for a in non_ref_alleles
+        if a["allele_name"] not in called_alleles
+        and any(v["rsid"] in unusable_rsids for v in a["defining_variants"])
+    )
+    if indeterminate_alleles:
+        confidence_note = (
+            f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
+            "defining variant(s) not assayed on this array."
+        ).strip()
+
     return StarAlleleResult(
         gene=gene,
         allele1=allele1,
@@ -503,6 +525,7 @@ def call_star_alleles_for_gene(
         defining_rsid_count=len(all_defining_rsids),
         call_confidence=call_confidence,
         confidence_note=confidence_note,
+        indeterminate_alleles=indeterminate_alleles,
     )
 
 
@@ -686,6 +709,8 @@ class PrescribingAlert:
     # defining array positions were assayed and called out of the total defined.
     coverage_assessed: int = 0
     coverage_total: int = 0
+    # Star alleles that could not be excluded (defining variant unassayed). SW-E1.
+    indeterminate_alleles: list[str] = field(default_factory=list)
 
 
 def _fetch_guidelines_for_gene_phenotype(
@@ -804,6 +829,7 @@ def generate_prescribing_alerts(
                 involved_rsids=sorted(result.involved_rsids),
                 coverage_assessed=result.coverage_assessed,
                 coverage_total=result.defining_rsid_count,
+                indeterminate_alleles=result.indeterminate_alleles,
             )
             alerts.append(alert)
 
@@ -872,6 +898,7 @@ def store_prescribing_alerts(
                 "assessed": alert.coverage_assessed,
                 "total": alert.coverage_total,
             },
+            "indeterminate_alleles": alert.indeterminate_alleles,
         }
         gene_caveat = _GENE_INTERPRETATION_CAVEATS.get(alert.gene)
         if gene_caveat:

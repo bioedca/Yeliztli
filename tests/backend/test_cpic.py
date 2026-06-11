@@ -80,8 +80,8 @@ class TestParseAllelesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_alleles_csv(SEED_DIR / "cpic_alleles_seed.csv")
 
-        assert len(rows) == 42  # 42 data rows in seed (excluding header, last row empty)
-        assert stats.alleles_loaded == 42
+        assert len(rows) == 47  # 42 base + NUDT15 (*1,*3) + UGT1A1 (*1,*6,*28) (SW-E1)
+        assert stats.alleles_loaded == 47
         assert stats.alleles_skipped == 0
         assert "CYP2D6" in stats.genes_found
         assert "CYP2C19" in stats.genes_found
@@ -146,8 +146,8 @@ class TestParseDiplotypesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_diplotypes_csv(SEED_DIR / "cpic_diplotypes_seed.csv")
 
-        assert len(rows) == 66  # 56 base (+TPMT *1/*3B) + 10 enumerated DPYD compound-het (SW-E5)
-        assert stats.diplotypes_loaded == 66
+        assert len(rows) == 75  # 66 base + NUDT15 (3) + UGT1A1 (6) diplotypes (SW-E1)
+        assert stats.diplotypes_loaded == 75
         assert stats.diplotypes_skipped == 0
 
     def test_first_row_structure(self):
@@ -188,8 +188,8 @@ class TestParseGuidelinesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
-        assert len(rows) == 47  # 47 data rows (last row is empty line)
-        assert stats.guidelines_loaded == 47
+        assert len(rows) == 59  # 47 base + NUDT15 (6) + UGT1A1 (6) guideline rows (SW-E1)
+        assert stats.guidelines_loaded == 59
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):

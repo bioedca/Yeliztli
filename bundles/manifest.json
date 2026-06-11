@@ -52,6 +52,10 @@
       "url": "https://search.clinicalgenome.org/kb/gene-validity/download",
       "last_known_version": "2026-06-11"
     },
+    "pharmvar": {
+      "url": "https://www.pharmvar.org/download",
+      "last_known_version": "6.2"
+    },
     "gwas_catalog": {
       "url": "https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-associations_ontology-annotated-full.zip",
       "last_known_version": ""

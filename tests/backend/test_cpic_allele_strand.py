@@ -87,6 +87,11 @@ EXPECTED_PLUS_STRAND: dict[str, tuple[str, str]] = {
     "rs2306283": ("A", "G"),  # *1B c.388A>G
     "rs4149056": ("T", "C"),  # *5  c.521T>C
     "rs4149015": ("G", "A"),  # *17 c.-910G>A
+    # NUDT15 (plus strand) — thiopurine myelosuppression (SW-E1)
+    "rs116855232": ("C", "T"),  # *3  c.415C>T (p.Arg139Cys); ref genome C = normal
+    # UGT1A1 (plus strand) — irinotecan/atazanavir (SW-E1)
+    "rs4148323": ("G", "A"),  # *6  c.211G>A (p.Gly71Arg); ref genome G = normal
+    # (UGT1A1 *28 rs8175347 is a TATA-box TA-repeat, not an SNV — handled as indeterminate)
 }
 
 # Single-base rows that are NOT verifiable plus-strand SNVs and are intentionally

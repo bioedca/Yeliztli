@@ -65,3 +65,12 @@ SLCO1B1,*5/*5,Poor function,SLCO1B1 Poor function,1.0
 SLCO1B1,*1A/*1B,Normal function,SLCO1B1 Normal function,1.75
 SLCO1B1,*1A/*15,Decreased function,SLCO1B1 Decreased function,1.25
 SLCO1B1,*1B/*5,Decreased function,SLCO1B1 Decreased function,1.25
+NUDT15,*1/*1,Normal Metabolizer,NUDT15 Normal Metabolizer,2.0
+NUDT15,*1/*3,Intermediate Metabolizer,NUDT15 Intermediate Metabolizer,1.0
+NUDT15,*3/*3,Poor Metabolizer,NUDT15 Poor Metabolizer,0.0
+UGT1A1,*1/*1,Normal Metabolizer,UGT1A1 Normal Metabolizer,2.0
+UGT1A1,*1/*6,Intermediate Metabolizer,UGT1A1 Intermediate Metabolizer,1.5
+UGT1A1,*1/*28,Intermediate Metabolizer,UGT1A1 Intermediate Metabolizer,1.5
+UGT1A1,*6/*6,Poor Metabolizer,UGT1A1 Poor Metabolizer,1.0
+UGT1A1,*6/*28,Poor Metabolizer,UGT1A1 Poor Metabolizer,1.0
+UGT1A1,*28/*28,Poor Metabolizer,UGT1A1 Poor Metabolizer,1.0
