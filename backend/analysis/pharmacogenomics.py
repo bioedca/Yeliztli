@@ -95,6 +95,7 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
 # drives isoniazid hepatotoxicity advice, so the inference must be surfaced rather
 # than presented as a directly phased result (issue #40).
 _PHASE_INFERENCE_GENES: frozenset[str] = frozenset({"NAT2"})
+_TPMT_STAR3A_PHASE_RSIDS: frozenset[str] = frozenset({"rs1800460", "rs1142345"})
 
 # Gene-specific interpretive caveats attached to prescribing-alert findings
 # (detail_json["gene_caveat"]) and surfaced by the pharma route. Context only —
@@ -434,6 +435,19 @@ def _assess_call_confidence(
     return (CallConfidence.COMPLETE, "All defining positions assessed.")
 
 
+def _is_tpmt_star3a_phase_ambiguous(
+    gene: str,
+    diplotype: str,
+    observed_alt_counts: dict[str, int],
+) -> bool:
+    """Return True when unphased TPMT data cannot distinguish *1/*3A from *3B/*3C."""
+    return (
+        gene == "TPMT"
+        and diplotype == "*1/*3A"
+        and all(observed_alt_counts.get(rsid) == 1 for rsid in _TPMT_STAR3A_PHASE_RSIDS)
+    )
+
+
 def call_star_alleles_for_gene(
     gene: str,
     alleles: list[dict],
@@ -498,6 +512,7 @@ def call_star_alleles_for_gene(
                 uncalled_rsids.add(rsid)
             else:
                 remaining_alts[rsid] = alt_count
+    observed_alt_counts = remaining_alts.copy()
 
     # Sort non-ref alleles: most defining variants first (most specific),
     # then alphabetically for deterministic results
@@ -588,6 +603,22 @@ def call_star_alleles_for_gene(
             "configuration is assumed per standard NAT2 SNP-panel inference, but phase "
             "was not directly determined and a cis configuration could instead yield an "
             "intermediate phenotype. Treat the acetylator status as a SNP-panel inference."
+        )
+        confidence_note = f"{confidence_note} {phase_note}".strip()
+        if call_confidence == CallConfidence.COMPLETE:
+            call_confidence = CallConfidence.PARTIAL
+
+    # TPMT issue #60: a double heterozygote at the two TPMT*3 loci is not an
+    # unambiguous *1/*3A call from unphased SNP data. The same observed genotype
+    # can be cis (*1/*3A, Intermediate) or trans (*3B/*3C, Poor), so keep the
+    # CPIC-compatible greedy label for lookup but downgrade confidence and surface
+    # the possible Poor Metabolizer configuration.
+    if _is_tpmt_star3a_phase_ambiguous(gene, diplotype, observed_alt_counts):
+        phase_note = (
+            "TPMT *1/*3A is inferred from two heterozygous *3-defining variants "
+            "in unphased SNP genotypes; the same observed genotype can also "
+            "represent TPMT *3B/*3C (possible Poor Metabolizer). Phase was not "
+            "directly determined, so treat the thiopurine phenotype as provisional."
         )
         confidence_note = f"{confidence_note} {phase_note}".strip()
         if call_confidence == CallConfidence.COMPLETE:

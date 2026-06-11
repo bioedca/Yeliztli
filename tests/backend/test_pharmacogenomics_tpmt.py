@@ -127,6 +127,38 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
         assert alert.phenotype == "Intermediate Metabolizer"
 
 
+def test_star3a_double_het_is_phase_ambiguous(reference_engine: sa.Engine) -> None:
+    """Double-het TPMT*3 markers are not an unambiguous *1/*3A call (issue #60)."""
+    result = _call_tpmt(
+        reference_engine,
+        _tpmt_genotypes(rs1800460="CT", rs1142345="TC"),
+    )
+    assert result.diplotype == "*1/*3A"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "*3B/*3C" in result.confidence_note
+    assert "Poor Metabolizer" in result.confidence_note
+    assert "unphased" in result.confidence_note
+
+
+def test_star3a_double_het_alert_carries_phase_caveat(reference_engine: sa.Engine) -> None:
+    """The thiopurine alert keeps firing, but no longer as a Complete *1/*3A call."""
+    sample = _make_sample(_tpmt_genotypes(rs1800460="CT", rs1142345="TC"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    tpmt_alerts = [a for a in alerts if a.gene == "TPMT"]
+    assert tpmt_alerts, "expected TPMT alerts for phase-ambiguous *3 double het"
+    drugs = {a.drug for a in tpmt_alerts}
+    assert {"azathioprine", "mercaptopurine"} <= drugs
+    for alert in tpmt_alerts:
+        assert alert.diplotype == "*1/*3A"
+        assert alert.phenotype == "Intermediate Metabolizer"
+        assert alert.call_confidence == CallConfidence.PARTIAL
+        assert "*3B/*3C" in alert.confidence_note
+        assert "Poor Metabolizer" in alert.confidence_note
+
+
 # Issue #12: no-function / no-function diplotypes that the greedy star-allele
 # caller can reach but which had no cpic_diplotypes.csv row, so they resolved to
 # phenotype=None and were silently skipped by generate_prescribing_alerts(). Two
@@ -134,8 +166,8 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
 # et al. Clin Pharmacol Ther 2019, PMID 30447069), the highest-toxicity group.
 # Each tuple is (expected diplotype, plus-strand genotype overrides) and was
 # verified to be produced by call_star_alleles_for_gene over the production CSVs.
-# *3B/*3C is intentionally absent: the caller assigns the 2-variant *3A first, so
-# a double-het at rs1800460+rs1142345 is called *1/*3A, never *3B/*3C.
+# *3B/*3C is absent from this reachable-diplotype list because the caller assigns
+# the 2-variant *3A first; the resulting *1/*3A call is phase-flagged above.
 _TPMT_POOR_METABOLIZERS = [
     ("*2/*2", {"rs1800462": "GG"}),
     ("*2/*3A", {"rs1800462": "CG", "rs1800460": "CT", "rs1142345": "TC"}),

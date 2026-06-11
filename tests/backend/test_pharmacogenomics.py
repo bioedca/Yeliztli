@@ -736,14 +736,18 @@ class TestCallStarAllelesCYP2D6:
 
 class TestMultiVariantAlleles:
     def test_tpmt_star3a_het(self, pgx_reference_engine: sa.Engine):
-        """Both *3A defining variants het → *1/*3A (most specific wins)."""
+        """Both *3A defining variants het → phase-ambiguous *1/*3A."""
         alleles = _fetch_alleles_for_gene("TPMT", pgx_reference_engine)
         genotypes = {"rs1800460": "CT", "rs1142345": "CT"}
 
         result = call_star_alleles_for_gene("TPMT", alleles, genotypes, pgx_reference_engine)
-        # *3A is most specific (2 variants), gets priority over *3B or *3C
+        # *3A is most specific (2 variants), but unphased data cannot distinguish
+        # cis *1/*3A from trans *3B/*3C.
         assert result.diplotype == "*1/*3A"
         assert result.phenotype == "Intermediate Metabolizer"
+        assert result.call_confidence == CallConfidence.PARTIAL
+        assert "*3B/*3C" in result.confidence_note
+        assert "Poor Metabolizer" in result.confidence_note
 
     def test_tpmt_star3b_only(self, pgx_reference_engine: sa.Engine):
         """Only rs1800460 het, rs1142345 ref → *1/*3B."""
