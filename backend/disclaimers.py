@@ -112,7 +112,7 @@ genetic risk factor for Parkinson's disease.
 
 - Carrying LRRK2 G2019S does NOT mean you will develop Parkinson's disease. \
 Penetrance is reduced and age-dependent — lifetime risk for carriers is \
-estimated at roughly 25-42.5% by age 80, so most carriers never develop the \
+estimated at roughly 25-49% by age 80, so most carriers never develop the \
 disease. A positive result is not a diagnosis or a prediction.
 
 - There is no proven way to prevent Parkinson's disease, and a positive result \

@@ -1,7 +1,7 @@
 {
   "module": "gene_health",
   "version": "1.0.0",
-  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to APOE, Allergy, Methylation, Nutrigenomics, and Traits modules.",
+  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to APOE, Allergy, Methylation, Nutrigenomics, Parkinson's, and Traits modules.",
   "evidence_cap": null,
   "module_disclaimer": "Gene Health findings are based on published genetic association studies and ClinVar pathogenic classifications. Results indicate statistical associations, not diagnoses. Many conditions have complex environmental and lifestyle components. Consult a healthcare provider or genetic counselor for clinical interpretation.",
   "pathways": [
@@ -114,21 +114,25 @@
               "effect_summary": "No LRRK2 G2019S variant detected. Baseline population risk for Parkinson's disease at this locus."
             },
             "GA": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous LRRK2 G2019S. This is the most common genetic cause of familial Parkinson's disease. Penetrance is age-dependent: approximately 28% by age 59, 51% by age 69, and 74% by age 79."
+              "category": "Moderate",
+              "effect_summary": "Heterozygous LRRK2 G2019S. This is a reduced-penetrance Parkinson's disease risk factor, not a diagnosis or prediction. Lifetime risk for carriers is estimated at roughly 25-49% by age 80 across recent cohorts, so most carriers never develop Parkinson's disease. Risk varies by ancestry, family ascertainment, polygenic background, and other modifiers; see the gated Parkinson's module for full context."
             },
             "AG": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous LRRK2 G2019S. This is the most common genetic cause of familial Parkinson's disease. Penetrance is age-dependent: approximately 28% by age 59, 51% by age 69, and 74% by age 79."
+              "category": "Moderate",
+              "effect_summary": "Heterozygous LRRK2 G2019S. This is a reduced-penetrance Parkinson's disease risk factor, not a diagnosis or prediction. Lifetime risk for carriers is estimated at roughly 25-49% by age 80 across recent cohorts, so most carriers never develop Parkinson's disease. Risk varies by ancestry, family ascertainment, polygenic background, and other modifiers; see the gated Parkinson's module for full context."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous LRRK2 G2019S. Very rare genotype. High risk of Parkinson's disease with increased kinase activity. Clinical presentation is typically similar to idiopathic Parkinson's disease."
+              "category": "Moderate",
+              "effect_summary": "Two LRRK2 G2019S alleles detected. This genotype is very rare, and array results should be clinically confirmed. Treat as a reduced-penetrance Parkinson's disease risk finding, not a diagnosis or prediction; see the gated Parkinson's module for full context."
             }
           },
-          "evidence_level": 4,
-          "pmids": ["15541309", "18322019", "30957308"],
-          "recommendation_text": "LRRK2 G2019S is the most common cause of autosomal dominant Parkinson's disease, found in ~1-2% of sporadic and ~5% of familial cases. Carriers should discuss screening and monitoring with a neurologist. Clinical trials targeting LRRK2 kinase inhibitors are active. Genetic counseling is recommended for family planning."
+          "evidence_level": 2,
+          "pmids": ["26062626", "28639421", "38804604"],
+          "recommendation_text": "LRRK2 G2019S is a real Parkinson's disease risk factor, but penetrance is incomplete and modifier-dependent. Review this result in the gated Parkinson's module and consider genetic counseling or clinical confirmation before making medical or family-planning decisions.",
+          "cross_module": {
+            "module": "parkinsons",
+            "note": "This reduced-penetrance Parkinson's disease risk variant is interpreted more cautiously in the gated Parkinson's module."
+          }
         },
         {
           "rsid": "rs76763715",
@@ -1319,6 +1323,11 @@
       "description": "FTO rs9939609 relates to both obesity risk and nutrigenomic findings"
     },
     {
+      "to_module": "parkinsons",
+      "link_type": "sensitive_condition_detail",
+      "description": "LRRK2 G2019S is interpreted with reduced-penetrance ethical framing in the gated Parkinson's module"
+    },
+    {
       "to_module": "traits",
       "link_type": "phenotype_correlation",
       "description": "ADHD canonical finding here, cross-linked from Traits module"
@@ -1356,6 +1365,6 @@
     "elevated_requires_genotype": "clinically_meaningful",
     "pathway_level_determination": "highest_category_across_snps",
     "condition_grouping": "SNPs are grouped by disease condition within each pathway. Each condition may have multiple contributing variants. Pathway-level status reflects the highest-risk condition within that pathway.",
-    "cross_module_deduplication": "Shared variants (rs429358, rs9939609, rs1801133, rs747302) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module) and rs9939609 (canonical in Nutrigenomics module)."
+    "cross_module_deduplication": "Shared variants (rs429358, rs9939609, rs1801133, rs747302, rs34637584) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module), rs9939609 (canonical in Nutrigenomics module), and rs34637584 (canonical in the gated Parkinson's module)."
   }
 }

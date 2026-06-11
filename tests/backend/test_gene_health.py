@@ -36,6 +36,7 @@ from backend.analysis.gene_health import (
     store_gene_health_findings,
     update_annotation_coverage_gwas,
 )
+from backend.analysis.parkinsons import load_parkinsons_panel
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import (
     annotated_variants,
@@ -122,7 +123,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs429358", "19", 44908684, "TC"),  # APOE e4 det het -> Elevated
     ("rs3764650", "19", 1046520, "TG"),  # ABCA7 het -> Moderate
     ("rs11136000", "8", 27464519, "CT"),  # CLU het -> Moderate
-    ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Elevated
+    ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Moderate/gated
     ("rs76763715", "1", 155205634, "CT"),  # GBA N370S het -> Elevated
     ("rs356219", "4", 90626111, "AG"),  # SNCA het -> Moderate
     ("rs3135388", "6", 32408274, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
@@ -205,8 +206,7 @@ class TestPanelLoading:
                     assert effect["category"] in (ELEVATED, MODERATE, STANDARD)
 
     def test_cross_module_links_present(self, panel: GeneHealthPanel) -> None:
-        """Cross-links: rs429358->apoe, rs9939609->nutrigenomics, rs1801133->methylation,
-        rs747302->traits, rs6822844->allergy."""
+        """Cross-links: APOE, nutrigenomics, methylation, traits, allergy, Parkinson's."""
         cross_modules: dict[str, str] = {}
         for pathway in panel.pathways:
             for snp in pathway.snps:
@@ -218,6 +218,7 @@ class TestPanelLoading:
         assert cross_modules.get("rs1801133") == "methylation"
         assert cross_modules.get("rs747302") == "traits"
         assert cross_modules.get("rs6822844") == "allergy"
+        assert cross_modules.get("rs34637584") == "parkinsons"
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -351,6 +352,30 @@ class TestSNPScoring:
         result = _score_snp(snp, "delG/G")
         assert result.category == MODERATE
         assert result.present_in_sample is True
+
+    def test_lrrk2_g2019s_uses_gated_reduced_penetrance_framing(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """Gene Health must not diverge from the gated Parkinson's LRRK2 framing."""
+        snp = self._get_snp(panel, "rs34637584")
+        parkinsons_model = load_parkinsons_panel().genotype_models[0]
+
+        assert snp.evidence_level == parkinsons_model.evidence_stars == 2
+        assert snp.cross_module is not None
+        assert snp.cross_module["module"] == "parkinsons"
+
+        lrrk2_text = " ".join(
+            [snp.recommendation_text, snp.cross_module["note"]]
+            + [effect["effect_summary"] for effect in snp.genotype_effects.values()]
+        )
+        assert "25-49% by age 80" in lrrk2_text
+        assert "25-49% by age 80" in parkinsons_model.finding_text
+        assert "74%" not in lrrk2_text
+        assert "age 79" not in lrrk2_text
+
+        for genotype in ("GA", "AG", "AA"):
+            result = _score_snp(snp, genotype)
+            assert result.category == MODERATE
 
 
 # -- Pathway level determination tests ----------------------------------------

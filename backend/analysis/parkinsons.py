@@ -8,7 +8,7 @@ opt-in gate** (see :mod:`backend.api.routes.parkinsons`) and stored at
 high-confidence section (which filters ``evidence_level >= 3``).
 
 Honesty / ethics guardrails (§12.6, §12.10):
-  - **Reduced, age-dependent penetrance** — ~25-42.5% lifetime risk by age 80;
+  - **Reduced, age-dependent penetrance** — ~25-49% lifetime risk by age 80;
     most carriers never develop Parkinson's. A positive call is never a diagnosis
     or a prediction.
   - **No preventive treatment** — there is no proven prevention, so the result is
