@@ -316,6 +316,7 @@ class TestPRSWeightSets:
     ) -> None:
         """Bundled traits PRS reference params are placeholders, so percentile
         output must stay withheld until calibrated distributions are supplied."""
+        assert panel_data["prs_weight_sets"]
         for ws in panel_data["prs_weight_sets"]:
             assert ws["calibrated"] is False, (
                 f"Weight set '{ws['name']}' must not expose placeholder percentiles"

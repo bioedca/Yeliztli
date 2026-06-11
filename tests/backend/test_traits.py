@@ -394,6 +394,7 @@ class TestPRSIntegration:
 
     def test_bundled_prs_weight_sets_are_uncalibrated(self, panel: TraitsPanel) -> None:
         weight_sets = _load_prs_weight_sets(panel)
+        assert weight_sets
         for ws in weight_sets:
             assert ws.calibrated is False
 
