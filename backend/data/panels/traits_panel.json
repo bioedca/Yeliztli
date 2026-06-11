@@ -259,6 +259,8 @@
       "sample_size": 3037499,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) is marked uncalibrated for this exact traits PRS subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #21). Supply a calibrated or analytically-derived reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "research_use_only": true,
       "evidence_cap": 2,
       "weights": [
@@ -293,6 +295,8 @@
       "sample_size": 269867,
       "reference_mean": 0.0,
       "reference_std": 1.0,
+      "calibrated": false,
+      "calibration_note": "Placeholder reference distribution (mean=0/std=1) is marked uncalibrated for this exact traits PRS subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #21). Supply a calibrated or analytically-derived reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "research_use_only": true,
       "evidence_cap": 2,
       "weights": [

@@ -418,6 +418,10 @@ def _load_prs_weight_sets(panel: TraitsPanel) -> list[PRSWeightSet]:
                 weights=weights,
                 reference_mean=ws_data["reference_mean"],
                 reference_std=ws_data["reference_std"],
+                # Conservative default: bundled traits PRS sets are treated as
+                # uncalibrated unless they explicitly declare a validated
+                # reference distribution for this exact score (issue #21).
+                calibrated=ws_data.get("calibrated", False),
             )
         )
 

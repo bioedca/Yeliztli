@@ -731,6 +731,7 @@ def store_prs_findings(
             "snps_strand_flipped": r.snps_strand_flipped,
             "snps_unresolved": r.snps_unresolved,
             "calibrated": r.calibrated,
+            "percentile": r.percentile,
             "z_score": r.z_score,
             "bootstrap_ci_lower": r.bootstrap_ci_lower,
             "bootstrap_ci_upper": r.bootstrap_ci_upper,

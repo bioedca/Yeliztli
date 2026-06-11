@@ -26,6 +26,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.evidence import TRAITS_EVIDENCE_CAP
+from backend.analysis.prs import run_prs
 from backend.analysis.traits import (
     ELEVATED,
     MODERATE,
@@ -390,6 +391,38 @@ class TestPRSIntegration:
         weight_sets = _load_prs_weight_sets(panel)
         for ws in weight_sets:
             assert ws.source_ancestry == "EUR"
+
+    def test_bundled_prs_weight_sets_are_uncalibrated(self, panel: TraitsPanel) -> None:
+        weight_sets = _load_prs_weight_sets(panel)
+        for ws in weight_sets:
+            assert ws.calibrated is False
+
+    def test_uncalibrated_traits_prs_withholds_percentile(
+        self, panel: TraitsPanel, sample_engine: sa.Engine
+    ) -> None:
+        ws = _load_prs_weight_sets(panel)[0]
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": weight.rsid,
+                        "chrom": "1",
+                        "pos": idx,
+                        "genotype": weight.effect_allele * 2,
+                    }
+                    for idx, weight in enumerate(ws.weights, start=1)
+                ],
+            )
+
+        result = run_prs(ws, sample_engine, n_bootstrap=25, rng_seed=1)
+
+        assert result.is_sufficient is True
+        assert result.calibrated is False
+        assert result.raw_score > 0
+        assert result.percentile is None
+        assert result.z_score is None
+        assert result.has_bootstrap_ci is False
 
 
 # ── Cross-module finding tests ───────────────────────────────────────────
@@ -790,6 +823,49 @@ class TestStoreFindingsIntegration:
         assert row is not None
         pmids = json.loads(row.pmid_citations)
         assert "29942085" in pmids
+
+    def test_uncalibrated_prs_findings_store_no_percentile(
+        self,
+        panel: TraitsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        ws = _load_prs_weight_sets(panel)[0]
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": weight.rsid,
+                        "chrom": "1",
+                        "pos": idx,
+                        "genotype": weight.effect_allele * 2,
+                    }
+                    for idx, weight in enumerate(ws.weights, start=1)
+                ],
+            )
+
+        result = score_traits_pathways(panel, sample_engine, reference_engine)
+        store_traits_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "prs",
+                        findings.c.prs_score.is_not(None),
+                    )
+                )
+            ).first()
+
+        assert row is not None
+        assert row.prs_percentile is None
+        assert "uncalibrated" in row.finding_text.lower()
+        detail = json.loads(row.detail_json)
+        assert detail["calibrated"] is False
+        assert detail["percentile"] is None
+        assert detail["z_score"] is None
 
 
 # ── PathwayResult properties ────────────────────────────────────────────

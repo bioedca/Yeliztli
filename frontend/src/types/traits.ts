@@ -85,6 +85,7 @@ export interface TraitsPRS {
   ancestry_mismatch: boolean
   ancestry_warning_text: string | null
   is_sufficient: boolean
+  calibrated: boolean
   research_use_only: boolean
   evidence_level: number
 }

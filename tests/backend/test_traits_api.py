@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -144,12 +145,12 @@ PRS_FINDINGS = [
         "finding_text": "Educational Attainment PRS — 62nd percentile",
         "pathway": "Cognitive Traits",
         "pathway_level": None,
+        "prs_percentile": 62.3,
         "pmid_citations": json.dumps(["35361970"]),
         "detail_json": json.dumps(
             {
                 "trait": "educational_attainment",
                 "name": "Educational Attainment",
-                "percentile": 62.3,
                 "z_score": 0.31,
                 "bootstrap_ci_lower": 48.1,
                 "bootstrap_ci_upper": 74.5,
@@ -161,6 +162,7 @@ PRS_FINDINGS = [
                 "ancestry_mismatch": False,
                 "ancestry_warning_text": None,
                 "is_sufficient": True,
+                "calibrated": True,
                 "research_use_only": True,
             }
         ),
@@ -174,6 +176,7 @@ PRS_FINDINGS = [
         "finding_text": "Cognitive Ability PRS — Insufficient coverage",
         "pathway": "Cognitive Traits",
         "pathway_level": None,
+        "prs_percentile": None,
         "pmid_citations": json.dumps([]),
         "detail_json": json.dumps(
             {
@@ -191,6 +194,7 @@ PRS_FINDINGS = [
                 "ancestry_mismatch": True,
                 "ancestry_warning_text": "PRS derived from EUR cohort; may be less predictive.",
                 "is_sufficient": False,
+                "calibrated": False,
                 "research_use_only": True,
             }
         ),
@@ -277,7 +281,12 @@ def _env(tmp_path: Path) -> Generator[tuple[sa.Engine, sa.Engine], None, None]:
     reset_registry()
     registry = DBRegistry(settings)
 
-    with patch("backend.api.routes.traits.get_registry", return_value=registry):
+    with ExitStack() as stack:
+        stack.enter_context(patch("backend.api.routes.traits.get_registry", return_value=registry))
+        stack.enter_context(patch("backend.api.dependencies.get_registry", return_value=registry))
+        stack.enter_context(
+            patch("backend.services.staleness.get_registry", return_value=registry)
+        )
         yield sample_engine, ref_engine
 
     reset_registry()
@@ -311,7 +320,8 @@ def seeded_client(
         ]
     )
     with sample_engine.begin() as conn:
-        conn.execute(sa.insert(findings), all_findings)
+        for finding in all_findings:
+            conn.execute(sa.insert(findings), finding)
 
     from fastapi import FastAPI
 
@@ -425,6 +435,7 @@ class TestPRS:
         assert ea["bootstrap_ci_lower"] == pytest.approx(48.1)
         assert ea["bootstrap_ci_upper"] == pytest.approx(74.5)
         assert ea["ancestry_mismatch"] is False
+        assert ea["calibrated"] is True
 
     def test_prs_insufficient_item(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/traits/prs?sample_id=1")
@@ -433,6 +444,14 @@ class TestPRS:
         assert ca["is_sufficient"] is False
         assert ca["ancestry_mismatch"] is True
         assert ca["ancestry_warning_text"] is not None
+        assert ca["calibrated"] is False
+
+    def test_prs_percentile_does_not_fall_back_to_z_score(self, seeded_client: TestClient) -> None:
+        resp = seeded_client.get("/api/analysis/traits/prs?sample_id=1")
+        data = resp.json()
+        ea = next(i for i in data["items"] if i["trait"] == "educational_attainment")
+        assert ea["z_score"] == pytest.approx(0.31)
+        assert ea["percentile"] == pytest.approx(62.3)
 
     def test_prs_evidence_cap(self, seeded_client: TestClient) -> None:
         """All PRS evidence levels must be <= 2 (★★☆☆ cap).

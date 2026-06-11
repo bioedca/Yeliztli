@@ -81,6 +81,7 @@ class PRSFinding(BaseModel):
     ancestry_mismatch: bool = False
     ancestry_warning_text: str | None = None
     is_sufficient: bool = True
+    calibrated: bool = True
     research_use_only: bool = True
     evidence_level: int = 1
 
@@ -201,6 +202,7 @@ def _fetch_traits_findings(
                 "finding_text": row.finding_text,
                 "pathway": row.pathway,
                 "pathway_level": row.pathway_level,
+                "prs_percentile": row.prs_percentile,
                 "pmids": pmids,
                 "detail": detail,
             }
@@ -390,7 +392,7 @@ def list_prs(
             PRSFinding(
                 trait=detail.get("trait", ""),
                 name=detail.get("name", ""),
-                percentile=detail.get("percentile") or detail.get("z_score"),
+                percentile=detail.get("percentile", pf.get("prs_percentile")),
                 z_score=detail.get("z_score"),
                 bootstrap_ci_lower=detail.get("bootstrap_ci_lower"),
                 bootstrap_ci_upper=detail.get("bootstrap_ci_upper"),
@@ -402,6 +404,7 @@ def list_prs(
                 ancestry_mismatch=detail.get("ancestry_mismatch", False),
                 ancestry_warning_text=detail.get("ancestry_warning_text"),
                 is_sufficient=detail.get("is_sufficient", True),
+                calibrated=detail.get("calibrated", True),
                 research_use_only=detail.get("research_use_only", True),
                 evidence_level=pf["evidence_level"] or 1,
             )

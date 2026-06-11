@@ -143,6 +143,16 @@ export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
             )}
           </div>
         </div>
+      ) : !prs.calibrated ? (
+        <div
+          className="flex items-center justify-center py-6 mb-3"
+          data-testid="traits-prs-uncalibrated"
+        >
+          <p className="text-sm text-muted-foreground italic text-center px-2">
+            Percentile not reported — reference distribution unavailable
+            (uncalibrated)
+          </p>
+        </div>
       ) : (
         <div className="flex items-center justify-center py-6 mb-3">
           <p className="text-sm text-muted-foreground italic">

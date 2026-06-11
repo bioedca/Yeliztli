@@ -61,6 +61,7 @@ const SUFFICIENT_PRS: TraitsPRS = {
   ancestry_mismatch: false,
   ancestry_warning_text: null,
   is_sufficient: true,
+  calibrated: true,
   research_use_only: true,
   evidence_level: 2,
 }
@@ -80,6 +81,27 @@ const INSUFFICIENT_PRS: TraitsPRS = {
   ancestry_mismatch: false,
   ancestry_warning_text: null,
   is_sufficient: false,
+  calibrated: true,
+  research_use_only: true,
+  evidence_level: 2,
+}
+
+const UNCALIBRATED_PRS: TraitsPRS = {
+  trait: "educational_attainment",
+  name: "Educational Attainment",
+  percentile: null,
+  z_score: null,
+  bootstrap_ci_lower: null,
+  bootstrap_ci_upper: null,
+  source_ancestry: "EUR",
+  source_study: "Okbay 2022",
+  snps_used: 95,
+  snps_total: 100,
+  coverage_fraction: 0.95,
+  ancestry_mismatch: false,
+  ancestry_warning_text: null,
+  is_sufficient: true,
+  calibrated: false,
   research_use_only: true,
   evidence_level: 2,
 }
@@ -99,6 +121,7 @@ const MISMATCH_PRS: TraitsPRS = {
   ancestry_mismatch: true,
   ancestry_warning_text: "PRS weights derived from EUR populations — results may not generalize to other ancestries.",
   is_sufficient: true,
+  calibrated: true,
   research_use_only: true,
   evidence_level: 2,
 }
@@ -289,6 +312,12 @@ describe("TraitsPRSGaugeCard", () => {
   it("shows insufficient coverage message for insufficient PRS", () => {
     render(<TraitsPRSGaugeCard prs={INSUFFICIENT_PRS} />)
     expect(screen.getByText("Insufficient SNP coverage (30%)")).toBeInTheDocument()
+  })
+
+  it("shows uncalibrated message when calibrated is false", () => {
+    render(<TraitsPRSGaugeCard prs={UNCALIBRATED_PRS} />)
+    expect(screen.getByTestId("traits-prs-uncalibrated")).toBeInTheDocument()
+    expect(screen.getByText(/reference distribution unavailable/)).toBeInTheDocument()
   })
 
   it("shows ancestry mismatch warning when applicable", () => {

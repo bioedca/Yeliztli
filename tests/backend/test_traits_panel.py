@@ -279,6 +279,7 @@ class TestPRSWeightSets:
             "sample_size",
             "reference_mean",
             "reference_std",
+            "calibrated",
             "weights",
         }
         for ws in panel_data["prs_weight_sets"]:
@@ -309,6 +310,17 @@ class TestPRSWeightSets:
             assert ws.get("research_use_only") is True, (
                 f"Weight set '{ws['name']}' missing research_use_only=true"
             )
+
+    def test_weight_sets_are_uncalibrated_until_reference_distribution_exists(
+        self, panel_data: dict
+    ) -> None:
+        """Bundled traits PRS reference params are placeholders, so percentile
+        output must stay withheld until calibrated distributions are supplied."""
+        for ws in panel_data["prs_weight_sets"]:
+            assert ws["calibrated"] is False, (
+                f"Weight set '{ws['name']}' must not expose placeholder percentiles"
+            )
+            assert "marked uncalibrated" in ws["calibration_note"]
 
     def test_weight_sets_evidence_capped(self, panel_data: dict) -> None:
         """PRS weight sets must respect the ★★☆☆ evidence cap."""
