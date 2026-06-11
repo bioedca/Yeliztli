@@ -93,24 +93,45 @@ def test_nat2_reference_is_rapid(reference_engine: sa.Engine) -> None:
     assert result.call_confidence == CallConfidence.COMPLETE
 
 
-def test_nat2_single_slow_is_intermediate(reference_engine: sa.Engine) -> None:
-    # Heterozygous *5 (341T>C), rest reference → *4/*5 Intermediate.
+def test_nat2_single_slow_is_intermediate_complete(reference_engine: sa.Engine) -> None:
+    # One heterozygous slow marker → *4/*5; the slow variant is unambiguously
+    # opposite NAT2*4, so the call is COMPLETE (no phase ambiguity).
     result = _call("NAT2", _nat2_geno(rs1801280="TC"), reference_engine)
     assert result.diplotype == "*4/*5"
     assert result.phenotype == "Intermediate Acetylator"
+    assert result.call_confidence == CallConfidence.COMPLETE
 
 
-def test_nat2_two_slow_in_trans_is_slow(reference_engine: sa.Engine) -> None:
-    # Het *5 (341T>C) + het *6 (590G>A) → *5/*6 Slow (unphased trans assumption).
+def test_nat2_two_slow_in_trans_is_slow_but_phase_ambiguous(
+    reference_engine: sa.Engine,
+) -> None:
+    # Het *5 (341T>C) + het *6 (590G>A) → *5/*6 Slow under the unphased trans
+    # assumption, but the all-cis alternative (*4 / [*5+*6]) → Intermediate cannot
+    # be excluded without phasing (#40), so the call is flagged PARTIAL.
     result = _call("NAT2", _nat2_geno(rs1801280="TC", rs1799930="GA"), reference_engine)
     assert result.diplotype == "*5/*6"
     assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "phase-ambiguous" in result.confidence_note.lower()
+    assert "intermediate acetylator" in result.confidence_note.lower()
 
 
-def test_nat2_homozygous_slow_is_slow(reference_engine: sa.Engine) -> None:
+def test_nat2_homozygous_slow_is_slow_unambiguous(reference_engine: sa.Engine) -> None:
+    # A homozygous slow marker fixes a slow variant on BOTH haplotypes, so the
+    # Slow call is phase-unambiguous (no PARTIAL downgrade, no phase note).
     result = _call("NAT2", _nat2_geno(rs1799930="AA"), reference_engine)
     assert result.diplotype == "*6/*6"
     assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "phase-ambiguous" not in result.confidence_note.lower()
+
+
+def test_nat2_hom_slow_plus_het_slow_is_unambiguous(reference_engine: sa.Engine) -> None:
+    # Hom *6 + het *5: the homozygous slow marker already guarantees both
+    # haplotypes are slow, so adding a het slow marker stays unambiguous Slow.
+    result = _call("NAT2", _nat2_geno(rs1799930="AA", rs1801280="TC"), reference_engine)
+    assert result.phenotype == "Slow Acetylator"
+    assert "phase-ambiguous" not in result.confidence_note.lower()
 
 
 def test_nat2_slow_emits_isoniazid_alert(reference_engine: sa.Engine) -> None:
@@ -119,6 +140,19 @@ def test_nat2_slow_emits_isoniazid_alert(reference_engine: sa.Engine) -> None:
     alerts = generate_prescribing_alerts(results, reference_engine)
     iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
     assert iso and iso[0].phenotype == "Slow Acetylator"
+
+
+def test_nat2_phase_ambiguous_alert_carries_caveat(reference_engine: sa.Engine) -> None:
+    # The phase ambiguity must propagate to the isoniazid alert (PARTIAL + note),
+    # so the hepatotoxicity advice is not presented as an unqualified Slow call.
+    sample = _make_sample(_nat2_geno(rs1801280="TC", rs1799930="GA"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NAT2"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
+    assert iso
+    assert iso[0].phenotype == "Slow Acetylator"
+    assert iso[0].call_confidence == CallConfidence.PARTIAL
+    assert "phase-ambiguous" in iso[0].confidence_note.lower()
 
 
 # ── CYP2B6 efavirenz (structural-variant gene → PARTIAL) ──────────────────────

@@ -489,6 +489,10 @@ def call_star_alleles_for_gene(
             else:
                 remaining_alts[rsid] = alt_count
 
+    # Snapshot per-marker alt dosage before the greedy loop consumes it (used by
+    # the NAT2 phase-ambiguity guard below; keys are non-reference defining rsids).
+    marker_alt_counts = dict(remaining_alts)
+
     # Sort non-ref alleles: most defining variants first (most specific),
     # then alphabetically for deterministic results
     non_ref_alleles.sort(key=lambda a: (-len(a["defining_variants"]), a["allele_name"]))
@@ -557,6 +561,31 @@ def call_star_alleles_for_gene(
             f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
             "defining variant(s) or structural/copy-number state not assayed on this array."
         ).strip()
+
+    # NAT2 phase-ambiguity guard (#40): a SNP array is unphased, so two or more
+    # distinct heterozygous slow-marker SNPs with NO homozygous slow marker are
+    # placed in *trans* by the greedy caller (e.g. *5/*6 → two slow haplotypes →
+    # Slow Acetylator). But an all-*cis* phase — both slow variants on one
+    # haplotype with NAT2*4 on the other → one slow haplotype → Intermediate
+    # Acetylator — is equally consistent with the genotype and cannot be excluded
+    # without phasing. Slow status drives stronger isoniazid hepatotoxicity advice,
+    # so surface the most-likely Slow call as PARTIAL with the alternative rather
+    # than an unqualified result (Agundez 2008, PMID 18664443: ~4.9% of NAT2
+    # diplotypes are ambiguous from unphased SNP panels).
+    if gene == "NAT2" and diplo_data is not None:
+        het_slow_markers = sum(1 for c in marker_alt_counts.values() if c == 1)
+        has_hom_slow_marker = any(c >= 2 for c in marker_alt_counts.values())
+        if het_slow_markers >= 2 and not has_hom_slow_marker:
+            if call_confidence == CallConfidence.COMPLETE:
+                call_confidence = CallConfidence.PARTIAL
+            confidence_note = (
+                f"{confidence_note} Phase-ambiguous: {het_slow_markers} heterozygous "
+                "NAT2 slow-marker SNPs are unphased, so this diplotype assumes the "
+                "slow variants are in trans (two slow haplotypes → Slow Acetylator). "
+                "An all-cis configuration (both slow variants on one haplotype with "
+                "NAT2*4 on the other → Intermediate Acetylator) cannot be excluded "
+                "without phasing."
+            ).strip()
 
     return StarAlleleResult(
         gene=gene,
