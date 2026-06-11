@@ -303,6 +303,22 @@ class TestSNPScoring:
         result_ag = _score_snp(mthfr_snp, "AG")
         assert result_ga.category == result_ag.category == MODERATE
 
+    def test_fads1_rs174547_c_carrier_direction(self, panel: NutrigenomicsPanel) -> None:
+        """FADS1 rs174547 C carriers are the lower-desaturase risk direction."""
+        fads1_snp = next(snp for pw in panel.pathways for snp in pw.snps if snp.rsid == "rs174547")
+
+        tt = _score_snp(fads1_snp, "TT")
+        tc = _score_snp(fads1_snp, "TC")
+        ct = _score_snp(fads1_snp, "CT")
+        cc = _score_snp(fads1_snp, "CC")
+
+        assert fads1_snp.risk_allele == "C"
+        assert tt.category == STANDARD
+        assert tc.category == ct.category == MODERATE
+        assert cc.category == ELEVATED
+        assert "lower estimated" in cc.effect_summary.lower()
+        assert "33331250" in cc.pmids
+
 
 # ── Pathway level determination tests ────────────────────────────────────
 
@@ -464,6 +480,23 @@ class TestScorePathways:
         lactose = next(pr for pr in result.pathway_results if pr.pathway_id == "lactose")
         assert lactose.level == ELEVATED
         assert "rs4988235" in result.gwas_matched_rsids
+
+    def test_fads1_rs174547_cc_drives_omega3_elevated(
+        self,
+        panel: NutrigenomicsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Runtime scoring must not treat rs174547 CC as normal/standard."""
+        _seed_variants(sample_engine, [("rs174547", "11", 61597212, "CC")])
+
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        omega3 = next(pr for pr in result.pathway_results if pr.pathway_id == "omega_3")
+        fads1 = next(s for s in omega3.snp_results if s.rsid == "rs174547")
+
+        assert omega3.level == ELEVATED
+        assert fads1.present_in_sample is True
+        assert fads1.category == ELEVATED
 
 
 class TestStoreFindingsIntegration:

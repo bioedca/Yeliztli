@@ -299,24 +299,24 @@
           "ref_allele": "T",
           "genotype_effects": {
             "TT": {
-              "category": "Elevated",
-              "effect_summary": "Reduced FADS1 desaturase activity. Lower conversion of ALA to EPA/DHA. Dietary omega-3 intake or supplementation may be more important."
+              "category": "Standard",
+              "effect_summary": "Typical FADS1 desaturase activity relative to rs174547 C carriers."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced FADS1 desaturase activity. Intermediate conversion of ALA to EPA/DHA."
+              "effect_summary": "C-carrier pattern associated with lower estimated FADS1 desaturase activity. Direct EPA/DHA intake may be more important than relying on endogenous conversion."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced FADS1 desaturase activity. Intermediate conversion of ALA to EPA/DHA."
+              "effect_summary": "C-carrier pattern associated with lower estimated FADS1 desaturase activity. Direct EPA/DHA intake may be more important than relying on endogenous conversion."
             },
             "CC": {
-              "category": "Standard",
-              "effect_summary": "Normal FADS1 desaturase activity. Efficient conversion of ALA to EPA/DHA."
+              "category": "Elevated",
+              "effect_summary": "Reduced FADS1 desaturase activity. C carriers have lower estimated D5D/D6D activity; direct EPA/DHA intake may be more important."
             }
           },
           "evidence_level": 2,
-          "pmids": ["20686565", "24823311"],
+          "pmids": ["20686565", "24823311", "33331250"],
           "recommendation_text": "Consider direct dietary sources of EPA/DHA (fatty fish, algae-based supplements) if desaturase activity is reduced."
         },
         {
