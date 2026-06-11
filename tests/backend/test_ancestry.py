@@ -602,7 +602,7 @@ class TestInferAncestry:
         t0 = time.perf_counter()
         infer_ancestry(bundle, sample_engine)
         elapsed = time.perf_counter() - t0
-        assert elapsed < 8.0, f"Inference took {elapsed:.3f}s, expected < 8s (perf-regression guard)"
+        assert elapsed < 8.0, f"Inference took {elapsed:.3f}s, expected < 8s (regression guard)"
 
 
 # ── T3-25: EUR sample classification ────────────────────────────────────
