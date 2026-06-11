@@ -18,8 +18,10 @@ make a true call false — it means an array call at that frequency should be
 confirmed in a CLIA/accredited lab before any medical action (the same
 responsible-return framing as ``backend.analysis.return_framing.CLIA_CONFIRMATION``).
 
-The ClinGen 6-tier gene-disease-validity half of SW-A11 is deferred until the
-ClinGen public download is available; this module ships the Weedon-PPV half.
+This module ships the Weedon-PPV half of SW-A11. The companion ClinGen 6-tier
+gene-disease-validity half ships in ``backend.analysis.gene_validity`` (surfaced
+at ``GET /api/analysis/gene-validity``) — both are guardrail flags on the same
+actionable ClinVar P/LP findings and neither ever changes a classification.
 """
 
 from __future__ import annotations

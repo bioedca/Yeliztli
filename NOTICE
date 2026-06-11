@@ -20,3 +20,24 @@ Citation: Karczewski, K.J., Francioli, L.C., Tiao, G. et al.
 "gnomAD" and "Broad Institute" are trademarks of their respective owners and
 are used here solely for source attribution. Yeliztli is an independent
 project and is not affiliated with or endorsed by the Broad Institute.
+
+ClinGen (Clinical Genome Resource) — Gene-Disease Validity
+----------------------------------------------------------
+Source:   https://search.clinicalgenome.org/kb/gene-validity
+License:  CC0 1.0 (public domain dedication). ClinGen requests attribution and
+          the date accessed even though CC0 imposes no legal requirement; we
+          honor that request here.
+Scope:    Gene-disease validity classifications (Definitive / Strong / Moderate /
+          Limited / Disputed / Refuted / No Known Disease Relationship) only,
+          used as a context-only guardrail (table `clingen_gene_validity`). No
+          ClinGen logo is used.
+Accessed: 2026-06-11 (file build date stamped in the bundled snapshot).
+Citation: Strande, N.T., Riggs, E.R., Buchanan, A.H. et al. "Evaluating the
+          Clinical Validity of Gene-Disease Associations: An Evidence-Based
+          Framework Developed by the Clinical Genome Resource."
+          Am. J. Hum. Genet. 100(6), 895–906 (2017). doi:10.1016/j.ajhg.2017.04.015
+          See clinicalgenome.org for current classifications.
+
+"ClinGen" and "Clinical Genome Resource" are used here solely for source
+attribution. Yeliztli is an independent project and is not affiliated with or
+endorsed by ClinGen or the NIH.

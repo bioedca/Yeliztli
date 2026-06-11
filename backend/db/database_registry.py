@@ -334,6 +334,20 @@ DATABASES: dict[str, DatabaseInfo] = {
         build_mode="pipeline",
         target_db="reference",
     ),
+    "clingen": DatabaseInfo(
+        name="clingen",
+        display_name="ClinGen Gene-Disease Validity",
+        description=(
+            "ClinGen gene-disease validity classifications (guardrail context; CC0)"
+        ),
+        url="",
+        filename="clingen.db",
+        expected_size_bytes=1_200_000,  # ~1.1 MB committed CSV
+        required=False,
+        phase=3,
+        build_mode="pipeline",
+        target_db="reference",
+    ),
     "ancestry_pca": DatabaseInfo(
         name="ancestry_pca",
         display_name="Ancestry PCA Bundle",
@@ -450,6 +464,7 @@ _BUILD_FN_REGISTRY: dict[str, tuple[str, str]] = {
     "dbsnp": ("backend.annotation.dbsnp", "download_and_load_rsmerge"),
     "mondo_hpo": ("backend.annotation.mondo_hpo", "download_and_load_mondo_hpo"),
     "cpic": ("backend.annotation.cpic", "download_and_load_cpic"),
+    "clingen": ("backend.annotation.clingen", "download_and_load_clingen"),
 }
 
 # Cache resolved callables so each module is imported at most once.

@@ -852,6 +852,27 @@ ARRAY_CONFIDENCE_CONTEXT_ONLY = (
 )
 
 
+# ── ClinGen gene-disease validity guardrail (SW-A11 / roadmap #14) ────────────
+# Attached to the gene-validity guardrail (backend.analysis.gene_validity). ClinGen
+# gene-disease validity (Strande 2017, PMID 28552198) measures how strong the
+# evidence is that a gene causes a disease *at all* — orthogonal to a variant's
+# ACMG pathogenicity. Thaxton 2022 (PMID 34694049) shows this validity should
+# temper variant interpretation: a Pathogenic/Likely-pathogenic call in a gene
+# with only Limited/Disputed/Refuted disease validity warrants caution (such
+# variants show markedly lower observed penetrance). Guardrail only: it NEVER
+# changes a finding's classification or evidence level.
+
+GENE_VALIDITY_CONTEXT_ONLY = (
+    "ClinGen gene-disease validity (Strande 2017; context only). This reflects how "
+    "strong the evidence is that the GENE causes disease at all — not whether this "
+    "specific variant is pathogenic — and it does NOT change the finding's "
+    "classification or evidence level. A weak gene-disease validity (Limited, "
+    "Disputed, or Refuted) means a Pathogenic/Likely-pathogenic call here should be "
+    "interpreted cautiously and, if actionable, confirmed and counselled in a "
+    "clinical setting; absence of a ClinGen curation is not evidence either way."
+)
+
+
 # ── DPYD fluoropyrimidine absent-allele / fatal-toxicity caveat (SW-E5) ───────
 # Attached to every DPYD prescribing-alert finding (gene_caveat in detail_json,
 # surfaced by backend.api.routes.pharma). DPYD encodes dihydropyrimidine

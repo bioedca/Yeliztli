@@ -86,6 +86,7 @@ _REFERENCE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
         ("cpic_diplotypes", False),
         ("cpic_guidelines", False),
     ],
+    "clingen": [("clingen_gene_validity", True)],
     "gwas_catalog": [("gwas_associations", True)],
     "dbsnp": [("dbsnp_merges", True)],
     "mondo_hpo": [("gene_phenotype", True)],

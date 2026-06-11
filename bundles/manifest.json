@@ -48,6 +48,10 @@
       "url": "https://api.github.com/repos/cpicpgx/cpic-data/releases/latest",
       "last_known_version": "v1.58.0"
     },
+    "clingen": {
+      "url": "https://search.clinicalgenome.org/kb/gene-validity/download",
+      "last_known_version": "2026-06-11"
+    },
     "gwas_catalog": {
       "url": "https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-associations_ontology-annotated-full.zip",
       "last_known_version": ""

@@ -223,6 +223,30 @@ gene_phenotype = sa.Table(
     sa.Column("inheritance", sa.Text),
 )
 
+# ── ClinGen Gene-Disease Validity (SW-A11) ────────────────────────────
+
+clingen_gene_validity = sa.Table(
+    "clingen_gene_validity",
+    reference_metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("gene_symbol", sa.Text, nullable=False, index=True),
+    sa.Column("hgnc_id", sa.Text, comment="HGNC:NNN"),
+    sa.Column("disease_label", sa.Text, nullable=False),
+    sa.Column("disease_id", sa.Text, comment="MONDO id"),
+    sa.Column("moi", sa.Text, comment="mode of inheritance: AD/AR/XL/SD/MT/UD"),
+    sa.Column("sop", sa.Text, comment="ClinGen SOP version, e.g. SOP10"),
+    sa.Column(
+        "classification",
+        sa.Text,
+        nullable=False,
+        comment="Definitive|Strong|Moderate|Limited|Disputed|Refuted|"
+        "No Known Disease Relationship",
+    ),
+    sa.Column("report_url", sa.Text, comment="ClinGen online report URL"),
+    sa.Column("classification_date", sa.Text, comment="ISO-8601 timestamp"),
+    sa.Column("gcep", sa.Text, comment="Gene Curation Expert Panel"),
+)
+
 # ── CPIC Allele Definitions ───────────────────────────────────────────
 
 cpic_alleles = sa.Table(
