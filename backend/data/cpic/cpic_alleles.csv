@@ -46,3 +46,11 @@ NUDT15,*3,"[{""rsid"":""rs116855232"",""ref"":""C"",""alt"":""T""}]",No function
 UGT1A1,*1,"[]",Normal function,1.0
 UGT1A1,*6,"[{""rsid"":""rs4148323"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.5
 UGT1A1,*28,"[{""rsid"":""rs8175347"",""ref"":""TA6"",""alt"":""TA7""}]",Decreased function,0.5
+NAT2,*4,"[]",Normal function,1.0
+NAT2,*5,"[{""rsid"":""rs1801280"",""ref"":""T"",""alt"":""C""}]",Decreased function,0.0
+NAT2,*6,"[{""rsid"":""rs1799930"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.0
+NAT2,*7,"[{""rsid"":""rs1799931"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.0
+NAT2,*14,"[{""rsid"":""rs1801279"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.0
+CYP2B6,*1,"[]",Normal function,1.0
+CYP2B6,*9,"[{""rsid"":""rs3745274"",""ref"":""G"",""alt"":""T""}]",Decreased function,0.5
+CYP2B6,*6,"[{""rsid"":""rs3745274"",""ref"":""G"",""alt"":""T""},{""rsid"":""rs2279343"",""ref"":""A"",""alt"":""G""}]",Decreased function,0.5

@@ -63,6 +63,8 @@ CPIC_GENES = frozenset(
         "TPMT",
         "UGT1A1",
         "NUDT15",
+        "NAT2",
+        "CYP2B6",
     }
 )
 
