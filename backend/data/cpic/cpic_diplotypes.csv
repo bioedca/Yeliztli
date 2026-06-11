@@ -8,7 +8,7 @@ CYP2D6,*2/*2,Normal Metabolizer,CYP2D6 Normal Metabolizer,2.0
 CYP2D6,*1/*3,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,1.0
 CYP2D6,*3/*4,Poor Metabolizer,CYP2D6 Poor Metabolizer,0.0
 CYP2D6,*1/*41,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,1.5
-CYP2D6,*4/*10,Poor Metabolizer,CYP2D6 Poor Metabolizer,0.25
+CYP2D6,*4/*10,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,0.25
 CYP2D6,*10/*10,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,0.5
 CYP2D6,*1/*17,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,1.5
 CYP2D6,*17/*17,Intermediate Metabolizer,CYP2D6 Intermediate Metabolizer,1.0
