@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations, product
 from pathlib import Path
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -26,6 +27,7 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 # Partial because of structural-variant uncertainty, so this still exercises the
 # caller without making the suite combinatorially expensive.
 _MAX_EXHAUSTIVE_LOCI = 8
+_Variant = dict[str, Any]
 
 
 @pytest.fixture(scope="module")
@@ -41,7 +43,7 @@ def reference_engine() -> sa.Engine:
     return engine
 
 
-def _genotype_states(variant: dict) -> tuple[str, str, str] | None:
+def _genotype_states(variant: _Variant) -> tuple[str, str, str] | None:
     """Return {ref, het, hom-alt} genotype tokens for caller-supported variants."""
     ref = variant["ref"].upper()
     alt = variant["alt"].upper()
@@ -57,8 +59,17 @@ def _genotype_states(variant: dict) -> tuple[str, str, str] | None:
     return None
 
 
-def _defining_variants(gene: str, alleles: list[dict]) -> dict[str, dict]:
-    variants: dict[str, dict] = {}
+def _defining_variants(gene: str, alleles: list[dict[str, Any]]) -> dict[str, _Variant]:
+    """Index one gene's allele definitions by rsid.
+
+    Args:
+        gene: Gene symbol used in assertion messages.
+        alleles: CPIC allele dictionaries returned by _fetch_alleles_for_gene().
+
+    Returns:
+        Mapping of rsid to its defining variant dictionary.
+    """
+    variants: dict[str, _Variant] = {}
     for allele in alleles:
         for variant in allele["defining_variants"]:
             rsid = variant["rsid"]
@@ -78,6 +89,19 @@ def _defining_variants(gene: str, alleles: list[dict]) -> dict[str, dict]:
 def _genotype_cases(
     state_map: dict[str, tuple[str, str, str]],
 ) -> Iterable[tuple[str, dict[str, str]]]:
+    """Generate labeled genotype dictionaries from per-rsid state tuples.
+
+    Args:
+        state_map: Mapping of rsid to (hom-ref, het-alt, hom-alt) genotype
+            tokens.
+
+    Returns:
+        Labeled genotype cases as (case label, rsid -> genotype). Genes at or
+        below _MAX_EXHAUSTIVE_LOCI use itertools.product for the full Cartesian
+        space. Larger genes are sampled with the full reference case, each
+        single-locus alt state, and every pairwise heterozygous alt combination
+        built with itertools.combinations.
+    """
     loci = sorted(state_map)
     if len(loci) <= _MAX_EXHAUSTIVE_LOCI:
         for states in product(*(state_map[rsid] for rsid in loci)):
