@@ -397,3 +397,51 @@ def run_cancer_analysis(
         prs_findings_count=prs_count,
         prs_traits_computed=len(prs_result.results),
     )
+
+
+# ── Breast absolute-risk overlay (SW-B8, opt-in) ─────────────────────
+
+
+class AbsoluteRiskConsentResponse(BaseModel):
+    """Result of setting the breast absolute-risk opt-in consent."""
+
+    consented: bool
+
+
+@router.post("/absolute-risk/consent", dependencies=[Depends(require_fresh_sample)])
+def set_absolute_risk_consent(
+    sample_id: int = Query(..., description="Sample ID"),
+    consented: bool = Query(..., description="Opt in (true) or out (false)"),
+) -> AbsoluteRiskConsentResponse:
+    """Record opt-in/opt-out for the breast absolute-risk overlay (SW-B8).
+
+    Example: ``POST /api/analysis/cancer/absolute-risk/consent?sample_id=1&consented=true``
+    """
+    from backend.analysis.breast_absolute_risk import set_consent
+
+    # Validate the sample exists (and is fresh, via the dependency).
+    _get_sample_engine(sample_id)
+    set_consent(get_registry().reference_engine, sample_id, consented)
+    return AbsoluteRiskConsentResponse(consented=consented)
+
+
+@router.get("/absolute-risk", dependencies=[Depends(require_fresh_sample)])
+def get_absolute_risk(
+    sample_id: int = Query(..., description="Sample ID"),
+) -> dict[str, Any]:
+    """Return the opt-in breast absolute-risk overlay (SW-B8).
+
+    Before opt-in this returns only the consent prompt + disclaimer (no risk
+    figures). After opt-in it returns the SEER population baseline, published
+    carrier penetrance for any monogenic breast variant, and a CanRisk handoff.
+
+    Example: ``GET /api/analysis/cancer/absolute-risk?sample_id=1``
+    """
+    from backend.analysis.breast_absolute_risk import (
+        build_breast_absolute_risk,
+        get_consent,
+    )
+
+    sample_engine = _get_sample_engine(sample_id)
+    consented = get_consent(get_registry().reference_engine, sample_id)
+    return build_breast_absolute_risk(sample_engine, consented=consented)

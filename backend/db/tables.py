@@ -509,6 +509,32 @@ overlay_configs = sa.Table(
 sa.Index("idx_overlay_configs_name", overlay_configs.c.name)
 
 
+# Opt-in consent for sensitive risk overlays (SW-B8). A per-sample, per-feature
+# record gating features that quantify absolute disease risk (e.g. the breast
+# absolute-risk overlay), which are shown only after explicit acknowledgment.
+risk_overlay_consent = sa.Table(
+    "risk_overlay_consent",
+    reference_metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("sample_id", sa.Integer, nullable=False),
+    sa.Column(
+        "feature",
+        sa.Text,
+        nullable=False,
+        comment="Overlay feature key, e.g. 'breast_absolute_risk'",
+    ),
+    sa.Column("consented", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("consented_at", sa.DateTime, server_default=sa.func.now()),
+)
+
+sa.Index(
+    "idx_risk_overlay_consent_sample_feature",
+    risk_overlay_consent.c.sample_id,
+    risk_overlay_consent.c.feature,
+    unique=True,
+)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Sample DB (sample_{id}.db) — Created programmatically per sample
 # ═══════════════════════════════════════════════════════════════════════
