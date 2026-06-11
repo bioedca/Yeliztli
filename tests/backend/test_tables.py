@@ -31,7 +31,7 @@ class TestReferenceMetadata:
     """Verify reference_metadata contains all expected tables."""
 
     def test_reference_table_count(self):
-        assert len(reference_metadata.tables) == 24
+        assert len(reference_metadata.tables) == 25
 
     def test_reference_table_names(self):
         expected = {
@@ -49,6 +49,7 @@ class TestReferenceMetadata:
             "cpic_alleles",
             "cpic_diplotypes",
             "cpic_guidelines",
+            "clingen_gene_validity",
             "literature_cache",
             "uniprot_cache",
             "log_entries",
