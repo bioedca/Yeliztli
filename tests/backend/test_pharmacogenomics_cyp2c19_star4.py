@@ -43,6 +43,11 @@ _STAR4_DIPLOTYPES = {
     "*4/*17": ("Intermediate Metabolizer", 1.5),
 }
 
+_ISSUE59_STAR3_DIPLOTYPES = {
+    "*3/*3": ("Poor Metabolizer", 0.0),
+    "*3/*17": ("Intermediate Metabolizer", 1.5),
+}
+
 
 @pytest.fixture(scope="module")
 def reference_engine() -> sa.Engine:
@@ -94,6 +99,21 @@ def test_star4_diplotype_rows_resolve_to_expected_phenotype(
     assert row["ehr_notation"] == f"CYP2C19 {expected_phenotype}"
 
 
+@pytest.mark.parametrize(("diplotype", "expected"), sorted(_ISSUE59_STAR3_DIPLOTYPES.items()))
+def test_issue59_star3_gap_diplotype_rows_resolve_to_expected_phenotype(
+    reference_engine: sa.Engine, diplotype: str, expected: tuple[str, float]
+) -> None:
+    """CYP2C19 *3 callable diplotypes must not resolve to phenotype=None."""
+    expected_phenotype, expected_activity = expected
+
+    row = _fetch_diplotype_phenotype("CYP2C19", diplotype, reference_engine)
+
+    assert row is not None, f"CYP2C19 {diplotype} has no diplotype-to-phenotype row"
+    assert row["phenotype"] == expected_phenotype
+    assert row["activity_score"] == expected_activity
+    assert row["ehr_notation"] == f"CYP2C19 {expected_phenotype}"
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_diplotype", "expected_phenotype", "expected_activity"),
     [
@@ -110,6 +130,33 @@ def test_star4_diplotype_rows_resolve_to_expected_phenotype(
     ],
 )
 def test_star4_calls_resolve_to_cpic_phenotypes(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    expected_diplotype: str,
+    expected_phenotype: str,
+    expected_activity: float,
+) -> None:
+    result = _call_cyp2c19(reference_engine, _cyp2c19_genotypes(**overrides))
+
+    assert result.diplotype == expected_diplotype
+    assert result.phenotype == expected_phenotype
+    assert result.activity_score == expected_activity
+    assert result.call_confidence == CallConfidence.COMPLETE
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_diplotype", "expected_phenotype", "expected_activity"),
+    [
+        ({"rs4986893": "AA"}, "*3/*3", "Poor Metabolizer", 0.0),
+        (
+            {"rs4986893": "GA", "rs12248560": "CT"},
+            "*3/*17",
+            "Intermediate Metabolizer",
+            1.5,
+        ),
+    ],
+)
+def test_issue59_star3_gap_calls_resolve_to_cpic_phenotypes(
     reference_engine: sa.Engine,
     overrides: dict[str, str],
     expected_diplotype: str,
