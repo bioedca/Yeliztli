@@ -116,7 +116,7 @@ def _seed_gwas(
         )
 
 
-# All 43 panel SNPs with their chromosome positions and non-Standard genotypes
+# All 43 panel SNPs with chromosome positions and representative genotypes.
 ALL_GENE_HEALTH_VARIANTS = [
     # --- Neurological (13 SNPs) ---
     ("rs429358", "19", 44908684, "TC"),  # APOE e4 det het -> Elevated
@@ -150,7 +150,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs9273363", "6", 32658525, "TC"),  # HLA-DQB1 T1D proxy het -> Elevated
     ("rs689", "11", 2159842, "TA"),  # INS VNTR proxy het -> Moderate
     ("rs2066844", "16", 50745926, "CT"),  # NOD2 R702W het -> Moderate
-    ("rs11209026", "1", 67705958, "GA"),  # IL23R R381Q het -> Moderate
+    ("rs11209026", "1", 67705958, "GA"),  # IL23R R381Q het -> Standard/protective
     ("rs2241880", "2", 233274722, "AG"),  # ATG16L1 T300A het -> Moderate
     ("rs6822844", "4", 123372626, "TG"),  # IL2/IL21 het -> Moderate
     ("rs2004640", "7", 128941096, "GT"),  # IRF5 het -> Moderate
@@ -288,6 +288,18 @@ class TestSNPScoring:
         # C/Pro12 is the higher-risk direction; G/Ala12 is protective.
         assert snp.risk_allele == "C"
         for genotype in ("GG", "GC", "CG", "CC"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
+
+    def test_il23r_r381q_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
+        """IL23R R381Q (rs11209026): A/Gln381 is protective for IBD.
+
+        A-carrier genotypes must not inflate the autoimmune pathway level
+        (gh #26).
+        """
+        snp = self._get_snp(panel, "rs11209026")
+        assert snp.risk_allele == "G"
+        for genotype in ("AA", "AG", "GA", "GG"):
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
@@ -520,6 +532,41 @@ class TestFullScoring:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         for pr in result.pathway_results:
             assert pr.level == STANDARD
+
+    def test_il23r_r381q_alone_does_not_raise_autoimmune_pathway(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A protective IL23R R381Q call must not create risk findings (gh #26)."""
+        _seed_variants(sample_engine, [("rs11209026", "1", 67705958, "GA")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        autoimmune = next(pr for pr in result.pathway_results if pr.pathway_id == "autoimmune")
+        il23r = next(snp for snp in autoimmune.snp_results if snp.rsid == "rs11209026")
+
+        assert il23r.category == STANDARD
+        assert autoimmune.level == STANDARD
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            il23r_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs11209026",
+                )
+            ).fetchall()
+            autoimmune_summary = conn.execute(
+                sa.select(findings.c.pathway_level).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == autoimmune.pathway_name,
+                )
+            ).scalar_one()
+
+        assert il23r_findings == []
+        assert autoimmune_summary == STANDARD
 
 
 # -- Findings storage tests ---------------------------------------------------

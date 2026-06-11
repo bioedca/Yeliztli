@@ -890,15 +890,15 @@
           "ref_allele": "A",
           "genotype_effects": {
             "AA": {
-              "category": "Moderate",
+              "category": "Standard",
               "effect_summary": "Homozygous for the protective Gln381 allele. Reduced IL-23 receptor signaling and Th17 cell differentiation. Significantly decreased risk of Crohn's disease, ulcerative colitis, and psoriasis."
             },
             "AG": {
-              "category": "Moderate",
+              "category": "Standard",
               "effect_summary": "Heterozygous R381Q. The Gln381 allele provides partial protection against inflammatory bowel disease. IL23R is a key driver of Th17-mediated intestinal inflammation."
             },
             "GA": {
-              "category": "Moderate",
+              "category": "Standard",
               "effect_summary": "Heterozygous R381Q. The Gln381 allele provides partial protection against inflammatory bowel disease. IL23R is a key driver of Th17-mediated intestinal inflammation."
             },
             "GG": {
