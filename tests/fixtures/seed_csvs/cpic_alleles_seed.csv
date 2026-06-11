@@ -54,3 +54,4 @@ NAT2,*14,"[{""rsid"":""rs1801279"",""ref"":""G"",""alt"":""A""}]",Decreased func
 CYP2B6,*1,"[]",Normal function,1.0
 CYP2B6,*9,"[{""rsid"":""rs3745274"",""ref"":""G"",""alt"":""T""}]",Decreased function,0.5
 CYP2B6,*6,"[{""rsid"":""rs3745274"",""ref"":""G"",""alt"":""T""},{""rsid"":""rs2279343"",""ref"":""A"",""alt"":""G""}]",Decreased function,0.5
+CYP2B6,*18,"[{""rsid"":""rs28399499"",""ref"":""T"",""alt"":""C""}]",No function,0.0

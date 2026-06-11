@@ -2,9 +2,10 @@
 
 NAT2 uses the Hein-2011 4-SNP panel (rs1801279/*14, rs1801280/*5, rs1799930/*6,
 rs1799931/*7; *4 = rapid reference), which infers acetylator phenotype at ~98%
-accuracy and avoids the strand-trap rs1208. CYP2B6 *6/*9 (rs3745274 +/- rs2279343)
-drives efavirenz exposure; CYP2B6 is a structural-variant gene, so calls are
-provisional (PARTIAL). All genotypes are GRCh37 plus/forward strand.
+accuracy and avoids the strand-trap rs1208. CYP2B6 *6/*9/*18 (rs3745274,
+rs2279343, rs28399499) drives efavirenz exposure; CYP2B6 is a
+structural-variant gene, so calls are provisional (PARTIAL). All genotypes are
+GRCh37 plus/forward strand.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ _NAT2 = {
     "rs1799930": "G",  # *6
     "rs1799931": "G",  # *7
 }
-_CYP2B6 = {"rs3745274": "G", "rs2279343": "A"}  # *1 reference bases
+_CYP2B6 = {"rs3745274": "G", "rs2279343": "A", "rs28399499": "T"}  # *1 reference bases
 
 
 @pytest.fixture(scope="module")
@@ -190,12 +191,57 @@ def test_cyp2b6_star9_is_intermediate(reference_engine: sa.Engine) -> None:
     assert result.phenotype == "Intermediate Metabolizer"
 
 
+def test_cyp2b6_missing_star18_site_is_indeterminate(reference_engine: sa.Engine) -> None:
+    # Older arrays/samples that lack rs28399499 should not present *1/*1 as a
+    # complete exclusion of the no-function *18 allele.
+    result = _call("CYP2B6", {"rs3745274": "GG", "rs2279343": "AA"}, reference_engine)
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.missing_rsids == {"rs28399499"}
+    assert result.indeterminate_alleles == ["*18"]
+    assert "*18" in result.confidence_note
+
+
+def test_cyp2b6_star18_is_intermediate(reference_engine: sa.Engine) -> None:
+    # 983T>C het only -> *1/*18, not a silent *1/*1 normal call.
+    result = _call("CYP2B6", _cyp2b6_geno(rs28399499="TC"), reference_engine)
+    assert result.diplotype == "*1/*18"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.activity_score == 1.0
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "rs28399499" in result.involved_rsids
+
+
+def test_cyp2b6_star6_star18_is_poor(reference_engine: sa.Engine) -> None:
+    result = _call(
+        "CYP2B6",
+        _cyp2b6_geno(rs3745274="GT", rs2279343="AG", rs28399499="TC"),
+        reference_engine,
+    )
+    assert result.diplotype == "*6/*18"
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.activity_score == 0.5
+
+
 def test_cyp2b6_star6_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engine) -> None:
     sample = _make_sample(_cyp2b6_geno(rs3745274="TT", rs2279343="GG"))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
     cyp = next(r for r in results if r.gene == "CYP2B6")
     assert cyp.diplotype == "*6/*6"
     assert cyp.phenotype == "Poor Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert efv and efv[0].phenotype == "Poor Metabolizer"
+
+
+def test_cyp2b6_star18_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engine) -> None:
+    sample = _make_sample(_cyp2b6_geno(rs28399499="CC"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    cyp = next(r for r in results if r.gene == "CYP2B6")
+    assert cyp.diplotype == "*18/*18"
+    assert cyp.phenotype == "Poor Metabolizer"
+    assert cyp.activity_score == 0.0
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
