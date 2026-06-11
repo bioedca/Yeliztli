@@ -7,6 +7,7 @@ import VariantCard from "@/components/cancer/VariantCard"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import VariantDetailPanel from "@/components/cancer/VariantDetailPanel"
 import type { CancerVariant, CancerPRS } from "@/types/cancer"
+import { PRS_PROV_DEFAULTS } from "./fixtures/prs"
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -42,19 +43,6 @@ const TP53_VARIANT: CancerVariant = {
   evidence_level: 3,
   cross_links: [],
   pmids: ["19454582"],
-}
-
-/** Provenance + monogenic-exclusion defaults (SW-B3) — unset unless overridden. */
-const PRS_PROV_DEFAULTS = {
-  pgs_id: null,
-  pgs_license: null,
-  development_method: null,
-  genome_build: null,
-  variants_number: null,
-  source_url: null,
-  monogenic_genes: [] as string[],
-  monogenic_carrier_genes: [] as string[],
-  monogenic_note: null,
 }
 
 const BREAST_PRS: CancerPRS = {

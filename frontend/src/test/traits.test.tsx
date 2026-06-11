@@ -7,6 +7,7 @@ import PathwayCard from "@/components/traits/PathwayCard"
 import TraitsPRSGaugeCard from "@/components/traits/TraitsPRSGaugeCard"
 import BigFiveRadarChart from "@/components/traits/BigFiveRadarChart"
 import type { PathwaySummary, TraitsPRS, SNPDetail } from "@/types/traits"
+import { PRS_PROV_DEFAULTS } from "./fixtures/prs"
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -44,19 +45,6 @@ const BEHAVIORAL_PATHWAY: PathwaySummary = {
   total_snps: 4,
   missing_snps: ["rs747302"],
   pmids: [],
-}
-
-/** Provenance + monogenic-exclusion defaults (SW-B3) — unset unless overridden. */
-const PRS_PROV_DEFAULTS = {
-  pgs_id: null,
-  pgs_license: null,
-  development_method: null,
-  genome_build: null,
-  variants_number: null,
-  source_url: null,
-  monogenic_genes: [] as string[],
-  monogenic_carrier_genes: [] as string[],
-  monogenic_note: null,
 }
 
 const SUFFICIENT_PRS: TraitsPRS = {
