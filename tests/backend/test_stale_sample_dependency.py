@@ -61,6 +61,7 @@ _FULLY_GATED_MODULES = frozenset(
         "carrier",
         "custom_panels",
         "export",
+        "fh",
         "findings",
         "fitness",
         "g6pd",

@@ -39,6 +39,7 @@ from backend.api.routes.databases import (
 )
 from backend.api.routes.encode_ccres import router as encode_ccres_router
 from backend.api.routes.export import router as export_router
+from backend.api.routes.fh import router as fh_router
 from backend.api.routes.findings import router as findings_router
 from backend.api.routes.fitness import router as fitness_router
 from backend.api.routes.g6pd import router as g6pd_router
@@ -206,6 +207,7 @@ def create_app() -> FastAPI:
     api_router.include_router(databases_router)
     api_router.include_router(encode_ccres_router)
     api_router.include_router(export_router)
+    api_router.include_router(fh_router)
     api_router.include_router(findings_router)
     api_router.include_router(fitness_router)
     api_router.include_router(g6pd_router)
