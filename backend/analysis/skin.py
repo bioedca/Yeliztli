@@ -39,7 +39,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import lookup_by_genotype
+from backend.analysis.genotype_lookup import lookup_by_genotype, risk_allele_dosage
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -418,19 +418,18 @@ def _compute_mc1r_aggregate(
         if snp_result.genotype is None:
             continue
 
-        # Find the risk allele for this SNP from panel
-        risk_allele = None
-        for pathway in panel.pathways:
-            for snp in pathway.snps:
-                if snp.rsid == snp_result.rsid:
-                    risk_allele = snp.risk_allele
-                    break
-
-        if risk_allele is None:
+        # Find the panel SNP so we know its risk/ref alleles for this rsid.
+        panel_snp = _find_panel_snp(panel, snp_result.rsid)
+        if panel_snp is None:
             continue
 
-        # Count occurrences of risk allele in genotype
-        count = snp_result.genotype.count(risk_allele)
+        # Count R alleles on the panel's strand. Per-SNP scoring harmonizes strand
+        # via lookup_by_genotype, so a complement-strand chip call (e.g. "GA" for a
+        # C/T SNP) is a carrier individually; counting on the raw string would
+        # report 0 here and emit an internally inconsistent aggregate (issue #24).
+        count = risk_allele_dosage(
+            snp_result.genotype, panel_snp.risk_allele, panel_snp.ref_allele
+        )
         if count > 0:
             r_allele_count += count
             r_allele_rsids.append(snp_result.rsid)

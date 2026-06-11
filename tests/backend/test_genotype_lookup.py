@@ -9,9 +9,12 @@ Watson-Crick complement strand — reference strand first.
 
 from __future__ import annotations
 
+import pytest
+
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
     lookup_by_genotype,
+    risk_allele_dosage,
 )
 
 
@@ -89,3 +92,52 @@ class TestLookupByGenotype:
 
     def test_non_acgt_no_match_does_not_raise(self) -> None:
         assert lookup_by_genotype({"DD": "x"}, "II") is None
+
+
+class TestRiskAlleleDosage:
+    """Strand-aware allele counting must agree with lookup_by_genotype (issue #24)."""
+
+    @pytest.mark.parametrize(
+        "genotype,expected",
+        [
+            ("CC", 0),  # ref/ref
+            ("CT", 1),  # het, reference strand
+            ("TC", 1),  # het, reversed order
+            ("TT", 2),  # hom risk, reference strand
+        ],
+    )
+    def test_reference_strand_counts(self, genotype: str, expected: int) -> None:
+        # C/T SNP, panel risk allele T.
+        assert risk_allele_dosage(genotype, risk_allele="T", ref_allele="C") == expected
+
+    @pytest.mark.parametrize(
+        "genotype,expected",
+        [
+            ("GG", 0),  # complement of CC → ref/ref
+            ("GA", 1),  # complement of CT → 1 risk allele
+            ("AG", 1),  # complement of TC → 1 risk allele
+            ("AA", 2),  # complement of TT → 2 risk alleles
+        ],
+    )
+    def test_complement_strand_counts(self, genotype: str, expected: int) -> None:
+        # Same C/T SNP reported on the opposite (design) strand — the issue #24 case.
+        assert risk_allele_dosage(genotype, risk_allele="T", ref_allele="C") == expected
+
+    def test_ag_snp_complement_strand(self) -> None:
+        # MC1R D294H (rs1805009): panel risk A / ref G; complement strand is T/C
+        # (A->T, G->C). So "TT" complements to risk "AA", "CC" to ref "GG".
+        assert risk_allele_dosage("CT", risk_allele="A", ref_allele="G") == 1
+        assert risk_allele_dosage("TT", risk_allele="A", ref_allele="G") == 2
+        assert risk_allele_dosage("CC", risk_allele="A", ref_allele="G") == 0
+
+    def test_reference_strand_preferred_for_palindrome(self) -> None:
+        # A/T is its own complement set: count on the reference strand, never flip.
+        assert risk_allele_dosage("AT", risk_allele="A", ref_allele="T") == 1
+        assert risk_allele_dosage("AA", risk_allele="A", ref_allele="T") == 2
+
+    def test_lowercase_genotype(self) -> None:
+        assert risk_allele_dosage("ga", risk_allele="T", ref_allele="C") == 1
+
+    def test_unexpected_base_falls_back_to_direct_count(self) -> None:
+        # Genotype that fits neither {risk,ref} nor its complement: direct count.
+        assert risk_allele_dosage("TA", risk_allele="T", ref_allele="C") == 1

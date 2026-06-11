@@ -359,6 +359,63 @@ class TestMC1RMultiAllele:
         assert result.mc1r_aggregate.r_allele_count == 2
         assert result.mc1r_aggregate.risk_label == "High UV Sensitivity"
 
+    def test_mc1r_aggregate_counts_complement_strand_r_allele(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A complement-strand R151C het still contributes 1 R allele (issue #24).
+
+        rs1805007 R151C is a C/T SNP (panel risk allele T). A chip reporting it on
+        the opposite design strand emits "GA" (G=comp C, A=comp T). Per-SNP scoring
+        harmonizes strand via lookup_by_genotype and calls this Moderate; before
+        the fix the aggregate counted the raw "GA" string and reported 0 R alleles
+        / Low UV Sensitivity — an internally inconsistent result. The aggregate
+        must agree: 1 R allele → Moderate UV Sensitivity.
+        """
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1805007", "16", 89919736, "GA"),  # complement-strand het of CT
+                ("rs1805008", "16", 89919746, "CC"),
+                ("rs1805009", "16", 89919709, "GG"),
+                ("rs885479", "16", 89919722, "GG"),
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        assert result.mc1r_aggregate is not None
+        assert result.mc1r_aggregate.r_allele_count == 1
+        assert "rs1805007" in result.mc1r_aggregate.r_allele_rsids
+        assert result.mc1r_aggregate.risk_label == "Moderate UV Sensitivity"
+        # The per-SNP finding and the aggregate must not contradict each other.
+        pigmentation = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "pigmentation_uv"
+        )
+        r151c = next(s for s in pigmentation.called_snps if s.rsid == "rs1805007")
+        assert r151c.category != STANDARD
+
+    def test_mc1r_aggregate_complement_strand_homozygous(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A complement-strand homozygous R151C ("AA") contributes 2 R alleles (issue #24)."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1805007", "16", 89919736, "AA"),  # complement-strand hom of TT
+                ("rs1805008", "16", 89919746, "CC"),
+                ("rs1805009", "16", 89919709, "GG"),
+                ("rs885479", "16", 89919722, "GG"),
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        assert result.mc1r_aggregate is not None
+        assert result.mc1r_aggregate.r_allele_count == 2
+        assert result.mc1r_aggregate.risk_label == "High UV Sensitivity"
+
     def test_mc1r_r_allele_does_not_count_mild(
         self,
         panel: SkinPanel,
