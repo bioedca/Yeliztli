@@ -10,8 +10,9 @@ acting together with *CYP2C9* (covered by the star-allele engine in
   expression → **increased warfarin sensitivity and lower dose requirement**
   (G/G typical → G/A intermediate → A/A most sensitive).
 * **CYP4F2 *3 (V433M, rs2108622).** The *3 (T) allele modestly **raises** the
-  dose requirement in individuals of European or Asian ancestry (C/C none →
-  C/T modest → T/T larger), with no established effect in African ancestry.
+  dose requirement in individuals of European or Asian ancestry (Caldwell 2008,
+  PMID 18250228; CPIC 2017, PMID 28198005), with no established effect in
+  African ancestry (Shendre 2016, PMID 26877068).
 
 **Strand.** 23andMe reports the forward (plus) strand. VKORC1 sits on the minus
 strand, so the gene's reference "G" is forward **C** and the dose-lowering "A" is
@@ -32,12 +33,15 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
 from backend.analysis.pharmacogenomics import _count_alt_alleles, _fetch_sample_genotypes
 from backend.disclaimers import WARFARIN_PGX_CONTEXT_ONLY
 
 # CPIC 2017 Pharmacogenetics-Guided Warfarin Dosing update (Johnson 2017) is the
 # authoritative source for both gene effects below.
 WARFARIN_CPIC_PMID = "28198005"
+CYP4F2_RACE_SPECIFIC_PMID = "26877068"
+CYP4F2_ORIGINAL_PMID = "18250228"
 
 # VKORC1 c.-1639G>A — rs9923231. Forward-strand alleles (23andMe convention).
 VKORC1_RSID = "rs9923231"
@@ -48,6 +52,38 @@ VKORC1_ALT = "T"  # forward strand → gene "A" (increased sensitivity → lower
 CYP4F2_RSID = "rs2108622"
 CYP4F2_REF = "C"  # *1 (reference)
 CYP4F2_ALT = "T"  # *3 (modestly higher dose requirement)
+
+# CYP4F2*3 should not be reported as a universal dose-increase marker. The
+# available evidence in this module supports the higher-dose direction for
+# European and Asian ancestry contexts; Shendre 2016 did not observe the dose
+# association in African Americans (PMID 26877068).
+CYP4F2_EFFECT_ESTABLISHED_ANCESTRIES = frozenset({"EUR", "EAS", "CSA"})
+CYP4F2_ANCESTRY_LABELS = {
+    "AFR": "African",
+    "AMR": "Admixed American",
+    "CSA": "Central/South Asian",
+    "EAS": "East Asian",
+    "EUR": "European",
+    "MID": "Middle Eastern",
+    "OCE": "Oceanian",
+    "ADMIXED": "admixed/low-confidence",
+    "UNCERTAIN": "uncertain",
+}
+
+
+def _normalise_ancestry(ancestry: str | None) -> str | None:
+    """Return a canonical ancestry code, or ``None`` when unavailable."""
+    if ancestry is None:
+        return None
+    code = ancestry.strip().upper()
+    return code or None
+
+
+def _ancestry_label(code: str | None) -> str:
+    """Human-readable ancestry label for user-facing CYP4F2 context text."""
+    if code is None:
+        return "unknown"
+    return CYP4F2_ANCESTRY_LABELS.get(code, code)
 
 
 def vkorc1_phenotype(alt_count: int | None) -> dict[str, str] | None:
@@ -90,22 +126,66 @@ def vkorc1_phenotype(alt_count: int | None) -> dict[str, str] | None:
     }
 
 
-def cyp4f2_phenotype(alt_count: int | None) -> dict[str, str] | None:
+def cyp4f2_phenotype(
+    alt_count: int | None,
+    *,
+    inferred_ancestry: str | None = None,
+) -> dict[str, Any] | None:
     """Map the CYP4F2 rs2108622 *3-allele count to a dose-effect phenotype.
 
-    ``alt_count`` is the number of forward-strand ``T`` (*3) alleles. Returns
-    ``None`` when the variant could not be called.
+    ``alt_count`` is the number of forward-strand ``T`` (*3) alleles. The *3
+    dose-increase direction is ancestry-dependent: report it only for ancestry
+    contexts where this module has supporting evidence, and otherwise preserve
+    the genotype while withholding a dose direction. Returns ``None`` when the
+    variant could not be called.
     """
     if alt_count is None:
         return None
+    ancestry_code = _normalise_ancestry(inferred_ancestry)
     if alt_count == 0:
         return {
             "diplotype": "*1/*1",
             "phenotype": "No CYP4F2 dose effect",
             "dose_effect": "typical",
+            "ancestry_context": ancestry_code,
+            "ancestry_warning_text": None,
             "detail": (
                 "CYP4F2 *1/*1 — no *3 allele; no CYP4F2-attributable change to the "
                 "warfarin dose requirement."
+            ),
+        }
+    diplotype = "*1/*3" if alt_count == 1 else "*3/*3"
+    if ancestry_code is None:
+        return {
+            "diplotype": diplotype,
+            "phenotype": "CYP4F2 dose effect requires ancestry context",
+            "dose_effect": "requires_ancestry_context",
+            "ancestry_context": None,
+            "ancestry_warning_text": (
+                "CYP4F2*3 warfarin-dose evidence is ancestry-dependent; ancestry has "
+                "not been inferred, so no CYP4F2 higher-dose direction is reported."
+            ),
+            "detail": (
+                f"CYP4F2 {diplotype} — *3 is present, but ancestry has not been "
+                "inferred. Because the CYP4F2*3 dose effect is ancestry-dependent, "
+                "this context-only endpoint does not report a higher-dose direction."
+            ),
+        }
+    if ancestry_code not in CYP4F2_EFFECT_ESTABLISHED_ANCESTRIES:
+        label = _ancestry_label(ancestry_code)
+        return {
+            "diplotype": diplotype,
+            "phenotype": f"CYP4F2 dose effect not established for {label} ancestry",
+            "dose_effect": "not_established",
+            "ancestry_context": ancestry_code,
+            "ancestry_warning_text": (
+                f"CYP4F2*3 higher-dose association is not established for {label} "
+                "ancestry, so this endpoint withholds a CYP4F2 dose-increase direction."
+            ),
+            "detail": (
+                f"CYP4F2 {diplotype} — *3 is present, but the higher-dose association "
+                f"is not established for {label} ancestry. Do not interpret this "
+                "single-gene context as a CYP4F2-driven higher warfarin dose requirement."
             ),
         }
     if alt_count == 1:
@@ -113,18 +193,22 @@ def cyp4f2_phenotype(alt_count: int | None) -> dict[str, str] | None:
             "diplotype": "*1/*3",
             "phenotype": "Modestly higher dose requirement",
             "dose_effect": "higher",
+            "ancestry_context": ancestry_code,
+            "ancestry_warning_text": None,
             "detail": (
                 "CYP4F2 *1/*3 — one *3 allele is associated with a modest increase in "
-                "warfarin dose requirement (European/Asian ancestry)."
+                f"warfarin dose requirement ({_ancestry_label(ancestry_code)} ancestry)."
             ),
         }
     return {
         "diplotype": "*3/*3",
         "phenotype": "Higher dose requirement",
         "dose_effect": "higher",
+        "ancestry_context": ancestry_code,
+        "ancestry_warning_text": None,
         "detail": (
             "CYP4F2 *3/*3 — two *3 alleles are associated with a higher warfarin dose "
-            "requirement (European/Asian ancestry)."
+            f"requirement ({_ancestry_label(ancestry_code)} ancestry)."
         ),
     }
 
@@ -171,11 +255,14 @@ def assess_warfarin(sample_engine: sa.Engine) -> dict[str, Any]:
     """Context-only VKORC1 + CYP4F2 warfarin-dosing summary for a sample.
 
     Read-only. Looks up the two defining rsids in the sample database and reports
-    each gene's direction of effect on the warfarin dose requirement. Emits no
-    milligram dose and changes no finding — CPIC dosing needs a validated
-    algorithm (with CYP2C9) plus clinical factors and INR monitoring.
+    each gene's direction of effect on the warfarin dose requirement. CYP4F2 *3
+    is ancestry-contextualized and is not reported as a universal dose-increase
+    marker. Emits no milligram dose and changes no finding — CPIC dosing needs a
+    validated algorithm (with CYP2C9) plus clinical factors and INR monitoring.
     """
     genotypes = _fetch_sample_genotypes([VKORC1_RSID, CYP4F2_RSID], sample_engine)
+    inferred_ancestry = get_inferred_ancestry(sample_engine)
+    top_ancestry_fraction = get_top_ancestry_fraction(sample_engine)
 
     vkorc1 = _assess_gene(
         gene="VKORC1",
@@ -193,13 +280,21 @@ def assess_warfarin(sample_engine: sa.Engine) -> dict[str, Any]:
         ref=CYP4F2_REF,
         alt=CYP4F2_ALT,
         genotype=genotypes.get(CYP4F2_RSID),
-        phenotype_fn=cyp4f2_phenotype,
+        phenotype_fn=lambda alt_count: cyp4f2_phenotype(
+            alt_count, inferred_ancestry=inferred_ancestry
+        ),
     )
 
     return {
         "genes": [vkorc1, cyp4f2],
         "any_called": vkorc1["called"] or cyp4f2["called"],
+        "inferred_ancestry": inferred_ancestry,
+        "top_ancestry_fraction": top_ancestry_fraction,
         "context_only": True,
         "note": WARFARIN_PGX_CONTEXT_ONLY,
-        "pmid_citations": [WARFARIN_CPIC_PMID],
+        "pmid_citations": [
+            WARFARIN_CPIC_PMID,
+            CYP4F2_RACE_SPECIFIC_PMID,
+            CYP4F2_ORIGINAL_PMID,
+        ],
     }

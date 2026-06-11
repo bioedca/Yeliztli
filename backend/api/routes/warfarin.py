@@ -4,7 +4,8 @@ A read-only, context-only summary of the two array-callable warfarin-dosing gene
 (VKORC1 c.-1639G>A, CYP4F2 *3) for a sample — see ``backend.analysis.warfarin``.
 Additive only: it never changes a finding's evidence level or ClinVar significance,
 emits no milligram dose (CPIC dosing requires a validated algorithm with CYP2C9
-plus clinical factors and INR monitoring), and writes nothing back.
+plus clinical factors and INR monitoring), and writes nothing back. CYP4F2 *3 is
+reported with ancestry context rather than as a universal dose-increase marker.
 
 GET /api/analysis/warfarin?sample_id=N
 """
@@ -40,6 +41,8 @@ class WarfarinGeneResponse(BaseModel):
     diplotype: str | None = None
     phenotype: str | None = None
     dose_effect: str | None = None
+    ancestry_context: str | None = None
+    ancestry_warning_text: str | None = None
     detail: str
 
 
@@ -48,6 +51,8 @@ class WarfarinResponse(BaseModel):
 
     genes: list[WarfarinGeneResponse]
     any_called: bool
+    inferred_ancestry: str | None = None
+    top_ancestry_fraction: float | None = None
     context_only: bool
     note: str
     pmid_citations: list[str] = []
@@ -60,9 +65,12 @@ def get_warfarin(
     """VKORC1 + CYP4F2 warfarin dose-effect context for the sample.
 
     Each gene reports its direction of effect on the warfarin dose requirement
-    (VKORC1 A allele → lower dose / higher sensitivity; CYP4F2 *3 → modestly higher
-    dose). This is interpretive background only — never a dose and never a change to
-    any finding. Uncalled variants return ``called=false``.
+    (VKORC1 A allele → lower dose / higher sensitivity). CYP4F2 *3 is reported as
+    higher-dose context only when the sample's inferred ancestry is within the
+    evidence-supported context; otherwise the genotype is preserved with an ancestry
+    warning and no CYP4F2 dose-increase direction. This is interpretive background
+    only — never a dose and never a change to any finding. Uncalled variants return
+    ``called=false``.
     """
     sample_engine = resolve_sample_engine(sample_id)
     return WarfarinResponse(**assess_warfarin(sample_engine))
