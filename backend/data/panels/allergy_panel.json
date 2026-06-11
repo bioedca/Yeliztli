@@ -450,6 +450,10 @@
         "both": {
           "label": "Celiac Susceptibility (DQ2+DQ8)",
           "description": "Both HLA-DQ2 and DQ8 proxies detected. Combined genetic susceptibility. Higher risk than single haplotype. Serological screening recommended even if asymptomatic, especially with family history."
+        },
+        "indeterminate": {
+          "label": "Celiac Risk Undetermined (Insufficient HLA Coverage)",
+          "description": "The HLA-DQ2 (rs2187668) and/or DQ8 (rs7775228) proxy markers were not genotyped in this sample, so celiac disease cannot be excluded. The >99% negative predictive value of HLA-DQ typing applies only to an observed non-risk result, not to missing data. If gluten-related symptoms are present, HLA-DQ typing and/or serology (tTG-IgA) via a clinician is recommended."
         }
       }
     },

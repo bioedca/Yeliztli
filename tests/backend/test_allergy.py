@@ -552,6 +552,58 @@ class TestCeliacCombined:
         assert result.celiac_combined is not None
         assert result.celiac_combined.evidence_level == 3
 
+    def test_neither_proxy_genotyped_is_indeterminate(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Both proxies untyped → 'indeterminate', NOT the 'neither' rule-out (issue #27).
+
+        A consumer array that types neither rs2187668 nor rs7775228 has no celiac
+        HLA coverage. Missing data is not a negative result, so the >99% NPV
+        "Low Celiac Risk" framing must be withheld to avoid false reassurance.
+        """
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "GG")])  # unrelated SNP
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "indeterminate"
+        assert "Low Celiac Risk" not in result.celiac_combined.label
+        assert "Undetermined" in result.celiac_combined.label
+
+    def test_one_proxy_missing_is_indeterminate(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """DQ8 reference but DQ2 untyped → 'indeterminate' (cannot rule out via one proxy)."""
+        _seed_variants(sample_engine, [("rs7775228", "6", 32713862, "CC")])  # DQ8 ref only
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "indeterminate"
+
+    def test_no_call_proxy_is_indeterminate(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A no-call ('--') at a proxy is untyped → 'indeterminate', not 'neither'."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "--"),  # DQ8 no-call
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "indeterminate"
+
 
 # ── Histamine combined assessment tests ──────────────────────────────────
 

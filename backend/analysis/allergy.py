@@ -187,7 +187,7 @@ class HLAProxyInfo:
 class CeliacCombinedResult:
     """Celiac DQ2/DQ8 combined assessment result."""
 
-    state: str  # "neither", "dq2_only", "dq8_only", "both"
+    state: str  # "neither", "dq2_only", "dq8_only", "both", "indeterminate"
     label: str
     description: str
     dq2_genotype: str | None
@@ -483,12 +483,10 @@ def _compute_celiac_combined(
         None,
     )
 
-    dq2_positive = (
-        dq2_result is not None and dq2_result.present_in_sample and dq2_result.category != STANDARD
-    )
-    dq8_positive = (
-        dq8_result is not None and dq8_result.present_in_sample and dq8_result.category != STANDARD
-    )
+    dq2_present = dq2_result is not None and dq2_result.present_in_sample
+    dq8_present = dq8_result is not None and dq8_result.present_in_sample
+    dq2_positive = dq2_present and dq2_result.category != STANDARD
+    dq8_positive = dq8_present and dq8_result.category != STANDARD
 
     if dq2_positive and dq8_positive:
         state_key = "both"
@@ -499,8 +497,17 @@ def _compute_celiac_combined(
     elif dq8_positive:
         state_key = "dq8_only"
         evidence = 3
-    else:
+    elif dq2_present and dq8_present:
+        # Both proxies observed and reference (non-risk): a genuine negative,
+        # which is the only case where the >99% NPV rule-out applies.
         state_key = "neither"
+        evidence = 3
+    else:
+        # At least one proxy was not typed (no-call / not on this array). Missing
+        # coverage is NOT a negative result — the NPV claim requires an observed
+        # non-risk genotype — so withhold the exclusionary "Low Celiac Risk"
+        # framing and report insufficient coverage instead (issue #27).
+        state_key = "indeterminate"
         evidence = 3
 
     state = combined_states.get(state_key, {})
