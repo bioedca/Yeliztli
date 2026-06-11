@@ -103,3 +103,22 @@ Scope:    Context-only evidence layered over CPIC, never altering a finding.
 "FDA" and "PharmGKB" are used here solely for source attribution. Yeliztli is an
 independent project and is not affiliated with or endorsed by the U.S. FDA or
 PharmGKB.
+
+GTEx (eQTL regulatory associations)
+-----------------------------------
+Source:   GTEx Portal v8 (https://gtexportal.org/) — significant cis-eQTL
+          variant-gene pairs + the WGS variant→rsID lookup table.
+License:  GTEx **open-access summary statistics** (the eQTL association results)
+          are freely available for use and redistribution. The protected
+          individual-level GTEx data (WGS genotypes) is dbGaP-controlled and is
+          NOT used or redistributed here — only the summary-level eQTL results.
+Scope:    Per-(rsID, gene, tissue) cis-eQTL association (p-value + effect size),
+          stored rsID-keyed (mapped from GRCh38 variant_id via GTEx's lookup) as a
+          context-only regulatory layer — never a causal-mechanism claim and never
+          ACMG evidence.
+Citation: GTEx Consortium. "The GTEx Consortium atlas of genetic regulatory
+          effects across human tissues." Science 369, 1318-1330 (2020).
+          doi:10.1126/science.aaz1776
+
+"GTEx" is used here solely for source attribution. Yeliztli is an independent
+project and is not affiliated with or endorsed by the GTEx Consortium or the NIH.
