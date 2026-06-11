@@ -85,14 +85,21 @@ Citation: Whirl-Carrillo, M., Huddart, R., Gong, L. et al. "An Evidence-Based
 independent project and is not affiliated with or endorsed by PharmGKB, Stanford
 University, or the Royal Dutch Pharmacists Association (KNMP).
 
-FDA Pharmacogenomic Labeling
-----------------------------
-Source:   U.S. Food & Drug Administration — "Table of Pharmacogenomic Biomarkers
-          in Drug Labeling" / pharmacogenomic drug-label annotations (via PharmGKB
-          FDA-sourced labels, accessed 2026-06-11).
-License:  U.S. Government work — public domain (17 U.S.C. § 105).
-Scope:    Per-(gene, drug) FDA pharmacogenomic testing level (e.g. Actionable PGx,
-          Testing Required) — context-only, never altering a finding.
+FDA Pharmacogenomic Labeling (via PharmGKB)
+-------------------------------------------
+Underlying authority: U.S. Food & Drug Administration pharmacogenomic drug
+          labeling ("Table of Pharmacogenomic Biomarkers in Drug Labeling") — the
+          FDA label *content* is a U.S. Government work in the public domain
+          (17 U.S.C. § 105).
+Data used here: the per-(gene, drug) FDA **testing-level classification** (e.g.
+          "Actionable PGx", "Testing Required") is taken from **PharmGKB's
+          FDA-sourced drug-label annotations** (drugLabels download, accessed
+          2026-06-11), i.e. PharmGKB's curation of the FDA labels. As a PharmGKB
+          derivative, this column is governed by **CC-BY-SA 4.0** (see the PharmGKB
+          entry above; share-alike honored), not by the public-domain status of
+          the underlying FDA text.
+Scope:    Context-only evidence layered over CPIC, never altering a finding.
 
-"FDA" is used here solely for source attribution. Yeliztli is an independent
-project and is not affiliated with or endorsed by the U.S. FDA.
+"FDA" and "PharmGKB" are used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by the U.S. FDA or
+PharmGKB.

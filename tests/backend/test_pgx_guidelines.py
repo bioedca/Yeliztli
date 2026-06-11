@@ -117,6 +117,8 @@ class TestCuratedDataIntegrity:
     def test_all_rows_have_valid_loe(self) -> None:
         from backend.analysis.pgx_guidelines import _load_sources
 
-        for (gene, drug), row in _load_sources().items():
+        sources = _load_sources()
+        assert sources  # guard against a vacuous pass on an empty/missing CSV
+        for (gene, drug), row in sources.items():
             assert row["pharmgkb_loe"] in {"1A", "1B", "2A", "2B", "3", "4"}, (gene, drug)
             assert isinstance(row["dpwg_guideline"], bool)

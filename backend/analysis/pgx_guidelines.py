@@ -55,8 +55,11 @@ def _load_sources() -> dict[tuple[str, str], dict[str, Any]]:
             drug = (row.get("drug") or "").strip().lower()
             if not gene or not drug:
                 continue
+            key = (gene, drug)
+            if key in out:
+                raise ValueError(f"Duplicate (gene, drug) in pgx_guideline_sources.csv: {key}")
             fda = (row.get("fda_pgx_level") or "").strip()
-            out[(gene, drug)] = {
+            out[key] = {
                 "gene": gene,
                 "drug": drug,
                 "pharmgkb_loe": (row.get("pharmgkb_loe") or "").strip() or None,

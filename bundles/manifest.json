@@ -82,9 +82,9 @@
       "license": "CC-BY-SA-4.0"
     },
     "fda_pgx": {
-      "url": "https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenomic-biomarkers-drug-labeling",
+      "url": "https://api.pharmgkb.org/v1/download/file/data/drugLabels.zip",
       "last_known_version": "2026-06-11",
-      "license": "public-domain-US-gov"
+      "license": "CC-BY-SA-4.0"
     }
   }
 }
