@@ -808,7 +808,7 @@ class TestCrossModuleFindings:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Only one cross-link per gene+target combination."""
+        """Distinct alleles/genes each get their own PGx cross-link."""
         _seed_variants(
             sample_engine,
             [
@@ -821,10 +821,42 @@ class TestCrossModuleFindings:
         pgx_links = [
             f for f in result.cross_module_findings if f.target_module == "pharmacogenomics"
         ]
-        # HLA-B and HLA-A are different genes, so two cross-links are expected
+        # HLA-B*15:02 and HLA-A*31:01 are distinct alleles → two cross-links.
         genes = {f.gene for f in pgx_links}
         assert "HLA-B" in genes
         assert "HLA-A" in genes
+
+    def test_distinct_hla_b_alleles_keep_separate_pgx_links(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Two HLA-B alleles (same gene) must not collapse to one PGx link.
+
+        HLA-B*15:02 (carbamazepine SJS/TEN) and HLA-B*58:01 (allopurinol
+        SCAR) are different drug-safety handoffs that share gene "HLA-B".
+        Gene-only dedup hid one of them; allele-level dedup keeps both.
+        Regression for issue #92.
+        """
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → carbamazepine
+                ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 → allopurinol
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        pgx_links = [
+            f for f in result.cross_module_findings if f.target_module == "pharmacogenomics"
+        ]
+        # Both HLA-B alleles share gene "HLA-B" but represent distinct drug
+        # contexts, so both cross-links must be present.
+        assert len(pgx_links) == 2
+        alleles = " ".join(f.finding_text for f in pgx_links)
+        assert "HLA-B*15:02" in alleles
+        assert "HLA-B*58:01" in alleles
 
 
 # ── Full scoring integration tests ──────────────────────────────────────

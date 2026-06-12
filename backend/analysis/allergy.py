@@ -659,8 +659,16 @@ def _generate_cross_module_findings(
                     f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
                 )
 
-            # Deduplicate: only one cross-link per gene+target combination
-            dedup_key = (snp_result.gene, target_module)
+            # Deduplicate at allele/drug-context granularity, not gene-only:
+            # multiple HLA-B alleles share gene "HLA-B" but are distinct
+            # drug-safety handoffs that must not collapse into one finding —
+            # e.g. HLA-B*15:02 (carbamazepine SJS/TEN) and HLA-B*58:01
+            # (allopurinol SCAR). Key on the HLA allele for proxies, else rsid.
+            if snp_result.hla_proxy is not None:
+                dedup_identity = snp_result.hla_proxy.get("hla_allele") or snp_result.rsid
+            else:
+                dedup_identity = snp_result.rsid
+            dedup_key = (dedup_identity, target_module)
             if dedup_key in seen_keys:
                 continue
 
