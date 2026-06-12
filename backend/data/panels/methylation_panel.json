@@ -1113,6 +1113,6 @@
     "elevated_requires_min_stars": 2,
     "elevated_requires_genotype": "clinically_meaningful",
     "pathway_level_determination": "highest_category_across_snps",
-    "additive_scoring_note": "The methylation module uses additive scoring within pathways: multiple Moderate-level SNPs in the same pathway may collectively warrant a higher pathway-level assessment. This is implemented in P3-52 (methylation.py), not in the panel definition."
+    "multiple_moderate_findings_note": "Multiple Moderate-level SNPs in the same pathway are surfaced as contextual detail but do not promote the pathway to Elevated without a curated variant-specific model."
   }
 }

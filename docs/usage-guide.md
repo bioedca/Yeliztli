@@ -128,7 +128,7 @@ Categorical pathway scoring across 6 pathways: Folate Metabolism, Vitamin D, Vit
 
 ### Methylation
 
-Deep-dive into MTHFR and methylation pathways with 5 sub-pathways: Folate & MTHFR, Methionine Cycle, Transsulfuration, BH4 Pathway, and Choline Metabolism. Covers ~35 SNPs with additive scoring per pathway.
+Deep-dive into MTHFR and methylation pathways with 5 sub-pathways: Folate & MTHFR, Methionine Cycle, Transsulfuration, BH4 Pathway, and Choline Metabolism. Covers ~35 SNPs with pathway levels determined by the highest called SNP category; multiple Moderate findings are reported as context rather than promoted to Elevated.
 
 ### Cancer
 

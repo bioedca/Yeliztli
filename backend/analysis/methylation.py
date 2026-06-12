@@ -1,10 +1,8 @@
-"""MTHFR & Methylation module — 5 pathway-level summaries with additive scoring.
+"""MTHFR & Methylation module — 5 pathway-level summaries.
 
 Implements P3-52:
   - 5 pathway-level summaries (Folate & MTHFR, Methionine Cycle,
     Transsulfuration, BH4 & Neurotransmitter Synthesis, Choline & Betaine).
-  - Additive scoring model: multiple Moderate-level SNPs in the same
-    pathway may collectively warrant Elevated pathway assessment.
   - MTHFR compound heterozygosity calling (C677T + A1298C).
   - COMT Val158Met framed as catecholamine clearance only (not psychiatric).
   - CBS rs234706 proxy with coverage caveat.
@@ -17,10 +15,7 @@ Scoring follows the same base algorithm as nutrigenomics / fitness / sleep:
   - ★☆ evidence hard-caps pathway at Moderate.
   - Elevated requires ≥★★ evidence + clinically meaningful genotype.
   - Pathway level = highest category across called SNPs.
-
-Additive scoring extension:
-  - If ≥3 SNPs in a pathway score Moderate and none score Elevated,
-    the pathway is promoted to Elevated (requires at least one ★★ SNP).
+  - Multiple Moderate findings are surfaced as context, not promoted to Elevated.
 
 Usage::
 
@@ -62,8 +57,8 @@ STANDARD = "Standard"
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
 
-# Additive scoring: promote pathway to Elevated if ≥ this many Moderate SNPs
-_ADDITIVE_MODERATE_THRESHOLD = 3
+# Mark pathway summaries when several Moderate SNPs are observed without escalation.
+_MULTIPLE_MODERATE_FINDINGS_THRESHOLD = 3
 
 # Module name for findings storage
 MODULE_NAME = "methylation"
@@ -153,7 +148,8 @@ class PathwayResult:
     pathway_description: str
     level: str  # Elevated / Moderate / Standard
     snp_results: list[SNPResult] = field(default_factory=list)
-    additive_promoted: bool = False  # True if level was promoted by additive scoring
+    # Legacy storage flag retained for compatibility; generic additive promotion is disabled.
+    additive_promoted: bool = False
 
     @property
     def called_snps(self) -> list[SNPResult]:
@@ -331,14 +327,12 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> tuple[str, bool]:
     The pathway level is the highest category across all called SNPs.
     Ordering: Elevated > Moderate > Standard.
 
-    Additive scoring: if ≥3 SNPs score Moderate and none score Elevated,
-    the pathway is promoted to Elevated (requires at least one ★★ SNP).
-
     Only SNPs present in the sample contribute to the pathway level.
     If no SNPs are genotyped, the pathway defaults to Standard.
 
     Returns:
-        Tuple of (level, additive_promoted).
+        Tuple of (level, additive_promoted). ``additive_promoted`` is always
+        False because generic additive escalation is not validated.
     """
     called = [r for r in snp_results if r.present_in_sample]
     if not called:
@@ -348,21 +342,7 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> tuple[str, bool]:
     present = {r.category for r in called}
     base_level = max(present, key=lambda c: category_priority.get(c, 0), default=STANDARD)
 
-    # Additive scoring: promote to Elevated if enough Moderate SNPs
-    additive_promoted = False
-    if base_level == MODERATE:
-        moderate_count = sum(1 for r in called if r.category == MODERATE)
-        has_star2_or_above = any(r.evidence_level >= _ELEVATED_MIN_STARS for r in called)
-        if moderate_count >= _ADDITIVE_MODERATE_THRESHOLD and has_star2_or_above:
-            base_level = ELEVATED
-            additive_promoted = True
-            logger.debug(
-                "additive_promotion_applied",
-                moderate_count=moderate_count,
-                promoted_to=ELEVATED,
-            )
-
-    return base_level, additive_promoted
+    return base_level, False
 
 
 # ── MTHFR compound heterozygosity ────────────────────────────────────────
@@ -464,9 +444,9 @@ def score_methylation_pathways(
 
     1. Fetches raw genotypes from the sample DB for all panel rsids.
     2. Scores each SNP using the curated panel definitions.
-    3. Applies evidence-level gating and additive scoring.
+    3. Applies evidence-level gating.
     4. Assesses MTHFR compound heterozygosity.
-    5. Determines per-pathway level (highest category or additive promotion).
+    5. Determines per-pathway level from the highest called SNP category.
     6. Looks up GWAS associations for matched rsids.
 
     Args:
@@ -635,11 +615,13 @@ def store_methylation_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
+        moderate_count = sum(1 for snp in pr.called_snps if snp.category == MODERATE)
+        multiple_moderate_findings = moderate_count >= _MULTIPLE_MODERATE_FINDINGS_THRESHOLD
 
         if pr.level != STANDARD:
             level_text = f"{pr.level} consideration"
-            if pr.additive_promoted:
-                level_text += " (additive)"
+            if pr.level == MODERATE and multiple_moderate_findings:
+                level_text += " (multiple moderate findings)"
         else:
             level_text = "Standard (no variants of concern)"
 
@@ -651,6 +633,8 @@ def store_methylation_findings(
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
             "additive_promoted": pr.additive_promoted,
+            "moderate_snp_count": moderate_count,
+            "multiple_moderate_findings": multiple_moderate_findings,
             "snp_details": [
                 {
                     "rsid": s.rsid,
