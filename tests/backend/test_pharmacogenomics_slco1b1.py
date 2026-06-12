@@ -162,7 +162,12 @@ def test_newly_mapped_diplotypes_resolve_to_a_phenotype(
     assert result.diplotype == expected_diplotype
     assert result.phenotype == expected_phenotype
     assert result.activity_score == activity_score
-    assert result.call_confidence == CallConfidence.COMPLETE
+    expected_confidence = (
+        CallConfidence.PARTIAL if expected_diplotype == "*15/*17" else CallConfidence.COMPLETE
+    )
+    assert result.call_confidence == expected_confidence
+    if expected_confidence == CallConfidence.PARTIAL:
+        assert "unphased" in result.confidence_note
 
 
 @pytest.mark.parametrize(
@@ -193,6 +198,9 @@ def test_actionable_diplotypes_emit_simvastatin_alert(
     for alert in slco_alerts:
         assert alert.diplotype == expected_diplotype
         assert recommendation_fragment in alert.recommendation
+        if expected_diplotype == "*15/*17":
+            assert alert.call_confidence == CallConfidence.PARTIAL
+            assert "unphased" in alert.confidence_note
 
 
 def test_every_callable_slco1b1_diplotype_has_a_phenotype(

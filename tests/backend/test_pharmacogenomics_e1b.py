@@ -221,6 +221,8 @@ def test_cyp2b6_star6_star18_is_poor(reference_engine: sa.Engine) -> None:
     assert result.diplotype == "*6/*18"
     assert result.phenotype == "Poor Metabolizer"
     assert result.activity_score == 0.5
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
 
 
 def test_cyp2b6_star6_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engine) -> None:

@@ -293,12 +293,25 @@ def test_compound_het_star2_star5_is_poor(reference_engine: sa.Engine) -> None:
     """Het *2 (rs1799853) + het *5 (rs28371686) -> *2/*5 Poor Metabolizer."""
     result = _call_cyp2c9(
         reference_engine,
-        _cyp2c9_genotypes(rs1799853="CT", rs28371686="CG"),
+        _cyp2c9_genotypes(rs1799853="CT", rs28371686="CG", rs9332131="II"),
     )
     assert result.diplotype == "*2/*5"
     assert result.phenotype == "Poor Metabolizer"
     assert result.activity_score == 0.5
-    assert result.call_confidence != CallConfidence.INSUFFICIENT
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
+
+
+def test_compound_het_star2_star3_is_phase_flagged(reference_engine: sa.Engine) -> None:
+    """A fully typed CYP2C9 *2/*3 call is phase-inferred, not directly phased."""
+    result = _call_cyp2c9(
+        reference_engine,
+        _cyp2c9_genotypes(rs1799853="CT", rs1057910="AC", rs9332131="II"),
+    )
+    assert result.diplotype == "*2/*3"
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
 
 
 @pytest.mark.parametrize(

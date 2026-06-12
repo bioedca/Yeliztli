@@ -115,17 +115,42 @@ def test_issue59_star3_gap_diplotype_rows_resolve_to_expected_phenotype(
 
 
 @pytest.mark.parametrize(
-    ("overrides", "expected_diplotype", "expected_phenotype", "expected_activity"),
+    (
+        "overrides",
+        "expected_diplotype",
+        "expected_phenotype",
+        "expected_activity",
+        "expected_confidence",
+    ),
     [
-        ({"rs28399504": "AG"}, "*1/*4", "Intermediate Metabolizer", 1.0),
-        ({"rs4244285": "GA", "rs28399504": "AG"}, "*2/*4", "Poor Metabolizer", 0.0),
-        ({"rs4986893": "GA", "rs28399504": "AG"}, "*3/*4", "Poor Metabolizer", 0.0),
-        ({"rs28399504": "GG"}, "*4/*4", "Poor Metabolizer", 0.0),
+        (
+            {"rs28399504": "AG"},
+            "*1/*4",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs4244285": "GA", "rs28399504": "AG"},
+            "*2/*4",
+            "Poor Metabolizer",
+            0.0,
+            CallConfidence.PARTIAL,
+        ),
+        (
+            {"rs4986893": "GA", "rs28399504": "AG"},
+            "*3/*4",
+            "Poor Metabolizer",
+            0.0,
+            CallConfidence.PARTIAL,
+        ),
+        ({"rs28399504": "GG"}, "*4/*4", "Poor Metabolizer", 0.0, CallConfidence.COMPLETE),
         (
             {"rs28399504": "AG", "rs12248560": "CT"},
             "*4/*17",
             "Intermediate Metabolizer",
             1.5,
+            CallConfidence.PARTIAL,
         ),
     ],
 )
@@ -135,24 +160,34 @@ def test_star4_calls_resolve_to_cpic_phenotypes(
     expected_diplotype: str,
     expected_phenotype: str,
     expected_activity: float,
+    expected_confidence: CallConfidence,
 ) -> None:
     result = _call_cyp2c19(reference_engine, _cyp2c19_genotypes(**overrides))
 
     assert result.diplotype == expected_diplotype
     assert result.phenotype == expected_phenotype
     assert result.activity_score == expected_activity
-    assert result.call_confidence == CallConfidence.COMPLETE
+    assert result.call_confidence == expected_confidence
+    if expected_confidence == CallConfidence.PARTIAL:
+        assert "unphased" in result.confidence_note
 
 
 @pytest.mark.parametrize(
-    ("overrides", "expected_diplotype", "expected_phenotype", "expected_activity"),
+    (
+        "overrides",
+        "expected_diplotype",
+        "expected_phenotype",
+        "expected_activity",
+        "expected_confidence",
+    ),
     [
-        ({"rs4986893": "AA"}, "*3/*3", "Poor Metabolizer", 0.0),
+        ({"rs4986893": "AA"}, "*3/*3", "Poor Metabolizer", 0.0, CallConfidence.COMPLETE),
         (
             {"rs4986893": "GA", "rs12248560": "CT"},
             "*3/*17",
             "Intermediate Metabolizer",
             1.5,
+            CallConfidence.PARTIAL,
         ),
     ],
 )
@@ -162,13 +197,16 @@ def test_issue59_star3_gap_calls_resolve_to_cpic_phenotypes(
     expected_diplotype: str,
     expected_phenotype: str,
     expected_activity: float,
+    expected_confidence: CallConfidence,
 ) -> None:
     result = _call_cyp2c19(reference_engine, _cyp2c19_genotypes(**overrides))
 
     assert result.diplotype == expected_diplotype
     assert result.phenotype == expected_phenotype
     assert result.activity_score == expected_activity
-    assert result.call_confidence == CallConfidence.COMPLETE
+    assert result.call_confidence == expected_confidence
+    if expected_confidence == CallConfidence.PARTIAL:
+        assert "unphased" in result.confidence_note
 
 
 def test_star1_star1_emits_only_normal_metabolizer_guidance(

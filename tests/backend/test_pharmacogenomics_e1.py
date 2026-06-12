@@ -153,6 +153,8 @@ def test_nudt15_star3_star4_compound_het_is_poor(reference_engine: sa.Engine) ->
     result = _call("NUDT15", {_NUDT15_RS: "CT", _NUDT15_R139H: "GA"}, reference_engine)
     assert result.diplotype == "*3/*4"
     assert result.phenotype == "Poor Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
 
 
 # ── UGT1A1 (irinotecan / atazanavir) + explicit indeterminate flag ────────────
@@ -217,12 +219,22 @@ def test_cyp3a5_star7_het_is_intermediate(reference_engine: sa.Engine) -> None:
 
 
 @pytest.mark.parametrize(
-    ("overrides", "diplotype", "phenotype"),
+    ("overrides", "diplotype", "phenotype", "expected_confidence"),
     [
-        ({"rs776746": "TC", "rs41303343": "DI"}, "*3/*7", "Poor Metabolizer"),
-        ({"rs10264272": "TT"}, "*6/*6", "Poor Metabolizer"),
-        ({"rs10264272": "CT", "rs41303343": "DI"}, "*6/*7", "Poor Metabolizer"),
-        ({"rs41303343": "DD"}, "*7/*7", "Poor Metabolizer"),
+        (
+            {"rs776746": "TC", "rs41303343": "DI"},
+            "*3/*7",
+            "Poor Metabolizer",
+            CallConfidence.PARTIAL,
+        ),
+        ({"rs10264272": "TT"}, "*6/*6", "Poor Metabolizer", CallConfidence.COMPLETE),
+        (
+            {"rs10264272": "CT", "rs41303343": "DI"},
+            "*6/*7",
+            "Poor Metabolizer",
+            CallConfidence.PARTIAL,
+        ),
+        ({"rs41303343": "DD"}, "*7/*7", "Poor Metabolizer", CallConfidence.COMPLETE),
     ],
 )
 def test_cyp3a5_no_function_star7_diplotypes_are_mapped(
@@ -230,10 +242,14 @@ def test_cyp3a5_no_function_star7_diplotypes_are_mapped(
     overrides: dict[str, str],
     diplotype: str,
     phenotype: str,
+    expected_confidence: CallConfidence,
 ) -> None:
     result = _call("CYP3A5", _cyp3a5_genotypes(**overrides), reference_engine)
     assert result.diplotype == diplotype
     assert result.phenotype == phenotype
+    assert result.call_confidence == expected_confidence
+    if expected_confidence == CallConfidence.PARTIAL:
+        assert "unphased" in result.confidence_note
 
 
 def test_cyp3a5_star7_het_emits_tacrolimus_alert(reference_engine: sa.Engine) -> None:

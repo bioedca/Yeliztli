@@ -164,25 +164,35 @@ def test_star3a_double_het_alert_carries_phase_caveat(reference_engine: sa.Engin
 # phenotype=None and were silently skipped by generate_prescribing_alerts(). Two
 # no-function TPMT alleles = Poor Metabolizer (CPIC thiopurine guideline, Relling
 # et al. Clin Pharmacol Ther 2019, PMID 30447069), the highest-toxicity group.
-# Each tuple is (expected diplotype, plus-strand genotype overrides) and was
-# verified to be produced by call_star_alleles_for_gene over the production CSVs.
+# Each tuple is (expected diplotype, plus-strand genotype overrides, expected
+# confidence) and was verified to be produced by call_star_alleles_for_gene over
+# the production CSVs.
 # *3B/*3C is absent from this reachable-diplotype list because the caller assigns
 # the 2-variant *3A first; the resulting *1/*3A call is phase-flagged above.
 _TPMT_POOR_METABOLIZERS = [
-    ("*2/*2", {"rs1800462": "GG"}),
-    ("*2/*3A", {"rs1800462": "CG", "rs1800460": "CT", "rs1142345": "TC"}),
-    ("*2/*3B", {"rs1800462": "CG", "rs1800460": "CT"}),
-    ("*2/*3C", {"rs1800462": "CG", "rs1142345": "TC"}),
-    ("*3A/*3B", {"rs1800460": "TT", "rs1142345": "TC"}),
-    ("*3A/*3C", {"rs1800460": "CT", "rs1142345": "CC"}),
-    ("*3B/*3B", {"rs1800460": "TT"}),
-    ("*3C/*3C", {"rs1142345": "CC"}),
+    ("*2/*2", {"rs1800462": "GG"}, CallConfidence.COMPLETE),
+    (
+        "*2/*3A",
+        {"rs1800462": "CG", "rs1800460": "CT", "rs1142345": "TC"},
+        CallConfidence.PARTIAL,
+    ),
+    ("*2/*3B", {"rs1800462": "CG", "rs1800460": "CT"}, CallConfidence.PARTIAL),
+    ("*2/*3C", {"rs1800462": "CG", "rs1142345": "TC"}, CallConfidence.PARTIAL),
+    ("*3A/*3B", {"rs1800460": "TT", "rs1142345": "TC"}, CallConfidence.COMPLETE),
+    ("*3A/*3C", {"rs1800460": "CT", "rs1142345": "CC"}, CallConfidence.COMPLETE),
+    ("*3B/*3B", {"rs1800460": "TT"}, CallConfidence.COMPLETE),
+    ("*3C/*3C", {"rs1142345": "CC"}, CallConfidence.COMPLETE),
 ]
 
 
-@pytest.mark.parametrize("expected_diplotype,overrides", _TPMT_POOR_METABOLIZERS)
+@pytest.mark.parametrize(
+    "expected_diplotype,overrides,expected_confidence", _TPMT_POOR_METABOLIZERS
+)
 def test_no_function_diplotypes_are_poor_metabolizers(
-    reference_engine: sa.Engine, expected_diplotype: str, overrides: dict[str, str]
+    reference_engine: sa.Engine,
+    expected_diplotype: str,
+    overrides: dict[str, str],
+    expected_confidence: CallConfidence,
 ) -> None:
     """Each callable no-fn/no-fn TPMT diplotype maps to Poor Metabolizer (issue #12).
 
@@ -194,12 +204,19 @@ def test_no_function_diplotypes_are_poor_metabolizers(
     assert result.diplotype == expected_diplotype
     assert result.phenotype == "Poor Metabolizer"
     assert result.activity_score == 0.0
-    assert result.call_confidence == CallConfidence.COMPLETE
+    assert result.call_confidence == expected_confidence
+    if expected_confidence == CallConfidence.PARTIAL:
+        assert "unphased" in result.confidence_note
 
 
-@pytest.mark.parametrize("expected_diplotype,overrides", _TPMT_POOR_METABOLIZERS)
+@pytest.mark.parametrize(
+    "expected_diplotype,overrides,expected_confidence", _TPMT_POOR_METABOLIZERS
+)
 def test_poor_metabolizers_emit_thiopurine_alerts(
-    reference_engine: sa.Engine, expected_diplotype: str, overrides: dict[str, str]
+    reference_engine: sa.Engine,
+    expected_diplotype: str,
+    overrides: dict[str, str],
+    expected_confidence: CallConfidence,
 ) -> None:
     """A TPMT Poor Metabolizer gets azathioprine + mercaptopurine alerts (issue #12).
 
@@ -217,6 +234,9 @@ def test_poor_metabolizers_emit_thiopurine_alerts(
     for alert in tpmt_alerts:
         assert alert.diplotype == expected_diplotype
         assert alert.phenotype == "Poor Metabolizer"
+        assert alert.call_confidence == expected_confidence
+        if expected_confidence == CallConfidence.PARTIAL:
+            assert "unphased" in alert.confidence_note
 
 
 def test_every_callable_tpmt_diplotype_has_a_phenotype(reference_engine: sa.Engine) -> None:

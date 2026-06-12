@@ -87,14 +87,22 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
 }
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
-# non-reference alleles are called from unphased SNP genotypes (a compound
-# heterozygote). For NAT2 the trans (slow) configuration is the standard,
-# high-accuracy SNP-panel assumption (Hein & Doll 2011, PMID 22092036), but SNP
-# arrays do not resolve phase — ambiguous diplotypes occur and can misclassify
-# acetylator status (Agundez 2008, PMID 18664443) — and the slow-acetylator call
-# drives isoniazid hepatotoxicity advice, so the inference must be surfaced rather
-# than presented as a directly phased result (issue #40).
-_PHASE_INFERENCE_GENES: frozenset[str] = frozenset({"NAT2"})
+# non-reference alleles are called from unphased array genotypes. The helper
+# below requires each allele to have its own heterozygous defining marker so
+# shared-marker diplotypes are not overflagged.
+_PHASE_INFERENCE_GENES: frozenset[str] = frozenset(
+    {
+        "CYP2B6",
+        "CYP2C19",
+        "CYP2C9",
+        "CYP3A5",
+        "DPYD",
+        "NAT2",
+        "NUDT15",
+        "SLCO1B1",
+        "TPMT",
+    }
+)
 _TPMT_STAR3A_PHASE_RSIDS: frozenset[str] = frozenset({"rs1800460", "rs1142345"})
 
 # Gene-specific interpretive caveats attached to prescribing-alert findings
@@ -448,6 +456,48 @@ def _is_tpmt_star3a_phase_ambiguous(
     )
 
 
+def _defining_rsids_by_allele(alleles: list[dict]) -> dict[str, set[str]]:
+    """Map each star allele to its defining rsids."""
+    return {
+        allele["allele_name"]: {v["rsid"] for v in allele["defining_variants"]}
+        for allele in alleles
+    }
+
+
+def _has_heterozygous_unique_marker(
+    allele: str,
+    other_allele: str,
+    defining_rsids: dict[str, set[str]],
+    observed_alt_counts: dict[str, int],
+) -> bool:
+    """Return whether an allele has a heterozygous marker not shared by the other allele."""
+    unique_rsids = defining_rsids.get(allele, set()) - defining_rsids.get(other_allele, set())
+    return any(observed_alt_counts.get(rsid) == 1 for rsid in unique_rsids)
+
+
+def _is_phase_inferred_compound_het(
+    gene: str,
+    allele1: str,
+    allele2: str,
+    ref_allele_name: str,
+    alleles: list[dict],
+    observed_alt_counts: dict[str, int],
+) -> bool:
+    """Return True for distinct non-reference alleles inferred from unphased markers."""
+    if (
+        gene not in _PHASE_INFERENCE_GENES
+        or allele1 == ref_allele_name
+        or allele2 == ref_allele_name
+        or allele1 == allele2
+    ):
+        return False
+
+    defining_rsids = _defining_rsids_by_allele(alleles)
+    return _has_heterozygous_unique_marker(
+        allele1, allele2, defining_rsids, observed_alt_counts
+    ) and _has_heterozygous_unique_marker(allele2, allele1, defining_rsids, observed_alt_counts)
+
+
 def call_star_alleles_for_gene(
     gene: str,
     alleles: list[dict],
@@ -583,26 +633,21 @@ def call_star_alleles_for_gene(
             "defining variant(s) or structural/copy-number state not assayed on this array."
         ).strip()
 
-    # Phase-inference guard (issue #40): a diplotype built from two *different*
-    # non-reference alleles is a compound heterozygote inferred from UNPHASED SNP
-    # genotypes. For NAT2 these markers are assumed in trans (the standard,
-    # high-accuracy SNP-panel inference), but phase was not directly determined —
-    # a rare cis configuration could instead be intermediate. Flag it (PARTIAL,
-    # never overriding a worse confidence) and carry the caveat into the alert so
-    # the acetylator status is not presented as a directly phased Slow call.
-    if (
-        gene in _PHASE_INFERENCE_GENES
-        and diplo_data is not None
-        and allele1 != ref_allele_name
-        and allele2 != ref_allele_name
-        and allele1 != allele2
+    # Phase-inference guard: a diplotype built from two distinct non-reference
+    # alleles can be a trans compound-heterozygote inferred from unphased array
+    # genotypes. Flag it (PARTIAL, never overriding a worse confidence) and carry
+    # the caveat into the alert so clinically load-bearing phenotypes are not
+    # presented as directly phased calls.
+    if diplo_data is not None and _is_phase_inferred_compound_het(
+        gene, allele1, allele2, ref_allele_name, alleles, observed_alt_counts
     ):
         phase_note = (
             f"{gene} {diplotype} combines two different non-reference alleles called "
-            "from unphased SNP genotypes; the trans (compound-heterozygous) "
-            "configuration is assumed per standard NAT2 SNP-panel inference, but phase "
-            "was not directly determined and a cis configuration could instead yield an "
-            "intermediate phenotype. Treat the acetylator status as a SNP-panel inference."
+            "from unphased array genotypes; the trans (compound-heterozygous) "
+            "configuration is inferred from the star-allele model, but phase was not "
+            "directly determined and a cis configuration can alter the inferred "
+            "diplotype or phenotype for some CPIC interpretations. Treat this as a "
+            "phase-inferred star-allele call."
         )
         confidence_note = f"{confidence_note} {phase_note}".strip()
         if call_confidence == CallConfidence.COMPLETE:

@@ -145,6 +145,8 @@ def test_compound_het_poor_metabolizer_not_dropped(reference_engine: sa.Engine) 
     result = _call_dpyd(reference_engine, _dpyd_genotypes(rs3918290="CT", rs67376798="TA"))
     assert result.diplotype == "*2A/c.2846A>T"
     assert result.phenotype == "Poor Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
 
 
 # ── Absent-allele / fatal-toxicity caveat ────────────────────────────────────
