@@ -488,7 +488,9 @@ class TestListPathways:
         assert len(insuf) == 1
         assert insuf[0]["gene"] == "FLG"
         assert insuf[0]["rsid"] == "rs61816761"
-        assert "proxy" in insuf[0]["finding_text"].lower()
+        assert "R501X" in insuf[0]["finding_text"]
+        assert "Insufficient Data" in insuf[0]["finding_text"]
+        assert insuf[0]["proxy_target"] is None
 
     def test_cross_module_present(self, client: tuple[TestClient, int]) -> None:
         tc, sample_id = client
