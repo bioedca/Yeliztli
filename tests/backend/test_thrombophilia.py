@@ -80,6 +80,62 @@ class TestDoubleCarrier:
         call = a.calls[0]
         assert "double carrier" in call.risk_classification.lower()
         assert "5.24" in call.finding_text
+        # A true double *heterozygote* is het at both loci.
+        assert call.zygosity == "het"
+
+
+class TestCompoundHomozygous:
+    """Regression for #114 — the broad first-match double-carrier rule must not
+    shadow homozygous FVL/F2 context. A homozygous locus paired with a second
+    risk allele has to resolve to its genotype-specific compound model, not the
+    generic ``het`` double-carrier headline."""
+
+    def test_fvl_homozygous_plus_f2_carrier(self, panel, sample_engine: sa.Engine) -> None:
+        # rs6025 AA (homozygous FVL) + rs1799963 GA (PT carrier) — the #114 case.
+        _seed(sample_engine, [_fvl("AA"), _f2("GA")])
+        a = assess_thrombophilia(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.detail["model_id"] == "fvl_homozygous_f2_carrier"
+        assert call.risk_classification == (
+            "Factor V Leiden homozygous + Prothrombin G20210A carrier"
+        )
+        # Must NOT be reported as a plain heterozygous double carrier.
+        assert call.zygosity != "het"
+        assert "homozygous" in call.finding_text.lower()
+        assert call.detail["dosages"] == {"rs6025": 2, "rs1799963": 1}
+
+    def test_f2_homozygous_plus_fvl_carrier(self, panel, sample_engine: sa.Engine) -> None:
+        # rs1799963 AA (homozygous PT) + rs6025 GA (FVL carrier).
+        _seed(sample_engine, [_fvl("GA"), _f2("AA")])
+        a = assess_thrombophilia(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.detail["model_id"] == "f2_homozygous_fvl_carrier"
+        assert call.risk_classification == (
+            "Prothrombin G20210A homozygous + Factor V Leiden carrier"
+        )
+        assert call.zygosity != "het"
+        assert "homozygous" in call.finding_text.lower()
+        assert call.detail["dosages"] == {"rs6025": 1, "rs1799963": 2}
+
+    def test_double_homozygous(self, panel, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [_fvl("AA"), _f2("AA")])
+        a = assess_thrombophilia(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.detail["model_id"] == "double_homozygous"
+        assert call.zygosity == "hom_alt"
+        assert "double-homozygous" in call.finding_text.lower()
+        assert call.detail["dosages"] == {"rs6025": 2, "rs1799963": 2}
+
+    def test_single_homozygous_loci_unchanged(self, panel, sample_engine: sa.Engine) -> None:
+        # A homozygote with the *other* locus reference must still hit the
+        # single-locus homozygous model, not a compound one.
+        _seed(sample_engine, [_fvl("AA"), _f2("GG")])
+        a = assess_thrombophilia(panel, sample_engine)
+        assert a.calls[0].detail["model_id"] == "fvl_homozygous"
+        assert a.calls[0].zygosity == "hom_alt"
 
 
 class TestNegativeAndIndeterminate:
