@@ -26,11 +26,11 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.allele_match import MISSING_FREQ, match_effect_allele_dosage
 from backend.analysis.evidence import EVIDENCE_MODERATE
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
 from backend.analysis.prs import (
     PRSResult,
-    _count_effect_allele,
     run_prs,
     store_prs_findings,
 )
@@ -99,16 +99,25 @@ COVERAGE_CONTEXT = (
 
 @dataclass
 class AnchorResult:
-    """A single anchor-SNP result for a sample."""
+    """A single anchor-SNP result for a sample.
+
+    ``dosage`` is the strand-harmonized effect-allele copy count (0/1/2), or
+    ``None`` when the call cannot be oriented confidently. ``indeterminate`` is
+    ``True`` for a strand-ambiguous palindromic homozygote (see
+    :func:`_anchor_dosage`); the directional copy-count is then suppressed
+    downstream rather than reported as a possibly-inverted number.
+    """
 
     rsid: str
     gene: str
     effect_allele: str
+    other_allele: str
     genotype: str | None
-    dosage: int
+    dosage: int | None
     summary: str
     pmid: str
     trait: str
+    indeterminate: bool = False
 
 
 @dataclass
@@ -122,17 +131,51 @@ class MetabolicResult:
 # ── Anchor SNP scoring ─────────────────────────────────────────────────────
 
 
+def _anchor_dosage(
+    genotype: str, effect_allele: str, other_allele: str
+) -> tuple[int | None, bool]:
+    """Strand-harmonized effect-allele dosage for one anchor SNP.
+
+    Returns ``(dosage, indeterminate)``. The call is routed through the shared
+    PRS allele matcher (:func:`match_effect_allele_dosage`) with the curated
+    ``other_allele`` so a reverse-strand call at a **non-palindromic** anchor
+    (TCF7L2 T/C, MC4R C/T) is counted on the complemented strand instead of
+    being miscounted — e.g. a minus-strand ``GG`` at the MC4R C/T locus resolves
+    to two copies of the C effect allele rather than zero.
+
+    For a **palindromic** A/T or C/G anchor (FTO rs9939609) the strand of a
+    single direct-to-consumer call cannot be verified from the genotype alone;
+    the frequency/LD disambiguation the matcher offers is a population technique,
+    not valid for one individual's single locus. So no MAF is supplied
+    (``maf=None``) and the matcher withholds a strand. A palindromic
+    **heterozygote** is strand-invariant (exactly one effect-allele copy either
+    way) and kept; a palindromic **homozygote** is genuinely ambiguous (an
+    opposite-strand ``TT`` is the complement of ``AA``) and returned as
+    indeterminate so the directional copy-count is suppressed rather than
+    silently inverted.
+    """
+    match = match_effect_allele_dosage(genotype, effect_allele, other_allele, None)
+    if match.dosage is not None:
+        return match.dosage, False
+    if match.status == MISSING_FREQ:
+        # Palindrome with the strand deliberately withheld: a heterozygote is the
+        # palindrome pair on either strand → unambiguously one effect-allele copy.
+        gt = genotype.strip().upper()
+        if len(gt) == 2 and set(gt) == {effect_allele.upper(), other_allele.upper()}:
+            return 1, False
+    return None, True
+
+
 def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult]:
-    """Resolve genotype + effect-allele dosage for a trait's anchor SNPs.
+    """Resolve genotype + strand-harmonized effect-allele dosage for a trait's anchors.
 
     Anchors are single, directly-typed variants reported with their raw
-    genotype, so the effect-allele dosage is a **literal** count of that
-    genotype (always 0/1/2 when typed) rather than the strand-aware,
-    palindrome-dropping PRS matcher — the latter would return an indeterminate
-    ``None`` for palindromic anchors (e.g. FTO rs9939609 is A/T near MAF 0.5)
-    and drop the most informative locus. Strand orientation is a general array
-    caveat covered by the module disclaimer; the displayed genotype keeps it
-    transparent.
+    genotype. The effect-allele dosage is resolved with the shared strand-aware
+    matcher (:func:`_anchor_dosage`) — using each anchor's curated
+    ``other_allele`` — so a reverse-strand call is counted on the correct strand
+    rather than literally. A strand-ambiguous palindromic homozygote (e.g. FTO
+    rs9939609, an A/T locus) is marked ``indeterminate`` so its directional
+    copy-count is suppressed instead of being silently inverted.
     """
     anchors = ANCHOR_SNPS.get(trait, [])
     if not anchors:
@@ -150,13 +193,20 @@ def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult
     out: list[AnchorResult] = []
     for a in anchors:
         genotype = geno.get(a["rsid"])
+        if genotype is None:
+            dosage: int | None = None
+            indeterminate = False
+        else:
+            dosage, indeterminate = _anchor_dosage(genotype, a["effect_allele"], a["other_allele"])
         out.append(
             AnchorResult(
                 rsid=a["rsid"],
                 gene=a["gene"],
                 effect_allele=a["effect_allele"],
+                other_allele=a["other_allele"],
                 genotype=genotype,
-                dosage=_count_effect_allele(genotype, a["effect_allele"]),
+                dosage=dosage,
+                indeterminate=indeterminate,
                 summary=a["summary"],
                 pmid=a["pmid"],
                 trait=trait,
@@ -227,7 +277,23 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
     for a in result.anchors:
         if a.genotype is None:
             continue  # not typed in this sample → nothing to report
-        dosage_text = {0: "no copies", 1: "1 copy", 2: "2 copies"}.get(a.dosage, f"{a.dosage}")
+        if a.indeterminate:
+            # Strand-ambiguous palindromic homozygote: report the raw genotype but
+            # suppress the directional copy-count so it can't be silently inverted.
+            finding_text = (
+                f"{a.gene} {a.rsid}: genotype {a.genotype} at a strand-ambiguous "
+                f"{a.effect_allele}/{a.other_allele} palindromic locus — "
+                f"effect-allele dosage not reported (array strand cannot be "
+                f"resolved for this homozygous call) — Research Use Only"
+            )
+            dosage_for_detail: int | None = None
+        else:
+            dosage_text = {0: "no copies", 1: "1 copy", 2: "2 copies"}.get(a.dosage, f"{a.dosage}")
+            finding_text = (
+                f"{a.gene} {a.rsid}: {dosage_text} of the {a.effect_allele} "
+                f"effect allele ({a.genotype}) — Research Use Only"
+            )
+            dosage_for_detail = a.dosage
         anchor_rows.append(
             {
                 "module": MODULE_NAME,
@@ -235,10 +301,7 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
                 "evidence_level": EVIDENCE_MODERATE,
                 "gene_symbol": a.gene,
                 "rsid": a.rsid,
-                "finding_text": (
-                    f"{a.gene} {a.rsid}: {dosage_text} of the {a.effect_allele} "
-                    f"effect allele ({a.genotype}) — Research Use Only"
-                ),
+                "finding_text": finding_text,
                 "pmid_citations": json.dumps([a.pmid]),
                 "detail_json": json.dumps(
                     {
@@ -247,8 +310,10 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
                         "gene": a.gene,
                         "rsid": a.rsid,
                         "effect_allele": a.effect_allele,
+                        "other_allele": a.other_allele,
                         "genotype": a.genotype,
-                        "dosage": a.dosage,
+                        "dosage": dosage_for_detail,
+                        "indeterminate": a.indeterminate,
                         "summary": a.summary,
                         "research_use_only": True,
                     }

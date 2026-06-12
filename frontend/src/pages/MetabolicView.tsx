@@ -19,7 +19,7 @@ import { useMetabolicAnchors, useMetabolicPRS, useRunMetabolic } from "@/api/met
 import { toGaugePrs } from "@/types/metabolic"
 import type { MetabolicAnchor } from "@/types/metabolic"
 
-function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
+export function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
   return (
     <article
       className="rounded-lg border bg-card p-4"
@@ -34,7 +34,15 @@ function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
       </div>
       <p className="text-sm text-foreground">
         Genotype <span className="font-mono">{anchor.genotype}</span> —{" "}
-        {anchor.dosage} × {anchor.effect_allele} effect allele
+        {anchor.indeterminate ? (
+          <span className="text-amber-600 dark:text-amber-500" data-testid="anchor-indeterminate">
+            strand-ambiguous palindromic locus; effect-allele dosage not reported
+          </span>
+        ) : (
+          <>
+            {anchor.dosage} × {anchor.effect_allele} effect allele
+          </>
+        )}
       </p>
       <p className="text-xs text-muted-foreground mt-1">{anchor.summary}</p>
     </article>

@@ -42,7 +42,10 @@ export interface MetabolicAnchor {
   rsid: string
   effect_allele: string
   genotype: string | null
-  dosage: number
+  /** Strand-harmonized effect-allele copy count, or null when not orientable. */
+  dosage: number | null
+  /** True for a strand-ambiguous palindromic homozygote: dosage is suppressed. */
+  indeterminate: boolean
   summary: string
   evidence_level: number
   pmids: string[]

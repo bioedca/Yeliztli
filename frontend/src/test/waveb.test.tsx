@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import { toGaugePrs } from "@/types/metabolic"
-import type { MetabolicPRS } from "@/types/metabolic"
+import type { MetabolicAnchor, MetabolicPRS } from "@/types/metabolic"
+import { AnchorCard } from "@/pages/MetabolicView"
 
 // ── toGaugePrs adapter ────────────────────────────────────────────────
 
@@ -46,6 +47,43 @@ describe("toGaugePrs", () => {
     // No monogenic exclusion is implied by the adapter.
     expect(g.monogenic_genes).toEqual([])
     expect(g.research_use_only).toBe(true)
+  })
+})
+
+// ── MetabolicView AnchorCard (#138 strand resolution) ─────────────────
+
+const BASE_ANCHOR: MetabolicAnchor = {
+  trait: "body_mass_index",
+  trait_label: "Body mass index / obesity",
+  gene: "FTO",
+  rsid: "rs9939609",
+  effect_allele: "A",
+  genotype: "AT",
+  dosage: 1,
+  indeterminate: false,
+  summary: "FTO — the strongest common BMI/adiposity locus.",
+  evidence_level: 2,
+  pmids: ["17434869"],
+}
+
+describe("MetabolicView AnchorCard", () => {
+  it("renders a directional effect-allele dosage for a strand-resolved anchor", () => {
+    render(<AnchorCard anchor={{ ...BASE_ANCHOR, genotype: "AA", dosage: 2 }} />)
+    const card = screen.getByTestId("metabolic-anchor-card")
+    expect(card).toHaveTextContent("2")
+    expect(card).toHaveTextContent("effect allele")
+    expect(screen.queryByTestId("anchor-indeterminate")).not.toBeInTheDocument()
+  })
+
+  it("suppresses the copy-count for a strand-ambiguous palindromic homozygote", () => {
+    render(
+      <AnchorCard anchor={{ ...BASE_ANCHOR, genotype: "TT", dosage: null, indeterminate: true }} />,
+    )
+    expect(screen.getByTestId("anchor-indeterminate")).toBeInTheDocument()
+    const card = screen.getByTestId("metabolic-anchor-card")
+    expect(card).toHaveTextContent("dosage not reported")
+    // No inverted directional "× A effect allele" claim is shown.
+    expect(card).not.toHaveTextContent("effect allele")
   })
 })
 

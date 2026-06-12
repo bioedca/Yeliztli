@@ -11,11 +11,13 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import sqlalchemy as sa
 
 from backend.analysis.metabolic_prs import (
+    AnchorResult,
     run_metabolic_prs,
     score_anchor_snps,
     store_metabolic_findings,
@@ -152,6 +154,108 @@ class TestAnchorSnps:
         anchors = score_anchor_snps(sample_engine, "body_mass_index")
         mc4r = next(a for a in anchors if a.gene == "MC4R")
         assert mc4r.genotype is None
+        assert mc4r.dosage is None
+        assert mc4r.indeterminate is False  # untyped, not strand-ambiguous
+
+
+def _seed_anchor(engine: sa.Engine, rsid: str, chrom: str, pos: int, genotype: str) -> None:
+    """Seed a single anchor genotype into annotated_variants."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(annotated_variants),
+            [
+                {
+                    "rsid": rsid,
+                    "chrom": chrom,
+                    "pos": pos,
+                    "genotype": genotype,
+                    "gnomad_af_global": 0.4,
+                    "annotation_coverage": 0,
+                }
+            ],
+        )
+
+
+class TestAnchorStrandResolution:
+    """Regression for #138 — anchor effect-allele dosage must be strand-aware.
+
+    A reverse-strand call at a non-palindromic anchor must be counted on the
+    complemented strand (not literally), and a strand-ambiguous palindromic
+    homozygote (FTO rs9939609, A/T) must be reported as indeterminate rather
+    than silently inverted by a literal count.
+    """
+
+    def _fto(self, engine: sa.Engine, genotype: str) -> AnchorResult:
+        _seed_anchor(engine, "rs9939609", "16", 53786615, genotype)
+        anchors = score_anchor_snps(engine, "body_mass_index")
+        return next(a for a in anchors if a.gene == "FTO")
+
+    def _mc4r(self, engine: sa.Engine, genotype: str) -> AnchorResult:
+        _seed_anchor(engine, "rs17782313", "18", 58039276, genotype)
+        anchors = score_anchor_snps(engine, "body_mass_index")
+        return next(a for a in anchors if a.gene == "MC4R")
+
+    def test_fto_palindrome_reverse_strand_homozygote_not_inverted(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # FTO rs9939609 is A/T (effect A). A minus-strand 'TT' is the complement
+        # of the A/A effect genotype. A literal count would call it "0 copies of
+        # A" (inverted); it must instead be indeterminate with no directional
+        # dosage.
+        fto = self._fto(sample_engine, "TT")
+        assert fto.indeterminate is True
+        assert fto.dosage is None
+
+    def test_fto_palindrome_forward_homozygote_also_indeterminate(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # 'AA' is equally strand-ambiguous (could be the complement of 'TT').
+        fto = self._fto(sample_engine, "AA")
+        assert fto.indeterminate is True
+        assert fto.dosage is None
+
+    def test_fto_palindrome_heterozygote_is_one_copy(self, sample_engine: sa.Engine) -> None:
+        # A palindromic het is the same allele set on either strand → exactly one
+        # effect-allele copy, unambiguous, so it stays determinate.
+        fto = self._fto(sample_engine, "AT")
+        assert fto.indeterminate is False
+        assert fto.dosage == 1
+
+    def test_mc4r_non_palindrome_reverse_strand_resolves(self, sample_engine: sa.Engine) -> None:
+        # MC4R rs17782313 is C/T (non-palindromic, effect C). A minus-strand 'GG'
+        # is the complement of 'CC' → two copies of the C effect allele, resolved
+        # on the flipped strand rather than miscounted as zero.
+        mc4r = self._mc4r(sample_engine, "GG")
+        assert mc4r.indeterminate is False
+        assert mc4r.dosage == 2
+
+    def test_mc4r_forward_strand_homozygote_counts(self, sample_engine: sa.Engine) -> None:
+        mc4r = self._mc4r(sample_engine, "CC")
+        assert mc4r.indeterminate is False
+        assert mc4r.dosage == 2
+
+    def test_indeterminate_finding_suppresses_directional_text(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed_anchor(sample_engine, "rs9939609", "16", 53786615, "TT")
+        result = run_metabolic_prs(sample_engine, None)
+        store_metabolic_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "metabolic",
+                    findings.c.category == "anchor_snp",
+                    findings.c.rsid == "rs9939609",
+                )
+            ).fetchone()
+        assert row is not None
+        assert "dosage not reported" in row.finding_text
+        assert "strand-ambiguous" in row.finding_text
+        # No directional "0/1/2 copies of the A effect allele" claim.
+        assert "copies of the A" not in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["indeterminate"] is True
+        assert detail["dosage"] is None
 
 
 class TestRunMetabolic:
