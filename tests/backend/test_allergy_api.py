@@ -110,6 +110,12 @@ PATHWAY_SUMMARY_FINDINGS = [
                             "clinical_grade": True,
                             "confirmatory_test_required": True,
                         },
+                        "hla_proxy_lookup": {
+                            "hla_allele": "HLA-B*57:01",
+                            "r_squared_by_pop": {"EUR": 0.97, "AFR": 0.85},
+                            "clinical_context": "Abacavir hypersensitivity",
+                        },
+                        "hla_proxy_caveat": "Confirmatory HLA typing required.",
                         "coverage_note": None,
                     },
                 ],
@@ -404,6 +410,9 @@ class TestPathwayDetail:
         data = resp.json()
         assert data["level"] == "Elevated"
         assert data["hla_proxy_lookup"] is not None
+        snp_detail = data["snp_details"][0]
+        assert snp_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == 0.85
+        assert snp_detail["hla_proxy_caveat"] == "Confirmatory HLA typing required."
 
     def test_missing_pathway_404(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathway/nonexistent?sample_id=1")

@@ -420,7 +420,7 @@
   ],
   "special_calling": {
     "HLA_proxy_calling": {
-      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
+      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>=0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
       "proxy_rsids": ["rs2395029", "rs144012689", "rs1061235", "rs9263726", "rs2187668", "rs7775228"],
       "drug_hypersensitivity_proxies": {
         "rs2395029": "HLA-B*57:01 (abacavir)",

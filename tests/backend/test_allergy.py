@@ -1046,8 +1046,16 @@ class TestFindingsStorage:
                     findings.c.pathway == "Drug Hypersensitivity",
                 )
             ).fetchone()
+            positive_proxy_finding = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs9263726",
+                )
+            ).fetchone()
 
         assert drug_summary is not None
+        assert positive_proxy_finding is None
         detail = json.loads(drug_summary.detail_json)
         rs926_detail = next(d for d in detail["snp_details"] if d["rsid"] == "rs9263726")
         assert rs926_detail["category"] == STANDARD
