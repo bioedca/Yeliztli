@@ -66,15 +66,9 @@ EXPECTED_HELPERS = [
 ]
 
 
-# v1.1 hardcoded private-cluster path that scripts MUST NOT bake in. The
-# dispatcher should accept it via env override only. Build the legacy path from
-# pieces so the repository-wide pointer guard does not exempt this test file.
-_PRIVATE_CLUSTER_ROOT = (
-    "/".join(("", "exports", "people", "mondragon" + "lab", "ecc" + "1695"))
-)
-_V1_HARDCODED_PATH = re.compile(
-    re.escape(_PRIVATE_CLUSTER_ROOT + "/lai_bundle/") + r"(?!v2)"
-)
+# Hardcoded private shared-filesystem roots that scripts MUST NOT bake in. The
+# dispatcher should accept concrete build paths via env override only.
+_PRIVATE_SHARED_ROOT = re.compile(r"/exports(?:/|$)")
 _HOME_LAI_BUNDLE_V1_HARDCODED = re.compile(r"\$HOME/lai_bundle(?!_v2)\b|~/lai_bundle(?!_v2)\b")
 
 
@@ -134,8 +128,8 @@ class TestNoV11PathLeak:
     )
     def test_no_hardcoded_v1_cluster_path(self, name: str) -> None:
         text = (SCRIPTS_DIR / name).read_text()
-        assert not _V1_HARDCODED_PATH.search(text), (
-            f"{name} hardcodes the v1.1 cluster path; parametrize via env.sh instead"
+        assert not _PRIVATE_SHARED_ROOT.search(text), (
+            f"{name} hardcodes a private shared-filesystem path; parametrize via env.sh instead"
         )
 
     @pytest.mark.parametrize(
@@ -619,7 +613,7 @@ class TestRunbook:
         # so the repo does not leak a private build-host path.
         assert "$LAI_V1_WORKDIR" in text
         assert "$LAI_WORKDIR" in text
-        assert _PRIVATE_CLUSTER_ROOT not in text
+        assert not _PRIVATE_SHARED_ROOT.search(text)
 
     def test_runbook_lists_bio_validator_targets(self) -> None:
         text = RUNBOOK.read_text()

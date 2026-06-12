@@ -11,35 +11,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _bytes(*parts: str) -> bytes:
-    return "".join(parts).encode()
-
-
-def _literal(*parts: str) -> bytes:
-    return re.escape(_bytes(*parts))
-
-
 PRIVATE_BUILD_POINTERS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
-    ("private shared filesystem root", re.compile(_literal("/exports", "/people"))),
-    ("private lab/account namespace", re.compile(_literal("mondragon", "lab"))),
-    ("private cluster username", re.compile(_literal("ecc", "1695"))),
+    ("private shared filesystem root", re.compile(rb"/exports(?:/|$)")),
     (
-        "private SSH host alias invocation",
-        re.compile(rb"\bssh\s+" + _literal("tw", "o") + rb"\b"),
+        "literal SSH build host",
+        re.compile(rb"\bssh\s+(?!alias\b)(?!['\"\$<])[-A-Za-z0-9_.]+(?=\s|$)"),
     ),
     (
-        "private rsync/scp host target",
-        re.compile(rb"\b" + _literal("tw", "o") + rb":(?=[~/])"),
-    ),
-    ("private cluster host FQDN", re.compile(_literal("tw", "o", ".", "am", "lab"))),
-    (
-        "private gateway host FQDN",
-        re.compile(_literal("ze", "ro", ".", "bio", "chem")),
-    ),
-    ("private SLURM node mapping", re.compile(_literal("one", ",", "two"))),
-    (
-        "private gateway partition mapping",
-        re.compile(_literal("compute") + rb"\s*=\s*" + _literal("ze", "ro")),
+        "literal remote copy target",
+        re.compile(rb"\b(?:rsync|scp)\b[^\n]*\s[-A-Za-z0-9_.]+:(?=[~/])"),
     ),
 )
 
@@ -60,6 +40,33 @@ def _tracked_files() -> list[Path]:
 
 def _line_number(data: bytes, offset: int) -> int:
     return data.count(b"\n", 0, offset) + 1
+
+
+@pytest.mark.parametrize(
+    ("label", "sample"),
+    [
+        ("private shared filesystem root", b"WORKDIR=/ex" b"ports/private/build\n"),
+        ("literal SSH build host", b"s" b"sh build-host\n"),
+        ("literal remote copy target", b"rs" b"ync -av scripts/ build-host:~/scripts/\n"),
+    ],
+)
+def test_private_build_pointer_patterns_catch_representative_leaks(
+    label: str,
+    sample: bytes,
+) -> None:
+    pattern = dict(PRIVATE_BUILD_POINTERS)[label]
+    assert pattern.search(sample)
+
+
+@pytest.mark.parametrize(
+    "sample",
+    [
+        b'ssh "$LAI_BUILD_HOST"\n',
+        b'rsync -av scripts/ "${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/"\n',
+    ],
+)
+def test_private_build_pointer_patterns_allow_operator_variables(sample: bytes) -> None:
+    assert not any(pattern.search(sample) for _, pattern in PRIVATE_BUILD_POINTERS)
 
 
 def test_no_private_build_host_pointers_in_tracked_files() -> None:
