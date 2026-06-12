@@ -356,6 +356,28 @@ class TestPMIDs:
             for pmid in gene.pmids:
                 assert pmid.isdigit(), f"Invalid PMID: {pmid} in {gene.gene_symbol}"
 
+    def test_gba_cites_verified_gaucher_sources(self, panel: CarrierPanel) -> None:
+        """#173 — the GBA carrier entry must cite Gaucher/GBA-specific sources.
+
+        Locks the verified citation set so an unrelated PMID can't be
+        transposed back in (PMID 29241104 was an unrelated Drug & Alcohol
+        Dependence paper on self-compassion / substance-use risk):
+          - 20301446 = GeneReviews "Gaucher Disease"
+          - 20672374 = Scott et al. 2010, Hum Mutat — AJ carrier screening,
+            Gaucher carrier frequency ~1:15 (backs the panel note)
+          - 10464619 = Grabowski 1997, Genet Test — N370S/L444P gene frequencies
+        """
+        gba = panel.get_gene("GBA")
+        assert gba is not None
+        assert gba.pmids == ["20301446", "20672374", "10464619"]
+
+    def test_no_unrelated_self_compassion_pmid(self, panel: CarrierPanel) -> None:
+        """The transposed unrelated PMID must not reappear in any panel entry."""
+        for gene in panel.genes:
+            assert "29241104" not in gene.pmids, (
+                f"{gene.gene_symbol} cites unrelated PMID 29241104"
+            )
+
 
 # ── Gene metadata ────────────────────────────────────────────────────────
 
