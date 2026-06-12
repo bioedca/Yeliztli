@@ -118,25 +118,25 @@
           "genotype_effects": {
             "AA": {
               "category": "Standard",
-              "effect_summary": "Proxy for ACE II genotype (insertion/insertion). Associated with lower ACE activity and enhanced endurance performance."
+              "effect_summary": "Proxy for ACE II genotype (insertion/insertion). Reported in some meta-analyses as enriched in elite endurance athletes; evidence is sport-specific and heterogeneous."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "Proxy for ACE ID genotype (insertion/deletion). Intermediate ACE activity. Mixed endurance/power profile."
+              "effect_summary": "Proxy for ACE ID genotype (insertion/deletion). Intermediate ACE activity; performance evidence is mixed and not deterministic."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "Proxy for ACE ID genotype (insertion/deletion). Intermediate ACE activity. Mixed endurance/power profile."
+              "effect_summary": "Proxy for ACE ID genotype (insertion/deletion). Intermediate ACE activity; performance evidence is mixed and not deterministic."
             },
             "GG": {
               "category": "Elevated",
-              "effect_summary": "Proxy for ACE DD genotype (deletion/deletion). Associated with higher ACE activity and enhanced power/sprint performance."
+              "effect_summary": "Proxy for ACE DD genotype (deletion/deletion). Often discussed for power/sprint phenotypes, but evidence is heterogeneous and should be treated as contextual."
             }
           },
-          "coverage_note": "rs4341 is a proxy SNP for the ACE insertion/deletion (I/D) polymorphism, which is a 287 bp Alu repeat not directly genotyped on SNP arrays. Proxy accuracy depends on linkage disequilibrium in the individual's ancestry population.",
+          "coverage_note": "rs4341 is a proxy SNP for the ACE insertion/deletion (I/D) polymorphism, which is a 287 bp Alu repeat not directly genotyped on SNP arrays. Published genotyping studies report high linkage disequilibrium with ACE I/D in specific cohorts, but proxy accuracy may vary by ancestry and assay.",
           "evidence_level": 2,
-          "pmids": ["10694420", "15563880", "18043716"],
-          "recommendation_text": "The ACE I/D polymorphism is one of the most studied gene-exercise associations. D allele carriers may respond better to strength/power training, while I allele carriers may have an endurance advantage."
+          "pmids": ["12733698", "18622756", "39595706", "38760851"],
+          "recommendation_text": "Treat ACE I/D as contextual, research-grade fitness information only. Some endurance-modality meta-analyses report enrichment of the II genotype, while broader meta-analysis finds no overall genomic-variant association with power or endurance performance; do not make deterministic training recommendations from this variant alone."
         },
         {
           "rsid": "rs1049434",
@@ -277,7 +277,7 @@
       "rsids": ["rs1815739"]
     },
     "ACE_endurance_context": {
-      "note": "ACE rs4341 (I/D proxy) appears under Power (DD → power), but II genotype is associated with endurance advantage. Findings display both perspectives.",
+      "note": "ACE rs4341 (I/D proxy) appears under Power (DD -> power context), while II genotype has been reported in some endurance cohorts. Findings display both perspectives with the row-level evidence caveat.",
       "rsids": ["rs4341"]
     }
   },
@@ -307,7 +307,7 @@
       "description": "ACE insertion/deletion polymorphism is a 287 bp Alu repeat not directly captured by SNP arrays. rs4341 is used as a proxy SNP in linkage disequilibrium with the I/D variant.",
       "rsid": "rs4341",
       "proxy_target": "ACE I/D (287 bp Alu insertion/deletion in intron 16)",
-      "proxy_accuracy_note": "Linkage disequilibrium between rs4341 and ACE I/D varies by ancestry. Proxy accuracy is highest in European populations (r² ~0.8) and may be lower in other populations. Results should be interpreted with this caveat."
+      "proxy_accuracy_note": "Published genotyping studies report high linkage disequilibrium between rs4341 and ACE I/D in specific cohorts, but proxy accuracy may vary by ancestry and assay. Results should be interpreted with this caveat."
     }
   },
   "gwas_efo_terms": [

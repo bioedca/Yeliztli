@@ -523,7 +523,7 @@ class TestCrossContextFindings:
                     category=MODERATE,
                     effect_summary="ID proxy",
                     evidence_level=2,
-                    pmids=["10694420"],
+                    pmids=["39595706"],
                     recommendation_text="",
                     present_in_sample=True,
                     coverage_note="Proxy caveat",

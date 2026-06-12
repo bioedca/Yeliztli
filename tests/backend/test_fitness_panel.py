@@ -301,7 +301,24 @@ class TestACEProxy:
 
     def test_ace_evidence_level(self, panel_data: dict) -> None:
         ace = self._get_ace(panel_data)
-        assert ace["evidence_level"] == 2  # Well-replicated
+        assert ace["evidence_level"] == 2  # Moderate, heterogeneous meta-analytic evidence
+
+    def test_ace_pmids_support_proxy_and_sports_evidence(self, panel_data: dict) -> None:
+        ace = self._get_ace(panel_data)
+        pmids = set(ace["pmids"])
+        assert {"12733698", "18622756"}.issubset(pmids)  # rs4341 proxy/genotyping
+        assert {"39595706", "38760851"}.issubset(pmids)  # current sports meta-analyses
+        assert not {"10694420", "15563880", "18043716"} & pmids
+
+    def test_ace_text_carries_heterogeneous_evidence_caveat(self, panel_data: dict) -> None:
+        ace = self._get_ace(panel_data)
+        effect_text = " ".join(
+            effect["effect_summary"].lower() for effect in ace["genotype_effects"].values()
+        )
+        recommendation = ace["recommendation_text"].lower()
+        assert "heterogeneous" in effect_text
+        assert "not deterministic" in effect_text
+        assert "do not make deterministic training recommendations" in recommendation
 
 
 # ── Scoring rules tests ─────────────────────────────────────────────────
