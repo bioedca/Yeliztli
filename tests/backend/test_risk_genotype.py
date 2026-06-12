@@ -322,6 +322,36 @@ class TestLoadRiskPanelGuards:
         with pytest.raises(ValueError, match="caveat"):
             load_risk_panel(path)
 
+    def test_rejects_concordant_rsid_not_a_locus(self, tmp_path) -> None:
+        # A concordant_rsids partner that is not a declared locus would silently
+        # never veto — reject it at load time (#160).
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "loci": [
+                {
+                    "rsid": "rsTag",
+                    "gene_symbol": "G",
+                    "risk_allele": "A",
+                    "ref_allele": "G",
+                    "concordant_rsids": ["rsMissingPartner"],
+                }
+            ],
+            "genotype_models": [
+                {
+                    "id": "m",
+                    "match": {"rsTag": {"dosage": 1}},
+                    "risk_classification": "carrier",
+                    "evidence_stars": 2,
+                    "finding_text": "x",
+                }
+            ],
+        }
+        path = tmp_path / "bad_concordant.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="concordant_rsids"):
+            load_risk_panel(path)
+
     @pytest.mark.parametrize(
         ("model_patch", "error"),
         [

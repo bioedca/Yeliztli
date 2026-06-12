@@ -326,4 +326,25 @@ class TestG1HaplotypeConcordance:
         a = assess_apol1(panel, sample_engine)
         assert a.discordant_loci == ["rs73885319"]
         assert len(a.calls) == 1
-        assert "high-risk" in a.calls[0].risk_classification.lower()
+        call = a.calls[0]
+        assert "high-risk" in call.risk_classification.lower()
+        # The vetoed tag was TYPED (GG) — it must NOT be reported as "not typed
+        # on this array"; an accurate discordance note is shown instead.
+        caveats = " ".join(call.detail.get("caveats", [])).lower()
+        assert "not typed on this array" not in caveats
+        assert "discordant with its cis partner" in caveats
+        assert "rs73885319" not in call.detail.get("untyped_loci", [])
+
+    def test_discordant_g1_het_with_g2_het_flips_to_indeterminate(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # The discriminating case: tag AG (1) + G2 het DI (1) sum to 2 PRE-fix
+        # (a false high-risk); the discordant partner TT (0) vetoes the G1 tag,
+        # dropping the known count to 1 → indeterminate, not high-risk.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("AG"), _g1b("TT"), _g2("DI"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == ["rs73885319"]
+        assert len(a.calls) == 1
+        assert "indeterminate" in a.calls[0].risk_classification.lower()
+        assert "high-risk" not in a.calls[0].risk_classification.lower()

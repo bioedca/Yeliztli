@@ -326,6 +326,18 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
         for loc in data["loci"]
     ]
 
+    # Every concordant_rsids partner must be a declared locus, else the
+    # concordance veto would silently never fire for it (a one-directional safety
+    # failure: under-veto). Mirrors the caveat-key / PMID load-time validation.
+    locus_rsids = {loc.rsid for loc in loci}
+    for loc in loci:
+        for partner in loc.concordant_rsids:
+            if partner not in locus_rsids:
+                raise ValueError(
+                    f"Panel '{data['module']}' locus '{loc.rsid}' lists concordant_rsids "
+                    f"partner '{partner}' that is not a declared locus in this panel."
+                )
+
     models: list[GenotypeModel] = []
     for m in data["genotype_models"]:
         pmids = m.get("pmids", [])
@@ -706,7 +718,10 @@ class _SafeDict(dict):
 
 
 def _apply_partial_guardrail(
-    call: RiskCall, model: GenotypeModel, dosages: dict[str, int | None]
+    call: RiskCall,
+    model: GenotypeModel,
+    dosages: dict[str, int | None],
+    discordant: list[str],
 ) -> RiskCall:
     """Flag a fired aggregate-dosage model whose contributing loci weren't all typed.
 
@@ -714,21 +729,44 @@ def _apply_partial_guardrail(
     contributing locus (e.g. the APOL1 G2 indel) is untyped, so the call is
     annotated as a partial genotype rather than presented as complete. Never
     flips the call to low-risk — it only adds caution.
+
+    A contributing locus that was veto-nulled for cis-partner discordance is
+    ``None`` in ``dosages`` but **was** typed, so it must NOT be reported as
+    "not typed on this array" (that caveat is for genuinely off-chip loci). Such a
+    locus instead gets an accurate genotyping-concordance note (#160).
     """
     cond = model.match.get(TOTAL_RISK_DOSAGE_KEY)
     if not cond:
         return call
-    unknown = [r for r in cond.get("rsids", []) if dosages.get(r) is None]
-    if not unknown:
+    rsids = cond.get("rsids", [])
+    discordant_set = set(discordant)
+    # Veto-nulled (discordant) loci were typed, just discounted → not "untyped".
+    unknown = [r for r in rsids if dosages.get(r) is None and r not in discordant_set]
+    contributing_discordant = [r for r in rsids if r in discordant_set]
+
+    out = call
+    if unknown:
+        out = _with_caveat(
+            out,
+            f"Partial genotype — {', '.join(unknown)} was not typed on this array, so "
+            f"the risk-allele count could be higher than observed; interpret with caution.",
+        )
+    if contributing_discordant:
+        out = _with_caveat(
+            out,
+            f"Genotyping-concordance note — the {', '.join(contributing_discordant)} G1 tag "
+            f"call was discordant with its cis partner and discounted (QC); this result rests "
+            f"on the remaining concordant risk allele(s).",
+        )
+    if out is call:
         return call
-    note = (
-        f"Partial genotype — {', '.join(unknown)} was not typed on this array, so "
-        f"the risk-allele count could be higher than observed; interpret with caution."
-    )
-    out = _with_caveat(call, note)
+
     detail = dict(out.detail)
-    detail["partial_genotype"] = True
-    detail["untyped_loci"] = unknown
+    if unknown:
+        detail["partial_genotype"] = True
+        detail["untyped_loci"] = unknown
+    if contributing_discordant:
+        detail["discordant_loci"] = contributing_discordant
     return RiskCall(
         model_id=out.model_id,
         gene_symbol=out.gene_symbol,
@@ -990,7 +1028,7 @@ def classify(
     calls = []
     for m in matched:
         call = _render_finding(m, panel, dosages, readouts, sex, inferred_ancestry)
-        call = _apply_partial_guardrail(call, m, dosages)
+        call = _apply_partial_guardrail(call, m, dosages, discordant)
         call = _apply_modifier(call, m, dosages)
         calls.append(call)
 
