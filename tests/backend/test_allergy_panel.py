@@ -291,6 +291,27 @@ class TestHLAProxyCalling:
             if snp["rsid"] in self.CELIAC_PROXY_RSIDS:
                 assert snp["hla_proxy"]["clinical_grade"] is False
 
+    def test_celiac_reference_proxy_text_is_not_exclusionary(self, panel_data: dict) -> None:
+        """Single negative celiac proxies must not claim the combined DQ2/DQ8 NPV."""
+        banned_phrases = (
+            "negative predictive value",
+            "npv",
+            "extremely unlikely",
+            "effectively ruling out",
+        )
+        for snp in self._get_hla_snps(panel_data):
+            if snp["rsid"] not in self.CELIAC_PROXY_RSIDS:
+                continue
+
+            ref_gt = snp["ref_allele"] * 2
+            effect_summary = snp["genotype_effects"][ref_gt]["effect_summary"].lower()
+            recommendation = snp["recommendation_text"].lower()
+            assert "combined dq2/dq8" in effect_summary
+            assert "negative" in effect_summary
+            assert "alone is not exclusionary" in recommendation
+            for phrase in banned_phrases:
+                assert phrase not in effect_summary
+
     def test_celiac_heterozygous_moderate(self, panel_data: dict) -> None:
         """Celiac proxies: heterozygous → Moderate."""
         for snp in self._get_hla_snps(panel_data):
