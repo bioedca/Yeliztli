@@ -83,3 +83,39 @@ def lookup_by_genotype[T](mapping: dict[str, T], genotype: str) -> T | None:
         if candidate in mapping:
             return mapping[candidate]
     return None
+
+
+# ── Palindromic (strand-ambiguous) SNP guard (#170) ────────────────────────
+#
+# A/T and C/G are palindromic allele pairs: one allele is the Watson–Crick
+# complement of the other. A *homozygous* call at such a locus (AA/TT or CC/GG)
+# cannot be assigned to a strand from the genotype string alone — an array that
+# reports the opposite strand from the curated panel turns the same biological
+# homozygote into its complement, flipping the curated category. The generic
+# complement fallback above cannot rescue this (the complement *is* the other
+# homozygote), so the honest contract is to withhold the category rather than
+# report the possibly-flipped one. The heterozygote (AT/CG) is strand-invariant
+# and stays resolvable. (Deelen et al., *BMC Res Notes* 2014, PMID 25495213 —
+# harmonizers resolve A/T & C/G SNPs by LD/reference, never by unconditional
+# base complementation.)
+
+
+def is_strand_ambiguous(mapping: dict[str, object], genotype: str) -> bool:
+    """Whether ``genotype`` is a strand-unresolvable palindromic homozygote.
+
+    True only when the genotype is a homozygote (``"AA"``, ``"TT"``, ``"CC"``,
+    ``"GG"``) *and* the curated ``mapping`` keys both that homozygote and its
+    Watson–Crick complement to **different** values — i.e. the call's category
+    would flip with the (unknown) array strand. Only a palindromic SNP keys both
+    a homozygote and its complement-homozygote, so this condition selects exactly
+    the A/T and C/G strand-ambiguous case. Heterozygotes, non-palindromic SNPs,
+    and palindromic homozygotes whose two strands map to the *same* value return
+    ``False`` (strand cannot change the resolved category).
+    """
+    gt = genotype.upper()
+    if len(gt) != 2 or gt[0] != gt[1] or gt[0] not in COMPLEMENT:
+        return False
+    complement = "".join(COMPLEMENT[base] for base in gt)
+    forward = mapping.get(gt)
+    reverse = mapping.get(complement)
+    return forward is not None and reverse is not None and forward != reverse

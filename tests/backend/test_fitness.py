@@ -24,6 +24,7 @@ import sqlalchemy as sa
 
 from backend.analysis.fitness import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     MODULE_NAME,
     STANDARD,
@@ -416,8 +417,12 @@ class TestSNPScoring:
         result = _score_snp(ppargc1a, "AA")
         assert result.category == MODERATE  # Capped from Elevated
 
-    def test_fto_aa_elevated(self, panel: FitnessPanel) -> None:
-        """FTO has evidence_level=2, so AA (Elevated) → Elevated."""
+    def test_fto_aa_strand_indeterminate(self, panel: FitnessPanel) -> None:
+        """FTO rs9939609 is a palindromic A/T SNP whose homozygotes map to
+        opposite categories, so an AA call cannot be strand-resolved from the
+        array genotype and is reported Indeterminate — not a confident (and
+        possibly strand-flipped) Elevated call (#170). Non-capping of
+        evidence_level=2 SNPs is covered by ACTN3 (a non-palindromic C/T SNP)."""
         fto = None
         for pw in panel.pathways:
             for snp in pw.snps:
@@ -427,7 +432,7 @@ class TestSNPScoring:
         assert fto is not None
         assert fto.evidence_level == 2
         result = _score_snp(fto, "AA")
-        assert result.category == ELEVATED
+        assert result.category == INDETERMINATE
 
 
 # ── Pathway level determination tests ────────────────────────────────────
@@ -647,19 +652,26 @@ class TestScorePathways:
         endurance = next(pr for pr in result.pathway_results if pr.pathway_id == "endurance")
         assert endurance.level == ELEVATED
 
-        # Power: ACE GG=Elevated, MCT1 TT=Standard → pathway = Elevated
+        # Power: ACE GG=Elevated drives Elevated; MCT1 TT is a palindromic A/T
+        # homozygote → Indeterminate (#170), which does not lower the level.
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
         assert power.level == ELEVATED
+        mct1 = next(s for s in power.snp_results if s.rsid == "rs1049434")
+        assert mct1.category == INDETERMINATE
 
         # Recovery: COL5A1 CT=Moderate (capped from star1), COL1A1 GG=Standard → Moderate
         recovery = next(pr for pr in result.pathway_results if pr.pathway_id == "recovery_injury")
         assert recovery.level == MODERATE
 
-        # Training: FTO AA=Elevated (star2) → Elevated
+        # Training: FTO AA is a palindromic A/T homozygote → Indeterminate (#170),
+        # so it no longer drives the pathway to Elevated; with no other scoreable
+        # SNP the pathway defaults to Standard (the per-SNP card shows the caveat).
         training = next(
             pr for pr in result.pathway_results if pr.pathway_id == "training_response"
         )
-        assert training.level == ELEVATED
+        assert training.level == STANDARD
+        fto = next(s for s in training.snp_results if s.rsid == "rs9939609")
+        assert fto.category == INDETERMINATE
 
         # GWAS matches
         assert "rs1815739" in result.gwas_matched_rsids
@@ -1123,3 +1135,54 @@ def _make_snp_result(
         recommendation_text="Test.",
         present_in_sample=present,
     )
+
+
+class TestPalindromicStrandGuard:
+    """FTO rs9939609 and MCT1 rs1049434 are palindromic A/T SNPs whose
+    homozygotes map to opposite categories. Their homozygous calls cannot be
+    strand-resolved from the array genotype, so they must be reported as
+    indeterminate (with a strand caveat) rather than a possibly strand-flipped
+    Standard/Elevated call, and must not drive the pathway level (#170)."""
+
+    def _get(self, panel: FitnessPanel, rsid: str) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found")
+
+    @pytest.mark.parametrize("rsid", ["rs9939609", "rs1049434"])
+    @pytest.mark.parametrize("genotype", ["AA", "TT"])
+    def test_palindromic_homozygote_is_indeterminate(
+        self, panel: FitnessPanel, rsid: str, genotype: str
+    ) -> None:
+        snp = self._get(panel, rsid)
+        result = _score_snp(snp, genotype)
+        assert result.category == INDETERMINATE
+        assert result.present_in_sample is True  # observed, just unresolvable
+        assert result.genotype == genotype
+        assert result.coverage_note is not None
+        assert "strand" in result.coverage_note.lower()
+        assert result.category not in (STANDARD, ELEVATED)  # never a confident flip
+
+    @pytest.mark.parametrize("genotype", ["AT", "TA"])
+    def test_palindromic_heterozygote_resolves_normally(
+        self, panel: FitnessPanel, genotype: str
+    ) -> None:
+        # The heterozygote is strand-invariant, so it is still confidently called.
+        fto = self._get(panel, "rs9939609")
+        result = _score_snp(fto, genotype)
+        assert result.category == MODERATE
+        assert result.category != INDETERMINATE
+
+    def test_indeterminate_snp_does_not_drive_pathway_level(self) -> None:
+        # An indeterminate call neither raises nor lowers the level: alongside a
+        # Standard SNP the pathway stays Standard (not flipped to Elevated).
+        results = [
+            _make_snp_result(INDETERMINATE),
+            _make_snp_result(STANDARD),
+        ]
+        assert _determine_pathway_level(results) == STANDARD
+
+    def test_all_indeterminate_pathway_defaults_standard(self) -> None:
+        assert _determine_pathway_level([_make_snp_result(INDETERMINATE)]) == STANDARD

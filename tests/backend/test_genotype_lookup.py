@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
+    is_strand_ambiguous,
     lookup_by_genotype,
 )
 
@@ -89,3 +90,51 @@ class TestLookupByGenotype:
 
     def test_non_acgt_no_match_does_not_raise(self) -> None:
         assert lookup_by_genotype({"DD": "x"}, "II") is None
+
+
+class TestIsStrandAmbiguous:
+    """Palindromic (A/T, C/G) homozygotes whose two strands map to different
+    curated values are strand-unresolvable from the genotype string (#170)."""
+
+    # Palindromic A/T SNP whose homozygotes map to DIFFERENT categories.
+    _AT = {"TT": "Standard", "AT": "Moderate", "TA": "Moderate", "AA": "Elevated"}
+
+    def test_palindromic_homozygotes_are_ambiguous(self) -> None:
+        assert is_strand_ambiguous(self._AT, "AA") is True
+        assert is_strand_ambiguous(self._AT, "TT") is True
+
+    def test_lowercase_palindromic_homozygote_is_ambiguous(self) -> None:
+        assert is_strand_ambiguous(self._AT, "aa") is True
+
+    def test_heterozygote_is_strand_invariant(self) -> None:
+        # AT complement is TA (same het) → never ambiguous.
+        assert is_strand_ambiguous(self._AT, "AT") is False
+        assert is_strand_ambiguous(self._AT, "TA") is False
+
+    def test_cg_palindrome_homozygote_is_ambiguous(self) -> None:
+        cg = {"CC": "Standard", "CG": "Moderate", "GG": "Elevated"}
+        assert is_strand_ambiguous(cg, "CC") is True
+        assert is_strand_ambiguous(cg, "GG") is True
+
+    def test_non_palindromic_snp_not_flagged(self) -> None:
+        # C/T and G/A pairs are not complementary → strand resolves by complement.
+        ct = {"CC": "Standard", "CT": "Moderate", "TT": "Elevated"}
+        assert is_strand_ambiguous(ct, "CC") is False
+        assert is_strand_ambiguous(ct, "TT") is False
+        ga = {"GG": "Standard", "GA": "Moderate", "AA": "Elevated"}  # MTHFR-style
+        assert is_strand_ambiguous(ga, "GG") is False
+        assert is_strand_ambiguous(ga, "AA") is False
+
+    def test_same_category_both_strands_not_ambiguous(self) -> None:
+        # If both palindromic homozygotes share a category, strand is irrelevant.
+        same = {"AA": "Standard", "AT": "Standard", "TT": "Standard"}
+        assert is_strand_ambiguous(same, "AA") is False
+
+    def test_only_one_strand_keyed_not_ambiguous(self) -> None:
+        # Complement homozygote absent from the mapping → nothing to disagree with.
+        one = {"AA": "Elevated", "AT": "Moderate"}
+        assert is_strand_ambiguous(one, "AA") is False
+
+    def test_indel_and_nocall_not_flagged(self) -> None:
+        assert is_strand_ambiguous({"DD": "x", "II": "y"}, "DD") is False
+        assert is_strand_ambiguous(self._AT, "--") is False

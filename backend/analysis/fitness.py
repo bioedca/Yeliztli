@@ -39,7 +39,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import lookup_by_genotype
+from backend.analysis.genotype_lookup import is_strand_ambiguous, lookup_by_genotype
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -53,6 +53,12 @@ _PANEL_PATH = Path(__file__).resolve().parent.parent / "data" / "panels" / "fitn
 ELEVATED = "Elevated"
 MODERATE = "Moderate"
 STANDARD = "Standard"
+# Runtime-only category for a palindromic (A/T or C/G) homozygote whose strand —
+# and therefore its curated category — cannot be resolved from the array
+# genotype alone (#170). It is surfaced to the user with a strand caveat but
+# withheld from the pathway-level aggregation, never reported as a confident
+# (possibly flipped) Standard/Elevated call. Not a valid panel-JSON category.
+INDETERMINATE = "Indeterminate"
 
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
@@ -284,6 +290,34 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             coverage_note=snp.coverage_note,
         )
 
+    # Palindromic-SNP strand guard: for an A/T or C/G homozygote whose curated
+    # category differs between strands, the array strand cannot be resolved from
+    # the genotype string, so withhold the category instead of risking the
+    # flipped one (e.g. FTO rs9939609 AA↔TT — #170).
+    if is_strand_ambiguous(snp.genotype_effects, genotype):
+        return SNPResult(
+            rsid=snp.rsid,
+            gene=snp.gene,
+            variant_name=snp.variant_name,
+            genotype=genotype,
+            category=INDETERMINATE,
+            effect_summary=(
+                f"{genotype} is a palindromic (A/T or C/G) homozygote: its strand — and "
+                f"therefore its effect category — cannot be determined from the array "
+                f"genotype alone, so it is reported as indeterminate rather than a "
+                f"possibly strand-flipped call."
+            ),
+            evidence_level=snp.evidence_level,
+            pmids=snp.pmids,
+            recommendation_text=snp.recommendation_text,
+            present_in_sample=True,
+            three_state_label=None,
+            coverage_note=(
+                "Strand-ambiguous palindromic SNP — confirm the genotyping strand "
+                "(or use a sequencing-based result) before interpreting this locus."
+            ),
+        )
+
     # Look up genotype effect from panel definition, harmonizing allele order
     # and strand (e.g. chip "CT" → panel "GA" for a reverse-strand-keyed SNP).
     effect = lookup_by_genotype(snp.genotype_effects, genotype)
@@ -349,7 +383,9 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> str:
     Only SNPs present in the sample contribute to the pathway level.
     If no SNPs are genotyped, the pathway defaults to Standard.
     """
-    called = [r for r in snp_results if r.present_in_sample]
+    # Strand-indeterminate palindromic homozygotes carry no trustworthy category,
+    # so they neither raise nor lower the pathway level (#170).
+    called = [r for r in snp_results if r.present_in_sample and r.category != INDETERMINATE]
     if not called:
         return STANDARD
 
