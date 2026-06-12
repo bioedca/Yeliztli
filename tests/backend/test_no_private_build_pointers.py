@@ -15,7 +15,7 @@ PRIVATE_BUILD_POINTERS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ("private shared filesystem root", re.compile(rb"/exports(?:/|$)")),
     (
         "literal SSH build host",
-        re.compile(rb"\bssh\s+(?!alias\b)(?!['\"\$<])[-A-Za-z0-9_.]+(?=\s|$)"),
+        re.compile(rb"\bssh\s+(?!alias\b)(?!['\"\$<])[A-Za-z0-9_.][-A-Za-z0-9_.]*(?=\s|$)"),
     ),
     (
         "literal remote copy target",
