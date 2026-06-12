@@ -55,6 +55,7 @@ _POP_TO_GNOMAD_COL: dict[str, str | None] = {
 # Minimum fraction of a weight set's variants that must have a usable AF before a
 # calibrated distribution is emitted (else the percentile would rest on too few SNPs).
 _MIN_VARIANT_COVERAGE = 0.5
+_POSITION_BATCH_SIZE = 500
 
 PRS_CALIBRATION_PMIDS = [
     "37198491",  # Ding 2023 (ancestry continuum); ePRS Huang 2024
@@ -267,17 +268,26 @@ def continuous_reference_distribution(
             for r in conn.execute(stmt):
                 rows_by_rsid[r.rsid] = r
         if by_pos:
-            stmt = sa.select(
-                annotated_variants.c.chrom,
-                annotated_variants.c.pos,
-                annotated_variants.c.ref,
-                annotated_variants.c.alt,
-                *[getattr(annotated_variants.c, c) for c in af_cols],
-            )
-            for r in conn.execution_options(stream_results=True).execute(stmt):
-                key = (_norm_chrom(r.chrom), r.pos)
-                if key in by_pos:
-                    rows_by_pos[key] = r
+            pos_values = sorted({pos for (_chrom, pos) in by_pos if pos is not None})
+            chrom_values = {chrom for (chrom, _pos) in by_pos if chrom}
+            chrom_candidates = chrom_values | {f"CHR{chrom}" for chrom in chrom_values}
+            for i in range(0, len(pos_values), _POSITION_BATCH_SIZE):
+                batch = pos_values[i : i + _POSITION_BATCH_SIZE]
+                stmt = sa.select(
+                    annotated_variants.c.chrom,
+                    annotated_variants.c.pos,
+                    annotated_variants.c.ref,
+                    annotated_variants.c.alt,
+                    *[getattr(annotated_variants.c, c) for c in af_cols],
+                ).where(annotated_variants.c.pos.in_(batch))
+                if chrom_candidates:
+                    stmt = stmt.where(
+                        sa.func.upper(annotated_variants.c.chrom).in_(chrom_candidates)
+                    )
+                for r in conn.execution_options(stream_results=True).execute(stmt):
+                    key = (_norm_chrom(r.chrom), r.pos)
+                    if key in by_pos:
+                        rows_by_pos[key] = r
 
     variants: list[dict] = []
 
