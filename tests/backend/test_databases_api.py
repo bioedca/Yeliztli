@@ -15,13 +15,14 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.api.routes.databases import _active_sessions
+from backend.api.routes.databases import _active_sessions, _create_job_record, _execute_build
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.database_registry import (
@@ -132,6 +133,49 @@ class TestDatabaseRegistry:
 
     def test_get_database_unknown(self):
         assert get_database("nonexistent") is None
+
+    def test_dbnsfp_build_uses_downloads_dir(
+        self,
+        tmp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Setup-wizard pipeline builds should stage archives in downloads_dir."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        target_engine = sa.create_engine("sqlite://")
+        captured: dict[str, Path] = {}
+
+        def fake_build(
+            _target_engine: sa.Engine,
+            dest_dir: Path,
+            **_kwargs: object,
+        ) -> None:
+            captured["dest_dir"] = dest_dir
+
+        monkeypatch.setattr(
+            "backend.api.routes.databases.get_build_fn",
+            lambda _name: fake_build,
+        )
+        monkeypatch.setattr(
+            "backend.api.routes.databases.get_registry",
+            lambda: SimpleNamespace(dbnsfp_engine=target_engine),
+        )
+
+        db_info = get_database("dbnsfp")
+        assert db_info is not None
+        job_id = "job-dbnsfp-staging"
+        _create_job_record(reference_engine, job_id, db_info.name)
+
+        _execute_build(
+            db_info=db_info,
+            job_id=job_id,
+            engine=reference_engine,
+            settings=settings,
+        )
+
+        assert captured["dest_dir"] == settings.downloads_dir
+        assert captured["dest_dir"] != settings.data_dir
 
     def test_all_databases_have_required_fields(self):
         for db in get_all_databases():

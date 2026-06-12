@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,7 @@ from backend.annotation.dbnsfp import (
     _parse_float,
     count_deleterious,
     create_dbnsfp_tables,
+    download_and_load_dbnsfp,
     is_ensemble_pathogenic,
     load_dbnsfp_from_csv,
     lookup_dbnsfp_by_positions,
@@ -621,6 +623,75 @@ class TestRecordDbnsfpVersion:
         assert row.version == "4.5a"
         assert row.file_size_bytes == 1_500_000_000
         assert row.checksum_sha256 == "abc123"
+
+
+class TestDownloadAndLoadDbNSFP:
+    def test_removes_source_archive_after_success(
+        self,
+        dbnsfp_engine: sa.Engine,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        archive = tmp_path / "dbnsfp_archive.zip"
+        archive.write_bytes(b"tiny-dbnsfp-archive")
+
+        def fake_download(
+            dest_dir: Path,
+            **_kwargs: object,
+        ) -> Path:
+            assert dest_dir == tmp_path
+            return archive
+
+        def fake_load(
+            path: Path,
+            engine: sa.Engine,
+            *,
+            progress_callback=None,
+            **_kwargs: object,
+        ) -> LoadStats:
+            assert path == archive
+            assert engine is dbnsfp_engine
+            assert progress_callback is None
+            return LoadStats(variants_loaded=1)
+
+        monkeypatch.setattr("backend.annotation.dbnsfp.download_dbnsfp", fake_download)
+        monkeypatch.setattr("backend.annotation.dbnsfp.load_dbnsfp_from_tsv", fake_load)
+
+        stats = download_and_load_dbnsfp(dbnsfp_engine, tmp_path)
+
+        assert stats.variants_loaded == 1
+        assert stats.sha256 == hashlib.sha256(b"tiny-dbnsfp-archive").hexdigest()
+        assert not archive.exists()
+
+    def test_version_record_does_not_point_to_deleted_archive(
+        self,
+        dbnsfp_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        archive = tmp_path / "dbnsfp_archive.zip"
+        archive.write_bytes(b"tiny-dbnsfp-archive")
+
+        monkeypatch.setattr(
+            "backend.annotation.dbnsfp.download_dbnsfp",
+            lambda _dest_dir, **_kwargs: archive,
+        )
+        monkeypatch.setattr(
+            "backend.annotation.dbnsfp.load_dbnsfp_from_tsv",
+            lambda *_args, **_kwargs: LoadStats(variants_loaded=1),
+        )
+
+        download_and_load_dbnsfp(dbnsfp_engine, tmp_path, reference_engine=reference_engine)
+
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "dbnsfp")
+            ).fetchone()
+        assert row is not None
+        assert row.file_path is None
+        assert row.file_size_bytes == len(b"tiny-dbnsfp-archive")
+        assert row.checksum_sha256 == hashlib.sha256(b"tiny-dbnsfp-archive").hexdigest()
 
     def test_updates_existing_version(self, reference_engine: sa.Engine):
         record_dbnsfp_version(reference_engine, version="4.4a")

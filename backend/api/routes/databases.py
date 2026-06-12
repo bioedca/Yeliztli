@@ -778,7 +778,7 @@ def _execute_build(
         if db_info.name in ("gnomad", "dbnsfp"):
             build_fn(
                 target_engine,
-                settings.data_dir,
+                settings.downloads_dir,
                 download_progress=on_download_progress,
                 parse_progress=on_parse_progress,
                 reference_engine=engine,
@@ -786,18 +786,18 @@ def _execute_build(
         elif db_info.name == "alphamissense":
             build_fn(
                 target_engine,
-                settings.data_dir,
+                settings.downloads_dir,
                 download_progress=on_download_progress,
                 parse_progress=on_parse_progress,
                 reference_engine=engine,
             )
         elif db_info.name == "mondo_hpo":
             # mondo_hpo does not accept parse_progress
-            build_fn(target_engine, settings.data_dir, download_progress=on_download_progress)
+            build_fn(target_engine, settings.downloads_dir, download_progress=on_download_progress)
         else:
             build_fn(
                 target_engine,
-                settings.data_dir,
+                settings.downloads_dir,
                 download_progress=on_download_progress,
                 parse_progress=on_parse_progress,
             )

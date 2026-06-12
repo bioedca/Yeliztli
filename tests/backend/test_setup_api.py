@@ -713,35 +713,39 @@ class TestSetStoragePath:
         assert (new_path / "downloads").is_dir()
         assert (new_path / "logs").is_dir()
 
-    def test_writes_config_toml(self, setup_client: TestClient, tmp_path: Path) -> None:
-        """Should write config.toml with data_dir."""
-        new_path = tmp_path / "gi_config_test"
-        setup_client.post(
-            "/api/setup/set-storage-path",
-            json={"path": str(new_path)},
-        )
-        config_path = new_path / "config.toml"
-        assert config_path.exists()
-        content = config_path.read_text()
-        assert str(new_path) in content
-        assert "[yeliztli]" in content
+    def test_does_not_write_data_dir_to_config_toml(self, tmp_path: Path) -> None:
+        """Storage path selection must not persist the loader-ignored data_dir key."""
+        import asyncio
 
-    def test_preserves_existing_config(self, setup_client: TestClient, tmp_path: Path) -> None:
+        from backend.api.routes.setup import SetStoragePathRequest, set_storage_path
+
+        new_path = tmp_path / "gi_config_test"
+        asyncio.run(set_storage_path(SetStoragePathRequest(path=str(new_path))))
+
+        config_path = new_path / "config.toml"
+        if config_path.exists():
+            content = config_path.read_text()
+            assert "data_dir" not in content
+            assert str(new_path) not in content
+
+    def test_preserves_existing_config(self, tmp_path: Path) -> None:
         """Should preserve other settings in existing config.toml."""
+        import asyncio
+
+        from backend.api.routes.setup import SetStoragePathRequest, set_storage_path
+
         new_path = tmp_path / "gi_preserve"
         new_path.mkdir(parents=True)
         config_path = new_path / "config.toml"
         config_path.write_text('[yeliztli]\ntheme = "dark"\nlog_level = "DEBUG"\n')
 
-        setup_client.post(
-            "/api/setup/set-storage-path",
-            json={"path": str(new_path)},
-        )
+        asyncio.run(set_storage_path(SetStoragePathRequest(path=str(new_path))))
 
         content = config_path.read_text()
         assert 'theme = "dark"' in content
         assert 'log_level = "DEBUG"' in content
-        assert str(new_path) in content
+        assert "data_dir" not in content
+        assert str(new_path) not in content
 
     def test_tilde_expansion(
         self,

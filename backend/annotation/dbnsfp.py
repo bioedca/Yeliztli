@@ -847,6 +847,18 @@ def download_dbnsfp(
     return dest_path
 
 
+def _cleanup_dbnsfp_archive(path: Path) -> None:
+    """Remove the transient dbNSFP source archive after the DB has been built."""
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        logger.warning("dbnsfp_archive_cleanup_failed", path=str(path), error=str(exc))
+    else:
+        logger.info("dbnsfp_archive_cleanup_complete", path=str(path))
+
+
 def download_and_load_dbnsfp(
     dbnsfp_engine: sa.Engine,
     dest_dir: Path,
@@ -878,6 +890,7 @@ def download_and_load_dbnsfp(
         progress_callback=download_progress,
         timeout=timeout,
     )
+    archive_size = downloaded_path.stat().st_size
 
     # Compute checksum
     sha256 = _compute_sha256(downloaded_path)
@@ -895,11 +908,12 @@ def download_and_load_dbnsfp(
         record_dbnsfp_version(
             reference_engine,
             version="5.3.1a",
-            file_path=str(downloaded_path),
-            file_size_bytes=downloaded_path.stat().st_size,
+            file_path=None,
+            file_size_bytes=archive_size,
             checksum=sha256,
         )
 
+    _cleanup_dbnsfp_archive(downloaded_path)
     return stats
 
 

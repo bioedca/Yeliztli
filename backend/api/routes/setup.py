@@ -7,7 +7,7 @@ Endpoints:
     GET  /api/setup/detect-existing    — Auto-detect existing installation
     POST /api/setup/import-backup      — Import from .tar.gz backup archive
     GET  /api/setup/storage-info       — Get current storage path and disk space info
-    POST /api/setup/set-storage-path   — Set the storage path and persist to config.toml
+    POST /api/setup/set-storage-path   — Validate/create a storage path
     GET  /api/setup/credentials        — Get current external service credentials
     POST /api/setup/credentials        — Save external service credentials to config.toml
 """
@@ -730,11 +730,13 @@ async def storage_info() -> StorageInfoResponse:
 
 @router.post("/set-storage-path", response_model=SetStoragePathResponse)
 async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathResponse:
-    """Set the storage path and persist it to config.toml.
+    """Validate and create the requested storage path.
 
     Validates the path, checks disk space, creates the directory structure,
-    and writes the chosen path to config.toml. Does NOT block on low disk
-    space — the frontend enforces the block threshold.
+    and returns the chosen path. ``data_dir`` is intentionally not persisted to
+    config.toml because the settings loader ignores that key; the effective data
+    directory comes from defaults, environment, or process initialization.
+    Does NOT block on low disk space — the frontend enforces the block threshold.
     """
     resolved = _resolve_storage_path(body.path)
 
@@ -778,10 +780,6 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
     free_gb = free_bytes / (1024**3)
     status, message = _assess_disk_space(free_bytes)
 
-    # Write config.toml — only update data_dir, preserve other settings
-    config_path = resolved / "config.toml"
-    _write_config_toml(config_path, data_dir=str(resolved))
-
     logger.info(
         "storage_path_set",
         data_dir=str(resolved),
@@ -817,23 +815,9 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
 
 def _write_config_toml(
     config_path: Path,
-    content: dict[str, dict[str, object]] | None = None,
-    *,
-    data_dir: str | None = None,
+    content: dict[str, dict[str, object]],
 ) -> None:
-    """Write or update config.toml.
-
-    If ``content`` is provided, writes the full dict directly.
-    If only ``data_dir`` is provided, reads existing config and updates data_dir.
-    Preserves existing config entries if the file already exists.
-    """
-    if content is None:
-        content = _read_config_toml(config_path)
-        if data_dir is not None:
-            section = read_config_section(content)
-            section["data_dir"] = data_dir
-            write_config_section(content, section)
-
+    """Write config.toml from a parsed TOML dict."""
     # Write TOML manually (tomllib is read-only, avoid tomli_w dependency)
     lines: list[str] = []
     for table_name, table_values in content.items():
