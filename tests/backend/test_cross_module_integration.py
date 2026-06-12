@@ -540,6 +540,12 @@ class TestCrossModuleIntegration:
 
         resp = client.post("/api/analysis/apoe/run", params={"sample_id": sample_id})
         assert resp.status_code in (200, 201), f"APOE run failed: {resp.text}"
+
+        # diplotype is gate-protected (issue #111) — withheld until the APOE
+        # disclosure gate is acknowledged. Acknowledge, then re-run to read it.
+        client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": sample_id})
+        resp = client.post("/api/analysis/apoe/run", params={"sample_id": sample_id})
+        assert resp.status_code in (200, 201), f"APOE run failed: {resp.text}"
         data = resp.json()
 
         # rs429358=TT (no C allele) + rs7412=CC (no T allele) → ε3/ε3

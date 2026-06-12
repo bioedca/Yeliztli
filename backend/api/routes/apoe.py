@@ -105,7 +105,14 @@ class APOEFindingsListResponse(BaseModel):
 
 
 class APOERunResponse(BaseModel):
-    """Result of running APOE analysis."""
+    """Result of running APOE analysis.
+
+    ``diplotype`` is gate-protected (issue #111): it encodes ε4 status — the
+    Alzheimer-risk disclosure the gate exists to gate — so it is populated only
+    after the APOE disclosure gate is acknowledged. Before acknowledgment it is
+    ``None`` while ``genotype_stored`` / ``findings_count`` still report that the
+    run completed and stored results.
+    """
 
     genotype_stored: bool
     findings_count: int
@@ -387,8 +394,14 @@ def run_apoe_analysis(
     Alzheimer's, lipid/dietary).
 
     Note: Running the analysis does NOT acknowledge the gate. The user
-    must still explicitly acknowledge the disclosure before findings
-    are visible via the findings endpoint.
+    must still explicitly acknowledge the disclosure before results are
+    visible. The ε4-bearing ``diplotype`` (e.g. ``ε3/ε4``) directly encodes
+    the Alzheimer-risk disclosure the gate exists to protect, so it is
+    withheld from this response until the gate is acknowledged (issue #111,
+    same boundary as ``/genotype`` from #46): before acknowledgment only
+    ``genotype_stored`` / ``findings_count`` are returned, with
+    ``diplotype`` ``None``. Re-invoking ``/run`` after acknowledgment (or
+    calling ``/genotype``) returns the diplotype.
 
     Example: ``POST /api/analysis/apoe/run?sample_id=1``
     """
@@ -407,8 +420,14 @@ def run_apoe_analysis(
     # P3-22b: Three findings generation
     findings_count = store_apoe_three_findings(result, sample_engine)
 
+    # Gate boundary (issue #111): the diplotype encodes ε4 status — the very
+    # Alzheimer-risk disclosure the gate exists to gate. Determine and store
+    # results so acknowledgment later reveals them, but withhold the diplotype
+    # from the run response until the gate is acknowledged (mirrors /genotype).
+    acknowledged, _ = _is_gate_acknowledged(sample_engine)
+
     return APOERunResponse(
         genotype_stored=genotype_stored,
         findings_count=findings_count,
-        diplotype=result.diplotype,
+        diplotype=result.diplotype if acknowledged else None,
     )

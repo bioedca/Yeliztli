@@ -420,16 +420,41 @@ class TestAPOERun:
     """Tests for the APOE analysis run endpoint."""
 
     def test_run_e3_e3(self, apoe_client: TestClient) -> None:
-        """Should run APOE analysis for ε3/ε3 sample."""
+        """Should run APOE analysis for ε3/ε3 sample, withholding diplotype pre-gate."""
         resp = apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert data["genotype_stored"] is True
         assert data["findings_count"] == 3
-        assert data["diplotype"] == "ε3/ε3"
+        # Gate not acknowledged → diplotype withheld (issue #111).
+        assert data["diplotype"] is None
 
     def test_run_e3_e4(self, apoe_e4_client: TestClient) -> None:
-        """Should run APOE analysis for ε3/ε4 sample."""
+        """Should run APOE analysis for ε3/ε4 sample, withholding diplotype pre-gate."""
+        resp = apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["genotype_stored"] is True
+        assert data["findings_count"] == 3
+        # ε4 status must not leak from the run response before the gate (issue #111).
+        assert data["diplotype"] is None
+
+    def test_run_withholds_diplotype_before_gate(self, apoe_e4_client: TestClient) -> None:
+        """The ε4-bearing diplotype must not appear anywhere in the pre-gate /run body.
+
+        Core defect (issue #111): the /run response was the same disclosure leak
+        #46 fixed for /genotype, via a different vector — it returned the ε4
+        diplotype with no gate check.
+        """
+        resp = apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        assert resp.status_code == 200
+        # No ε4 status leaks via any field of the unacknowledged run response.
+        assert "ε4" not in json.dumps(resp.json())
+
+    def test_run_returns_diplotype_after_gate(self, apoe_e4_client: TestClient) -> None:
+        """Re-invoking /run after acknowledgment returns the diplotype (issue #111)."""
+        apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        apoe_e4_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
         resp = apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
         assert resp.status_code == 200
         data = resp.json()
@@ -484,10 +509,10 @@ class TestAPOEGateInvariant:
 
     def test_gate_then_findings_e2e_flow(self, apoe_e4_client: TestClient) -> None:
         """Full E2E: run → gate blocked → acknowledge → findings visible (F4)."""
-        # Step 1: Run analysis
+        # Step 1: Run analysis — diplotype withheld pre-gate (issue #111)
         run_resp = apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
         assert run_resp.status_code == 200
-        assert run_resp.json()["diplotype"] == "ε3/ε4"
+        assert run_resp.json()["diplotype"] is None
 
         # Step 2: Findings blocked
         findings_resp = apoe_e4_client.get("/api/analysis/apoe/findings", params={"sample_id": 1})
@@ -500,7 +525,9 @@ class TestAPOEGateInvariant:
         assert ack_resp.status_code == 200
         assert ack_resp.json()["acknowledged"] is True
 
-        # Step 4: Findings now visible
+        # Step 4: Diplotype now revealed by /run, findings now visible
+        run_resp = apoe_e4_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        assert run_resp.json()["diplotype"] == "ε3/ε4"
         findings_resp = apoe_e4_client.get("/api/analysis/apoe/findings", params={"sample_id": 1})
         assert findings_resp.status_code == 200
         data = findings_resp.json()
