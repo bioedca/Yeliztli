@@ -44,7 +44,9 @@ export interface MetabolicAnchor {
   genotype: string | null
   /** Strand-harmonized effect-allele copy count, or null when not orientable. */
   dosage: number | null
-  /** True for a strand-ambiguous palindromic homozygote: dosage is suppressed. */
+  /** True when the dosage is suppressed because the genotype could not be
+   * oriented — a strand-ambiguous palindromic homozygote or an otherwise
+   * unresolvable call (alleles fitting neither strand). */
   indeterminate: boolean
   summary: string
   evidence_level: number
