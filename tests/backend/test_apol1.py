@@ -170,8 +170,11 @@ class TestN264KModifier:
         _seed(sample_engine, [_g1("AA"), _g2("DD"), _n264k("CA")])  # one Lys (A) copy
         a = assess_apol1(panel, sample_engine)
         assert len(a.calls) == 1
-        assert "attenuat" in a.calls[0].risk_classification.lower()
-        assert a.calls[0].evidence_stars == 1
+        call = a.calls[0]
+        assert "attenuat" in call.risk_classification.lower()
+        assert call.evidence_stars == 1
+        assert "38036523" in call.pmids
+        assert all(pmid.isdigit() for pmid in call.pmids)
 
     def test_g1_hom_g2_and_n264k_off_chip_both_caveats(
         self, panel, sample_engine: sa.Engine

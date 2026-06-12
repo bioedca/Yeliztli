@@ -293,6 +293,8 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
 
     models: list[GenotypeModel] = []
     for m in data["genotype_models"]:
+        pmids = m.get("pmids", [])
+        _validate_pmids(data["module"], m["id"], "pmids", pmids)
         if not m.get("match"):
             raise ValueError(
                 f"Panel '{data['module']}' model '{m['id']}' has an empty 'match' — "
@@ -321,6 +323,8 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
                 f"Panel '{data['module']}' model '{m['id']}' declares a modifier "
                 f"without an 'unassessed_caveat'."
             )
+        if modifier is not None:
+            _validate_pmids(data["module"], m["id"], "modifier.pmids", modifier.get("pmids", []))
         models.append(
             GenotypeModel(
                 id=m["id"],
@@ -354,6 +358,20 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
         ancestry_gate=data.get("ancestry_gate"),
         disclaimer_key=data.get("disclaimer_key"),
     )
+
+
+def _validate_pmids(module: str, model_id: str, field_name: str, pmids: Any) -> None:
+    if not isinstance(pmids, list):
+        raise ValueError(
+            f"Panel '{module}' model '{model_id}' field '{field_name}' must be a "
+            "list of numeric PubMed IDs."
+        )
+    for pmid in pmids:
+        if not isinstance(pmid, str) or not pmid or not pmid.isascii() or not pmid.isdigit():
+            raise ValueError(
+                f"Panel '{module}' model '{model_id}' field '{field_name}' contains "
+                f"non-numeric PMID {pmid!r}; PMIDs must be numeric PubMed IDs."
+            )
 
 
 # ── Genotype reading + dosage ───────────────────────────────────────────────

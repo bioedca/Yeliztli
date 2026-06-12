@@ -72,7 +72,7 @@
         "attenuates_risk_loci": ["rs71785313"],
         "present_min_dosage": 1,
         "unassessed_caveat": "The N264K modifier (rs73885316), which strongly attenuates G2-associated kidney risk, was not assessed on this array, so this high-risk estimate may be overstated.",
-        "pmids": ["PMC10689833"],
+        "pmids": ["38036523"],
         "reclassify": {
           "risk_classification": "APOL1 risk attenuated by N264K modifier",
           "evidence_stars": 1,

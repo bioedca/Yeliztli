@@ -322,6 +322,73 @@ class TestLoadRiskPanelGuards:
         with pytest.raises(ValueError, match="caveat"):
             load_risk_panel(path)
 
+    def test_rejects_non_numeric_model_pmid(self, tmp_path) -> None:
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "loci": [{"rsid": "rsA", "gene_symbol": "G", "risk_allele": "A", "ref_allele": "G"}],
+            "genotype_models": [
+                {
+                    "id": "m",
+                    "match": {"rsA": {"dosage": 1}},
+                    "risk_classification": "carrier",
+                    "evidence_stars": 2,
+                    "finding_text": "x",
+                    "pmids": ["PMC10689833"],
+                }
+            ],
+        }
+        path = tmp_path / "bad_pmid.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="non-numeric PMID"):
+            load_risk_panel(path)
+
+    def test_rejects_non_ascii_digit_pmid(self, tmp_path) -> None:
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "loci": [{"rsid": "rsA", "gene_symbol": "G", "risk_allele": "A", "ref_allele": "G"}],
+            "genotype_models": [
+                {
+                    "id": "m",
+                    "match": {"rsA": {"dosage": 1}},
+                    "risk_classification": "carrier",
+                    "evidence_stars": 2,
+                    "finding_text": "x",
+                    "pmids": ["１２３４５"],
+                }
+            ],
+        }
+        path = tmp_path / "bad_unicode_pmid.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="non-numeric PMID"):
+            load_risk_panel(path)
+
+    def test_rejects_non_numeric_modifier_pmid(self, tmp_path) -> None:
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "loci": [{"rsid": "rsA", "gene_symbol": "G", "risk_allele": "A", "ref_allele": "G"}],
+            "genotype_models": [
+                {
+                    "id": "m",
+                    "match": {"rsA": {"dosage": 1}},
+                    "risk_classification": "carrier",
+                    "evidence_stars": 2,
+                    "finding_text": "x",
+                    "modifier": {
+                        "rsid": "rsB",
+                        "unassessed_caveat": "Modifier was not assessed.",
+                        "pmids": ["PMC10689833"],
+                    },
+                }
+            ],
+        }
+        path = tmp_path / "bad_modifier_pmid.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="modifier\\.pmids"):
+            load_risk_panel(path)
+
 
 # ── Engine extensions for APOL1 (recessive / total_risk_dosage / indel / modifier) ──
 
