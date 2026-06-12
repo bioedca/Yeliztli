@@ -14,12 +14,19 @@ import sqlalchemy as sa
 
 from backend.analysis.pgs_bridge import (
     PgsScoreSpec,
+    _resolve_source_ancestry,
     build_trait_weight_set,
     build_weight_set_from_pgs,
     load_pgs_registry,
     select_pgs_for_ancestry,
 )
-from backend.analysis.prs import PRSSNPWeight, PRSWeightSet, compute_prs
+from backend.analysis.prs import (
+    PRSResult,
+    PRSSNPWeight,
+    PRSWeightSet,
+    check_ancestry_mismatch,
+    compute_prs,
+)
 from backend.annotation.pgs_catalog import (
     create_pgs_tables,
     pgs_score_metadata,
@@ -311,3 +318,66 @@ class TestBuildWeightSet:
 
     def test_build_trait_weight_set_unknown_trait(self) -> None:
         assert build_trait_weight_set(_pgs_engine(), "no_such_trait", "EUR", registry={}) is None
+
+
+# ── CSA / SAS ancestry-alias coverage (issue #132) ──────────────────────────
+
+
+class TestCsaSasAlias:
+    """The app infers Central/South Asian as ``CSA``; PGS Catalog scores label
+    the same South Asian development ancestry ``SAS``. A ``CSA`` sample must be
+    treated as covered by a score's ``SAS`` component, not fall through to the
+    "any multi-ancestry" branch and get mislabelled as AFR-derived (issue #132).
+    """
+
+    # Mirrors the shipped PGS005198 (Smit et al. 2025 BMI PGS) ancestry set.
+    _BMI_ANCESTRIES = ["AFR", "AMR", "EAS", "EUR", "SAS"]
+
+    def test_csa_covered_by_sas_multi_ancestry_score(self) -> None:
+        specs = [
+            _spec("EUR_ONLY", multi=False, ancestries=["EUR"]),
+            _spec("BMI_MULTI", multi=True, ancestries=self._BMI_ANCESTRIES),
+        ]
+        # CSA is covered via the SAS alias → chosen through the covering branch.
+        assert select_pgs_for_ancestry(specs, "CSA").pgs_id == "BMI_MULTI"
+
+    def test_csa_resolves_to_csa_not_afr(self) -> None:
+        spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
+        # Pre-fix this returned "AFR" (ancestries[0]) and tripped a false
+        # ancestry-mismatch warning for South Asian samples.
+        assert _resolve_source_ancestry(spec, "CSA") == "CSA"
+
+    def test_csa_sample_raises_no_ancestry_mismatch(self) -> None:
+        spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
+        ws = build_weight_set_from_pgs(
+            _pgs_engine(), spec, "body_mass_index", inferred_ancestry="CSA"
+        )
+        assert ws is not None
+        assert ws.source_ancestry == "CSA"
+        result = PRSResult(
+            weight_set_name=ws.name,
+            trait=ws.trait,
+            module=ws.module,
+            source_ancestry=ws.source_ancestry,
+            source_study=ws.source_study,
+            source_pmid=ws.source_pmid,
+            sample_size=ws.sample_size,
+            raw_score=0.0,
+        )
+        result = check_ancestry_mismatch(result, "CSA")
+        assert result.ancestry_mismatch is False
+        assert result.ancestry_warning_text is None
+
+    def test_uncovered_buckets_still_flagged(self) -> None:
+        # MID / OCE have no South Asian alias and no component in these scores →
+        # they must stay uncovered, so the mismatch fallback is preserved.
+        spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
+        assert _resolve_source_ancestry(spec, "MID") == "AFR"
+        assert _resolve_source_ancestry(spec, "OCE") == "AFR"
+
+    def test_registry_bmi_score_covers_csa(self) -> None:
+        # Guard the real shipped registry entry (PGS005198) against regression.
+        reg = load_pgs_registry()
+        chosen = select_pgs_for_ancestry(reg["body_mass_index"], "CSA")
+        assert chosen is not None and chosen.pgs_id == "PGS005198"
+        assert _resolve_source_ancestry(chosen, "CSA") == "CSA"
