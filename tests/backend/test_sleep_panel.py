@@ -33,7 +33,7 @@ PANEL_PATH = (
 VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 
 EXPECTED_RSIDS = {
-    "rs762551",  # CYP1A2 *1F
+    "rs762551",  # CYP1A2 caffeine metabolism marker
     "rs5751876",  # ADORA2A
     "rs57875989",  # PER3 VNTR proxy
     "rs2300478",  # MEIS1
@@ -209,34 +209,40 @@ class TestCYP1A2Metabolizer:
         pytest.fail("CYP1A2 rs762551 not found in panel")
 
     def test_cyp1a2_aa_standard_rapid(self, panel_data: dict) -> None:
-        """AA (*1A/*1A) → Standard category (rapid metabolizer)."""
+        """AA A-allele homozygote -> Standard category (rapid metabolizer)."""
         cyp = self._get_cyp1a2(panel_data)
         effect = cyp["genotype_effects"]["AA"]
         assert effect["category"] == "Standard"
         summary = effect["effect_summary"].lower()
         assert "rapid" in summary or "fast" in summary
+        assert "rs762551 aa" in summary
 
     def test_cyp1a2_ac_moderate(self, panel_data: dict) -> None:
-        """AC (*1A/*1F) → Moderate category (intermediate)."""
+        """AC heterozygote -> Moderate category (intermediate)."""
         cyp = self._get_cyp1a2(panel_data)
         effect = cyp["genotype_effects"]["AC"]
         assert effect["category"] == "Moderate"
-        assert "intermediate" in effect["effect_summary"].lower()
+        summary = effect["effect_summary"].lower()
+        assert "intermediate" in summary
+        assert "rs762551 ac" in summary
 
     def test_cyp1a2_ca_moderate(self, panel_data: dict) -> None:
-        """CA (*1A/*1F) → Moderate category, same as AC."""
+        """CA heterozygote -> Moderate category, same as AC."""
         cyp = self._get_cyp1a2(panel_data)
         effect = cyp["genotype_effects"]["CA"]
         assert effect["category"] == "Moderate"
-        assert "intermediate" in effect["effect_summary"].lower()
+        summary = effect["effect_summary"].lower()
+        assert "intermediate" in summary
+        assert "rs762551 ca" in summary
 
     def test_cyp1a2_cc_elevated_slow(self, panel_data: dict) -> None:
-        """CC (*1F/*1F) → Elevated category (slow metabolizer)."""
+        """CC C-allele homozygote -> Elevated category (slow metabolizer)."""
         cyp = self._get_cyp1a2(panel_data)
         effect = cyp["genotype_effects"]["CC"]
         assert effect["category"] == "Elevated"
         summary = effect["effect_summary"].lower()
         assert "slow" in summary
+        assert "rs762551 cc" in summary
 
     def test_cyp1a2_evidence_level(self, panel_data: dict) -> None:
         cyp = self._get_cyp1a2(panel_data)
@@ -248,11 +254,24 @@ class TestCYP1A2Metabolizer:
         assert "cross_module" in cyp
         assert cyp["cross_module"]["module"] == "pharmacogenomics"
 
+    def test_cyp1a2_metadata_does_not_emit_star_diplotypes(self, panel_data: dict) -> None:
+        cyp = self._get_cyp1a2(panel_data)
+        sc = panel_data["special_calling"]["CYP1A2_metabolizer"]
+        metadata = json.dumps({"snp": cyp, "special_calling": sc})
+        assert "*1A/*1A" not in metadata
+        assert "*1A/*1F" not in metadata
+        assert "*1F/*1F" not in metadata
+        assert cyp["variant_name"] == "-163C>A (rs762551; caffeine clearance)"
+        assert {"29282363", "41992662"}.issubset(cyp["pmids"])
+        assert "CYP1A2*30" in cyp["coverage_note"]
+        assert "not a full CYP1A2 star-allele caller" in cyp["coverage_note"]
+
     def test_cyp1a2_in_special_calling(self, panel_data: dict) -> None:
         assert "special_calling" in panel_data
         assert "CYP1A2_metabolizer" in panel_data["special_calling"]
         sc = panel_data["special_calling"]["CYP1A2_metabolizer"]
         assert sc["rsid"] == "rs762551"
+        assert "star-allele call" in sc["description"]
         assert "rapid" in sc["states"]
         assert "intermediate" in sc["states"]
         assert "slow" in sc["states"]

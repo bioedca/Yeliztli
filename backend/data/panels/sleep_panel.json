@@ -11,34 +11,35 @@
         {
           "rsid": "rs762551",
           "gene": "CYP1A2",
-          "variant_name": "*1F (-163C>A)",
+          "variant_name": "-163C>A (rs762551; caffeine clearance)",
           "hgvs_protein": null,
           "risk_allele": "C",
           "ref_allele": "A",
           "genotype_effects": {
             "AA": {
               "category": "Standard",
-              "effect_summary": "CYP1A2 *1A/*1A — rapid caffeine metabolizer. Caffeine is cleared quickly, reducing the likelihood of caffeine-related sleep disruption."
+              "effect_summary": "rs762551 AA (A-allele homozygote) - rapid/high-inducibility caffeine-metabolism context. Caffeine is cleared quickly, reducing the likelihood of caffeine-related sleep disruption."
             },
             "AC": {
               "category": "Moderate",
-              "effect_summary": "CYP1A2 *1A/*1F — intermediate caffeine metabolizer. Moderate caffeine clearance rate. Evening caffeine intake may mildly affect sleep onset."
+              "effect_summary": "rs762551 AC (A/C heterozygote) - intermediate caffeine-metabolism context. Moderate caffeine clearance rate. Evening caffeine intake may mildly affect sleep onset."
             },
             "CA": {
               "category": "Moderate",
-              "effect_summary": "CYP1A2 *1A/*1F — intermediate caffeine metabolizer. Moderate caffeine clearance rate. Evening caffeine intake may mildly affect sleep onset."
+              "effect_summary": "rs762551 CA (A/C heterozygote) - intermediate caffeine-metabolism context. Moderate caffeine clearance rate. Evening caffeine intake may mildly affect sleep onset."
             },
             "CC": {
               "category": "Elevated",
-              "effect_summary": "CYP1A2 *1F/*1F — slow caffeine metabolizer. Caffeine persists longer in the body, increasing the risk of caffeine-induced insomnia and delayed sleep onset."
+              "effect_summary": "rs762551 CC (C-allele homozygote) - slower caffeine-metabolism context. Caffeine persists longer in the body, increasing the risk of caffeine-induced insomnia and delayed sleep onset."
             }
           },
+          "coverage_note": "The Sleep panel uses rs762551 only as a caffeine-metabolism marker; it is not a full CYP1A2 star-allele caller and does not report CYP1A2 diplotypes. PharmVar now assigns the former CYP1A2*1F-defining -163C>A core variant to the CYP1A2*30 allele group, and rs762551 can occur on multiple CYP1A2 haplotypes.",
           "cross_module": {
             "module": "pharmacogenomics",
-            "note": "CYP1A2 is also a pharmacogene relevant to drug metabolism (e.g., clozapine, theophylline). See Pharmacogenomics module for full drug interaction profile."
+            "note": "CYP1A2 is also a pharmacogene relevant to drug metabolism (e.g., clozapine, theophylline). See Pharmacogenomics module for full drug interaction profile and star-allele interpretation."
           },
           "evidence_level": 2,
-          "pmids": ["16522833", "26378246", "18391200"],
+          "pmids": ["16522833", "26378246", "18391200", "29282363", "41992662"],
           "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. This variant also has pharmacogenomic relevance — see the Pharmacogenomics module."
         },
         {
@@ -220,23 +221,23 @@
   },
   "special_calling": {
     "CYP1A2_metabolizer": {
-      "description": "Caffeine metabolizer status based on CYP1A2 *1A/*1F genotype. Maps to functional categories used in sleep context.",
+      "description": "Caffeine metabolizer status based on CYP1A2 rs762551 (-163C>A) genotype. This is not a full CYP1A2 star-allele call and does not emit CYP1A2 diplotypes.",
       "rsid": "rs762551",
       "states": {
         "rapid": {
           "genotype": "AA",
           "label": "Rapid metabolizer",
-          "description": "*1A/*1A — fast caffeine clearance. Low risk of caffeine-induced sleep disruption."
+          "description": "rs762551 AA (A-allele homozygote) - fast caffeine clearance. Low risk of caffeine-induced sleep disruption."
         },
         "intermediate": {
           "genotypes": ["AC", "CA"],
           "label": "Intermediate metabolizer",
-          "description": "*1A/*1F — moderate caffeine clearance. Some sensitivity to evening caffeine."
+          "description": "rs762551 AC/CA (A/C heterozygote) - moderate caffeine clearance. Some sensitivity to evening caffeine."
         },
         "slow": {
           "genotype": "CC",
           "label": "Slow metabolizer",
-          "description": "*1F/*1F — slow caffeine clearance. Higher risk of caffeine-induced insomnia."
+          "description": "rs762551 CC (C-allele homozygote) - slower caffeine clearance. Higher risk of caffeine-induced insomnia."
         }
       }
     },
