@@ -56,6 +56,23 @@ const AD_NON_CANCER_VARIANT: CarrierVariant = {
   notes: "Synthetic AD non-cancer carrier-panel example.",
 }
 
+const HBB_VARIANT: CarrierVariant = {
+  rsid: "rs334",
+  gene_symbol: "HBB",
+  genotype: "A/T",
+  zygosity: "het",
+  clinvar_significance: "Likely pathogenic",
+  clinvar_accession: "VCV000015333",
+  clinvar_review_stars: 2,
+  clinvar_conditions: "Sickle cell disease",
+  conditions: ["Sickle Cell Disease"],
+  inheritance: "AR",
+  evidence_level: 4,
+  cross_links: [],
+  pmids: ["20301551", "20301357", "30383109", "25393378"],
+  notes: "HBB carrier-panel example.",
+}
+
 describe("Carrier VariantDetailPanel", () => {
   it("keeps classic AR carrier wording for CFTR", () => {
     render(
@@ -101,5 +118,24 @@ describe("Carrier VariantDetailPanel", () => {
     expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/personal hereditary cancer risk/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/review the cancer module/i)).not.toBeInTheDocument()
+  })
+
+  it("uses sickle-cell trait context for HBB HbS carriers", () => {
+    render(
+      <VariantDetailPanel
+        variant={HBB_VARIANT}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/sickle-cell trait/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/not\s+sickle-cell disease/i)).toBeInTheDocument()
+    expect(screen.getByText(/usually asymptomatic/i)).toBeInTheDocument()
+    expect(screen.getByText(/kidney findings/i)).toBeInTheDocument()
+    expect(screen.getByText(/exertional-stress/i)).toBeInTheDocument()
+    expect(screen.getByText(/family planning/i)).toBeInTheDocument()
   })
 })

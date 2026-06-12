@@ -97,11 +97,13 @@ class TestCarrierDisclaimer:
         assert "family planning" in text
 
     def test_disclaimer_explains_carrier_not_affected(self, carrier_client: TestClient) -> None:
-        """Disclaimer should explain that carriers are typically unaffected."""
+        """Disclaimer should explain classic carriers and gene-specific exceptions."""
         resp = carrier_client.get("/api/analysis/carrier/disclaimer")
         text = resp.json()["text"].lower()
         assert "carrier" in text
         assert "unaffected" in text or "healthy" in text
+        assert "sickle-cell trait" in text
+        assert "usually asymptomatic" in text
 
     def test_disclaimer_covers_chip_limitations(self, carrier_client: TestClient) -> None:
         """Disclaimer should warn about genotyping chip limitations."""
@@ -174,9 +176,12 @@ class TestCarrierGeneNotes:
         assert "1 in 25" in CARRIER_GENE_NOTES["CFTR"]
 
     def test_hbb_note_mentions_conditions(self) -> None:
-        """HBB note should mention Sickle Cell Disease and Beta-Thalassemia."""
+        """HBB note should distinguish sickle-cell trait from disease."""
         note = CARRIER_GENE_NOTES["HBB"].lower()
-        assert "sickle cell" in note
+        assert "sickle-cell trait" in note
+        assert "not sickle-cell disease" in note
+        assert "usually asymptomatic" in note
+        assert "kidney" in note
         assert "thalassemia" in note
 
     def test_gba_note_mentions_gaucher(self) -> None:

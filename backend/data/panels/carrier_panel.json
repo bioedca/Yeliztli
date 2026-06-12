@@ -46,8 +46,8 @@
         "rs33960103",
         "rs33941849"
       ],
-      "pmids": ["20301551", "20301357"],
-      "notes": "HbS (rs334, Glu6Val) causes sickle cell disease. Beta-thalassemia caused by >200 known mutations. Carrier frequency highest in African, Mediterranean, and Southeast Asian populations."
+      "pmids": ["20301551", "20301357", "30383109", "25393378"],
+      "notes": "A single HbS (rs334, Glu6Val) copy is sickle-cell trait, not sickle-cell disease. Trait is usually asymptomatic but has documented personal health associations, especially kidney findings, pulmonary embolism/VTE context, and exertional-stress risks such as rhabdomyolysis. Beta-thalassemia is caused by more than 200 known HBB mutations. Carrier frequency is highest in African, Mediterranean, and Southeast Asian populations."
     },
     {
       "gene_symbol": "GBA",

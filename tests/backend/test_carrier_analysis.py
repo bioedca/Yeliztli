@@ -551,6 +551,31 @@ class TestStoreCarrierFindings:
         assert "family planning" in row.finding_text
         assert "typically unaffected" in row.finding_text
 
+    def test_hbb_hbs_finding_text_uses_trait_specific_context(
+        self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
+    ) -> None:
+        """HBB HbS carrier text must not overstate carrier status as unaffected."""
+        result = extract_carrier_variants(panel, sample_with_carrier_variants)
+        store_carrier_findings(result, sample_with_carrier_variants)
+
+        with sample_with_carrier_variants.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs334")).fetchone()
+        assert row is not None
+        assert row.category == "autosomal_recessive_carrier"
+        assert "HBB" in row.finding_text
+        assert "rs334" in row.finding_text
+        assert "sickle-cell trait" in row.finding_text
+        assert "not sickle-cell disease" in row.finding_text
+        assert "usually asymptomatic" in row.finding_text
+        assert "kidney" in row.finding_text
+        assert "exertional-stress" in row.finding_text
+        assert "family planning" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+
+        pmids = json.loads(row.pmid_citations)
+        assert "30383109" in pmids
+        assert "25393378" in pmids
+
     def test_brca_finding_text_uses_dual_role_framing(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:

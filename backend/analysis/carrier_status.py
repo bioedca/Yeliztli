@@ -275,6 +275,11 @@ def _has_cancer_crosslink(variant: CarrierVariantResult) -> bool:
     return "cancer" in variant.cross_links
 
 
+def _is_hbb_hbs_trait(variant: CarrierVariantResult) -> bool:
+    """Return whether this is the HBB HbS carrier finding."""
+    return variant.gene_symbol.upper() == "HBB" and variant.rsid == "rs334"
+
+
 def _has_personal_risk_context(variant: CarrierVariantResult) -> bool:
     """Return whether the carrier finding also has personal disease-risk context."""
     return variant.inheritance == "AD" or _has_cancer_crosslink(variant)
@@ -306,6 +311,15 @@ def _carrier_finding_text(variant: CarrierVariantResult) -> str:
         return (
             base + "This may be relevant for family planning. Review this result with "
             "a genetics professional."
+        )
+    if _is_hbb_hbs_trait(variant):
+        return (
+            base + "This is consistent with sickle-cell trait, not sickle-cell "
+            "disease. Sickle-cell trait is usually asymptomatic, but it has "
+            "documented personal health associations including kidney findings, "
+            "pulmonary embolism/VTE context, and exertional-stress risks such as "
+            "rhabdomyolysis. Review this result with a clinician or genetics "
+            "professional. This may also be relevant for family planning."
         )
     return base + "Carriers are typically unaffected. This may be relevant for family planning."
 

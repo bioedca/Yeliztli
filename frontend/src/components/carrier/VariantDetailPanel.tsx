@@ -29,7 +29,8 @@ export default function VariantDetailPanel({
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
   const isAutosomalRecessive = variant.inheritance === "AR"
-  const usesPersonalRiskStyle = shouldMentionCancerModule || isADOnly
+  const isHBBSickleTrait = variant.gene_symbol === "HBB" && variant.rsid === "rs334"
+  const usesPersonalRiskStyle = shouldMentionCancerModule || isADOnly || isHBBSickleTrait
 
   return (
     <aside
@@ -86,6 +87,16 @@ export default function VariantDetailPanel({
                 Heterozygous {variant.gene_symbol} variant. This information may
                 be relevant for family planning. Review this result with a genetics
                 professional.
+              </>
+            ) : isHBBSickleTrait ? (
+              <>
+                Heterozygous HBB HbS variant. This is sickle-cell trait, not
+                sickle-cell disease. Sickle-cell trait is usually asymptomatic,
+                but it has documented personal health associations including kidney
+                findings, pulmonary embolism/VTE context, and exertional-stress
+                risks such as rhabdomyolysis. Review with a clinician or genetics
+                professional; this information may also be relevant for family
+                planning.
               </>
             ) : isAutosomalRecessive ? (
               <>

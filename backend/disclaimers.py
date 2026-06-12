@@ -186,8 +186,9 @@ CARRIER_STATUS_DISCLAIMER_TITLE = "About Carrier Status Results"
 
 CARRIER_STATUS_DISCLAIMER_TEXT = """\
 Carrier status results indicate whether you carry one copy (heterozygous) \
-of a variant associated with a genetic condition. Carriers typically do \
-not show symptoms of the condition themselves.
+of a variant associated with a genetic condition. Most carriers do not \
+show symptoms of the condition themselves, but gene-specific carrier \
+states can have personal health associations.
 
 **This information is most relevant in a reproductive context.** If both \
 partners carry a variant in the same autosomal recessive gene, there is \
@@ -198,9 +199,12 @@ condition. This is the basis of carrier screening in family planning.
 
 1. **Carrier ≠ affected.** Being a carrier means you have one working \
 copy and one non-working copy of a gene. For autosomal recessive \
-conditions (such as Cystic Fibrosis, Sickle Cell Disease, Tay-Sachs, \
-Gaucher Disease, and Spinal Muscular Atrophy), carriers are typically \
-healthy and unaffected.
+conditions (such as Cystic Fibrosis, Tay-Sachs, Gaucher Disease, and \
+Spinal Muscular Atrophy), carriers are typically healthy and unaffected. \
+HBB HbS carrier status is sickle-cell trait, not sickle-cell disease; it \
+is usually asymptomatic but can have personal health associations, \
+including kidney findings and exertional-stress risks (PMID:30383109, \
+PMID:25393378).
 
 2. **BRCA1/BRCA2 are a special case.** These genes follow autosomal \
 dominant inheritance for cancer predisposition. A single pathogenic \
@@ -228,7 +232,9 @@ and explain reproductive alternatives.
 **Resources:**
 - National Society of Genetic Counselors: https://findageneticcounselor.nsgc.org/
 - ACOG Carrier Screening: https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2017/03/carrier-screening-for-genetic-conditions
-- MedlinePlus — Genetic Testing: https://medlineplus.gov/genetictesting.html\
+- MedlinePlus — Genetic Testing: https://medlineplus.gov/genetictesting.html
+- Sickle-cell trait outcomes review: https://pubmed.ncbi.nlm.nih.gov/30383109/
+- Sickle-cell trait kidney outcomes: https://pubmed.ncbi.nlm.nih.gov/25393378/\
 """
 
 # ── Per-gene carrier display notes ────────────────────────────────────
@@ -240,10 +246,13 @@ CARRIER_GENE_NOTES: dict[str, str] = {
         "frequency is approximately 1 in 25 in this population."
     ),
     "HBB": (
-        "Variants in HBB can cause Sickle Cell Disease or "
-        "Beta-Thalassemia depending on the specific variant. Carrier "
-        "frequency is highest in populations from Africa, the "
-        "Mediterranean, Middle East, and South Asia."
+        "A single HbS (rs334) copy is sickle-cell trait, not sickle-cell "
+        "disease. Trait is usually asymptomatic but has documented personal "
+        "health associations, especially kidney findings, pulmonary "
+        "embolism/VTE context, and exertional-stress risks such as "
+        "rhabdomyolysis (PMID:30383109, PMID:25393378). Other HBB variants "
+        "can cause Beta-Thalassemia. Carrier frequency is highest in "
+        "populations from Africa, the Mediterranean, Middle East, and South Asia."
     ),
     "GBA": (
         "GBA variants are associated with Gaucher Disease. Carrier "
