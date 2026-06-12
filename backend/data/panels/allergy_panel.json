@@ -138,7 +138,7 @@
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
-          "pmids": ["18196153", "18192541", "22378157"],
+          "pmids": ["11888582", "18256392", "22378157"],
           "recommendation_text": "HLA-B*57:01 is the pharmacogenomic gold standard for abacavir hypersensitivity screening. This result is based on a proxy tag SNP (r²=0.97 in EUR). Confirmatory HLA typing is essential before clinical action. CPIC Level A recommendation: do not prescribe abacavir to HLA-B*57:01-positive patients.",
           "cross_module": {
             "module": "pharmacogenomics",
