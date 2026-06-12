@@ -72,7 +72,7 @@
       "evidence_stars": 3,
       "odds_ratio": "OR 5.24 (95% CI 4.01–6.84; N=938,355) for venous thromboembolism vs non-carriers",
       "absolute_risk_context": "Even so, most double carriers never have a clot. Absolute risk is concentrated around transient triggers — estrogen-containing contraception/HRT, pregnancy and the postpartum period, major surgery, and prolonged immobility. Asymptomatic carriers are not anticoagulated, and population screening is not recommended.",
-      "finding_text": "You carry one copy each of Factor V Leiden (rs6025) and Prothrombin G20210A (rs1799963) ({genotype}) — double heterozygous. {odds_ratio}. {absolute_risk} Discuss thrombosis-prevention around high-risk situations with a clinician.",
+      "finding_text": "You carry one copy each of Factor V Leiden (rs6025) and Prothrombin G20210A (rs1799963) ({genotype}) — double heterozygous. {odds_ratio}. {absolute_risk} Discuss thrombosis prevention around high-risk situations with a clinician.",
       "caveats": ["negative_not_clear", "confirm_clinically"],
       "pmids": ["38498041", "21372680", "19174584"]
     },
