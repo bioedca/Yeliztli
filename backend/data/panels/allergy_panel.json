@@ -233,7 +233,7 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "No HLA-B*58:01 proxy allele detected. Low risk of allopurinol hypersensitivity at this locus."
+              "effect_summary": "No rs9263726 HLA-B*58:01 proxy allele detected. This tag-SNP result does not rule out HLA-B*58:01, especially when ancestry is unknown or proxy LD is lower; high-resolution HLA typing is required for clinical allopurinol decisions."
             },
             "CT": {
               "category": "Elevated",
@@ -251,12 +251,15 @@
           "hla_proxy": {
             "hla_allele": "HLA-B*58:01",
             "r_squared_eur": 0.91,
-            "clinical_grade": true,
+            "r_squared_eas": 0.87,
+            "r_squared_afr": 0.78,
+            "clinical_grade": false,
+            "clinical_grade_context": "Not clinical-grade across all stored ancestry populations; hla_proxy_lookup records AFR r2=0.78, below the 0.85 threshold.",
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
-          "pmids": ["22286173", "22177658", "26092464"],
-          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). Proxy r²=0.91 in EUR. Confirmatory HLA typing required.",
+          "pmids": ["22286173", "22177658", "26092464", "30080910", "33071783"],
+          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP with ancestry-dependent LD (EUR r2=0.91, EAS r2=0.87, AFR r2=0.78 in the lookup table), so a negative proxy result is not exclusionary. Confirmatory high-resolution HLA typing is required.",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Allopurinol/HLA-B*58:01 cross-links with PGx module for prescribing guidance."
@@ -417,7 +420,7 @@
   ],
   "special_calling": {
     "HLA_proxy_calling": {
-      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade (r²>0.85 in target populations). Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
+      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
       "proxy_rsids": ["rs2395029", "rs144012689", "rs1061235", "rs9263726", "rs2187668", "rs7775228"],
       "drug_hypersensitivity_proxies": {
         "rs2395029": "HLA-B*57:01 (abacavir)",

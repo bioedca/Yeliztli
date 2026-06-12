@@ -50,6 +50,7 @@ class SNPDetail(BaseModel):
     pmids: list[str] = []
     hla_proxy: dict | None = None
     hla_proxy_lookup: dict | None = None
+    hla_proxy_caveat: str | None = None
     coverage_note: str | None = None
 
 

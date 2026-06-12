@@ -65,6 +65,9 @@ STANDARD = "Standard"
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
 
+# Minimum r2 used by the panel for clinical-grade proxy framing.
+_HLA_PROXY_CLINICAL_GRADE_R2 = 0.85
+
 # Module name for findings storage
 MODULE_NAME = "allergy"
 
@@ -864,6 +867,71 @@ def _lookup_gwas_matches(
     return matched
 
 
+def _hla_proxy_lookup_detail(
+    snp: SNPResult,
+    hla_proxy_info: dict[str, HLAProxyInfo],
+) -> dict | None:
+    """Build stored HLA proxy lookup detail for pathway/SNP finding JSON."""
+    info = hla_proxy_info.get(snp.rsid)
+    if info is None:
+        return None
+
+    return {
+        "hla_allele": info.hla_allele,
+        "r_squared_by_pop": info.r_squared_by_pop,
+        "clinical_context": info.clinical_context,
+    }
+
+
+def _negative_hla_proxy_caveat(
+    snp: SNPResult,
+    hla_proxy_info: dict[str, HLAProxyInfo],
+) -> str | None:
+    """Return residual-risk caveat for negative HLA proxy calls when needed."""
+    if snp.category != STANDARD or snp.hla_proxy is None or snp.rsid not in hla_proxy_info:
+        return None
+
+    info = hla_proxy_info[snp.rsid]
+    min_r2 = min(info.r_squared_by_pop.values(), default=1.0)
+    if snp.rsid != "rs9263726" or min_r2 >= _HLA_PROXY_CLINICAL_GRADE_R2:
+        return None
+
+    return (
+        f"No {info.hla_allele} tag-SNP allele was detected at {snp.rsid}, "
+        "but this proxy result does not exclude the HLA allele. Proxy LD varies "
+        "by ancestry; use high-resolution HLA typing for clinical allopurinol "
+        "decisions."
+    )
+
+
+def _stored_snp_detail(
+    snp: SNPResult,
+    hla_proxy_info: dict[str, HLAProxyInfo],
+) -> dict:
+    """Build pathway-level SNP detail JSON, including HLA proxy caveats."""
+    detail = {
+        "rsid": snp.rsid,
+        "gene": snp.gene,
+        "variant_name": snp.variant_name,
+        "genotype": snp.genotype,
+        "category": snp.category,
+        "effect_summary": snp.effect_summary,
+        "evidence_level": snp.evidence_level,
+        "hla_proxy": snp.hla_proxy,
+        "coverage_note": snp.coverage_note,
+    }
+
+    lookup = _hla_proxy_lookup_detail(snp, hla_proxy_info)
+    if lookup is not None:
+        detail["hla_proxy_lookup"] = lookup
+
+    caveat = _negative_hla_proxy_caveat(snp, hla_proxy_info)
+    if caveat is not None:
+        detail["hla_proxy_caveat"] = caveat
+
+    return detail
+
+
 # ── Findings storage ─────────────────────────────────────────────────────
 
 
@@ -906,20 +974,7 @@ def store_allergy_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
-            "snp_details": [
-                {
-                    "rsid": s.rsid,
-                    "gene": s.gene,
-                    "variant_name": s.variant_name,
-                    "genotype": s.genotype,
-                    "category": s.category,
-                    "effect_summary": s.effect_summary,
-                    "evidence_level": s.evidence_level,
-                    "hla_proxy": s.hla_proxy,
-                    "coverage_note": s.coverage_note,
-                }
-                for s in pr.called_snps
-            ],
+            "snp_details": [_stored_snp_detail(s, result.hla_proxy_info) for s in pr.called_snps],
         }
 
         # Add HLA proxy info for drug hypersensitivity and food sensitivity pathways
@@ -978,13 +1033,9 @@ def store_allergy_findings(
             if snp.hla_proxy:
                 snp_detail["hla_proxy"] = snp.hla_proxy
                 # Include r² from hla_proxy_lookup if available
-                if snp.rsid in result.hla_proxy_info:
-                    info = result.hla_proxy_info[snp.rsid]
-                    snp_detail["hla_proxy_lookup"] = {
-                        "hla_allele": info.hla_allele,
-                        "r_squared_by_pop": info.r_squared_by_pop,
-                        "clinical_context": info.clinical_context,
-                    }
+                lookup = _hla_proxy_lookup_detail(snp, result.hla_proxy_info)
+                if lookup is not None:
+                    snp_detail["hla_proxy_lookup"] = lookup
             if snp.coverage_note:
                 snp_detail["coverage_note"] = snp.coverage_note
 

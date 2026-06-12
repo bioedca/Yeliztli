@@ -150,6 +150,30 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "pmid": "21248726",
         },
         {
+            "hla_allele": "HLA-B*58:01",
+            "proxy_rsid": "rs9263726",
+            "r_squared": 0.91,
+            "ancestry_pop": "EUR",
+            "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
+            "pmid": "22286173",
+        },
+        {
+            "hla_allele": "HLA-B*58:01",
+            "proxy_rsid": "rs9263726",
+            "r_squared": 0.87,
+            "ancestry_pop": "EAS",
+            "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
+            "pmid": "22286173",
+        },
+        {
+            "hla_allele": "HLA-B*58:01",
+            "proxy_rsid": "rs9263726",
+            "r_squared": 0.78,
+            "ancestry_pop": "AFR",
+            "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
+            "pmid": "22286173",
+        },
+        {
             "hla_allele": "HLA-DQ2",
             "proxy_rsid": "rs2187668",
             "r_squared": 0.95,
@@ -998,6 +1022,39 @@ class TestFindingsStorage:
         assert "hla_proxy_lookup" in detail
         assert detail["hla_proxy_lookup"]["hla_allele"] == "HLA-B*57:01"
         assert "EUR" in detail["hla_proxy_lookup"]["r_squared_by_pop"]
+
+    def test_hla_b5801_negative_proxy_caveat_in_pathway_detail(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Negative rs9263726 calls keep the HLA-B*58:01 proxy limitation visible."""
+        _seed_variants(
+            sample_engine,
+            [("rs9263726", "6", 31355848, "CC")],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            drug_summary = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Drug Hypersensitivity",
+                )
+            ).fetchone()
+
+        assert drug_summary is not None
+        detail = json.loads(drug_summary.detail_json)
+        rs926_detail = next(d for d in detail["snp_details"] if d["rsid"] == "rs9263726")
+        assert rs926_detail["category"] == STANDARD
+        assert "Low risk of allopurinol" not in rs926_detail["effect_summary"]
+        assert "does not rule out HLA-B*58:01" in rs926_detail["effect_summary"]
+        assert "does not exclude the HLA allele" in rs926_detail["hla_proxy_caveat"]
+        assert rs926_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == pytest.approx(0.78)
 
     def test_rerun_clears_previous(
         self,

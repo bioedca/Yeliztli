@@ -243,12 +243,17 @@ class TestHLAProxyCalling:
             assert proxy["confirmatory_test_required"] is True
 
     def test_drug_proxies_clinical_grade(self, panel_data: dict) -> None:
-        """Drug hypersensitivity HLA proxies should be clinical grade."""
+        """Drug HLA proxy clinical-grade metadata is scoped to LD strength."""
         for snp in self._get_hla_snps(panel_data):
             if snp["rsid"] in self.DRUG_PROXY_RSIDS:
-                assert snp["hla_proxy"]["clinical_grade"] is True, (
-                    f"{snp['rsid']} drug proxy should be clinical_grade=true"
-                )
+                if snp["rsid"] == "rs9263726":
+                    assert snp["hla_proxy"]["clinical_grade"] is False
+                    assert snp["hla_proxy"]["r_squared_afr"] < 0.85
+                    assert "clinical_grade_context" in snp["hla_proxy"]
+                else:
+                    assert snp["hla_proxy"]["clinical_grade"] is True, (
+                        f"{snp['rsid']} drug proxy should be clinical_grade=true"
+                    )
 
     def test_drug_proxies_evidence_level_3_or_4(self, panel_data: dict) -> None:
         """Drug HLA proxies have strong clinical evidence (★★★ or ★★★★)."""
