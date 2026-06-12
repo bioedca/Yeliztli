@@ -867,6 +867,42 @@ class TestStorePRSFindings:
         count = store_prs_findings([result], sample_engine, module="cancer")
         assert count == 0
 
+    def test_insufficient_coverage_clears_stale_prs_finding(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        """A completed no-store PRS pass should clear stale PRS findings."""
+        stale_result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry="EUR",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        assert store_prs_findings([stale_result], sample_with_prs_variants, module="cancer") == 1
+
+        current_result = PRSResult(
+            weight_set_name="Current PRS",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Current",
+            source_pmid="12345678",
+            sample_size=100000,
+            raw_score=0.0,
+            snps_used=0,
+            snps_total=5,
+            coverage_fraction=0.0,
+        )
+        assert store_prs_findings([current_result], sample_with_prs_variants, module="cancer") == 0
+
+        with sample_with_prs_variants.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == "cancer", findings.c.category == "prs")
+            ).scalar()
+        assert count == 0
+
     def test_clears_previous_prs_findings(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:
@@ -969,9 +1005,28 @@ class TestStorePRSFindings:
         count = store_prs_findings([result1, result2], sample_with_prs_variants, module="cancer")
         assert count == 2
 
-    def test_empty_results_stores_nothing(self, sample_engine: sa.Engine) -> None:
-        count = store_prs_findings([], sample_engine, module="cancer")
+    def test_empty_results_clear_stale_prs_finding(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry="EUR",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        assert store_prs_findings([result], sample_with_prs_variants, module="cancer") == 1
+
+        count = store_prs_findings([], sample_with_prs_variants, module="cancer")
         assert count == 0
+
+        with sample_with_prs_variants.connect() as conn:
+            stale_count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == "cancer", findings.c.category == "prs")
+            ).scalar()
+        assert stale_count == 0
 
     def test_pmid_stored_as_json(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine

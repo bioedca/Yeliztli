@@ -984,10 +984,6 @@ def store_prs_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_prs_findings_to_store", module=module)
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous PRS findings for this module
         conn.execute(
@@ -996,6 +992,10 @@ def store_prs_findings(
                 findings.c.category == "prs",
             )
         )
+        if not rows:
+            logger.info("no_prs_findings_to_store", module=module)
+            return 0
+
         conn.execute(sa.insert(findings), rows)
 
     logger.info("prs_findings_stored", module=module, count=len(rows))
