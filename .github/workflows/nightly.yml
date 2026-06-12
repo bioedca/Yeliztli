@@ -230,8 +230,6 @@ jobs:
         include:
           - os: macos-latest
             name: macOS ARM64
-          - os: macos-15-intel
-            name: macOS x86_64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
