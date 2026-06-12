@@ -7,14 +7,15 @@ prescribing-alert generator actually consume in production.
 
 Regression guard for issue #45: ``cpic_alleles.csv`` defines the SLCO1B1
 ``*15`` haplotype (rs2306283 c.388A>G **plus** rs4149056 c.521T>C) and ``*17``
-(rs2306283 c.388A>G plus rs4149015), so the greedy caller can produce complete
-``*15``/``*17``-containing diplotypes — ``*15/*15``, ``*1B/*15``, ``*5/*15``,
-``*1B/*1B``, ``*1A/*17``, ``*1B/*17``, ``*15/*17``, ``*17/*17`` — that had no row
-in ``cpic_diplotypes.csv``. Before the fix they resolved to ``phenotype=None`` at
-Complete confidence, so ``generate_prescribing_alerts`` silently skipped
-simvastatin guidance for a carrier of the rs4149056 c.521C decreased-function
-allele — exactly the same class of "dropped diplotype" defect fixed for TPMT
-(issue #12) and DPYD (SW-E5).
+(rs2306283 c.388A>G plus rs4149015 g.-11187G>A plus rs4149056 c.521T>C — the
+rs4149056 component was completed in issue #110), so the greedy caller can
+produce complete ``*15``/``*17``-containing diplotypes — ``*15/*15``,
+``*1B/*15``, ``*5/*15``, ``*1B/*1B``, ``*1A/*17``, ``*1B/*17``, ``*5/*17``,
+``*15/*17``, ``*17/*17`` — that had no row in ``cpic_diplotypes.csv``. Before the
+fix they resolved to ``phenotype=None`` at Complete confidence, so
+``generate_prescribing_alerts`` silently skipped simvastatin guidance for a
+carrier of the rs4149056 c.521C decreased-function allele — exactly the same
+class of "dropped diplotype" defect fixed for TPMT (issue #12) and DPYD (SW-E5).
 
 Phenotype assignments follow the CPIC OATP1B1 function scale (poor < decreased <
 normal), in which two decreased-function (c.521C-bearing) alleles give a Poor
@@ -28,10 +29,10 @@ Clin Transl Sci).
 
 All genotypes below are GRCh37 plus/forward strand (as real 23andMe data is);
 star-allele calling is keyed on rsid, so the chrom/pos are realistic but not
-load-bearing. NOTE: the production ``*17`` allele definition omits rs4149056
-(tracked separately); the diplotype→phenotype rows asserted here remain correct
-once that definition is completed, because c.521C-bearing ``*17`` is a
-decreased-function allele either way.
+load-bearing. The production ``*17`` allele definition now carries its rs4149056
+c.521T>C loss-of-function component (issue #110), so every ``*17``-containing
+genotype below carries c.521C; a sample with only c.388A>G + g.-11187G>A (the
+normal/increased-function markers) is no longer mis-called ``*17``.
 """
 
 from __future__ import annotations
@@ -117,25 +118,35 @@ def test_reference_is_normal_function(reference_engine: sa.Engine) -> None:
 # Each was verified to be produced by call_star_alleles_for_gene over the
 # production CSVs. Two decreased-function (c.521C-bearing) alleles -> Poor
 # function — the OATP1B1 group with the highest simvastatin myopathy risk
-# (Link et al. SEARCH 2008, PMID 18650507; Naushad et al. 2025).
+# (Link et al. SEARCH 2008, PMID 18650507; Naushad et al. 2025). Every *17 case
+# carries rs4149056 c.521C, the loss-of-function variant that defines *17 as a
+# decreased-function haplotype (issue #110).
 _POOR_FUNCTION = [
+    ("*5/*5", {"rs2306283": "AA", "rs4149056": "CC"}, 1.0),
     ("*5/*15", {"rs2306283": "AG", "rs4149056": "CC"}, 0.75),
+    ("*5/*17", {"rs2306283": "AG", "rs4149056": "CC", "rs4149015": "GA"}, 1.0),
     ("*15/*15", {"rs2306283": "GG", "rs4149056": "CC"}, 0.5),
-    ("*15/*17", {"rs2306283": "GG", "rs4149056": "TC", "rs4149015": "GA"}, 0.75),
-    ("*17/*17", {"rs2306283": "GG", "rs4149056": "TT", "rs4149015": "AA"}, 1.0),
+    ("*15/*17", {"rs2306283": "GG", "rs4149056": "CC", "rs4149015": "GA"}, 0.75),
+    ("*17/*17", {"rs2306283": "GG", "rs4149056": "CC", "rs4149015": "AA"}, 1.0),
 ]
 
-# One decreased-function allele over a normal allele -> Decreased function
-# (Tipnoppanon et al. 2026: decreased-function phenotype = *1b/*5 or *1b/*15).
+# One decreased-function (c.521C-bearing) allele over a normal allele ->
+# Decreased function (Tipnoppanon et al. 2026: decreased-function phenotype =
+# *1b/*5 or *1b/*15).
 _DECREASED_FUNCTION = [
+    ("*1A/*5", {"rs2306283": "AA", "rs4149056": "TC"}, 1.5),
+    ("*1A/*15", {"rs2306283": "AG", "rs4149056": "TC"}, 1.25),
+    ("*1A/*17", {"rs2306283": "AG", "rs4149056": "TC", "rs4149015": "GA"}, 1.5),
     ("*1B/*15", {"rs2306283": "GG", "rs4149056": "TC"}, 1.0),
-    ("*1A/*17", {"rs2306283": "AG", "rs4149056": "TT", "rs4149015": "GA"}, 1.5),
-    ("*1B/*17", {"rs2306283": "GG", "rs4149056": "TT", "rs4149015": "GA"}, 1.25),
+    ("*1B/*17", {"rs2306283": "GG", "rs4149056": "TC", "rs4149015": "GA"}, 1.25),
 ]
 
-# Two normal-function alleles (c.388A>G is a normal-function allele) -> Normal.
+# No c.521C anywhere -> Normal function: c.388A>G (*1B) and g.-11187G>A are
+# normal/increased-function markers on their own (Nies et al. 2013), so without
+# the c.521C loss-of-function variant the call cannot be *17 or decreased.
 _NORMAL_FUNCTION = [
-    ("*1B/*1B", {"rs2306283": "GG", "rs4149056": "TT", "rs4149015": "GG"}, 1.5),
+    ("*1A/*1B", {"rs2306283": "AG", "rs4149056": "TT"}, 1.75),
+    ("*1B/*1B", {"rs2306283": "GG", "rs4149056": "TT"}, 1.5),
 ]
 
 
@@ -162,12 +173,9 @@ def test_newly_mapped_diplotypes_resolve_to_a_phenotype(
     assert result.diplotype == expected_diplotype
     assert result.phenotype == expected_phenotype
     assert result.activity_score == activity_score
-    expected_confidence = (
-        CallConfidence.PARTIAL if expected_diplotype == "*15/*17" else CallConfidence.COMPLETE
-    )
-    assert result.call_confidence == expected_confidence
-    if expected_confidence == CallConfidence.PARTIAL:
-        assert "unphased" in result.confidence_note
+    # With c.521C-bearing *17 fully defined, each genotype below observes all of
+    # its called alleles' defining variants, so the call is Complete (issue #110).
+    assert result.call_confidence == CallConfidence.COMPLETE
 
 
 @pytest.mark.parametrize(
@@ -198,9 +206,7 @@ def test_actionable_diplotypes_emit_simvastatin_alert(
     for alert in slco_alerts:
         assert alert.diplotype == expected_diplotype
         assert recommendation_fragment in alert.recommendation
-        if expected_diplotype == "*15/*17":
-            assert alert.call_confidence == CallConfidence.PARTIAL
-            assert "unphased" in alert.confidence_note
+        assert alert.call_confidence == CallConfidence.COMPLETE
 
 
 def test_every_callable_slco1b1_diplotype_has_a_phenotype(
@@ -230,3 +236,81 @@ def test_every_callable_slco1b1_diplotype_has_a_phenotype(
     assert not unmapped, "callable SLCO1B1 diplotypes with no phenotype mapping: " + "; ".join(
         unmapped
     )
+
+
+def test_star17_definition_carries_c521c(reference_engine: sa.Engine) -> None:
+    """The production *17 allele definition includes rs4149056 c.521T>C (issue #110).
+
+    *17 is the three-variant haplotype g.-11187G>A (rs4149015) + c.388A>G
+    (rs2306283) + c.521T>C (rs4149056); the c.521C loss-of-function variant is
+    what makes *17 a decreased-function allele (PharmVar GeneFocus: SLCO1B1,
+    Ramsey et al. 2022, PMID 35070731 — the basis of the CPIC 2022 statin
+    guideline). Locks the data shape so the c.521C component can't silently
+    regress out of the definition.
+    """
+    alleles = _fetch_alleles_for_gene("SLCO1B1", reference_engine)
+    star17 = next(a for a in alleles if a["allele_name"] == "*17")
+    rsids = {v["rsid"] for v in star17["defining_variants"]}
+    assert rsids == {"rs2306283", "rs4149015", "rs4149056"}
+    # rs4149056 is the c.521T>C loss-of-function component, GRCh37 plus strand.
+    c521 = next(v for v in star17["defining_variants"] if v["rsid"] == "rs4149056")
+    assert (c521["ref"], c521["alt"]) == ("T", "C")
+
+
+# c.521C-negative genotypes that the buggy 2-variant *17 definition mis-called as
+# decreased/poor-function *17. With rs4149056 added to *17 (issue #110) they now
+# resolve to a normal-function, *17-free diplotype. (overrides, prior wrong call,
+# corrected call).
+_C521C_NEGATIVE_FORMERLY_STAR17 = [
+    ({"rs2306283": "GG", "rs4149015": "AA"}, "*17/*17", "*1B/*1B"),
+    ({"rs2306283": "AG", "rs4149015": "GA"}, "*1A/*17", "*1A/*1B"),
+    ({"rs2306283": "GG", "rs4149015": "GA"}, "*1B/*17", "*1B/*1B"),
+]
+
+
+@pytest.mark.parametrize(
+    "overrides,prior_wrong_call,expected_diplotype", _C521C_NEGATIVE_FORMERLY_STAR17
+)
+def test_star17_not_called_without_c521c(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    prior_wrong_call: str,
+    expected_diplotype: str,
+) -> None:
+    """*17 is only called when c.521T>C (rs4149056) is present (issue #110).
+
+    A sample carrying c.388A>G (rs2306283) + g.-11187G>A (rs4149015) but NO
+    c.521C must not be assigned the decreased-function *17 haplotype. Before
+    rs4149056 was added to the *17 definition, the greedy caller produced
+    ``{prior_wrong_call}`` for these genotypes — a false statin-caution call,
+    since c.388A>G and g.-11187G>A are normal/increased-function markers on their
+    own (Nies et al. 2013). The corrected call is a normal-function diplotype.
+    """
+    result = _call_slco1b1(reference_engine, _slco1b1_genotypes(**overrides))
+    assert "*17" not in result.diplotype, (
+        f"{result.diplotype} still calls *17 without c.521C (was {prior_wrong_call})"
+    )
+    assert result.diplotype == expected_diplotype
+    assert result.phenotype == "Normal function"
+    assert result.call_confidence == CallConfidence.COMPLETE
+
+
+def test_star17_emits_no_statin_caution_without_c521c(reference_engine: sa.Engine) -> None:
+    """A c.521C-negative formerly-*17 genotype triggers no statin caution (issue #110).
+
+    End-to-end patient-safety guard: the false decreased/poor-function *17 call
+    previously produced an unwarranted simvastatin caution ("Avoid simvastatin" /
+    "lower dose or alternative statin") for someone whose haplotype lacks the
+    rs4149056 c.521C myopathy-risk variant. The corrected Normal-function call
+    must carry only label-recommended dosing — never a dose-reduction/avoidance.
+    """
+    # c.388 G/G + g.-11187 A/A, no c.521C — previously mis-called *17/*17 Poor.
+    sample = _make_sample(_slco1b1_genotypes(rs2306283="GG", rs4149015="AA"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"SLCO1B1"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    slco_alerts = [a for a in alerts if a.gene == "SLCO1B1"]
+    for alert in slco_alerts:
+        assert alert.phenotype == "Normal function"
+        assert "Avoid simvastatin" not in alert.recommendation
+        assert "lower dose or alternative statin" not in alert.recommendation
