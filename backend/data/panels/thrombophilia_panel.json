@@ -74,7 +74,7 @@
       "absolute_risk_context": "Even so, most double carriers never have a clot. Absolute risk is concentrated around transient triggers — estrogen-containing contraception/HRT, pregnancy and the postpartum period, major surgery, and prolonged immobility. Asymptomatic carriers are not anticoagulated, and population screening is not recommended.",
       "finding_text": "You carry one copy each of Factor V Leiden (rs6025) and Prothrombin G20210A (rs1799963) ({genotype}) — double heterozygous. {odds_ratio}. {absolute_risk} Discuss thrombosis prevention around high-risk situations with a clinician.",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["38498041", "21372680", "19174584"]
+      "pmids": ["38498041", "39167180", "23900608"]
     },
     {
       "id": "fvl_homozygous",
@@ -86,7 +86,7 @@
       "absolute_risk_context": "Absolute lifetime risk is still moderate and concentrated around hormonal exposure, pregnancy/postpartum, surgery, and immobility. Asymptomatic carriers are not routinely anticoagulated; population screening is not recommended.",
       "finding_text": "Factor V Leiden homozygous (rs6025 {genotype}). {odds_ratio}. {absolute_risk} Discuss thrombosis prevention around high-risk situations with a clinician.",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["38498041", "21372680", "19174584"]
+      "pmids": ["39167180", "23900608"]
     },
     {
       "id": "fvl_heterozygous",
@@ -98,7 +98,7 @@
       "absolute_risk_context": "Only about 10% of Factor V Leiden heterozygotes ever have a venous clot. Risk concentrates around estrogen-containing contraception/HRT, pregnancy/postpartum, surgery, and immobility. Asymptomatic carriers are not anticoagulated, and population screening is not recommended.",
       "finding_text": "Factor V Leiden heterozygous (rs6025 {genotype}) — you carry one copy. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["21372680", "19174584"]
+      "pmids": ["39167180", "23900608"]
     },
     {
       "id": "f2_homozygous",
@@ -110,7 +110,7 @@
       "absolute_risk_context": "Absolute risk remains modest and trigger-dependent (hormones, pregnancy/postpartum, surgery, immobility). Asymptomatic carriers are not routinely anticoagulated; population screening is not recommended.",
       "finding_text": "Prothrombin G20210A homozygous (rs1799963 {genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["21372680", "19174584"]
+      "pmids": ["39167180", "23900608"]
     },
     {
       "id": "f2_heterozygous",
@@ -122,7 +122,7 @@
       "absolute_risk_context": "Most carriers never clot. Risk concentrates around estrogen exposure, pregnancy/postpartum, surgery, and immobility. Asymptomatic carriers are not anticoagulated, and population screening is not recommended.",
       "finding_text": "Prothrombin G20210A heterozygous (rs1799963 {genotype}) — you carry one copy. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["21372680", "19174584"]
+      "pmids": ["39167180", "23900608"]
     }
   ]
 }

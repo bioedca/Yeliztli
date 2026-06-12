@@ -161,6 +161,30 @@ class TestPanelGuard:
         for model in panel.genotype_models:
             assert model.absolute_risk_context, model.id
 
+    def test_models_cite_only_thrombophilia_pmids(self, panel) -> None:
+        """Every model must cite real FVL/F2 VTE-risk papers, not the unrelated
+        perioperative beta-blocker (21372680) / ovarian-cancer (19174584) PMIDs that
+        were attached in error (gh #174). PMIDs are locked to the verified set:
+          - 39167180  Alnor 2024, Ann Hematol (FVL/FII het + homozygous VTE OR)
+          - 23900608  Simone 2013, Eur J Epidemiol (single + combined FVL/PT VTE)
+          - 38498041  Ryu 2024, Blood (double-heterozygous VTE OR 5.24)
+        """
+        verified = {"39167180", "23900608", "38498041"}
+        unrelated = {"21372680", "19174584"}
+        for model in panel.genotype_models:
+            cited = set(model.pmids)
+            assert cited, f"{model.id} has no citations"
+            assert cited.isdisjoint(unrelated), (
+                f"{model.id} cites unrelated PMIDs {cited & unrelated}"
+            )
+            assert cited <= verified, f"{model.id} cites unverified PMIDs {cited - verified}"
+
+    def test_double_carrier_cites_ryu_or_524(self, panel) -> None:
+        """The double-heterozygous OR 5.24 claim must cite its source (Ryu 2024,
+        Blood, PMID 38498041)."""
+        dc = next(m for m in panel.genotype_models if m.id == "double_carrier")
+        assert "38498041" in dc.pmids
+
 
 class TestStorage:
     def test_stored_with_module_and_category(self, panel, sample_engine: sa.Engine) -> None:
