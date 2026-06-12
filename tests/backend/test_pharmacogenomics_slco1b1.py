@@ -309,7 +309,10 @@ def test_star17_emits_no_statin_caution_without_c521c(reference_engine: sa.Engin
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"SLCO1B1"}))
     alerts = generate_prescribing_alerts(results, reference_engine)
 
+    # The gene is still surfaced (label-recommended dosing), just without a
+    # caution — assert non-empty so the per-alert checks below can't pass vacuously.
     slco_alerts = [a for a in alerts if a.gene == "SLCO1B1"]
+    assert slco_alerts, "expected a Normal-function SLCO1B1 alert (label-recommended dosing)"
     for alert in slco_alerts:
         assert alert.phenotype == "Normal function"
         assert "Avoid simvastatin" not in alert.recommendation
