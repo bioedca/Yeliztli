@@ -217,4 +217,22 @@ describe("ChronotypeDial", () => {
       screen.getByText(/strong evening chronotype preference/),
     ).toBeInTheDocument()
   })
+
+  it("shows Insufficient data (not Early Bird) when no chronotype SNP is called", () => {
+    // Standard is the no-call default level; with 0 called SNPs the PER3 marker is
+    // missing, so the dial must NOT claim a morning tendency (gh #167).
+    render(<ChronotypeDial level="Standard" calledSnps={0} />)
+    expect(screen.getByText("Insufficient data")).toBeInTheDocument()
+    expect(screen.queryByText("Early Bird")).not.toBeInTheDocument()
+    expect(screen.getByText(/No chronotype marker \(PER3 rs57875989\)/)).toBeInTheDocument()
+    expect(
+      screen.getByRole("img", { name: /Chronotype dial showing Insufficient data/ }),
+    ).toBeInTheDocument()
+  })
+
+  it("still shows Early Bird for a genuinely called Standard result", () => {
+    render(<ChronotypeDial level="Standard" calledSnps={1} />)
+    expect(screen.getByText("Early Bird")).toBeInTheDocument()
+    expect(screen.queryByText("Insufficient data")).not.toBeInTheDocument()
+  })
 })

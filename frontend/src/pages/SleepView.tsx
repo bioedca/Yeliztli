@@ -116,7 +116,10 @@ export default function SleepView() {
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" aria-label="Sleep highlights">
                 {/* Chronotype dial */}
                 {chronotypePathway && (
-                  <ChronotypeDial level={chronotypePathway.level} />
+                  <ChronotypeDial
+                    level={chronotypePathway.level}
+                    calledSnps={chronotypePathway.called_snps}
+                  />
                 )}
 
                 {/* CYP1A2 metabolizer card */}

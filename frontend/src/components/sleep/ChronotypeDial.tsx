@@ -8,20 +8,40 @@
 
 import { cn } from "@/lib/utils"
 import type { PathwayLevel } from "@/types/sleep"
-import { Sun, Moon, Sunrise } from "lucide-react"
+import { Sun, Moon, Sunrise, CircleHelp } from "lucide-react"
 
 interface ChronotypeDialProps {
   level: PathwayLevel
+  /**
+   * Number of chronotype SNPs actually genotyped. When 0, the only chronotype
+   * marker (PER3 rs57875989) was not called, so a morning/evening tendency cannot
+   * be determined — the dial must show an insufficient-data state rather than the
+   * default `Standard` → "Early Bird" label (gh #167).
+   */
+  calledSnps?: number
   className?: string
 }
 
-const DIAL_CONFIG: Record<PathwayLevel, {
+type DialConfig = {
   label: string
   description: string
   rotation: number
   color: string
   icon: typeof Sun
-}> = {
+}
+
+/** Shown when no chronotype marker was genotyped — never a directional call. */
+const INSUFFICIENT_CONFIG: DialConfig = {
+  label: "Insufficient data",
+  description:
+    "No chronotype marker (PER3 rs57875989) was genotyped in this sample, so a " +
+    "morning/evening tendency cannot be determined.",
+  rotation: 90,
+  color: "text-muted-foreground",
+  icon: CircleHelp,
+}
+
+const DIAL_CONFIG: Record<PathwayLevel, DialConfig> = {
   Elevated: {
     label: "Night Owl",
     description: "Genetic variants suggest a strong evening chronotype preference.",
@@ -45,8 +65,10 @@ const DIAL_CONFIG: Record<PathwayLevel, {
   },
 }
 
-export default function ChronotypeDial({ level, className }: ChronotypeDialProps) {
-  const config = DIAL_CONFIG[level] || DIAL_CONFIG.Standard
+export default function ChronotypeDial({ level, calledSnps, className }: ChronotypeDialProps) {
+  // No genotyped chronotype marker ⇒ withhold any directional call (gh #167).
+  const noData = calledSnps === 0
+  const config = noData ? INSUFFICIENT_CONFIG : DIAL_CONFIG[level] || DIAL_CONFIG.Standard
   const Icon = config.icon
 
   // SVG semicircle dial with needle indicator
@@ -98,17 +120,20 @@ export default function ChronotypeDial({ level, className }: ChronotypeDialProps
             className="text-amber-200 dark:text-amber-900/50"
           />
 
-          {/* Needle */}
-          <line
-            x1={cx}
-            y1={cy}
-            x2={needleX}
-            y2={needleY}
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            className={config.color}
-          />
+          {/* Needle — omitted when there is no chronotype data, so the dial never
+              points at a direction it cannot support (gh #167). */}
+          {!noData && (
+            <line
+              x1={cx}
+              y1={cy}
+              x2={needleX}
+              y2={needleY}
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              className={config.color}
+            />
+          )}
           {/* Center dot */}
           <circle cx={cx} cy={cy} r="5" fill="currentColor" className={config.color} />
 
