@@ -35,6 +35,12 @@ from backend.db.tables import (
 
 # ── Test data ────────────────────────────────────────────────────────
 
+HLA_B5801_NEGATIVE_PROXY_CAVEAT = (
+    "No HLA-B*58:01 tag-SNP allele was detected at rs9263726, but this proxy result "
+    "does not exclude the HLA allele. Proxy LD varies by ancestry; use high-resolution "
+    "HLA typing for clinical allopurinol decisions."
+)
+
 PATHWAY_SUMMARY_FINDINGS = [
     {
         "module": "allergy",
@@ -142,12 +148,7 @@ PATHWAY_SUMMARY_FINDINGS = [
                             "r_squared_by_pop": {"EUR": 0.91, "EAS": 0.87, "AFR": 0.78},
                             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
                         },
-                        "hla_proxy_caveat": (
-                            "No rs9263726 tag-SNP allele was detected, but this does not "
-                            "exclude the HLA allele. Proxy LD varies by ancestry; "
-                            "high-resolution HLA typing is required for clinical "
-                            "allopurinol decisions."
-                        ),
+                        "hla_proxy_caveat": HLA_B5801_NEGATIVE_PROXY_CAVEAT,
                         "coverage_note": None,
                     },
                 ],
@@ -451,7 +452,7 @@ class TestPathwayDetail:
         assert hla_b5701_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == 0.85
         assert hla_b5701_detail["hla_proxy_caveat"] == "Confirmatory HLA typing required."
         hla_b5801_detail = next(d for d in data["snp_details"] if d["rsid"] == "rs9263726")
-        assert "does not exclude the HLA allele" in hla_b5801_detail["hla_proxy_caveat"]
+        assert hla_b5801_detail["hla_proxy_caveat"] == HLA_B5801_NEGATIVE_PROXY_CAVEAT
         assert hla_b5801_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == 0.78
 
     def test_missing_pathway_404(self, seeded_client: TestClient) -> None:
