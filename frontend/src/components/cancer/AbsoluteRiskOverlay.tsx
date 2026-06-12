@@ -1,10 +1,12 @@
 /** Opt-in breast absolute-risk overlay (SW-B8).
  *
  * Gated behind explicit consent because it quantifies absolute disease risk.
- * Pre-consent: an explainer + opt-in button (no figures). Post-consent: the SEER
- * population baseline, published carrier penetrance, and a CanRisk handoff. No
- * personalized PRS-derived absolute number is shown (the breast PRS percentile
- * is coverage-limited / withheld).
+ * Pre-consent: an explainer + opt-in button (no figures). Post-consent the figures
+ * are sex-gated (gh #151): female (XX) samples see the SEER female baseline +
+ * female BRCA penetrance, male (XY) samples see male-specific BRCA framing with the
+ * female figures suppressed, and sex-unresolved samples see no numeric sex-specific
+ * figures — a `sex_note` explains which context applies. No personalized PRS-derived
+ * absolute number is shown (the breast PRS percentile is coverage-limited / withheld).
  */
 
 import { ShieldQuestion, ExternalLink } from "lucide-react"
@@ -40,6 +42,15 @@ export default function AbsoluteRiskOverlay({ sampleId }: { sampleId: number }) 
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 max-w-2xl space-y-3" data-testid="absolute-risk-overlay">
+          {data.sex_note && (
+            <p
+              className="text-xs text-muted-foreground border-l-2 border-primary/40 pl-2"
+              data-testid="absolute-risk-sex-note"
+            >
+              {data.sex_note}
+            </p>
+          )}
+
           {data.population_baseline && (
             <div>
               <p className="text-sm text-foreground">

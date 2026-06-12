@@ -92,12 +92,15 @@ describe("AbsoluteRiskOverlay", () => {
     expect(mockMutate).toHaveBeenCalledWith(true)
   })
 
-  it("shows baseline + carrier penetrance after consent", () => {
+  it("shows female baseline + carrier penetrance after consent (XX)", () => {
     mockUseAbsoluteRisk.mockReturnValue({
       isLoading: false,
       data: {
         consented: true,
         opt_in_required: false,
+        inferred_sex: "XX",
+        sex_context: "female",
+        sex_note: "Figures shown are female-specific (inferred biological sex XX).",
         population_baseline: {
           lifetime_risk_pct: 12.9,
           source: "NCI SEER",
@@ -114,11 +117,74 @@ describe("AbsoluteRiskOverlay", () => {
     render(<AbsoluteRiskOverlay sampleId={1} />)
     const overlay = screen.getByTestId("absolute-risk-overlay")
     expect(overlay).toHaveTextContent("12.9%")
+    expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("female-specific")
     expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent("BRCA1")
     expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent("72%")
     expect(screen.getByRole("link", { name: /CanRisk/ })).toHaveAttribute(
       "href",
       "https://www.canrisk.org",
     )
+  })
+
+  it("suppresses the female baseline + 72% figure for a male (XY) sample", () => {
+    mockUseAbsoluteRisk.mockReturnValue({
+      isLoading: false,
+      data: {
+        consented: true,
+        opt_in_required: false,
+        inferred_sex: "XY",
+        sex_context: "male",
+        sex_note:
+          "Inferred biological sex is XY (male). The female figures do not apply to males; prostate cancer is a major component.",
+        has_monogenic: true,
+        monogenic: [
+          {
+            gene: "BRCA1",
+            cumulative_risk_to_80_pct: null,
+            ci: null,
+            pmid: "28448241",
+            note: "Male BRCA1 carrier: male breast-cancer lifetime risk is low (~1–5%); prostate risk elevated.",
+          },
+        ],
+        disclaimer: "Not clinical.",
+      },
+    })
+    render(<AbsoluteRiskOverlay sampleId={1} />)
+    const overlay = screen.getByTestId("absolute-risk-overlay")
+    // The female SEER baseline must not render for a male sample.
+    expect(overlay).not.toHaveTextContent("12.9%")
+    expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("male")
+    const mono = screen.getByTestId("absolute-risk-monogenic")
+    expect(mono).not.toHaveTextContent("72%")
+    expect(mono).toHaveTextContent(/male BRCA1 carrier/i)
+  })
+
+  it("withholds numeric figures when sex is unresolved", () => {
+    mockUseAbsoluteRisk.mockReturnValue({
+      isLoading: false,
+      data: {
+        consented: true,
+        opt_in_required: false,
+        inferred_sex: "unknown",
+        sex_context: "unresolved",
+        sex_note: "Biological sex could not be resolved; sex-specific figures are withheld.",
+        has_monogenic: true,
+        monogenic: [
+          {
+            gene: "BRCA2",
+            cumulative_risk_to_80_pct: null,
+            ci: null,
+            pmid: null,
+            note: "Biological sex not resolved from array data — sex-specific penetrance is withheld.",
+          },
+        ],
+        disclaimer: "Not clinical.",
+      },
+    })
+    render(<AbsoluteRiskOverlay sampleId={1} />)
+    const overlay = screen.getByTestId("absolute-risk-overlay")
+    expect(overlay).not.toHaveTextContent("12.9%")
+    expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("withheld")
+    expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent(/withheld/i)
   })
 })

@@ -432,8 +432,11 @@ def get_absolute_risk(
     """Return the opt-in breast absolute-risk overlay (SW-B8).
 
     Before opt-in this returns only the consent prompt + disclaimer (no risk
-    figures). After opt-in it returns the SEER population baseline, published
-    carrier penetrance for any monogenic breast variant, and a CanRisk handoff.
+    figures). After opt-in the figures are sex-gated on the sample's inferred
+    biological sex: female samples get the SEER female baseline + female BRCA
+    penetrance, male samples get male-specific BRCA framing (the female figures are
+    suppressed), and sex-unresolved samples get no numeric sex-specific figures —
+    only a CanRisk / clinical-genetics handoff (gh #151).
 
     Example: ``GET /api/analysis/cancer/absolute-risk?sample_id=1``
     """
@@ -441,7 +444,11 @@ def get_absolute_risk(
         build_breast_absolute_risk,
         get_consent,
     )
+    from backend.services.sex_inference import infer_biological_sex
 
     sample_engine = _get_sample_engine(sample_id)
     consented = get_consent(get_registry().reference_engine, sample_id)
-    return build_breast_absolute_risk(sample_engine, consented=consented)
+    inferred_sex = infer_biological_sex(sample_engine)
+    return build_breast_absolute_risk(
+        sample_engine, consented=consented, inferred_sex=inferred_sex
+    )

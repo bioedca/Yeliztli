@@ -81,15 +81,17 @@ class TestOverlayGating:
         assert "disclaimer" in out
 
     def test_post_consent_population_baseline(self, sample_engine: sa.Engine) -> None:
-        out = build_breast_absolute_risk(sample_engine, consented=True)
+        # XX/female context: the SEER female baseline applies.
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
         assert out["consented"] is True
+        assert out["sex_context"] == "female"
         assert out["population_baseline"]["lifetime_risk_pct"] == 12.9
         assert out["has_monogenic"] is False
         assert out["canrisk"]["url"] == "https://www.canrisk.org"
 
     def test_post_consent_brca_carrier_penetrance(self, sample_engine: sa.Engine) -> None:
         _insert_breast_monogenic(sample_engine, "BRCA1")
-        out = build_breast_absolute_risk(sample_engine, consented=True)
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
         assert out["has_monogenic"] is True
         brca1 = next(m for m in out["monogenic"] if m["gene"] == "BRCA1")
         assert brca1["cumulative_risk_to_80_pct"] == 72
@@ -97,10 +99,59 @@ class TestOverlayGating:
 
     def test_moderate_gene_has_no_fabricated_number(self, sample_engine: sa.Engine) -> None:
         _insert_breast_monogenic(sample_engine, "ATM")
-        out = build_breast_absolute_risk(sample_engine, consented=True)
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
         atm = next(m for m in out["monogenic"] if m["gene"] == "ATM")
         assert atm["cumulative_risk_to_80_pct"] is None  # no fabricated figure
         assert "note" in atm
+
+
+class TestSexGating:
+    """The female SEER baseline + BRCA penetrance must never reach a non-female
+    sample (gh #151)."""
+
+    def test_xy_male_suppresses_female_baseline_and_penetrance(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _insert_breast_monogenic(sample_engine, "BRCA1")
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XY")
+        assert out["sex_context"] == "male"
+        # No female SEER lifetime baseline for a male sample.
+        assert "population_baseline" not in out
+        brca1 = next(m for m in out["monogenic"] if m["gene"] == "BRCA1")
+        # The female 72% figure must NOT be shown; male framing carries the context.
+        assert brca1["cumulative_risk_to_80_pct"] is None
+        assert "male" in brca1["note"].lower()
+        assert "prostate" in out["sex_note"].lower()
+
+    def test_xy_male_no_carrier_still_no_female_baseline(self, sample_engine: sa.Engine) -> None:
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XY")
+        assert out["sex_context"] == "male"
+        assert "population_baseline" not in out
+        assert out["has_monogenic"] is False
+        assert "do not apply to males" in out["sex_note"]
+
+    def test_unknown_sex_withholds_numeric_figures(self, sample_engine: sa.Engine) -> None:
+        _insert_breast_monogenic(sample_engine, "BRCA2")
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="unknown")
+        assert out["sex_context"] == "unresolved"
+        assert "population_baseline" not in out
+        brca2 = next(m for m in out["monogenic"] if m["gene"] == "BRCA2")
+        assert brca2["cumulative_risk_to_80_pct"] is None
+        assert "not resolved" in brca2["note"].lower()
+        assert "withheld" in out["sex_note"].lower()
+
+    def test_manual_review_is_unresolved(self, sample_engine: sa.Engine) -> None:
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex="manual_review"
+        )
+        assert out["sex_context"] == "unresolved"
+        assert "population_baseline" not in out
+
+    def test_default_none_is_unresolved_not_female(self, sample_engine: sa.Engine) -> None:
+        # Defensive default: an un-threaded sex must NOT fall back to female figures.
+        out = build_breast_absolute_risk(sample_engine, consented=True)
+        assert out["sex_context"] == "unresolved"
+        assert "population_baseline" not in out
 
 
 class TestMigration012:

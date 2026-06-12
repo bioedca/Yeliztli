@@ -87,6 +87,13 @@ export interface AbsoluteRiskResponse {
   opt_in_required?: boolean
   opt_in_prompt?: string
   disclaimer: string
+  /** Inferred biological sex ("XX" | "XY" | "manual_review" | "unknown") (SW-B8 / gh #151). */
+  inferred_sex?: string | null
+  /** Which sex context the figures reflect: "female" | "male" | "unresolved". */
+  sex_context?: "female" | "male" | "unresolved"
+  /** Plain-language note explaining the sex context and which figures apply / are withheld. */
+  sex_note?: string
+  /** Female SEER lifetime baseline — present only for the female (XX) context. */
   population_baseline?: {
     lifetime_risk_pct: number
     source: string

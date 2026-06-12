@@ -52,10 +52,88 @@ SEER_BASELINE = {
     "note": "About 1 in 8 US women are diagnosed with breast cancer over their lifetime.",
 }
 
-# Published genotype-class cumulative breast-cancer risk to age 80 (carriers).
+# Published *female* genotype-class cumulative breast-cancer risk to age 80
+# (Kuchenbaecker et al., JAMA 2017, PMID 28632866 — a female-carrier cohort). These
+# figures are sex-specific and must not be shown for XY/male or sex-unresolved samples.
 MONOGENIC_PENETRANCE = {
     "BRCA1": {"cumulative_risk_to_80_pct": 72, "ci": "65-79", "pmid": "28632866"},
     "BRCA2": {"cumulative_risk_to_80_pct": 69, "ci": "61-77", "pmid": "28632866"},
+}
+
+# Male carriers have a very different profile: male breast-cancer lifetime risk is far
+# below the female estimate, while prostate cancer becomes a major sex-specific
+# component (especially BRCA2). Ranges per Lecarpentier et al. 2017, JCO (PMID 28448241);
+# male breast-cancer cumulative risk to age 70 is ~1.2% (BRCA1) / ~6.8% (BRCA2) in
+# Tai et al. 2007, JNCI. We carry the qualitative, citable framing rather than the
+# female point estimates. ``cumulative_risk_to_80_pct`` stays None (no female number).
+MALE_MONOGENIC_PENETRANCE = {
+    "BRCA1": {
+        "cumulative_risk_to_80_pct": None,
+        "ci": None,
+        "pmid": "28448241",
+        "note": (
+            "Male BRCA1 carrier: male breast-cancer lifetime risk is low (~1–5%, far "
+            "below the female ~72% estimate) and prostate-cancer risk is elevated. "
+            "Discuss male-specific screening with clinical genetics."
+        ),
+    },
+    "BRCA2": {
+        "cumulative_risk_to_80_pct": None,
+        "ci": None,
+        "pmid": "28448241",
+        "note": (
+            "Male BRCA2 carrier: male breast-cancer lifetime risk ~5–10% (far below the "
+            "female ~69% estimate) and substantially elevated prostate-cancer risk; "
+            "BRCA2 is the principal male breast-cancer gene. Discuss male-specific "
+            "screening with clinical genetics."
+        ),
+    },
+}
+
+# Moderate-to-high-penetrance breast genes without a curated sex-specific number.
+_FEMALE_MODERATE_FALLBACK = {
+    "cumulative_risk_to_80_pct": None,
+    "ci": None,
+    "pmid": None,
+    "note": (
+        "Moderate-to-high-penetrance breast-cancer gene; "
+        "individualized risk via CanRisk + a genetics referral."
+    ),
+}
+_MALE_MODERATE_FALLBACK = {
+    "cumulative_risk_to_80_pct": None,
+    "ci": None,
+    "pmid": None,
+    "note": (
+        "Moderate-to-high-penetrance breast-cancer gene; male-specific risk is not well "
+        "quantified. Individualized risk via CanRisk + a genetics referral."
+    ),
+}
+_UNRESOLVED_CARRIER_NOTE = (
+    "Biological sex not resolved from array data — sex-specific penetrance is withheld. "
+    "Discuss with clinical genetics / CanRisk."
+)
+
+# Per-sex framing surfaced to the user so the applicable context is explicit.
+SEX_NOTE = {
+    "female": (
+        "Figures shown are female-specific (inferred biological sex XX): the SEER "
+        "female baseline and the BRCA1/2 female-carrier penetrance apply."
+    ),
+    "male": (
+        "Inferred biological sex is XY (male). The female SEER lifetime baseline and "
+        "the BRCA1/2 ~69–72% female penetrance figures do not apply to males and are "
+        "not shown. Male breast cancer is rare; in male BRCA carriers breast-cancer "
+        "risk is far lower than in females, while prostate cancer is a major "
+        "sex-specific component (especially BRCA2). Discuss male-specific BRCA risk "
+        "and screening with clinical genetics."
+    ),
+    "unresolved": (
+        "Biological sex could not be confidently resolved from your array data, so "
+        "sex-specific absolute-risk figures are withheld. Sex-specific breast/prostate "
+        "cancer risk differs substantially; use CanRisk / clinical genetics for an "
+        "individualized estimate."
+    ),
 }
 
 CANRISK = {
@@ -143,15 +221,67 @@ def _breast_monogenic_carriers(sample_engine: sa.Engine) -> list[str]:
     return sorted({r.gene_symbol for r in rows if r.gene_symbol})
 
 
+def _sex_context(inferred_sex: str | None) -> str:
+    """Map an inferred-sex classification to an overlay context.
+
+    ``"XX"`` → ``"female"`` (female SEER baseline + female BRCA penetrance apply).
+    ``"XY"`` → ``"male"`` (female figures suppressed; male-specific framing).
+    Anything else (``"manual_review"`` / ``"unknown"`` / ``None``) → ``"unresolved"``
+    (no numeric sex-specific figures — we cannot safely pick a sex).
+    """
+    if inferred_sex == "XX":
+        return "female"
+    if inferred_sex == "XY":
+        return "male"
+    return "unresolved"
+
+
+def _monogenic_entries(carriers: list[str], context: str) -> list[dict]:
+    """Carrier penetrance entries appropriate to the inferred-sex context.
+
+    The dict shape is identical across contexts (``gene`` + the
+    ``cumulative_risk_to_80_pct`` / ``ci`` / ``pmid`` / ``note`` fields the overlay
+    renders); only the values differ so a male/unresolved sample never receives the
+    female ~69–72% figure.
+    """
+    entries: list[dict] = []
+    for g in carriers:
+        if context == "female":
+            data = MONOGENIC_PENETRANCE.get(g, _FEMALE_MODERATE_FALLBACK)
+        elif context == "male":
+            data = MALE_MONOGENIC_PENETRANCE.get(g, _MALE_MODERATE_FALLBACK)
+        else:  # unresolved — withhold any sex-specific number
+            data = {
+                "cumulative_risk_to_80_pct": None,
+                "ci": None,
+                "pmid": None,
+                "note": _UNRESOLVED_CARRIER_NOTE,
+            }
+        entries.append({"gene": g, **data})
+    return entries
+
+
 def build_breast_absolute_risk(
     sample_engine: sa.Engine,
     *,
     consented: bool,
+    inferred_sex: str | None = None,
 ) -> dict:
     """Build the breast absolute-risk overlay payload.
 
     Pre-consent: returns only the opt-in prompt + disclaimer (no risk figures).
-    Post-consent: population baseline + carrier penetrance + CanRisk handoff.
+    Post-consent the figures are **sex-gated** (``inferred_sex`` is the output of
+    :func:`backend.services.sex_inference.infer_biological_sex`):
+
+    * ``"XX"`` → the female SEER baseline + female BRCA1/2 penetrance (labelled
+      female-specific);
+    * ``"XY"`` → female figures suppressed; male-specific BRCA framing (male breast
+      cancer is rare; prostate cancer is the major sex-specific component);
+    * ``"manual_review"`` / ``"unknown"`` / ``None`` → no numeric sex-specific figures;
+      a handoff to CanRisk / clinical genetics until sex is resolved.
+
+    This prevents a female ~69–72% BRCA penetrance from being shown to an XY/male or
+    sex-unresolved sample (gh #151).
     """
     if not consented:
         return {
@@ -161,34 +291,24 @@ def build_breast_absolute_risk(
             "disclaimer": DISCLAIMER,
         }
 
+    context = _sex_context(inferred_sex)
     carriers = _breast_monogenic_carriers(sample_engine)
-    monogenic = [
-        {
-            "gene": g,
-            **MONOGENIC_PENETRANCE.get(
-                g,
-                {
-                    "cumulative_risk_to_80_pct": None,
-                    "ci": None,
-                    "pmid": None,
-                    "note": (
-                        "Moderate-to-high-penetrance breast-cancer gene; "
-                        "individualized risk via CanRisk + a genetics referral."
-                    ),
-                },
-            ),
-        }
-        for g in carriers
-    ]
 
-    return {
+    payload = {
         "consented": True,
         "opt_in_required": False,
-        "population_baseline": SEER_BASELINE,
+        "inferred_sex": inferred_sex,
+        "sex_context": context,
+        "sex_note": SEX_NOTE[context],
         "has_monogenic": bool(carriers),
-        "monogenic": monogenic,
+        "monogenic": _monogenic_entries(carriers, context),
         "prs_note": PRS_NOTE,
         "canrisk": CANRISK,
         "disclaimer": DISCLAIMER,
         "research_use_only": True,
     }
+    # The SEER baseline is a *female* lifetime figure — only show it for XX samples.
+    if context == "female":
+        payload["population_baseline"] = SEER_BASELINE
+
+    return payload
