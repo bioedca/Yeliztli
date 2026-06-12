@@ -114,6 +114,15 @@ CAVEAT_REGISTRY: dict[str, str] = {
         "genotype is partial — this result could change if the untyped positions "
         "were sequenced."
     ),
+    "phase_inferred_compound_het": (
+        "This compound-heterozygous call is phase-inferred. SNP-array genotypes are "
+        "unphased, so they cannot prove the two variants sit on opposite chromosomes "
+        "(in trans). Trans is the usual and most likely arrangement, but the same two "
+        "variants in cis (on one chromosome, leaving the other HFE copy wild-type) has "
+        "been documented by family genotyping — in which case the result is closer to a "
+        "single-variant carrier. Family or clinical phasing is needed to confirm true "
+        "compound heterozygosity."
+    ),
     "mt_maternal_inheritance": (
         "This is a mitochondrial (mtDNA) variant. Mitochondrial DNA is inherited "
         "only from the mother, so a variant here is shared with maternal relatives "

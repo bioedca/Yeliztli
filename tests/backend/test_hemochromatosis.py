@@ -99,6 +99,35 @@ class TestNegativeAndCombinations:
             or "low penetrance" in a.calls[0].finding_text.lower()
         )
 
+    def test_compound_heterozygous_is_phase_inferred(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """Unphased C282Y/H63D het+het cannot prove trans, so the call is phase-inferred.
+
+        SNP-array genotypes are unphased; the same observed genotype arises whether
+        C282Y and H63D are in trans (true compound het) or the rare cis configuration
+        (documented by family genotyping, Best et al. 2001, PMID 11531973). The call
+        must carry a phase-inference caveat rather than a definitive label.
+        Regression for issue #101.
+        """
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "genotype": "AG"},
+                {"rsid": "rs1799945", "chrom": "6", "pos": 26091179, "genotype": "CG"},
+            ],
+        )
+        a = assess_hemochromatosis(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        # Phase caveat travels with the user-facing finding text…
+        assert "phase-inferred" in call.finding_text.lower()
+        assert "trans" in call.finding_text.lower()
+        # …and is present as a structured caveat in the detail JSON.
+        caveats_text = " ".join(call.detail["caveats"]).lower()
+        assert "unphased" in caveats_text
+        assert "cis" in caveats_text
+
     def test_c282y_single_heterozygote(self, panel, sample_engine: sa.Engine) -> None:
         _seed(
             sample_engine,
