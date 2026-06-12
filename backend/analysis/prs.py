@@ -835,9 +835,14 @@ def run_prs(
         result.calibration_reference_std = reference_std
     else:
         weights = [
-            {"rsid": w.rsid, "effect_allele": w.effect_allele, "weight": w.weight}
+            {
+                "rsid": w.rsid,
+                "chrom": w.chrom,
+                "pos": w.pos,
+                "effect_allele": w.effect_allele,
+                "weight": w.weight,
+            }
             for w in weight_set.weights
-            if w.rsid
         ]
         dist = continuous_reference_distribution(weights, sample_engine)
         if dist is not None:

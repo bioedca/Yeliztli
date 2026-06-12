@@ -92,6 +92,16 @@ def _frequency_for_reference_allele(
     return None
 
 
+def _norm_chrom(chrom: str | None) -> str | None:
+    """Normalize a chromosome label for positional matching (strip ``chr``)."""
+    if chrom is None:
+        return None
+    c = str(chrom).strip()
+    if c[:3].lower() == "chr":
+        c = c[3:]
+    return c.upper()
+
+
 def effect_allele_frequency(
     effect_allele: str,
     ref: str,
@@ -224,8 +234,9 @@ def continuous_reference_distribution(
 ) -> CalibratedDistribution | None:
     """Build an ancestry-continuous reference distribution for a PRS weight set.
 
-    ``weights`` is a list of ``{rsid, effect_allele, weight, other_allele?}``.
-    Per-variant ref/alt and per-population gnomAD AFs are read from the sample's
+    ``weights`` is a list of ``{rsid, effect_allele, weight, other_allele?}``
+    or ``{chrom, pos, effect_allele, weight, other_allele?}``. Per-variant
+    ref/alt and per-population gnomAD AFs are read from the sample's
     ``annotated_variants``. Returns ``None`` if ancestry is unknown or too few
     variants have a usable AF.
     """
@@ -236,11 +247,13 @@ def continuous_reference_distribution(
         return None
 
     by_rsid = {w["rsid"]: w for w in weights if w.get("rsid")}
-    if not by_rsid:
+    by_pos = {(_norm_chrom(w.get("chrom")), w.get("pos")): w for w in weights if not w.get("rsid")}
+    if not by_rsid and not by_pos:
         return None
 
     af_cols = [c for c in _POP_TO_GNOMAD_COL.values() if c]
     rows_by_rsid: dict[str, sa.Row] = {}
+    rows_by_pos: dict[tuple[str | None, int], sa.Row] = {}
     rsids = list(by_rsid)
     with sample_engine.connect() as conn:
         for i in range(0, len(rsids), 500):
@@ -253,30 +266,48 @@ def continuous_reference_distribution(
             ).where(annotated_variants.c.rsid.in_(batch))
             for r in conn.execute(stmt):
                 rows_by_rsid[r.rsid] = r
+        if by_pos:
+            stmt = sa.select(
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
+                *[getattr(annotated_variants.c, c) for c in af_cols],
+            )
+            for r in conn.execution_options(stream_results=True).execute(stmt):
+                key = (_norm_chrom(r.chrom), r.pos)
+                if key in by_pos:
+                    rows_by_pos[key] = r
 
     variants: list[dict] = []
-    for rsid, w in by_rsid.items():
-        r = rows_by_rsid.get(rsid)
-        if r is None or r.ref is None or r.alt is None:
-            continue
+
+    def _append_variant(row: sa.Row | None, weight: dict) -> None:
+        if row is None or row.ref is None or row.alt is None:
+            return
         variants.append(
             {
-                "effect_allele": w["effect_allele"],
-                "other_allele": w.get("other_allele"),
-                "ref": r.ref,
-                "alt": r.alt,
-                "weight": w["weight"],
-                "per_pop_alt_af": {c: getattr(r, c) for c in af_cols},
+                "effect_allele": weight["effect_allele"],
+                "other_allele": weight.get("other_allele"),
+                "ref": row.ref,
+                "alt": row.alt,
+                "weight": weight["weight"],
+                "per_pop_alt_af": {c: getattr(row, c) for c in af_cols},
             }
         )
 
+    for rsid, w in by_rsid.items():
+        _append_variant(rows_by_rsid.get(rsid), w)
+    for key, w in by_pos.items():
+        _append_variant(rows_by_pos.get(key), w)
+
     mean, std, n_used = expected_prs_mean_sd(variants, fractions)
-    if std <= 0 or n_used < max(1, int(_MIN_VARIANT_COVERAGE * len(by_rsid))):
+    variants_total = len(by_rsid) + len(by_pos)
+    if std <= 0 or n_used < max(1, int(_MIN_VARIANT_COVERAGE * variants_total)):
         return None
     return CalibratedDistribution(
         mean=round(mean, 6),
         std=round(std, 6),
         variants_used=n_used,
-        variants_total=len(by_rsid),
+        variants_total=variants_total,
         ancestry_fractions=fractions,
     )

@@ -123,6 +123,25 @@ def _uncalibrated_continuous_weight_set() -> PRSWeightSet:
     )
 
 
+def _uncalibrated_continuous_position_weight_set() -> PRSWeightSet:
+    return PRSWeightSet(
+        name="Continuous calibration positional PRS",
+        trait="calibration_position_test",
+        module="cancer",
+        source_ancestry="EUR",
+        source_study="Test et al. 2026",
+        source_pmid="99999999",
+        sample_size=100000,
+        weights=[
+            PRSSNPWeight(rsid="", chrom="chr1", pos=100, effect_allele="T", weight=1.0),
+            PRSSNPWeight(rsid="", chrom="2", pos=200, effect_allele="G", weight=-0.5),
+        ],
+        reference_mean=0.0,
+        reference_std=1.0,
+        calibrated=False,
+    )
+
+
 def _seed_continuous_calibration_inputs(
     sample_engine: sa.Engine,
     *,
@@ -788,6 +807,28 @@ class TestRunPRS:
         assert detail["calibration_ancestry_fractions"] == {"EUR": 0.75, "AFR": 0.25}
         pmids = json.loads(row.pmid_citations)
         assert {"99999999", "37198491", "38374346"} <= set(pmids)
+
+    def test_position_only_weight_set_uses_continuous_reference_distribution(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed_continuous_calibration_inputs(sample_engine, with_ancestry=True)
+        result = run_prs(
+            _uncalibrated_continuous_position_weight_set(),
+            sample_engine,
+            inferred_ancestry="EUR",
+            n_bootstrap=25,
+            rng_seed=42,
+        )
+
+        assert result.raw_score == pytest.approx(1.5)
+        assert result.snps_used == 2
+        assert result.calibrated is True
+        assert result.calibration_method == "ancestry_continuous"
+        assert result.calibration_variants_used == 2
+        assert result.calibration_variants_total == 2
+        assert result.z_score is not None
+        assert result.percentile is not None
+        assert result.has_bootstrap_ci
 
     def test_uncalibrated_weight_set_without_ancestry_still_withholds_percentile(
         self, sample_engine: sa.Engine

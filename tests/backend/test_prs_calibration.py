@@ -228,6 +228,18 @@ class TestContinuousReferenceDistribution:
         assert math.isclose(dist.mean, 0.0, abs_tol=1e-9)
         assert dist.std > 0
 
+    def test_builds_positional_calibrated_distribution(self) -> None:
+        engine = _sample_with_ancestry({"EUR": 1.0}, self._variants())
+        weights = [
+            {"rsid": "", "chrom": "chr1", "pos": 1, "effect_allele": "T", "weight": 1.0},
+            {"chrom": "2", "pos": 2, "effect_allele": "G", "weight": -0.5},
+        ]
+        dist = continuous_reference_distribution(weights, engine)
+        assert dist is not None
+        assert dist.variants_used == 2 and dist.variants_total == 2
+        assert math.isclose(dist.mean, 0.0, abs_tol=1e-9)
+        assert dist.std > 0
+
     def test_none_when_ancestry_unknown(self) -> None:
         engine = _sample_with_ancestry(None, self._variants())
         weights = [{"rsid": "rs1", "effect_allele": "T", "weight": 1.0}]
