@@ -120,6 +120,49 @@ class TestSLC2A9:
         assert "urate" in slc[0].finding_text.lower()
         assert slc[0].evidence_stars == 1
 
+    def test_homozygous_is_not_classified_heterozygous(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # TT fires the homozygous model only — the het model (dosage 1) must not.
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_abcg2("GG"), _slc2a9("TT")])
+        a = assess_gout(panel, sample_engine)
+        slc = [c for c in a.calls if c.gene_symbol == "SLC2A9"]
+        assert len(slc) == 1
+        assert "heterozygous" not in slc[0].risk_classification.lower()
+        assert slc[0].zygosity == "hom_alt"
+
+    def test_heterozygous_one_copy_statement(self, panel, sample_engine: sa.Engine) -> None:
+        # GT carriers carry one urate-raising T allele; SLC2A9 acts per-allele
+        # (additively), so a modest one-copy finding must surface (issue #119).
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_abcg2("GG"), _slc2a9("GT")])
+        a = assess_gout(panel, sample_engine)
+        slc = [c for c in a.calls if c.gene_symbol == "SLC2A9"]
+        assert len(slc) == 1
+        assert "heterozygous" in slc[0].risk_classification.lower()
+        assert slc[0].zygosity == "het"
+        assert slc[0].evidence_stars == 1
+        assert "one copy" in slc[0].finding_text.lower()
+        assert "urate" in slc[0].finding_text.lower()
+
+    def test_heterozygous_tg_orientation(self, panel, sample_engine: sa.Engine) -> None:
+        # Genotype-string order must not matter: TG is the same one-copy call as GT.
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_abcg2("GG"), _slc2a9("TG")])
+        a = assess_gout(panel, sample_engine)
+        slc = [c for c in a.calls if c.gene_symbol == "SLC2A9"]
+        assert len(slc) == 1
+        assert slc[0].zygosity == "het"
+
+    def test_reference_homozygous_no_slc2a9_finding(self, panel, sample_engine: sa.Engine) -> None:
+        # GG carries two urate-lowering alleles → no SLC2A9 finding (no false het).
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_abcg2("GG"), _slc2a9("GG")])
+        a = assess_gout(panel, sample_engine)
+        slc = [c for c in a.calls if c.gene_symbol == "SLC2A9"]
+        assert slc == []
+
     def test_off_chip_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
         _seed_ancestry(sample_engine, "EUR")
         _seed(sample_engine, [_abcg2("GT")])  # SLC2A9 absent

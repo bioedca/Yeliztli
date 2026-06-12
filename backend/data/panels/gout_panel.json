@@ -73,6 +73,17 @@
       "finding_text": "SLC2A9 urate-raising genotype (rs13129697 {genotype}) — both copies carry the common urate-raising allele at SLC2A9, the largest common serum-urate gene. The per-person effect is modest and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
       "caveats": ["negative_not_clear"],
       "pmids": ["31578528"]
+    },
+    {
+      "id": "slc2a9_urate_heterozygous",
+      "match": {"rs13129697": {"dosage": 1}},
+      "primary_rsid": "rs13129697",
+      "risk_classification": "SLC2A9 urate-raising allele (heterozygous)",
+      "zygosity": "het",
+      "evidence_stars": 1,
+      "finding_text": "SLC2A9 urate-raising allele, one copy (rs13129697 {genotype}) — you carry a single copy of the common urate-raising allele at SLC2A9, the largest common serum-urate gene. SLC2A9's effect on serum urate is per-allele (additive), so one copy contributes roughly half the shift of two; the per-person effect is small and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
+      "caveats": ["negative_not_clear"],
+      "pmids": ["31578528"]
     }
   ]
 }
