@@ -2,7 +2,7 @@
   "module": "apol1",
   "version": "1.0.0",
   "category": "risk_genotype",
-  "description": "APOL1 kidney-risk panel (African-ancestry-contextualized, recessive): G1 = rs73885319 (S342G, risk G) + rs60910145 (I384M, risk G, in cis); G2 = rs71785313 (6-bp deletion p.Asn388_Tyr389del; off-chip on most arrays; gnomAD also labels this deletion rs1317778148); N264K modifier = rs73885316 (risk-attenuating allele A/Lys). High risk requires TWO risk alleles across G1/G2 (recessive). G1 dosage is counted from the rs73885319 tag SNP ONLY in total_risk_dosage; rs60910145 is read for transparency/QC but deliberately NOT summed, because the two G1 SNPs are in cis on one haplotype — summing both would double-count G1 and mis-call a single-G1 heterozygote (one risk allele = low risk) as two-allele high-risk. Directly observed two-risk-allele genotypes are reported with an ancestry/validation caveat when top global ancestry is not predominantly AFR; indeterminate partial-only genotypes remain suppressed outside the validated ancestry context. N264K present attenuates G2-associated risk. Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #27.",
+  "description": "APOL1 kidney-risk panel (African-ancestry-contextualized, recessive): G1 = rs73885319 (S342G, risk G) + rs60910145 (I384M, risk G, in cis); G2 = rs71785313 (6-bp deletion p.Asn388_Tyr389del; off-chip on most arrays; gnomAD also labels this deletion rs1317778148); N264K modifier = rs73885316 (risk-attenuating allele A/Lys). High risk requires TWO risk alleles across G1/G2 (recessive). G1 dosage is counted from the rs73885319 tag SNP ONLY in total_risk_dosage; rs60910145 is read for transparency/QC but deliberately NOT summed, because the two G1 SNPs are in cis on one haplotype — summing both would double-count G1 and mis-call a single-G1 heterozygote (one risk allele = low risk) as two-allele high-risk. rs73885319 is a validated tag (the two G1 SNPs are in near-absolute LD), so an off-chip/no-call rs60910145 does NOT block a tag-based G1 call (David et al. 2018, Kidney Int Rep). But when rs60910145 IS typed and corroborates LESS G1 dosage than the tag (concordant_rsids veto on rs73885319), the G1 call is unconfirmed and becomes indeterminate rather than high-risk — the veto is directional (partner dosage < tag dosage only), because the common ThermoFisher rs60910145 assay primer spans the G2 deletion and INFLATES rs60910145 (mis-scores G1/G2 and G2/G2 as homozygous-variant), so a partner showing MORE dosage than the tag is the known artifact and must not suppress a real call (David et al. 2018, PMID 30596185). Directly observed two-risk-allele genotypes are reported with an ancestry/validation caveat when top global ancestry is not predominantly AFR; indeterminate partial-only genotypes remain suppressed outside the validated ancestry context. N264K present attenuates G2-associated risk. Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. EXPANSION_STRATEGY.md §9 / roadmap #27.",
   "evaluation": "first_match",
   "sex_stratified": false,
   "ancestry_gate": {
@@ -22,7 +22,8 @@
       "ref_allele": "A",
       "canonical_strand": "plus",
       "off_chip_risk": "low",
-      "allele_type": "snv"
+      "allele_type": "snv",
+      "concordant_rsids": ["rs60910145"]
     },
     {
       "rsid": "rs60910145",

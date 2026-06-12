@@ -172,6 +172,17 @@ class RiskLocus:
     # a *different* variant, not a strand flip, so accepting it would be a false
     # positive. When False, complement-only observations are indeterminate. (#30)
     allow_strand_complement: bool = True
+    # Cis partner SNP(s) that define the same haplotype as this (tag) locus. When
+    # a partner is typed and corroborates STRICTLY LESS risk dosage than the tag,
+    # the tag's risk is unconfirmed and its dosage is reduced to indeterminate
+    # (None) before classification — so a discordant assay cannot inflate a
+    # recessive risk count (APOL1 G1: rs73885319 tag + rs60910145, in near-absolute
+    # LD; #160). The veto is one-directional (partner < tag only): a partner
+    # showing MORE dosage than the tag is the known rs60910145/G2-deletion
+    # amplification artifact (David et al. 2018, PMID 30596185) and must not
+    # suppress a real call. An untyped/no-call partner does not veto — the tag SNP
+    # alone is a validated G1 readout. (#160)
+    concordant_rsids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -278,6 +289,9 @@ class RiskAssessment:
     dosages: dict[str, int | None] = field(default_factory=dict)
     readouts: dict[str, ProbeReadout] = field(default_factory=dict)
     indeterminate_loci: list[str] = field(default_factory=list)
+    # Tag loci whose risk dosage was vetoed to indeterminate by a discordant cis
+    # partner (haplotype-concordance QC, e.g. APOL1 G1; #160).
+    discordant_loci: list[str] = field(default_factory=list)
     sex_used: str | None = None
     inferred_ancestry: str | None = None
     ancestry_suppressed: bool = False
@@ -307,6 +321,7 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             off_chip_risk=loc.get("off_chip_risk", "low"),
             allele_type=loc.get("allele_type", ALLELE_TYPE_SNV),
             allow_strand_complement=loc.get("allow_strand_complement", True),
+            concordant_rsids=tuple(loc.get("concordant_rsids", ())),
         )
         for loc in data["loci"]
     ]
@@ -490,6 +505,47 @@ def compute_dosages(panel: RiskPanel, readouts: dict[str, ProbeReadout]) -> dict
                 allow_complement=loc.allow_strand_complement,
             )
     return dosages
+
+
+def reconcile_concordance(
+    panel: RiskPanel, dosages: dict[str, int | None]
+) -> tuple[dict[str, int | None], list[str]]:
+    """Veto a tag locus's dosage when a cis partner corroborates less risk.
+
+    For a haplotype tag locus declaring ``concordant_rsids`` (e.g. APOL1 G1's
+    rs73885319, with cis partner rs60910145 in near-absolute LD): if a partner is
+    *typed* and its risk dosage is **strictly less** than the tag's, the tag's
+    risk is unconfirmed, so the tag dosage is reduced to ``None`` (indeterminate)
+    before classification. This stops a discordant assay (e.g. rs73885319 = GG but
+    rs60910145 = TT) from being summed into a false two-risk-allele high-risk call
+    (#160).
+
+    The veto is **one-directional** — only ``partner < tag`` triggers it. A partner
+    showing *more* dosage than the tag is the documented rs60910145/G2-deletion
+    amplification artifact, which mis-scores genuine G1/G2 and G2/G2 carriers as
+    homozygous-variant (David et al. 2018, PMID 30596185); treating that as
+    discordant would suppress real high-risk calls. An untyped/no-call partner
+    never vetoes — the tag SNP alone is a validated haplotype readout.
+
+    Returns the (possibly adjusted) dosage dict and the list of vetoed tag rsids.
+    """
+    adjusted = dict(dosages)
+    discordant: list[str] = []
+    for loc in panel.loci:
+        if not loc.concordant_rsids:
+            continue
+        tag_dosage = dosages.get(loc.rsid)
+        if tag_dosage is None:
+            continue
+        partners_below = [
+            p
+            for p in loc.concordant_rsids
+            if (pd := dosages.get(p)) is not None and pd < tag_dosage
+        ]
+        if partners_below:
+            adjusted[loc.rsid] = None
+            discordant.append(loc.rsid)
+    return adjusted, discordant
 
 
 # ── Classification ──────────────────────────────────────────────────────────
@@ -817,6 +873,83 @@ def _render_partial(
     )
 
 
+def _render_discordance(
+    panel: RiskPanel,
+    dosages: dict[str, int | None],
+    readouts: dict[str, ProbeReadout],
+    sex: str | None,
+    discordant: list[str],
+) -> RiskCall:
+    """Indeterminate disclosure for a haplotype tag vetoed by a discordant partner.
+
+    Emitted when a tag locus's cis partner corroborated less risk (e.g. APOL1 G1:
+    rs73885319 = GG but rs60910145 = TT), so the risk allele cannot be confirmed
+    from the discordant assay. This is a genotyping-concordance (QC) flag and the
+    recessive status is indeterminate — never reported as a low-risk result (#160).
+    """
+    # The aggregate model referencing the discordant tag drives gene/caveats/pmids.
+    model = next(
+        (m for m in panel.genotype_models if any(r in discordant for r in _model_rsids(m))),
+        panel.genotype_models[0] if panel.genotype_models else None,
+    )
+    tag_locus = panel.locus(discordant[0])
+    gene_symbol = tag_locus.gene_symbol if tag_locus else ""
+
+    parts: list[str] = []
+    involved: list[str] = []
+    for tag in discordant:
+        loc = panel.locus(tag)
+        if loc is None:
+            continue
+        comps = [tag, *loc.concordant_rsids]
+        comp_descs = []
+        for rsid in comps:
+            comp_locus = panel.locus(rsid)
+            gt = (readouts[rsid].genotype if rsid in readouts else None) or "n/a"
+            comp_descs.append(f"{rsid} [{comp_locus.label if comp_locus else rsid}] {gt}")
+        parts.append(", ".join(comp_descs))
+        involved.extend(comps)
+
+    seen: set[str] = set()
+    involved = [r for r in involved if not (r in seen or seen.add(r))]
+
+    classification = f"{gene_symbol} haplotype indeterminate (discordant component SNPs)"
+    note = (
+        f"Genotyping-concordance flag — the cis SNPs that define this haplotype "
+        f"disagree ({'; '.join(parts)}), so the {gene_symbol} risk allele cannot be "
+        f"confirmed from these data. This is not a low-risk result: the recessive "
+        f"(two-risk-allele) status is indeterminate. Consider sequencing-based "
+        f"confirmation and discuss with a clinician or genetic counselor."
+    )
+    resolved_caveats = ([CAVEAT_REGISTRY[k] for k in model.caveats] if model else []) + [note]
+
+    genotype_calls = {
+        rsid: (readouts[rsid].genotype if rsid in readouts else None) for rsid in involved
+    }
+    detail = {
+        "model_id": "haplotype_discordance",
+        "classification": classification,
+        "genotype_calls": genotype_calls,
+        "dosages": {rsid: dosages.get(rsid) for rsid in involved},
+        "evidence_stars": 1,
+        "indeterminate": True,
+        "discordant_loci": list(discordant),
+        "caveats": resolved_caveats,
+        "sex_used": sex,
+    }
+    return RiskCall(
+        model_id="haplotype_discordance",
+        gene_symbol=gene_symbol,
+        rsid=",".join(involved),
+        risk_classification=classification,
+        evidence_stars=1,
+        finding_text=note,
+        zygosity=None,
+        detail=detail,
+        pmids=model.pmids if model else [],
+    )
+
+
 def classify(
     panel: RiskPanel,
     dosages: dict[str, int | None],
@@ -832,6 +965,11 @@ def classify(
     empty ``calls`` list (the carriage gate — no positive finding). Loci that are
     absent or no-call are listed in ``indeterminate_loci``.
     """
+    # Haplotype-concordance QC: a tag locus whose cis partner corroborates less
+    # risk is reduced to indeterminate, so a discordant assay cannot inflate a
+    # recessive risk count into a false high-risk call (APOL1 G1; #160).
+    dosages, discordant = reconcile_concordance(panel, dosages)
+
     assessment = RiskAssessment(
         module=panel.module,
         category=panel.category,
@@ -843,6 +981,7 @@ def classify(
     assessment.indeterminate_loci = [
         loc.rsid for loc in panel.loci if dosages.get(loc.rsid) is None
     ]
+    assessment.discordant_loci = discordant
 
     matched = [m for m in panel.genotype_models if _model_matches(m, dosages)]
     if panel.evaluation == "first_match":
@@ -855,11 +994,15 @@ def classify(
         call = _apply_modifier(call, m, dosages)
         calls.append(call)
 
-    # No model fired, but a recessive total_risk_dosage model may be one risk
-    # allele short with an untyped contributing locus that could reach the
-    # threshold — surface an indeterminate/partial disclosure (never low-risk).
+    # No model fired. Surface an indeterminate disclosure (never low-risk):
+    #   - a haplotype discordance vetoed a tag's risk (QC flag), or
+    #   - a recessive model is one risk allele short with an untyped contributing
+    #     locus that could still reach the threshold.
     if not calls:
-        indeterminate = _maybe_partial_disclosure(panel, dosages, readouts, sex)
+        if discordant:
+            indeterminate = _render_discordance(panel, dosages, readouts, sex, discordant)
+        else:
+            indeterminate = _maybe_partial_disclosure(panel, dosages, readouts, sex)
         if indeterminate is not None:
             calls = [indeterminate]
 

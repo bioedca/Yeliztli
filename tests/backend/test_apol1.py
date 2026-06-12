@@ -227,3 +227,103 @@ class TestStorageAndGuardrails:
         assert a.calls == []
         assert a.ancestry_suppressed is True
         assert store_apol1_findings(a, sample_engine) == 0
+
+
+class TestG1HaplotypeConcordance:
+    """G1 is a two-SNP cis haplotype (rs73885319 tag + rs60910145, near-absolute
+    LD). When the partner is typed and corroborates LESS risk than the tag, the
+    G1 risk is unconfirmed and must NOT be summed into a high-risk call — it is an
+    indeterminate genotyping-concordance (QC) flag instead (#160). The veto is
+    one-directional: a partner showing MORE dosage than the tag is the known
+    rs60910145/G2-deletion amplification artifact and must not suppress a real
+    call (David et al. 2018, PMID 30596185).
+    """
+
+    def test_discordant_g1_overcall_becomes_indeterminate_afr(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # The reported bug: tag GG (2) but partner TT (0), G2 reference. Pre-fix
+        # this summed to a two-risk-allele high-risk call; now the G1 dosage is
+        # vetoed to indeterminate and a QC disclosure is shown (never high-risk).
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("GG"), _g1b("TT"), _g2("II"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == ["rs73885319"]
+        assert a.dosages["rs73885319"] is None  # tag vetoed
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert "high-risk" not in call.risk_classification.lower()
+        assert "indeterminate" in call.risk_classification.lower()
+        assert call.detail["indeterminate"] is True
+        assert "concordance" in call.finding_text.lower()
+        assert "not a low-risk result" in call.finding_text.lower()
+
+    def test_discordant_g1_overcall_suppressed_non_afr(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # Same discordant genotype, EUR ancestry: the false high-risk is gone for
+        # every ancestry (the veto precedes classification); the indeterminate QC
+        # disclosure is then suppressed outside the validated ancestry.
+        _seed_ancestry(sample_engine, "EUR")
+        _seed(sample_engine, [_g1("GG"), _g1b("TT"), _g2("II"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.calls == []
+        assert a.ancestry_suppressed is True
+        assert a.discordant_loci == ["rs73885319"]
+
+    def test_g1_het_discordant_partner_indeterminate(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # Tag AG (1) but partner TT (0): the single G1 allele is uncorroborated →
+        # vetoed; with G2 reference the result is indeterminate, not low-risk.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("AG"), _g1b("TT"), _g2("II"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == ["rs73885319"]
+        assert len(a.calls) == 1
+        assert "indeterminate" in a.calls[0].risk_classification.lower()
+
+    def test_concordant_g1g1_still_high_risk(self, panel, sample_engine: sa.Engine) -> None:
+        # Both G1 SNPs homozygous risk (concordant) → genuine G1/G1, high-risk.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("GG"), _g1b("GG"), _g2("II"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == []
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
+
+    def test_partner_inflated_artifact_does_not_veto(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # G1/G2 carrier: tag AG (1), partner GG (2) — the documented rs60910145
+        # over-amplification artifact (partner > tag). This must NOT veto: the
+        # G1/G2 compound is genuinely high-risk.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("AG"), _g1b("GG"), _g2("DI"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == []
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
+
+    def test_tag_alone_off_chip_partner_still_calls(self, panel, sample_engine: sa.Engine) -> None:
+        # rs60910145 off-chip (untyped): the tag SNP alone is a validated G1
+        # readout (near-absolute LD), so G1/G1 still fires high-risk — an untyped
+        # partner never vetoes.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("GG"), _g2("II"), _n264k("CC")])  # rs60910145 absent
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == []
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
+
+    def test_discordant_g1_with_g2_homozygous_still_high_risk(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # Discordant G1 (tag GG, partner TT → vetoed) but G2/G2 present: the
+        # two-risk-allele call stands on G2 alone, independent of the vetoed G1.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("GG"), _g1b("TT"), _g2("DD"), _n264k("CC")])
+        a = assess_apol1(panel, sample_engine)
+        assert a.discordant_loci == ["rs73885319"]
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
