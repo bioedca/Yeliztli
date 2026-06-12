@@ -1464,8 +1464,54 @@ def load_haplogroup_bundle(
 
 # ── Tree-walk algorithm ──────────────────────────────────────────────
 
-# Minimum fraction of defining SNPs that must match for a node to count
+# Minimum fraction of a node's defining SNPs that must be observed-and-derived
+# for the node to count. This bounds over-resolution on sparse data; it is paired
+# with a separate hard rule that *no* observed defining SNP may be ancestral
+# (``snps_conflicting == 0``) — a missing/untyped marker is lack of evidence, an
+# ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
+
+
+def _classify_node_match(
+    node: HaplogroupNode,
+    genotype_map: dict[str, str | None],
+) -> tuple[int, int, int]:
+    """Classify a node's defining SNPs into present / conflicting / total.
+
+    Each defining SNP is one of three states, which the haplogroup tree-walk
+    must treat differently (a phylogenetic clade is defined by *all* its
+    mutations being derived):
+
+    - **present** — typed and the derived allele is observed (het or hom).
+    - **conflicting** — typed but the derived allele is absent (ancestral state),
+      i.e. positive evidence that the sample is *not* in this clade.
+    - **missing** — untyped or a no-call (``--``/``??``…): no evidence either way.
+      Missing SNPs count toward ``snps_total`` but neither other bucket.
+
+    Args:
+        node: Tree node to check.
+        genotype_map: Mapping rsid → genotype string.
+
+    Returns:
+        ``(snps_present, snps_conflicting, snps_total)`` where ``snps_total`` is
+        the node's full defining-SNP count (present + conflicting + missing).
+    """
+    snps_total = len(node.defining_snps)
+    if snps_total == 0:
+        return 0, 0, 0
+
+    snps_present = 0
+    snps_conflicting = 0
+    for snp in node.defining_snps:
+        genotype = genotype_map.get(snp.rsid)
+        if genotype is None or is_no_call(genotype):
+            continue  # missing/untyped → no evidence either way
+        if snp.allele.upper() in genotype.upper():
+            snps_present += 1  # derived allele observed
+        else:
+            snps_conflicting += 1  # typed but ancestral → evidence against the clade
+
+    return snps_present, snps_conflicting, snps_total
 
 
 def _check_node_match(
@@ -1475,7 +1521,8 @@ def _check_node_match(
     """Check how many defining SNPs match for a node.
 
     A defining SNP matches if the sample's genotype at that rsid
-    contains the derived allele (heterozygous or homozygous).
+    contains the derived allele (heterozygous or homozygous). Back-compatible
+    shim over :func:`_classify_node_match` (drops the conflicting count).
 
     Args:
         node: Tree node to check.
@@ -1484,18 +1531,7 @@ def _check_node_match(
     Returns:
         Tuple of (snps_present, snps_total).
     """
-    snps_total = len(node.defining_snps)
-    if snps_total == 0:
-        return 0, 0
-
-    snps_present = 0
-    for snp in node.defining_snps:
-        genotype = genotype_map.get(snp.rsid)
-        if genotype is not None and not is_no_call(genotype):
-            # Check if derived allele is present in genotype
-            if snp.allele.upper() in genotype.upper():
-                snps_present += 1
-
+    snps_present, _snps_conflicting, snps_total = _classify_node_match(node, genotype_map)
     return snps_present, snps_total
 
 
@@ -1506,12 +1542,17 @@ def _tree_walk(
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
 
-    Starting from a node, checks each child. If a child's defining SNPs
-    meet the match threshold, descends into that child. Returns the
-    deepest node that matches.
+    Starting from a node, checks each child. A child is eligible to descend into
+    only when **no** observed defining SNP contradicts it (``conflicting == 0``)
+    **and** enough of its defining SNPs are observed-and-derived
+    (``present / total >= _HAPLOGROUP_MIN_MATCH_FRACTION``). A single ancestral
+    (conflicting) marker blocks descent so the walk stops at the deepest fully
+    supported ancestor rather than over-resolving into a subclade the sample only
+    half-matches. Among eligible children the best-supported (highest derived
+    fraction) wins. Returns the deepest node that matches.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always
-    matches. At each level, we try all children and pick the best match.
+    matches.
 
     Args:
         node: Current tree node.
@@ -1528,8 +1569,14 @@ def _tree_walk(
     best_child_total = 0
 
     for child in node.children:
-        present, total = _check_node_match(child, genotype_map)
+        present, conflicting, total = _classify_node_match(child, genotype_map)
         if total == 0:
+            continue
+
+        # A clade is defined by all its mutations being derived: any observed
+        # ancestral marker is evidence *against* membership, so refuse to descend.
+        # A missing (untyped) marker is not a conflict — only typed-ancestral is.
+        if conflicting > 0:
             continue
 
         fraction = present / total

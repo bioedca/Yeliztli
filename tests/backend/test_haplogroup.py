@@ -30,6 +30,7 @@ from backend.analysis.ancestry import (
     HaplogroupSNP,
     HaplogroupTraversalStep,
     _check_node_match,
+    _classify_node_match,
     _collect_rsids,
     _parse_tree_node,
     _tree_walk,
@@ -322,6 +323,42 @@ class TestCheckNodeMatch:
         assert total == 0
 
 
+class TestClassifyNodeMatch:
+    """#165 — distinguish present / conflicting (ancestral) / missing markers."""
+
+    def _two_marker_node(self) -> HaplogroupNode:
+        return HaplogroupNode(
+            haplogroup="X",
+            defining_snps=[HaplogroupSNP("rs1", 100, "A"), HaplogroupSNP("rs2", 200, "G")],
+            children=[],
+        )
+
+    def test_present_and_conflicting_split(self) -> None:
+        # rs1 derived A present; rs2 typed but ancestral (no G) → conflicting.
+        present, conflicting, total = _classify_node_match(
+            self._two_marker_node(), {"rs1": "AA", "rs2": "TT"}
+        )
+        assert (present, conflicting, total) == (1, 1, 2)
+
+    def test_missing_is_not_conflicting(self) -> None:
+        # rs1 derived present; rs2 untyped (absent) → missing, NOT conflicting.
+        present, conflicting, total = _classify_node_match(self._two_marker_node(), {"rs1": "AA"})
+        assert (present, conflicting, total) == (1, 0, 2)
+
+    def test_no_call_is_not_conflicting(self) -> None:
+        # A no-call sentinel is missing, not an ancestral conflict.
+        present, conflicting, total = _classify_node_match(
+            self._two_marker_node(), {"rs1": "AA", "rs2": "--"}
+        )
+        assert (present, conflicting, total) == (1, 0, 2)
+
+    def test_all_conflicting(self) -> None:
+        present, conflicting, total = _classify_node_match(
+            self._two_marker_node(), {"rs1": "TT", "rs2": "TT"}
+        )
+        assert (present, conflicting, total) == (0, 2, 2)
+
+
 # ── Tree-walk algorithm tests ───────────────────────────────────────────
 
 
@@ -436,6 +473,80 @@ class TestTreeWalk:
         terminal, path = _tree_walk(root, genotypes, [])
 
         assert terminal.haplogroup == "A"
+
+    def _parent_with_two_marker_child(self) -> HaplogroupNode:
+        """Root → A (rs1) → A1 (rs2, rs3): A1 is a two-defining-SNP terminal."""
+        return HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="A",
+                    defining_snps=[HaplogroupSNP("rs1", 1, "G")],
+                    children=[
+                        HaplogroupNode(
+                            haplogroup="A1",
+                            defining_snps=[
+                                HaplogroupSNP("rs2", 2, "T"),
+                                HaplogroupSNP("rs3", 3, "C"),
+                            ],
+                            children=[],
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+    def test_conflicting_terminal_marker_blocks_descent(self) -> None:
+        """#165 — one of A1's two defining SNPs is ancestral (typed, not derived):
+        the old 50%-of-total rule descended (1/2); now the conflict stops at A."""
+        root = self._parent_with_two_marker_child()
+        # rs1 derived (G) → A matches; rs2 derived (T) present, rs3 typed ANCESTRAL.
+        genotypes = {"rs1": "GG", "rs2": "TT", "rs3": "AA"}
+        terminal, path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "A"  # not over-resolved to A1
+        assert [s.haplogroup for s in path] == ["A"]
+
+    def test_missing_terminal_marker_still_descends(self) -> None:
+        """A missing (untyped) marker is lack of evidence, not a conflict —
+        descent into A1 is still allowed when its other marker is derived (1/2)."""
+        root = self._parent_with_two_marker_child()
+        # rs3 absent from the map → missing, not conflicting.
+        genotypes = {"rs1": "GG", "rs2": "TT"}
+        terminal, path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "A1"
+        assert [s.haplogroup for s in path] == ["A", "A1"]
+
+    def test_conflicting_child_loses_to_clean_sibling(self) -> None:
+        """A sibling clade whose markers all agree is chosen over one with an
+        ancestral conflict, even when the conflicting child has more raw matches."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="P",  # 2 present + 1 conflicting (would pass old 50%)
+                    defining_snps=[
+                        HaplogroupSNP("rs1", 1, "G"),
+                        HaplogroupSNP("rs2", 2, "T"),
+                        HaplogroupSNP("rs3", 3, "C"),
+                    ],
+                    children=[],
+                ),
+                HaplogroupNode(
+                    haplogroup="Q",  # 1 present + 1 missing, no conflict
+                    defining_snps=[
+                        HaplogroupSNP("rs4", 4, "A"),
+                        HaplogroupSNP("rs5", 5, "G"),
+                    ],
+                    children=[],
+                ),
+            ],
+        )
+        # P: rs1/rs2 derived, rs3 ANCESTRAL (conflict). Q: rs4 derived, rs5 missing.
+        genotypes = {"rs1": "GG", "rs2": "TT", "rs3": "AA", "rs4": "AA"}
+        terminal, _path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "Q"  # clean sibling wins; conflicting P refused
 
     def test_h1a_on_real_bundle(self, bundle: HaplogroupBundle) -> None:
         """T3-31: mtDNA tree-walk correctly assigns H1a for known genotype fixture."""
