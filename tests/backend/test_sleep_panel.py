@@ -257,6 +257,7 @@ class TestCYP1A2Metabolizer:
     def test_cyp1a2_metadata_does_not_emit_star_diplotypes(self, panel_data: dict) -> None:
         cyp = self._get_cyp1a2(panel_data)
         sc = panel_data["special_calling"]["CYP1A2_metabolizer"]
+        # Serialize the nested metadata so the guard covers every user-facing string.
         metadata = json.dumps({"snp": cyp, "special_calling": sc})
         assert "*1A/*1A" not in metadata
         assert "*1A/*1F" not in metadata
