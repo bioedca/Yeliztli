@@ -194,6 +194,19 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 _PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
 _DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
+_SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str]] = {
+    # CFTR F508del / p.Phe508del, represented in ClinVar/VCF form as ATCT>A.
+    # Consumer-array exports can represent this marker either as a probe-level
+    # A/T carrier call or as literal D/I indel tokens.
+    ("CFTR", "rs113993960", "ATCT", "A"): {
+        "AT": "het",
+        "TA": "het",
+        "DI": "het",
+        "ID": "het",
+        "DD": "hom_alt",
+        "II": "hom_ref",
+    },
+}
 
 
 @dataclass
@@ -297,6 +310,40 @@ def _carrier_finding_text(variant: CarrierVariantResult) -> str:
     return base + "Carriers are typically unaffected. This may be relevant for family planning."
 
 
+def _classify_supported_carrier_indel(
+    gene: CarrierGene,
+    *,
+    rsid: str | None,
+    genotype: str | None,
+    ref: str | None,
+    alt: str | None,
+) -> str | None:
+    """Resolve carrier-panel indels with explicit, curated raw-call mappings."""
+    if not rsid or not genotype or not ref or not alt:
+        return None
+    if rsid not in gene.expected_clinvar_rsids:
+        return None
+
+    key = (gene.gene_symbol.upper(), rsid, ref.upper(), alt.upper())
+    calls = _SUPPORTED_CARRIER_INDEL_ZYGOSITY.get(key)
+    if calls is None:
+        return None
+    return calls.get(genotype.strip().upper())
+
+
+def _carrier_row_zygosity(row: sa.Row, gene: CarrierGene) -> str | None:
+    """Return annotated zygosity, with a carrier-only rescue for supported indels."""
+    if row.zygosity is not None:
+        return row.zygosity
+    return _classify_supported_carrier_indel(
+        gene,
+        rsid=row.rsid,
+        genotype=row.genotype,
+        ref=row.ref,
+        alt=row.alt,
+    )
+
+
 def extract_carrier_variants(
     panel: CarrierPanel,
     sample_engine: sa.Engine,
@@ -336,6 +383,8 @@ def extract_carrier_variants(
                 annotated_variants.c.rsid,
                 annotated_variants.c.gene_symbol,
                 annotated_variants.c.genotype,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
                 annotated_variants.c.zygosity,
                 annotated_variants.c.clinvar_significance,
                 annotated_variants.c.clinvar_review_stars,
@@ -359,7 +408,8 @@ def extract_carrier_variants(
             continue
 
         # P3-36: Heterozygous only — homozygous P/LP = affected, not carrier
-        if row.zygosity != "het":
+        zygosity = _carrier_row_zygosity(row, gene_info)
+        if zygosity != "het":
             hom_skipped += 1
             continue
 
@@ -374,7 +424,7 @@ def extract_carrier_variants(
                 rsid=row.rsid,
                 gene_symbol=row.gene_symbol,
                 genotype=row.genotype or "",
-                zygosity="het",
+                zygosity=zygosity,
                 clinvar_significance=row.clinvar_significance,
                 clinvar_review_stars=row.clinvar_review_stars or 0,
                 clinvar_accession=row.clinvar_accession,

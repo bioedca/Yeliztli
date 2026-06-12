@@ -315,6 +315,70 @@ class TestExtractCarrierVariants:
         assert stored == {"rs113993960"}
         assert "rs_cftr_hom_ref" not in stored
 
+    @pytest.mark.parametrize("genotype", ["AT", "TA", "DI", "ID"])
+    def test_cftr_f508del_indel_carrier_call_resolved(
+        self,
+        panel: CarrierPanel,
+        sample_engine: sa.Engine,
+        genotype: str,
+    ) -> None:
+        """Supported F508del indel encodings resolve to carrier findings."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs113993960",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "ref": "ATCT",
+                    "alt": "A",
+                    "genotype": genotype,
+                    "zygosity": None,
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000007105",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        assert result.carrier_count == 1
+        carrier = result.variants[0]
+        assert carrier.rsid == "rs113993960"
+        assert carrier.genotype == genotype
+        assert carrier.zygosity == "het"
+
+    def test_cftr_f508del_unknown_indel_call_stays_unresolved(
+        self,
+        panel: CarrierPanel,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """Unsupported F508del raw calls are not guessed as carriers."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs113993960",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "ref": "ATCT",
+                    "alt": "A",
+                    "genotype": "CC",
+                    "zygosity": None,
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000007105",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        assert result.carrier_count == 0
+
     def test_t3_38_brca1_dual_role(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:
