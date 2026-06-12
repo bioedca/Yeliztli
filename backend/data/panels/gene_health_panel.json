@@ -923,16 +923,16 @@
           "ref_allele": "T",
           "genotype_effects": {
             "TT": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous for the protective T allele. Reduced susceptibility to celiac disease, type 1 diabetes, and rheumatoid arthritis at this locus."
+              "category": "Standard",
+              "effect_summary": "Homozygous for the protective T allele. Reduced susceptibility to celiac disease, type 1 diabetes, and rheumatoid arthritis at this locus. The minor T allele is protective (T vs G OR ~0.72), so this genotype does not raise autoimmune risk above baseline."
             },
             "TG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous at IL2-IL21 locus. Intermediate autoimmune disease risk. This locus affects IL-2 and IL-21 cytokine regulation, important for T-cell and B-cell function."
+              "category": "Standard",
+              "effect_summary": "Heterozygous at IL2-IL21 locus (one protective T allele). Partially reduced autoimmune susceptibility relative to the common GG genotype under a co-dominant T-allele model. This locus affects IL-2 and IL-21 cytokine regulation, important for T-cell and B-cell function."
             },
             "GT": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous at IL2-IL21 locus. Intermediate autoimmune disease risk. This locus affects IL-2 and IL-21 cytokine regulation, important for T-cell and B-cell function."
+              "category": "Standard",
+              "effect_summary": "Heterozygous at IL2-IL21 locus (one protective T allele). Partially reduced autoimmune susceptibility relative to the common GG genotype under a co-dominant T-allele model. This locus affects IL-2 and IL-21 cytokine regulation, important for T-cell and B-cell function."
             },
             "GG": {
               "category": "Standard",

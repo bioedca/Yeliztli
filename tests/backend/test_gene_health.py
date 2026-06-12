@@ -153,7 +153,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs2066844", "16", 50745926, "CT"),  # NOD2 R702W het -> Moderate
     ("rs11209026", "1", 67705958, "GA"),  # IL23R R381Q het -> Standard/protective
     ("rs2241880", "2", 233274722, "AG"),  # ATG16L1 T300A het -> Moderate
-    ("rs6822844", "4", 123372626, "TG"),  # IL2/IL21 het -> Moderate
+    ("rs6822844", "4", 123372626, "TG"),  # IL2/IL21 het (protective T) -> Standard
     ("rs2004640", "7", 128941096, "GT"),  # IRF5 het -> Moderate
     ("rs1143679", "16", 31193489, "GA"),  # ITGAM R77H het -> Moderate
     # --- Sensory (9 SNPs) ---
@@ -362,6 +362,21 @@ class TestSNPScoring:
             assert result.category == expected
 
         assert "rs6910071-G" in _score_snp(snp, "GG").effect_summary
+
+    def test_il2_il21_rs6822844_genotypes_not_risk_elevating(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """IL2/IL21 rs6822844: the minor T allele is protective across autoimmune
+        diseases (T vs G OR ~0.72; carrying any T lowers risk vs GG). No genotype
+        may inflate the autoimmune pathway level, so every genotype maps to
+        Standard (gh #117).
+        """
+        snp = self._get_snp(panel, "rs6822844")
+        # G is the common/risk-direction allele; T is the protective minor allele.
+        assert snp.risk_allele == "G"
+        for genotype in ("TT", "TG", "GT", "GG"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
     def test_lrrk2_g2019s_uses_reduced_penetrance_parkinsons_framing(
         self,
@@ -683,6 +698,42 @@ class TestFullScoring:
             ).scalar_one()
 
         assert hla_findings == []
+        assert autoimmune_summary == STANDARD
+
+    def test_il2_il21_rs6822844_tt_alone_does_not_raise_autoimmune_pathway(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A protective IL2/IL21 rs6822844 TT call must not create risk findings
+        or raise the autoimmune pathway above Standard (gh #117)."""
+        _seed_variants(sample_engine, [("rs6822844", "4", 123372626, "TT")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        autoimmune = next(pr for pr in result.pathway_results if pr.pathway_id == "autoimmune")
+        il2il21 = next(snp for snp in autoimmune.snp_results if snp.rsid == "rs6822844")
+
+        assert il2il21.category == STANDARD
+        assert autoimmune.level == STANDARD
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            il2il21_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs6822844",
+                )
+            ).fetchall()
+            autoimmune_summary = conn.execute(
+                sa.select(findings.c.pathway_level).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == autoimmune.pathway_name,
+                )
+            ).scalar_one()
+
+        assert il2il21_findings == []
         assert autoimmune_summary == STANDARD
 
     def test_lrrk2_g2019s_alone_is_moderate_not_high_confidence(
