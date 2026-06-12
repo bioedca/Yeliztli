@@ -785,6 +785,7 @@ class TestRunPRS:
             rng_seed=42,
         )
 
+        assert result.raw_score == pytest.approx(1.5)
         assert result.calibrated is True
         assert result.calibration_method == "ancestry_continuous"
         assert result.calibration_variants_used == 2

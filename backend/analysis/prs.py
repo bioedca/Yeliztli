@@ -208,6 +208,13 @@ class PRSResult:
         ancestry_mismatch: Whether user's ancestry ≠ weight set ancestry.
         ancestry_warning_text: Warning text if ancestry mismatch.
         evidence_level: Star rating (PRS components = ★☆☆☆ = 1).
+        calibration_method: Reference calibration source used, if any.
+        calibration_reference_mean: Mean of the applied reference distribution.
+        calibration_reference_std: Standard deviation of the applied reference distribution.
+        calibration_variants_used: Number of variants used for calibration.
+        calibration_variants_total: Number of variants available for calibration.
+        calibration_ancestry_fractions: Ancestry fractions used for continuous calibration.
+        calibration_pmids: PubMed IDs supporting the calibration method.
     """
 
     weight_set_name: str
