@@ -22,28 +22,37 @@
 | Wave | PRs | Done | Partial | Remaining |
 |------|-----|------|---------|-----------|
 | **A** — cross-cutting rigor + greenfield directly-typed | 12 | 12 | — | 0 |
-| **B** — PGS Catalog at scale | 8 | 0 | — | 8 (deferred: needs PCA fix + PGS fetch) |
+| **B** — PGS Catalog at scale | 8 | 8 | — | 0 ✅ **COMPLETE** |
 | **C** — Imputation foundation | 7 | 0 | — | 7 (**separately-scheduled**) |
 | **D** — HLA / HIBAG | 6 | 0 | — | 6 (**separately-scheduled**) |
-| **E** — Pharmacogenomics expansion | 6 | 5 (E1/E3/E4/E5/E6) | — | 1 (E2) |
-| **F** — Deeper variant interpretation | 3 | 1 (F1) | — | 2 (F3; F2 **separately-scheduled**) |
-| **Total** | **42** | **18** | — | **~24** (14 separately-scheduled — Wave C: 7, Wave D: 6, SW-F2: 1) |
+| **E** — Pharmacogenomics expansion | 6 | 6 | — | 0 ✅ |
+| **F** — Deeper variant interpretation | 3 | 2 (F1/F3) | — | 1 (F2 **separately-scheduled**) |
+| **Total** | **42** | **28** | — | **14 (all separately-scheduled — Wave C: 7, Wave D: 6, SW-F2: 1)** |
 
-**Done & merged this session (bioedca fork, 2026-06-11):**
-- **SW-A11** (full) — ClinGen gene-disease-validity guardrail + manifest `license`/NOTICE scaffolding.
-- **SW-F1** — InterVar-style DRAFT ACMG/AMP engine (unblocked by the A11 ClinGen half).
-- **SW-E1** — PharmVar-canonical star-allele defs + panel expansion (NUDT15, UGT1A1) + indeterminate flags; **SW-E1b** follow-on added NAT2 + CYP2B6.
-- **SW-A12** — AlphaMissense missense-class REVEL-complement (CC-BY-4.0, Zenodo 10813168).
-- **SW-E6** — G6PD (X-linked, sex-aware) + BCHE (succinylcholine apnea) deficiency context.
-- **Warfarin layer** (SW-E1 sub-concern) — VKORC1 + CYP4F2 dose-effect context.
+**Wave B completed (bioedca fork, 2026-06-11)** — all 8 merged + the score bundle + frontends:
+- **SW-B1/B2** (#100/#116, earlier) — PGS Catalog GRCh37 ingestion + ancestry-continuous calibration.
+- **SW-B3** (#123) — per-PGS provenance/evidence-tier + monogenic-exclusion disclosure (APOE gate-safe).
+- **SW-B4** (#126) — `pgs_scores.db`→engine bridge, positional matching, ancestry-aware score selection.
+- **SW-B5** (#130) — T2D & obesity PRS + anchor SNPs (TCF7L2/FTO/MC4R) + honest coverage gating.
+- **SW-B6** (#134) — FH view: monogenic LDLR/APOB/PCSK9 + APOB R3527Q (rs5742904) + LDL-C PRS,
+  framed vs DLCN/Simon Broome.
+- **SW-B7** (#137) — heel-eBMD gSOS PRS (BYO, non-commercial; explicitly not a DXA/FRAX substitute).
+- **SW-B8** (#139) — opt-in breast absolute-risk overlay + Alembic migration 012.
+- **Bundle** (#141) — `pgs_scores.db` shipped (CC-BY scores T2D PGS000713, BMI PGS005198, LDL-C
+  PGS000688; release `pgs-scores-v1.0.0`). **Frontends** (#142) — Metabolic/FH/eBMD views + B8 opt-in.
 
-**Done previously:** rest of Wave A; Wave E PGx trio — SW-E5 DPYD, SW-E3 CYP2D6 CNV, SW-E4
-medication-safety report; patient-safety strand fix (not a plan PR).
+**Done earlier (bioedca fork, 2026-06-11):** SW-A11, SW-F1, SW-E1(+E1b), SW-A12, SW-E6, warfarin
+layer; **SW-E2** (#103) DPWG/PharmGKB-LOE/FDA over CPIC; **SW-F3** (#106) GTEx eQTL regulatory layer.
 
-**Bottom line:** **~24 PRs remain, of which 14 are separately-scheduled** — Wave C imputation
-(×7, §4), Wave D HLA/HIBAG (×6, §5), and SW-F2 SpliceAI (×1, §7). Of the **active** remainder
-(~10): **SW-E2** is the last fully-autonomous item; **SW-B1→B8** need a PGS Catalog fetch + the
-PCA fix; **SW-F3** needs a GTEx fetch. See §6 for the tractability split.
+**Done previously:** rest of Wave A; Wave E PGx trio (E5 DPYD, E3 CYP2D6 CNV, E4 med-safety report).
+
+**Bottom line:** **Every tractable second-wave PR is complete.** The only remaining work is the
+**14 separately-scheduled PRs** — Wave C imputation (×7, §4), Wave D HLA/HIBAG (×6, §5), and
+SW-F2 SpliceAI (×1, §7) — each parked pending its own external runtime/fetch.
+
+> **Wave-B coverage caveat:** the disease PRSs are genome-wide; on un-imputed array data only
+> ~35–57% of each score's variants are typed, so percentiles are *withheld* (coverage reported)
+> until Wave C imputation lands. Anchor SNPs + monogenic findings carry the interpretable signal.
 
 ---
 
@@ -56,20 +65,23 @@ PCA fix; **SW-F3** needs a GTEx fetch. See §6 for the tractability split.
 
 ---
 
-## 3. Wave B — PGS Catalog at scale (8 remaining)
+## 3. Wave B — PGS Catalog at scale — ✅ COMPLETE (8/8)
 
-`SW-B1` unlocks B3–B8. `SW-B2` is independent (no new data).
+All merged on the bioedca fork (2026-06-11). Score bundle `pgs-scores-v1.0.0` ships three CC-BY
+GRCh37-harmonized scores (T2D PGS000713, multi-ancestry BMI PGS005198, LDL-C PGS000688); eBMD
+(gSOS PGS000657, non-commercial) and breast remain user-fetch / overlay-on-existing per posture (A).
 
-| PR | # | Goal | Depends on | Needs |
-|----|---|------|------------|-------|
-| **SW-B1** | 6 | Ingest PGS Catalog GRCh37-harmonized scoring files into SQLite; per-score license honoring; reject build-mismatched scores | — | **PGS Catalog `*_hmPOS_GRCh37.txt.gz` files**, per-score license gating (bundle only permissive; user-fetch NC) — *[ext-strategy]* §PGS |
-| **SW-B2** | 5 | Ancestry-continuous PRS calibration (PC1–PC8 → adjusted mean/variance); **fixes calibration not accuracy** (mandatory quantitative mismatch warning) | reuses existing PCA bundle | **No new external data** — tractable now (L effort) |
-| **SW-B3** | 46, 45 | Per-PGS provenance/evidence-tier UI + APOE/monogenic exclusion from disease PRS | SW-B1 | (via B1) |
-| **SW-B4** | 33 | Prefer multi-ancestry / PRS-CSx scores; select per inferred ancestry | SW-B1 | (via B1) |
-| **SW-B5** | 28 | T2D & obesity PRS + anchor SNPs; report % coverage; ancestry-mismatch warning | SW-B1, SW-B2, (SW-C* coverage) | (via B1) |
-| **SW-B6** | 56 | Dedicated FH view: APOB R3527Q (rs5742904) + LDL-C polygenic score; frame vs Simon Broome / Dutch Lipid | SW-B1 (LDL-C score) | (via B1) |
-| **SW-B7** | 52 | Osteoporosis eBMD PRS — **not** a FRAX/DXA substitute | SW-B1 | (via B1) |
-| **SW-B8** | 44 | Opt-in absolute-risk overlay (breast via BOADICEA/CanRisk; SEER/CI5 incidence); **Alembic schema change** | SW-B1 | (via B1) + **schema migration** |
+| PR | # | Goal | Status |
+|----|---|------|--------|
+| **SW-B1** | 6 | Ingest PGS Catalog GRCh37-harmonized scoring files; per-score license honoring | ✅ **Done** (#100) — standalone `pgs_scores.db`; build firewall + license gating + empty-parse guard |
+| **SW-B2** | 5 | Ancestry-continuous PRS calibration (fixes calibration not accuracy) | ✅ **Done** (#116) — `continuous_reference_distribution` (HWE mean/var over admixture fractions) |
+| **SW-B3** | 46, 45 | Per-PGS provenance/evidence-tier + monogenic exclusion | ✅ **Done** (#123) — provenance fields + `annotate_monogenic_exclusion` (APOE gate-safe) + `PRSProvenance` UI |
+| **SW-B4** | 33 | Prefer multi-ancestry / PRS-CSx scores; select per inferred ancestry | ✅ **Done** (#126) — `pgs_bridge` (registry + selection) + positional matching for rsID-less scores |
+| **SW-B5** | 28 | T2D & obesity PRS + anchor SNPs; coverage; ancestry-mismatch | ✅ **Done** (#130) — route-only `metabolic` module; coverage-honest (percentile withheld <50%); TCF7L2/FTO/MC4R anchors |
+| **SW-B6** | 56 | FH view: APOB R3527Q (rs5742904) + LDL-C PRS; vs Simon Broome / Dutch Lipid | ✅ **Done** (#134) — `fh` module composing monogenic + FDB + LDL-C PRS + DLCN/Simon Broome framing |
+| **SW-B7** | 52 | Osteoporosis eBMD PRS — **not** a FRAX/DXA substitute | ✅ **Done** (#137) — `ebmd` module; BYO gSOS (PGS000657, NC); refines-FRAX-not-replaces framing |
+| **SW-B8** | 44 | Opt-in absolute-risk overlay (breast; SEER incidence); **Alembic change** | ✅ **Done** (#139) — opt-in consent (Alembic 012) + SEER baseline + BRCA penetrance + CanRisk handoff |
+| **Bundle + UI** | — | Ship `pgs_scores.db` + Wave-B frontends | ✅ **Done** (#141 bundle wiring + release; #142 Metabolic/FH/eBMD views + B8 opt-in panel) |
 
 ---
 
