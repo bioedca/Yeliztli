@@ -691,6 +691,7 @@ class TestFullScoring:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
 
+        assert neurological.snp_results
         assert all(snp.rsid != "rs76763715" for snp in neurological.snp_results)
         assert neurological.level == STANDARD
         assert result.cross_module_findings == []
