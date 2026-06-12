@@ -261,6 +261,27 @@ class TestPanelLoading:
             assert "51% by age 69" not in effect["effect_summary"]
             assert "74% by age 79" not in effect["effect_summary"]
 
+    def test_amd_recommendations_do_not_trigger_areds2_from_genotype_alone(
+        self,
+        panel: GeneHealthPanel,
+    ) -> None:
+        """AMD risk SNPs must defer AREDS2 decisions to ophthalmic staging."""
+        amd_rsids = {"rs1061170", "rs10490924"}
+        amd_snps = [
+            snp for pathway in panel.pathways for snp in pathway.snps if snp.rsid in amd_rsids
+        ]
+
+        assert {snp.rsid for snp in amd_snps} == amd_rsids
+        for snp in amd_snps:
+            text = snp.recommendation_text.lower()
+            assert "eye-exam-based amd staging" in text
+            assert "intermediate amd" in text
+            assert "advanced amd in one eye" in text
+            assert "not from genotype alone" in text
+            assert "consider areds2 supplementation" not in text
+            assert "discuss areds2 supplementation" not in text
+            assert {"11594942", "23644932", "24974817"}.issubset(snp.pmids)
+
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
             load_gene_health_panel(Path("/nonexistent/panel.json"))

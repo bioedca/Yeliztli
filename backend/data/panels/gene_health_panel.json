@@ -1038,8 +1038,8 @@
             }
           },
           "evidence_level": 4,
-          "pmids": ["15761122", "15870199", "16080115"],
-          "recommendation_text": "CFH Y402H is the strongest genetic risk factor for age-related macular degeneration. Complement dysregulation in the retina drives drusen formation and photoreceptor damage. Risk carriers should have regular dilated eye exams, avoid smoking (which amplifies genetic risk), maintain cardiovascular health, and consider AREDS2 supplementation per ophthalmologist guidance."
+          "pmids": ["15761122", "15870199", "16080115", "11594942", "23644932", "24974817"],
+          "recommendation_text": "CFH Y402H is the strongest genetic risk factor for age-related macular degeneration. Complement dysregulation in the retina drives drusen formation and photoreceptor damage. Risk carriers should have regular dilated eye exams, avoid smoking (which amplifies genetic risk), and maintain cardiovascular health. Use eye-exam-based AMD staging to guide supplement discussions: AREDS2 formulation is generally considered for intermediate AMD or advanced AMD in one eye, not from genotype alone."
         },
         {
           "rsid": "rs10490924",
@@ -1067,8 +1067,8 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["16174643", "18191106", "23455636"],
-          "recommendation_text": "ARMS2/HTRA1 is the second major AMD susceptibility locus. Risk carriers, especially those also carrying CFH Y402H, should prioritize regular retinal screening, smoking cessation, and discuss AREDS2 supplementation with their ophthalmologist."
+          "pmids": ["16174643", "18191106", "23455636", "11594942", "23644932", "24974817"],
+          "recommendation_text": "ARMS2/HTRA1 is the second major AMD susceptibility locus. Risk carriers, especially those also carrying CFH Y402H, should prioritize regular retinal screening and smoking cessation. Use eye-exam-based AMD staging to guide supplement discussions: AREDS2 formulation is generally considered for intermediate AMD or advanced AMD in one eye, not from genotype alone."
         },
         {
           "rsid": "rs2230199",
