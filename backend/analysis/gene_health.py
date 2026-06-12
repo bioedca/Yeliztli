@@ -64,6 +64,7 @@ _ELEVATED_MIN_STARS = 2
 
 # Module name for findings storage
 MODULE_NAME = "gene_health"
+_CARRIER_CONTEXT_CATEGORY = "carrier_context"
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -620,6 +621,14 @@ def _lookup_gwas_matches(
 # ── Findings storage ─────────────────────────────────────────────────────
 
 
+def _is_standard_carrier_context(snp: SNPResult) -> bool:
+    """Return true for called Standard variants that still need carrier display."""
+    if not snp.present_in_sample:
+        return False
+    text = snp.effect_summary.lower()
+    return "carrier" in text and "reproductive" in text
+
+
 def store_gene_health_findings(
     result: GeneHealthResult,
     sample_engine: sa.Engine,
@@ -709,6 +718,33 @@ def store_gene_health_findings(
         # Individual SNP findings for non-Standard results
         for snp in pr.called_snps:
             if snp.category == STANDARD:
+                if _is_standard_carrier_context(snp):
+                    carrier_detail: dict = {
+                        "variant_name": snp.variant_name,
+                        "genotype": snp.genotype,
+                        "recommendation": snp.recommendation_text,
+                        "carrier_context": True,
+                    }
+                    if snp.coverage_note:
+                        carrier_detail["coverage_note"] = snp.coverage_note
+
+                    rows.append(
+                        {
+                            "module": MODULE_NAME,
+                            "category": _CARRIER_CONTEXT_CATEGORY,
+                            "evidence_level": snp.evidence_level,
+                            "gene_symbol": snp.gene,
+                            "rsid": snp.rsid,
+                            "finding_text": (
+                                f"{snp.gene} {snp.variant_name} ({snp.genotype}) — "
+                                f"{snp.effect_summary}"
+                            ),
+                            "pathway": pr.pathway_name,
+                            "pathway_level": STANDARD,
+                            "pmid_citations": json.dumps(snp.pmids),
+                            "detail_json": json.dumps(carrier_detail),
+                        }
+                    )
                 continue
 
             snp_text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"

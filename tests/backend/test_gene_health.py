@@ -166,7 +166,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs4236601", "7", 116165018, "CA"),  # CAV1/CAV2 het -> Moderate
     ("rs2157719", "9", 22003367, "TG"),  # CDKN2B-AS1 het -> Moderate
     ("rs80338939", "13", 20763612, "GG"),  # GJB2 35delG ref -> Standard (special)
-    ("rs111033253", "7", 107301080, "GA"),  # SLC26A4 het -> Moderate
+    ("rs111033313", "7", 107683453, "GA"),  # SLC26A4 het -> Standard carrier context
     ("rs10955255", "8", 102508925, "GA"),  # GRHL2 het -> Moderate
 ]
 
@@ -283,6 +283,35 @@ class TestPanelLoading:
             assert "consider areds2 supplementation" not in text
             assert "discuss areds2 supplementation" not in text
             assert {"11594942", "23644932", "24974817"}.issubset(snp.pmids)
+
+    def test_slc26a4_carrier_framing_does_not_imply_subclinical_eva(self) -> None:
+        """Single-allele SLC26A4 calls must stay carrier-context only."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        slc26a4 = next(
+            snp
+            for pathway in gene_health["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] == "rs111033313"
+        )
+
+        assert slc26a4["rsid"] == "rs111033313"
+        assert slc26a4["ref_allele"] == "A"
+        assert slc26a4["risk_allele"] == "G"
+        assert slc26a4["genotype_effects"]["AA"]["category"] == STANDARD
+        assert slc26a4["genotype_effects"]["GG"]["category"] == ELEVATED
+        assert {"34345941", "22116369", "23151025"}.issubset(slc26a4["pmids"])
+        assert "single heterozygous c.919-2A>G call" in slc26a4["recommendation_text"]
+        assert "carrier information" in slc26a4["recommendation_text"]
+
+        for genotype in ("GA", "AG"):
+            effect = slc26a4["genotype_effects"][genotype]
+            text = effect["effect_summary"]
+            assert effect["category"] == STANDARD
+            assert "Carrier of a recessive Pendred syndrome / DFNB4 pathogenic variant" in text
+            assert "does not by itself imply enlarged vestibular aqueduct" in text
+            assert "sequencing/CNV/regulatory follow-up" in text
+            assert "subclinical" not in text.lower()
+            assert "May have enlarged vestibular aqueduct" not in text
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -507,6 +536,25 @@ class TestSNPScoring:
         assert snp.indel_genotype_map is None
         assert _map_indel_genotype(snp, "DD") is None
         assert _map_indel_genotype(snp, "CT") is None
+
+    def test_slc26a4_heterozygotes_are_carrier_context_not_pathway_risk(
+        self,
+        panel: GeneHealthPanel,
+    ) -> None:
+        """SLC26A4 c.919-2A>G hets should not imply EVA from one allele."""
+        snp = self._get_snp(panel, "rs111033313")
+        assert snp.ref_allele == "A"
+        assert snp.risk_allele == "G"
+        assert _score_snp(snp, "AA").category == STANDARD
+        assert _score_snp(snp, "GG").category == ELEVATED
+
+        for genotype in ("GA", "AG"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD
+            assert result.present_in_sample is True
+            assert "Carrier of a recessive" in result.effect_summary
+            assert "does not by itself imply enlarged vestibular aqueduct" in result.effect_summary
+            assert "subclinical" not in result.effect_summary.lower()
 
 
 # -- GJB2 35delG indel reachability (end-to-end from parsed I/D codes) --------
@@ -976,6 +1024,91 @@ class TestFullScoring:
 
         assert gba_rows == []
         assert neurological_summary == STANDARD
+
+    def test_slc26a4_single_carrier_does_not_raise_sensory_pathway(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """One SLC26A4 c.919-2A>G allele is carrier context, not an EVA finding."""
+        _seed_variants(sample_engine, [("rs111033313", "7", 107683453, "GA")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        sensory = next(pr for pr in result.pathway_results if pr.pathway_id == "sensory")
+        slc26a4 = next(snp for snp in sensory.snp_results if snp.rsid == "rs111033313")
+
+        assert slc26a4.category == STANDARD
+        assert "does not by itself imply enlarged vestibular aqueduct" in slc26a4.effect_summary
+        assert sensory.level == STANDARD
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            slc26a4_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs111033313",
+                    findings.c.category == "snp_finding",
+                )
+            ).fetchall()
+            slc26a4_context = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs111033313",
+                    findings.c.category == "carrier_context",
+                )
+            ).fetchone()
+            sensory_summary = conn.execute(
+                sa.select(findings.c.pathway_level, findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == sensory.pathway_name,
+                )
+            ).one()
+
+        assert slc26a4_findings == []
+        assert slc26a4_context is not None
+        assert slc26a4_context.pathway_level == STANDARD
+        assert "Carrier of a recessive" in slc26a4_context.finding_text
+        assert "subclinical" not in slc26a4_context.finding_text.lower()
+        context_detail = json.loads(slc26a4_context.detail_json)
+        assert context_detail["carrier_context"] is True
+        assert "second allele" in context_detail["recommendation"]
+
+        assert sensory_summary.pathway_level == STANDARD
+        summary_detail = json.loads(sensory_summary.detail_json)
+        slc26a4_detail = next(
+            snp for snp in summary_detail["snp_details"] if snp["rsid"] == "rs111033313"
+        )
+        assert "recommendation" not in slc26a4_detail
+        assert "pmids" not in slc26a4_detail
+
+    def test_slc26a4_reference_call_does_not_emit_carrier_context(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Reference SLC26A4 AA must not surface heterozygote carrier guidance."""
+        _seed_variants(sample_engine, [("rs111033313", "7", 107683453, "AA")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        sensory = next(pr for pr in result.pathway_results if pr.pathway_id == "sensory")
+        slc26a4 = next(snp for snp in sensory.snp_results if snp.rsid == "rs111033313")
+
+        assert slc26a4.category == STANDARD
+        assert sensory.level == STANDARD
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            slc26a4_rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs111033313",
+                )
+            ).fetchall()
+
+        assert slc26a4_rows == []
 
 
 # -- Findings storage tests ---------------------------------------------------

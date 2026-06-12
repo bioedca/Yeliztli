@@ -1219,33 +1219,33 @@
           "recommendation_text": "GJB2 35delG is the most common cause of autosomal recessive non-syndromic hearing loss, with carrier frequency ~2-4% in European populations. Homozygotes typically have congenital severe-to-profound hearing loss. Carriers should be informed of reproductive implications. Cochlear implantation is highly effective for GJB2-related hearing loss."
         },
         {
-          "rsid": "rs111033253",
+          "rsid": "rs111033313",
           "gene": "SLC26A4",
           "variant_name": "SLC26A4 coding",
           "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
+          "risk_allele": "G",
+          "ref_allele": "A",
           "genotype_effects": {
-            "GG": {
+            "AA": {
               "category": "Standard",
               "effect_summary": "No SLC26A4 risk variant detected. Normal pendrin function in the inner ear and thyroid."
             },
             "GA": {
-              "category": "Moderate",
-              "effect_summary": "One copy of SLC26A4 variant. Carrier of Pendred syndrome / DFNB4 risk allele. May have enlarged vestibular aqueduct (EVA) as a subclinical finding. Carrier status relevant for reproductive counseling."
+              "category": "Standard",
+              "effect_summary": "One copy of SLC26A4 c.919-2A>G. Carrier of a recessive Pendred syndrome / DFNB4 pathogenic variant; this single array allele does not by itself imply enlarged vestibular aqueduct (EVA). If hearing loss or EVA is present, consider sequencing/CNV/regulatory follow-up for a second SLC26A4 allele. Carrier status is relevant for reproductive counseling."
             },
             "AG": {
-              "category": "Moderate",
-              "effect_summary": "One copy of SLC26A4 variant. Carrier of Pendred syndrome / DFNB4 risk allele. May have enlarged vestibular aqueduct (EVA) as a subclinical finding. Carrier status relevant for reproductive counseling."
+              "category": "Standard",
+              "effect_summary": "One copy of SLC26A4 c.919-2A>G. Carrier of a recessive Pendred syndrome / DFNB4 pathogenic variant; this single array allele does not by itself imply enlarged vestibular aqueduct (EVA). If hearing loss or EVA is present, consider sequencing/CNV/regulatory follow-up for a second SLC26A4 allele. Carrier status is relevant for reproductive counseling."
             },
-            "AA": {
+            "GG": {
               "category": "Elevated",
               "effect_summary": "Homozygous SLC26A4 variant. Associated with Pendred syndrome (hearing loss + goiter) or non-syndromic hearing loss with enlarged vestibular aqueduct (DFNB4). Pendrin dysfunction disrupts endolymphatic ion homeostasis."
             }
           },
           "evidence_level": 4,
-          "pmids": ["9002654", "12657976", "21280143"],
-          "recommendation_text": "SLC26A4 mutations cause Pendred syndrome (autosomal recessive hearing loss with goiter) and DFNB4 (non-syndromic hearing loss with enlarged vestibular aqueduct). Carriers should be informed of reproductive implications. Thyroid function monitoring is recommended for affected individuals."
+          "pmids": ["9002654", "12657976", "21280143", "34345941", "22116369", "23151025"],
+          "recommendation_text": "SLC26A4 biallelic coding/splice variants cause Pendred syndrome (autosomal recessive hearing loss with goiter) and DFNB4 (non-syndromic hearing loss with enlarged vestibular aqueduct). A single heterozygous c.919-2A>G call should be treated as carrier information in an unphenotyped report; if hearing loss or EVA is present, pursue clinical SLC26A4 sequencing/CNV/regulatory follow-up for a second allele. Thyroid function monitoring is recommended for affected individuals."
         },
         {
           "rsid": "rs10955255",

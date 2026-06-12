@@ -273,7 +273,7 @@ def pathway_detail(
     # Collect per-SNP findings for recommendations
     snp_findings_map: dict[str, dict[str, Any]] = {}
     for f in all_findings:
-        if f["category"] == "snp_finding" and f["pathway"] == pathway_name:
+        if f["category"] in {"snp_finding", "carrier_context"} and f["pathway"] == pathway_name:
             rsid = f["rsid"]
             if rsid:
                 snp_findings_map[rsid] = f
