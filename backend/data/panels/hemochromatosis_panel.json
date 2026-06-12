@@ -53,7 +53,7 @@
       "penetrance": "Compound heterozygotes (one C282Y, one H63D) have low penetrance; most never develop clinically significant iron overload.",
       "finding_text": "HFE compound heterozygous C282Y/H63D ({genotype}), phase-inferred. {penetrance_text} This is a low-penetrance genotype — the large majority of compound heterozygotes do not develop iron-overload disease. Unphased array data cannot confirm the two variants are in trans (the usual arrangement) rather than the rare cis configuration, so the compound-heterozygous label is inferred, not proven. Routine iron studies may be discussed with a clinician.",
       "caveats": ["reduced_penetrance", "ancestry_european", "negative_not_clear", "phase_inferred_compound_het"],
-      "pmids": ["30651232", "21149639", "11531973"]
+      "pmids": ["30651232", "11531973", "36196271", "19554541"]
     },
     {
       "id": "c282y_heterozygous",
@@ -75,7 +75,7 @@
       "penetrance": "H63D homozygosity is of low clinical significance and rarely causes iron overload by itself.",
       "finding_text": "HFE H63D homozygous ({genotype}). {penetrance_text} This genotype is of limited clinical significance in isolation.",
       "caveats": ["reduced_penetrance", "negative_not_clear"],
-      "pmids": ["21149639"]
+      "pmids": ["24729993", "11399207"]
     },
     {
       "id": "h63d_heterozygous",
@@ -86,7 +86,7 @@
       "penetrance": "A single H63D allele is of minimal clinical significance.",
       "finding_text": "HFE H63D heterozygous ({genotype}) — you carry one H63D allele. {penetrance_text} Mainly relevant for family planning or in combination with a C282Y allele.",
       "caveats": ["negative_not_clear"],
-      "pmids": ["21149639"]
+      "pmids": ["11399207"]
     }
   ]
 }

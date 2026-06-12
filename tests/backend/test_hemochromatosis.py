@@ -204,3 +204,52 @@ class TestStorage:
                 .where(findings.c.module == "hemochromatosis")
             ).scalar()
         assert count == 1
+
+
+class TestCitationProvenance:
+    """Guard the curated HFE evidence links (issue #175).
+
+    PMID 21149639 (a GPER1/cytokeratin trafficking paper) was wrongly cited by
+    the H63D-containing models. This locks the panel's PMIDs to a reviewed
+    allowlist of genuine HFE/hemochromatosis references so an off-topic PMID
+    cannot silently reappear, and pins the per-model citations the fix landed.
+    """
+
+    # Every PMID below was verified (PubMed + Consensus) to be an HFE /
+    # hereditary-hemochromatosis reference. Add here only after confirming a new
+    # PMID actually concerns HFE, never as a convenience.
+    _HFE_PMID_ALLOWLIST = frozenset(
+        {
+            "38479735",  # BMJ Open 2024 — HFE C282Y cohort
+            "30651232",  # BMJ 2019 — HFE genotype penetrance cohort
+            "11531973",  # Best 2001 — C282Y/H63D cis vs trans phase
+            "36196271",  # Hasan 2022 — C282Y/H63D low-penetrance genotype
+            "19554541",  # Gurrin 2009 (HealthIron) — C282Y/H63D low morbidity
+            "24729993",  # Kelley 2014 — iron overload rare in H63D homozygotes
+            "11399207",  # Burke 2000 — pooled HFE genotype/iron-overload analysis
+        }
+    )
+
+    # The unrelated paper that must never be cited by this panel again.
+    _BANNED_PMID = "21149639"
+
+    def test_no_unrelated_gper1_pmid(self, panel) -> None:
+        for model in panel.genotype_models:
+            assert self._BANNED_PMID not in model.pmids, (
+                f"model {model.id!r} cites unrelated PMID {self._BANNED_PMID}"
+            )
+
+    def test_all_pmids_are_curated_hfe_references(self, panel) -> None:
+        for model in panel.genotype_models:
+            unknown = set(model.pmids) - self._HFE_PMID_ALLOWLIST
+            assert not unknown, (
+                f"model {model.id!r} cites non-allowlisted PMID(s) {sorted(unknown)}; "
+                f"verify they are genuine HFE references before adding to the allowlist"
+            )
+
+    def test_h63d_models_have_h63d_evidence(self, panel) -> None:
+        # The three H63D-containing models must carry at least one verified
+        # HFE/H63D reference (not be left citation-less after the fix).
+        by_id = {m.id: m for m in panel.genotype_models}
+        for model_id in ("compound_heterozygous", "h63d_homozygous", "h63d_heterozygous"):
+            assert by_id[model_id].pmids, f"{model_id} lost its evidence citations"
