@@ -4,7 +4,7 @@ Implements P3-55:
   - 20 trait findings across 4 pathway cards (Pigmentation & UV Response,
     Skin Barrier & Inflammation, Oxidative Stress & Aging, Skin Micronutrients).
   - MC1R multi-allele haplotype-aware calling (0/1/2 R alleles).
-  - FLG 2282del4 flagged as Insufficient Data due to proxy SNP limitations.
+  - FLG R501X flagged as Insufficient Data due to limited FLG LoF coverage.
   - Cross-links to Cancer (MC1R/melanoma), Nutrigenomics (VDR vitamin D),
     and Allergy (FLG atopic march).
   - Categorical outputs only (Elevated / Moderate / Standard).
@@ -864,10 +864,10 @@ def store_skin_findings(
         flg_snp = _find_panel_snp_from_result(result, "rs61816761")
 
         caveat_text = (
-            "FLG 2282del4 — Insufficient Data. "
-            "Result is based on a proxy tag SNP (rs61816761) with incomplete "
-            "linkage to the actual 4-base-pair frameshift deletion. "
-            "A negative result does not rule out FLG loss-of-function. "
+            "FLG R501X - Insufficient Data. "
+            "Result is based on the single assayed rs61816761 nonsense variant. "
+            "A negative result does not rule out other FLG loss-of-function "
+            "alleles such as 2282del4. "
             "Full sequencing is required for comprehensive FLG assessment."
         )
         rows.append(
@@ -885,10 +885,11 @@ def store_skin_findings(
                 ),
                 "detail_json": json.dumps(
                     {
-                        "proxy_target": "FLG 2282del4 (c.6867delTATT)",
+                        "observed_variant": "FLG R501X (p.Arg501Ter)",
+                        "proxy_target": None,
                         "insufficient_data_reason": (
-                            "Tag SNP proxy with incomplete linkage — does not "
-                            "capture all FLG null mutations (e.g., R501X). "
+                            "Single FLG loss-of-function site; does not "
+                            "capture 2282del4 or other FLG null mutations. "
                             "Full sequencing required for comprehensive FLG assessment."
                         ),
                     }

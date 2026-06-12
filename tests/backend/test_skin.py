@@ -3,7 +3,7 @@
 Covers:
   - Panel loading and dataclass construction
   - MC1R multi-allele haplotype-aware calling (0/1/2 R alleles)
-  - FLG 2282del4 flagged as Insufficient Data
+  - FLG R501X flagged as Insufficient Data
   - Genotype normalization
   - SNP scoring with evidence-level gating
   - Pathway level determination (highest category)
@@ -182,7 +182,7 @@ class TestPanelLoading:
     def test_panel_has_special_calling(self, panel: SkinPanel) -> None:
         assert panel.special_calling is not None
         assert "MC1R_multi_allele" in panel.special_calling
-        assert "FLG_2282del4_proxy" in panel.special_calling
+        assert "FLG_R501X_limited_coverage" in panel.special_calling
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -200,8 +200,12 @@ class TestPanelLoading:
         for pathway in panel.pathways:
             for snp in pathway.snps:
                 if snp.rsid == "rs61816761":
+                    assert snp.variant_name == "R501X"
+                    assert snp.hgvs_protein == "p.Arg501Ter"
                     assert snp.insufficient_data_flag is True
                     assert snp.coverage_note is not None
+                    assert "R501X" in snp.coverage_note
+                    assert "2282del4" in snp.coverage_note
 
     def test_cross_module_links_present(self, panel: SkinPanel) -> None:
         """MC1R R alleles → cancer, FLG → allergy, VDR → nutrigenomics."""
@@ -524,12 +528,17 @@ class TestFLGInsufficientData:
 
         assert row is not None
         assert "FLG" in row.finding_text
+        assert "R501X" in row.finding_text
+        assert "2282del4" in row.finding_text
         assert "Insufficient Data" in row.finding_text
         assert row.gene_symbol == "FLG"
 
         detail = json.loads(row.detail_json)
+        assert detail["observed_variant"] == "FLG R501X (p.Arg501Ter)"
+        assert detail["proxy_target"] is None
         assert "proxy_target" in detail
         assert "insufficient_data_reason" in detail
+        assert "2282del4" in detail["insufficient_data_reason"]
 
 
 # ── SNP scoring tests ────────────────────────────────────────────────────
@@ -605,7 +614,7 @@ class TestSNPScoring:
         assert result.category == MODERATE
 
     def test_flg_het_moderate(self, panel: SkinPanel) -> None:
-        """FLG het → Moderate (evidence_level=2)."""
+        """FLG R501X het → Moderate (evidence_level=2)."""
         flg = None
         for pw in panel.pathways:
             for snp in pw.snps:
@@ -613,12 +622,13 @@ class TestSNPScoring:
                     flg = snp
                     break
         assert flg is not None
+        assert flg.variant_name == "R501X"
         result = _score_snp(flg, "GA")
         assert result.category == MODERATE
         assert result.insufficient_data_flag is True
 
     def test_flg_hom_elevated(self, panel: SkinPanel) -> None:
-        """FLG homozygous → Elevated (evidence_level=2 allows it)."""
+        """FLG R501X homozygous → Elevated (evidence_level=2 allows it)."""
         flg = None
         for pw in panel.pathways:
             for snp in pw.snps:
@@ -844,7 +854,8 @@ class TestScorePathways:
         )
         flg = next(s for s in barrier.called_snps if s.rsid == "rs61816761")
         assert flg.coverage_note is not None
-        assert "proxy" in flg.coverage_note.lower()
+        assert "R501X" in flg.coverage_note
+        assert "2282del4" in flg.coverage_note
 
 
 # ── Findings storage tests ─────────────────────────────────────────────

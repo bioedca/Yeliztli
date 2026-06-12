@@ -1,7 +1,7 @@
 {
   "module": "skin",
   "version": "1.0.0",
-  "description": "Curated Gene Skin SNP panel for Yeliztli (P3-54). Covers 4 skin pathways (Pigmentation & UV Response, Skin Barrier & Inflammation, Oxidative Stress & Aging, Skin Micronutrients) with 10 curated SNPs across MC1R, FLG, GSTP1, MMP1, VDR, and SOD2 plus GWAS Catalog skin/pigmentation EFO term associations. MC1R uses multi-allele haplotype-aware calling (0/1/2 R alleles). FLG 2282del4 flagged as Insufficient Data due to lacking full array coverage.",
+  "description": "Curated Gene Skin SNP panel for Yeliztli (P3-54). Covers 4 skin pathways (Pigmentation & UV Response, Skin Barrier & Inflammation, Oxidative Stress & Aging, Skin Micronutrients) with 10 curated SNPs across MC1R, FLG, GSTP1, MMP1, VDR, and SOD2 plus GWAS Catalog skin/pigmentation EFO term associations. MC1R uses multi-allele haplotype-aware calling (0/1/2 R alleles). FLG R501X flagged as Insufficient Data due to limited array coverage of FLG loss-of-function variants.",
   "pathways": [
     {
       "id": "pigmentation_uv",
@@ -150,33 +150,33 @@
         {
           "rsid": "rs61816761",
           "gene": "FLG",
-          "variant_name": "2282del4",
-          "hgvs_protein": null,
+          "variant_name": "R501X",
+          "hgvs_protein": "p.Arg501Ter",
           "risk_allele": "A",
           "ref_allele": "G",
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "No 2282del4 variant detected at this tag SNP. Normal filaggrin expression and skin barrier function."
+              "effect_summary": "No R501X variant detected at rs61816761. This single-site result does not rule out other FLG loss-of-function variants."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "One copy of the FLG loss-of-function tag. Reduced filaggrin expression. Associated with impaired skin barrier and increased susceptibility to atopic dermatitis and eczema."
+              "effect_summary": "One copy of the FLG R501X loss-of-function variant. Reduced filaggrin expression. Associated with impaired skin barrier and increased susceptibility to atopic dermatitis and eczema."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "One copy of the FLG loss-of-function tag. Reduced filaggrin expression. Associated with impaired skin barrier and increased susceptibility to atopic dermatitis and eczema."
+              "effect_summary": "One copy of the FLG R501X loss-of-function variant. Reduced filaggrin expression. Associated with impaired skin barrier and increased susceptibility to atopic dermatitis and eczema."
             },
             "AA": {
               "category": "Elevated",
-              "effect_summary": "Homozygous FLG loss-of-function tag. Severely impaired skin barrier. Strong association with atopic dermatitis, ichthyosis vulgaris, and increased allergen penetration."
+              "effect_summary": "Homozygous FLG R501X loss-of-function variant. Severely impaired skin barrier. Strong association with atopic dermatitis, ichthyosis vulgaris, and increased allergen penetration."
             }
           },
-          "coverage_note": "rs61816761 is a tag SNP for the FLG 2282del4 frameshift mutation. The actual 4-base-pair deletion is not directly genotyped on most SNP arrays. This proxy has reduced sensitivity — a negative result does not rule out FLG loss-of-function. Flagged as Insufficient Data for clinical-grade assessment.",
+          "coverage_note": "rs61816761 is the FLG R501X nonsense variant. This single-site result does not assess other FLG loss-of-function alleles such as 2282del4, so a negative result does not rule out FLG loss-of-function. Flagged as Insufficient Data for clinical-grade assessment.",
           "insufficient_data_flag": true,
           "evidence_level": 2,
           "pmids": ["16550169", "17597076", "21714652"],
-          "recommendation_text": "FLG loss-of-function variants are the strongest genetic risk factor for atopic dermatitis. Carriers benefit from regular emollient use to maintain skin barrier. Note: this result is based on a proxy SNP and may not capture all FLG mutations. Discuss comprehensive testing with a dermatologist if clinically relevant.",
+          "recommendation_text": "FLG loss-of-function variants are the strongest genetic risk factor for atopic dermatitis. Carriers benefit from regular emollient use to maintain skin barrier. Note: this result reflects only the assayed R501X site and may not capture all FLG mutations. Discuss comprehensive testing with a dermatologist if clinically relevant.",
           "cross_module": {
             "module": "allergy",
             "note": "FLG barrier defects increase allergen penetration and are linked to the atopic march (eczema → rhinitis → asthma)."
@@ -374,11 +374,11 @@
         }
       }
     },
-    "FLG_2282del4_proxy": {
-      "description": "FLG 2282del4 is a 4-base-pair frameshift deletion not directly genotyped on most SNP arrays. rs61816761 serves as a proxy tag SNP. The proxy has reduced sensitivity, so absence of the risk allele does not rule out FLG loss-of-function mutations. Result is flagged as Insufficient Data for clinical-grade skin barrier assessment.",
+    "FLG_R501X_limited_coverage": {
+      "description": "rs61816761 assays FLG R501X, a loss-of-function nonsense variant. This single-site array result does not assess other FLG loss-of-function alleles such as 2282del4, so absence of the R501X risk allele does not rule out FLG loss-of-function mutations. Result is flagged as Insufficient Data for clinical-grade skin barrier assessment.",
       "rsid": "rs61816761",
-      "proxy_target": "FLG 2282del4 (c.6867delTATT)",
-      "insufficient_data_reason": "Tag SNP proxy with incomplete linkage — does not capture all FLG null mutations (e.g., R501X). Full sequencing required for comprehensive FLG assessment."
+      "observed_variant": "FLG R501X (p.Arg501Ter)",
+      "insufficient_data_reason": "Single FLG loss-of-function site; does not capture 2282del4 or other FLG null mutations. Full sequencing required for comprehensive FLG assessment."
     }
   },
   "gwas_efo_terms": [

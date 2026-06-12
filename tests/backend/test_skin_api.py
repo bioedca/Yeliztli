@@ -118,13 +118,19 @@ PATHWAY_SUMMARY_FINDINGS = [
                     {
                         "rsid": "rs61816761",
                         "gene": "FLG",
-                        "variant_name": "2282del4 proxy",
+                        "variant_name": "R501X",
                         "genotype": "CC",
                         "category": "Standard",
-                        "effect_summary": "Wild-type proxy genotype — no indication of FLG loss.",
+                        "effect_summary": (
+                            "No R501X variant detected at rs61816761; other FLG LoF "
+                            "variants are not excluded."
+                        ),
                         "evidence_level": 2,
                         "mc1r_allele_class": None,
-                        "coverage_note": "Proxy tag SNP; incomplete linkage to FLG 2282del4.",
+                        "coverage_note": (
+                            "Single-site FLG R501X result; 2282del4 and other FLG LoF "
+                            "variants are not assessed."
+                        ),
                         "insufficient_data_flag": True,
                     },
                 ],
@@ -278,18 +284,20 @@ FLG_INSUFFICIENT_DATA_FINDING = {
     "gene_symbol": "FLG",
     "rsid": "rs61816761",
     "finding_text": (
-        "FLG 2282del4 — Insufficient Data. "
-        "Result is based on a proxy tag SNP (rs61816761) with incomplete "
-        "linkage to the actual 4-base-pair frameshift deletion."
+        "FLG R501X - Insufficient Data. "
+        "Result is based on the single assayed rs61816761 nonsense variant. "
+        "A negative result does not rule out other FLG loss-of-function alleles."
     ),
     "pathway": "Skin Barrier & Inflammation",
     "pathway_level": None,
     "pmid_citations": json.dumps(["16550169", "17597076"]),
     "detail_json": json.dumps(
         {
-            "proxy_target": "FLG 2282del4 (c.6867delTATT)",
+            "observed_variant": "FLG R501X (p.Arg501Ter)",
+            "proxy_target": None,
             "insufficient_data_reason": (
-                "Tag SNP proxy with incomplete linkage — does not capture all FLG null mutations."
+                "Single FLG loss-of-function site; does not capture 2282del4 "
+                "or other FLG null mutations."
             ),
         }
     ),

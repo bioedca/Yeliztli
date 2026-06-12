@@ -90,7 +90,7 @@ class CrossModuleItem(BaseModel):
 
 
 class InsufficientDataItem(BaseModel):
-    """Insufficient data caveat (e.g. FLG 2282del4 proxy)."""
+    """Insufficient data caveat for limited assay coverage."""
 
     rsid: str
     gene: str

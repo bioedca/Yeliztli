@@ -6,7 +6,7 @@ Covers:
   - 4 pathway cards (Pigmentation & UV Response, Skin Barrier & Inflammation,
     Oxidative Stress & Aging, Skin Micronutrients)
   - MC1R multi-allele haplotype-aware calling metadata (R/r allele classes)
-  - FLG 2282del4 proxy with coverage note and Insufficient Data flag
+  - FLG R501X limited-coverage note and Insufficient Data flag
   - Genotype effects categories are valid (Elevated/Moderate/Standard)
   - Evidence levels within expected range
   - Scoring rules match project conventions
@@ -36,7 +36,7 @@ EXPECTED_RSIDS = {
     "rs1805008",  # MC1R R160W
     "rs1805009",  # MC1R D294H
     "rs885479",  # MC1R R163Q
-    "rs61816761",  # FLG 2282del4
+    "rs61816761",  # FLG R501X
     "rs1695",  # GSTP1 Ile105Val
     "rs1799750",  # MMP1 1G/2G
     "rs4880",  # SOD2 Val16Ala
@@ -285,11 +285,11 @@ class TestMC1RMultiAllele:
                 assert "melanoma" in snp["cross_module"]["note"].lower()
 
 
-# ── FLG 2282del4 proxy tests ───────────────────────────────────────────
+# ── FLG R501X limited-coverage tests ────────────────────────────────────
 
 
-class TestFLGProxy:
-    """T3-53 precursor: validate FLG 2282del4 proxy metadata."""
+class TestFLGLimitedCoverage:
+    """T3-53 precursor: validate FLG R501X limited-coverage metadata."""
 
     def _get_flg(self, panel_data: dict) -> dict:
         for pathway in panel_data["pathways"]:
@@ -301,12 +301,18 @@ class TestFLGProxy:
     def test_flg_has_coverage_note(self, panel_data: dict) -> None:
         flg = self._get_flg(panel_data)
         assert "coverage_note" in flg
-        assert "proxy" in flg["coverage_note"].lower()
+        assert "R501X" in flg["coverage_note"]
+        assert "2282del4" in flg["coverage_note"]
 
     def test_flg_insufficient_data_flag(self, panel_data: dict) -> None:
-        """FLG 2282del4 must be flagged as Insufficient Data."""
+        """FLG R501X must be flagged as Insufficient Data."""
         flg = self._get_flg(panel_data)
         assert flg.get("insufficient_data_flag") is True
+
+    def test_flg_variant_identity(self, panel_data: dict) -> None:
+        flg = self._get_flg(panel_data)
+        assert flg["variant_name"] == "R501X"
+        assert flg["hgvs_protein"] == "p.Arg501Ter"
 
     def test_flg_in_skin_barrier_pathway(self, panel_data: dict) -> None:
         for pathway in panel_data["pathways"]:
@@ -321,10 +327,12 @@ class TestFLGProxy:
         assert flg["evidence_level"] == 2  # Well-replicated
 
     def test_flg_special_calling_section(self, panel_data: dict) -> None:
-        assert "FLG_2282del4_proxy" in panel_data["special_calling"]
-        sc = panel_data["special_calling"]["FLG_2282del4_proxy"]
+        assert "FLG_R501X_limited_coverage" in panel_data["special_calling"]
+        sc = panel_data["special_calling"]["FLG_R501X_limited_coverage"]
         assert sc["rsid"] == "rs61816761"
+        assert sc["observed_variant"] == "FLG R501X (p.Arg501Ter)"
         assert "insufficient_data_reason" in sc
+        assert "2282del4" in sc["insufficient_data_reason"]
 
     def test_flg_allergy_cross_link(self, panel_data: dict) -> None:
         """FLG should cross-link to Allergy module (atopic march)."""
@@ -457,7 +465,7 @@ class TestPathwayAllocation:
     def test_skin_barrier_inflammation_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "skin_barrier_inflammation")
         rsids = {s["rsid"] for s in pw["snps"]}
-        assert "rs61816761" in rsids  # FLG 2282del4
+        assert "rs61816761" in rsids  # FLG R501X
 
     def test_oxidative_stress_aging_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "oxidative_stress_aging")
