@@ -49,7 +49,7 @@ import structlog
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.insilico_tiers import insilico_block
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HET, ZYG_HOM_ALT
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -367,6 +367,68 @@ def extract_cancer_variants(
 # ── Findings storage ─────────────────────────────────────────────────────
 
 
+# Disease-status classes for a P/LP variant in the user-facing finding.
+DISEASE_AFFECTED = "affected"
+DISEASE_CARRIER = "carrier"
+DISEASE_POSSIBLE_BIALLELIC = "possible_biallelic"
+
+
+def classify_disease_status(
+    variant: CancerVariantResult,
+    variants: list[CancerVariantResult],
+) -> str:
+    """Classify whether a P/LP variant supports an affected-disease finding.
+
+    Autosomal-dominant (AD) cancer-predisposition genes (BRCA1/2, TP53, MLH1,
+    APC, …) are disease-relevant when heterozygous. Autosomal-recessive (AR)
+    conditions — MUTYH-Associated Polyposis (MAP) is this panel's one AR gene —
+    require a biallelic genotype, so a single heterozygous P/LP allele is a
+    *carrier* state, not an affected diagnosis (issue #86, mirroring #36).
+
+    Returns:
+        - ``DISEASE_AFFECTED``: AD variant, or AR variant homozygous for the alt
+          (biallelic at one locus).
+        - ``DISEASE_POSSIBLE_BIALLELIC``: AR gene with ≥2 heterozygous P/LP loci —
+          a possible compound heterozygote, but genotype data cannot phase the
+          alleles, so biallelic status is unconfirmed.
+        - ``DISEASE_CARRIER``: AR gene with a single heterozygous P/LP allele.
+    """
+    if variant.inheritance != "AR":
+        return DISEASE_AFFECTED
+    if variant.zygosity == ZYG_HOM_ALT:
+        return DISEASE_AFFECTED
+    gene_het_plp = sum(
+        1 for v in variants if v.gene_symbol == variant.gene_symbol and v.zygosity == ZYG_HET
+    )
+    if gene_het_plp >= 2:
+        return DISEASE_POSSIBLE_BIALLELIC
+    return DISEASE_CARRIER
+
+
+def _cancer_finding_text(variant: CancerVariantResult, status: str) -> str:
+    """Render the user-facing finding text, gated by AR disease status (issue #86)."""
+    syndrome_text = ", ".join(variant.syndromes) if variant.syndromes else "Cancer predisposition"
+    sig = variant.clinvar_significance
+    head = f"{variant.gene_symbol} {variant.rsid} ({variant.genotype})"
+    if status == DISEASE_CARRIER:
+        return (
+            f"{head} — {sig}, heterozygous carrier. {syndrome_text} is autosomal "
+            f"recessive and requires biallelic (two-copy) variants, so a single "
+            f"pathogenic allele is a carrier state — not an affected diagnosis. "
+            f"Monoallelic carriers have at most a modest, still-debated increase in "
+            f"colorectal cancer risk; array data may not exclude a second untyped "
+            f"allele, so clinical/genetic confirmation is needed if indicated."
+        )
+    if status == DISEASE_POSSIBLE_BIALLELIC:
+        return (
+            f"{head} — {sig}, heterozygous (one of multiple {variant.gene_symbol} "
+            f"pathogenic alleles). {syndrome_text} is autosomal recessive; genotype "
+            f"data cannot phase these alleles, so biallelic (compound-heterozygous) "
+            f"status is possible but unconfirmed and requires clinical confirmation."
+        )
+    return f"{head} — {sig} for {syndrome_text}"
+
+
 def store_cancer_findings(
     result: CancerAnalysisResult,
     sample_engine: sa.Engine,
@@ -398,12 +460,11 @@ def store_cancer_findings(
         )
 
     for v in result.variants:
-        # Build human-readable finding text
-        sig_display = v.clinvar_significance
-        syndrome_text = ", ".join(v.syndromes) if v.syndromes else "Cancer predisposition"
-        finding_text = (
-            f"{v.gene_symbol} {v.rsid} ({v.genotype}) — {sig_display} for {syndrome_text}"
-        )
+        # Build human-readable finding text, gating autosomal-recessive conditions
+        # (MUTYH-Associated Polyposis) so a single heterozygous P/LP allele is framed
+        # as a carrier rather than an affected diagnosis (issue #86, mirroring #36).
+        disease_status = classify_disease_status(v, result.variants)
+        finding_text = _cancer_finding_text(v, disease_status)
 
         detail = {
             "genotype": v.genotype,
@@ -413,6 +474,7 @@ def store_cancer_findings(
             "syndromes": v.syndromes,
             "cancer_types": v.cancer_types,
             "inheritance": v.inheritance,
+            "disease_status": disease_status,
             "cross_links": v.cross_links,
             # Additive, DRAFT in-silico evidence tag (Pejaver 2022, REVEL-only).
             # Never mutates evidence_level / clinvar_significance below.

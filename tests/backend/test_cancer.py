@@ -19,12 +19,22 @@ import json
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
 
 from backend.analysis.cancer import (
+    DISEASE_AFFECTED,
+    DISEASE_CARRIER,
+    DISEASE_POSSIBLE_BIALLELIC,
+    CancerAnalysisResult,
     CancerGene,
     CancerPanel,
+    CancerVariantResult,
+    classify_disease_status,
+    extract_cancer_variants,
     load_cancer_panel,
+    store_cancer_findings,
 )
+from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -389,3 +399,163 @@ class TestDataclassProperties:
             notes="Test note",
         )
         assert gene.is_dual_role is False
+
+
+# ── AR-gating (MUTYH / MAP) regression — issue #86 ────────────────────────
+
+
+def _mutyh_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
+    """A MUTYH ClinVar P/LP annotated_variants row for AR-gating tests."""
+    return {
+        "rsid": rsid,
+        "chrom": "1",
+        "pos": pos,
+        "genotype": genotype,
+        "zygosity": zygosity,
+        "gene_symbol": "MUTYH",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 2,
+        "clinvar_accession": "VCV000000001",
+        "clinvar_conditions": "MUTYH-associated polyposis",
+        "annotation_coverage": 2,
+    }
+
+
+def _store_and_fetch(
+    panel: CancerPanel, engine: sa.Engine, rows: list[dict]
+) -> tuple[CancerAnalysisResult, list]:
+    with engine.begin() as conn:
+        conn.execute(sa.insert(annotated_variants), rows)
+    result = extract_cancer_variants(panel, engine)
+    store_cancer_findings(result, engine)
+    with engine.connect() as conn:
+        finding_rows = (
+            conn.execute(sa.select(findings).where(findings.c.module == "cancer")).mappings().all()
+        )
+    return result, finding_rows
+
+
+def _mutyh_result_variant(rsid: str, genotype: str, zygosity: str) -> CancerVariantResult:
+    """A MUTYH CancerVariantResult for unit-testing classify_disease_status."""
+    return CancerVariantResult(
+        rsid=rsid,
+        gene_symbol="MUTYH",
+        genotype=genotype,
+        zygosity=zygosity,
+        clinvar_significance="Pathogenic",
+        clinvar_review_stars=2,
+        clinvar_accession="VCV1",
+        clinvar_conditions="MUTYH-associated polyposis",
+        syndromes=["MUTYH-Associated Polyposis (MAP)"],
+        cancer_types=["Colorectal"],
+        inheritance="AR",
+        evidence_level=4,
+        cross_links=[],
+        pmids=[],
+    )
+
+
+class TestRecessiveInheritanceGating:
+    """A single heterozygous MUTYH P/LP allele is a carrier, not MAP-affected (#86)."""
+
+    def test_classify_single_het_ar_is_carrier(self) -> None:
+        v = _mutyh_result_variant("rs1", "CT", "het")
+        assert classify_disease_status(v, [v]) == DISEASE_CARRIER
+
+    def test_classify_homozygous_ar_is_affected(self) -> None:
+        v = _mutyh_result_variant("rs1", "TT", "hom_alt")
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    def test_classify_two_het_ar_is_possible_biallelic(self) -> None:
+        v1 = _mutyh_result_variant("rs1", "CT", "het")
+        v2 = _mutyh_result_variant("rs2", "AG", "het")
+        assert classify_disease_status(v1, [v1, v2]) == DISEASE_POSSIBLE_BIALLELIC
+
+    def test_classify_ad_het_is_affected(self) -> None:
+        v = CancerVariantResult(
+            rsid="rs2",
+            gene_symbol="BRCA1",
+            genotype="CT",
+            zygosity="het",
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=3,
+            clinvar_accession="VCV2",
+            clinvar_conditions="Hereditary breast and ovarian cancer",
+            syndromes=["Hereditary Breast and Ovarian Cancer (HBOC)"],
+            cancer_types=["Breast", "Ovarian"],
+            inheritance="AD",
+            evidence_level=4,
+            cross_links=["carrier"],
+            pmids=[],
+        )
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    def test_single_het_mutyh_finding_is_carrier_not_affected(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """The issue's core case: one het MUTYH P/LP must NOT read as MAP-affected."""
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_mutyh_variant("rs1", 45330000, "CT", "het")]
+        )
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "carrier" in text.lower()
+        assert "autosomal recessive" in text.lower()
+        # Must NOT assert the affected-disease phrasing for a single allele.
+        assert "Pathogenic for MUTYH-Associated Polyposis" not in text
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_CARRIER
+
+    def test_homozygous_mutyh_finding_is_affected(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """A homozygous (biallelic) MUTYH genotype still reads as MAP-affected."""
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_mutyh_variant("rs1", 45330000, "TT", "hom_alt")]
+        )
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "Pathogenic for MUTYH-Associated Polyposis (MAP)" in text
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_AFFECTED
+
+    def test_two_het_mutyh_is_possible_biallelic(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Two het P/LP loci in MUTYH → possible compound het, flagged unconfirmed."""
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                _mutyh_variant("rs1", 45330000, "CT", "het"),
+                _mutyh_variant("rs2", 45335000, "AG", "het"),
+            ],
+        )
+        assert len(rows) == 2
+        for row in rows:
+            text = row["finding_text"]
+            assert "Pathogenic for MUTYH-Associated Polyposis" not in text
+            assert json.loads(row["detail_json"])["disease_status"] == DISEASE_POSSIBLE_BIALLELIC
+            assert "compound" in text.lower() or "unconfirmed" in text.lower()
+
+    def test_ad_gene_het_finding_unchanged(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """An AD gene (BRCA1) het P/LP still reports the affected-disease phrasing."""
+        row = {
+            "rsid": "rs80357906",
+            "chrom": "17",
+            "pos": 43000000,
+            "genotype": "CT",
+            "zygosity": "het",
+            "gene_symbol": "BRCA1",
+            "clinvar_significance": "Pathogenic",
+            "clinvar_review_stars": 3,
+            "clinvar_accession": "VCV000000002",
+            "clinvar_conditions": "Hereditary breast and ovarian cancer",
+            "annotation_coverage": 2,
+        }
+        _, rows = _store_and_fetch(panel, sample_engine, [row])
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert " — Pathogenic for " in text
+        assert "carrier" not in text.lower()
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_AFFECTED
