@@ -577,9 +577,11 @@ class TestStoreCancerPRSFindings:
             ).fetchall()
 
         stored_traits = {json.loads(row.detail_json)["trait"] for row in rows}
+        expected_traits = {r.trait for r in prs_result.results if r.is_sufficient}
+        assert expected_traits
         assert count == prs_result.sufficient_count
         assert "prostate_cancer" not in stored_traits
-        assert stored_traits <= CANCER_PRS_TRAITS - {"prostate_cancer"}
+        assert stored_traits == expected_traits
 
     def test_detail_json_has_bootstrap_ci(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
