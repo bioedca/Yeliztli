@@ -31,10 +31,10 @@ PRIVATE_BUILD_POINTERS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
         "private rsync/scp host target",
         re.compile(rb"\b" + _literal("tw", "o") + rb":(?=[~/])"),
     ),
-    ("private cluster host FQDN", re.compile(_literal("tw", "o", ".am", "lab"))),
+    ("private cluster host FQDN", re.compile(_literal("tw", "o", ".", "am", "lab"))),
     (
         "private gateway host FQDN",
-        re.compile(_literal("ze", "ro", ".bio", "chem")),
+        re.compile(_literal("ze", "ro", ".", "bio", "chem")),
     ),
     ("private SLURM node mapping", re.compile(_literal("one", ",", "two"))),
     (

@@ -70,7 +70,7 @@ EXPECTED_HELPERS = [
 # dispatcher should accept it via env override only. Build the legacy path from
 # pieces so the repository-wide pointer guard does not exempt this test file.
 _PRIVATE_CLUSTER_ROOT = (
-    "/" + "exports" + "/" + "people" + "/" + "mondragon" + "lab" + "/" + "ecc" + "1695"
+    "/".join(("", "exports", "people", "mondragon" + "lab", "ecc" + "1695"))
 )
 _V1_HARDCODED_PATH = re.compile(
     re.escape(_PRIVATE_CLUSTER_ROOT + "/lai_bundle/") + r"(?!v2)"
