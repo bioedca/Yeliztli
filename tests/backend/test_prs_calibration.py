@@ -45,6 +45,9 @@ class TestEffectAlleleFrequency:
     def test_legacy_without_other_allele_still_does_not_flip(self) -> None:
         assert effect_allele_frequency("C", "G", "A", 0.25) is None
 
+    def test_malformed_other_allele_does_not_fall_back_to_legacy(self) -> None:
+        assert effect_allele_frequency("A", "A", "G", 0.25, other_allele="I") is None
+
     def test_palindromic_near_half_with_other_allele_is_dropped(self) -> None:
         assert effect_allele_frequency("A", "A", "T", 0.5, other_allele="T") is None
 

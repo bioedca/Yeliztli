@@ -111,8 +111,11 @@ def effect_allele_frequency(
     if ea is None or ref_u is None or alt_u is None:
         return None
 
+    has_other_allele = bool(other_allele and other_allele.strip())
     oa = _single_base(other_allele)
     if oa is None:
+        if has_other_allele:
+            return None
         return _frequency_for_reference_allele(ea, ref_u, alt_u, alt_af)
 
     if oa == COMPLEMENT[ea]:
