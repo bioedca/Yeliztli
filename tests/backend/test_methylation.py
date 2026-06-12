@@ -216,11 +216,18 @@ class TestGenotypeNormalization:
     def test_whitespace(self) -> None:
         assert _normalize_genotype("  CT  ") == "CT"
 
-    def test_indel_markers(self) -> None:
+    def test_indel_markers_are_no_call_without_panel_context(self) -> None:
         assert _normalize_genotype("II") is None
         assert _normalize_genotype("DD") is None
         assert _normalize_genotype("DI") is None
         assert _normalize_genotype("ID") is None
+
+    def test_panel_defined_indel_markers_are_preserved(self) -> None:
+        scorable_genotypes = {"II", "ID", "DI", "DD"}
+        assert _normalize_genotype("II", scorable_genotypes=scorable_genotypes) == "II"
+        assert _normalize_genotype("DD", scorable_genotypes=scorable_genotypes) == "DD"
+        assert _normalize_genotype("DI", scorable_genotypes=scorable_genotypes) == "DI"
+        assert _normalize_genotype("ID", scorable_genotypes=scorable_genotypes) == "ID"
 
     def test_lowercase(self) -> None:
         assert _normalize_genotype("ct") == "CT"
@@ -511,6 +518,36 @@ class TestPathwayLevel:
 
 
 class TestScorePathways:
+    @pytest.mark.parametrize(
+        ("genotype", "expected_category"),
+        [
+            ("II", STANDARD),
+            ("ID", MODERATE),
+            ("DI", MODERATE),
+            ("DD", MODERATE),
+        ],
+    )
+    def test_dhfr_indel_genotypes_score_through_pipeline(
+        self,
+        genotype: str,
+        expected_category: str,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """DHFR 19 bp I/D calls are curated panel genotypes, not no-calls."""
+        _seed_variants(sample_engine, [("rs70991108", "5", 79950755, genotype)])
+
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+
+        folate = next(pr for pr in result.pathway_results if pr.pathway_id == "folate_mthfr")
+        dhfr = next((s for s in folate.snp_results if s.rsid == "rs70991108"), None)
+
+        assert dhfr is not None
+        assert dhfr.present_in_sample is True
+        assert dhfr.genotype == genotype
+        assert dhfr.category == expected_category
+
     def test_full_scoring_mthfr_variants(
         self,
         panel: MethylationPanel,

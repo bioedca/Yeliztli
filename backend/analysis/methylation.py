@@ -33,6 +33,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from collections.abc import Container
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -62,6 +63,10 @@ _MULTIPLE_MODERATE_FINDINGS_THRESHOLD = 3
 
 # Module name for findings storage
 MODULE_NAME = "methylation"
+
+# Some methylation panel entries intentionally use insertion/deletion genotype
+# vocabulary that other trait modules treat as unscoreable raw no-calls.
+_SCORABLE_PANEL_INDELS = frozenset({"II", "ID", "DI", "DD"})
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -235,15 +240,30 @@ def load_methylation_panel(panel_path: Path | None = None) -> MethylationPanel:
 # ── Genotype scoring ─────────────────────────────────────────────────────
 
 
-def _normalize_genotype(genotype: str | None) -> str | None:
+def _normalize_genotype(
+    genotype: str | None,
+    *,
+    scorable_genotypes: Container[str] | None = None,
+) -> str | None:
     """Normalize genotype string for lookup.
 
     Handles common formats: 'CT', 'TC', '--' (no-call).
     Returns None for no-calls or missing data.
     """
+    if genotype is None:
+        return None
+
+    normalized = genotype.strip().upper()
+    if (
+        normalized in _SCORABLE_PANEL_INDELS
+        and scorable_genotypes is not None
+        and normalized in scorable_genotypes
+    ):
+        return normalized
+
     if is_no_call(genotype):
         return None
-    return genotype.strip().upper()
+    return normalized
 
 
 def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
@@ -471,7 +491,10 @@ def score_methylation_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            gt = _normalize_genotype(
+                genotypes.get(snp.rsid),
+                scorable_genotypes=snp.genotype_effects,
+            )
             result = _score_snp(snp, gt)
             snp_results.append(result)
 
