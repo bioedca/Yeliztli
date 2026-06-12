@@ -66,6 +66,18 @@ def _pgs_engine() -> sa.Engine:
     return engine
 
 
+def _empty_pgs_engine() -> sa.Engine:
+    """A non-None score DB with the tables but no LDL-C score row.
+
+    Drives the second ``score_ldl_prs`` None path: ``pgs_engine`` is present but
+    ``build_trait_weight_set`` finds no matching weight set (a working DB that
+    simply lacks an LDL-C score) — distinct from ``pgs_engine is None``.
+    """
+    engine = sa.create_engine("sqlite://")
+    create_pgs_tables(engine)
+    return engine
+
+
 def _insert_monogenic(engine: sa.Engine, gene: str, *, sig: str, zyg: str) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -241,3 +253,69 @@ class TestAssessAndStore:
                 sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
             ).fetchall()
         assert remaining == []  # no stale PRS finding carried forward
+
+    def test_rerun_clears_stale_prs_when_no_ldl_weight_set(self, sample_engine: sa.Engine) -> None:
+        # The realistic production case: the score DB is *present* but has no
+        # LDL-C score, so build_trait_weight_set returns None (the second
+        # score_ldl_prs None path). The stale finding must still be cleared.
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsL0",
+                        "chrom": "1",
+                        "pos": 500,
+                        "genotype": "AA",
+                        "gnomad_af_global": 0.2,
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        store_fh_findings(
+            assess_fh(sample_engine, _pgs_engine(), inferred_ancestry="EUR"), sample_engine
+        )
+        second = assess_fh(sample_engine, _empty_pgs_engine(), inferred_ancestry="EUR")
+        assert second.ldl_prs is None  # engine present, but no LDL-C weight set
+        store_fh_findings(second, sample_engine)
+        with sample_engine.connect() as conn:
+            remaining = conn.execute(
+                sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
+            ).fetchall()
+        assert remaining == []
+
+    def test_stale_prs_clear_preserves_fdb_finding(self, sample_engine: sa.Engine) -> None:
+        # The clear is scoped to category=='prs' and must not over-delete a
+        # co-existing fh/fdb_variant carrier finding on a score-DB-less re-run.
+        _insert_apob_fdb(sample_engine, genotype="CT", sig="Pathogenic")
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsL0",
+                        "chrom": "1",
+                        "pos": 500,
+                        "genotype": "AA",
+                        "gnomad_af_global": 0.2,
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        # First run stores BOTH an fh/prs and an fh/fdb_variant finding.
+        assert (
+            store_fh_findings(assess_fh(sample_engine, _pgs_engine(), "EUR"), sample_engine) == 2
+        )
+        # Re-run without the score DB: PRS cleared, FDB carrier finding preserved.
+        store_fh_findings(assess_fh(sample_engine, None, "EUR"), sample_engine)
+        with sample_engine.connect() as conn:
+            prs = conn.execute(
+                sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
+            ).fetchall()
+            fdb = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "fh", findings.c.category == "fdb_variant"
+                )
+            ).fetchall()
+        assert prs == []  # stale PRS gone
+        assert len(fdb) == 1 and fdb[0].gene_symbol == "APOB"  # carrier finding intact
