@@ -729,8 +729,8 @@ class TestRunHaplogroupAssignment:
 # ── Sex-inference rewire regression (Step 54 / Plan §9.4) ───────────────
 
 
-# Heterozygous non-PAR chrX call → dispositive XX under the Plan §9.4
-# algorithm, regardless of chrY signal.
+# Heterozygous non-PAR chrX call with no chrY evidence → XX under the
+# Plan §9.4 algorithm.
 _XX_CHROM_X_HET = [
     {"rsid": "rs_xx_x_het_1", "chrom": "X", "pos": 50_000_001, "genotype": "AG"},
     {"rsid": "rs_xx_x_hom_1", "chrom": "X", "pos": 50_000_002, "genotype": "GG"},

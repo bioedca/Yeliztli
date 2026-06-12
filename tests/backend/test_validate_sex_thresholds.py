@@ -14,8 +14,9 @@ Coverage:
 - Programmatic ``build_report`` shape + classification across the three
   fixtures.
 - ``classify()`` helper unit cases pinning the Plan §9.4 algorithm branches
-  directly (dispositive XX, candidate-XY → confirmed/manual_review/unknown
-  via chrY rate, fallback to ``unknown`` when chrX is uninformative).
+  directly (XX evidence at/below the chrY noise floor, discordant X/Y
+  manual_review, candidate-XY → confirmed/manual_review/unknown via chrY
+  rate, fallback to ``unknown`` when chrX is uninformative).
 - PAR pre-filter actually drops PAR1/PAR2 rows (asserted via the XX +
   XY fixtures, both of which carry chr-25 PAR1 hets that would flip the
   classification if leaked through).
@@ -56,7 +57,7 @@ from scripts.validate_sex_thresholds import (  # noqa: E402 — sys.path tweak a
 # ---------------------------------------------------------------------------
 
 
-def test_xx_fixture_classifies_as_xx_with_dispositive_het() -> None:
+def test_xx_fixture_classifies_as_xx_with_unopposed_x_het() -> None:
     report = build_report(FIXTURE_DIR / "xx_sample.txt")
 
     assert report.vendor == "ancestrydna"
@@ -74,7 +75,7 @@ def test_xx_fixture_classifies_as_xx_with_dispositive_het() -> None:
     assert report.x_par_count == 2
     assert report.x_total == report.x_par_count + report.x_nonpar_typed + report.x_nonpar_nocall
 
-    # chrY rate is 0 here; XX is dispositive regardless.
+    # chrY rate is 0 here; the X-het signal is unopposed and yields XX.
     assert report.y_total == 6
     assert report.y_typed == 0
     assert report.y_rate == pytest.approx(0.0)
@@ -126,9 +127,12 @@ def test_manual_review_thresholds_round_trip_defaults() -> None:
 @pytest.mark.parametrize(
     "params, expected",
     [
-        # Dispositive XX — any het overrides everything, including high chrY rate.
-        (dict(x_nonpar_het=1, x_nonpar_typed=4, x_nonpar_hom=3, y_rate=0.9), "XX"),
+        # Non-PAR chrX het supports XX when chrY is at/below the noise floor.
         (dict(x_nonpar_het=1, x_nonpar_typed=1, x_nonpar_hom=0, y_rate=0.0), "XX"),
+        (dict(x_nonpar_het=1, x_nonpar_typed=1, x_nonpar_hom=0, y_rate=0.10), "XX"),
+        # Non-PAR chrX het + chrY above the noise floor is discordant.
+        (dict(x_nonpar_het=1, x_nonpar_typed=4, x_nonpar_hom=3, y_rate=0.11), "manual_review"),
+        (dict(x_nonpar_het=1, x_nonpar_typed=4, x_nonpar_hom=3, y_rate=0.9), "manual_review"),
         # Candidate XY — chrY rate above XY-confirm → XY.
         (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.31), "XY"),
         # Candidate XY — chrY rate in (PAR-noise, XY-confirm] → manual_review.

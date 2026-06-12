@@ -1,15 +1,17 @@
 """Biological sex inference from a sample's raw genotype data (Plan §9.4).
 
-The Plan §9.4 algorithm is PAR-aware and ``non-PAR-chrX-first``:
+The Plan §9.4 algorithm is PAR-aware and conservative about discordant
+chrX/chrY evidence:
 
 1. **Pre-filter.** Drop every chrX call whose position falls inside PAR1
    or PAR2 — PAR sites are diploid in both XX and XY individuals and
    carry no sex signal. Both vendor parsers collapse PAR rows to chrX,
    so a PAR locus arrives here as a chrX position in one of the two
    intervals.
-2. **Dispositive XX.** A single heterozygous non-PAR chrX call is
-   dispositive for XX — males cannot be heterozygous on a non-PAR chrX
-   locus. This short-circuits before chrY is read.
+2. **XX evidence.** A heterozygous non-PAR chrX call supports XX only
+   when chrY evidence is at or below the PAR-noise floor. If chrY rises
+   above the manual-review threshold, the sample is discordant and must
+   not be silently treated as ordinary XX.
 3. **Candidate XY.** If at least one non-PAR chrX SNP was typed and
    every typed call is homozygous, the sample is a *candidate* XY that
    needs chrY confirmation.
@@ -91,11 +93,13 @@ def _classify(
 ) -> Classification:
     """Apply the Plan §9.4 decision tree to pre-tabulated counts.
 
-    Order is load-bearing: the dispositive-XX branch must short-circuit
-    before chrY is read so that chrY noise cannot drag a true XX sample
-    into ``manual_review``.
+    Order is load-bearing: non-PAR chrX heterozygosity is XX evidence only
+    while chrY is at/below the PAR-noise floor. Stronger chrY evidence makes
+    the X/Y signals discordant and returns ``manual_review``.
     """
     if x_nonpar_het >= 1:
+        if y_rate > _THRESHOLD_PAR_NOISE:
+            return "manual_review"
         return "XX"
     if x_nonpar_typed > 0 and x_nonpar_hom == x_nonpar_typed:
         if y_rate > _THRESHOLD_XY_CONFIRM:

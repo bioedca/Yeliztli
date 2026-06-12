@@ -40,7 +40,7 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     create_sample_tables(sample_engine)
 
     # A second sample (non-carrier female negative control): a dummy non-PAR chrX
-    # het makes her dispositive XX, with a reference G6PD allele → "normal".
+    # het with no chrY evidence makes her XX, with a reference G6PD allele → "normal".
     noncarrier_db_path = tmp_data_dir / "samples" / "sample_2.db"
     noncarrier_engine = sa.create_engine(f"sqlite:///{noncarrier_db_path}")
     create_sample_tables(noncarrier_engine)
@@ -64,7 +64,7 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 file_hash="def456",
             )
         )
-    # A heterozygous non-PAR chrX call is dispositive for XX; a het A- allele then
+    # A heterozygous non-PAR chrX call with no chrY evidence is XX; a het A- allele then
     # yields the safety-critical "variable" phenotype (X-inactivation).
     with sample_engine.begin() as conn:
         conn.execute(
@@ -75,7 +75,7 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         conn.execute(
             raw_variants.insert(),
             [
-                # Dummy non-PAR chrX het → dispositive XX.
+                # Dummy non-PAR chrX het with no chrY evidence → XX.
                 {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
                 # Reference G6PD A- allele → no deficiency.
                 {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CC"},

@@ -35,7 +35,7 @@ of both PAR intervals.
 
 ### `xx_sample.txt` → classification **`XX`**
 
-Dispositive: ≥1 het call on non-PAR chrX.
+XX-supporting: ≥1 het call on non-PAR chrX with chrY at/below the noise floor.
 
 - chr 23 (non-PAR X): 2 het, 2 hom, 1 no-call → `x_nonpar_het = 2`
 - chr 25 (PAR X): 2 het rows in PAR1 — pre-filtered out

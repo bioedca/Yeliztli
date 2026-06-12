@@ -124,9 +124,9 @@ def classify(
 
     Order is load-bearing:
 
-    1. ``≥1`` heterozygous non-PAR chrX call is dispositive for XX and
-       overrides everything downstream (males cannot be heterozygous on a
-       non-PAR chrX locus).
+    1. ``≥1`` heterozygous non-PAR chrX call supports XX only when chrY
+       evidence is at/below the PAR-noise floor. Above that floor, the
+       X/Y signals are discordant and require manual review.
     2. Otherwise, if at least one non-PAR chrX SNP was typed and every
        typed call is homozygous, the sample is a *candidate* XY that needs
        chrY confirmation.
@@ -136,6 +136,8 @@ def classify(
        assigning.
     """
     if x_nonpar_het >= 1:
+        if y_rate > par_noise:
+            return "manual_review"
         return "XX"
     if x_nonpar_typed > 0 and x_nonpar_hom == x_nonpar_typed:
         if y_rate > xy_confirm:

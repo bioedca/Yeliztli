@@ -53,7 +53,7 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
                 {"rsid": "r1", "chrom": "1", "pos": 1000, "genotype": "AG"},
                 {"rsid": "r2", "chrom": "2", "pos": 2000, "genotype": "AA"},
                 {"rsid": "r3", "chrom": "3", "pos": 3000, "genotype": "CT"},
-                # A heterozygous non-PAR chrX call → dispositive for genetic XX.
+                # A heterozygous non-PAR chrX call with no chrY evidence → genetic XX.
                 {"rsid": "rx", "chrom": "X", "pos": 5_000_000, "genotype": "AG"},
             ],
         )

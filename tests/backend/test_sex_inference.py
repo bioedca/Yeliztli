@@ -1,7 +1,7 @@
 """Tests for ``backend.services.sex_inference`` (Plan §9.4, IND-08 part b).
 
 Covers the four classifications (XX / XY / manual_review / unknown), the
-order-of-operations short-circuits, the PAR pre-filter, and the
+discordant chrX/chrY evidence branch, the PAR pre-filter, and the
 load-bearing threshold + PAR constants from
 ``docs/sex_inference_threshold_validation.md``.
 
@@ -101,8 +101,8 @@ class TestValidatedConstants:
 class TestClassificationBranches:
     """One canonical happy-path test per Plan §9.4 branch."""
 
-    def test_xx_dispositive_single_nonpar_het(self, sample_engine: sa.Engine) -> None:
-        """A single non-PAR chrX het overrides everything."""
+    def test_xx_single_nonpar_het_without_chry_signal(self, sample_engine: sa.Engine) -> None:
+        """A single non-PAR chrX het with no chrY evidence yields XX."""
         _seed(
             sample_engine,
             [
@@ -175,7 +175,7 @@ class TestClassificationBranches:
         assert infer_biological_sex(sample_engine) == "unknown"
 
 
-# ── Order-of-operations and PAR pre-filter ──────────────────────────────
+# ── Discordant chrX/chrY evidence and PAR pre-filter ────────────────────
 
 
 class TestPARPreFilter:
@@ -215,26 +215,38 @@ class TestPARPreFilter:
         assert infer_biological_sex(sample_engine) == "XY"
 
 
-class TestDispositiveXXShortCircuit:
-    """A single non-PAR chrX het wins regardless of chrY signal — males
-    cannot be heterozygous on a non-PAR chrX locus."""
+class TestXHetWithChrYSignal:
+    """Non-PAR chrX heterozygosity stays XX only while chrY is at/below
+    the PAR-noise floor; stronger chrY signal is discordant."""
 
-    def test_chrY_noise_in_manual_review_band_does_not_override(
+    def test_chrY_at_par_noise_floor_does_not_override_x_het(
         self, sample_engine: sa.Engine
     ) -> None:
         _seed(
             sample_engine,
             [
                 {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                # 2/10 chrY = 0.20 → in manual_review band, but dispositive XX wins.
-                *_y_rows(typed=2, nocall=8),
+                # 1/10 chrY = 0.10, exactly the PAR-noise floor.
+                *_y_rows(typed=1, nocall=9),
             ],
         )
         assert infer_biological_sex(sample_engine) == "XX"
 
-    def test_chrY_rate_above_confirm_does_not_override(self, sample_engine: sa.Engine) -> None:
-        """Defensive: even a confirm-grade chrY rate doesn't beat
-        a dispositive non-PAR chrX het."""
+    def test_chrY_noise_in_manual_review_band_flags_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
+                # 2/10 chrY = 0.20, above the PAR-noise floor.
+                *_y_rows(typed=2, nocall=8),
+            ],
+        )
+        assert infer_biological_sex(sample_engine) == "manual_review"
+
+    def test_chrY_rate_above_confirm_flags_manual_review(self, sample_engine: sa.Engine) -> None:
+        """Confirm-grade chrY plus a non-PAR chrX het is discordant, not XY."""
         _seed(
             sample_engine,
             [
@@ -242,7 +254,26 @@ class TestDispositiveXXShortCircuit:
                 *_y_rows(typed=8, nocall=2),  # 0.80
             ],
         )
-        assert infer_biological_sex(sample_engine) == "XX"
+        assert infer_biological_sex(sample_engine) == "manual_review"
+
+    def test_multiple_x_hets_plus_confirm_grade_chry_flags_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Regression for issue #122: an XXY-like array signal is not ordinary XX."""
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rs_x_het_1", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
+                {
+                    "rsid": "rs_x_het_2",
+                    "chrom": "X",
+                    "pos": _NONPAR_X_BASE + 1,
+                    "genotype": "CT",
+                },
+                *_y_rows(typed=8, nocall=2),  # 0.80
+            ],
+        )
+        assert infer_biological_sex(sample_engine) == "manual_review"
 
 
 # ── Parametric assertion: returned type lands in the Literal alphabet ──
@@ -298,8 +329,7 @@ def test_returns_literal_alphabet(
 class TestIND09bEdgeCases:
     """Plan §14.1 IND-09b edge-case battery — hardens the boundary
     behaviors around the PAR pre-filter, the candidate-XY → chrY-confirmation
-    handoff, and the dispositive-XX short-circuit at the
-    (non-PAR het | tiny chrY noise) intersection.
+    handoff, and discordant non-PAR chrX het + chrY signal.
 
     Each test maps to one bullet in IND-09b:
 
@@ -309,9 +339,9 @@ class TestIND09bEdgeCases:
                 (candidate-XY without confirmation falls back)
       (iii)     chrY rate in ``(_THRESHOLD_PAR_NOISE, _THRESHOLD_XY_CONFIRM]``
                 + all non-PAR chrX homozygous → ``manual_review``
-      (iii-bis) Non-PAR het + chrY noise just above PAR-noise floor → ``XX``
-                (dispositive short-circuit pinned end-to-end and by
-                direct ``_classify`` assertion)
+      (iii-bis) Non-PAR het + chrY signal just above PAR-noise floor
+                → ``manual_review`` (pinned end-to-end and by direct
+                ``_classify`` assertion)
     """
 
     # ── (i) chrM-only ──────────────────────────────────────────────────
@@ -338,7 +368,7 @@ class TestIND09bEdgeCases:
     def test_ii_par1_and_par2_het_only_returns_unknown(self, sample_engine: sa.Engine) -> None:
         """Het PAR1 + Het PAR2 + no non-PAR chrX + no chrY → ``unknown``.
         Both PAR rows fall under the pre-filter so ``x_nonpar_typed`` stays
-        zero and neither the dispositive-XX nor candidate-XY branch fires."""
+        zero and neither the XX-evidence nor candidate-XY branch fires."""
         _seed(
             sample_engine,
             [
@@ -432,16 +462,14 @@ class TestIND09bEdgeCases:
         )
         assert infer_biological_sex(sample_engine) == "XY"
 
-    # ── (iii-bis) dispositive-XX short-circuit at the noise floor ──────
+    # ── (iii-bis) discordant chrX het + chrY signal ────────────────────
 
-    def test_iii_bis_nonpar_het_plus_chrY_just_above_floor_yields_xx(
+    def test_iii_bis_nonpar_het_plus_chrY_just_above_floor_yields_manual_review(
         self, sample_engine: sa.Engine
     ) -> None:
         """Non-PAR het + chrY rate **just above** ``_THRESHOLD_PAR_NOISE``
-        (2/18 ≈ 0.111) → ``XX``. Complements the existing mid-band
-        (0.20) and above-confirm (0.80) dispositive-XX cases by pinning
-        the floor-adjacent boundary too — proves the short-circuit doesn't
-        accidentally fall through when the noise is small but non-zero."""
+        (2/18 ≈ 0.111) → ``manual_review``. This pins the floor-adjacent
+        boundary for discordant X/Y evidence."""
         _seed(
             sample_engine,
             [
@@ -449,28 +477,26 @@ class TestIND09bEdgeCases:
                 *_y_rows(typed=2, nocall=16),
             ],
         )
-        assert infer_biological_sex(sample_engine) == "XX"
+        assert infer_biological_sex(sample_engine) == "manual_review"
 
-    def test_iii_bis_classify_helper_ignores_y_rate_under_dispositive_xx(
+    def test_iii_bis_classify_helper_escalates_discordant_x_het_and_y_signal(
         self,
     ) -> None:
-        """Direct ``_classify`` assertion of the dispositive-XX short-circuit.
+        """Direct ``_classify`` assertion of the X-het / chrY boundary.
 
-        With ``x_nonpar_het >= 1`` the classifier returns ``"XX"`` for every
-        ``y_rate`` in the [0, 1) domain — proves chrY is never consulted
-        once a non-PAR het is in evidence. End-to-end tests above pin the
-        same invariant through the public ``infer_biological_sex`` entry
-        point; this one pins it at the decision-tree level so any future
-        re-ordering of the branches in ``_classify`` trips the test."""
-        for y_rate in (
-            0.0,
-            _THRESHOLD_PAR_NOISE,
-            _THRESHOLD_PAR_NOISE + 0.01,  # just above the floor
-            0.20,
-            _THRESHOLD_XY_CONFIRM,
-            _THRESHOLD_XY_CONFIRM + 0.01,  # just above confirm
-            0.50,
-            0.999,
+        With ``x_nonpar_het >= 1`` the classifier returns ``"XX"`` only
+        while chrY remains at/below the PAR-noise floor. Anything above
+        that floor returns ``manual_review`` instead of silently reporting
+        ordinary XX."""
+        for y_rate, expected in (
+            (0.0, "XX"),
+            (_THRESHOLD_PAR_NOISE, "XX"),
+            (_THRESHOLD_PAR_NOISE + 0.01, "manual_review"),
+            (0.20, "manual_review"),
+            (_THRESHOLD_XY_CONFIRM, "manual_review"),
+            (_THRESHOLD_XY_CONFIRM + 0.01, "manual_review"),
+            (0.50, "manual_review"),
+            (0.999, "manual_review"),
         ):
             assert (
                 _classify(
@@ -479,5 +505,5 @@ class TestIND09bEdgeCases:
                     x_nonpar_hom=0,
                     y_rate=y_rate,
                 )
-                == "XX"
-            ), f"_classify lost dispositive-XX short-circuit at y_rate={y_rate}"
+                == expected
+            ), f"_classify misclassified discordant X/Y evidence at y_rate={y_rate}"

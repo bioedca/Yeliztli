@@ -513,14 +513,14 @@ def clinvar_row(
 # ── Reusable genotype scaffolding ─────────────────────────────────────────
 
 # A small spread of autosomal hom-ref calls plus one heterozygous non-PAR chrX
-# call. ``infer_biological_sex`` treats a single non-PAR chrX het as dispositive
-# for XX, so prepending this to a variant list yields an XX sample without
-# needing a full chip's worth of rows.
+# call. With no competing chrY evidence, ``infer_biological_sex`` treats this
+# as XX, so prepending it to a variant list yields an XX sample without needing
+# a full chip's worth of rows.
 XX_SCAFFOLD: tuple[dict, ...] = (
     {"rsid": "rs_xx_scaffold", "chrom": "X", "pos": 50_000_000, "genotype": "AG"},
 )
 
 
 def with_xx_scaffold(variants: list[dict]) -> list[dict]:
-    """Return *variants* prefixed with the XX-dispositive chrX het call."""
+    """Return *variants* prefixed with the XX-supporting chrX het call."""
     return [*XX_SCAFFOLD, *variants]
