@@ -513,14 +513,29 @@ def clinvar_row(
 # ── Reusable genotype scaffolding ─────────────────────────────────────────
 
 # A small spread of autosomal hom-ref calls plus one heterozygous non-PAR chrX
-# call. With no competing chrY evidence, ``infer_biological_sex`` treats this
-# as XX, so prepending it to a variant list yields an XX sample without needing
-# a full chip's worth of rows.
+# call. With no chrY evidence above the noise floor, ``infer_biological_sex``
+# treats this as XX, so prepending it to a variant list yields an XX sample
+# without needing a full chip's worth of rows.
 XX_SCAFFOLD: tuple[dict, ...] = (
     {"rsid": "rs_xx_scaffold", "chrom": "X", "pos": 50_000_000, "genotype": "AG"},
+)
+
+CHRY_NOISE_FLOOR_NOCALLS: tuple[dict, ...] = tuple(
+    {
+        "rsid": f"rs_y_noise_floor_nc_{i}",
+        "chrom": "Y",
+        "pos": 2_700_100 + i,
+        "genotype": "--",
+    }
+    for i in range(9)
 )
 
 
 def with_xx_scaffold(variants: list[dict]) -> list[dict]:
     """Return *variants* prefixed with the XX-supporting chrX het call."""
     return [*XX_SCAFFOLD, *variants]
+
+
+def with_chry_noise_floor(typed_y_variant: dict) -> list[dict]:
+    """Return one typed chrY row plus no-calls so ``y_rate == 0.10``."""
+    return [typed_y_variant, *CHRY_NOISE_FLOOR_NOCALLS]

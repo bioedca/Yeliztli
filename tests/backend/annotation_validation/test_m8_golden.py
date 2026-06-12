@@ -20,7 +20,11 @@ import os
 from pathlib import Path
 
 from backend.analysis.qc_carriage import audit_carriage
-from tests.backend.annotation_validation.conftest import clinvar_row, with_xx_scaffold
+from tests.backend.annotation_validation.conftest import (
+    clinvar_row,
+    with_chry_noise_floor,
+    with_xx_scaffold,
+)
 
 GOLDEN_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -35,7 +39,7 @@ _GOLDEN_VARIANTS = with_xx_scaffold(
         {"rsid": "rs_het", "chrom": "7", "pos": 100, "genotype": "GA"},
         {"rsid": "rs_homalt", "chrom": "7", "pos": 200, "genotype": "AA"},
         {"rsid": "rs_homref", "chrom": "7", "pos": 300, "genotype": "GG"},
-        {"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"},
+        *with_chry_noise_floor({"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"}),
     ]
 )
 _GOLDEN_CLINVAR = [

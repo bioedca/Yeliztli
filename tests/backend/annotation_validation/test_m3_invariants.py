@@ -14,7 +14,11 @@ the supporting fixtures already exist.
 from __future__ import annotations
 
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
-from tests.backend.annotation_validation.conftest import clinvar_row, with_xx_scaffold
+from tests.backend.annotation_validation.conftest import (
+    clinvar_row,
+    with_chry_noise_floor,
+    with_xx_scaffold,
+)
 
 _PATHOGENIC_CATEGORIES = ("clinvar_pathogenic", "ensemble_pathogenic", "rare")
 
@@ -117,7 +121,9 @@ def test_inv3_no_double_carry_at_palindrome() -> None:
 def test_inv4_no_chry_finding_on_xx(build_live_run) -> None:
     run = build_live_run(
         variants=with_xx_scaffold(
-            [{"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"}]
+            with_chry_noise_floor(
+                {"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"}
+            )
         ),
         clinvar=[clinvar_row("rs_y", "Y", 2_700_000, "A", "G", "Pathogenic", 2, gene="SRY")],
     )

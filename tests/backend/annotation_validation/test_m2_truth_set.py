@@ -18,7 +18,7 @@ they would have failed on day one.
 
 from __future__ import annotations
 
-from tests.backend.annotation_validation.conftest import with_xx_scaffold
+from tests.backend.annotation_validation.conftest import with_chry_noise_floor, with_xx_scaffold
 
 
 def _clinvar(rsid, chrom, pos, ref, alt, sig, stars, *, gene="GENEX"):
@@ -297,7 +297,9 @@ def test_merged_rsid_resolved(build_live_run) -> None:
 def test_no_chry_finding_on_xx_sample(build_live_run) -> None:
     run = build_live_run(
         variants=with_xx_scaffold(
-            [{"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"}]
+            with_chry_noise_floor(
+                {"rsid": "rs_y", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"}
+            )
         ),
         clinvar=[_clinvar("rs_y", "Y", 2_700_000, "A", "G", "Pathogenic", 2, gene="SRY")],
     )
