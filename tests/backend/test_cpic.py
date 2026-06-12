@@ -228,8 +228,8 @@ class TestParseGuidelinesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
-        assert len(rows) == 65  # E1 (59) + CYP2B6 efavirenz (3) + NAT2 isoniazid (3) (SW-E1b)
-        assert stats.guidelines_loaded == 65
+        assert len(rows) == 67  # E1 (61) + CYP2B6 efavirenz (3) + NAT2 isoniazid (3) (SW-E1b)
+        assert stats.guidelines_loaded == 67
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):

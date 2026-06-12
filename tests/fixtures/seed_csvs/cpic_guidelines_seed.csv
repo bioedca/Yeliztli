@@ -10,6 +10,7 @@ CYP2D6,tramadol,Intermediate Metabolizer,Use label-recommended dosing.,B,https:/
 CYP2D6,tramadol,Ultrarapid Metabolizer,Avoid tramadol. Risk of respiratory depression.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
 CYP2D6,ondansetron,Ultrarapid Metabolizer,Select alternative antiemetic not metabolized by CYP2D6.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
 CYP2D6,ondansetron,Normal Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
+CYP2D6,ondansetron,Intermediate Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
 CYP2D6,ondansetron,Poor Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
 CYP2D6,tamoxifen,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
 CYP2D6,tamoxifen,Intermediate Metabolizer,Consider higher dose or alternative therapy.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
@@ -19,6 +20,7 @@ CYP2C19,clopidogrel,Intermediate Metabolizer,Consider alternative antiplatelet t
 CYP2C19,clopidogrel,Rapid Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
 CYP2C19,clopidogrel,Ultrarapid Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
 CYP2C19,voriconazole,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Intermediate Metabolizer,Use label-recommended dosing with therapeutic drug monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Poor Metabolizer,Use alternative antifungal agent.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Rapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Ultrarapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/

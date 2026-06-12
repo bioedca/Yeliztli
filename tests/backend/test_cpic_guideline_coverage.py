@@ -8,11 +8,11 @@ no recommendation".
 
 This module turns that silent class into:
 
-1. A **coverage audit** over the shipped bundled CPIC data: for every
-   ``(gene, drug)`` in ``cpic_guidelines``, every phenotype callable for that
-   gene (from ``cpic_diplotypes``) must have a guideline row, or be listed in
-   the explicit, reviewed ``KNOWN_NO_GUIDANCE`` allowlist. Silent omissions
-   become a failing test.
+1. A **coverage audit** over the shipped bundled CPIC data and seed fixture:
+   for every ``(gene, drug)`` in ``cpic_guidelines``, every phenotype callable
+   for that gene (from ``cpic_diplotypes``) must have a guideline row, or be
+   listed in the explicit, reviewed ``KNOWN_NO_GUIDANCE`` allowlist. Silent
+   omissions become a failing test.
 2. **Telemetry** assertions: a non-``Insufficient``, callable phenotype with no
    guideline row emits a ``pgx_phenotype_no_guideline_row`` warning when the
    gene is otherwise covered (a likely missing row), and stays quiet for a gene
@@ -39,6 +39,13 @@ from backend.db.tables import cpic_guidelines, reference_metadata
 _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 _DIPLOTYPES_CSV = _CPIC_DIR / "cpic_diplotypes.csv"
 _GUIDELINES_CSV = _CPIC_DIR / "cpic_guidelines.csv"
+_SEED_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "seed_csvs"
+_SEED_DIPLOTYPES_CSV = _SEED_DIR / "cpic_diplotypes_seed.csv"
+_SEED_GUIDELINES_CSV = _SEED_DIR / "cpic_guidelines_seed.csv"
+_GUIDELINE_COVERAGE_SOURCES = (
+    ("bundled", _DIPLOTYPES_CSV, _GUIDELINES_CSV),
+    ("seed", _SEED_DIPLOTYPES_CSV, _SEED_GUIDELINES_CSV),
+)
 
 # Explicit, reviewed (gene, drug, phenotype) tuples where CPIC genuinely makes
 # no special recommendation AND we deliberately ship no row. Keep EMPTY unless a
@@ -47,40 +54,43 @@ _GUIDELINES_CSV = _CPIC_DIR / "cpic_guidelines.csv"
 KNOWN_NO_GUIDANCE: set[tuple[str, str, str]] = set()
 
 
-def _callable_phenotypes_by_gene() -> dict[str, set[str]]:
-    """gene -> set of phenotypes reachable from any bundled diplotype."""
+def _callable_phenotypes_by_gene(diplotypes_csv: Path) -> dict[str, set[str]]:
+    """gene -> set of phenotypes reachable from any diplotype CSV."""
     by_gene: dict[str, set[str]] = defaultdict(set)
-    with open(_DIPLOTYPES_CSV, encoding="utf-8") as f:
+    with open(diplotypes_csv, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             if row["phenotype"]:
                 by_gene[row["gene"]].add(row["phenotype"])
     return by_gene
 
 
-def _guideline_phenotypes_by_gene_drug() -> dict[tuple[str, str], set[str]]:
+def _guideline_phenotypes_by_gene_drug(
+    guidelines_csv: Path = _GUIDELINES_CSV,
+) -> dict[tuple[str, str], set[str]]:
     """(gene, drug) -> set of phenotypes with a guideline row."""
     by_pair: dict[tuple[str, str], set[str]] = defaultdict(set)
-    with open(_GUIDELINES_CSV, encoding="utf-8") as f:
+    with open(guidelines_csv, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             by_pair[(row["gene"], row["drug"])].add(row["phenotype"])
     return by_pair
 
 
 class TestGuidelineCoverage:
-    """Shipped CPIC guideline table covers every callable phenotype."""
+    """CPIC guideline tables cover every callable phenotype."""
 
     def test_every_callable_phenotype_has_a_guideline_row(self) -> None:
-        callable_by_gene = _callable_phenotypes_by_gene()
-        guideline_by_pair = _guideline_phenotypes_by_gene_drug()
-
         gaps: list[str] = []
-        for (gene, drug), covered in sorted(guideline_by_pair.items()):
-            for phenotype in sorted(callable_by_gene.get(gene, set())):
-                if phenotype in covered:
-                    continue
-                if (gene, drug, phenotype) in KNOWN_NO_GUIDANCE:
-                    continue
-                gaps.append(f"{gene} / {drug} / {phenotype}")
+        for source_name, diplotypes_csv, guidelines_csv in _GUIDELINE_COVERAGE_SOURCES:
+            callable_by_gene = _callable_phenotypes_by_gene(diplotypes_csv)
+            guideline_by_pair = _guideline_phenotypes_by_gene_drug(guidelines_csv)
+
+            for (gene, drug), covered in sorted(guideline_by_pair.items()):
+                for phenotype in sorted(callable_by_gene.get(gene, set())):
+                    if phenotype in covered:
+                        continue
+                    if (gene, drug, phenotype) in KNOWN_NO_GUIDANCE:
+                        continue
+                    gaps.append(f"{source_name}: {gene} / {drug} / {phenotype}")
 
         assert not gaps, (
             "Callable phenotypes with no cpic_guidelines row and no "
@@ -93,8 +103,11 @@ class TestGuidelineCoverage:
         CPIC recommends standard dosing with therapeutic drug monitoring for
         CYP2C19 intermediate metabolizers on voriconazole.
         """
-        covered = _guideline_phenotypes_by_gene_drug()[("CYP2C19", "voriconazole")]
-        assert "Intermediate Metabolizer" in covered
+        for source_name, _, guidelines_csv in _GUIDELINE_COVERAGE_SOURCES:
+            covered = _guideline_phenotypes_by_gene_drug(guidelines_csv)[
+                ("CYP2C19", "voriconazole")
+            ]
+            assert "Intermediate Metabolizer" in covered, source_name
 
     def test_cyp2d6_ondansetron_intermediate_covered(self) -> None:
         """Regression for the IM gap surfaced by issue #23.
@@ -102,8 +115,9 @@ class TestGuidelineCoverage:
         CPIC's ondansetron recommendation is identical for normal and
         intermediate metabolizers (standard dosing); only ultrarapid differs.
         """
-        covered = _guideline_phenotypes_by_gene_drug()[("CYP2D6", "ondansetron")]
-        assert "Intermediate Metabolizer" in covered
+        for source_name, _, guidelines_csv in _GUIDELINE_COVERAGE_SOURCES:
+            covered = _guideline_phenotypes_by_gene_drug(guidelines_csv)[("CYP2D6", "ondansetron")]
+            assert "Intermediate Metabolizer" in covered, source_name
 
 
 def _reference_engine_with_guidelines(rows: list[dict]) -> sa.Engine:
