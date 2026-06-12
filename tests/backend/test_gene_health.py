@@ -667,6 +667,42 @@ class TestFullScoring:
         for pr in result.pathway_results:
             assert pr.level == STANDARD
 
+    def test_drd4_cc_non_carrier_does_not_emit_snp_finding(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """All-reference rs747302 CC must stay absent from stored SNP findings."""
+        _seed_variants(sample_engine, [("rs747302", "11", 637339, "CC")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
+        drd4 = next(snp for snp in neurological.snp_results if snp.rsid == "rs747302")
+
+        assert drd4.category == STANDARD
+        assert neurological.level == STANDARD
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            drd4_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs747302",
+                    findings.c.category == "snp_finding",
+                )
+            ).fetchall()
+            neurological_summary = conn.execute(
+                sa.select(findings.c.pathway_level).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == neurological.pathway_name,
+                )
+            ).scalar_one()
+
+        assert drd4_findings == []
+        assert neurological_summary == STANDARD
+
     def test_il23r_r381q_alone_does_not_raise_autoimmune_pathway(
         self,
         panel: GeneHealthPanel,
