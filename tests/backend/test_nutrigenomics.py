@@ -175,6 +175,27 @@ class TestPanelLoading:
         assert "scoring_rules" in data
         assert data["scoring_rules"]["star_1_cap"] == "Moderate"
 
+    def test_fut2_rs602662_metadata_matches_b12_model(self, panel: NutrigenomicsPanel) -> None:
+        b12 = next(p for p in panel.pathways if p.id == "vitamin_b12")
+        fut2 = next(s for s in b12.snps if s.rsid == "rs602662")
+
+        assert fut2.variant_name == "FUT2 B12 association"
+        assert fut2.risk_allele == "G"
+        assert fut2.pmids == ["19303062", "19744961", "23201895"]
+        assert fut2.genotype_effects["GG"]["category"] == MODERATE
+        assert fut2.genotype_effects["GA"]["category"] == STANDARD
+        assert fut2.genotype_effects["AG"]["category"] == STANDARD
+        assert fut2.genotype_effects["AA"]["category"] == STANDARD
+
+        all_fut2_text = " ".join(
+            [
+                fut2.variant_name,
+                fut2.recommendation_text,
+                *(effect["effect_summary"] for effect in fut2.genotype_effects.values()),
+            ]
+        )
+        assert "secretor" not in all_fut2_text.lower()
+
 
 # ── Genotype normalization tests ─────────────────────────────────────────
 
@@ -514,6 +535,37 @@ class TestScorePathways:
         assert omega3.level == STANDARD
         assert fads1.present_in_sample is True
         assert fads1.category == STANDARD
+
+    def test_fut2_rs602662_scoring_uses_curated_b12_categories(
+        self,
+        panel: NutrigenomicsPanel,
+        tmp_path: Path,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Runtime scoring follows the rs602662 B12 genotype model."""
+        expected_categories = {
+            "GG": MODERATE,
+            "GA": STANDARD,
+            "AG": STANDARD,
+            "AA": STANDARD,
+        }
+
+        for genotype, expected_category in expected_categories.items():
+            engine = sa.create_engine(f"sqlite:///{tmp_path / f'fut2_{genotype}.db'}")
+            sample_metadata_obj.create_all(engine)
+            _seed_variants(engine, [("rs602662", "19", 49206653, genotype)])
+
+            result = score_nutrigenomics_pathways(panel, engine, reference_engine)
+            vitamin_b12 = next(
+                pr for pr in result.pathway_results if pr.pathway_id == "vitamin_b12"
+            )
+            fut2 = next(s for s in vitamin_b12.snp_results if s.rsid == "rs602662")
+
+            assert fut2.present_in_sample is True
+            assert fut2.category == expected_category
+            assert vitamin_b12.level == expected_category
+
+            engine.dispose()
 
 
 class TestStoreFindingsIntegration:

@@ -228,31 +228,31 @@
         {
           "rsid": "rs602662",
           "gene": "FUT2",
-          "variant_name": "FUT2 secretor status",
+          "variant_name": "FUT2 B12 association",
           "hgvs_protein": null,
-          "risk_allele": "A",
+          "risk_allele": "G",
           "ref_allele": "G",
           "genotype_effects": {
             "GG": {
               "category": "Moderate",
-              "effect_summary": "Non-secretor genotype. Associated with reduced vitamin B12 absorption from food sources."
+              "effect_summary": "FUT2 rs602662 GG genotype. Associated with lower circulating vitamin B12, particularly with low animal-source intake."
             },
             "GA": {
               "category": "Standard",
-              "effect_summary": "Secretor genotype. Normal vitamin B12 absorption."
+              "effect_summary": "Heterozygous rs602662 genotype. Current panel evidence reserves the B12 concern for the replicated GG lower-B12 pattern."
             },
             "AG": {
               "category": "Standard",
-              "effect_summary": "Secretor genotype. Normal vitamin B12 absorption."
+              "effect_summary": "Heterozygous rs602662 genotype. Current panel evidence reserves the B12 concern for the replicated GG lower-B12 pattern."
             },
             "AA": {
               "category": "Standard",
-              "effect_summary": "Secretor genotype. Normal vitamin B12 absorption."
+              "effect_summary": "No rs602662 G allele. Not the lower-B12 genotype pattern in this panel."
             }
           },
           "evidence_level": 2,
-          "pmids": ["19924280"],
-          "recommendation_text": "Non-secretors may benefit from monitoring B12 levels, particularly on plant-based diets."
+          "pmids": ["19303062", "19744961", "23201895"],
+          "recommendation_text": "People with the rs602662 GG genotype may benefit from monitoring B12 levels, particularly on plant-based diets."
         },
         {
           "rsid": "rs4654748",
