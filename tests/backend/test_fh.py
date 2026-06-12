@@ -203,3 +203,41 @@ class TestAssessAndStore:
                 )
             ).fetchall()
         assert len(fdb) == 1
+
+    def test_rerun_clears_stale_prs_when_score_db_unavailable(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # First run with the score DB installed stores an LDL-C PRS finding.
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsL0",
+                        "chrom": "1",
+                        "pos": 500,
+                        "genotype": "AA",
+                        "gnomad_af_global": 0.2,
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        first = assess_fh(sample_engine, _pgs_engine(), inferred_ancestry="EUR")
+        store_fh_findings(first, sample_engine)
+        with sample_engine.connect() as conn:
+            stored = conn.execute(
+                sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
+            ).fetchall()
+        assert len(stored) == 1  # PRS present after the first run
+
+        # Re-run with the score DB unavailable: no PRS can be recomputed, so the
+        # stale fh/prs finding must be cleared rather than surfaced with broken
+        # provenance (#149) — mirrors store_ebmd_findings(None, ...).
+        second = assess_fh(sample_engine, None, inferred_ancestry="EUR")
+        assert second.ldl_prs is None
+        store_fh_findings(second, sample_engine)
+        with sample_engine.connect() as conn:
+            remaining = conn.execute(
+                sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
+            ).fetchall()
+        assert remaining == []  # no stale PRS finding carried forward

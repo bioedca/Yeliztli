@@ -217,6 +217,19 @@ def store_fh_findings(assessment: FHAssessment, sample_engine: sa.Engine) -> int
         n += store_prs_findings(
             [assessment.ldl_prs], sample_engine, module=MODULE_NAME, store_insufficient=True
         )
+    else:
+        # No computable LDL-C PRS this run (score DB unavailable or no LDL-C
+        # weight set selected). store_prs_findings only clears prior rows when it
+        # has a new row to insert, so explicitly clear any stale fh/prs finding
+        # here — otherwise a previously-stored score is surfaced with broken
+        # provenance (#149). Mirrors store_ebmd_findings(None, ...).
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.delete(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "prs",
+                )
+            )
 
     fdb = assessment.apob_fdb
     with sample_engine.begin() as conn:
