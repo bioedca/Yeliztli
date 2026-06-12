@@ -772,6 +772,32 @@ class TestAPOEFindingsContentAlzheimers:
         assert "reduced" in alz.finding_text.lower()
         assert alz.detail_json["approximate_or"] < 1.0
 
+    @pytest.mark.parametrize("diplotype", ["ε2/ε2", "ε2/ε3", "ε2/ε4", "ε3/ε3", "ε3/ε4", "ε4/ε4"])
+    def test_alzheimers_risk_estimates_include_population_context(self, diplotype: str) -> None:
+        """APOE AD risk estimates must say they are not individually calibrated."""
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+        allele1, allele2 = diplotype.split("/")
+        result = APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=allele_map[allele1],
+            allele2=allele_map[allele2],
+            diplotype=diplotype,
+        )
+
+        findings_list = generate_apoe_findings(result)
+        alz = findings_list[1]
+        text = alz.finding_text.lower()
+        context = alz.detail_json["risk_estimate_context"].lower()
+
+        assert "population-aggregate" in text
+        assert "age" in text
+        assert "sex" in text
+        assert "race/ethnicity" in text
+        assert "genetic ancestry" in text
+        assert "not calibrated" in context
+        assert "37930705" in alz.pmid_citations
+        assert "32818802" in alz.pmid_citations
+
     def test_all_alzheimers_conditions_field(self) -> None:
         """All Alzheimer's findings have 'Alzheimer's disease' as conditions."""
         for diplotype in ["ε2/ε2", "ε2/ε3", "ε2/ε4", "ε3/ε3", "ε3/ε4", "ε4/ε4"]:

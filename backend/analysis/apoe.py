@@ -464,7 +464,16 @@ _CV_RISK: dict[str, dict[str, Any]] = {
 #
 # Relative risk estimates from Genin et al. 2011 (PMID: 21460841) and
 # Farrer et al. 1997 (PMID: 9343467). These are approximate population-
-# level odds ratios vs ε3/ε3 reference.
+# level odds ratios vs ε3/ε3 reference. Belloy et al. 2023 (PMID: 37930705)
+# shows APOE-AD effect sizes differ across age, sex, race/ethnicity, and
+# ancestry strata; Lumsden et al. 2020 (PMID: 32818802) is a White British UK
+# Biobank PheWAS, so reused numeric estimates must preserve population context.
+
+_ALZHEIMERS_RISK_CONTEXT = (
+    "These numeric estimates are population-aggregate approximations; APOE "
+    "effect sizes vary by age, sex, race/ethnicity, and genetic ancestry, so "
+    "they are not calibrated to this individual's background."
+)
 
 _ALZHEIMERS_RISK: dict[str, dict[str, Any]] = {
     "ε2/ε2": {
@@ -615,7 +624,7 @@ _LIPID_DIETARY: dict[str, dict[str, Any]] = {
 
 # PubMed citations shared across findings
 _CV_PMIDS = ["21460841", "9343467", "17309940", "28577312"]
-_ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587"]
+_ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587", "37930705", "32818802"]
 _LIPID_DIETARY_PMIDS = ["9343467", "17309940", "26109578", "24820091"]
 
 
@@ -666,7 +675,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
         APOEFinding(
             category=APOE_FINDING_ALZHEIMERS,
             evidence_level=4,
-            finding_text=alz_data["finding_text"],
+            finding_text=f"{alz_data['finding_text']} {_ALZHEIMERS_RISK_CONTEXT}",
             conditions="Alzheimer's disease",
             phenotype=alz_data["phenotype"],
             pmid_citations=_ALZHEIMERS_PMIDS,
@@ -677,8 +686,10 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "non_actionable": True,
                 "caveats": (
                     "This is a probabilistic risk factor, not a diagnosis. "
-                    "Clinical utility is limited. No approved prevention exists."
+                    "Clinical utility is limited. No approved prevention exists. "
+                    f"{_ALZHEIMERS_RISK_CONTEXT}"
                 ),
+                "risk_estimate_context": _ALZHEIMERS_RISK_CONTEXT,
             },
         )
     )
