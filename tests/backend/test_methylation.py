@@ -864,12 +864,56 @@ class TestStoreFindingsIntegration:
             ).first()
         assert row is not None
         assert row.pathway_level == MODERATE
-        assert "(additive)" not in row.finding_text
-        assert "(multiple moderate findings)" in row.finding_text
+        assert (
+            row.finding_text
+            == "Folate & MTHFR — Moderate consideration (multiple moderate findings)"
+        )
         detail = json.loads(row.detail_json)
         assert detail["additive_promoted"] is False
         assert detail["moderate_snp_count"] == 4
         assert detail["multiple_moderate_findings"] is True
+
+    def test_reference_folate_genotypes_do_not_store_multiple_moderate_marker(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Reference folate genotypes stay Standard and do not get the context marker."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1801133", "1", 11856378, "GG"),  # C677T reference
+                ("rs1801131", "1", 11854476, "AA"),  # A1298C reference
+                ("rs1051266", "21", 46957794, "GG"),  # SLC19A1 reference
+                ("rs202676", "11", 49175363, "GG"),  # FOLH1 reference
+            ],
+        )
+
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        folate = next(pr for pr in result.pathway_results if pr.pathway_id == "folate_mthfr")
+
+        assert folate.level == STANDARD
+        assert folate.additive_promoted is False
+
+        store_methylation_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Folate & MTHFR",
+                    )
+                )
+            ).first()
+        assert row is not None
+        assert row.pathway_level == STANDARD
+        assert row.finding_text == "Folate & MTHFR — Standard (no variants of concern)"
+        detail = json.loads(row.detail_json)
+        assert detail["additive_promoted"] is False
+        assert detail["moderate_snp_count"] == 0
+        assert detail["multiple_moderate_findings"] is False
 
 
 # ── PathwayResult properties ────────────────────────────────────────────
