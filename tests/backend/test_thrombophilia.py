@@ -171,6 +171,7 @@ class TestPanelGuard:
         """
         verified = {"39167180", "23900608", "38498041"}
         unrelated = {"21372680", "19174584"}
+        assert panel.genotype_models, "panel must define genotype models"
         for model in panel.genotype_models:
             cited = set(model.pmids)
             assert cited, f"{model.id} has no citations"
