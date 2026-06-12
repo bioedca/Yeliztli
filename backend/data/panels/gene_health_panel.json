@@ -135,35 +135,6 @@
           }
         },
         {
-          "rsid": "rs76763715",
-          "gene": "GBA",
-          "variant_name": "N370S (GBA1)",
-          "hgvs_protein": "p.Asn370Ser",
-          "risk_allele": "T",
-          "ref_allele": "C",
-          "genotype_effects": {
-            "CC": {
-              "category": "Standard",
-              "effect_summary": "No GBA N370S variant detected. Baseline population risk for Parkinson's disease at this locus."
-            },
-            "CT": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous GBA N370S. Associated with approximately 5-fold increased risk of Parkinson's disease. GBA variants impair lysosomal glucocerebrosidase activity and alpha-synuclein clearance."
-            },
-            "TC": {
-              "category": "Elevated",
-              "effect_summary": "Heterozygous GBA N370S. Associated with approximately 5-fold increased risk of Parkinson's disease. GBA variants impair lysosomal glucocerebrosidase activity and alpha-synuclein clearance."
-            },
-            "TT": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous GBA N370S. Associated with Gaucher disease (type 1) and substantially elevated Parkinson's disease risk. Severely reduced glucocerebrosidase activity."
-            }
-          },
-          "evidence_level": 4,
-          "pmids": ["19846850", "25064009", "29847231"],
-          "recommendation_text": "GBA N370S is a well-established risk factor for Parkinson's disease. Heterozygous carriers have ~5-fold increased risk. The variant also causes Gaucher disease in homozygotes. Carriers should discuss neurological monitoring with a specialist. GBA-targeted therapies (substrate reduction, chaperone therapy) are under investigation for GBA-associated Parkinson's disease."
-        },
-        {
           "rsid": "rs356219",
           "gene": "SNCA",
           "variant_name": "SNCA 3' UTR",

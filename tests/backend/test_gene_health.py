@@ -10,7 +10,7 @@ Covers:
   - Findings storage and retrieval
   - Panel coverage tracking
   - GWAS annotation_coverage bitmask (bit 5)
-  - 43 SNP finding count verification across 4 pathways
+  - 42 SNP finding count verification across 4 pathways
 """
 
 from __future__ import annotations
@@ -118,14 +118,13 @@ def _seed_gwas(
         )
 
 
-# All 43 panel SNPs with chromosome positions and representative genotypes.
+# All 42 panel SNPs with chromosome positions and representative genotypes.
 ALL_GENE_HEALTH_VARIANTS = [
     # --- Neurological (13 SNPs) ---
     ("rs429358", "19", 44908684, "TC"),  # APOE e4 det het -> Elevated
     ("rs3764650", "19", 1046520, "TG"),  # ABCA7 het -> Moderate
     ("rs11136000", "8", 27464519, "CT"),  # CLU het -> Moderate
     ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Moderate
-    ("rs76763715", "1", 155205634, "CT"),  # GBA N370S het -> Elevated
     ("rs356219", "4", 90626111, "AG"),  # SNCA het -> Moderate
     ("rs3135388", "6", 32408274, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
     ("rs6897932", "5", 35874575, "TC"),  # IL7R T244I het -> Moderate
@@ -190,12 +189,22 @@ class TestPanelLoading:
 
     def test_panel_all_rsids(self, panel: GeneHealthPanel) -> None:
         rsids = panel.all_rsids()
-        assert len(rsids) == 43
+        assert len(rsids) == 42
         # Spot-check a few from each pathway
         assert "rs429358" in rsids  # neurological
         assert "rs7903146" in rsids  # metabolic
         assert "rs2476601" in rsids  # autoimmune
         assert "rs1061170" in rsids  # sensory
+
+    def test_gba1_n370s_absent_to_match_parkinsons_suppression(self) -> None:
+        """Gene Health must not independently report array-based GBA1 PD risk."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        parkinsons = json.loads(PARKINSONS_PANEL_PATH.read_text(encoding="utf-8"))
+        rsids = {snp["rsid"] for pathway in gene_health["pathways"] for snp in pathway["snps"]}
+
+        assert "rs76763715" not in rsids
+        assert "GBA1 is DELIBERATELY EXCLUDED" in parkinsons["description"]
+        assert "GBAP1 pseudogene" in parkinsons["description"]
 
     def test_panel_snps_have_genotype_effects(self, panel: GeneHealthPanel) -> None:
         for pathway in panel.pathways:
@@ -560,11 +569,11 @@ class TestFullScoring:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """All 43 panel SNPs are scored when present."""
+        """All 42 panel SNPs are scored when present."""
         _seed_variants(sample_engine, ALL_GENE_HEALTH_VARIANTS)
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         total_snps = sum(len(pr.snp_results) for pr in result.pathway_results)
-        assert total_snps == 43
+        assert total_snps == 42
 
     def test_four_pathways_scored(
         self,
@@ -669,6 +678,42 @@ class TestFullScoring:
         assert "24-49%" in lrrk2_row.finding_text
         assert "74% by age 79" not in lrrk2_row.finding_text
         assert neurological_summary == MODERATE
+
+    def test_gba1_n370s_alone_does_not_surface_gene_health_risk(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Array-based GBA1 N370S must stay suppressed in ungated Gene Health (#71)."""
+        _seed_variants(sample_engine, [("rs76763715", "1", 155205634, "CT")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
+
+        assert all(snp.rsid != "rs76763715" for snp in neurological.snp_results)
+        assert neurological.level == STANDARD
+        assert result.cross_module_findings == []
+        assert all(row["rsid"] != "rs76763715" for row in result.panel_coverage_rows)
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            gba_rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs76763715",
+                )
+            ).fetchall()
+            neurological_summary = conn.execute(
+                sa.select(findings.c.pathway_level).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == neurological.pathway_name,
+                )
+            ).scalar_one()
+
+        assert gba_rows == []
+        assert neurological_summary == STANDARD
 
 
 # -- Findings storage tests ---------------------------------------------------
@@ -831,7 +876,7 @@ class TestPanelCoverage:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Panel coverage rows are stored for all 43 SNPs."""
+        """Panel coverage rows are stored for all 42 SNPs."""
         _seed_variants(sample_engine, ALL_GENE_HEALTH_VARIANTS)
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         store_gene_health_findings(result, sample_engine)
@@ -840,7 +885,7 @@ class TestPanelCoverage:
             rows = conn.execute(
                 sa.select(panel_coverage).where(panel_coverage.c.module == MODULE_NAME)
             ).fetchall()
-        assert len(rows) == 43
+        assert len(rows) == 42
 
     def test_called_status(
         self,
