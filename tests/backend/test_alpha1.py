@@ -47,8 +47,17 @@ class TestGenotypes:
     def test_pisz_intermediate(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_z("CT"), _s("AT")])
         a = assess_alpha1(panel, sample_engine)
-        assert a.calls[0].risk_classification == "PiSZ (intermediate deficiency)"
-        assert a.calls[0].evidence_stars == 3
+        call = a.calls[0]
+        assert call.risk_classification == "PiSZ (phase-inferred intermediate deficiency)"
+        assert call.evidence_stars == 2
+        assert call.detail["phase_inferred"] is True
+        assert call.detail["call_confidence"] == "Partial"
+        caveats = " ".join(call.detail["caveats"]).lower()
+        assert "unphased" in caveats
+        assert "in trans" in caveats
+        assert "serum aat" in caveats
+        assert "targeted serpina1 sequencing" in caveats
+        assert "phase-inferred" in call.finding_text.lower()
 
     def test_pimz_carrier(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_z("CT"), _s("TT")])

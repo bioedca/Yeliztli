@@ -41,12 +41,14 @@
     {
       "id": "pisz",
       "match": {"rs28929474": {"dosage": 1}, "rs17580": {"dosage": 1}},
-      "risk_classification": "PiSZ (intermediate deficiency)",
+      "risk_classification": "PiSZ (phase-inferred intermediate deficiency)",
       "zygosity": "het",
-      "evidence_stars": 3,
-      "finding_text": "Alpha-1 antitrypsin PiSZ ({genotype}) — intermediate deficiency with increased risk of lung (and some liver) disease, especially with smoking. Smoking/vaping avoidance is the highest-leverage step; discuss serum AAT testing and monitoring with a clinician.",
-      "caveats": ["aat_rare_null", "confirm_clinically"],
-      "pmids": ["15978931", "27465791"]
+      "evidence_stars": 2,
+      "finding_text": "Alpha-1 antitrypsin PiSZ phase-inferred ({genotype}) — both the Pi*Z and Pi*S variants are observed, which is consistent with intermediate deficiency, but SNP-array data are unphased and cannot prove that the variants are on opposite chromosomes. Smoking/vaping avoidance is the highest-leverage step; discuss serum AAT testing plus phenotype or targeted SERPINA1 sequencing with a clinician before treating this as definitive PiSZ.",
+      "caveats": ["aat_pisz_phase_inferred", "aat_rare_null", "confirm_clinically"],
+      "pmids": ["15978931", "27465791", "32515985"],
+      "phase_inferred": true,
+      "confidence_note": "Unphased SNP-array genotypes observe both SERPINA1 S and Z variants but cannot determine whether they are in trans; confirm before treating as definitive PiSZ."
     },
     {
       "id": "piss",
