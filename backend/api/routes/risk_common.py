@@ -40,6 +40,9 @@ class RiskFindingResponse(BaseModel):
     absolute_risk_context: str | None = None
     caveats: list[str] = []
     indeterminate_loci: list[str] = []
+    phase_inferred: bool = False
+    call_confidence: str | None = None
+    confidence_note: str | None = None
     pmids: list[str] = []
 
 
@@ -117,6 +120,9 @@ def fetch_risk_findings(sample_engine: sa.Engine, module: str) -> list[dict[str,
                 "absolute_risk_context": detail.get("absolute_risk_context"),
                 "caveats": detail.get("caveats", []),
                 "indeterminate_loci": detail.get("indeterminate_loci", []),
+                "phase_inferred": detail.get("phase_inferred", False),
+                "call_confidence": detail.get("call_confidence"),
+                "confidence_note": detail.get("confidence_note"),
                 "pmids": pmids,
             }
         )

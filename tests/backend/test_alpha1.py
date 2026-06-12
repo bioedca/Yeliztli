@@ -47,11 +47,17 @@ class TestGenotypes:
     def test_pisz_intermediate(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_z("CT"), _s("AT")])
         a = assess_alpha1(panel, sample_engine)
+        assert len(a.calls) == 1
         call = a.calls[0]
         assert call.risk_classification == "PiSZ (phase-inferred intermediate deficiency)"
         assert call.evidence_stars == 2
         assert call.detail["phase_inferred"] is True
         assert call.detail["call_confidence"] == "Partial"
+        assert call.detail["confidence_note"] == (
+            "Unphased SNP-array genotypes observe both SERPINA1 S and Z variants "
+            "but cannot determine whether they are in trans; confirm before "
+            "treating as definitive PiSZ."
+        )
         caveats = " ".join(call.detail["caveats"]).lower()
         assert "unphased" in caveats
         assert "in trans" in caveats

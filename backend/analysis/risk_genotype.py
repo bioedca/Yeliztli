@@ -336,7 +336,19 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             )
         if modifier is not None:
             _validate_pmids(data["module"], m["id"], "modifier.pmids", modifier.get("pmids", []))
-        if m.get("phase_inferred") and not m.get("confidence_note"):
+        phase_inferred = m.get("phase_inferred", False)
+        confidence_note = m.get("confidence_note")
+        if not isinstance(phase_inferred, bool):
+            raise ValueError(
+                f"Panel '{data['module']}' model '{m['id']}' field "
+                f"'phase_inferred' must be a boolean."
+            )
+        if confidence_note is not None and not isinstance(confidence_note, str):
+            raise ValueError(
+                f"Panel '{data['module']}' model '{m['id']}' field "
+                f"'confidence_note' must be a string."
+            )
+        if phase_inferred and not (confidence_note and confidence_note.strip()):
             raise ValueError(
                 f"Panel '{data['module']}' model '{m['id']}' declares "
                 f"phase_inferred without a confidence_note."
@@ -359,8 +371,8 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
                 recessive=m.get("recessive", False),
                 modifier=modifier,
                 partial_disclosure=m.get("partial_disclosure"),
-                phase_inferred=m.get("phase_inferred", False),
-                confidence_note=m.get("confidence_note"),
+                phase_inferred=phase_inferred,
+                confidence_note=confidence_note,
             )
         )
 

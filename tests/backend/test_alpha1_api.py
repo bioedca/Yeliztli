@@ -93,6 +93,42 @@ class TestRunAndList:
         assert item["risk_classification"] == "PiZZ (severe deficiency)"
         assert item["evidence_level"] == 3
 
+    def test_run_then_list_pisz_phase_fields(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        with _env.begin() as conn:
+            conn.execute(sa.delete(raw_variants))
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": "rs28929474",
+                        "chrom": "14",
+                        "pos": 94847262,
+                        "genotype": "CT",
+                    },
+                    {"rsid": "rs17580", "chrom": "14", "pos": 94844947, "genotype": "AT"},
+                ],
+            )
+
+        run = client.post("/api/analysis/alpha1/run?sample_id=1")
+        assert run.status_code == 200
+        assert run.json()["findings_count"] == 1
+
+        listing = client.get("/api/analysis/alpha1/findings?sample_id=1")
+        assert listing.status_code == 200
+        item = listing.json()["items"][0]
+        assert item["risk_classification"] == "PiSZ (phase-inferred intermediate deficiency)"
+        assert item["evidence_level"] == 2
+        assert item["phase_inferred"] is True
+        assert item["call_confidence"] == "Partial"
+        assert item["confidence_note"] == (
+            "Unphased SNP-array genotypes observe both SERPINA1 S and Z variants "
+            "but cannot determine whether they are in trans; confirm before "
+            "treating as definitive PiSZ."
+        )
+        assert any("unphased" in caveat.lower() for caveat in item["caveats"])
+
     def test_run_idempotent(self, client: TestClient) -> None:
         client.post("/api/analysis/alpha1/run?sample_id=1")
         client.post("/api/analysis/alpha1/run?sample_id=1")

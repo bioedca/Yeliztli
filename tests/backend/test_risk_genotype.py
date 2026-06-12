@@ -322,6 +322,37 @@ class TestLoadRiskPanelGuards:
         with pytest.raises(ValueError, match="caveat"):
             load_risk_panel(path)
 
+    @pytest.mark.parametrize(
+        ("model_patch", "error"),
+        [
+            ({"phase_inferred": "false", "confidence_note": "x"}, "phase_inferred"),
+            ({"phase_inferred": True}, "confidence_note"),
+            ({"phase_inferred": True, "confidence_note": 7}, "confidence_note"),
+            ({"phase_inferred": True, "confidence_note": "   "}, "confidence_note"),
+        ],
+    )
+    def test_rejects_invalid_phase_inferred_metadata(
+        self, tmp_path, model_patch: dict, error: str
+    ) -> None:
+        model = {
+            "id": "m",
+            "match": {"rsA": {"dosage": 1}},
+            "risk_classification": "carrier",
+            "evidence_stars": 2,
+            "finding_text": "x",
+        }
+        model.update(model_patch)
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "loci": [{"rsid": "rsA", "gene_symbol": "G", "risk_allele": "A", "ref_allele": "G"}],
+            "genotype_models": [model],
+        }
+        path = tmp_path / "bad_phase.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match=error):
+            load_risk_panel(path)
+
     def test_rejects_non_numeric_model_pmid(self, tmp_path) -> None:
         bad = {
             "module": "x",
