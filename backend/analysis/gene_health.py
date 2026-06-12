@@ -85,6 +85,14 @@ class PanelSNP:
     recommendation_text: str
     cross_module: dict | None = None
     coverage_note: str | None = None
+    # For indel loci typed as vendor I/D codes (e.g. GJB2 35delG / rs80338939):
+    # maps the parser's canonical sorted-pair indel call ("DD"/"DI"/"II") to the
+    # curated biological genotype key, so the carrier/homozygous model is
+    # reachable instead of being discarded as a no-call. Encodes the standard
+    # deletion=D / insertion=I convention (cf. the reviewed APOL1 G2 indel
+    # handling), declared per-rsID so D is only read as the deletion where that
+    # is variant-specifically true. None for ordinary ACGT loci (issue #159).
+    indel_genotype_map: dict[str, str] | None = None
 
 
 @dataclass
@@ -215,6 +223,7 @@ def load_gene_health_panel(panel_path: Path | None = None) -> GeneHealthPanel:
                     recommendation_text=snp_data.get("recommendation_text", ""),
                     cross_module=snp_data.get("cross_module"),
                     coverage_note=snp_data.get("coverage_note"),
+                    indel_genotype_map=snp_data.get("indel_genotype_map"),
                 )
             )
         pathways.append(
@@ -247,6 +256,28 @@ def _normalize_genotype(genotype: str | None) -> str | None:
     if is_no_call(genotype):
         return None
     return genotype.strip().upper()
+
+
+def _map_indel_genotype(snp: PanelSNP, raw: str | None) -> str | None:
+    """Translate a vendor I/D-coded indel call to the SNP's curated genotype key.
+
+    Consumer-array parsers canonicalize indels to sorted I/D pairs ("DD", "DI",
+    "II"; see ``backend/ingestion/base.py``), and :func:`is_no_call` treats those
+    as no-calls because most modules cannot map a generic I/D code to ref/alt —
+    so without this step an interpretable deletion call at an indel locus is
+    silently discarded before lookup (issue #159). When a locus declares an
+    ``indel_genotype_map``, return the curated genotype key for the call so the
+    carrier/homozygous model is reachable; otherwise return ``None`` so the
+    normal ACGT/no-call path runs unchanged.
+
+    The map is declared per-rsID (e.g. ``rs80338939`` GJB2 c.35delG:
+    ``DD``→``delG/delG``, ``DI``→``G/delG``, ``II``→``GG``), encoding the standard
+    deletion=D / insertion=I convention only where it is variant-specifically
+    true — mirroring the reviewed APOL1 G2 (``rs71785313``) indel handling.
+    """
+    if raw is None or not snp.indel_genotype_map:
+        return None
+    return snp.indel_genotype_map.get(raw.strip().upper())
 
 
 def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
@@ -490,7 +521,13 @@ def score_gene_health_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            raw = genotypes.get(snp.rsid)
+            # Variant-specific indel loci (e.g. GJB2 35delG) translate a vendor
+            # I/D code to the curated key *before* the no-call normalization that
+            # would otherwise discard it (issue #159); ordinary loci fall through
+            # to the standard ACGT/no-call path unchanged.
+            mapped = _map_indel_genotype(snp, raw)
+            gt = mapped if mapped is not None else _normalize_genotype(raw)
             result = _score_snp(snp, gt)
             snp_results.append(result)
 

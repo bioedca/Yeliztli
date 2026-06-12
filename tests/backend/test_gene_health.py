@@ -27,9 +27,11 @@ from backend.analysis.gene_health import (
     MODULE_NAME,
     STANDARD,
     GeneHealthPanel,
+    GeneHealthResult,
     PanelSNP,
     SNPResult,
     _determine_pathway_level,
+    _map_indel_genotype,
     _normalize_genotype,
     _score_snp,
     load_gene_health_panel,
@@ -466,6 +468,76 @@ class TestSNPScoring:
         result = _score_snp(snp, "delG/G")
         assert result.category == MODERATE
         assert result.present_in_sample is True
+
+    def test_gjb2_indel_map_translates_vendor_id_codes(self, panel: GeneHealthPanel) -> None:
+        """Vendor sorted-pair I/D codes map to the curated GJB2 keys (issue #159)."""
+        snp = self._get_snp(panel, "rs80338939")
+        assert _map_indel_genotype(snp, "DD") == "delG/delG"
+        assert _map_indel_genotype(snp, "DI") == "G/delG"
+        assert _map_indel_genotype(snp, "ID") == "G/delG"
+        assert _map_indel_genotype(snp, "II") == "GG"
+        # Lowercase from a chip is handled; non-indel/ACGT calls are left alone.
+        assert _map_indel_genotype(snp, "dd") == "delG/delG"
+        assert _map_indel_genotype(snp, "GG") is None
+        assert _map_indel_genotype(snp, "--") is None
+        assert _map_indel_genotype(snp, None) is None
+
+    def test_indel_map_is_noop_for_non_indel_snp(self, panel: GeneHealthPanel) -> None:
+        """SNPs without an indel_genotype_map are never indel-translated."""
+        snp = self._get_snp(panel, "rs7903146")  # TCF7L2, ordinary ACGT locus
+        assert snp.indel_genotype_map is None
+        assert _map_indel_genotype(snp, "DD") is None
+        assert _map_indel_genotype(snp, "CT") is None
+
+
+# -- GJB2 35delG indel reachability (end-to-end from parsed I/D codes) --------
+
+
+class TestGJB2IndelEndToEnd:
+    """Regression for issue #159: a GJB2 35delG call parsed as a vendor I/D code
+    must reach the carrier/homozygous model, not be discarded as a no-call.
+
+    These start from the parser's canonical sorted-pair genotypes ("DD"/"DI"/"II"
+    in raw_variants), exercising the full score_gene_health_pathways path — not
+    only direct _score_snp("G/delG") calls.
+    """
+
+    def _gjb2(self, result: GeneHealthResult) -> SNPResult:
+        for pr in result.pathway_results:
+            for s in pr.snp_results:
+                if s.rsid == "rs80338939":
+                    return s
+        raise AssertionError("GJB2 rs80338939 not scored")
+
+    def test_homozygous_deletion_dd_is_elevated(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "DD")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        gjb2 = self._gjb2(result)
+        assert gjb2.present_in_sample is True
+        assert gjb2.category == ELEVATED
+        assert "homozygous" in gjb2.effect_summary.lower()
+
+    def test_heterozygous_di_is_carrier_moderate(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "DI")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        gjb2 = self._gjb2(result)
+        assert gjb2.present_in_sample is True
+        assert gjb2.category == MODERATE
+        assert "carrier" in gjb2.effect_summary.lower()
+
+    def test_homozygous_reference_ii_is_standard_present(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        # II (no deletion) is a confident reference call, not a no-call.
+        _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "II")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        gjb2 = self._gjb2(result)
+        assert gjb2.present_in_sample is True
+        assert gjb2.category == STANDARD
 
 
 # -- Pathway level determination tests ----------------------------------------

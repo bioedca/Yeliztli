@@ -1193,6 +1193,12 @@
           "hgvs_protein": null,
           "risk_allele": "delG",
           "ref_allele": "G",
+          "indel_genotype_map": {
+            "DD": "delG/delG",
+            "DI": "G/delG",
+            "ID": "G/delG",
+            "II": "GG"
+          },
           "genotype_effects": {
             "GG": {
               "category": "Standard",
