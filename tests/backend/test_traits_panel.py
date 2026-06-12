@@ -382,6 +382,12 @@ class TestDRD4Proxy:
         drd4 = self._get_drd4(panel_data)
         assert drd4["evidence_level"] == 1
 
+    def test_drd4_uses_c_g_allele_model(self, panel_data: dict) -> None:
+        drd4 = self._get_drd4(panel_data)
+        assert drd4["ref_allele"] == "C"
+        assert drd4["risk_allele"] == "G"
+        assert set(drd4["genotype_effects"]) == {"CC", "CG", "GC", "GG"}
+
     def test_drd4_capped_at_moderate(self, panel_data: dict) -> None:
         """★☆ evidence means no Elevated category allowed."""
         drd4 = self._get_drd4(panel_data)
@@ -405,6 +411,7 @@ class TestDRD4Proxy:
         assert sc["rsid"] == "rs747302"
         assert sc["coverage_caveat_required"] is True
         assert "VNTR" in sc["proxy_target"]
+        assert "not be treated as direct evidence" in sc["r_squared_note"]
 
     def test_drd4_gene_health_cross_link(self, panel_data: dict) -> None:
         """DRD4 should cross-link to Gene Health module (ADHD)."""

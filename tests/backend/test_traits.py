@@ -248,24 +248,33 @@ class TestDRD4Proxy:
     def test_drd4_capped_at_moderate(self, panel: TraitsPanel) -> None:
         """★☆ evidence means no Elevated category allowed."""
         drd4 = self._get_drd4(panel)
-        result = _score_snp(drd4, "CC")
+        result = _score_snp(drd4, "GG")
         assert result.category != ELEVATED
         assert result.category == MODERATE
+
+    def test_drd4_scores_published_c_g_genotypes(self, panel: TraitsPanel) -> None:
+        drd4 = self._get_drd4(panel)
+        assert drd4.ref_allele == "C"
+        assert drd4.risk_allele == "G"
+        assert _score_snp(drd4, "CG").category == MODERATE
+        assert _score_snp(drd4, "GC").category == MODERATE
+        assert _score_snp(drd4, "GG").category == MODERATE
 
     def test_drd4_has_cross_module(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
         assert drd4.cross_module is not None
         assert drd4.cross_module["module"] == "gene_health"
 
-    def test_drd4_tt_standard(self, panel: TraitsPanel) -> None:
+    def test_drd4_t_containing_genotype_is_not_curated(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
-        result = _score_snp(drd4, "TT")
+        result = _score_snp(drd4, "CT")
         assert result.category == STANDARD
         assert result.present_in_sample is True
+        assert "not in curated panel definitions" in result.effect_summary
 
     def test_drd4_finding_preserves_coverage_note(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
-        result = _score_snp(drd4, "TC")
+        result = _score_snp(drd4, "CG")
         assert result.coverage_note is not None
         assert "proxy" in result.coverage_note.lower()
 
@@ -442,7 +451,7 @@ class TestCrossModuleFindings:
                     rsid="rs747302",
                     gene="DRD4",
                     variant_name="DRD4 exon III VNTR proxy",
-                    genotype="TC",
+                    genotype="CG",
                     category=MODERATE,
                     effect_summary="One copy of proxy allele.",
                     evidence_level=1,
@@ -474,7 +483,7 @@ class TestCrossModuleFindings:
                     rsid="rs747302",
                     gene="DRD4",
                     variant_name="DRD4 exon III VNTR proxy",
-                    genotype="TT",
+                    genotype="CC",
                     category=STANDARD,
                     effect_summary="No proxy signal.",
                     evidence_level=1,
@@ -522,7 +531,7 @@ class TestScorePathways:
                 ("rs9611519", "5", 87854363, "CC"),  # agreeableness hom
                 ("rs2389621", "18", 44744620, "TT"),  # KATNAL2 conscientiousness hom
                 ("rs993137", "3", 85011544, "CC"),  # CADM2 risk tolerance hom risk
-                ("rs747302", "11", 637371, "CC"),  # DRD4 VNTR proxy hom
+                ("rs747302", "11", 637371, "GG"),  # DRD4 VNTR proxy hom
             ],
         )
         _seed_gwas(
@@ -542,7 +551,7 @@ class TestScorePathways:
         )
         assert personality.level == MODERATE
 
-        # Behavioral: risk tolerance CC=Moderate, DRD4 CC=Moderate (star1→capped) → Moderate
+        # Behavioral: risk tolerance CC=Moderate, DRD4 GG=Moderate (star1→capped) → Moderate
         behavioral = next(
             pr for pr in result.pathway_results if pr.pathway_id == "behavioral_traits"
         )
@@ -552,7 +561,7 @@ class TestScorePathways:
         assert "rs1396862" in result.gwas_matched_rsids
         assert "rs993137" in result.gwas_matched_rsids
 
-        # Cross-module findings should exist (DRD4 CC → Gene Health ADHD)
+        # Cross-module findings should exist (DRD4 GG → Gene Health ADHD)
         assert len(result.cross_module_findings) >= 1
 
         # Module disclaimer preserved
@@ -578,7 +587,7 @@ class TestScorePathways:
         reference_engine: sa.Engine,
     ) -> None:
         """DRD4 coverage note survives through scoring pipeline."""
-        _seed_variants(sample_engine, [("rs747302", "11", 637371, "TC")])
+        _seed_variants(sample_engine, [("rs747302", "11", 637371, "CG")])
         result = score_traits_pathways(panel, sample_engine, reference_engine)
 
         behavioral = next(
@@ -605,7 +614,7 @@ class TestStoreFindingsIntegration:
             [
                 ("rs1396862", "17", 43895396, "TT"),
                 ("rs993137", "3", 85011544, "CC"),
-                ("rs747302", "11", 637371, "TC"),
+                ("rs747302", "11", 637371, "CG"),
             ],
         )
 
@@ -651,7 +660,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """DRD4 SNP finding includes coverage_note in detail_json."""
-        _seed_variants(sample_engine, [("rs747302", "11", 637371, "TC")])
+        _seed_variants(sample_engine, [("rs747302", "11", 637371, "CG")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
         store_traits_findings(result, sample_engine)
@@ -679,7 +688,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """Cross-module findings are stored with category='cross_module'."""
-        _seed_variants(sample_engine, [("rs747302", "11", 637371, "TC")])
+        _seed_variants(sample_engine, [("rs747302", "11", 637371, "CG")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
         store_traits_findings(result, sample_engine)

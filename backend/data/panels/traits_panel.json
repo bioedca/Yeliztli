@@ -215,32 +215,32 @@
           "gene": "DRD4",
           "variant_name": "DRD4 exon III VNTR proxy",
           "hgvs_protein": null,
-          "risk_allele": "C",
-          "ref_allele": "T",
+          "risk_allele": "G",
+          "ref_allele": "C",
           "genotype_effects": {
-            "TT": {
-              "category": "Standard",
-              "effect_summary": "No proxy signal for DRD4 7-repeat VNTR at this tag SNP. Standard dopamine D4 receptor signaling inferred."
-            },
-            "TC": {
-              "category": "Moderate",
-              "effect_summary": "One copy of proxy allele. May tag the DRD4 exon III 7-repeat VNTR, associated with novelty seeking in some studies. This is a proxy SNP with limited predictive accuracy."
-            },
-            "CT": {
-              "category": "Moderate",
-              "effect_summary": "One copy of proxy allele. May tag the DRD4 exon III 7-repeat VNTR, associated with novelty seeking in some studies. This is a proxy SNP with limited predictive accuracy."
-            },
             "CC": {
+              "category": "Standard",
+              "effect_summary": "No G allele at the DRD4 -616 C/G promoter SNP. No low-confidence rs747302 proxy signal is reported for the DRD4 exon III VNTR."
+            },
+            "CG": {
               "category": "Moderate",
-              "effect_summary": "Two copies of proxy allele. May tag the DRD4 7-repeat VNTR. The VNTR itself has been inconsistently associated with novelty seeking and ADHD. Proxy accuracy varies by ancestry."
+              "effect_summary": "One G allele at the DRD4 -616 C/G promoter SNP. This is only a low-confidence contextual proxy for the DRD4 exon III VNTR; direct VNTR status is not determined."
+            },
+            "GC": {
+              "category": "Moderate",
+              "effect_summary": "One G allele at the DRD4 -616 C/G promoter SNP. This is only a low-confidence contextual proxy for the DRD4 exon III VNTR; direct VNTR status is not determined."
+            },
+            "GG": {
+              "category": "Moderate",
+              "effect_summary": "Two G alleles at the DRD4 -616 C/G promoter SNP. This remains a low-confidence proxy context for the DRD4 exon III VNTR, not direct VNTR genotyping."
             }
           },
           "evidence_level": 1,
-          "pmids": ["8776587", "18197166"],
-          "recommendation_text": "DRD4 exon III VNTR has been associated with novelty seeking and ADHD susceptibility in candidate gene studies, but effect sizes are small and replication is inconsistent. This is a tag SNP proxy — direct VNTR genotyping is not available on microarray platforms.",
+          "pmids": ["8776587", "18197166", "32075956"],
+          "recommendation_text": "DRD4 exon III VNTR has been associated with novelty seeking and ADHD susceptibility in candidate gene studies, but effect sizes are small and replication is inconsistent. rs747302 is the DRD4 -616 C/G promoter SNP and is not direct VNTR genotyping; treat any signal as low-confidence context only.",
           "trait_domain": "novelty_seeking",
           "associative_language": true,
-          "coverage_note": "rs747302 is a tag SNP proxy for the DRD4 exon III VNTR (7-repeat allele). Direct VNTR genotyping is not available on 23andMe/microarray platforms. Proxy accuracy (r²) varies by ancestry and is moderate at best (r² ≈ 0.3–0.5 in EUR). Results should be interpreted with caution.",
+          "coverage_note": "rs747302 is the DRD4 -616 C/G promoter SNP used here only as low-confidence proxy context for the exon III VNTR (7-repeat allele). Direct VNTR genotyping is not available on 23andMe/microarray platforms, and the SNP-to-VNTR mapping is not reliable enough for a confident VNTR call. Results should be interpreted with caution.",
           "cross_module": {
             "module": "gene_health",
             "note": "DRD4 VNTR has been associated with ADHD susceptibility. See Gene Health module for ADHD-related findings."
@@ -330,15 +330,14 @@
     "research_use_only": true,
     "research_use_only_description": "All PRS outputs must include 'Research Use Only' labels. PRS findings are never displayed alongside monogenic ClinVar findings.",
     "associative_language_rule": "All finding text must use associative language ('associated with', 'linked to') rather than directive claims ('causes', 'determines', 'predicts'). No deterministic phrasing.",
-    "drd4_proxy_rule": "DRD4 rs747302 is a tag SNP proxy for the exon III VNTR. Results must display a coverage caveat noting limited proxy accuracy (r² varies by ancestry)."
+    "drd4_proxy_rule": "DRD4 rs747302 is the -616 C/G promoter SNP used only as low-confidence proxy context for the exon III VNTR. Results must display a coverage caveat noting that direct VNTR status is not determined."
   },
   "special_calling": {
     "DRD4_proxy": {
       "rsid": "rs747302",
       "proxy_target": "DRD4 exon III VNTR (7-repeat allele)",
       "proxy_type": "tag_snp",
-      "r_squared_eur": 0.42,
-      "r_squared_note": "Proxy accuracy varies by ancestry; moderate LD in European populations. Direct VNTR genotyping not available on microarray.",
+      "r_squared_note": "No stable cross-ancestry LD value is encoded; published DRD4 VNTR evidence should not be treated as direct evidence for rs747302 genotype effects.",
       "coverage_caveat_required": true,
       "insufficient_data_reason": "Tag SNP proxy for structural variant (VNTR). Accuracy limited by LD decay and population-specific haplotype structure."
     },

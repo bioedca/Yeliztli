@@ -255,32 +255,33 @@
           "gene": "DRD4",
           "variant_name": "DRD4 exon III VNTR proxy",
           "hgvs_protein": null,
-          "risk_allele": "T",
+          "risk_allele": "G",
           "ref_allele": "C",
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "No DRD4 7-repeat proxy allele detected. Baseline dopamine D4 receptor function."
+              "effect_summary": "No G allele at the DRD4 -616 C/G promoter SNP. No low-confidence rs747302 proxy signal is reported for the DRD4 exon III VNTR."
             },
-            "CT": {
+            "CG": {
               "category": "Moderate",
-              "effect_summary": "One copy of DRD4 VNTR proxy risk allele. The 7-repeat allele has been associated with ADHD susceptibility and altered dopamine D4 receptor signaling, though effect sizes are small and replication is inconsistent."
+              "effect_summary": "One G allele at the DRD4 -616 C/G promoter SNP. This is only a low-confidence contextual proxy for the DRD4 exon III VNTR; direct VNTR status is not determined."
             },
-            "TC": {
+            "GC": {
               "category": "Moderate",
-              "effect_summary": "One copy of DRD4 VNTR proxy risk allele. The 7-repeat allele has been associated with ADHD susceptibility and altered dopamine D4 receptor signaling, though effect sizes are small and replication is inconsistent."
+              "effect_summary": "One G allele at the DRD4 -616 C/G promoter SNP. This is only a low-confidence contextual proxy for the DRD4 exon III VNTR; direct VNTR status is not determined."
             },
-            "TT": {
+            "GG": {
               "category": "Moderate",
-              "effect_summary": "Homozygous DRD4 VNTR proxy risk allele. Associated with ADHD susceptibility in candidate gene studies. The DRD4 7-repeat allele results in blunted dopamine D4 receptor response. Evidence is at the candidate gene level with inconsistent replication."
+              "effect_summary": "Two G alleles at the DRD4 -616 C/G promoter SNP. This remains a low-confidence proxy context for the DRD4 exon III VNTR, not direct VNTR genotyping."
             }
           },
           "evidence_level": 1,
-          "pmids": ["11244489", "16999713", "20732625"],
-          "recommendation_text": "DRD4 exon III VNTR 7-repeat allele is one of the most studied ADHD candidate gene variants. This is a proxy tag SNP with moderate accuracy (r² ~0.3-0.5 in EUR). ADHD is highly heritable (~75%) but polygenic. Clinical ADHD diagnosis requires comprehensive behavioral evaluation and cannot be determined by genotype alone.",
+          "pmids": ["11244489", "16999713", "20732625", "32075956"],
+          "recommendation_text": "DRD4 exon III VNTR 7-repeat allele is one of the most studied ADHD candidate gene variants. rs747302 is the DRD4 -616 C/G promoter SNP and is not direct VNTR genotyping; treat any signal as low-confidence context only. ADHD is highly heritable and polygenic, and clinical ADHD diagnosis requires comprehensive behavioral evaluation.",
+          "coverage_note": "rs747302 is the DRD4 -616 C/G promoter SNP used here only as low-confidence proxy context for the exon III VNTR. Direct VNTR genotyping is not available on typical microarray platforms, and the SNP-to-VNTR mapping is not reliable enough for a confident VNTR call.",
           "cross_module": {
             "module": "traits",
-            "note": "DRD4 VNTR proxy is the canonical ADHD finding. Cross-linked from Traits module where it also appears under novelty seeking."
+            "note": "DRD4 rs747302 is a low-confidence contextual proxy for the exon III VNTR. Cross-linked from Traits module where it also appears under novelty seeking."
           }
         },
         {

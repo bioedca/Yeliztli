@@ -129,7 +129,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs3135388", "6", 32408274, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
     ("rs6897932", "5", 35874575, "TC"),  # IL7R T244I het -> Moderate
     ("rs2104286", "10", 6072697, "GA"),  # IL2RA het -> Moderate
-    ("rs747302", "11", 637339, "CT"),  # DRD4 VNTR proxy het -> Moderate
+    ("rs747302", "11", 637339, "CG"),  # DRD4 VNTR proxy het -> Moderate
     ("rs3746544", "20", 10202976, "GT"),  # SNAP25 het -> Moderate
     ("rs1801133", "1", 11856378, "GA"),  # MTHFR C677T het -> Moderate
     ("rs10166942", "2", 234825093, "CT"),  # TRPM8 het -> Moderate
@@ -439,13 +439,32 @@ class TestSNPScoring:
         assert result.category == MODERATE
 
     def test_evidence_gating_star1_caps_moderate(self, panel: GeneHealthPanel) -> None:
-        """DRD4 rs747302 has evidence_level=1. Even if panel says Moderate for TT,
+        """DRD4 rs747302 has evidence_level=1. Even if panel says Moderate for GG,
         evidence_level=1 hard-caps at Moderate (can never reach Elevated)."""
         snp = self._get_snp(panel, "rs747302")
         assert snp.evidence_level == 1
-        # TT is the highest-risk genotype for DRD4, panel says Moderate
-        result = _score_snp(snp, "TT")
+        # GG is the highest-risk genotype for DRD4, panel says Moderate
+        result = _score_snp(snp, "GG")
         assert result.category == MODERATE  # capped at Moderate by star-1
+
+    def test_drd4_uses_c_g_allele_model(self, panel: GeneHealthPanel) -> None:
+        snp = self._get_snp(panel, "rs747302")
+        assert snp.ref_allele == "C"
+        assert snp.risk_allele == "G"
+        assert set(snp.genotype_effects) == {"CC", "CG", "GC", "GG"}
+
+    def test_drd4_scores_published_c_g_genotypes(self, panel: GeneHealthPanel) -> None:
+        snp = self._get_snp(panel, "rs747302")
+        assert _score_snp(snp, "CG").category == MODERATE
+        assert _score_snp(snp, "GC").category == MODERATE
+        assert _score_snp(snp, "GG").category == MODERATE
+
+    def test_drd4_t_containing_genotype_is_not_curated(self, panel: GeneHealthPanel) -> None:
+        snp = self._get_snp(panel, "rs747302")
+        result = _score_snp(snp, "CT")
+        assert result.category == STANDARD
+        assert result.present_in_sample is True
+        assert "not in curated panel definitions" in result.effect_summary
 
     def test_gjb2_het_moderate(self, panel: GeneHealthPanel) -> None:
         """GJB2 35delG het (G/delG) -> Moderate."""
