@@ -181,6 +181,7 @@ class TestPanelLoading:
 
         assert fut2.variant_name == "FUT2 B12 association"
         assert fut2.risk_allele == "G"
+        assert fut2.ref_allele == "A"
         assert fut2.pmids == ["19303062", "19744961", "23201895"]
         assert fut2.genotype_effects["GG"]["category"] == MODERATE
         assert fut2.genotype_effects["GA"]["category"] == STANDARD
