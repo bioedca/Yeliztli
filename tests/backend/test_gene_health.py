@@ -345,6 +345,24 @@ class TestSNPScoring:
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
+    def test_hla_drb1_ra_proxy_uses_g_risk_allele(self, panel: GeneHealthPanel) -> None:
+        """RA shared-epitope proxy rs6910071 uses the catalogued G risk allele."""
+        snp = self._get_snp(panel, "rs6910071")
+        assert snp.risk_allele == "G"
+        assert snp.ref_allele == "A"
+
+        expected_categories = {
+            "GG": ELEVATED,
+            "GA": ELEVATED,
+            "AG": ELEVATED,
+            "AA": STANDARD,
+        }
+        for genotype, expected in expected_categories.items():
+            result = _score_snp(snp, genotype)
+            assert result.category == expected
+
+        assert "rs6910071-G" in _score_snp(snp, "GG").effect_summary
+
     def test_lrrk2_g2019s_uses_reduced_penetrance_parkinsons_framing(
         self,
         panel: GeneHealthPanel,

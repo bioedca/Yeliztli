@@ -687,24 +687,24 @@
           "gene": "HLA-DRB1",
           "variant_name": "HLA-DRB1 shared epitope proxy",
           "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
+          "risk_allele": "G",
+          "ref_allele": "A",
           "genotype_effects": {
-            "GG": {
+            "AA": {
               "category": "Standard",
               "effect_summary": "No HLA-DRB1 shared epitope proxy allele detected. Baseline population risk for rheumatoid arthritis at this locus."
             },
             "GA": {
               "category": "Elevated",
-              "effect_summary": "One copy of HLA-DRB1 shared epitope proxy. Associated with approximately 2.5-fold increased risk of seropositive (anti-CCP positive) rheumatoid arthritis. The shared epitope drives aberrant T-cell activation against citrullinated peptides."
+              "effect_summary": "One copy of the HLA-DRB1 shared epitope proxy risk allele (rs6910071-G). Associated with increased risk of seropositive (anti-CCP positive) rheumatoid arthritis. The shared epitope drives aberrant T-cell activation against citrullinated peptides."
             },
             "AG": {
               "category": "Elevated",
-              "effect_summary": "One copy of HLA-DRB1 shared epitope proxy. Associated with approximately 2.5-fold increased risk of seropositive (anti-CCP positive) rheumatoid arthritis. The shared epitope drives aberrant T-cell activation against citrullinated peptides."
+              "effect_summary": "One copy of the HLA-DRB1 shared epitope proxy risk allele (rs6910071-G). Associated with increased risk of seropositive (anti-CCP positive) rheumatoid arthritis. The shared epitope drives aberrant T-cell activation against citrullinated peptides."
             },
-            "AA": {
+            "GG": {
               "category": "Elevated",
-              "effect_summary": "Homozygous HLA-DRB1 shared epitope proxy. Associated with ~5-fold increased risk of seropositive rheumatoid arthritis. Homozygous shared epitope carriers may have more severe disease and erosive joint damage."
+              "effect_summary": "Two copies of the HLA-DRB1 shared epitope proxy risk allele (rs6910071-G). Associated with increased risk of seropositive rheumatoid arthritis. Homozygous shared epitope carriers may have more severe disease and erosive joint damage."
             }
           },
           "evidence_level": 3,
