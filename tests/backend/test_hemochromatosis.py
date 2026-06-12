@@ -92,7 +92,9 @@ class TestNegativeAndCombinations:
         )
         a = assess_hemochromatosis(panel, sample_engine)
         assert len(a.calls) == 1
-        assert a.calls[0].risk_classification == "Compound heterozygous (C282Y/H63D)"
+        assert (
+            a.calls[0].risk_classification == "Compound heterozygous (C282Y/H63D), phase-inferred"
+        )
         assert a.calls[0].evidence_stars == 2
         assert (
             "low-penetrance" in a.calls[0].finding_text.lower()
@@ -120,6 +122,9 @@ class TestNegativeAndCombinations:
         a = assess_hemochromatosis(panel, sample_engine)
         assert len(a.calls) == 1
         call = a.calls[0]
+        # The classification label alone is qualified — a consumer reading only
+        # risk_classification must not see an unqualified compound-het call.
+        assert "phase-inferred" in call.risk_classification.lower()
         # Phase caveat travels with the user-facing finding text…
         assert "phase-inferred" in call.finding_text.lower()
         assert "trans" in call.finding_text.lower()

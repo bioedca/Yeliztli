@@ -47,7 +47,7 @@
     {
       "id": "compound_heterozygous",
       "match": {"rs1800562": {"dosage": 1}, "rs1799945": {"dosage": 1}},
-      "risk_classification": "Compound heterozygous (C282Y/H63D)",
+      "risk_classification": "Compound heterozygous (C282Y/H63D), phase-inferred",
       "zygosity": "het",
       "evidence_stars": 2,
       "penetrance": "Compound heterozygotes (one C282Y, one H63D) have low penetrance; most never develop clinically significant iron overload.",
