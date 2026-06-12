@@ -34,6 +34,7 @@ from backend.analysis.prs import (
     run_prs,
     store_prs_findings,
 )
+from backend.analysis.zygosity import is_no_call
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -97,15 +98,23 @@ COVERAGE_CONTEXT = (
 )
 
 
+# Anchor resolution outcomes (see :func:`_anchor_dosage`).
+ANCHOR_RESOLVED = "resolved"  # confident strand-harmonized 0/1/2 dosage
+ANCHOR_PALINDROME = "palindrome_ambiguous"  # A/T or C/G homozygote, strand unknowable
+ANCHOR_UNRESOLVED = "unresolved"  # alleles fit neither strand of the locus
+ANCHOR_UNTYPED = "untyped"  # absent or a no-call sentinel — nothing to report
+
+
 @dataclass
 class AnchorResult:
     """A single anchor-SNP result for a sample.
 
     ``dosage`` is the strand-harmonized effect-allele copy count (0/1/2), or
-    ``None`` when the call cannot be oriented confidently. ``indeterminate`` is
-    ``True`` for a strand-ambiguous palindromic homozygote (see
-    :func:`_anchor_dosage`); the directional copy-count is then suppressed
-    downstream rather than reported as a possibly-inverted number.
+    ``None`` when the call cannot be oriented. ``status`` records *why* (see the
+    ``ANCHOR_*`` constants): a resolved call carries a dosage; a palindromic
+    homozygote and an unresolved genotype both suppress the directional dosage
+    (``indeterminate``) but for different, separately-worded reasons; an untyped
+    or no-called anchor is not reported at all.
     """
 
     rsid: str
@@ -117,7 +126,17 @@ class AnchorResult:
     summary: str
     pmid: str
     trait: str
-    indeterminate: bool = False
+    status: str = ANCHOR_RESOLVED
+
+    @property
+    def indeterminate(self) -> bool:
+        """True when the anchor is typed but its dosage was deliberately withheld."""
+        return self.status in (ANCHOR_PALINDROME, ANCHOR_UNRESOLVED)
+
+    @property
+    def reportable(self) -> bool:
+        """True when the anchor has something to surface (i.e. it was typed)."""
+        return self.status != ANCHOR_UNTYPED
 
 
 @dataclass
@@ -132,38 +151,50 @@ class MetabolicResult:
 
 
 def _anchor_dosage(
-    genotype: str, effect_allele: str, other_allele: str
-) -> tuple[int | None, bool]:
+    genotype: str | None, effect_allele: str, other_allele: str
+) -> tuple[int | None, str]:
     """Strand-harmonized effect-allele dosage for one anchor SNP.
 
-    Returns ``(dosage, indeterminate)``. The call is routed through the shared
-    PRS allele matcher (:func:`match_effect_allele_dosage`) with the curated
-    ``other_allele`` so a reverse-strand call at a **non-palindromic** anchor
-    (TCF7L2 T/C, MC4R C/T) is counted on the complemented strand instead of
-    being miscounted — e.g. a minus-strand ``GG`` at the MC4R C/T locus resolves
-    to two copies of the C effect allele rather than zero.
+    Returns ``(dosage, status)`` where ``status`` is one of the ``ANCHOR_*``
+    constants. The call is routed through the shared PRS allele matcher
+    (:func:`match_effect_allele_dosage`) with the curated ``other_allele`` so a
+    reverse-strand call at a **non-palindromic** anchor (TCF7L2 T/C, MC4R C/T)
+    is counted on the complemented strand instead of being miscounted — e.g. a
+    minus-strand ``GG`` at the MC4R C/T locus resolves to two copies of the C
+    effect allele rather than zero.
+
+    A genotype that is absent or a **no-call** sentinel (``--``/``II``/``00``…)
+    is ``ANCHOR_UNTYPED`` — there is nothing to report, exactly like an untyped
+    locus.
 
     For a **palindromic** A/T or C/G anchor (FTO rs9939609) the strand of a
-    single direct-to-consumer call cannot be verified from the genotype alone;
-    the frequency/LD disambiguation the matcher offers is a population technique,
-    not valid for one individual's single locus. So no MAF is supplied
-    (``maf=None``) and the matcher withholds a strand. A palindromic
-    **heterozygote** is strand-invariant (exactly one effect-allele copy either
-    way) and kept; a palindromic **homozygote** is genuinely ambiguous (an
-    opposite-strand ``TT`` is the complement of ``AA``) and returned as
-    indeterminate so the directional copy-count is suppressed rather than
-    silently inverted.
+    single direct-to-consumer call cannot be verified from the genotype alone
+    (frequency/LD disambiguation is a population technique, not valid for one
+    individual's single locus), so no MAF is supplied and the matcher withholds
+    a strand. A palindromic **heterozygote** is strand-invariant (exactly one
+    effect-allele copy either way) and resolves; a palindromic **homozygote** is
+    ``ANCHOR_PALINDROME`` (genuinely strand-ambiguous — an opposite-strand
+    ``TT`` is the complement of ``AA``), so its directional copy-count is
+    suppressed rather than silently inverted.
+
+    Any other typed genotype whose alleles fit neither strand of the locus
+    (a mixed-strand/triallelic call) is ``ANCHOR_UNRESOLVED`` — also dosage-less,
+    but **not** described as palindromic.
     """
+    if is_no_call(genotype):
+        return None, ANCHOR_UNTYPED
     match = match_effect_allele_dosage(genotype, effect_allele, other_allele, None)
     if match.dosage is not None:
-        return match.dosage, False
+        return match.dosage, ANCHOR_RESOLVED
     if match.status == MISSING_FREQ:
-        # Palindrome with the strand deliberately withheld: a heterozygote is the
-        # palindrome pair on either strand → unambiguously one effect-allele copy.
-        gt = genotype.strip().upper()
-        if len(gt) == 2 and set(gt) == {effect_allele.upper(), other_allele.upper()}:
-            return 1, False
-    return None, True
+        # Palindromic locus with the strand deliberately withheld.
+        gt = (genotype or "").strip().upper()
+        pair = {effect_allele.upper(), other_allele.upper()}
+        if set(gt) <= pair and gt:
+            if len(set(gt)) == 2:
+                return 1, ANCHOR_RESOLVED  # het: one effect-allele copy on either strand
+            return None, ANCHOR_PALINDROME  # homozygote: strand-ambiguous
+    return None, ANCHOR_UNRESOLVED
 
 
 def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult]:
@@ -174,8 +205,10 @@ def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult
     matcher (:func:`_anchor_dosage`) — using each anchor's curated
     ``other_allele`` — so a reverse-strand call is counted on the correct strand
     rather than literally. A strand-ambiguous palindromic homozygote (e.g. FTO
-    rs9939609, an A/T locus) is marked ``indeterminate`` so its directional
-    copy-count is suppressed instead of being silently inverted.
+    rs9939609, an A/T locus) is marked ``ANCHOR_PALINDROME`` so its directional
+    copy-count is suppressed instead of being silently inverted; no-call and
+    unresolved genotypes are tracked with their own statuses (never mislabeled
+    as palindromic).
     """
     anchors = ANCHOR_SNPS.get(trait, [])
     if not anchors:
@@ -193,11 +226,7 @@ def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult
     out: list[AnchorResult] = []
     for a in anchors:
         genotype = geno.get(a["rsid"])
-        if genotype is None:
-            dosage: int | None = None
-            indeterminate = False
-        else:
-            dosage, indeterminate = _anchor_dosage(genotype, a["effect_allele"], a["other_allele"])
+        dosage, status = _anchor_dosage(genotype, a["effect_allele"], a["other_allele"])
         out.append(
             AnchorResult(
                 rsid=a["rsid"],
@@ -206,7 +235,7 @@ def score_anchor_snps(sample_engine: sa.Engine, trait: str) -> list[AnchorResult
                 other_allele=a["other_allele"],
                 genotype=genotype,
                 dosage=dosage,
-                indeterminate=indeterminate,
+                status=status,
                 summary=a["summary"],
                 pmid=a["pmid"],
                 trait=trait,
@@ -275,9 +304,9 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
     # Anchor SNP findings (replace previous on re-run).
     anchor_rows: list[dict] = []
     for a in result.anchors:
-        if a.genotype is None:
-            continue  # not typed in this sample → nothing to report
-        if a.indeterminate:
+        if not a.reportable:
+            continue  # untyped or no-call → nothing to report
+        if a.status == ANCHOR_PALINDROME:
             # Strand-ambiguous palindromic homozygote: report the raw genotype but
             # suppress the directional copy-count so it can't be silently inverted.
             finding_text = (
@@ -287,7 +316,16 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
                 f"resolved for this homozygous call) — Research Use Only"
             )
             dosage_for_detail: int | None = None
-        else:
+        elif a.status == ANCHOR_UNRESOLVED:
+            # Typed, but the alleles fit neither strand of the locus (mixed-strand
+            # or triallelic call). Not palindromic — say so plainly.
+            finding_text = (
+                f"{a.gene} {a.rsid}: genotype {a.genotype} does not match the "
+                f"{a.effect_allele}/{a.other_allele} alleles on either strand — "
+                f"effect-allele dosage not reported — Research Use Only"
+            )
+            dosage_for_detail = None
+        else:  # ANCHOR_RESOLVED
             dosage_text = {0: "no copies", 1: "1 copy", 2: "2 copies"}.get(a.dosage, f"{a.dosage}")
             finding_text = (
                 f"{a.gene} {a.rsid}: {dosage_text} of the {a.effect_allele} "
@@ -314,6 +352,7 @@ def store_metabolic_findings(result: MetabolicResult, sample_engine: sa.Engine) 
                         "genotype": a.genotype,
                         "dosage": dosage_for_detail,
                         "indeterminate": a.indeterminate,
+                        "status": a.status,
                         "summary": a.summary,
                         "research_use_only": True,
                     }

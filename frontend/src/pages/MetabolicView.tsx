@@ -36,7 +36,7 @@ export function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
         Genotype <span className="font-mono">{anchor.genotype}</span> —{" "}
         {anchor.indeterminate ? (
           <span className="text-amber-600 dark:text-amber-500" data-testid="anchor-indeterminate">
-            strand-ambiguous palindromic locus; effect-allele dosage not reported
+            effect-allele dosage not reported (genotype strand could not be resolved)
           </span>
         ) : (
           <>

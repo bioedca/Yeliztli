@@ -240,7 +240,7 @@ def run_metabolic_analysis(
         if pgs_engine is not None:
             pgs_engine.dispose()
 
-    typed_anchors = sum(1 for a in result.anchors if a.genotype is not None)
+    typed_anchors = sum(1 for a in result.anchors if a.reportable)
     return MetabolicRunResponse(
         findings_count=count,
         prs_traits_computed=len(result.prs_results),

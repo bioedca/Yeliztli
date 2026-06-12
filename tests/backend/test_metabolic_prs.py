@@ -17,6 +17,10 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from backend.analysis.metabolic_prs import (
+    ANCHOR_PALINDROME,
+    ANCHOR_RESOLVED,
+    ANCHOR_UNRESOLVED,
+    ANCHOR_UNTYPED,
     AnchorResult,
     run_metabolic_prs,
     score_anchor_snps,
@@ -155,6 +159,7 @@ class TestAnchorSnps:
         mc4r = next(a for a in anchors if a.gene == "MC4R")
         assert mc4r.genotype is None
         assert mc4r.dosage is None
+        assert mc4r.status == ANCHOR_UNTYPED
         assert mc4r.indeterminate is False  # untyped, not strand-ambiguous
 
 
@@ -195,6 +200,11 @@ class TestAnchorStrandResolution:
         anchors = score_anchor_snps(engine, "body_mass_index")
         return next(a for a in anchors if a.gene == "MC4R")
 
+    def _tcf(self, engine: sa.Engine, genotype: str) -> AnchorResult:
+        _seed_anchor(engine, "rs7903146", "10", 114758349, genotype)
+        anchors = score_anchor_snps(engine, "type_2_diabetes")
+        return next(a for a in anchors if a.gene == "TCF7L2")
+
     def test_fto_palindrome_reverse_strand_homozygote_not_inverted(
         self, sample_engine: sa.Engine
     ) -> None:
@@ -203,6 +213,7 @@ class TestAnchorStrandResolution:
         # A" (inverted); it must instead be indeterminate with no directional
         # dosage.
         fto = self._fto(sample_engine, "TT")
+        assert fto.status == ANCHOR_PALINDROME
         assert fto.indeterminate is True
         assert fto.dosage is None
 
@@ -211,6 +222,7 @@ class TestAnchorStrandResolution:
     ) -> None:
         # 'AA' is equally strand-ambiguous (could be the complement of 'TT').
         fto = self._fto(sample_engine, "AA")
+        assert fto.status == ANCHOR_PALINDROME
         assert fto.indeterminate is True
         assert fto.dosage is None
 
@@ -218,6 +230,7 @@ class TestAnchorStrandResolution:
         # A palindromic het is the same allele set on either strand → exactly one
         # effect-allele copy, unambiguous, so it stays determinate.
         fto = self._fto(sample_engine, "AT")
+        assert fto.status == ANCHOR_RESOLVED
         assert fto.indeterminate is False
         assert fto.dosage == 1
 
@@ -226,13 +239,53 @@ class TestAnchorStrandResolution:
         # is the complement of 'CC' → two copies of the C effect allele, resolved
         # on the flipped strand rather than miscounted as zero.
         mc4r = self._mc4r(sample_engine, "GG")
+        assert mc4r.status == ANCHOR_RESOLVED
         assert mc4r.indeterminate is False
         assert mc4r.dosage == 2
 
     def test_mc4r_forward_strand_homozygote_counts(self, sample_engine: sa.Engine) -> None:
         mc4r = self._mc4r(sample_engine, "CC")
+        assert mc4r.status == ANCHOR_RESOLVED
         assert mc4r.indeterminate is False
         assert mc4r.dosage == 2
+
+    def test_no_call_genotype_is_untyped_not_palindrome(self, sample_engine: sa.Engine) -> None:
+        # A no-call sentinel ('--') is non-None but must NOT be treated as a
+        # strand-ambiguous palindromic homozygote — it is simply untyped.
+        fto = self._fto(sample_engine, "--")
+        assert fto.status == ANCHOR_UNTYPED
+        assert fto.indeterminate is False
+        assert fto.reportable is False
+        assert fto.dosage is None
+
+    def test_indel_no_call_at_non_palindrome_is_untyped(self, sample_engine: sa.Engine) -> None:
+        # 'II'/'DD' indel-style no-calls at a non-palindromic anchor are untyped,
+        # never mislabeled as a palindromic locus.
+        tcf = self._tcf(sample_engine, "II")
+        assert tcf.status == ANCHOR_UNTYPED
+        assert tcf.indeterminate is False
+        assert tcf.reportable is False
+
+    def test_unresolved_genotype_not_called_palindromic(self, sample_engine: sa.Engine) -> None:
+        # 'TA' at TCF7L2 (T/C) fits neither {T,C} nor its complement {A,G}:
+        # genuinely unresolved, indeterminate, but NOT a palindrome.
+        tcf = self._tcf(sample_engine, "TA")
+        assert tcf.status == ANCHOR_UNRESOLVED
+        assert tcf.indeterminate is True
+        assert tcf.dosage is None
+
+    def test_no_call_is_not_stored(self, sample_engine: sa.Engine) -> None:
+        _seed_anchor(sample_engine, "rs9939609", "16", 53786615, "--")
+        store_metabolic_findings(run_metabolic_prs(sample_engine, None), sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "metabolic",
+                    findings.c.category == "anchor_snp",
+                    findings.c.rsid == "rs9939609",
+                )
+            ).fetchone()
+        assert row is None  # no-call → not surfaced as a finding at all
 
     def test_indeterminate_finding_suppresses_directional_text(
         self, sample_engine: sa.Engine
@@ -256,6 +309,24 @@ class TestAnchorStrandResolution:
         detail = json.loads(row.detail_json)
         assert detail["indeterminate"] is True
         assert detail["dosage"] is None
+
+    def test_unresolved_finding_text_is_not_palindromic(self, sample_engine: sa.Engine) -> None:
+        # An unresolved genotype at the non-palindromic TCF7L2 (T/C) must not be
+        # described as a palindromic locus.
+        _seed_anchor(sample_engine, "rs7903146", "10", 114758349, "TA")
+        store_metabolic_findings(run_metabolic_prs(sample_engine, None), sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "metabolic",
+                    findings.c.category == "anchor_snp",
+                    findings.c.rsid == "rs7903146",
+                )
+            ).fetchone()
+        assert row is not None
+        assert "palindromic" not in row.finding_text
+        assert "does not match" in row.finding_text
+        assert "dosage not reported" in row.finding_text
 
 
 class TestRunMetabolic:
