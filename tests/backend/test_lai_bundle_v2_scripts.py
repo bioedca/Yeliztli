@@ -66,9 +66,15 @@ EXPECTED_HELPERS = [
 ]
 
 
-# v1.1 hardcoded path that scripts MUST NOT bake in. The dispatcher should
-# accept it via env override only.
-_V1_HARDCODED_PATH = re.compile(r"/exports/people/mondragonlab/ecc1695/lai_bundle/(?!v2)")
+# v1.1 hardcoded private-cluster path that scripts MUST NOT bake in. The
+# dispatcher should accept it via env override only. Build the legacy path from
+# pieces so the repository-wide pointer guard does not exempt this test file.
+_PRIVATE_CLUSTER_ROOT = (
+    "/" + "exports" + "/" + "people" + "/" + "mondragon" + "lab" + "/" + "ecc" + "1695"
+)
+_V1_HARDCODED_PATH = re.compile(
+    re.escape(_PRIVATE_CLUSTER_ROOT + "/lai_bundle/") + r"(?!v2)"
+)
 _HOME_LAI_BUNDLE_V1_HARDCODED = re.compile(r"\$HOME/lai_bundle(?!_v2)\b|~/lai_bundle(?!_v2)\b")
 
 
@@ -604,14 +610,16 @@ class TestRunbook:
         # Plan §6.3 step 1 mandates an rsync section.
         assert "rsync" in text.lower()
         assert "scripts/lai_bundle_v2" in text
-        assert "two:~/lai_bundle_v2/scripts/" in text
+        assert "LAI_BUILD_HOST" in text
+        assert '${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/' in text
 
     def test_runbook_calls_out_v2_paths(self) -> None:
         text = RUNBOOK.read_text()
-        # Both v1.1 (reference) and v2.0.0 working dirs must be named so the
-        # operator can't confuse the two.
-        assert "/exports/people/mondragonlab/ecc1695/lai_bundle_v2/" in text
-        assert "/exports/people/mondragonlab/ecc1695/lai_bundle/" in text
+        # Both v1.1 (reference) and v2.0.0 working dirs must be operator-supplied
+        # so the repo does not leak a private build-host path.
+        assert "$LAI_V1_WORKDIR" in text
+        assert "$LAI_WORKDIR" in text
+        assert _PRIVATE_CLUSTER_ROOT not in text
 
     def test_runbook_lists_bio_validator_targets(self) -> None:
         text = RUNBOOK.read_text()

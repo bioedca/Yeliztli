@@ -5,14 +5,14 @@
 # pole) runs ~22 chromosomes concurrently as a job array instead of sequentially.
 #
 # Usage (from anywhere; paths come from env.sh / overrides):
-#   UNION_CATALOG_TSV=~/lai_bundle_v2/00_raw_downloads/union_sites.tsv \
-#   WORKDIR=~/lai_bundle_v2 \
-#   G1K_PED=~/lai_bundle_v2/06_validation/20130606_g1k.ped \
+#   UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
+#   WORKDIR="$LAI_WORKDIR" \
+#   G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
 #     bash scripts/lai_bundle_v2/run_rebuild_slurm.sh
 #
-# Tunables: SLURM_PARTITION (gpu=one,two/192c | compute=zero/128c),
-#   GNOMIX_CPUS (cpus-per-task for phase 05), GNOMIX_ARRAY (e.g. "1-22%11" to
-#   throttle concurrency), CONDA_SH, CONDA_ENV.
+# Tunables: SLURM_PARTITION (cluster partition name), GNOMIX_CPUS
+#   (cpus-per-task for phase 05), GNOMIX_ARRAY (e.g. "1-22%11" to throttle
+#   concurrency), CONDA_SH, CONDA_ENV.
 #
 # For a direct (non-SLURM) run, use run_rebuild.sh instead.
 

@@ -6,7 +6,7 @@
 # Tunables (override on the sbatch command line or via run_rebuild_slurm.sh):
 #   --array=1-22[%N]   chromosomes (N = max concurrent; omit %N to let SLURM pack)
 #   --cpus-per-task    cores per chromosome (also caps gnomix n_cores — see below)
-#   --partition        gpu (one,two = 192c) | compute (zero = 128c)
+#   --partition        cluster partition used for rebuild jobs
 #
 #SBATCH --job-name=lai_gnomix
 #SBATCH --partition=gpu

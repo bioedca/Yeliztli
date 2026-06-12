@@ -11,8 +11,9 @@ under independent semver tags and are released independently (Plan §2.1).
 
 The rebuild itself is **out-of-repo cluster work** — ADMIXTURE filtering,
 Gnomix training, and trio-based phasing validation each take hours and run
-on `ssh two`. This repo carries the parametrized build scripts under
-`scripts/lai_bundle_v2/`, the orchestration entry point, and this runbook.
+on an operator-provided SLURM build host. This repo carries the parametrized
+build scripts under `scripts/lai_bundle_v2/`, the orchestration entry point,
+and this runbook.
 
 ---
 
@@ -45,13 +46,13 @@ internal `metadata.json::bundle_version` is informational/audit only.
 
 ## 2. Prerequisites
 
-Run on `ssh two` (`/exports/people/mondragonlab/ecc1695/lai_bundle_v2/`):
+Run on the SLURM build host in the chosen `$WORKDIR`:
 
 - `conda env list | grep lai_bundle` returns the dedicated rebuild env
   (`lai_bundle`). Pin it with
   `conda env export --no-builds > docs/lai-bundle-release-runbook-env.lock.yaml`
-  and commit the lock — the SHA-256 is referenced from
-  `metadata.json::tool_versions` (Plan §6.3 step 2).
+  and remove the host-specific `prefix:` line before committing the lock — the
+  SHA-256 is referenced from `metadata.json::tool_versions` (Plan §6.3 step 2).
 - Tool versions pinned (Plan §6.3 step 4):
   - `bcftools --version`
   - Beagle JAR (5.x) SHA-256 recorded
@@ -68,14 +69,13 @@ manual `mkdir` is needed.
 
 ## 3. Host & path conventions
 
-| Variable           | Default value (override via env)                                       | Notes |
+| Variable           | Value                                                                  | Notes |
 |--------------------|------------------------------------------------------------------------|-------|
-| Cluster host alias | `two`                                                                  | `ssh two` (Plan §6.2) |
-| Cluster user/lab   | `ecc1695` / `mondragonlab`                                             | |
-| v1.1 working dir   | `/exports/people/mondragonlab/ecc1695/lai_bundle/`                     | read-only reference; reuse Phase 1 downloads when possible |
-| v2.0.0 working dir | `/exports/people/mondragonlab/ecc1695/lai_bundle_v2/`                  | `$WORKDIR` default for the v2 build |
+| Build host alias   | `$LAI_BUILD_HOST`                                                       | operator-provided SSH alias for the SLURM host |
+| v1.1 working dir   | `$LAI_V1_WORKDIR`                                                       | read-only reference; reuse Phase 1 downloads when possible |
+| v2.0.0 working dir | `$LAI_WORKDIR` / `$WORKDIR`                                             | working directory for the v2 build |
 | In-repo scripts    | `scripts/lai_bundle_v2/` (this repo)                                   | source of truth |
-| On-cluster scripts | `~/lai_bundle_v2/scripts/`                                             | rsynced from the repo per §4 |
+| On-cluster scripts | `$LAI_WORKDIR/scripts/`                                                 | rsynced from the repo per §4 |
 
 The rebuild reuses v1.1's `00_raw_downloads/` whenever the upstream gnomAD
 panel hasn't been republished — record any swap (and the new SHA-256) in
@@ -86,18 +86,22 @@ panel hasn't been republished — record any swap (and the new SHA-256) in
 ## 4. Rsync the in-repo scripts to the cluster
 
 Before invoking `run_rebuild.sh` on the cluster, push the latest scripts
-from the repo. Run this from your dev box:
+from the repo. Run this from your dev box after setting `LAI_BUILD_HOST` and
+`LAI_WORKDIR`:
 
 ```bash
+: "${LAI_BUILD_HOST:?set LAI_BUILD_HOST to the SLURM SSH alias}"
+: "${LAI_WORKDIR:?set LAI_WORKDIR to the remote LAI build directory}"
+
 # Dry-run first to confirm the list.
 rsync -av --delete --dry-run \
   scripts/lai_bundle_v2/ \
-  two:~/lai_bundle_v2/scripts/
+  "${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/"
 
 # Real sync.
 rsync -av --delete \
   scripts/lai_bundle_v2/ \
-  two:~/lai_bundle_v2/scripts/
+  "${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/"
 ```
 
 `--delete` keeps the cluster copy a clean mirror of the repo, so a script
@@ -115,16 +119,16 @@ The LAI rebuild consumes the same union catalog that drives the VEP rebuild
    the VEP rebuild's working dir to the cluster:
 
    ```bash
-   rsync -av path/to/union_sites.tsv two:~/lai_bundle_v2/00_raw_downloads/
+   rsync -av path/to/union_sites.tsv "${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/00_raw_downloads/"
    ```
 
 2. Or regenerate it from the in-repo helper:
 
    ```bash
-   ssh two
-   cd ~/lai_bundle_v2
+   ssh "$LAI_BUILD_HOST"
+   cd "$LAI_WORKDIR"
    conda activate lai_bundle
-   python ~/GenomeInsight/scripts/generate_vep_input.py \
+   python "$REPO_CHECKOUT/scripts/generate_vep_input.py" \
      --rsid-catalog 00_raw_downloads/union_sites.tsv \
      -o /tmp/vep_input.vcf
    ```
@@ -142,12 +146,12 @@ skips outputs that already exist, so a partial failure can be resumed
 without re-doing earlier phases.
 
 ```bash
-ssh two
-cd ~/lai_bundle_v2
+ssh "$LAI_BUILD_HOST"
+cd "$LAI_WORKDIR"
 conda activate lai_bundle
 
-UNION_CATALOG_TSV=~/lai_bundle_v2/00_raw_downloads/union_sites.tsv \
-WORKDIR=~/lai_bundle_v2 \
+UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
+WORKDIR="$LAI_WORKDIR" \
 LAI_BUNDLE_VERSION=v2.0.0 \
   bash scripts/run_rebuild.sh
 ```
@@ -155,8 +159,8 @@ LAI_BUNDLE_VERSION=v2.0.0 \
 To resume from a single phase (e.g., re-train Gnomix only):
 
 ```bash
-UNION_CATALOG_TSV=~/lai_bundle_v2/00_raw_downloads/union_sites.tsv \
-WORKDIR=~/lai_bundle_v2 \
+UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
+WORKDIR="$LAI_WORKDIR" \
   bash scripts/run_rebuild.sh 05
 ```
 
@@ -182,7 +186,7 @@ step 4 — the runbook asserts this before publication).
 `xgboost`, which the `lai_bundle` env lacks; `05_train_gnomix.sh` invokes it via
 `conda run -n $GNOMIX_ENV` (default `gnomix`), so the rest of the pipeline stays
 in `lai_bundle`. **Phase 06 needs the 1000G pedigree:** place
-`20130606_g1k.ped` at `~/lai_bundle_v2/06_validation/` (or set `G1K_PED`).
+`20130606_g1k.ped` at `$WORKDIR/06_validation/` (or set `G1K_PED`).
 
 ### 6a. SLURM submission (parallel — recommended for the full run)
 
@@ -192,19 +196,20 @@ per-chromosome job array** so ~22 chromosomes train concurrently instead of
 sequentially:
 
 ```bash
-ssh two
+ssh "$LAI_BUILD_HOST"
 conda activate lai_bundle           # submitter env; jobs re-source conda
-UNION_CATALOG_TSV=~/lai_bundle_v2/00_raw_downloads/union_sites.tsv \
-WORKDIR=~/lai_bundle_v2 \
-G1K_PED=~/lai_bundle_v2/06_validation/20130606_g1k.ped \
-  bash ~/lai_bundle_v2/scripts/run_rebuild_slurm.sh
+UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
+WORKDIR="$LAI_WORKDIR" \
+G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
+  bash "$LAI_WORKDIR/scripts/run_rebuild_slurm.sh"
 #   prep   (02 03 04)  -> job N
 #   gnomix (05 array)  -> job N+1  (after N)
 #   finish (06 07)     -> job N+2  (after N+1)
-# Watch: squeue -j N,N+1,N+2 ; logs under ~/lai_bundle_v2/logs/
+# Watch: squeue -j N,N+1,N+2 ; logs under $LAI_WORKDIR/logs/
 ```
 
-Tunables: `SLURM_PARTITION` (`gpu` = one,two/192c [default] | `compute` = zero/128c),
+Tunables: `SLURM_PARTITION` (cluster partition name; defaults to `gpu` in
+`run_rebuild_slurm.sh`),
 `GNOMIX_CPUS` (cores per chromosome; also caps gnomix `n_cores`), `GNOMIX_ARRAY`
 (e.g. `1-22%11` to throttle concurrency), `CONDA_SH`, `CONDA_ENV`, `GNOMIX_ENV`.
 The array parallelizes phase 05 from ~4–12 h sequential down to roughly the
@@ -286,7 +291,7 @@ gh release create lai-bundle-v2.0.0 \
   --title "LAI bundle v2.0.0" \
   --notes-file docs/release-notes/lai-bundle-v2.0.0.md \
   --draft \
-  ~/lai_bundle_v2/genomeinsight_lai_bundle_v2.0.0.tar.gz
+  "$WORKDIR/genomeinsight_lai_bundle_v2.0.0.tar.gz"
 ```
 
 Release notes should mirror `metadata.json`: catalog source (union 23andMe

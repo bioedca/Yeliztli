@@ -112,4 +112,3 @@ dependencies:
       - uncertainty-calibration==0.1.4
       - xgboost==3.2.0
       - zipp==3.23.0
-prefix: /exports/people/mondragonlab/ecc1695/.conda/envs/lai_bundle

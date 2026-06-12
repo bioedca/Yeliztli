@@ -12,16 +12,16 @@
 #   bash scripts/preflight_bundle_v2.sh -k        # run every check, then summarise
 #
 # IMPORTANT: several checks probe external state — open GitHub releases, the
-# `ssh two` cluster, the VEP-rebuild host, the `lai_bundle` conda env, and a
-# human bio-validator. Before Phase 0 has fully merged and the v1.1.0 rollback
-# release exists, ❌ here is EXPECTED: this script is precisely the gate that
-# tells the Phase A driver what still has to become true. It is not a test of
-# this repo's tree — it is the "is the world ready for Phase A?" checklist.
+# operator-provided SLURM build host, the VEP-rebuild host, the `lai_bundle`
+# conda env, and a human bio-validator. Before Phase 0 has fully merged and the
+# v1.1.0 rollback release exists, ❌ here is EXPECTED: this script is precisely
+# the gate that tells the Phase A driver what still has to become true. It is
+# not a test of this repo's tree — it is the "is the world ready for Phase A?"
+# checklist.
 #
 # Environment overrides (all optional):
-#   PREFLIGHT_SSH_HOST          ssh alias for the LAI cluster      (default: two)
-#   PREFLIGHT_CLUSTER_DIR       scratch dir checked for free space
-#                               (default: /exports/people/mondragonlab/ecc1695/lai_bundle_v2/)
+#   PREFLIGHT_SSH_HOST          ssh alias for the LAI cluster      (no default)
+#   PREFLIGHT_CLUSTER_DIR       scratch dir checked for free space (no default)
 #   PREFLIGHT_CLUSTER_MIN_GB    GiB of free scratch required       (default: 500)
 #   PREFLIGHT_LAI_ENV           conda env name on the cluster      (default: lai_bundle)
 #   PREFLIGHT_MAIN_REF          git ref treated as "main"          (default: origin/main, then main)
@@ -35,8 +35,8 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || { printf 'cannot cd to repo root: %s\n' "$REPO_ROOT" >&2; exit 1; }
 
 # ─── Tunables ─────────────────────────────────────────────────────────────
-SSH_HOST="${PREFLIGHT_SSH_HOST:-two}"
-CLUSTER_DIR="${PREFLIGHT_CLUSTER_DIR:-/exports/people/mondragonlab/ecc1695/lai_bundle_v2/}"
+SSH_HOST="${PREFLIGHT_SSH_HOST:-}"
+CLUSTER_DIR="${PREFLIGHT_CLUSTER_DIR:-}"
 CLUSTER_MIN_GB="${PREFLIGHT_CLUSTER_MIN_GB:-500}"
 LAI_ENV="${PREFLIGHT_LAI_ENV:-lai_bundle}"
 VEP_CACHE_DIR="${PREFLIGHT_VEP_CACHE_DIR:-$HOME/.vep}"
@@ -125,8 +125,13 @@ vep_v1_asset_present() {
 }
 
 # §7.4 — ≥ CLUSTER_MIN_GB GiB free scratch under CLUSTER_DIR on the cluster.
+cluster_inputs_configured() {
+  [ -n "$SSH_HOST" ] && [ -n "$CLUSTER_DIR" ]
+}
+
 cluster_disk_free() {
   local min_bytes avail
+  cluster_inputs_configured || return 1
   min_bytes=$(( CLUSTER_MIN_GB * 1024 * 1024 * 1024 ))
   # df the deepest *existing* ancestor of CLUSTER_DIR — the dir itself is not
   # created until Phase C. -PB1 → POSIX one-line-per-fs, available bytes in col 4.
@@ -143,6 +148,7 @@ REMOTE
 
 # §7.5 — committed env lock matches the active lai_bundle conda env on the cluster.
 env_lock_matches() {
+  cluster_inputs_configured || return 1
   [ -s "$ENV_LOCK" ] || return 1
   local remote
   # `bash -lc` so the cluster's conda init (login profile) is on PATH.
@@ -150,7 +156,7 @@ env_lock_matches() {
   remote="$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
     "bash -lc 'conda env export -n $LAI_ENV --no-builds'" 2>/dev/null)" || return 1
   [ -n "$remote" ] || return 1
-  diff <(printf '%s\n' "$remote") "$ENV_LOCK" >/dev/null 2>&1
+  diff <(printf '%s\n' "$remote" | sed '/^prefix: /d') "$ENV_LOCK" >/dev/null 2>&1
 }
 
 # §7.6 — Ensembl VEP 112 + GRCh37 cache available on this (VEP-rebuild) host.
@@ -239,7 +245,7 @@ phase0_merged() {
 # ─── Run the checklist (in §7 order) ────────────────────────────────────────
 printf 'Pre-flight for the v2.0.0 bundle rebuild (build-plan §7)\n'
 printf 'repo: %s   ssh host: %s   main ref: %s\n\n' \
-  "$REPO_ROOT" "$SSH_HOST" "$(resolve_main_ref || echo '<unresolved>')"
+  "$REPO_ROOT" "${SSH_HOST:-<unset>}" "$(resolve_main_ref || echo '<unresolved>')"
 
 check 'no in-flight v2.0.0 release drafts from a prior attempt' \
   'gh release delete the stale draft(s), or run gh auth login' \
@@ -253,12 +259,12 @@ check 'bundle-v1.0.0 release has the vep_bundle.db asset (Phase A1 input)' \
   'confirm the v1.0.0 VEP bundle asset is still attached to its release' \
   vep_v1_asset_present
 
-check "≥ ${CLUSTER_MIN_GB} GiB free scratch under ${CLUSTER_DIR} on ${SSH_HOST}" \
-  "free space on ${SSH_HOST}, or override PREFLIGHT_CLUSTER_DIR / PREFLIGHT_SSH_HOST" \
+check "≥ ${CLUSTER_MIN_GB} GiB free scratch under ${CLUSTER_DIR:-<unset>} on ${SSH_HOST:-<unset>}" \
+  "set PREFLIGHT_CLUSTER_DIR / PREFLIGHT_SSH_HOST for the build host, then confirm free space" \
   cluster_disk_free
 
-check "committed env lock matches the active ${LAI_ENV} conda env on ${SSH_HOST}" \
-  "regenerate docs/lai-bundle-release-runbook-env.lock.yaml from ${SSH_HOST} (Step 11/§0k)" \
+check "committed env lock matches the active ${LAI_ENV} conda env on ${SSH_HOST:-<unset>}" \
+  "set PREFLIGHT_SSH_HOST and regenerate docs/lai-bundle-release-runbook-env.lock.yaml without a prefix line" \
   env_lock_matches
 
 check 'Ensembl VEP 112 + GRCh37 cache available on this host' \
