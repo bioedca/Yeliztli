@@ -29,7 +29,8 @@ export default function VariantDetailPanel({
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
   const isAutosomalRecessive = variant.inheritance === "AR"
-  const isHBBSickleTrait = variant.gene_symbol === "HBB" && variant.rsid === "rs334"
+  const isHBBSickleTrait =
+    variant.gene_symbol.toUpperCase() === "HBB" && variant.rsid.trim().toLowerCase() === "rs334"
   const usesPersonalRiskStyle = shouldMentionCancerModule || isADOnly || isHBBSickleTrait
 
   return (

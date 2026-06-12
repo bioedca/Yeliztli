@@ -73,6 +73,11 @@ const HBB_VARIANT: CarrierVariant = {
   notes: "HBB carrier-panel example.",
 }
 
+const HBB_VARIANT_CASED_RSID: CarrierVariant = {
+  ...HBB_VARIANT,
+  rsid: " RS334 ",
+}
+
 describe("Carrier VariantDetailPanel", () => {
   it("keeps classic AR carrier wording for CFTR", () => {
     render(
@@ -137,5 +142,19 @@ describe("Carrier VariantDetailPanel", () => {
     expect(screen.getByText(/kidney findings/i)).toBeInTheDocument()
     expect(screen.getByText(/exertional-stress/i)).toBeInTheDocument()
     expect(screen.getByText(/family planning/i)).toBeInTheDocument()
+  })
+
+  it("normalizes HBB HbS rsid casing and whitespace", () => {
+    render(
+      <VariantDetailPanel
+        variant={HBB_VARIANT_CASED_RSID}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/sickle-cell trait/i)).toBeInTheDocument()
   })
 })

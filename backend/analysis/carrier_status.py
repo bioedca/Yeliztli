@@ -277,7 +277,8 @@ def _has_cancer_crosslink(variant: CarrierVariantResult) -> bool:
 
 def _is_hbb_hbs_trait(variant: CarrierVariantResult) -> bool:
     """Return whether this is the HBB HbS carrier finding."""
-    return variant.gene_symbol.upper() == "HBB" and variant.rsid == "rs334"
+    rsid = (variant.rsid or "").strip().lower()
+    return variant.gene_symbol.upper() == "HBB" and rsid == "rs334"
 
 
 def _has_personal_risk_context(variant: CarrierVariantResult) -> bool:
