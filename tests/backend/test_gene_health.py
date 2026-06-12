@@ -539,6 +539,16 @@ class TestGJB2IndelEndToEnd:
         assert gjb2.present_in_sample is True
         assert gjb2.category == STANDARD
 
+    def test_indel_coverage_status_matches_scoring(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        # A scored I/D call must be 'called' in panel coverage, not 'no_call'
+        # (coverage must agree with scoring — see #159 review).
+        _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "DD")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        cov = next(r for r in result.panel_coverage_rows if r["rsid"] == "rs80338939")
+        assert cov["coverage_status"] == "called"
+
 
 # -- Pathway level determination tests ----------------------------------------
 

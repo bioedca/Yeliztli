@@ -89,9 +89,13 @@ class PanelSNP:
     # maps the parser's canonical sorted-pair indel call ("DD"/"DI"/"II") to the
     # curated biological genotype key, so the carrier/homozygous model is
     # reachable instead of being discarded as a no-call. Encodes the standard
-    # deletion=D / insertion=I convention (cf. the reviewed APOL1 G2 indel
-    # handling), declared per-rsID so D is only read as the deletion where that
-    # is variant-specifically true. None for ordinary ACGT loci (issue #159).
+    # consumer-array deletion=D / insertion=I convention, declared per-rsID so D
+    # is only read as the deletion where that is variant-specifically true.
+    # Provenance: this is the same convention already shipped for deletion loci
+    # elsewhere in the codebase — CFTR F508del (DD->hom_alt/DI->het/II->hom_ref
+    # in backend/analysis/carrier_status.py) and APOL1 G2 (rs71785313,
+    # risk_allele="D" in apol1_panel.json) — not a novel per-vendor assumption.
+    # None for ordinary ACGT loci (issue #159).
     indel_genotype_map: dict[str, str] | None = None
 
 
@@ -463,6 +467,12 @@ def _compute_panel_coverage(
             raw_gt = genotypes.get(snp.rsid)
             if raw_gt is None:
                 status = "not_on_array"
+            elif _map_indel_genotype(snp, raw_gt) is not None:
+                # A vendor I/D code that an indel locus can resolve (e.g. GJB2
+                # 35delG DD/DI/II) is a real, interpretable call — keep coverage
+                # consistent with scoring rather than letting is_no_call() below
+                # mark a now-scored locus as no_call (issue #159).
+                status = "called"
             elif is_no_call(raw_gt):
                 status = "no_call"
             else:
