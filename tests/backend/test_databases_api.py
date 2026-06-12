@@ -144,38 +144,42 @@ class TestDatabaseRegistry:
         reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
         reference_metadata.create_all(reference_engine)
         target_engine = sa.create_engine("sqlite://")
-        captured: dict[str, Path] = {}
+        try:
+            captured: dict[str, Path] = {}
 
-        def fake_build(
-            _target_engine: sa.Engine,
-            dest_dir: Path,
-            **_kwargs: object,
-        ) -> None:
-            captured["dest_dir"] = dest_dir
+            def fake_build(
+                _target_engine: sa.Engine,
+                dest_dir: Path,
+                **_kwargs: object,
+            ) -> None:
+                captured["dest_dir"] = dest_dir
 
-        monkeypatch.setattr(
-            "backend.api.routes.databases.get_build_fn",
-            lambda _name: fake_build,
-        )
-        monkeypatch.setattr(
-            "backend.api.routes.databases.get_registry",
-            lambda: SimpleNamespace(dbnsfp_engine=target_engine),
-        )
+            monkeypatch.setattr(
+                "backend.api.routes.databases.get_build_fn",
+                lambda _name: fake_build,
+            )
+            monkeypatch.setattr(
+                "backend.api.routes.databases.get_registry",
+                lambda: SimpleNamespace(dbnsfp_engine=target_engine),
+            )
 
-        db_info = get_database("dbnsfp")
-        assert db_info is not None
-        job_id = "job-dbnsfp-staging"
-        _create_job_record(reference_engine, job_id, db_info.name)
+            db_info = get_database("dbnsfp")
+            assert db_info is not None
+            job_id = "job-dbnsfp-staging"
+            _create_job_record(reference_engine, job_id, db_info.name)
 
-        _execute_build(
-            db_info=db_info,
-            job_id=job_id,
-            engine=reference_engine,
-            settings=settings,
-        )
+            _execute_build(
+                db_info=db_info,
+                job_id=job_id,
+                engine=reference_engine,
+                settings=settings,
+            )
 
-        assert captured["dest_dir"] == settings.downloads_dir
-        assert captured["dest_dir"] != settings.data_dir
+            assert captured["dest_dir"] == settings.downloads_dir
+            assert captured["dest_dir"] != settings.data_dir
+        finally:
+            reference_engine.dispose()
+            target_engine.dispose()
 
     def test_all_databases_have_required_fields(self):
         for db in get_all_databases():

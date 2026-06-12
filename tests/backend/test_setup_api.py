@@ -723,10 +723,7 @@ class TestSetStoragePath:
         asyncio.run(set_storage_path(SetStoragePathRequest(path=str(new_path))))
 
         config_path = new_path / "config.toml"
-        if config_path.exists():
-            content = config_path.read_text()
-            assert "data_dir" not in content
-            assert str(new_path) not in content
+        assert not config_path.exists()
 
     def test_preserves_existing_config(self, tmp_path: Path) -> None:
         """Should preserve other settings in existing config.toml."""
