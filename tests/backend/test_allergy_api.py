@@ -94,7 +94,7 @@ PATHWAY_SUMMARY_FINDINGS = [
         "finding_text": "Drug Hypersensitivity — Elevated consideration",
         "pathway": "Drug Hypersensitivity",
         "pathway_level": "Elevated",
-        "pmid_citations": json.dumps(["18196153"]),
+        "pmid_citations": json.dumps(["18256392"]),
         "detail_json": json.dumps(
             {
                 "pathway_id": "drug_hypersensitivity",
@@ -280,7 +280,7 @@ CROSS_MODULE_FINDING = {
     "finding_text": "HLA-B*57:01 proxy (rs2395029, TG) — See PGx for prescribing guidance.",
     "pathway": None,
     "pathway_level": None,
-    "pmid_citations": json.dumps(["18196153"]),
+    "pmid_citations": json.dumps(["18256392"]),
     "detail_json": json.dumps(
         {
             "source_module": "allergy",

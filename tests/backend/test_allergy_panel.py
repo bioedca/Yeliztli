@@ -31,6 +31,8 @@ PANEL_PATH = (
     / "allergy_panel.json"
 )
 
+PROXY_PATH = PANEL_PATH.parent / "hla_proxy_lookup.json"
+
 VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 
 # 11 SNPs: 3 atopic + 4 drug HLA + 2 celiac HLA + 2 histamine
@@ -191,12 +193,21 @@ class TestSNPFields:
         # Guard against re-introducing the two unrelated citations that were on
         # the abacavir row (#176): 18196153 is a 1983 X-ray optics paper and
         # 18192541 is an adiponectin/diabetes paper — neither concerns HLA-B or
-        # abacavir. They must not reappear on any row.
+        # abacavir. They must not reappear on any row, in the panel OR in the
+        # sibling HLA proxy lookup table (which carried 18196153 on the
+        # HLA-B*57:01/abacavir entries).
         banned = {"18196153", "18192541"}
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 offending = banned & set(snp["pmids"])
                 assert not offending, f"{snp['rsid']} cites unrelated PMID(s): {offending}"
+
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        for entry in proxy["entries"]:
+            assert entry.get("pmid") not in banned, (
+                f"hla_proxy_lookup {entry['hla_allele']}/{entry['ancestry_pop']} "
+                f"cites unrelated PMID: {entry.get('pmid')}"
+            )
 
 
 # ── Genotype effects validation ─────────────────────────────────────────

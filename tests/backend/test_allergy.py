@@ -131,7 +131,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.97,
             "ancestry_pop": "EUR",
             "clinical_context": "Abacavir hypersensitivity",
-            "pmid": "18196153",
+            "pmid": "18256392",
         },
         {
             "hla_allele": "HLA-B*57:01",
@@ -139,7 +139,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.85,
             "ancestry_pop": "AFR",
             "clinical_context": "Abacavir hypersensitivity",
-            "pmid": "18196153",
+            "pmid": "18256392",
         },
         {
             "hla_allele": "HLA-B*15:02",
