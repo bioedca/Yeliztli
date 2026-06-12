@@ -56,7 +56,10 @@ _POP_TO_GNOMAD_COL: dict[str, str | None] = {
 # calibrated distribution is emitted (else the percentile would rest on too few SNPs).
 _MIN_VARIANT_COVERAGE = 0.5
 
-PRS_CALIBRATION_PMIDS = ["37198491"]  # Ding 2023 (ancestry continuum); ePRS Huang 2024
+PRS_CALIBRATION_PMIDS = [
+    "37198491",  # Ding 2023 (ancestry continuum); ePRS Huang 2024
+    "38374346",  # Lennon 2024 (eMERGE genetic-ancestry mean/variance calibration)
+]
 
 
 @dataclass

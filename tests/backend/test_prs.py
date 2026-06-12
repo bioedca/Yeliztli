@@ -104,6 +104,80 @@ def sample_with_prs_variants(sample_engine: sa.Engine) -> sa.Engine:
     return sample_engine
 
 
+def _uncalibrated_continuous_weight_set() -> PRSWeightSet:
+    return PRSWeightSet(
+        name="Continuous calibration PRS",
+        trait="calibration_test",
+        module="cancer",
+        source_ancestry="EUR",
+        source_study="Test et al. 2026",
+        source_pmid="99999999",
+        sample_size=100000,
+        weights=[
+            PRSSNPWeight(rsid="rsCAL1", effect_allele="T", weight=1.0),
+            PRSSNPWeight(rsid="rsCAL2", effect_allele="G", weight=-0.5),
+        ],
+        reference_mean=0.0,
+        reference_std=1.0,
+        calibrated=False,
+    )
+
+
+def _seed_continuous_calibration_inputs(
+    sample_engine: sa.Engine,
+    *,
+    with_ancestry: bool,
+) -> None:
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.insert(annotated_variants),
+            [
+                {
+                    "rsid": "rsCAL1",
+                    "chrom": "1",
+                    "pos": 100,
+                    "ref": "C",
+                    "alt": "T",
+                    "genotype": "TT",
+                    "gnomad_af_eur": 0.25,
+                    "gnomad_af_afr": 0.75,
+                    "gnomad_af_amr": 0.45,
+                    "gnomad_af_eas": 0.10,
+                    "gnomad_af_sas": 0.35,
+                    "annotation_coverage": 4,
+                },
+                {
+                    "rsid": "rsCAL2",
+                    "chrom": "2",
+                    "pos": 200,
+                    "ref": "A",
+                    "alt": "G",
+                    "genotype": "AG",
+                    "gnomad_af_eur": 0.50,
+                    "gnomad_af_afr": 0.20,
+                    "gnomad_af_amr": 0.40,
+                    "gnomad_af_eas": 0.70,
+                    "gnomad_af_sas": 0.55,
+                    "annotation_coverage": 4,
+                },
+            ],
+        )
+        if with_ancestry:
+            conn.execute(
+                sa.insert(findings).values(
+                    module="ancestry",
+                    category="nnls_admixture",
+                    finding_text="Inferred ancestry",
+                    detail_json=json.dumps(
+                        {
+                            "top_population": "EUR",
+                            "nnls_fractions": {"EUR": 0.75, "AFR": 0.25},
+                        }
+                    ),
+                )
+            )
+
+
 # ── Dosage counting tests ────────────────────────────────────────────────
 
 
@@ -679,6 +753,59 @@ class TestRunPRS:
         )
         assert result.ancestry_mismatch is True
         assert "AFR" in result.ancestry_warning_text
+
+    def test_uncalibrated_weight_set_uses_continuous_reference_distribution(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed_continuous_calibration_inputs(sample_engine, with_ancestry=True)
+        result = run_prs(
+            _uncalibrated_continuous_weight_set(),
+            sample_engine,
+            inferred_ancestry="EUR",
+            n_bootstrap=25,
+            rng_seed=42,
+        )
+
+        assert result.calibrated is True
+        assert result.calibration_method == "ancestry_continuous"
+        assert result.calibration_variants_used == 2
+        assert result.calibration_variants_total == 2
+        assert result.calibration_ancestry_fractions == {"EUR": 0.75, "AFR": 0.25}
+        assert result.calibration_reference_mean is not None
+        assert result.calibration_reference_std is not None
+        assert result.z_score is not None
+        assert result.percentile is not None
+        assert result.has_bootstrap_ci
+
+        store_prs_findings([result], sample_engine, module="cancer")
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["calibrated"] is True
+        assert detail["calibration_method"] == "ancestry_continuous"
+        assert detail["calibration_variants_used"] == 2
+        assert detail["calibration_variants_total"] == 2
+        assert detail["calibration_ancestry_fractions"] == {"EUR": 0.75, "AFR": 0.25}
+        pmids = json.loads(row.pmid_citations)
+        assert {"99999999", "37198491", "38374346"} <= set(pmids)
+
+    def test_uncalibrated_weight_set_without_ancestry_still_withholds_percentile(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed_continuous_calibration_inputs(sample_engine, with_ancestry=False)
+        result = run_prs(
+            _uncalibrated_continuous_weight_set(),
+            sample_engine,
+            inferred_ancestry=None,
+            n_bootstrap=25,
+            rng_seed=42,
+        )
+
+        assert result.calibrated is False
+        assert result.calibration_method is None
+        assert result.z_score is None
+        assert result.percentile is None
+        assert result.bootstrap_iterations == 0
 
 
 # ── Findings storage tests ──────────────────────────────────────────────

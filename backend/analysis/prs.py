@@ -66,6 +66,10 @@ from backend.analysis.allele_match import (
     match_effect_allele_dosage,
 )
 from backend.analysis.evidence import PRS_EVIDENCE_LEVEL
+from backend.analysis.prs_calibration import (
+    PRS_CALIBRATION_PMIDS,
+    continuous_reference_distribution,
+)
 from backend.analysis.return_framing import prs_return_framing
 from backend.db.tables import annotated_variants, findings
 
@@ -236,6 +240,13 @@ class PRSResult:
     # False → no validated reference distribution for this score, so percentile,
     # z-score and bootstrap CI are deliberately withheld (left None). See #7.
     calibrated: bool = True
+    calibration_method: str | None = None
+    calibration_reference_mean: float | None = None
+    calibration_reference_std: float | None = None
+    calibration_variants_used: int | None = None
+    calibration_variants_total: int | None = None
+    calibration_ancestry_fractions: dict[str, float] | None = None
+    calibration_pmids: list[str] = field(default_factory=list)
     # ── Per-PGS provenance (SW-B3), copied from the weight set ───────────
     pgs_id: str | None = None
     pgs_license: str | None = None
@@ -813,14 +824,46 @@ def run_prs(
     result.variants_number = weight_set.variants_number
     result.source_url = weight_set.source_url
     result.monogenic_genes = list(weight_set.monogenic_genes)
+
+    reference_mean: float | None = None
+    reference_std: float | None = None
     if weight_set.calibrated:
-        result = compute_prs_percentile(
-            result, weight_set.reference_mean, weight_set.reference_std
-        )
+        reference_mean = weight_set.reference_mean
+        reference_std = weight_set.reference_std
+        result.calibration_method = "static_reference"
+        result.calibration_reference_mean = reference_mean
+        result.calibration_reference_std = reference_std
+    else:
+        weights = [
+            {"rsid": w.rsid, "effect_allele": w.effect_allele, "weight": w.weight}
+            for w in weight_set.weights
+            if w.rsid
+        ]
+        dist = continuous_reference_distribution(weights, sample_engine)
+        if dist is not None:
+            reference_mean = dist.mean
+            reference_std = dist.std
+            result.calibrated = True
+            result.calibration_method = "ancestry_continuous"
+            result.calibration_reference_mean = dist.mean
+            result.calibration_reference_std = dist.std
+            result.calibration_variants_used = dist.variants_used
+            result.calibration_variants_total = dist.variants_total
+            result.calibration_ancestry_fractions = dist.ancestry_fractions
+            result.calibration_pmids = list(PRS_CALIBRATION_PMIDS)
+            logger.info(
+                "prs_continuous_calibration_applied",
+                trait=result.trait,
+                variants_used=dist.variants_used,
+                variants_total=dist.variants_total,
+            )
+
+    if reference_mean is not None and reference_std is not None:
+        result = compute_prs_percentile(result, reference_mean, reference_std)
         result = compute_prs_bootstrap_ci(
             result,
-            weight_set.reference_mean,
-            weight_set.reference_std,
+            reference_mean,
+            reference_std,
             n_iterations=n_bootstrap,
             rng_seed=rng_seed,
         )
@@ -954,6 +997,13 @@ def store_prs_findings(
             "bootstrap_ci_lower": r.bootstrap_ci_lower,
             "bootstrap_ci_upper": r.bootstrap_ci_upper,
             "bootstrap_iterations": r.bootstrap_iterations,
+            "calibration_method": r.calibration_method,
+            "calibration_reference_mean": r.calibration_reference_mean,
+            "calibration_reference_std": r.calibration_reference_std,
+            "calibration_variants_used": r.calibration_variants_used,
+            "calibration_variants_total": r.calibration_variants_total,
+            "calibration_ancestry_fractions": r.calibration_ancestry_fractions,
+            "calibration_pmids": r.calibration_pmids,
             "ancestry_mismatch": r.ancestry_mismatch,
             "ancestry_warning_text": r.ancestry_warning_text,
             "research_use_only": True,
@@ -971,6 +1021,7 @@ def store_prs_findings(
         }
         detail["return_framing"] = prs_return_framing(detail)
 
+        pmids = list(dict.fromkeys([r.source_pmid, *r.calibration_pmids]))
         rows.append(
             {
                 "module": module,
@@ -979,7 +1030,7 @@ def store_prs_findings(
                 "finding_text": finding_text,
                 "prs_score": r.raw_score,
                 "prs_percentile": r.percentile,
-                "pmid_citations": json.dumps([r.source_pmid]),
+                "pmid_citations": json.dumps(pmids),
                 "detail_json": json.dumps(detail),
             }
         )
