@@ -61,9 +61,12 @@ def get_g6pd(
 ) -> G6pdResponse:
     """Sex-aware G6PD deficiency context for the sample.
 
-    ``phenotype`` is ``normal`` / ``variable`` / ``deficient`` / ``indeterminate``.
-    A heterozygous female is reported as ``variable`` (X-inactivation gives a wide
-    activity range — never reassuring "normal"); when biological sex cannot be
+    ``phenotype`` is ``normal`` / ``variable`` / ``phase_indeterminate`` /
+    ``deficient`` / ``indeterminate``. A heterozygous female is reported as
+    ``variable`` (X-inactivation gives a wide activity range — never reassuring
+    "normal"); an XX sample heterozygous at two *different* deficiency loci is
+    ``phase_indeterminate`` (an array cannot phase trans compound-het vs cis, which
+    differ in phenotype — variable-or-deficient); when biological sex cannot be
     inferred, a zygosity-dependent phenotype is withheld (``indeterminate``). This
     is interpretive background only — never a diagnosis and never a change to any
     finding. G6PD status is confirmed by an enzyme-activity assay.

@@ -11,11 +11,25 @@ Relling 2014, PMID 24787449) interprets G6PD genotype to flag this risk.
 phenotype depends on biological sex:
 
 * **Male (XY, hemizygous):** one deficiency allele ⇒ Deficient.
-* **Female (XX):** two deficiency alleles (homozygous or compound) ⇒ Deficient;
-  **one** deficiency allele ⇒ **Variable** — random X-inactivation gives
-  heterozygotes a wide activity range, and many test "normal" yet still hemolyse
-  on oxidative drugs (Chu 2018; Satyagraha 2021). We therefore never report a
-  heterozygous female as reassuring "normal".
+* **Female (XX):** the call depends on *where* the deficiency alleles sit, which an
+  unphased array only partly resolves:
+  * **Homozygous at one locus** (two copies of one deficiency allele) ⇒ Deficient —
+    both X chromosomes carry that variant, no phase ambiguity.
+  * **One deficiency allele** ⇒ **Variable** — random X-inactivation gives
+    heterozygotes a wide activity range, and many test "normal" yet still hemolyse
+    on oxidative drugs (Chu 2017, PMID 28170391; Domingo 2018, PMID 30184203). We
+    therefore never report a heterozygous female as reassuring "normal".
+  * **Two *different* heterozygous deficiency loci** (e.g. A− het + Mediterranean
+    het) ⇒ **phase-indeterminate**. A SNP array does not phase the two chrX calls,
+    so they may sit in *trans* (true compound heterozygote — both X's affected ⇒
+    deficient) or in *cis* (one X carries both, the other is normal ⇒ variable). For
+    two X-linked loci, cis variants are co-expressed per cell-clone while in trans
+    only one allele is expressed per clone (Goldstein 1971, PMID 5283930), so phase
+    changes the phenotype; short-read/array genotyping cannot resolve it (Chamchoy
+    2026, PMID 41717344). We surface a distinct
+    *variable-or-deficient* result rather than silently summing the two loci into a
+    definitive "deficient" call. Both states carry the high-risk-drug caution and an
+    enzyme-assay-confirmation prompt.
 
 Biological sex is *inferred* from the array (:func:`infer_biological_sex`), not
 recorded; when it cannot be inferred we decline to assign a zygosity-dependent
@@ -99,12 +113,20 @@ def _deficiency_alleles(
     return {"deficiency": sum(1 for base in g if base == def_u), "copies": len(g)}
 
 
-def g6pd_phenotype(sex: str, total_deficiency: int, any_called: bool) -> dict[str, str]:
-    """Assign a G6PD phenotype from inferred sex + total deficiency-allele count.
+def g6pd_phenotype(
+    sex: str,
+    total_deficiency: int,
+    any_called: bool,
+    max_locus_deficiency: int = 0,
+) -> dict[str, str]:
+    """Assign a G6PD phenotype from inferred sex + deficiency-allele counts.
 
     ``sex`` is the :func:`infer_biological_sex` result (``"XX"`` / ``"XY"`` /
     ``"manual_review"`` / ``"unknown"``). ``total_deficiency`` sums deficiency
-    alleles across the callable deficiency loci (A− and Mediterranean).
+    alleles across the callable deficiency loci (A− and Mediterranean);
+    ``max_locus_deficiency`` is the largest deficiency-allele count at any *single*
+    locus, which distinguishes a phase-unambiguous homozygote (one locus == 2) from
+    two unphased heterozygous loci that merely *sum* to 2.
     """
     if not any_called:
         return {
@@ -128,12 +150,25 @@ def g6pd_phenotype(sex: str, total_deficiency: int, any_called: bool) -> dict[st
             "detail": "Hemizygous male with no typed G6PD deficiency allele — G6PD normal.",
         }
     if sex == "XX":
-        if total_deficiency >= 2:
+        if max_locus_deficiency >= 2:
             return {
                 "phenotype": "deficient",
                 "detail": (
-                    "Female homozygous/compound for G6PD deficiency alleles — G6PD "
-                    "deficient. Avoid high-risk oxidative drugs."
+                    "Female homozygous for a G6PD deficiency allele at one locus (both X "
+                    "chromosomes affected) — G6PD deficient. Avoid high-risk oxidative drugs."
+                ),
+            }
+        if total_deficiency >= 2:
+            return {
+                "phenotype": "phase_indeterminate",
+                "detail": (
+                    "Two G6PD deficiency alleles are present at different loci, but a SNP "
+                    "array does not phase them. They may sit in trans (true compound "
+                    "heterozygote — both X chromosomes affected, G6PD deficient) or in cis "
+                    "(one X carries both, the other is normal — heterozygous, VARIABLE "
+                    "activity). These states differ in phenotype, so deficiency cannot be "
+                    "confirmed from genotype alone. Treat as potentially deficient and "
+                    "confirm with an enzyme-activity assay before a high-risk oxidative drug."
                 ),
             }
         if total_deficiency == 1:
@@ -217,7 +252,11 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
     deficiency_loci = [a_minus, mediterranean]
 
     any_called = any(loc["called"] for loc in deficiency_loci)
-    total_deficiency = sum(loc["deficiency_alleles"] or 0 for loc in deficiency_loci)
+    locus_deficiency_counts = [loc["deficiency_alleles"] or 0 for loc in deficiency_loci]
+    total_deficiency = sum(locus_deficiency_counts)
+    # Largest count at any single locus: a locus == 2 is a phase-unambiguous homozygote,
+    # whereas two heterozygous loci that merely sum to 2 are not phaseable on an array.
+    max_locus_deficiency = max(locus_deficiency_counts, default=0)
 
     # rs1050829 distinguishes the non-deficient A+ allele from reference (context only).
     g376 = _deficiency_alleles(genotypes.get(G6PD_376_RSID), G6PD_376_REF, G6PD_376_G)
@@ -225,11 +264,12 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
         g376 and g376["deficiency"] >= 1 and a_minus["deficiency_alleles"] in (0, None)
     )
 
-    verdict = g6pd_phenotype(sex, total_deficiency, any_called)
+    verdict = g6pd_phenotype(sex, total_deficiency, any_called, max_locus_deficiency)
     phenotype = verdict["phenotype"]
     # Surface the drug warning whenever a deficiency allele is present — including the
-    # sex-indeterminate case, which the phenotype detail says to treat as deficient.
-    at_risk = phenotype in {"deficient", "variable"} or (
+    # phase-indeterminate compound and the sex-indeterminate case, both of which the
+    # phenotype detail says to treat as potentially deficient.
+    at_risk = phenotype in {"deficient", "variable", "phase_indeterminate"} or (
         phenotype == "indeterminate" and total_deficiency >= 1
     )
 
