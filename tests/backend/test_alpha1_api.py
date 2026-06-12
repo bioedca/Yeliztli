@@ -93,9 +93,7 @@ class TestRunAndList:
         assert item["risk_classification"] == "PiZZ (severe deficiency)"
         assert item["evidence_level"] == 3
 
-    def test_run_then_list_pisz_phase_fields(
-        self, client: TestClient, _env: sa.Engine
-    ) -> None:
+    def test_run_then_list_pisz_phase_fields(self, client: TestClient, _env: sa.Engine) -> None:
         with _env.begin() as conn:
             conn.execute(sa.delete(raw_variants))
             conn.execute(
