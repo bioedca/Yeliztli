@@ -605,7 +605,7 @@ class TestRunbook:
         assert "rsync" in text.lower()
         assert "scripts/lai_bundle_v2" in text
         assert "LAI_BUILD_HOST" in text
-        assert '${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/' in text
+        assert "${LAI_BUILD_HOST}:${LAI_WORKDIR%/}/scripts/" in text
 
     def test_runbook_calls_out_v2_paths(self) -> None:
         text = RUNBOOK.read_text()

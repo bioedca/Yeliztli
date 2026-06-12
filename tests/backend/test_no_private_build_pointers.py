@@ -31,23 +31,26 @@ def _tracked_files() -> list[Path]:
         capture_output=True,
         check=True,
     )
-    return [
-        REPO_ROOT / raw.decode()
-        for raw in result.stdout.split(b"\0")
-        if raw
-    ]
+    return [REPO_ROOT / raw.decode() for raw in result.stdout.split(b"\0") if raw]
 
 
 def _line_number(data: bytes, offset: int) -> int:
     return data.count(b"\n", 0, offset) + 1
 
 
+def _sample(*parts: str) -> bytes:
+    return "".join(parts).encode()
+
+
 @pytest.mark.parametrize(
     ("label", "sample"),
     [
-        ("private shared filesystem root", b"WORKDIR=/ex" b"ports/private/build\n"),
-        ("literal SSH build host", b"s" b"sh build-host\n"),
-        ("literal remote copy target", b"rs" b"ync -av scripts/ build-host:~/scripts/\n"),
+        ("private shared filesystem root", _sample("WORKDIR=/ex", "ports/private/build\n")),
+        ("literal SSH build host", _sample("s", "sh build-host\n")),
+        (
+            "literal remote copy target",
+            _sample("rs", "ync -av scripts/ build-host", ":~/scripts/\n"),
+        ),
     ],
 )
 def test_private_build_pointer_patterns_catch_representative_leaks(
@@ -84,6 +87,5 @@ def test_no_private_build_host_pointers_in_tracked_files() -> None:
         pytest.fail(
             "Private build-host pointers must stay out of tracked files. "
             "Use operator-provided environment variables, placeholders, or "
-            "gitignored local config instead.\n"
-            + "\n".join(violations)
+            "gitignored local config instead.\n" + "\n".join(violations)
         )
