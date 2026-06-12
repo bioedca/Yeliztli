@@ -363,9 +363,7 @@ class TestSNPScoring:
 
         assert "rs6910071-G" in _score_snp(snp, "GG").effect_summary
 
-    def test_il2_il21_rs6822844_genotypes_not_risk_elevating(
-        self, panel: GeneHealthPanel
-    ) -> None:
+    def test_il2_il21_rs6822844_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
         """IL2/IL21 rs6822844: the minor T allele is protective across autoimmune
         diseases (T vs G OR ~0.72; carrying any T lowers risk vs GG). No genotype
         may inflate the autoimmune pathway level, so every genotype maps to
