@@ -11,6 +11,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.pharmacogenomics import (
+    STRUCTURAL_UNCALLABLE_ALLELES,
     CallConfidence,
     _fetch_alleles_for_gene,
     _indel_alt_token,
@@ -28,6 +29,7 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 # caller without making the suite combinatorially expensive.
 _MAX_EXHAUSTIVE_LOCI = 8
 _Variant = dict[str, Any]
+_VariantKey = tuple[str, str, str]
 
 
 @pytest.fixture(scope="module")
@@ -59,37 +61,55 @@ def _genotype_states(variant: _Variant) -> tuple[str, str, str] | None:
     return None
 
 
-def _defining_variants(gene: str, alleles: list[dict[str, Any]]) -> dict[str, _Variant]:
-    """Index one gene's allele definitions by rsid.
+def _variant_key(variant: _Variant) -> _VariantKey:
+    return (
+        variant["rsid"],
+        variant["ref"].upper(),
+        variant["alt"].upper(),
+    )
+
+
+def _defining_variants(gene: str, alleles: list[dict[str, Any]]) -> dict[_VariantKey, _Variant]:
+    """Index one gene's directly callable allele definitions by variant signature.
 
     Args:
         gene: Gene symbol used in assertion messages.
         alleles: CPIC allele dictionaries returned by _fetch_alleles_for_gene().
 
     Returns:
-        Mapping of rsid to its defining variant dictionary.
+        Mapping of (rsid, ref, alt) to its defining variant dictionary.
     """
-    variants: dict[str, _Variant] = {}
+    variants: dict[_VariantKey, _Variant] = {}
+    structural_uncallable = set(STRUCTURAL_UNCALLABLE_ALLELES.get(gene, ()))
     for allele in alleles:
+        if allele["allele_name"] in structural_uncallable:
+            continue
         for variant in allele["defining_variants"]:
-            rsid = variant["rsid"]
-            ref_alt = (variant["ref"].upper(), variant["alt"].upper())
-            if rsid in variants:
-                existing = variants[rsid]
-                existing_ref_alt = (existing["ref"].upper(), existing["alt"].upper())
-                assert ref_alt == existing_ref_alt, (
-                    f"{gene} has conflicting definitions for {rsid}: "
-                    f"{existing_ref_alt} vs {ref_alt}"
-                )
+            key = _variant_key(variant)
+            if key in variants:
                 continue
-            variants[rsid] = variant
+            variants[key] = variant
     return variants
 
 
+def _collapse_variant_states(
+    loci: list[_VariantKey],
+    states: tuple[str, ...],
+) -> dict[str, str] | None:
+    """Collapse per-variant states to rsid genotypes, skipping contradictions."""
+    genotypes: dict[str, str] = {}
+    for variant_key, state in zip(loci, states):
+        rsid = variant_key[0]
+        if rsid in genotypes and genotypes[rsid] != state:
+            return None
+        genotypes[rsid] = state
+    return genotypes
+
+
 def _genotype_cases(
-    state_map: dict[str, tuple[str, str, str]],
+    state_map: dict[_VariantKey, tuple[str, str, str]],
 ) -> Iterable[tuple[str, dict[str, str]]]:
-    """Generate labeled genotype dictionaries from per-rsid state tuples.
+    """Generate labeled genotype dictionaries from per-variant state tuples.
 
     Args:
         state_map: Mapping of rsid to (hom-ref, het-alt, hom-alt) genotype
@@ -104,24 +124,29 @@ def _genotype_cases(
     """
     loci = sorted(state_map)
     if len(loci) <= _MAX_EXHAUSTIVE_LOCI:
-        for states in product(*(state_map[rsid] for rsid in loci)):
-            yield ("exhaustive", dict(zip(loci, states)))
+        for states in product(*(state_map[vkey] for vkey in loci)):
+            genotypes = _collapse_variant_states(loci, states)
+            if genotypes is not None:
+                yield ("exhaustive", genotypes)
         return
 
-    reference = {rsid: state_map[rsid][0] for rsid in loci}
-    yield ("sample/reference", dict(reference))
+    reference = _collapse_variant_states(loci, tuple(state_map[vkey][0] for vkey in loci))
+    if reference is not None:
+        yield ("sample/reference", dict(reference))
+    else:
+        reference = {}
 
-    for rsid in loci:
-        for state in state_map[rsid][1:]:
+    for vkey in loci:
+        for state in state_map[vkey][1:]:
             genotype = dict(reference)
-            genotype[rsid] = state
-            yield (f"sample/single-alt/{rsid}", genotype)
+            genotype[vkey[0]] = state
+            yield (f"sample/single-alt/{vkey}", genotype)
 
-    for rsid1, rsid2 in combinations(loci, 2):
+    for vkey1, vkey2 in combinations(loci, 2):
         genotype = dict(reference)
-        genotype[rsid1] = state_map[rsid1][1]
-        genotype[rsid2] = state_map[rsid2][1]
-        yield (f"sample/pair-het/{rsid1}/{rsid2}", genotype)
+        genotype[vkey1[0]] = state_map[vkey1][1]
+        genotype[vkey2[0]] = state_map[vkey2][1]
+        yield (f"sample/pair-het/{vkey1}/{vkey2}", genotype)
 
 
 def test_every_complete_confidence_cpic_diplotype_has_a_phenotype(

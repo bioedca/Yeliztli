@@ -84,6 +84,12 @@ STRUCTURAL_VARIANT_GENES: frozenset[str] = frozenset({"CYP2D6", "CYP2B6"})
 # selection and surface them as indeterminate rather than silently assuming *1.
 STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
     "CYP2D6": ("*5",),
+    # PharmVar/CPIC define NUDT15 *6 and *9 as non-SNV indels at the same rsid
+    # (rs746071566), and PharmVar's legacy *2 haplotype is now NUDT15*3.002
+    # with the same insertion plus *3. SNP-array D/I tokens cannot resolve these
+    # sequence states safely, so surface them as indeterminate rather than direct
+    # calls.
+    "NUDT15": ("*3.002", "*6", "*9"),
 }
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
@@ -104,6 +110,8 @@ _PHASE_INFERENCE_GENES: frozenset[str] = frozenset(
     }
 )
 _TPMT_STAR3A_PHASE_RSIDS: frozenset[str] = frozenset({"rs1800460", "rs1142345"})
+_NUDT15_LEGACY_STAR2_PHASE_RSIDS: frozenset[str] = frozenset({"rs746071566", "rs116855232"})
+_VariantKey = tuple[str, str, str]
 
 # Gene-specific interpretive caveats attached to prescribing-alert findings
 # (detail_json["gene_caveat"]) and surfaced by the pharma route. Context only —
@@ -256,6 +264,20 @@ def _count_alt_alleles(genotype: str, ref: str, alt: str) -> int | None:
         return None
 
     return count
+
+
+def _variant_key(variant: dict) -> _VariantKey:
+    """Return a stable key for a defining variant.
+
+    Most CPIC definitions are one rsid per variant, but NUDT15 rs746071566 has
+    both insertion and deletion definitions. The full ref/alt signature is needed
+    to avoid collapsing distinct alleles into a single rsid count.
+    """
+    return (
+        variant["rsid"],
+        variant["ref"].upper(),
+        variant["alt"].upper(),
+    )
 
 
 _SQLITE_BATCH = 500  # Stay well under SQLITE_MAX_VARIABLE_NUMBER (999)
@@ -498,6 +520,19 @@ def _is_phase_inferred_compound_het(
     ) and _has_heterozygous_unique_marker(allele2, allele1, defining_rsids, observed_alt_counts)
 
 
+def _is_nudt15_legacy_star2_phase_ambiguous(
+    gene: str,
+    diplotype: str,
+    observed_alt_counts: dict[str, int],
+) -> bool:
+    """Return True when NUDT15 *3 plus the legacy *2 indel marker are unphased."""
+    return (
+        gene == "NUDT15"
+        and diplotype == "*1/*3"
+        and all(observed_alt_counts.get(rsid) == 1 for rsid in _NUDT15_LEGACY_STAR2_PHASE_RSIDS)
+    )
+
+
 def call_star_alleles_for_gene(
     gene: str,
     alleles: list[dict],
@@ -546,14 +581,18 @@ def call_star_alleles_for_gene(
     # Track missing rsids (not genotyped in sample)
     missing_rsids = all_defining_rsids - set(sample_genotypes.keys())
 
-    # Track remaining alt copies per rsid (from sample genotypes)
-    remaining_alts: dict[str, int] = {}
+    # Track remaining alt copies per defining-variant signature (from sample
+    # genotypes). Use the full (rsid, ref, alt) key because NUDT15 rs746071566
+    # has multiple non-equivalent definitions under one rsid.
+    remaining_alts: dict[_VariantKey, int] = {}
+    observed_alt_counts: dict[str, int] = {}
     uncalled_rsids: set[str] = set()
 
     for allele in non_ref_alleles:
         for v in allele["defining_variants"]:
             rsid = v["rsid"]
-            if rsid in remaining_alts or rsid in uncalled_rsids:
+            key = _variant_key(v)
+            if key in remaining_alts:
                 continue
             if rsid not in sample_genotypes:
                 continue
@@ -561,8 +600,8 @@ def call_star_alleles_for_gene(
             if alt_count is None:
                 uncalled_rsids.add(rsid)
             else:
-                remaining_alts[rsid] = alt_count
-    observed_alt_counts = remaining_alts.copy()
+                remaining_alts[key] = alt_count
+                observed_alt_counts[rsid] = max(observed_alt_counts.get(rsid, 0), alt_count)
 
     # Sort non-ref alleles: most defining variants first (most specific),
     # then alphabetically for deterministic results
@@ -573,6 +612,9 @@ def call_star_alleles_for_gene(
     involved_rsids: set[str] = set()
 
     for allele in non_ref_alleles:
+        if allele["allele_name"] in structural_uncallable:
+            continue
+
         slots_left = 2 - len(called_alleles)
         if slots_left <= 0:
             break
@@ -581,16 +623,16 @@ def call_star_alleles_for_gene(
         max_copies = slots_left
 
         for v in variants:
-            rsid = v["rsid"]
-            if rsid not in remaining_alts:
+            key = _variant_key(v)
+            if key not in remaining_alts:
                 max_copies = 0
                 break
-            max_copies = min(max_copies, remaining_alts[rsid])
+            max_copies = min(max_copies, remaining_alts[key])
 
         if max_copies > 0:
             # Consume alt copies
             for v in variants:
-                remaining_alts[v["rsid"]] -= max_copies
+                remaining_alts[_variant_key(v)] -= max_copies
                 involved_rsids.add(v["rsid"])
 
             called_alleles.extend([allele["allele_name"]] * max_copies)
@@ -632,6 +674,8 @@ def call_star_alleles_for_gene(
             f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
             "defining variant(s) or structural/copy-number state not assayed on this array."
         ).strip()
+        if structural_uncallable and call_confidence == CallConfidence.COMPLETE:
+            call_confidence = CallConfidence.PARTIAL
 
     # Phase-inference guard: a diplotype built from two distinct non-reference
     # alleles can be a trans compound-heterozygote inferred from unphased array
@@ -664,6 +708,20 @@ def call_star_alleles_for_gene(
             "in unphased SNP genotypes; the same observed genotype can also "
             "represent TPMT *3B/*3C (possible Poor Metabolizer). Phase was not "
             "directly determined, so treat the thiopurine phenotype as provisional."
+        )
+        confidence_note = f"{confidence_note} {phase_note}".strip()
+        if call_confidence == CallConfidence.COMPLETE:
+            call_confidence = CallConfidence.PARTIAL
+
+    # NUDT15 legacy *2 / current PharmVar *3.002: the same unphased observation
+    # of heterozygous rs116855232 plus heterozygous rs746071566 can be cis
+    # (*1/*3.002, legacy *2) or trans (*3/*6, possible Poor Metabolizer).
+    if _is_nudt15_legacy_star2_phase_ambiguous(gene, diplotype, observed_alt_counts):
+        phase_note = (
+            "NUDT15 *1/*3 is inferred while rs746071566 is also heterozygous; "
+            "without phase, the same observed genotype can represent current "
+            "PharmVar NUDT15*3.002 (legacy *2) or NUDT15 *3/*6 "
+            "(possible Poor Metabolizer). Treat the thiopurine phenotype as provisional."
         )
         confidence_note = f"{confidence_note} {phase_note}".strip()
         if call_confidence == CallConfidence.COMPLETE:

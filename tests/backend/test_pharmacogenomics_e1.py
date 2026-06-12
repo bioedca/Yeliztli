@@ -35,6 +35,8 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 # Plus-strand defining variants (match cpic_alleles.csv + test_cpic_allele_strand).
 _NUDT15_RS = "rs116855232"  # *3 c.415C>T No function; ref=C alt=T
 _NUDT15_R139H = "rs147390019"  # *4 c.416G>A No function; ref=G alt=A (#39)
+_NUDT15_V18I = "rs186364861"  # *5 c.52G>A Decreased function; ref=G alt=A
+_NUDT15_NON_SNV = "rs746071566"  # *3.002/*6 insertion and *9 deletion
 _UGT1A1_6 = "rs4148323"  # *6 c.211G>A Decreased; ref=G alt=A
 _UGT1A1_28 = "rs8175347"  # *28 TA-repeat (non-SNV) — not array-typeable
 _CYP3A5 = {
@@ -68,6 +70,19 @@ def _cyp3a5_genotypes(**overrides: str) -> dict[str, str]:
     return geno
 
 
+def _nudt15_genotypes(**overrides: str) -> dict[str, str]:
+    # Defaults represent a SNP-array-style NUDT15 sample: all SNV-defined alleles
+    # are typed as reference, while the rs746071566 non-SNV alleles are absent and
+    # therefore remain indeterminate.
+    geno = {
+        _NUDT15_RS: "CC",
+        _NUDT15_R139H: "GG",
+        _NUDT15_V18I: "GG",
+    }
+    geno.update(overrides)
+    return geno
+
+
 def _make_sample(genotypes: dict[str, str]) -> sa.Engine:
     engine = sa.create_engine("sqlite://")
     create_sample_tables(engine)
@@ -88,14 +103,30 @@ def test_nudt15_added_to_panel() -> None:
 
 
 def test_nudt15_reference_is_normal(reference_engine: sa.Engine) -> None:
-    # A confident *1/*1 Normal call requires BOTH defining positions assessed as
-    # reference; with only rs116855232 typed, *4 cannot be excluded (see
-    # test_nudt15_normal_cannot_exclude_star4_when_unassayed).
-    result = _call("NUDT15", {_NUDT15_RS: "CC", _NUDT15_R139H: "GG"}, reference_engine)
+    # All SNV-defined positions are reference, so the SNP-callable diplotype is
+    # *1/*1. The rs746071566 non-SNV alleles still cannot be excluded from array
+    # data, so the result remains provisional.
+    result = _call("NUDT15", _nudt15_genotypes(), reference_engine)
     assert result.diplotype == "*1/*1"
     assert result.phenotype == "Normal Metabolizer"
-    assert result.call_confidence == CallConfidence.COMPLETE
-    assert result.indeterminate_alleles == []
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert set(result.indeterminate_alleles) == {"*3.002", "*6", "*9"}
+
+
+def test_nudt15_non_carrier_alerts_are_reference_only(reference_engine: sa.Engine) -> None:
+    sample = _make_sample(_nudt15_genotypes())
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
+    nudt15 = next(r for r in results if r.gene == "NUDT15")
+    assert nudt15.diplotype == "*1/*1"
+    assert nudt15.phenotype == "Normal Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    nudt15_alerts = [a for a in alerts if a.gene == "NUDT15"]
+    assert {a.drug for a in nudt15_alerts} == {"azathioprine", "mercaptopurine"}
+    for alert in nudt15_alerts:
+        assert alert.diplotype == "*1/*1"
+        assert alert.phenotype == "Normal Metabolizer"
+        assert alert.recommendation == "Use label-recommended dosing."
 
 
 def test_nudt15_normal_cannot_exclude_star4_when_unassayed(reference_engine: sa.Engine) -> None:
@@ -109,13 +140,17 @@ def test_nudt15_normal_cannot_exclude_star4_when_unassayed(reference_engine: sa.
 
 
 def test_nudt15_het_is_intermediate(reference_engine: sa.Engine) -> None:
-    result = _call("NUDT15", {_NUDT15_RS: "CT", _NUDT15_R139H: "GG"}, reference_engine)
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_RS: "CT"}),
+        reference_engine,
+    )
     assert result.diplotype == "*1/*3"
     assert result.phenotype == "Intermediate Metabolizer"
 
 
 def test_nudt15_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) -> None:
-    sample = _make_sample({_NUDT15_RS: "TT", _NUDT15_R139H: "GG"})
+    sample = _make_sample(_nudt15_genotypes(**{_NUDT15_RS: "TT"}))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
     nudt15 = next(r for r in results if r.gene == "NUDT15")
     assert nudt15.diplotype == "*3/*3"
@@ -130,14 +165,18 @@ def test_nudt15_star4_het_is_intermediate(reference_engine: sa.Engine) -> None:
     # rs147390019 het (*4 R139H, No function) with rs116855232 reference → *1/*4 IM.
     # Regression for issue #39: a non-*3 actionable allele is now callable rather
     # than silently reported as *1/*1 Normal.
-    result = _call("NUDT15", {_NUDT15_RS: "CC", _NUDT15_R139H: "GA"}, reference_engine)
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_R139H: "GA"}),
+        reference_engine,
+    )
     assert result.diplotype == "*1/*4"
     assert result.phenotype == "Intermediate Metabolizer"
-    assert result.call_confidence == CallConfidence.COMPLETE
+    assert result.call_confidence == CallConfidence.PARTIAL
 
 
 def test_nudt15_star4_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) -> None:
-    sample = _make_sample({_NUDT15_RS: "CC", _NUDT15_R139H: "AA"})
+    sample = _make_sample(_nudt15_genotypes(**{_NUDT15_R139H: "AA"}))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
     nudt15 = next(r for r in results if r.gene == "NUDT15")
     assert nudt15.diplotype == "*4/*4"
@@ -150,11 +189,90 @@ def test_nudt15_star4_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.En
 
 def test_nudt15_star3_star4_compound_het_is_poor(reference_engine: sa.Engine) -> None:
     # No-function / no-function across two distinct alleles → Poor Metabolizer.
-    result = _call("NUDT15", {_NUDT15_RS: "CT", _NUDT15_R139H: "GA"}, reference_engine)
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_RS: "CT", _NUDT15_R139H: "GA"}),
+        reference_engine,
+    )
     assert result.diplotype == "*3/*4"
     assert result.phenotype == "Poor Metabolizer"
     assert result.call_confidence == CallConfidence.PARTIAL
     assert "unphased" in result.confidence_note
+
+
+def test_nudt15_remaining_pharmvar_alleles_are_bundled(
+    reference_engine: sa.Engine,
+) -> None:
+    alleles = {a["allele_name"]: a for a in _fetch_alleles_for_gene("NUDT15", reference_engine)}
+    assert {"*3.002", "*5", "*6", "*9"} <= set(alleles)
+    assert alleles["*3.002"]["function"] == "No function"
+    assert alleles["*3.002"]["defining_variants"] == [
+        {"rsid": _NUDT15_NON_SNV, "ref": "G", "alt": "GGAGTCG"},
+        {"rsid": _NUDT15_RS, "ref": "C", "alt": "T"},
+    ]
+    assert alleles["*5"]["function"] == "Decreased function"
+    assert alleles["*6"]["function"] == "No function"
+    assert alleles["*9"]["function"] == "No function"
+
+
+def test_nudt15_star5_het_uses_current_cpic_normal_label(
+    reference_engine: sa.Engine,
+) -> None:
+    # Current CPIC publishes NUDT15 *1/*5 as Normal Metabolizer even though *5
+    # itself is a decreased-function allele.
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_V18I: "GA"}),
+        reference_engine,
+    )
+    assert result.diplotype == "*1/*5"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.activity_score == 1.5
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert {"*3.002", "*6", "*9"} <= set(result.indeterminate_alleles)
+
+
+def test_nudt15_star5_hom_is_intermediate(reference_engine: sa.Engine) -> None:
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_V18I: "AA"}),
+        reference_engine,
+    )
+    assert result.diplotype == "*5/*5"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.activity_score == 1.0
+
+
+def test_nudt15_star3_star5_is_poor(reference_engine: sa.Engine) -> None:
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_RS: "CT", _NUDT15_V18I: "GA"}),
+        reference_engine,
+    )
+    assert result.diplotype == "*3/*5"
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.activity_score == 0.5
+
+
+def test_nudt15_legacy_star2_marker_is_phase_caveated(
+    reference_engine: sa.Engine,
+) -> None:
+    # PharmVar's legacy *2 haplotype is now NUDT15*3.002. With unphased array
+    # data, heterozygous rs116855232 plus heterozygous rs746071566 cannot
+    # distinguish cis *1/*3.002 from trans *3/*6.
+    result = _call(
+        "NUDT15",
+        _nudt15_genotypes(**{_NUDT15_RS: "CT", _NUDT15_NON_SNV: "DI"}),
+        reference_engine,
+    )
+    assert result.diplotype == "*1/*3"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert {"*3.002", "*6", "*9"} <= set(result.indeterminate_alleles)
+    assert "NUDT15*3.002" in result.confidence_note
+    assert "legacy *2" in result.confidence_note
+    assert "*3/*6" in result.confidence_note
+    assert "Poor Metabolizer" in result.confidence_note
 
 
 # ── UGT1A1 (irinotecan / atazanavir) + explicit indeterminate flag ────────────
