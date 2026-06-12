@@ -128,7 +128,7 @@
       "gene_symbol": "KCNQ1",
       "name": "Potassium Voltage-Gated Channel Subfamily Q Member 1",
       "chromosome": "11",
-      "conditions": ["Long QT Syndrome Type 1", "Short QT Syndrome", "Jervell and Lange-Nielsen Syndrome"],
+      "conditions": ["Long QT Syndrome Type 1", "Short QT Syndrome"],
       "cardiovascular_category": "channelopathy",
       "inheritance": "AD",
       "evidence_level": 4,
@@ -142,8 +142,8 @@
         "rs120074180",
         "rs199472709"
       ],
-      "pmids": ["20301308", "29798782"],
-      "notes": "Most common cause of congenital long QT syndrome (LQT1). Homozygous variants cause Jervell and Lange-Nielsen syndrome (with deafness)."
+      "pmids": ["20301308", "29798782", "27041150", "38825991"],
+      "notes": "Most common cause of congenital long QT syndrome (LQT1). This AD panel entry reports heterozygous KCNQ1 findings for the LQT1/Romano-Ward spectrum; Jervell and Lange-Nielsen syndrome is an autosomal recessive, biallelic KCNQ1/KCNE1 presentation with congenital deafness and should not be inferred from a single heterozygous variant."
     },
     {
       "gene_symbol": "SCN5A",

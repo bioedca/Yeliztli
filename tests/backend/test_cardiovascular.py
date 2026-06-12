@@ -485,6 +485,15 @@ class TestGeneMetadata:
         for gene in panel.genes:
             assert gene.notes, f"{gene.gene_symbol} has no notes"
 
+    def test_kcnq1_affected_conditions_exclude_recessive_jlns(
+        self, panel: CardiovascularPanel
+    ) -> None:
+        kcnq1 = panel.get_gene("KCNQ1")
+        assert kcnq1 is not None
+        assert "Jervell and Lange-Nielsen Syndrome" not in kcnq1.conditions
+        assert "Jervell and Lange-Nielsen syndrome" in kcnq1.notes
+        assert "biallelic" in kcnq1.notes
+
 
 # ── Evidence level assignment tests ──────────────────────────────────────
 
@@ -1348,6 +1357,23 @@ def _abcg_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
     }
 
 
+def _kcnq1_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
+    """A KCNQ1 ClinVar P/LP annotated_variants row for mixed-inheritance tests."""
+    return {
+        "rsid": rsid,
+        "chrom": "11",
+        "pos": pos,
+        "genotype": genotype,
+        "zygosity": zygosity,
+        "gene_symbol": "KCNQ1",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 1,
+        "clinvar_accession": "VCV000003336",
+        "clinvar_conditions": "Long QT syndrome 1",
+        "annotation_coverage": 2,
+    }
+
+
 def _store_and_fetch(
     panel: CardiovascularPanel, engine: sa.Engine, rows: list[dict]
 ) -> tuple[CardiovascularAnalysisResult, list]:
@@ -1362,6 +1388,26 @@ def _store_and_fetch(
             .all()
         )
     return result, finding_rows
+
+
+class TestKCNQ1ConditionScope:
+    """KCNQ1 AD findings must not imply affected recessive JLNS (#171)."""
+
+    def test_heterozygous_kcnq1_finding_excludes_jlns(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_kcnq1_variant("rs120074175", 2570317, "AG", "het")]
+        )
+        assert len(rows) == 1
+
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Pathogenic for Long QT Syndrome Type 1" in text
+        assert "Jervell and Lange-Nielsen" not in text
+        assert "Jervell and Lange-Nielsen Syndrome" not in detail["conditions"]
+        assert detail["inheritance"] == "AD"
+        assert detail["disease_status"] == DISEASE_AFFECTED
 
 
 class TestRecessiveInheritanceGating:
