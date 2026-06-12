@@ -48,8 +48,20 @@ class TestBcheRisk:
         assert "phase" in r["detail"].lower()
 
     def test_k_only_is_mild(self) -> None:
+        # Atypical (major determinant) typed and absent, ≥1 K allele → genuine mild.
         assert bche_risk(0, 1)["risk_category"] == "mild"
         assert bche_risk(0, 2)["risk_category"] == "mild"
+
+    def test_k_present_atypical_uncalled_is_indeterminate(self) -> None:
+        # A K allele observed while the major-determinant atypical variant is uncalled
+        # cannot be reported as "mild": an untyped atypical allele could place this in a
+        # moderate-to-severe deficiency genotype the array did not resolve (gh #140).
+        for k in (1, 2):
+            r = bche_risk(None, k)
+            assert r is not None
+            assert r["risk_category"] == "indeterminate"
+            assert "major" in r["detail"].lower()
+            assert "not callable" in r["detail"].lower()
 
     def test_neither_allele_is_typical(self) -> None:
         assert bche_risk(0, 0)["risk_category"] == "typical"
@@ -92,10 +104,14 @@ class TestAssessBche:
         assert assess_bche(engine)["risk_category"] == "intermediate"
 
     def test_incomplete_coverage_when_atypical_missing(self) -> None:
+        # K observed but the major-determinant atypical variant uncalled → the result is
+        # indeterminate, NOT a complete "mild" K-only call (gh #140).
         engine = _make_sample({BCHE_K_RSID: "CT"})  # no atypical row
         result = assess_bche(engine)
         assert result["coverage_complete"] is False
-        assert result["risk_category"] == "mild"  # K-only call
+        assert result["any_called"] is True
+        assert result["risk_category"] == "indeterminate"
+        assert "not callable" in result["detail"].lower()
 
     def test_no_call_genotype_not_assessed(self) -> None:
         engine = _make_sample({BCHE_ATYPICAL_RSID: "--", BCHE_K_RSID: "--"})

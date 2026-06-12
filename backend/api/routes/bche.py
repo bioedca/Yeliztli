@@ -60,8 +60,10 @@ def get_bche(
     """BChE (succinylcholine/mivacurium) prolonged-apnea risk context for the sample.
 
     Combines the atypical and K variants into a single deficiency-risk category
-    (``high`` / ``intermediate`` / ``mild`` / ``typical``; ``null`` if neither
-    variant is callable). This is interpretive background only — never a diagnosis
+    (``high`` / ``intermediate`` / ``mild`` / ``typical`` / ``indeterminate`` when a
+    K allele is seen but the major-determinant atypical variant was not callable;
+    ``null`` if neither variant is callable). This is interpretive background only —
+    never a diagnosis
     and never a change to any finding. BChE deficiency is confirmed by an
     enzyme-activity (dibucaine-number) assay.
     """

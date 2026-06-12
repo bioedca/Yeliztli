@@ -102,7 +102,28 @@ def bche_risk(atypical_count: int | None, k_count: int | None) -> dict[str, Any]
                 + coverage_note
             ),
         }
-    # No atypical allele present (atypical_count == 0 or only K was assayed).
+    if atypical_count is None:
+        # The major-determinant atypical locus was NOT callable.
+        if k >= 1:
+            # A K allele alone is only a mild modifier; with the atypical (major-
+            # determinant) variant untyped, an unobserved atypical allele could place
+            # this genotype in a moderate-to-severe deficiency state. Reporting "mild"
+            # here would understate an unresolved genotype, so it is indeterminate.
+            return {
+                "risk_category": "indeterminate",
+                "phenotype": "Indeterminate — major-determinant variant not assayed",
+                "detail": (
+                    f"{'Two K alleles were' if k == 2 else 'One K allele was'} observed, "
+                    "but the atypical (dibucaine-resistant) variant — the major "
+                    "determinant of BChE deficiency — was not callable. A K allele alone "
+                    "is only a mild modifier, so BChE status cannot be established here: "
+                    "an untyped atypical allele could indicate a moderate-to-severe "
+                    "deficiency genotype that this array did not resolve."
+                ),
+            }
+        # Only K was assayed and it was absent — cannot speak to the major determinant.
+        return None
+    # atypical_count == 0: the major-determinant variant was typed and is absent.
     if k >= 1:
         return {
             "risk_category": "mild",
@@ -113,9 +134,6 @@ def bche_risk(atypical_count: int | None, k_count: int | None) -> dict[str, Any]
                 "succinylcholine action is usually minor." + coverage_note
             ),
         }
-    if atypical_count is None:
-        # Only K was assayed and it was absent — cannot speak to the major determinant.
-        return None
     return {
         "risk_category": "typical",
         "phenotype": "Typical BChE activity",
