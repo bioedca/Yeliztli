@@ -109,6 +109,7 @@ def _run_cancer(sample_engine: Engine, registry: DBRegistry) -> int:
         run_cancer_prs,
         store_cancer_prs_findings,
     )
+    from backend.services.sex_inference import infer_biological_sex
 
     panel = load_cancer_panel()
     result = extract_cancer_variants(panel, sample_engine)
@@ -119,11 +120,13 @@ def _run_cancer(sample_engine: Engine, registry: DBRegistry) -> int:
     weight_sets = load_cancer_prs_weights()
     inferred_ancestry = get_inferred_ancestry(sample_engine)
     top_fraction = get_top_ancestry_fraction(sample_engine)
+    inferred_sex = infer_biological_sex(sample_engine)
     prs_result = run_cancer_prs(
         weight_sets,
         sample_engine,
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
+        inferred_sex=inferred_sex,
     )
     count += store_cancer_prs_findings(prs_result, sample_engine)
     return count

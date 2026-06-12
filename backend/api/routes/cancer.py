@@ -382,11 +382,15 @@ def run_cancer_analysis(
     weight_sets = load_cancer_prs_weights()
     inferred_ancestry = get_inferred_ancestry(sample_engine)
     top_fraction = get_top_ancestry_fraction(sample_engine)
+    from backend.services.sex_inference import infer_biological_sex
+
+    inferred_sex = infer_biological_sex(sample_engine)
     prs_result = run_cancer_prs(
         weight_sets,
         sample_engine,
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
+        inferred_sex=inferred_sex,
     )
     prs_count = store_cancer_prs_findings(prs_result, sample_engine)
 

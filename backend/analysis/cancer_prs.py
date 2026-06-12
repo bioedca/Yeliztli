@@ -1,9 +1,9 @@
 """Cancer-specific PRS integration (P3-15).
 
-Loads published weight sets for four cancer types (breast, prostate,
-colorectal, melanoma) and runs them through the generic PRS engine
-(P3-14). Results are stored as findings with module='cancer' and
-category='prs', displayed in a separate "Research Use Only" tier.
+Loads published weight sets for cancer types (breast, prostate, colorectal,
+melanoma) and runs eligible traits through the generic PRS engine (P3-14).
+Results are stored as findings with module='cancer' and category='prs',
+displayed in a separate "Research Use Only" tier.
 
 Key decisions (from PRD P3-15):
   - Scores shown as population percentile + z-score, never raw PRS
@@ -23,7 +23,7 @@ Usage::
     )
 
     weight_sets = load_cancer_prs_weights()
-    result = run_cancer_prs(weight_sets, sample_engine)
+    result = run_cancer_prs(weight_sets, sample_engine, inferred_sex="XY")
 """
 
 from __future__ import annotations
@@ -59,6 +59,8 @@ CANCER_PRS_TRAITS = frozenset(
         "melanoma",
     }
 )
+
+PROSTATE_CANCER_TRAIT = "prostate_cancer"
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -179,14 +181,18 @@ def run_cancer_prs(
     sample_engine: sa.Engine,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
+    inferred_sex: str | None = "unknown",
     n_bootstrap: int = 1000,
     rng_seed: int | None = None,
 ) -> CancerPRSResult:
-    """Run PRS computation for all cancer traits.
+    """Run PRS computation for eligible cancer traits.
 
-    Runs the generic PRS pipeline for each weight set (breast, prostate,
-    colorectal, melanoma). Each result includes raw score, z-score,
-    percentile, bootstrap CI, and ancestry mismatch check.
+    Runs the generic PRS pipeline for each eligible weight set. Prostate
+    cancer PRS output is prostate-context specific and is emitted only when the
+    caller provides a confident ``"XY"`` sex inference. Unknown/manual-review
+    sex contexts suppress that numeric score.
+    Each result includes raw score, z-score, percentile, bootstrap CI,
+    and ancestry mismatch check.
 
     Args:
         weight_sets: Cancer PRS weight sets from load_cancer_prs_weights.
@@ -194,6 +200,9 @@ def run_cancer_prs(
         inferred_ancestry: User's inferred ancestry (e.g. "EUR"), or None.
         top_ancestry_fraction: Fraction (0.0–1.0) of the top ancestry, or
             None if unavailable.
+        inferred_sex: Inferred biological sex (``"XX"``, ``"XY"``,
+            ``"manual_review"``, ``"unknown"``). ``None`` is treated as
+            unknown; pass ``"XY"`` explicitly to emit prostate PRS output.
         n_bootstrap: Bootstrap iterations (default 1000).
         rng_seed: Optional RNG seed for reproducibility.
 
@@ -201,8 +210,19 @@ def run_cancer_prs(
         CancerPRSResult with per-trait results.
     """
     results: list[PRSResult] = []
+    skipped_traits: list[str] = []
 
     for ws in weight_sets:
+        if ws.trait == PROSTATE_CANCER_TRAIT and inferred_sex != "XY":
+            skipped_traits.append(ws.trait)
+            logger.info(
+                "cancer_prs_trait_skipped",
+                trait=ws.trait,
+                reason="sex_context_not_xy",
+                inferred_sex=inferred_sex,
+            )
+            continue
+
         result = run_prs(
             ws,
             sample_engine,
@@ -229,6 +249,8 @@ def run_cancer_prs(
         total_traits=len(results),
         sufficient=cancer_result.sufficient_count,
         insufficient_traits=cancer_result.insufficient_traits,
+        skipped_traits=skipped_traits,
+        inferred_sex=inferred_sex,
     )
 
     return cancer_result

@@ -20,8 +20,10 @@ import sqlalchemy as sa
 from backend.analysis.ancestry import get_inferred_ancestry
 from backend.analysis.cancer_prs import (
     load_cancer_prs_weights,
-    run_cancer_prs,
     store_cancer_prs_findings,
+)
+from backend.analysis.cancer_prs import (
+    run_cancer_prs as _run_cancer_prs,
 )
 from backend.analysis.prs import (
     PRSResult,
@@ -36,6 +38,12 @@ WEIGHTS_PATH = (
     / "panels"
     / "cancer_prs_weights.json"
 )
+
+
+def run_cancer_prs(*args, **kwargs):
+    """Test helper: keep ancestry-mismatch coverage in an explicit XY context."""
+    kwargs.setdefault("inferred_sex", "XY")
+    return _run_cancer_prs(*args, **kwargs)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
