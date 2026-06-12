@@ -12,7 +12,7 @@ Covers:
   - Genotype effects categories are valid (Elevated/Moderate/Standard)
   - Evidence levels within expected range
   - Nutrigenomics migration note for MTHFR
-  - Scoring rules match project conventions with additive scoring note
+  - Scoring rules match project conventions for multiple Moderate findings
   - GWAS EFO methylation terms included
 """
 
@@ -508,11 +508,14 @@ class TestScoringRules:
         cats = panel_data["scoring_rules"]["categories"]
         assert set(cats) == VALID_CATEGORIES
 
-    def test_additive_scoring_note(self, panel_data: dict) -> None:
-        """Methylation module uses additive scoring (documented in panel)."""
+    def test_multiple_moderate_findings_note(self, panel_data: dict) -> None:
+        """Multiple Moderate findings are contextual, not pathway escalation."""
         rules = panel_data["scoring_rules"]
-        assert "additive_scoring_note" in rules
-        assert "additive" in rules["additive_scoring_note"].lower()
+        assert "multiple_moderate_findings_note" in rules
+        note = rules["multiple_moderate_findings_note"].lower()
+        assert "contextual" in note
+        assert "do not promote" in note
+        assert "elevated" in note
 
 
 # ── GWAS EFO terms tests ────────────────────────────────────────────────
