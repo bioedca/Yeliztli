@@ -81,22 +81,22 @@
           "gene": "MC1R",
           "variant_name": "D294H",
           "hgvs_protein": "p.Asp294His",
-          "risk_allele": "A",
+          "risk_allele": "C",
           "ref_allele": "G",
           "genotype_effects": {
             "GG": {
               "category": "Standard",
               "effect_summary": "No D294H variant. Normal MC1R function at this position."
             },
-            "GA": {
+            "GC": {
               "category": "Moderate",
               "effect_summary": "One copy of the D294H 'R' allele. Partial MC1R loss-of-function. Increased pheomelanin relative to eumelanin. Lighter skin pigmentation and increased UV sensitivity."
             },
-            "AG": {
+            "CG": {
               "category": "Moderate",
               "effect_summary": "One copy of the D294H 'R' allele. Partial MC1R loss-of-function. Increased pheomelanin relative to eumelanin. Lighter skin pigmentation and increased UV sensitivity."
             },
-            "AA": {
+            "CC": {
               "category": "Elevated",
               "effect_summary": "Homozygous D294H. Substantially impaired MC1R signaling. Strong shift toward pheomelanin. Associated with fair skin, red/auburn hair, and significantly elevated melanoma risk."
             }

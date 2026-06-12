@@ -28,6 +28,13 @@ PANEL_PATH = (
     / "panels"
     / "skin_panel.json"
 )
+CANCER_PRS_WEIGHTS_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "backend"
+    / "data"
+    / "panels"
+    / "cancer_prs_weights.json"
+)
 
 VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 
@@ -58,6 +65,13 @@ EXPECTED_GENES = {"MC1R", "FLG", "GSTP1", "MMP1", "SOD2", "VDR"}
 def panel_data() -> dict:
     """Load the raw panel JSON."""
     with open(PANEL_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@pytest.fixture()
+def cancer_prs_weights() -> dict:
+    """Load the bundled cancer PRS weights JSON."""
+    with open(CANCER_PRS_WEIGHTS_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -213,6 +227,25 @@ class TestMC1RMultiAllele:
         mc1r_rsids = {s["rsid"] for s in self._get_mc1r_snps(panel_data)}
         assert mc1r_rsids == self.MC1R_RSIDS
 
+    def test_d294h_uses_c_allele_consistent_with_melanoma_prs(
+        self,
+        panel_data: dict,
+        cancer_prs_weights: dict,
+    ) -> None:
+        """MC1R D294H is the C-bearing rs1805009 allele, not G>A (issue #148)."""
+        d294h = next(s for s in self._get_mc1r_snps(panel_data) if s["rsid"] == "rs1805009")
+        assert d294h["ref_allele"] == "G"
+        assert d294h["risk_allele"] == "C"
+        assert set(d294h["genotype_effects"]) == {"GG", "GC", "CG", "CC"}
+
+        melanoma = next(
+            score for score in cancer_prs_weights["weight_sets"] if score["trait"] == "melanoma"
+        )
+        prs_weight = next(
+            weight for weight in melanoma["weights"] if weight["rsid"] == "rs1805009"
+        )
+        assert prs_weight["effect_allele"] == d294h["risk_allele"]
+
     def test_mc1r_allele_class_annotations(self, panel_data: dict) -> None:
         """R alleles: R151C, R160W, D294H. r allele: R163Q."""
         for snp in self._get_mc1r_snps(panel_data):
@@ -238,12 +271,8 @@ class TestMC1RMultiAllele:
         """Strong R alleles homozygous → Elevated."""
         for snp in self._get_mc1r_snps(panel_data):
             if snp["rsid"] in self.R_ALLELES:
-                hom_categories = []
-                for gt, effect in snp["genotype_effects"].items():
-                    # Homozygous risk allele
-                    if gt in ("TT", "AA") and effect["category"] == "Elevated":
-                        hom_categories.append(gt)
-                assert len(hom_categories) > 0, (
+                risk_hom = snp["risk_allele"] * 2
+                assert snp["genotype_effects"].get(risk_hom, {}).get("category") == "Elevated", (
                     f"{snp['rsid']} should have Elevated for homozygous risk"
                 )
 

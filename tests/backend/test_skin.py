@@ -431,9 +431,11 @@ class TestMC1RMultiAllele:
         assert _r_allele_dosage("TT", "T", "C") == 2
         assert _r_allele_dosage("AG", "T", "C") == 1  # reverse strand of CT
         assert _r_allele_dosage("AA", "T", "C") == 2  # reverse strand of TT
-        # rs1805009 D294H: ref G, risk A.
-        assert _r_allele_dosage("GA", "A", "G") == 1
-        assert _r_allele_dosage("CT", "A", "G") == 1  # reverse strand of GA
+        # rs1805009 D294H: ref G, risk C (MC1R c.880G>C / p.Asp294His).
+        assert _r_allele_dosage("GC", "C", "G") == 1
+        assert _r_allele_dosage("CG", "C", "G") == 1  # allele order
+        assert _r_allele_dosage("CC", "C", "G") == 2
+        assert _r_allele_dosage("GA", "C", "G") is None  # G>A is not D294H
         # Off-panel / triallelic call cannot be resolved → None (left uncounted).
         assert _r_allele_dosage("GG", "T", "C") == 0  # ref hom on complement frame
         assert _r_allele_dosage("AC", "T", "C") is None
@@ -1014,7 +1016,7 @@ class TestStoreFindingsIntegration:
             [
                 ("rs1805007", "16", 89919736, "TT"),  # MC1R R151C hom → Elevated
                 ("rs1805008", "16", 89919746, "CT"),  # MC1R R160W het → Moderate
-                ("rs1805009", "16", 89919709, "GA"),  # MC1R D294H het → Moderate
+                ("rs1805009", "16", 89919709, "GC"),  # MC1R D294H het → Moderate
                 ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het → Moderate
                 ("rs61816761", "1", 152285861, "GA"),  # FLG het → Moderate
                 ("rs1695", "11", 67585218, "GG"),  # GSTP1 hom → Moderate (capped)
