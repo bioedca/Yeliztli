@@ -304,6 +304,64 @@ class TestACEProxy:
         assert result.three_state_label is None
 
 
+# ── COL1A1 rs1800012 soft-tissue direction tests (issue #144) ──────────────
+
+
+class TestCOL1A1Injury:
+    """COL1A1 rs1800012 in the Recovery & Injury (soft-tissue) pathway.
+
+    Meta-analyses of sports tendon/ligament injury report the rare TT genotype
+    as protective and the heterozygous genotype as the higher-risk soft-tissue
+    genotype (overdominant). The bone-mineral-density / osteoporotic-fracture
+    signal of the T allele is a distinct phenotype and must not be presented as
+    an athletic stress-fracture risk that makes TT the elevated-injury genotype.
+    """
+
+    def _get_col1a1(self, panel: FitnessPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs1800012":
+                    return snp
+        pytest.fail("COL1A1 rs1800012 not found")
+
+    def test_tt_not_elevated_injury(self, panel: FitnessPanel) -> None:
+        """TT must NOT be an elevated soft-tissue injury genotype (it is protective)."""
+        snp = self._get_col1a1(panel)
+        result = _score_snp(snp, "TT")
+        assert result.category == STANDARD
+        text = result.effect_summary.lower()
+        assert "protective" in text or "reduced" in text
+        # The old inverted framing must be gone.
+        assert "increased stress fracture risk in athletes" not in text
+
+    def test_heterozygous_is_the_cautious_genotype(self, panel: FitnessPanel) -> None:
+        """GT/TG is the higher-risk soft-tissue genotype (overdominant) → Moderate."""
+        snp = self._get_col1a1(panel)
+        for gt in ("GT", "TG"):
+            result = _score_snp(snp, gt)
+            assert result.category == MODERATE, gt
+
+    def test_gg_baseline_standard(self, panel: FitnessPanel) -> None:
+        """GG (no T allele) is baseline soft-tissue risk → Standard."""
+        snp = self._get_col1a1(panel)
+        result = _score_snp(snp, "GG")
+        assert result.category == STANDARD
+
+    def test_bone_phenotype_separated(self, panel: FitnessPanel) -> None:
+        """The BMD/osteoporotic-fracture signal is framed as a distinct phenotype."""
+        snp = self._get_col1a1(panel)
+        tt_text = _score_snp(snp, "TT").effect_summary.lower()
+        # Bone signal present but explicitly separated from athletic soft-tissue injury.
+        assert "bone" in tt_text
+        assert "separate" in tt_text or "distinct" in tt_text
+
+    def test_citations_are_soft_tissue_and_bone(self, panel: FitnessPanel) -> None:
+        """Cites the soft-tissue meta-analyses (Wang 2017, Guo 2024) + a BMD source."""
+        snp = self._get_col1a1(panel)
+        assert "28206959" in snp.pmids  # Wang 2017 soft-tissue meta-analysis
+        assert "38787354" in snp.pmids  # Guo 2024 soft-tissue meta-analysis
+
+
 # ── SNP scoring tests ────────────────────────────────────────────────────
 
 
@@ -838,7 +896,7 @@ class TestStoreFindingsIntegration:
                 ("rs4341", "17", 63488529, "GG"),  # ACE DD → Elevated
                 ("rs1049434", "1", 113545811, "AA"),  # MCT1 → Moderate (capped)
                 ("rs12722", "9", 137048876, "TT"),  # COL5A1 → Moderate (capped)
-                ("rs1800012", "17", 50201587, "TT"),  # COL1A1 → Moderate (capped)
+                ("rs1800012", "17", 50201587, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
                 ("rs9939609", "16", 53820527, "AA"),  # FTO → Elevated
             ],
         )
