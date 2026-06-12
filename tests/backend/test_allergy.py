@@ -1003,6 +1003,53 @@ class TestFindingsStorage:
         detail = json.loads(celiac[0].detail_json)
         assert "state" in detail
 
+    def test_dq8_only_pathway_detail_does_not_rule_out_from_dq2_negative(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """DQ2-negative/DQ8-positive detail must not carry single-proxy rule-out text."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "CT"),  # DQ8 het
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "dq8_only"
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            summaries = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                )
+            ).fetchall()
+
+        food_detail = next(
+            detail
+            for detail in (json.loads(row.detail_json) for row in summaries)
+            if detail["pathway_id"] == "food_sensitivity"
+        )
+        celiac_details = {
+            detail["rsid"]: detail
+            for detail in food_detail["snp_details"]
+            if detail["rsid"] in {"rs2187668", "rs7775228"}
+        }
+        assert set(celiac_details) == {"rs2187668", "rs7775228"}
+
+        dq2_text = celiac_details["rs2187668"]["effect_summary"]
+        assert "does not rule out celiac disease" in dq2_text
+        assert "combined DQ2/DQ8 assessment" in dq2_text
+        assert "negative predictive value" not in dq2_text.lower()
+        assert ">99%" not in dq2_text
+        assert "extremely unlikely" not in dq2_text.lower()
+
     def test_histamine_combined_finding_stored(
         self,
         panel: AllergyPanel,
