@@ -37,6 +37,9 @@ from dataclasses import dataclass
 
 import sqlalchemy as sa
 
+from backend.analysis.allele_match import AMBIGUOUS_MAF_HIGH, AMBIGUOUS_MAF_LOW
+from backend.analysis.zygosity import COMPLEMENT
+
 # Super-population code → gnomAD alt-allele-frequency column. CSA maps to gnomAD
 # "sas"; MID/OCE have no dedicated gnomAD population (dropped + renormalised).
 _POP_TO_GNOMAD_COL: dict[str, str | None] = {
@@ -67,19 +70,65 @@ class CalibratedDistribution:
     ancestry_fractions: dict[str, float]
 
 
-def effect_allele_frequency(effect_allele: str, ref: str, alt: str, alt_af: float) -> float | None:
+def _single_base(allele: str | None) -> str | None:
+    if not allele:
+        return None
+    allele_u = allele.strip().upper()
+    if len(allele_u) != 1 or allele_u not in COMPLEMENT:
+        return None
+    return allele_u
+
+
+def _frequency_for_reference_allele(
+    allele: str, ref: str, alt: str, alt_af: float
+) -> float | None:
+    if allele == alt:
+        return alt_af
+    if allele == ref:
+        return 1.0 - alt_af
+    return None
+
+
+def effect_allele_frequency(
+    effect_allele: str,
+    ref: str,
+    alt: str,
+    alt_af: float,
+    other_allele: str | None = None,
+) -> float | None:
     """Frequency of the *effect* allele given the gnomAD alt-allele frequency.
 
     gnomAD reports the alt-allele frequency. If the PRS effect allele is the alt,
     that is the effect-allele frequency; if it is the ref, it is ``1 − alt_af``.
-    Returns ``None`` when the effect allele matches neither ref nor alt
-    (strand/multiallelic mismatch → exclude from the score's expectation).
+    When a weight provides ``other_allele``, resolve the effect/other pair against
+    ``{ref, alt}`` and its Watson-Crick complement, mirroring PRS scoring. Returns
+    ``None`` when the allele pair is unresolved, multiallelic, or a strand-
+    ambiguous palindrome in the same near-half frequency band used by scoring.
     """
-    ea = effect_allele.strip().upper()
-    if ea == alt.strip().upper():
-        return alt_af
-    if ea == ref.strip().upper():
-        return 1.0 - alt_af
+    ea = _single_base(effect_allele)
+    ref_u = _single_base(ref)
+    alt_u = _single_base(alt)
+    if ea is None or ref_u is None or alt_u is None:
+        return None
+
+    oa = _single_base(other_allele)
+    if oa is None:
+        return _frequency_for_reference_allele(ea, ref_u, alt_u, alt_af)
+
+    if oa == COMPLEMENT[ea]:
+        if AMBIGUOUS_MAF_LOW <= alt_af <= AMBIGUOUS_MAF_HIGH:
+            return None
+        return _frequency_for_reference_allele(ea, ref_u, alt_u, alt_af)
+
+    ref_pair = {ref_u, alt_u}
+    if {ea, oa} == ref_pair:
+        return _frequency_for_reference_allele(ea, ref_u, alt_u, alt_af)
+
+    complemented_effect = COMPLEMENT[ea]
+    complemented_other = COMPLEMENT[oa]
+    if {complemented_effect, complemented_other} == ref_pair:
+        return _frequency_for_reference_allele(complemented_effect, ref_u, alt_u, alt_af)
+
     return None
 
 
@@ -113,8 +162,10 @@ def expected_prs_mean_sd(
     """Analytic PRS mean + SD under HWE for the sample's ancestry.
 
     Each variant dict needs ``effect_allele``, ``ref``, ``alt``, ``weight``, and
-    ``per_pop_alt_af`` ({gnomAD col: af}). Returns ``(mean, std, n_used)``;
-    variants with no usable AF or an unmatched effect allele are skipped.
+    ``per_pop_alt_af`` ({gnomAD col: af}); ``other_allele`` is optional and
+    enables the same strand-aware allele-pair harmonization used by scoring.
+    Returns ``(mean, std, n_used)``; variants with no usable AF or an unmatched
+    effect allele are skipped.
     """
     mean = 0.0
     variance = 0.0
@@ -123,7 +174,13 @@ def expected_prs_mean_sd(
         alt_af = ancestry_weighted_af(v["per_pop_alt_af"], ancestry_fractions)
         if alt_af is None:
             continue
-        p = effect_allele_frequency(v["effect_allele"], v["ref"], v["alt"], alt_af)
+        p = effect_allele_frequency(
+            v["effect_allele"],
+            v["ref"],
+            v["alt"],
+            alt_af,
+            v.get("other_allele"),
+        )
         if p is None:
             continue
         w = v["weight"]
@@ -161,9 +218,10 @@ def continuous_reference_distribution(
 ) -> CalibratedDistribution | None:
     """Build an ancestry-continuous reference distribution for a PRS weight set.
 
-    ``weights`` is a list of ``{rsid, effect_allele, weight}``. Per-variant ref/alt
-    and per-population gnomAD AFs are read from the sample's ``annotated_variants``.
-    Returns ``None`` if ancestry is unknown or too few variants have a usable AF.
+    ``weights`` is a list of ``{rsid, effect_allele, weight, other_allele?}``.
+    Per-variant ref/alt and per-population gnomAD AFs are read from the sample's
+    ``annotated_variants``. Returns ``None`` if ancestry is unknown or too few
+    variants have a usable AF.
     """
     from backend.db.tables import annotated_variants
 
@@ -198,6 +256,7 @@ def continuous_reference_distribution(
         variants.append(
             {
                 "effect_allele": w["effect_allele"],
+                "other_allele": w.get("other_allele"),
                 "ref": r.ref,
                 "alt": r.alt,
                 "weight": w["weight"],

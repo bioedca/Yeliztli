@@ -34,6 +34,20 @@ class TestEffectAlleleFrequency:
     def test_mismatch_returns_none(self) -> None:
         assert effect_allele_frequency("G", "C", "T", 0.3) is None
 
+    def test_reverse_strand_effect_uses_complemented_ref_frequency(self) -> None:
+        # Weight pair C/T is the reverse-strand frame for reference pair G/A.
+        assert effect_allele_frequency("C", "G", "A", 0.25, other_allele="T") == 0.75
+
+    def test_reverse_strand_effect_uses_complemented_alt_frequency(self) -> None:
+        # Weight pair C/T is the reverse-strand frame for reference pair A/G.
+        assert effect_allele_frequency("C", "A", "G", 0.25, other_allele="T") == 0.25
+
+    def test_legacy_without_other_allele_still_does_not_flip(self) -> None:
+        assert effect_allele_frequency("C", "G", "A", 0.25) is None
+
+    def test_palindromic_near_half_with_other_allele_is_dropped(self) -> None:
+        assert effect_allele_frequency("A", "A", "T", 0.5, other_allele="T") is None
+
 
 class TestAncestryWeightedAf:
     def test_weighted_average(self) -> None:
@@ -79,6 +93,22 @@ class TestExpectedPrsMeanSd:
         ]
         mean, _std, _n = expected_prs_mean_sd(variants, {"EUR": 1.0})
         assert math.isclose(mean, 1.4)  # 1 * 2 * (1 - 0.3)
+
+    def test_reverse_strand_effect_allele_contributes(self) -> None:
+        variants = [
+            {
+                "effect_allele": "C",
+                "other_allele": "T",
+                "ref": "G",
+                "alt": "A",
+                "weight": 1.0,
+                "per_pop_alt_af": {"gnomad_af_eur": 0.25},
+            }
+        ]
+        mean, std, n = expected_prs_mean_sd(variants, {"EUR": 1.0})
+        assert math.isclose(mean, 1.5)  # complemented effect C maps to ref G: p = 0.75
+        assert math.isclose(std, math.sqrt(0.375))
+        assert n == 1
 
     def test_skips_unusable_variants(self) -> None:
         variants = [
@@ -221,6 +251,39 @@ class TestContinuousReferenceDistribution:
         )
         assert eur is not None and afr is not None
         assert eur.mean != afr.mean  # ancestry-continuous: AFR has higher rs1 alt-AF
+
+    def test_reverse_strand_effect_allele_contributes_to_distribution(self) -> None:
+        variants = [
+            {
+                "rsid": "rsFLIP",
+                "chrom": "1",
+                "pos": 3,
+                "ref": "G",
+                "alt": "A",
+                "gnomad_af_eur": 0.25,
+                "gnomad_af_afr": 0.25,
+                "gnomad_af_amr": 0.25,
+                "gnomad_af_eas": 0.25,
+                "gnomad_af_sas": 0.25,
+            }
+        ]
+        weights = [
+            {
+                "rsid": "rsFLIP",
+                "effect_allele": "C",
+                "other_allele": "T",
+                "weight": 1.0,
+            }
+        ]
+        dist = continuous_reference_distribution(
+            weights, _sample_with_ancestry({"EUR": 1.0}, variants)
+        )
+
+        assert dist is not None
+        assert dist.variants_used == 1
+        assert dist.variants_total == 1
+        assert math.isclose(dist.mean, 1.5)
+        assert math.isclose(dist.std, round(math.sqrt(0.375), 6))
 
     def test_citation_present(self) -> None:
         assert "37198491" in PRS_CALIBRATION_PMIDS
