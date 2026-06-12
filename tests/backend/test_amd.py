@@ -77,6 +77,36 @@ class TestGenotypes:
         a = assess_amd(panel, sample_engine)
         assert a.calls[0].risk_classification == "CFH Y402H heterozygous"
 
+    def test_cfh_homozygous_arms2_het_keeps_both_loci(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """CC/GT must not drop the ARMS2 het locus (issue #168)."""
+        _seed(sample_engine, [_cfh("CC"), _arms2("GT")])
+        a = assess_amd(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.model_id == "cfh_homozygous_arms2_het"
+        # Both typed risk loci are recorded in the finding, not just CFH.
+        assert set(call.detail["genotype_calls"]) == {"rs1061170", "rs10490924"}
+        assert call.detail["genotype_calls"]["rs10490924"] == "GT"
+        assert call.evidence_stars == 3
+        assert "synergistic" in call.finding_text.lower()
+
+    def test_cfh_het_arms2_homozygous_keeps_both_loci(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """CT/TT must not drop the CFH het locus (issue #168)."""
+        _seed(sample_engine, [_cfh("CT"), _arms2("TT")])
+        a = assess_amd(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.model_id == "cfh_het_arms2_homozygous"
+        assert set(call.detail["genotype_calls"]) == {"rs1061170", "rs10490924"}
+        assert call.detail["genotype_calls"]["rs1061170"] == "CT"
+        assert call.evidence_stars == 3
+        # Relative odds must still be paired with absolute-risk context.
+        assert "absolute" in call.detail["absolute_risk_context"].lower()
+
     def test_no_risk_no_finding(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_cfh("TT"), _arms2("GG")])
         a = assess_amd(panel, sample_engine)

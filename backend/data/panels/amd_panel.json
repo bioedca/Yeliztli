@@ -42,6 +42,32 @@
       "pmids": ["23867343", "26691988"]
     },
     {
+      "id": "cfh_homozygous_arms2_het",
+      "match": {"rs1061170": {"dosage": 2}, "rs10490924": {"dosage": 1}},
+      "risk_classification": "CFH Y402H homozygous + ARMS2 heterozygous (high combined risk)",
+      "primary_rsid": "rs1061170",
+      "zygosity": "hom_alt",
+      "evidence_stars": 3,
+      "odds_ratio": "Both AMD loci carry risk alleles — a meta-analysis associates the any-risk-allele-at-both-loci group with a synergistic, multiplicatively increased risk (pooled OR ~7.2, 95% CI 5.0–10.6, vs the no-risk reference); this CFH-homozygous + one-ARMS2-allele genotype sits between the both-heterozygous and double-homozygous tiers",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "finding_text": "You carry the CFH Y402H homozygous risk genotype plus one ARMS2 risk allele ({genotype}). {odds_ratio}. {absolute_risk}",
+      "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
+      "pmids": ["23867343", "26691988", "32406777"]
+    },
+    {
+      "id": "cfh_het_arms2_homozygous",
+      "match": {"rs1061170": {"dosage": 1}, "rs10490924": {"dosage": 2}},
+      "risk_classification": "CFH Y402H heterozygous + ARMS2 homozygous (high combined risk)",
+      "primary_rsid": "rs10490924",
+      "zygosity": "hom_alt",
+      "evidence_stars": 3,
+      "odds_ratio": "Both AMD loci carry risk alleles — a meta-analysis associates the any-risk-allele-at-both-loci group with a synergistic, multiplicatively increased risk (pooled OR ~7.2, 95% CI 5.0–10.6, vs the no-risk reference); this ARMS2-homozygous + one-CFH-allele genotype sits between the both-heterozygous and double-homozygous tiers",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "finding_text": "You carry one CFH Y402H risk allele plus the ARMS2/HTRA1 homozygous risk genotype ({genotype}). {odds_ratio}. {absolute_risk}",
+      "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
+      "pmids": ["23867343", "26691988", "32406777"]
+    },
+    {
       "id": "cfh_homozygous",
       "match": {"rs1061170": {"dosage": 2}},
       "risk_classification": "CFH Y402H homozygous",
