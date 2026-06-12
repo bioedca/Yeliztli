@@ -38,7 +38,7 @@ def warfarin_api_response(
     ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
     reference_metadata.create_all(ref_engine)
 
-    def make_sample(sample_id: int, ancestry: str) -> None:
+    def make_sample(sample_id: int, ancestry: str | None) -> None:
         sample_db_path = tmp_data_dir / "samples" / f"sample_{sample_id}.db"
         sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
         create_sample_tables(sample_engine)
@@ -72,24 +72,26 @@ def warfarin_api_response(
                     },
                 ],
             )
-            conn.execute(
-                findings.insert().values(
-                    module="ancestry",
-                    category="nnls_admixture",
-                    evidence_level=1,
-                    finding_text=f"Ancestry: {ancestry}",
-                    detail_json=json.dumps(
-                        {
-                            "top_population": ancestry,
-                            "admixture_fractions": {ancestry: 0.9},
-                        }
-                    ),
+            if ancestry is not None:
+                conn.execute(
+                    findings.insert().values(
+                        module="ancestry",
+                        category="nnls_admixture",
+                        evidence_level=1,
+                        finding_text=f"Ancestry: {ancestry}",
+                        detail_json=json.dumps(
+                            {
+                                "top_population": ancestry,
+                                "admixture_fractions": {ancestry: 0.9},
+                            }
+                        ),
+                    )
                 )
-            )
         sample_engine.dispose()
 
     make_sample(1, "EUR")
     make_sample(2, "AFR")
+    make_sample(3, None)
 
     ref_engine.dispose()
 
@@ -134,6 +136,17 @@ class TestWarfarinEndpoint:
         assert genes["CYP4F2"]["diplotype"] == "*1/*3"
         assert genes["CYP4F2"]["dose_effect"] == "not_established"
         assert "African" in genes["CYP4F2"]["ancestry_warning_text"]
+
+    def test_missing_ancestry_requires_context_without_direction(
+        self, warfarin_api_response: Callable[[int], dict]
+    ) -> None:
+        data = warfarin_api_response(3)
+        genes = {g["gene"]: g for g in data["genes"]}
+        assert data["inferred_ancestry"] is None
+        assert genes["CYP4F2"]["diplotype"] == "*1/*3"
+        assert genes["CYP4F2"]["dose_effect"] == "requires_ancestry_context"
+        assert genes["CYP4F2"]["ancestry_context"] is None
+        assert genes["CYP4F2"]["ancestry_warning_text"] is not None
 
     def test_context_only_disclosure(self, warfarin_api_response: Callable[[int], dict]) -> None:
         data = warfarin_api_response(1)
