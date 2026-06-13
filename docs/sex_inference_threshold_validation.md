@@ -23,17 +23,27 @@ Source of truth: the module-level constants in `backend/services/sex_inference.p
 
 | Constant | Value | Role |
 |---|---|---|
-| `_THRESHOLD_XY_CONFIRM` | `0.30` | chrY non-no-call rate above this confirms **XY** |
-| `_THRESHOLD_PAR_NOISE` | `0.10` | chrY rate in `(0.10, 0.30]` → **manual_review**; at/below `0.10` → **unknown** |
+| `_THRESHOLD_XY_CONFIRM` | `0.30` | on the all-homozygous (candidate-XY) branch, a chrY non-no-call rate above this confirms **XY** |
+| `_THRESHOLD_PAR_NOISE` | `0.10` | PAR-noise floor: a chrY rate at/below this is treated as no chrY signal |
 | `MIN_X_NONPAR_TYPED` | `100` | minimum typed non-PAR chrX calls for a confident verdict (#363/#429) |
 | `MIN_Y_PROBES` | `50` | minimum chrY probes for a confident verdict (#363/#429) |
 | PAR1 (GRCh37) | `60001–2,699,520` | pseudo-autosomal region 1, pre-filtered off chrX |
 | PAR2 (GRCh37) | `154,931,044–155,260,560` | pseudo-autosomal region 2, pre-filtered off chrX |
 
+Decision tree (`backend/services/sex_inference.py::_classify`; order is load-bearing):
+
+1. Below `MIN_X_NONPAR_TYPED` (100) typed non-PAR chrX **or** `MIN_Y_PROBES` (50) chrY
+   probes → **unknown** (too thin to resolve; a lone non-PAR chrX het is not evidence
+   of two X chromosomes — it occurs in males too; Chen et al., PMID 38073250).
+2. Any non-PAR chrX **heterozygote** → **XX** when chrY rate ≤ `_THRESHOLD_PAR_NOISE`
+   (0.10); otherwise **manual_review** (discordant het-X + chrY signal). This is the
+   dispositive branch — a low chrY rate here yields XX, *not* unknown.
+3. Otherwise all non-PAR chrX **homozygous** (candidate XY) → **XY** when chrY rate >
+   `_THRESHOLD_XY_CONFIRM` (0.30); **manual_review** when in `(0.10, 0.30]`;
+   **unknown** at/below 0.10.
+
 The Plan §9.4 literature-default thresholds were adopted **verbatim** — the validation
-below required no tuning. A single non-PAR chrX heterozygous call is not evidence of
-two X chromosomes (it occurs in males too; Chen et al., PMID 38073250), hence the
-dispositive-evidence design plus the `MIN_*` denominators.
+below required no tuning.
 
 ## Real AncestryDNA V2.0 export (known ground-truth XX)
 
@@ -50,8 +60,8 @@ No genotype rows, rsIDs, or coordinates from the real export cross the repo boun
 
 Re-run from `tests/fixtures/sex_inference_synthetic/*.txt` at the literature-default
 thresholds. Each fixture carries ≥100 typed non-PAR chrX and ≥50 chrY probes, so the
-#429 evaluability floors are satisfied and the verdict is driven by the het/hom ratio
-and chrY rate.
+issue-#429 evaluability floors are satisfied and the verdict is driven by the het/hom
+ratio and chrY rate.
 
 | Fixture | non-PAR chrX typed | non-PAR het rate | chrY probes | chrY rate | Classification |
 |---|---|---|---|---|---|
@@ -61,7 +71,7 @@ and chrY rate.
 
 ## Reproduction
 
-```
+```bash
 python scripts/validate_sex_thresholds.py <export-or-fixture-path> --json
 ```
 

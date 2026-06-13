@@ -595,3 +595,5 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command
+    # Lock the honest framing so it can't drift back to claiming a fresh signed run.
+    assert "reconstructed provenance" in text
