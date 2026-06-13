@@ -316,6 +316,16 @@ class TestRequireFreshSample:
 
         assert require_fresh_sample(gate_env["sample_id"]) == 1
 
+    def test_missing_sample_not_gated_regardless_of_baseline(self, manifest_env, gate_env):
+        # #414: a missing samples row is not gated — existence is checked before
+        # staleness, so the dependency passes through (handler 404s) *even with* a
+        # newer bundle baseline installed. Under the old logic is_sample_stale()'s
+        # v1.0.0 fallback would treat the absent row as stale and raise 423 here,
+        # making the response environment-dependent (404 in CI vs 423 on a dev box).
+        _seed_installed_bundle(gate_env["settings"], "v2.0.0")
+        # sample_id 999 has no row in the seeded reference DB.
+        assert require_fresh_sample(999) == 999
+
     def test_required_version_falls_back_to_db_row(self, monkeypatch, gate_env):
         # When the manifest is unreachable, the payload still reports the
         # installed bundle's version (read from database_versions).

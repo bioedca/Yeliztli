@@ -149,11 +149,20 @@ def require_fresh_sample(sample_id: int) -> int:
     stale-source gate, where blocking an un-annotated source before merge
     is intended.)
 
-    A *missing* ``samples`` row falls through to the gate below (423),
-    preserving the existing contract that gated routes do not leak sample
-    existence via a 404.
+    A *missing* ``samples`` row is **not** gated: existence is checked before
+    staleness, so the dependency passes through and the handler raises its own
+    ``404`` deterministically. Previously a missing row fell through to
+    :func:`is_sample_stale`, whose Plan §7.4 fallback treats an absent version as
+    ``v1.0.0`` — making the same request return ``404`` with no staleness baseline
+    (CI) but ``423`` once a newer bundle was installed (a dev box). Gating a
+    non-existent sample as 423 also served no purpose (there is no stale data to
+    block), so the response is now ``404`` regardless of bundle state (#414). This
+    revises the earlier "no existence leak via 404" docstring claim, which was never
+    actually enforced (a missing sample already 404'd under the common no-baseline path).
     """
-    if _sample_exists(sample_id) and get_recorded_bundle_version(sample_id) is None:
+    if not _sample_exists(sample_id):
+        return sample_id
+    if get_recorded_bundle_version(sample_id) is None:
         return sample_id
     if not is_sample_stale(sample_id):
         return sample_id
