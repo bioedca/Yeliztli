@@ -752,7 +752,9 @@ class TestHLAProxyLookup:
         # PMIDs that were attached to these alleles in error (#176/#194/#232) and
         # must never reappear in the seed fixture.
         banned = {"21248726", "22286173", "22177658", "26092464"}
-        for entry in _hla_proxy_seed_entries():
+        seed_entries = _hla_proxy_seed_entries()
+        assert seed_entries, "HLA proxy seed must not be empty"
+        for entry in seed_entries:
             allele = entry["hla_allele"]
             assert allele in prod_pmids_by_allele, (
                 f"seed allele {allele} is absent from the production proxy lookup"
