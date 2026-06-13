@@ -414,7 +414,9 @@ class TestFLGLimitedCoverage:
         # four globally off-topic PMIDs: 11260714 (IL-1β/Cox-2 inflammatory pain),
         # 17044734 (European population substructure), 20197410 (mouse colonic
         # epigenetics), 21683322 (FBN1 acromicric/geleophysic dysplasia). None
-        # concerns skin/MC1R biology.
+        # concerns skin/MC1R biology. From the SOD2 row (#390): 10071056 (MPZ /
+        # Charcot-Marie-Tooth), 18466508 (family-based association methods),
+        # 23090862 (photodissociable-ligand chemistry) — none concerns SOD2/MnSOD.
         banned = {
             "17597076",
             "21714652",
@@ -422,11 +424,23 @@ class TestFLGLimitedCoverage:
             "17044734",
             "20197410",
             "21683322",
+            "10071056",
+            "18466508",
+            "23090862",
         }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 offending = banned & set(snp["pmids"])
                 assert not offending, f"{snp['rsid']} cites unrelated PMID(s): {offending}"
+
+    def test_sod2_cites_verified_mnsod_pmids(self, panel_data: dict) -> None:
+        # SOD2 rs4880 (Val16Ala) must cite MnSOD Val16Ala functional evidence (#390):
+        #   15864132 — Sutton 2005 (Ala16Val modulates MnSOD mitochondrial import + mRNA)
+        #   12618592 — Sutton 2003 (Ala16Val modulates MnSOD import into mitochondria)
+        #   23952573 — Bresciani 2013 (MnSOD Ala16Val SNP review, human disease)
+        sod2 = next(s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs4880")
+        assert sod2["gene"] == "SOD2"
+        assert sod2["pmids"] == ["15864132", "12618592", "23952573"], sod2["pmids"]
 
 
 # ── VDR cross-module tests ─────────────────────────────────────────────

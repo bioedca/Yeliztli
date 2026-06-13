@@ -125,6 +125,10 @@ _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "sleep_panel.json::rs2300478": frozenset(  # MEIS1 — restless legs / PLMS GWAS
         {"restless", "limb", "periodic"}
     ),
+    # SOD2 rs4880 (Val16Ala): the functional literature names the protein
+    # ("manganese superoxide dismutase" / "MnSOD") and the variant ("Ala16Val"),
+    # not the "SOD2" gene token — so it's condition-locked (#390).
+    "skin_panel.json::rs4880": frozenset({"superoxide", "dismutase", "mnsod", "ala16val"}),
 }
 
 
