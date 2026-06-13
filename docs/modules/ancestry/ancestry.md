@@ -31,5 +31,6 @@ assigns your maternal and paternal **haplogroups**.
   one group.
 - Missing markers are filled with panel averages before projection, which can pull sparse
   samples toward the centre and soften the signal.
-- A detailed methods-and-validation write-up is provided separately for those who want the
-  statistics.
+- For the statistics — PCA projection, NNLS admixture, local ancestry inference, accuracy,
+  and limitations (with citations) — see
+  **[Ancestry methods & validation](../../ancestry-methods.md)**.
