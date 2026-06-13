@@ -736,6 +736,47 @@ class TestMUTYHCitationProvenance:
             )
 
 
+class TestCDKN2ACitationProvenance:
+    """Guard the CDKN2A evidence links (issue #463).
+
+    The CDKN2A row (melanoma / pancreatic predisposition, FAMMM) previously
+    cited two unrelated papers — PMID 20301557 (the "Noonan Syndrome with
+    Multiple Lentigines" / LEOPARD GeneReviews chapter, wrong gene/syndrome) and
+    30575489 (Reid et al. NEJM 2018, a zoledronate osteoporosis trial). This
+    pins the row to verified CDKN2A melanoma/pancreatic references so those
+    off-topic PMIDs cannot silently reappear.
+    """
+
+    # CDKN2A melanoma/pancreatic references verified on PubMed (esummary) + Consensus.
+    _CDKN2A_PMIDS = frozenset(
+        {
+            "40674536",  # CDKN2A Cancer Predisposition, GeneReviews (gene-specific framework)
+            "36269225",  # Sargen 2022, JNCI Cancer Spectr — melanoma/pancreatic penetrance
+        }
+    )
+    # Unrelated PMIDs wrongly cited by the CDKN2A row before the fix, each exclusive
+    # to that row (so neither should appear anywhere in the panel after the fix).
+    _BANNED_FROM_CDKN2A = frozenset({"20301557", "30575489"})
+
+    def test_cdkn2a_cites_verified_references(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("CDKN2A")
+        assert gene is not None
+        assert set(gene.pmids) == self._CDKN2A_PMIDS
+
+    def test_cdkn2a_drops_unrelated_pmids(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("CDKN2A")
+        assert gene is not None
+        leaked = self._BANNED_FROM_CDKN2A & set(gene.pmids)
+        assert not leaked, f"CDKN2A still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_banned_pmids_absent_from_panel(self, panel: CancerPanel) -> None:
+        # The LEOPARD GeneReviews chapter and the osteoporosis trial were exclusive
+        # to the CDKN2A row, so neither should appear anywhere in the panel.
+        for gene in panel.genes:
+            leaked = self._BANNED_FROM_CDKN2A & set(gene.pmids)
+            assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
+
+
 class TestCHEK2CitationProvenance:
     """Guard the CHEK2 evidence links (issue #212).
 

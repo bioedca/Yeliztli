@@ -524,8 +524,8 @@
         "rs104894099",
         "rs104894094"
       ],
-      "pmids": ["20301557", "30575489"],
-      "notes": "High penetrance for melanoma in carriers. Pancreatic cancer risk significantly elevated."
+      "pmids": ["40674536", "36269225"],
+      "notes": "High penetrance for melanoma in carriers. Pancreatic cancer risk significantly elevated. Evidence (#463): CDKN2A Cancer Predisposition GeneReviews (PMID 40674536); penetrance from Sargen 2022 (JNCI Cancer Spectr, 385 germline-PV carriers across US + Swedish cohorts: melanoma SIR 159.8, pancreatic SIR 24.1; PMID 36269225)."
     }
   ]
 }
