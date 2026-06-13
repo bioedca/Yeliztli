@@ -433,9 +433,7 @@ class TestSNPScoring:
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
-    def test_cdkn2b_as1_plus_strand_and_protective_direction(
-        self, panel: GeneHealthPanel
-    ) -> None:
+    def test_cdkn2b_as1_plus_strand_and_protective_direction(self, panel: GeneHealthPanel) -> None:
         """CDKN2B-AS1/9p21 (rs2157719): the entry must be on the plus strand (C/T,
         per Ensembl GRCh37) AND in the correct, protective direction — the minor
         allele C is PROTECTIVE for primary open-angle glaucoma (replicated per-allele
