@@ -123,7 +123,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17660530", "21833088", "29904014"],
+          "pmids": ["17660530", "21833088"],
           "recommendation_text": "HLA-DRB1*15:01 is the strongest genetic risk factor for multiple sclerosis, accounting for ~30% of the genetic risk. This proxy tag SNP (r² ~0.97 in EUR for DRB1*15:01) indicates MS susceptibility. Environmental factors including vitamin D, EBV infection, and smoking modulate penetrance. Neurological evaluation is recommended if symptoms develop."
         },
         {
@@ -152,7 +152,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["17660530", "18385739", "21833088"],
+          "pmids": ["17660530", "21833088", "27188999"],
           "recommendation_text": "IL7R T244I affects the ratio of membrane-bound to soluble IL-7 receptor alpha, influencing T-cell homeostasis. This is a replicated MS GWAS locus with modest effect size. Contributes to polygenic risk alongside HLA-DRB1*15:01."
         },
         {
@@ -210,7 +210,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["11244489", "16999713", "20732625", "32075956"],
+          "pmids": ["20732625", "32075956", "15909295"],
           "recommendation_text": "DRD4 exon III VNTR 7-repeat allele is one of the most studied ADHD candidate gene variants. rs747302 is the DRD4 -616 C/G promoter SNP and is not direct VNTR genotyping; treat any signal as low-confidence context only. ADHD is highly heritable and polygenic, and clinical ADHD diagnosis requires comprehensive behavioral evaluation.",
           "coverage_note": "rs747302 is the DRD4 -616 C/G promoter SNP used here only as low-confidence proxy context for the exon III VNTR. Direct VNTR genotyping is not available on typical microarray platforms, and the SNP-to-VNTR mapping is not reliable enough for a confident VNTR call.",
           "cross_module": {
@@ -306,7 +306,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["20418890", "23793025", "27322543"],
+          "pmids": ["23793025", "27322543", "20802479"],
           "recommendation_text": "TRPM8 is one of the most replicated GWAS loci for migraine. The cold-sensing ion channel is expressed in trigeminal neurons. This finding has modest effect size and contributes to polygenic migraine risk assessment. Trigger avoidance and prophylactic therapies should be discussed with a neurologist."
         }
       ]
@@ -342,7 +342,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["16415884", "17463246", "22977957"],
+          "pmids": ["16415884", "17463246", "29514658"],
           "recommendation_text": "TCF7L2 is the strongest and most replicated common genetic risk factor for type 2 diabetes. Risk allele carriers have impaired beta-cell insulin secretion and reduced incretin effect. Regular glucose monitoring, healthy diet, physical activity, and weight management are recommended. Metformin has shown benefit in diabetes prevention trials."
         },
         {
@@ -400,7 +400,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["12874175", "17463246", "22101970"],
+          "pmids": ["17463246", "22101970", "12540637"],
           "recommendation_text": "KCNJ11 E23K affects the pancreatic beta-cell KATP channel and is a replicated type 2 diabetes risk locus. The KATP channel is the molecular target of sulfonylurea drugs. This finding contributes to polygenic diabetes risk assessment."
         },
         {
@@ -520,7 +520,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["18834626", "22884227", "27457907"],
+          "pmids": ["18834626", "19506252"],
           "recommendation_text": "ABCG2 Q141K is one of the strongest common genetic risk factors for elevated serum urate and gout, reducing urate excretion via the kidneys and intestines. This is a risk modifier, not a diagnosis: genotype alone does not establish hyperuricemia or gout, and does not by itself warrant any specific lifestyle or treatment change. Serum urate is a clinical measurement — interpret this marker with a clinician alongside measured urate levels and symptoms. See the dedicated gout module for the consolidated urate-risk readout."
         },
         {
@@ -549,7 +549,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["18327257", "19503597", "22884227"],
+          "pmids": ["18327257", "19503597"],
           "recommendation_text": "SLC2A9 (GLUT9) is the principal renal urate transporter and the largest single common-variant contributor to serum-urate variation. This is a risk modifier, not a diagnosis: the genotype shifts average urate levels but does not by itself establish hyperuricemia or gout, nor warrant any specific lifestyle or treatment change. Interpret alongside a clinical serum-urate measurement and clinical context; see the dedicated gout module for the consolidated urate-risk readout."
         },
         {
@@ -578,7 +578,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["18820647", "21111025", "26752085"],
+          "pmids": ["18820647", "21381068", "36897668"],
           "recommendation_text": "PNPLA3 I148M is the strongest genetic risk factor for NAFLD/NASH. Homozygous carriers have substantially elevated risk of hepatic steatosis and progression to fibrosis. Risk is amplified by obesity, alcohol, and high-sugar diets. Carriers should maintain healthy weight, limit alcohol, and consider liver health monitoring."
         },
         {
@@ -607,7 +607,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["24531328", "25129146", "27184023"],
+          "pmids": ["24531328", "24978903", "26331730"],
           "recommendation_text": "TM6SF2 E167K illustrates the 'liver vs. cardiovascular' trade-off: the variant increases hepatic fat but lowers circulating lipids. Carriers should be monitored for liver health, particularly in the context of obesity or metabolic syndrome."
         }
       ]
@@ -672,7 +672,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["15208781", "17804836", "25533199"],
+          "pmids": ["15208781", "17804836", "17259401"],
           "recommendation_text": "PTPN22 R620W is a master autoimmune susceptibility variant associated with rheumatoid arthritis, type 1 diabetes, SLE, and other autoimmune diseases. It is the strongest non-HLA genetic risk factor for multiple autoimmune conditions. Carriers should be aware of autoimmune disease symptoms and seek early evaluation if they develop joint pain, rash, or unexplained fatigue."
         },
         {
@@ -759,7 +759,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["9399903", "17554260", "19430480"],
+          "pmids": ["17554260", "19430480", "9054945"],
           "recommendation_text": "INS VNTR is the second strongest genetic risk locus for type 1 diabetes after HLA. The class I VNTR (short repeats) reduces thymic insulin expression, impairing central tolerance to insulin autoantigens. This proxy tags the VNTR class I/III polymorphism."
         },
         {
@@ -788,7 +788,7 @@
             }
           },
           "evidence_level": 4,
-          "pmids": ["11385577", "12145745", "17804842"],
+          "pmids": ["11385577", "11385576", "11875755"],
           "recommendation_text": "NOD2 is the strongest genetic risk factor for Crohn's disease. R702W is one of three major NOD2 risk variants (along with G908R and 1007fs). NOD2 senses intracellular bacterial components — loss of function disrupts intestinal immune homeostasis. Carriers with GI symptoms should be evaluated by a gastroenterologist."
         },
         {
@@ -817,7 +817,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17435756", "17804842", "21297633"],
+          "pmids": ["17435756", "21297633", "17068223"],
           "recommendation_text": "IL23R R381Q is a protective variant against Crohn's disease and ulcerative colitis. The IL-23/Th17 pathway is a validated therapeutic target — anti-IL-23 antibodies (risankizumab, guselkumab) are approved for IBD treatment. This locus illustrates how genetic discovery has directly informed drug development."
         },
         {
@@ -846,7 +846,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17435756", "18341684", "24141364"],
+          "pmids": ["17435756", "17200669", "24553140"],
           "recommendation_text": "ATG16L1 T300A links autophagy dysfunction to Crohn's disease. The variant impairs Paneth cell antimicrobial function and intracellular bacterial clearance. This locus established autophagy as a key pathway in IBD pathogenesis."
         },
         {
@@ -937,7 +937,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["18204098", "18552285", "25533199"],
+          "pmids": ["18204098", "18204448", "22586164"],
           "recommendation_text": "ITGAM R77H impairs complement receptor 3 function, reducing immune complex clearance. This is a replicated SLE risk locus associated with severe disease. Carriers with lupus symptoms should be evaluated by a rheumatologist. Regular monitoring of renal function is recommended for known SLE patients with this variant."
         }
       ]
@@ -1002,7 +1002,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["16174643", "18191106", "23455636", "11594942", "23644932", "24974817"],
+          "pmids": ["16174643", "23455636", "11594942", "23644932", "24974817"],
           "recommendation_text": "ARMS2/HTRA1 is the second major AMD susceptibility locus. Risk carriers, especially those also carrying CFH Y402H, should prioritize regular retinal screening and smoking cessation. Use eye-exam-based AMD staging to guide supplement discussions: AREDS2 formulation is generally considered for intermediate AMD or advanced AMD in one eye, not from genotype alone."
         },
         {
@@ -1031,7 +1031,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["17170444", "18191106", "23455636"],
+          "pmids": ["23455636", "17634448", "18325906"],
           "recommendation_text": "C3 R102G further implicates the alternative complement pathway in AMD pathogenesis. The C3F variant synergizes with CFH Y402H to amplify complement-mediated retinal damage. Complement-targeted therapies (pegcetacoplan) are approved for geographic atrophy AMD."
         },
         {
@@ -1089,7 +1089,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["21532571", "24076671", "29785011"],
+          "pmids": ["21532571", "20835238", "24572674"],
           "recommendation_text": "CAV1/CAV2 is a replicated GWAS locus for primary open-angle glaucoma. Caveolins regulate aqueous humor dynamics and intraocular pressure. This common variant has a modest effect and contributes to polygenic glaucoma risk. Regular eye exams with intraocular pressure measurement are recommended."
         },
         {
@@ -1118,7 +1118,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["21532571", "24076671", "27064256"],
+          "pmids": ["21532571", "27064256", "22570617"],
           "recommendation_text": "CDKN2B-AS1 (ANRIL) at the 9p21 locus is associated with glaucoma susceptibility and optic disc morphology. This pleiotropic locus also influences cardiovascular and metabolic traits. Regular ophthalmological surveillance is recommended."
         },
         {

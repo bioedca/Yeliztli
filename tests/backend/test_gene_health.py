@@ -1979,3 +1979,121 @@ class TestGRHL2CitationProvenance:
             for snp in pathway.snps:
                 leaked = self._BANNED_PMIDS & set(snp.pmids)
                 assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+# ── Panel-wide citation remediation (issue #326) ─────────────────────────
+
+
+def _all_gene_health_pmids(panel: GeneHealthPanel):
+    """Yield every PMID cited by any SNP in the panel."""
+    for pathway in panel.pathways:
+        for snp in pathway.snps:
+            yield from snp.pmids
+
+
+class TestGeneHealthCitationRemediation:
+    """Pin the ~20 rows remediated in #326 to verified, on-topic citations.
+
+    The #326 audit found ~23 of 42 gene_health rows mixed in PMIDs resolving to
+    unrelated topics (e.g. PNPLA3 cited an SF-1 hypothalamus paper + a carbon-
+    aerogel paper; ITGAM a Hog1-MAPK arsenite paper; C3 a hepatitis-C epidemic
+    paper). Already-fixed rows (STAT4 #226, MTHFR #200, PPARG #285, SNAP25, IRF5,
+    MYOC, GRHL2) are locked above; this completes the panel. Each row below was
+    re-cited with verified gene/variant/disease references — every PMID title
+    checked via NCBI esummary and the association verified with the Consensus
+    connector (e.g. Gloyn 2003 KCNJ11 E23K, Woodward 2009 ABCG2 urate-transporter
+    functional, ITGAM R77H complement-receptor functional). KCNJ11 and ABCG2 also
+    drop the two dead PMIDs 12874175 / 27457907 (#417).
+    """
+
+    # rsid -> exact verified on-topic PMID set the row must cite:
+    _REMEDIATED: dict[str, set[str]] = {
+        "rs3135388": {"17660530", "21833088"},  # HLA-DRB1 MS (drop COPD)
+        "rs6897932": {"17660530", "21833088", "27188999"},  # IL7R MS
+        "rs747302": {"20732625", "32075956", "15909295"},  # DRD4 ADHD
+        "rs10166942": {"23793025", "27322543", "20802479"},  # TRPM8 migraine
+        "rs7903146": {"16415884", "17463246", "29514658"},  # TCF7L2 T2D
+        "rs5219": {
+            "17463246",
+            "22101970",
+            "12540637",
+        },  # KCNJ11 E23K T2D; drops dead 12874175 (#417)
+        "rs2231142": {"18834626", "19506252"},  # ABCG2 Q141K gout; drops dead 27457907 (#417)
+        "rs12498742": {"18327257", "19503597"},  # SLC2A9 urate
+        "rs738409": {"18820647", "21381068", "36897668"},  # PNPLA3 I148M NAFLD
+        "rs58542926": {"24531328", "24978903", "26331730"},  # TM6SF2 E167K NAFLD
+        "rs2476601": {"15208781", "17804836", "17259401"},  # PTPN22 R620W autoimmune
+        "rs689": {"17554260", "19430480", "9054945"},  # INS T1D
+        "rs2066844": {"11385577", "11385576", "11875755"},  # NOD2 Crohn
+        "rs11209026": {"17435756", "21297633", "17068223"},  # IL23R IBD
+        "rs2241880": {"17435756", "17200669", "24553140"},  # ATG16L1 T300A Crohn
+        "rs1143679": {"18204098", "18204448", "22586164"},  # ITGAM R77H SLE
+        "rs2230199": {"23455636", "17634448", "18325906"},  # C3 R102G AMD
+        "rs10490924": {
+            "16174643",
+            "23455636",
+            "11594942",
+            "23644932",
+            "24974817",
+        },  # ARMS2 A69S AMD (keeps AREDS context refs)
+        "rs4236601": {"21532571", "20835238", "24572674"},  # CAV1/CAV2 glaucoma
+        "rs2157719": {"21532571", "27064256", "22570617"},  # CDKN2B-AS1 glaucoma
+    }
+
+    # Off-topic / dead PMIDs removed by this remediation; none may reappear
+    # anywhere in the gene_health panel. (17804842 — the Remmers STAT4 NEJM
+    # paper — is off-topic on NOD2/IL23R but LEGITIMATE on the STAT4 row, so it
+    # is row-scoped below, not panel-banned.)
+    _PANEL_BANNED: frozenset[str] = frozenset(
+        {
+            "11244489",
+            "12145745",
+            "12874175",
+            "16999713",
+            "17170444",
+            "18191106",
+            "18341684",
+            "18385739",
+            "18552285",
+            "20418890",
+            "21111025",
+            "22884227",
+            "22977957",
+            "24076671",
+            "24141364",
+            "25129146",
+            "25533199",
+            "26752085",
+            "27184023",
+            "27457907",
+            "29785011",
+            "29904014",
+            "9399903",
+        }
+    )
+
+    def test_each_remediated_row_cites_verified_refs(self, panel: GeneHealthPanel) -> None:
+        by_rsid = {snp.rsid: snp for pathway in panel.pathways for snp in pathway.snps}
+        for rsid, allow in self._REMEDIATED.items():
+            assert rsid in by_rsid, f"{rsid} missing from gene_health panel"
+            snp = by_rsid[rsid]
+            assert set(snp.pmids) == allow, (
+                f"{rsid} ({snp.gene}) cites {snp.pmids}, expected {sorted(allow)}"
+            )
+
+    def test_off_topic_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        leaked = self._PANEL_BANNED & set(_all_gene_health_pmids(panel))
+        assert not leaked, f"off-topic PMID(s) {sorted(leaked)} still present in gene_health panel"
+
+    def test_stat4_paper_scoped_to_stat4_row(self, panel: GeneHealthPanel) -> None:
+        # 17804842 (Remmers STAT4 NEJM) is correct for STAT4 but was off-topic on
+        # NOD2/IL23R; after #326 it must appear ONLY on the STAT4 rs7574865 row.
+        citing = {
+            snp.rsid
+            for pathway in panel.pathways
+            for snp in pathway.snps
+            if "17804842" in snp.pmids
+        }
+        assert citing == {"rs7574865"}, (
+            f"17804842 should be only on STAT4 rs7574865, found on {sorted(citing)}"
+        )

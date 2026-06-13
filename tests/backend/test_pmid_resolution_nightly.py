@@ -100,12 +100,13 @@ def _fetch_live_records(pmids: list[str]) -> dict[str, dict]:
 # issue #417. The resolution verifier fails on any *new* non-resolving PMID; this
 # quarantine must only ever shrink as #417 lands per-panel fixes — never grow.
 _KNOWN_UNRESOLVED: dict[str, str] = {
-    # 11746697 (allergy HNMT row) fixed in #417 — replaced with verified HNMT
-    # Thr105Ile evidence (9547362 Preuss 1998, 10803682 Yan 2000).
-    # 19187342 (methylation TCN2 row) fixed in #314 — the whole TCN2 rs1801198
-    # row was re-cited with verified one-carbon refs (28814397, 20808328, 12911562).
-    "12874175": "gene_health_panel.json",  # KCNJ11 — delegated to #326
-    "27457907": "gene_health_panel.json",  # ABCG2 — delegated to #326
+    # All four non-resolving PMIDs tracked by #417 have now been replaced, so the
+    # quarantine is empty:
+    #   11746697 (allergy HNMT)           -> 9547362 / 10803682
+    #   19187342 (methylation TCN2, #314) -> 28814397 / 20808328 / 12911562
+    #   12874175 (gene_health KCNJ11, #326) -> Gloyn 2003 (12540637)
+    #   27457907 (gene_health ABCG2, #326)  -> Woodward 2009 (19506252)
+    # Re-add a number here ONLY if a genuinely non-resolving cited PMID is found.
 }
 
 
