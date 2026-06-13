@@ -27,9 +27,22 @@ ENV_PREFIX = "YELIZTLI_"
 
 # Fields never sourced from config.toml: data_dir is location-defining (it says
 # *where* config.toml lives), so reading it back from config.toml is circular and
-# would re-introduce a stale absolute path. It is resolved from the default or an
-# explicit env/init override only.
+# would re-introduce a stale absolute path. It is resolved from init/env, the
+# data_dir pointer file (below), or the default.
 _TOML_EXCLUDED_FIELDS = frozenset({"data_dir"})
+
+# Name of the fixed-location pointer that records the user-chosen data_dir. It
+# deliberately lives in the DEFAULT home dir (NOT inside data_dir — that would be
+# the same circular dependency that excludes data_dir from config.toml), so a
+# storage path chosen in the setup wizard actually takes effect on the next
+# launch. Resolved against the *live* ``DEFAULT_DATA_DIR`` (which tests
+# monkeypatch), mirroring how the config.toml source is resolved.
+DATA_DIR_POINTER_NAME = ".data_dir_pointer"
+
+
+def data_dir_pointer_path() -> Path:
+    """Absolute path of the data_dir pointer file (under ``DEFAULT_DATA_DIR``)."""
+    return DEFAULT_DATA_DIR / DATA_DIR_POINTER_NAME
 
 
 class _ConfigTomlTableSource(PydanticBaseSettingsSource):
@@ -68,6 +81,40 @@ class _ConfigTomlTableSource(PydanticBaseSettingsSource):
             for name in self.settings_cls.model_fields
             if name in self._table and name not in _TOML_EXCLUDED_FIELDS
         }
+
+
+class _DataDirPointerSource(PydanticBaseSettingsSource):
+    """Source ``data_dir`` from the fixed-location pointer file.
+
+    Provides *only* ``data_dir`` — the absolute path the setup wizard persisted.
+    Ranked below init/env (an explicit ``YELIZTLI_DATA_DIR`` override still wins)
+    but above defaults, so the wizard's chosen storage location survives a
+    restart. A missing/empty/relative pointer is ignored (falls through to the
+    default).
+    """
+
+    def __init__(self, settings_cls: type[BaseSettings], pointer_path: Path) -> None:
+        super().__init__(settings_cls)
+        self._data_dir: str | None = None
+        try:
+            text = pointer_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            text = ""
+        if text and Path(text).is_absolute():
+            self._data_dir = text
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:  # noqa: ARG002
+        if field_name == "data_dir" and self._data_dir is not None:
+            return self._data_dir, field_name, False
+        return None, field_name, False
+
+    def prepare_field_value(
+        self, field_name: str, field: Any, value: Any, value_is_complex: bool
+    ) -> Any:  # noqa: ARG002
+        return value
+
+    def __call__(self) -> dict[str, Any]:
+        return {"data_dir": self._data_dir} if self._data_dir is not None else {}
 
 
 class Settings(BaseSettings):
@@ -178,10 +225,11 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Precedence: init > YELIZTLI_ env > [yeliztli] TOML > dotenv."""
+        """Precedence: init > YELIZTLI_ env > data_dir pointer > [yeliztli] TOML > dotenv."""
         return (
             init_settings,
             env_settings,
+            _DataDirPointerSource(settings_cls, data_dir_pointer_path()),
             _ConfigTomlTableSource(settings_cls, DEFAULT_DATA_DIR / "config.toml"),
             dotenv_settings,
         )
@@ -264,6 +312,19 @@ def write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) 
     """Write ``content`` to ``config_path`` as escaped TOML (creating parents)."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(dump_config_toml(content), encoding="utf-8")
+
+
+def write_data_dir_pointer(data_dir: Path) -> None:
+    """Persist the chosen ``data_dir`` to the fixed-location pointer file.
+
+    The pointer lives in the default home dir so it is always found at startup,
+    regardless of where ``data_dir`` itself points. Callers should
+    :func:`get_settings.cache_clear` afterwards so the new path takes effect in
+    the running process.
+    """
+    pointer = data_dir_pointer_path()
+    pointer.parent.mkdir(parents=True, exist_ok=True)
+    pointer.write_text(str(data_dir), encoding="utf-8")
 
 
 @lru_cache

@@ -5,11 +5,13 @@ from pathlib import Path
 
 import pytest
 
+import backend.config as config
 from backend.config import (
     Settings,
     dump_config_toml,
     get_settings,
     write_config_toml,
+    write_data_dir_pointer,
 )
 
 
@@ -156,3 +158,46 @@ def test_dump_config_toml_escapes_control_chars():
     text = dump_config_toml({"yeliztli": {"k": "a\x00\x07b"}})
     # NUL and BEL have no short escape → emitted as \uXXXX, and stay parseable.
     assert tomllib.loads(text)["yeliztli"]["k"] == "a\x00\x07b"
+
+
+# ── data_dir pointer (storage-path persistence) ──────────────────────
+
+
+def test_data_dir_pointer_source_applies(tmp_path, monkeypatch):
+    """An absolute path in the pointer file becomes the effective data_dir."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    chosen = tmp_path / "chosen_store"
+    (tmp_path / ".data_dir_pointer").write_text(str(chosen), encoding="utf-8")
+
+    assert Settings().data_dir == chosen
+
+
+def test_env_overrides_data_dir_pointer(tmp_path, monkeypatch):
+    """An explicit YELIZTLI_DATA_DIR still wins over the pointer (init > env > pointer)."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    (tmp_path / ".data_dir_pointer").write_text(str(tmp_path / "from_pointer"), encoding="utf-8")
+    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(tmp_path / "from_env"))
+
+    assert Settings().data_dir == tmp_path / "from_env"
+
+
+def test_relative_pointer_is_ignored(tmp_path, monkeypatch):
+    """A non-absolute pointer is ignored — data_dir falls back to the default."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    (tmp_path / ".data_dir_pointer").write_text("relative/path", encoding="utf-8")
+
+    # Field default is frozen at import (the real ~/.yeliztli), not the patched
+    # value — the point is only that the relative pointer is NOT applied.
+    assert Settings().data_dir == Path.home() / ".yeliztli"
+
+
+def test_write_data_dir_pointer_round_trip(tmp_path, monkeypatch):
+    """write_data_dir_pointer + cache_clear makes the chosen path effective."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+
+    chosen = tmp_path / "relocated"
+    write_data_dir_pointer(chosen)
+    get_settings.cache_clear()
+
+    assert (tmp_path / ".data_dir_pointer").read_text(encoding="utf-8").strip() == str(chosen)
+    assert get_settings().data_dir == chosen

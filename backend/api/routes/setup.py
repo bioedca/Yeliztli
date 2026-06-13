@@ -34,6 +34,7 @@ from backend.config import (
     read_config_section,
     write_config_section,
     write_config_toml,
+    write_data_dir_pointer,
 )
 from backend.db.connection import get_registry
 from backend.db.database_registry import get_all_databases
@@ -797,10 +798,11 @@ async def storage_info() -> StorageInfoResponse:
 async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathResponse:
     """Validate and create the requested storage path.
 
-    Validates the path, checks disk space, creates the directory structure,
-    and returns the chosen path. ``data_dir`` is intentionally not persisted to
-    config.toml because the settings loader ignores that key; the effective data
-    directory comes from defaults, environment, or process initialization.
+    Validates the path, checks disk space, creates the directory structure, and
+    persists the chosen path to the fixed-location ``data_dir`` pointer (NOT
+    config.toml, which lives inside data_dir and so can't define its own
+    location) so the effective data directory survives a restart. The settings
+    cache is then cleared so the new path takes effect immediately.
     Does NOT block on low disk space — the frontend enforces the block threshold.
     """
     resolved = _resolve_storage_path(body.path)
@@ -844,6 +846,11 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
     free_bytes, _ = _get_disk_space(resolved)
     free_gb = free_bytes / (1024**3)
     status, message = _assess_disk_space(free_bytes)
+
+    # Persist the chosen path so it survives a restart, and bust the settings
+    # cache so subsequent reads in this process use it immediately.
+    write_data_dir_pointer(resolved)
+    get_settings.cache_clear()
 
     logger.info(
         "storage_path_set",

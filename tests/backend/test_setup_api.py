@@ -49,6 +49,9 @@ def setup_client(tmp_data_dir: Path) -> TestClient:
         patch("backend.db.connection.get_settings", return_value=settings),
         patch("backend.api.routes.setup.get_settings", return_value=settings),
         patch("backend.api.routes.databases.get_settings", return_value=settings),
+        # Isolate the data_dir pointer (written by set-storage-path) to the temp
+        # dir so tests never touch the developer's real ~/.yeliztli.
+        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
     ):
         reset_registry()
 
@@ -902,23 +905,42 @@ class TestSetStoragePath:
         assert (new_path / "downloads").is_dir()
         assert (new_path / "logs").is_dir()
 
-    def test_does_not_write_data_dir_to_config_toml(self, tmp_path: Path) -> None:
-        """Storage path selection must not persist the loader-ignored data_dir key."""
+    def test_persists_data_dir_to_pointer_not_config_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Storage path is persisted to the fixed-location pointer, never config.toml.
+
+        data_dir is location-defining, so it can't live in config.toml (which is
+        inside data_dir). The chosen path goes to the pointer under the default
+        home dir instead, so it survives a restart.
+        """
         import asyncio
 
+        import backend.config as config
         from backend.api.routes.setup import SetStoragePathRequest, set_storage_path
+
+        pointer_home = tmp_path / "home"
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", pointer_home)
 
         new_path = tmp_path / "gi_config_test"
         asyncio.run(set_storage_path(SetStoragePathRequest(path=str(new_path))))
 
-        config_path = new_path / "config.toml"
-        assert not config_path.exists()
+        # Not written into config.toml (loader-ignored, circular)...
+        assert not (new_path / "config.toml").exists()
+        # ...but recorded in the pointer file under the default home dir.
+        pointer = pointer_home / ".data_dir_pointer"
+        assert pointer.read_text(encoding="utf-8").strip() == str(new_path)
 
-    def test_preserves_existing_config(self, tmp_path: Path) -> None:
-        """Should preserve other settings in existing config.toml."""
+    def test_preserves_existing_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should preserve other settings in existing config.toml (and not add data_dir)."""
         import asyncio
 
+        import backend.config as config
         from backend.api.routes.setup import SetStoragePathRequest, set_storage_path
+
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "home")
 
         new_path = tmp_path / "gi_preserve"
         new_path.mkdir(parents=True)
