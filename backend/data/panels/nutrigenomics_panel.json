@@ -481,7 +481,12 @@
           },
           "evidence_level": 2,
           "pmids": ["15106124"],
-          "recommendation_text": "Supportive variant for lactose tolerance assessment. Most informative when combined with rs4988235."
+          "recommendation_text": "Supportive variant for lactose tolerance assessment. Most informative when combined with rs4988235.",
+          "ancestry_caveat": {
+            "confident_ancestries": ["EUR", "SAS"],
+            "applies_to_categories": ["Elevated"],
+            "caveat_text": "Ancestry note: LCT -22018 (rs182549) is a secondary marker in tight linkage with the European/South-Asian -13910 lactase haplotype (Enattah 2002), not an independent functional variant, so a non-persistence-supporting result here carries the same ancestry limitation as the rs4988235 -13910 call. African and Middle Eastern lactase persistence is driven by independent LCT enhancer variants (e.g. -14010*C, -13915*G, -13907*G) on different haplotype backgrounds that this panel does not assay, so reduced lactase digestion cannot be confidently concluded for non-European/South-Asian ancestry (PMID 11788828, 17159977, 29063188)."
+          }
         }
       ]
     }
