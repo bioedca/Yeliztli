@@ -51,8 +51,10 @@ Southeast/South-Asian literature (Nuchprayoon 2002; Iwai 2001; Ainoon 1999):
 * **Mahidol (rs137852314, c.487G>A / G163S)** — dominant in Myanmar/Thailand
   (Class III). Forward C/T; deficiency forward **T**.
 * **Canton (rs72554665, c.1376G>T / R459L)** — a top East-Asian variant (Class II).
-  Forward C→**A**. This position is multiallelic; the C>G alt is the distinct
-  *Cosenza* (R459P) allele, which is not encoded here.
+  Forward C→**A** (non-palindromic). This chrX position is multiallelic: the C>G alt
+  is the distinct *Cosenza* (R459P) allele (below), encoded as a separate row sharing
+  this rsID. A genotype carrying one variant's alt lies outside the other's {ref, alt}
+  and never cross-calls.
 * **Kaiping (rs72554664, c.1388G>A / R463H)** — most common Han-Chinese variant
   (Class II). Forward C/T; deficiency forward **T**.
 * **Viangchan (rs137852327, c.871G>A / V291M)** — most common non-Chinese SE-Asian
@@ -67,6 +69,13 @@ Southeast/South-Asian literature (Nuchprayoon 2002; Iwai 2001; Ainoon 1999):
   (Class II). Forward C/T; deficiency forward **T**.
 * **Gaohe (rs137852340, c.95A>G / H32R)** — East-Asian (Class III). Forward T/C;
   deficiency forward **C**.
+* **Seattle/Lodi (rs137852318, c.844G>C / D282H)** — European/Mediterranean
+  (Class III, ~15% residual activity; Cappellini 1995, PMID 7705842 — "Ferrara II",
+  the same 844G>C also named Seattle/Modena/Lodi). Forward **C/G** — *palindromic*
+  (see the strand caveat below).
+* **Cosenza (rs72554665, c.1376G>C / R459P)** — Mediterranean (Calabrò 1993,
+  PMID 8447319; Cappellini 1996, PMID 8611726), a deficiency allele at the *same*
+  chrX position as Canton (C>A). Forward **C/G** — *palindromic*.
 * **c.376A>G (rs1050829, N126D)** — defines the *non-deficient* A+ allele on its
   own; relevant only as the A− background. Forward T/C; the 376G allele is
   forward **C**. Context, never a deficiency call by itself.
@@ -79,6 +88,19 @@ so they are included for sensitivity but their *absence* from a sample is report
 not-called, never as a false deficiency call (SNP chips type common variants reliably
 yet rarer ones inconsistently — Weedon 2021, PMID 33589468). Adding a locus can only
 *raise* sensitivity for ancestries whose deficiency is not driven by A−/Mediterranean.
+
+**Palindromic (C/G) loci — strand-ambiguity withholding.** Seattle/Lodi and Cosenza
+are C↔G SNPs whose two alleles are reverse complements. Unlike every other locus
+above (whose deficiency base is *not* the complement of its reference, so a wrong-strand
+array report lands on a third base and safely no-calls), a palindromic
+*homozygote/hemizygote* cannot be assigned to a strand from the genotype alone — a
+minus-strand report of the gene-normal base is indistinguishable from a plus-strand
+deficiency base and would fabricate a "deficient" call. We therefore *withhold* such
+calls (flagged ``strand_ambiguous``) and count only the strand-invariant heterozygote,
+mirroring :func:`backend.analysis.genotype_lookup.is_strand_ambiguous` (Deelen 2014,
+PMID 25495213). A withheld locus is reported not-called, never excluded — so for these
+two variants only a heterozygous female (→ *variable*) is resolvable; hemizygous males
+and homozygous females are surfaced as strand-ambiguous and deferred to an enzyme assay.
 
 **Context only — not a diagnosis.** An array types only a handful of the 200+
 known G6PD variants; a non-deficient genotype does not exclude an untyped
@@ -93,7 +115,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from backend.analysis.pharmacogenomics import _fetch_sample_genotypes
-from backend.analysis.zygosity import is_no_call
+from backend.analysis.zygosity import COMPLEMENT, is_no_call
 from backend.disclaimers import G6PD_PGX_CONTEXT_ONLY
 from backend.services.sex_inference import infer_biological_sex
 
@@ -124,7 +146,11 @@ G6PD_MED_DEF = "A"  # forward = gene "T" (Mediterranean deficiency allele)
 # and was cross-checked on Ensembl GRCh37 REST + NCBI dbSNP. A−/Mediterranean are
 # reliably array-typed; the remaining (mostly E/SE-Asian) CPIC deficiency alleles vary
 # by chip — a non-call never excludes them (see the module docstring). Note rs72554665
-# (Canton), rs5030869 (Chatham) are multiallelic; only the deficiency alt is encoded.
+# (Canton C>A and Cosenza C>G, two rows sharing the position), rs5030869 (Chatham) are
+# multiallelic; only the deficiency alt is encoded per row, and a base outside a row's
+# {ref, alt} never cross-calls. Seattle/Lodi and Cosenza are C/G *palindromic*: their
+# homozygous/hemizygous calls are withheld as strand-ambiguous (see _deficiency_alleles)
+# and only the strand-invariant heterozygote is counted.
 G6PD_DEFICIENCY_VARIANTS: tuple[tuple[str, str, str, str, str], ...] = (
     ("A- (V68M)", G6PD_A_MINUS_RSID, "c.202G>A", G6PD_A_MINUS_REF, G6PD_A_MINUS_DEF),
     ("Mediterranean (S188F)", G6PD_MED_RSID, "c.563C>T", G6PD_MED_REF, G6PD_MED_DEF),
@@ -137,6 +163,10 @@ G6PD_DEFICIENCY_VARIANTS: tuple[tuple[str, str, str, str, str], ...] = (
     ("Coimbra (R198C)", "rs137852330", "c.592C>T", "G", "A"),
     ("Chatham (A335T)", "rs5030869", "c.1003G>A", "C", "T"),
     ("Gaohe (H32R)", "rs137852340", "c.95A>G", "T", "C"),
+    # European/Mediterranean CPIC deficiency alleles (#321). Both are forward C/G —
+    # PALINDROMIC, so only their heterozygotes are strand-resolvable (see below).
+    ("Seattle/Lodi (D282H)", "rs137852318", "c.844G>C", "C", "G"),
+    ("Cosenza (R459P)", "rs72554665", "c.1376G>C", "C", "G"),
 )
 
 # Representative CPIC high-risk drugs to avoid in G6PD deficiency (not exhaustive).
@@ -149,6 +179,30 @@ G6PD_HIGH_RISK_DRUGS = (
 )
 
 
+def _is_palindromic(ref: str, deficiency_allele: str) -> bool:
+    """Whether the {ref, deficiency} pair is a Watson–Crick palindrome (C/G or A/T)."""
+    return COMPLEMENT.get(ref.upper()) == deficiency_allele.upper()
+
+
+def _strand_ambiguous_call(genotype: str | None, ref: str, deficiency_allele: str) -> bool:
+    """Whether ``genotype`` is a withheld palindromic homozygote/hemizygote.
+
+    True only for a palindromic (C/G or A/T) locus whose call is a valid in-``{ref,
+    deficiency}`` homozygote (``"CC"``/``"GG"``) or hemizygote (``"C"``/``"G"``) — the
+    strand-unresolvable case :func:`_deficiency_alleles` declines to count. The
+    heterozygote is strand-invariant and returns ``False``.
+    """
+    if not genotype or is_no_call(genotype):
+        return False
+    g = genotype.strip().upper()
+    if len(g) not in (1, 2):
+        return False
+    ref_u, def_u = ref.upper(), deficiency_allele.upper()
+    if any(base not in {ref_u, def_u} for base in g):
+        return False
+    return _is_palindromic(ref_u, def_u) and len(set(g)) == 1
+
+
 def _deficiency_alleles(
     genotype: str | None, ref: str, deficiency_allele: str
 ) -> dict[str, int] | None:
@@ -158,6 +212,14 @@ def _deficiency_alleles(
     and a female's as a sorted pair (``"CT"``). Returns ``{"deficiency": n,
     "copies": 1|2}`` or ``None`` when the call is missing, a no-call, or carries an
     unexpected base (third allele / indel).
+
+    For a *palindromic* (C/G or A/T) locus a homozygous/hemizygous call is withheld
+    (returns ``None``): a wrong-strand array report of the gene-normal base is
+    indistinguishable from the plus-strand deficiency base, so counting it would
+    fabricate a deficiency call. Only the strand-invariant heterozygote is counted.
+    This mirrors :func:`backend.analysis.genotype_lookup.is_strand_ambiguous`
+    (Deelen 2014, PMID 25495213). Non-palindromic loci are unaffected — a wrong-strand
+    base falls outside ``{ref, deficiency}`` and already no-calls.
     """
     if not genotype or is_no_call(genotype):
         return None
@@ -166,6 +228,8 @@ def _deficiency_alleles(
         return None
     ref_u, def_u = ref.upper(), deficiency_allele.upper()
     if any(base not in {ref_u, def_u} for base in g):
+        return None
+    if _is_palindromic(ref_u, def_u) and len(set(g)) == 1:
         return None
     return {"deficiency": sum(1 for base in g if base == def_u), "copies": len(g)}
 
@@ -265,7 +329,12 @@ def g6pd_phenotype(
 def _locus_call(
     *, name: str, rsid: str, cdna: str, ref: str, deficiency_allele: str, genotype: str | None
 ) -> dict[str, Any]:
-    """Per-variant observed deficiency call."""
+    """Per-variant observed deficiency call.
+
+    ``strand_ambiguous`` marks a palindromic (C/G or A/T) homozygous/hemizygous call
+    that was *observed* but withheld because its strand is unresolvable — distinct from
+    a plain no-call, so the API can say "seen but could not be strand-resolved".
+    """
     state = _deficiency_alleles(genotype, ref, deficiency_allele)
     return {
         "name": name,
@@ -274,6 +343,7 @@ def _locus_call(
         "observed_genotype": genotype,
         "called": state is not None,
         "deficiency_alleles": state["deficiency"] if state else None,
+        "strand_ambiguous": _strand_ambiguous_call(genotype, ref, deficiency_allele),
     }
 
 
@@ -302,6 +372,10 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
     ]
 
     any_called = any(loc["called"] for loc in deficiency_loci)
+    # Palindromic loci observed as a homozygote/hemizygote but withheld (strand could
+    # not be resolved): surfaced so the result is honest about what was seen yet not
+    # callable, rather than silently treating it as untyped.
+    strand_ambiguous_loci = [loc["name"] for loc in deficiency_loci if loc["strand_ambiguous"]]
     locus_deficiency_counts = [loc["deficiency_alleles"] or 0 for loc in deficiency_loci]
     total_deficiency = sum(locus_deficiency_counts)
     # Largest count at any single locus: a locus == 2 is a phase-unambiguous homozygote,
@@ -328,6 +402,7 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
         "inferred_sex": sex,
         "variants": deficiency_loci,
         "any_called": any_called,
+        "strand_ambiguous_loci": strand_ambiguous_loci,
         "phenotype": phenotype,
         "detail": verdict["detail"],
         "at_risk": at_risk,

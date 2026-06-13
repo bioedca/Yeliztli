@@ -114,6 +114,14 @@ class TestG6pdEndpoint:
         assert data["note"]
         assert data["pmid_citations"]
 
+    def test_strand_ambiguous_fields_serialized(self, g6pd_client: TestClient) -> None:
+        # The palindromic-locus transparency fields (#321) reach the response model.
+        # Sample 1 carries only the non-palindromic A− het, so nothing is withheld here;
+        # the strand-ambiguity behaviour itself is unit-tested in test_g6pd.py.
+        data = g6pd_client.get("/api/analysis/g6pd?sample_id=1").json()
+        assert data["strand_ambiguous_loci"] == []
+        assert all("strand_ambiguous" in v for v in data["variants"])
+
     def test_noncarrier_is_normal(self, g6pd_client: TestClient) -> None:
         # Negative control: non-carrier female → normal, no risk surfaced.
         data = g6pd_client.get("/api/analysis/g6pd?sample_id=2").json()

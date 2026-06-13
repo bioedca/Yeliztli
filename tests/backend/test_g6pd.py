@@ -22,6 +22,7 @@ from backend.analysis.g6pd import (
     G6PD_MED_RSID,
     G6PD_PMID_CITATIONS,
     _deficiency_alleles,
+    _is_palindromic,
     assess_g6pd,
     g6pd_phenotype,
 )
@@ -56,6 +57,20 @@ class TestDeficiencyAlleles:
         assert _deficiency_alleles("", "C", "T") is None
         assert _deficiency_alleles("G", "C", "T") is None  # unexpected base
         assert _deficiency_alleles("CG", "C", "T") is None  # third allele
+
+    def test_palindromic_homozygote_withheld(self) -> None:
+        # C/G is palindromic: a homozygote/hemizygote is strand-unresolvable, so it is
+        # withheld (None) — a wrong-strand report of ref "C" is indistinguishable from
+        # def "G". Only the strand-invariant heterozygote is counted.
+        assert _deficiency_alleles("G", "C", "G") is None  # hemizygous def — withheld
+        assert _deficiency_alleles("C", "C", "G") is None  # hemizygous ref — withheld
+        assert _deficiency_alleles("GG", "C", "G") is None  # homozygous — withheld
+        assert _deficiency_alleles("CC", "C", "G") is None  # homozygous — withheld
+        assert _deficiency_alleles("CG", "C", "G") == {"deficiency": 1, "copies": 2}
+
+    def test_is_palindromic(self) -> None:
+        assert _is_palindromic("C", "G") and _is_palindromic("A", "T")
+        assert not _is_palindromic("C", "T") and not _is_palindromic("G", "A")
 
 
 class TestG6pdPhenotype:
@@ -188,36 +203,51 @@ class TestExpandedDeficiencyPanel:
             return assess_g6pd(engine)
 
     def test_panel_covers_expected_variants(self) -> None:
-        # Exact lock: A−, Mediterranean, and the global deficiency variants added for
-        # #209. An accidental add/drop (or rsID swap) trips this.
-        by_rsid = {rsid: name for name, rsid, *_ in G6PD_DEFICIENCY_VARIANTS}
-        assert by_rsid == {
-            "rs1050828": "A- (V68M)",
-            "rs5030868": "Mediterranean (S188F)",
-            "rs137852314": "Mahidol (G163S)",
-            "rs72554665": "Canton (R459L)",
-            "rs72554664": "Kaiping (R463H)",
-            "rs137852327": "Viangchan (V291M)",
-            "rs398123546": "Union (R454C)",
-            "rs137852342": "Chinese-5 (L342F)",
-            "rs137852330": "Coimbra (R198C)",
-            "rs5030869": "Chatham (A335T)",
-            "rs137852340": "Gaohe (H32R)",
+        # Exact lock keyed by variant NAME (rs72554665 is shared by Canton and Cosenza,
+        # a multiallelic position, so an rsID key would collapse them). An accidental
+        # add/drop (or rsID swap) trips this.
+        by_name = {name: rsid for name, rsid, *_ in G6PD_DEFICIENCY_VARIANTS}
+        assert by_name == {
+            "A- (V68M)": "rs1050828",
+            "Mediterranean (S188F)": "rs5030868",
+            "Mahidol (G163S)": "rs137852314",
+            "Canton (R459L)": "rs72554665",
+            "Kaiping (R463H)": "rs72554664",
+            "Viangchan (V291M)": "rs137852327",
+            "Union (R454C)": "rs398123546",
+            "Chinese-5 (L342F)": "rs137852342",
+            "Coimbra (R198C)": "rs137852330",
+            "Chatham (A335T)": "rs5030869",
+            "Gaohe (H32R)": "rs137852340",
+            "Seattle/Lodi (D282H)": "rs137852318",  # #321 European/Mediterranean
+            "Cosenza (R459P)": "rs72554665",  # #321 — shares Canton's position
         }
 
     def test_table_rows_well_formed(self) -> None:
         assert G6PD_DEFICIENCY_VARIANTS, "panel must not be empty"
-        seen: set[str] = set()
+        names_seen: set[str] = set()
+        ref_by_rsid: dict[str, str] = {}
         for name, rsid, cdna, ref, deff in G6PD_DEFICIENCY_VARIANTS:
             assert name and cdna.startswith("c.")
-            assert rsid.startswith("rs") and rsid not in seen
-            seen.add(rsid)
+            assert name not in names_seen, f"duplicate variant name {name}"
+            names_seen.add(name)
+            assert rsid.startswith("rs")
             assert ref in {"A", "C", "G", "T"} and deff in {"A", "C", "G", "T"}
             assert ref != deff
+            # A shared rsID is one multiallelic chrX position (Canton C>A + Cosenza
+            # C>G): same locus ⇒ same forward reference base, distinct deficiency alts.
+            assert ref_by_rsid.setdefault(rsid, ref) == ref, f"{rsid} ref mismatch"
 
     @pytest.mark.parametrize(
         ("name", "rsid", "ref", "deff"),
-        [(n, rs, ref, deff) for n, rs, _, ref, deff in G6PD_DEFICIENCY_VARIANTS],
+        # Non-palindromic loci only: a palindromic (C/G) hemizygote is strand-ambiguous
+        # and deliberately withheld (covered by the palindrome tests below), so it would
+        # not produce the confident hemizygous call this strand-direction lock asserts.
+        [
+            (n, rs, ref, deff)
+            for n, rs, _, ref, deff in G6PD_DEFICIENCY_VARIANTS
+            if not _is_palindromic(ref, deff)
+        ],
     )
     def test_each_variant_strand_direction(
         self, name: str, rsid: str, ref: str, deff: str
@@ -232,14 +262,53 @@ class TestExpandedDeficiencyPanel:
         assert r["phenotype"] == "normal", name
         assert r["at_risk"] is False, name
 
-    def test_multiallelic_third_allele_is_not_called(self) -> None:
-        # Canton (rs72554665) is multiallelic C/A/G/T; we encode only C(ref)/A(Canton).
-        # A genotype carrying the Cosenza G allele falls outside {C,A} → conservatively
-        # not-called, never a false Canton call.
+    def test_canton_cosenza_share_position_without_cross_calling(self) -> None:
+        # rs72554665 is multiallelic: Canton (C>A) and Cosenza (C>G) share the chrX
+        # position as two rows. A "CG" het is the *Cosenza* heterozygote — G lies
+        # outside Canton's {C,A}, so Canton stays not-called while Cosenza calls 1.
         r = self._assess("XX", {"rs72554665": "CG"})
-        canton = next(v for v in r["variants"] if v["rsid"] == "rs72554665")
-        assert canton["called"] is False
-        assert canton["deficiency_alleles"] is None
+        canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
+        cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
+        assert canton["called"] is False and canton["deficiency_alleles"] is None
+        assert cosenza["called"] is True and cosenza["deficiency_alleles"] == 1
+        assert r["phenotype"] == "variable"  # het female at one deficiency locus
+
+    def test_canton_hemizygous_still_callable_despite_shared_position(self) -> None:
+        # Canton (C>A) is non-palindromic, so a hemizygous male "A" remains a confident
+        # deficiency call even though Cosenza shares the rsID; Cosenza (needs G) stays
+        # not-called (A outside its {C,G}).
+        r = self._assess("XY", {"rs72554665": "A"})
+        canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
+        cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
+        assert canton["called"] is True and canton["deficiency_alleles"] == 1
+        assert cosenza["called"] is False
+        assert r["phenotype"] == "deficient" and r["at_risk"] is True
+
+    def test_palindromic_hemizygous_male_is_withheld(self) -> None:
+        # Seattle/Lodi (C/G palindromic): a hemizygous male "G" cannot be strand-
+        # resolved (a minus-strand report of reference C is identical), so it is
+        # withheld — NOT a confident "deficient" — and flagged strand_ambiguous.
+        r = self._assess("XY", {"rs137852318": "G"})
+        seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
+        assert seattle["called"] is False
+        assert seattle["strand_ambiguous"] is True
+        assert r["strand_ambiguous_loci"] == ["Seattle/Lodi (D282H)"]
+        # No confident deficiency call from the palindromic hemizygote alone.
+        assert r["phenotype"] == "indeterminate"
+        assert r["at_risk"] is False
+
+    def test_palindromic_homozygous_female_is_withheld(self) -> None:
+        r = self._assess("XX", {"rs137852318": "GG"})
+        seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
+        assert seattle["called"] is False and seattle["strand_ambiguous"] is True
+
+    def test_palindromic_heterozygous_female_is_variable(self) -> None:
+        # The heterozygote {C,G} is strand-invariant → callable → variable.
+        r = self._assess("XX", {"rs137852318": "CG"})
+        seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
+        assert seattle["called"] is True and seattle["deficiency_alleles"] == 1
+        assert seattle["strand_ambiguous"] is False
+        assert r["phenotype"] == "variable" and r["at_risk"] is True
 
     def test_new_variant_female_heterozygous_is_variable(self) -> None:
         r = self._assess("XX", {"rs72554664": "CT"})  # Kaiping het

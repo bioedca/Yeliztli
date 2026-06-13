@@ -37,6 +37,10 @@ class G6pdVariantResponse(BaseModel):
     observed_genotype: str | None = None
     called: bool
     deficiency_alleles: int | None = None
+    # True when a palindromic (C/G) homozygote/hemizygote was observed but withheld
+    # because its strand is unresolvable (see backend.analysis.g6pd) — distinct from a
+    # plain no-call.
+    strand_ambiguous: bool = False
 
 
 class G6pdResponse(BaseModel):
@@ -45,6 +49,9 @@ class G6pdResponse(BaseModel):
     inferred_sex: str
     variants: list[G6pdVariantResponse]
     any_called: bool
+    # Names of palindromic loci observed as a homozygote/hemizygote but withheld as
+    # strand-ambiguous (seen yet not callable; deferred to an enzyme assay).
+    strand_ambiguous_loci: list[str] = []
     phenotype: str
     detail: str
     at_risk: bool
