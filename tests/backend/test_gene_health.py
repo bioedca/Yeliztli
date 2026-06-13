@@ -30,8 +30,11 @@ from backend.analysis.gene_health import (
     GeneHealthPanel,
     GeneHealthResult,
     PanelSNP,
+    Pathway,
+    PathwayResult,
     SNPResult,
     _determine_pathway_level,
+    _generate_cross_module_findings,
     _map_indel_genotype,
     _normalize_genotype,
     _score_snp,
@@ -765,7 +768,12 @@ class TestCrossModuleFindings:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Only one cross-link per gene+target combination."""
+        """Distinct genes -> distinct cross-links (each target appears once).
+
+        Every panel cross-link maps a unique (gene, module), so each target
+        module surfaces exactly once. Variant-granular dedup (see
+        ``test_cross_module_dedup_keys_on_rsid_not_gene``) does not change this.
+        """
         _seed_variants(
             sample_engine,
             [
@@ -780,6 +788,75 @@ class TestCrossModuleFindings:
         assert targets.count("apoe") == 1
         assert targets.count("nutrigenomics") == 1
         assert targets.count("methylation") == 1
+
+    def test_cross_module_dedup_keys_on_rsid_not_gene(self) -> None:
+        """Two distinct SNPs under one gene each keep their cross-link (#315).
+
+        Cross-module dedup is keyed on (rsid, target_module), not gene-only, so
+        a second cross-link SNP added under an existing gene cannot be silently
+        dropped — the VDR FokI/BsmI collapse fixed for Skin in #205/#309 and
+        Allergy in #197/#92. Latent in gene_health today (every (gene, module)
+        is single-rsid), so this exercises ``_generate_cross_module_findings``
+        directly with two synthetic VDR SNPs sharing one gene+module. Fails
+        under the old (gene, target_module) dedup key.
+        """
+        cross_meta = {"module": "nutrigenomics", "note": "vitamin D cross-reference"}
+
+        def _panel_snp(rsid: str) -> PanelSNP:
+            return PanelSNP(
+                rsid=rsid,
+                gene="VDR",
+                variant_name=rsid,
+                hgvs_protein=None,
+                risk_allele="A",
+                ref_allele="G",
+                genotype_effects={},
+                evidence_level=2,
+                pmids=[],
+                recommendation_text="",
+                cross_module=cross_meta,
+            )
+
+        def _snp_result(rsid: str) -> SNPResult:
+            return SNPResult(
+                rsid=rsid,
+                gene="VDR",
+                variant_name=rsid,
+                genotype="AA",
+                category=MODERATE,
+                effect_summary="",
+                evidence_level=2,
+                pmids=[],
+                recommendation_text="",
+                present_in_sample=True,
+            )
+
+        panel = GeneHealthPanel(
+            module="gene_health",
+            version="test",
+            pathways=[
+                Pathway(
+                    id="p1",
+                    name="P1",
+                    description="",
+                    snps=[_panel_snp("rs2228570"), _panel_snp("rs1544410")],
+                )
+            ],
+        )
+        pathway_results = [
+            PathwayResult(
+                pathway_id="p1",
+                pathway_name="P1",
+                pathway_description="",
+                level=MODERATE,
+                snp_results=[_snp_result("rs2228570"), _snp_result("rs1544410")],
+            )
+        ]
+
+        cross = _generate_cross_module_findings(pathway_results, panel)
+        vdr_links = [c for c in cross if c.gene == "VDR" and c.target_module == "nutrigenomics"]
+        assert len(vdr_links) == 2
+        assert {c.rsid for c in vdr_links} == {"rs2228570", "rs1544410"}
 
 
 # -- Full scoring integration tests -------------------------------------------

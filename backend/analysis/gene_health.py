@@ -455,8 +455,12 @@ def _generate_cross_module_findings(
                 f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
             )
 
-            # Deduplicate: only one cross-link per gene+target combination
-            dedup_key = (snp_result.gene, target_module)
+            # Deduplicate at variant granularity, not gene-only: distinct SNPs
+            # under one gene (e.g. VDR FokI rs2228570 / BsmI rs1544410) are
+            # different signals and must not collapse into a single cross-link
+            # (#315; mirrors skin #309 / allergy #197 / #92). gene_health has no
+            # MC1R-style aggregate path, so keying on rsid alone is sufficient.
+            dedup_key = (snp_result.rsid, target_module)
             if dedup_key in seen_keys:
                 continue
 
