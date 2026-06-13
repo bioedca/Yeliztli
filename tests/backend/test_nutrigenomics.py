@@ -1218,3 +1218,54 @@ class TestUpdateAnnotationCoverageGwas:
             ).scalar()
 
         assert val == GWAS_BIT  # Still 32, no extra bits
+
+
+class TestHFECitationProvenance:
+    """Guard the Nutrigenomics HFE rows' evidence links (issue #361).
+
+    Both HFE rows (C282Y rs1800562, H63D rs1799945) previously cited PMID 9462749,
+    a SOX10/Waardenburg-Hirschsprung paper unrelated to HFE / hereditary
+    hemochromatosis / iron overload. Lock the rows to a reviewed HFE allowlist (the
+    same curated set test_hemochromatosis.py uses) so an off-topic PMID can't reappear.
+    """
+
+    _HFE_RSIDS = ("rs1800562", "rs1799945")  # C282Y, H63D
+    # The SOX10/Waardenburg paper that must never back an HFE row again. SOX10 is a
+    # real human gene, so this stays gene-scoped here (not a repo-wide ban).
+    _BANNED_PMID = "9462749"
+    # Verified (PubMed + Consensus) HFE / hereditary-hemochromatosis references —
+    # mirrors test_hemochromatosis.TestCitationProvenance._HFE_PMID_ALLOWLIST.
+    _HFE_PMID_ALLOWLIST = frozenset(
+        {
+            "38479735",  # BMJ Open 2024 — HFE C282Y cohort outcomes (UK Biobank)
+            "30651232",  # BMJ 2019 — HFE-variant common-condition cohort (UK Biobank)
+            "11399207",  # Burke 2000 — pooled HFE genotype/iron-overload analysis
+            "36196271",  # Hasan 2022 — C282Y/H63D low-penetrance genotype
+            "19554541",  # Gurrin 2009 (HealthIron) — C282Y/H63D low morbidity
+            "24729993",  # Kelley 2014 — iron overload rare in H63D homozygotes
+        }
+    )
+
+    def _hfe_snps(self, panel: NutrigenomicsPanel) -> list:
+        snps = [s for pw in panel.pathways for s in pw.snps if s.rsid in self._HFE_RSIDS]
+        assert {s.rsid for s in snps} == set(self._HFE_RSIDS), "HFE rows missing from panel"
+        return snps
+
+    def test_sox10_pmid_absent_from_panel(self, panel: NutrigenomicsPanel) -> None:
+        # The SOX10/Waardenburg PMID is off-topic for every nutrigenomics row, so
+        # scan the whole panel, not just HFE.
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                assert self._BANNED_PMID not in snp.pmids, (
+                    f"{snp.rsid} ({snp.gene}) cites unrelated SOX10/Waardenburg PMID "
+                    f"{self._BANNED_PMID}"
+                )
+
+    def test_hfe_rows_cite_only_curated_hfe_references(self, panel: NutrigenomicsPanel) -> None:
+        for snp in self._hfe_snps(panel):
+            assert snp.pmids, f"{snp.rsid} lost its evidence citations"
+            unknown = set(snp.pmids) - self._HFE_PMID_ALLOWLIST
+            assert not unknown, (
+                f"{snp.rsid} ({snp.gene}) cites non-allowlisted PMID(s) {sorted(unknown)}; "
+                f"verify they are genuine HFE/hemochromatosis references before adding"
+            )

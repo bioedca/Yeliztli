@@ -381,7 +381,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["9462749"],
+          "pmids": ["38479735", "30651232", "11399207"],
           "recommendation_text": "Homozygous individuals should discuss iron level monitoring (serum ferritin, transferrin saturation) with a clinician."
         },
         {
@@ -410,7 +410,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["9462749"],
+          "pmids": ["36196271", "19554541", "24729993"],
           "recommendation_text": "H63D alone has low clinical penetrance. Most relevant in compound heterozygosity with C282Y."
         }
       ]
