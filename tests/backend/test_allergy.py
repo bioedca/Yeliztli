@@ -122,9 +122,9 @@ def _seed_gwas(
         )
 
 
-def _seed_hla_proxies(engine: sa.Engine) -> None:
-    """Seed the hla_proxy_lookup table with test data."""
-    entries = [
+def _hla_proxy_seed_entries() -> list[dict]:
+    """HLA proxy lookup seed rows; PMIDs mirror the curated production provenance."""
+    return [
         {
             "hla_allele": "HLA-B*57:01",
             "proxy_rsid": "rs2395029",
@@ -147,7 +147,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.93,
             "ancestry_pop": "EAS",
             "clinical_context": "Carbamazepine-induced SJS/TEN",
-            "pmid": "21248726",
+            "pmid": "15057820",
         },
         {
             "hla_allele": "HLA-B*58:01",
@@ -155,7 +155,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.91,
             "ancestry_pop": "EUR",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "22286173",
+            "pmid": "29392141",
         },
         {
             "hla_allele": "HLA-B*58:01",
@@ -163,7 +163,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.87,
             "ancestry_pop": "EAS",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "22286173",
+            "pmid": "29392141",
         },
         {
             "hla_allele": "HLA-B*58:01",
@@ -171,7 +171,7 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "r_squared": 0.78,
             "ancestry_pop": "AFR",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "22286173",
+            "pmid": "29392141",
         },
         {
             "hla_allele": "HLA-DQ2",
@@ -190,8 +190,12 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
             "pmid": "18311140",
         },
     ]
+
+
+def _seed_hla_proxies(engine: sa.Engine) -> None:
+    """Seed the hla_proxy_lookup table with test data."""
     with engine.begin() as conn:
-        conn.execute(sa.insert(hla_proxy_lookup), entries)
+        conn.execute(sa.insert(hla_proxy_lookup), _hla_proxy_seed_entries())
 
 
 # All 11 panel SNPs with their chromosome positions
@@ -726,6 +730,40 @@ class TestHLAProxyLookup:
         info = result.hla_proxy_info["rs2395029"]
         assert "AFR" in info.r_squared_by_pop
         assert info.r_squared_by_pop["AFR"] == pytest.approx(0.85)
+
+    def test_hla_proxy_seed_mirrors_production_provenance(self) -> None:
+        """The HLA proxy seed fixture must cite the same curated PMIDs as the
+        production hla_proxy_lookup table, so it can't drift back to the
+        misattributed citations scrubbed from the panel + proxy JSON by
+        #176/#194/#232 (#278): HLA-B*15:02 -> 15057820 (not 21248726),
+        HLA-B*58:01 -> 29392141 (not 22286173)."""
+        proxy_path = (
+            Path(__file__).resolve().parents[2]
+            / "backend"
+            / "data"
+            / "panels"
+            / "hla_proxy_lookup.json"
+        )
+        production = json.loads(proxy_path.read_text(encoding="utf-8"))
+        prod_pmids_by_allele: dict[str, set[str]] = {}
+        for entry in production["entries"]:
+            prod_pmids_by_allele.setdefault(entry["hla_allele"], set()).add(entry["pmid"])
+
+        # PMIDs that were attached to these alleles in error (#176/#194/#232) and
+        # must never reappear in the seed fixture.
+        banned = {"21248726", "22286173", "22177658", "26092464"}
+        for entry in _hla_proxy_seed_entries():
+            allele = entry["hla_allele"]
+            assert allele in prod_pmids_by_allele, (
+                f"seed allele {allele} is absent from the production proxy lookup"
+            )
+            assert entry["pmid"] in prod_pmids_by_allele[allele], (
+                f"seed {allele} cites {entry['pmid']}, not in production "
+                f"{sorted(prod_pmids_by_allele[allele])}"
+            )
+            assert entry["pmid"] not in banned, (
+                f"seed {allele} re-introduces misattributed PMID {entry['pmid']}"
+            )
 
 
 # ── Cross-module findings tests ──────────────────────────────────────────
