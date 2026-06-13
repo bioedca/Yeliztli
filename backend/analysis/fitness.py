@@ -423,15 +423,13 @@ def _generate_cross_context_findings(
                 (s for s in endurance_pr.called_snps if s.rsid == "rs1815739"),
                 None,
             )
-            if actn3_result and actn3_result.category != STANDARD:
-                # ACTN3 RR is power-relevant (opposite framing)
+            if actn3_result and actn3_result.three_state_label in ("RX", "XX"):
+                # ACTN3 is reported under Endurance but is power-relevant. Surface a
+                # Power-pathway context for X-allele carriers regardless of the
+                # endurance category — XX is now Standard (not an endurance call), so
+                # this must key off the three-state label, not the category (gh #182).
                 three_state = actn3_result.three_state_label or ""
-                if three_state == "RR":
-                    context_text = (
-                        f"ACTN3 R577X ({actn3_result.genotype}) — {three_state} genotype. "
-                        "Full alpha-actinin-3 expression favors power and sprint performance."
-                    )
-                elif three_state == "RX":
+                if three_state == "RX":
                     context_text = (
                         f"ACTN3 R577X ({actn3_result.genotype}) — {three_state} genotype. "
                         "Mixed muscle fiber profile suited to both endurance and power activities."

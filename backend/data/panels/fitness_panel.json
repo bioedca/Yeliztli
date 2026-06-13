@@ -29,8 +29,8 @@
               "effect_summary": "RX genotype — one functional copy of alpha-actinin-3. Mixed muscle fiber profile suited to both endurance and power activities."
             },
             "TT": {
-              "category": "Elevated",
-              "effect_summary": "XX genotype — complete absence of alpha-actinin-3 in fast-twitch fibers. Shift toward slow-twitch muscle physiology. Associated with enhanced endurance capacity."
+              "category": "Standard",
+              "effect_summary": "XX genotype — complete absence of alpha-actinin-3 in fast-twitch fibers, a common loss-of-function shift in muscle physiology. XX is consistently under-represented among sprint/power athletes (i.e. reduced sprint/power potential); a human endurance-performance advantage is NOT established — large endurance-athlete cohorts and meta-analyses show no consistent XX endurance benefit. Context-only, not an elevated endurance call."
             }
           },
           "three_state_calling": {
@@ -40,8 +40,8 @@
             "TT": "XX"
           },
           "evidence_level": 2,
-          "pmids": ["12879365", "18043716", "20378076"],
-          "recommendation_text": "ACTN3 R577X is one of the most replicated gene-sport performance associations. XX individuals may benefit from endurance-focused training; RR individuals may respond better to power/sprint training."
+          "pmids": ["12879365", "18043716", "21542061", "29298672", "38760851"],
+          "recommendation_text": "ACTN3 R577X is among the most-studied sport-performance variants, but it is a weak, non-predictive marker. The consistently-replicated signal is reduced sprint/power potential for XX (and a power/sprint tendency for RR); an XX endurance advantage is not established in human studies. Genotype should not guide training choices in place of observed performance and training response."
         },
         {
           "rsid": "rs8192678",

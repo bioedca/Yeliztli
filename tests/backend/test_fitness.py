@@ -247,12 +247,15 @@ class TestACTN3ThreeState:
         assert result.category == MODERATE
         assert result.three_state_label == "RX"
 
-    def test_actn3_tt_elevated(self, panel: FitnessPanel) -> None:
-        """XX genotype (TT) → Elevated category (evidence_level=2 allows it)."""
+    def test_actn3_tt_standard_not_elevated(self, panel: FitnessPanel) -> None:
+        """XX genotype (TT) is context-only, NOT an Elevated endurance call: the human
+        XX endurance advantage is not established (gh #182). It still resolves the XX
+        three-state label."""
         actn3 = self._get_actn3(panel)
         result = _score_snp(actn3, "TT")
-        assert result.category == ELEVATED
+        assert result.category == STANDARD
         assert result.three_state_label == "XX"
+        assert "not established" in result.effect_summary.lower()
 
     def test_actn3_finding_text_includes_three_state(self, panel: FitnessPanel) -> None:
         """Finding text for ACTN3 should include the three-state label."""
@@ -512,6 +515,45 @@ class TestCrossContextFindings:
         assert actn3_cross.context_pathway == "Power"
         assert "RX" in actn3_cross.finding_text
 
+    def test_actn3_xx_power_context_still_generated_when_standard(
+        self, panel: FitnessPanel
+    ) -> None:
+        """XX is now Standard in Endurance (gh #182), but its Power-pathway context
+        ('reduced power/sprint advantage') must still surface — keyed off the
+        three-state label, not the endurance category."""
+        endurance_pr = PathwayResult(
+            pathway_id="endurance",
+            pathway_name="Endurance",
+            pathway_description="",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs1815739",
+                    gene="ACTN3",
+                    variant_name="R577X",
+                    genotype="TT",
+                    category=STANDARD,
+                    effect_summary="XX genotype",
+                    evidence_level=2,
+                    pmids=["12879365"],
+                    recommendation_text="",
+                    present_in_sample=True,
+                    three_state_label="XX",
+                ),
+            ],
+        )
+        power_pr = PathwayResult(
+            pathway_id="power",
+            pathway_name="Power",
+            pathway_description="",
+            level=STANDARD,
+        )
+        cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
+        actn3_cross = next(c for c in cross if c.rsid == "rs1815739")
+        assert actn3_cross.context_pathway == "Power"
+        assert "XX" in actn3_cross.finding_text
+        assert "reduced power/sprint" in actn3_cross.finding_text.lower()
+
     def test_ace_endurance_context_generated(self, panel: FitnessPanel) -> None:
         """ACE ID/DD generates cross-context finding for Endurance pathway."""
         power_pr = PathwayResult(
@@ -647,10 +689,11 @@ class TestScorePathways:
 
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
 
-        # Endurance: ACTN3 TT=Elevated, PPARGC1A GA=Moderate (capped from star1),
-        #            AMPD1 CC=Standard → pathway = Elevated
+        # Endurance: ACTN3 TT=Standard (XX is context-only, not an endurance call — #182),
+        #            PPARGC1A GA=Moderate (capped from star1), AMPD1 CC=Standard
+        #            → pathway = Moderate
         endurance = next(pr for pr in result.pathway_results if pr.pathway_id == "endurance")
-        assert endurance.level == ELEVATED
+        assert endurance.level == MODERATE
 
         # Power: ACE GG=Elevated drives Elevated; MCT1 TT is a palindromic A/T
         # homozygote → Indeterminate (#170), which does not lower the level.
@@ -686,14 +729,16 @@ class TestScorePathways:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """ACTN3 TT → XX genotype → Elevated endurance."""
+        """ACTN3 TT → XX genotype is context-only (Standard), so an XX-only sample does
+        NOT raise the endurance pathway above Standard (gh #182)."""
         _seed_variants(sample_engine, [("rs1815739", "11", 66328095, "TT")])
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
 
         endurance = next(pr for pr in result.pathway_results if pr.pathway_id == "endurance")
         actn3 = next(s for s in endurance.called_snps if s.rsid == "rs1815739")
         assert actn3.three_state_label == "XX"
-        assert actn3.category == ELEVATED
+        assert actn3.category == STANDARD
+        assert endurance.level == STANDARD
 
     def test_missing_snps_default_standard(
         self,
