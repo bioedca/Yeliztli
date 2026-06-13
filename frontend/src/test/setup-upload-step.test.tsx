@@ -17,6 +17,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from './test-utils'
 import UploadStep from '@/components/setup/UploadStep'
 
+// Spy on navigation; keep the rest of react-router-dom real (MemoryRouter etc.).
+const navigateMock = vi.fn()
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>()
+  return { ...actual, useNavigate: () => navigateMock }
+})
+
 const BUNDLE_GATE_PAYLOAD = {
   error: 'bundle_version_too_old',
   installed_version: 'v1.0.0',
@@ -31,6 +38,7 @@ const mockFetch = vi.fn()
 
 beforeEach(() => {
   mockFetch.mockReset()
+  navigateMock.mockReset()
   vi.stubGlobal('fetch', mockFetch)
 })
 
@@ -373,5 +381,15 @@ describe('UploadStep — readiness-gated dashboard hand-off', () => {
     // must delegate rather than navigate to a possibly-broken dashboard itself.
     fireEvent.click(screen.getByRole('button', { name: /skip — go to dashboard/i }))
     expect(onComplete).toHaveBeenCalledOnce()
+  })
+
+  it('navigates directly to the dashboard when onComplete is not provided', () => {
+    mockFetch.mockImplementation(() => jsonResponse(200, {}))
+    render(<UploadStep onBack={vi.fn()} />)
+
+    // Standalone fallback (no wizard-supplied readiness hand-off): navigate
+    // straight to the dashboard.
+    fireEvent.click(screen.getByRole('button', { name: /skip — go to dashboard/i }))
+    expect(navigateMock).toHaveBeenCalledWith('/', { replace: true })
   })
 })
