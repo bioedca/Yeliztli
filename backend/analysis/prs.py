@@ -243,8 +243,8 @@ class PRSResult:
     # in the sample but excluded from / adjusted in the score, surfaced rather
     # than silently dropped.
     snps_no_call: int = 0  # present but unscoreable genotype
-    # strand-ambiguous palindromes dropped: near MAF 0.5, a homozygote away from it
-    # (#247), or no MAF available to place it relative to the band (missing_freq)
+    # strand-ambiguous palindromes dropped: a palindromic homozygote (strand-
+    # unknowable for n=1, at any MAF; #247, #353), or no MAF available (missing_freq)
     snps_ambiguous_dropped: int = 0
     snps_strand_flipped: int = 0  # resolved on the complemented strand
     snps_unresolved: int = 0  # alleles fit neither strand
@@ -423,10 +423,11 @@ def compute_prs(
         PRSResult with raw_score and per-SNP contributions.
     """
     # Fetch genotype + gnomAD MAF for all weight set SNPs. The MAF (already
-    # annotated on the same row) is needed only to drop strand-ambiguous
-    # palindromes near 0.5 during harmonization. SNPs without an rsID are matched
-    # positionally by (chrom, pos) — required for genome-wide PGS Catalog scores
-    # whose harmonized files omit hm_rsID (SW-B4).
+    # annotated on the same row) only gates palindromes during harmonization: a
+    # palindrome with no MAF is dropped (missing_freq); its value no longer drives
+    # a per-sample drop (#353). SNPs without an rsID are matched positionally by
+    # (chrom, pos) — required for genome-wide PGS Catalog scores whose harmonized
+    # files omit hm_rsID (SW-B4).
     rsid_geno, rsid_af, pos_geno, pos_af = _load_sample_genotypes(weight_set, sample_engine)
 
     contributions: list[PRSSNPContribution] = []

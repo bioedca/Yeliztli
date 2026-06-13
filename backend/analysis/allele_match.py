@@ -23,14 +23,16 @@ allele-set comparison (reference strand then Watson–Crick complement) plus the
 allele frequency for the strand-ambiguous palindromes.
 
 Harmonization mirrors the canonical bigsnpr ``snp_match`` discipline (Privé 2022,
-*HGG Advances*; doi:10.1016/j.xhgg.2022.100136): match on the allele pair, allow
-an opposite-strand ``_FLIP_`` via complement, and **drop strand-ambiguous A/T &
-C/G SNPs whose minor-allele frequency is in [0.40, 0.60]** — near 0.5 the
-frequency cannot disambiguate which strand the genotype is on, so scoring it
-would be a coin flip. Away from that band a palindromic **homozygote** is still
-strand-unknowable for a *single* sample (frequency-based orientation is a cohort
-technique, invalid for n=1) and is likewise dropped, while a strand-invariant
-**heterozygote** resolves to one effect-allele copy (#247).
+*HGG Advances*; doi:10.1016/j.xhgg.2022.100136): match on the allele pair and
+allow an opposite-strand ``_FLIP_`` via complement. For strand-ambiguous A/T &
+C/G palindromes, per-sample resolution is **purely by zygosity** (#247, #353): a
+**heterozygote** is strand-invariant (the same allele set on either strand) and
+always resolves to one effect-allele copy at **any** MAF; a **homozygote** is
+strand-unknowable for a *single* sample (an opposite-strand ``AA`` is the
+complement ``TT``) and is always dropped. Frequency-based strand orientation is a
+**cohort** technique, invalid for n=1, so the bigsnpr near-0.5 [0.40, 0.60] drop
+band does not apply to per-sample scoring here — it remains the cohort rule in
+``prs_calibration`` (which estimates a population allele frequency).
 
 The genotype is treated as ground truth and never flipped; it is the foreign
 weight-set allele frame that we resolve *into* the chip's representation, so
@@ -51,8 +53,8 @@ MATCHED_REF = "matched_ref"
 MATCHED_FLIP = "matched_flip"
 #: Genotype is a no-call / unscoreable (see :func:`backend.analysis.zygosity.is_no_call`).
 NO_CALL = "no_call"
-#: Strand-ambiguous palindrome dropped — A/T or C/G near MAF 0.5 (bigsnpr rule), or a
-#: palindromic homozygote away from 0.5 (strand unknowable for a single sample, #247).
+#: Strand-ambiguous palindrome dropped — a palindromic A/T or C/G *homozygote*,
+#: which is strand-unknowable for a single sample at any MAF (#247, #353).
 AMBIGUOUS_DROPPED = "ambiguous_dropped"
 #: Alleles fit neither the reference pair nor its complement (different/triallelic variant).
 UNRESOLVED = "unresolved"
