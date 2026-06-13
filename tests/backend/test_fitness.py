@@ -549,6 +549,7 @@ class TestCrossContextFindings:
             level=STANDARD,
         )
         cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
+        assert len(cross) >= 1
         actn3_cross = next(c for c in cross if c.rsid == "rs1815739")
         assert actn3_cross.context_pathway == "Power"
         assert "XX" in actn3_cross.finding_text
