@@ -1,6 +1,6 @@
 /** React Query hooks for the query builder API (P4-02) and SQL console (P4-04). */
 
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   QueryMetaResponse,
   QueryResultPage,
@@ -39,42 +39,6 @@ interface ExecuteQueryParams {
 }
 
 const QUERY_PAGE_SIZE = 50
-
-export function useExecuteQuery(sampleId: number | null, filter: RuleGroupModel | null) {
-  return useInfiniteQuery({
-    queryKey: ["query-results", sampleId, filter],
-    queryFn: async ({ pageParam }): Promise<QueryResultPage> => {
-      const body: Record<string, unknown> = {
-        sample_id: sampleId!,
-        filter: filter!,
-        limit: QUERY_PAGE_SIZE,
-      }
-      if (pageParam) {
-        body.cursor_chrom = pageParam.chrom
-        body.cursor_pos = pageParam.pos
-      }
-      const res = await fetch("/api/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Query execution failed: ${res.status}${text ? ` - ${text}` : ""}`)
-      }
-      return res.json()
-    },
-    initialPageParam: null as { chrom: string; pos: number } | null,
-    getNextPageParam: (lastPage): { chrom: string; pos: number } | null => {
-      if (!lastPage.has_more || !lastPage.next_cursor_chrom || lastPage.next_cursor_pos == null) {
-        return null
-      }
-      return { chrom: lastPage.next_cursor_chrom, pos: lastPage.next_cursor_pos }
-    },
-    enabled: sampleId != null && filter != null,
-    staleTime: Infinity,
-  })
-}
 
 /** One-shot mutation for executing a query (used for the Run button). */
 export function useRunQuery() {
