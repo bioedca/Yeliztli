@@ -329,6 +329,22 @@ class TestPanelLoading:
             assert "subclinical" not in text.lower()
             assert "May have enlarged vestibular aqueduct" not in text
 
+    def test_gjb2_35delg_cites_curated_pmids(self) -> None:
+        """#350: the GJB2 35delG (rs80338939) row must cite DFNB1/connexin-26 deafness
+        evidence, not the unrelated PMIDs attached in error — 9462742 (mouse itchy
+        locus), 10090481 (presenilin/Alzheimer's), 21280143 (EXT/exostoses)."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        gjb2 = next(
+            snp
+            for pathway in gene_health["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] == "rs80338939"
+        )
+        # 9285800 Zelante 1997 (Hum Mol Genet, DFNB1 connexin-26 35delG); 9139825
+        # Kelsell 1997 (Nature, connexin-26 non-syndromic deafness).
+        assert gjb2["pmids"] == ["9285800", "9139825"]
+        assert {"9462742", "10090481", "21280143"}.isdisjoint(gjb2["pmids"])
+
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
             load_gene_health_panel(Path("/nonexistent/panel.json"))
