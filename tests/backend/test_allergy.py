@@ -1542,3 +1542,38 @@ class TestAnnotationCoverage:
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         updated = update_annotation_coverage_gwas(result, sample_engine)
         assert updated == 0
+
+
+class TestEvidenceGatingCap:
+    """#470: drive a synthetic Elevated ★☆ (evidence_level=1) SNP through the
+    _score_snp evidence cap so the Elevated→Moderate hard-cap is actually exercised
+    (the pre-existing 'cap' tests used already-Moderate genotypes and never hit it)."""
+
+    @staticmethod
+    def _snp(evidence_level: int, aa_category: str) -> PanelSNP:
+        # A/G is non-palindromic, so the strand-ambiguity guard does not intercept.
+        return PanelSNP(
+            rsid="rs99999990",
+            gene="TEST",
+            variant_name="synthetic cap probe",
+            hgvs_protein=None,
+            risk_allele="A",
+            ref_allele="G",
+            genotype_effects={
+                "GG": {"category": STANDARD, "effect_summary": "Normal."},
+                "AG": {"category": MODERATE, "effect_summary": "Moderate."},
+                "GA": {"category": MODERATE, "effect_summary": "Moderate."},
+                "AA": {"category": aa_category, "effect_summary": "Risk genotype."},
+            },
+            evidence_level=evidence_level,
+            pmids=["12345678"],
+            recommendation_text="Test.",
+        )
+
+    def test_low_evidence_caps_elevated_to_moderate(self) -> None:
+        result = _score_snp(self._snp(evidence_level=1, aa_category=ELEVATED), "AA")
+        assert result.category == MODERATE  # ★☆ caps Elevated -> Moderate
+
+    def test_evidence_level_2_allows_elevated(self) -> None:
+        result = _score_snp(self._snp(evidence_level=2, aa_category=ELEVATED), "AA")
+        assert result.category == ELEVATED
