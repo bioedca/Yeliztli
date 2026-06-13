@@ -881,7 +881,7 @@ def store_skin_findings(
                 "pathway": "Skin Barrier & Inflammation",
                 "pathway_level": None,
                 "pmid_citations": json.dumps(
-                    flg_snp.pmids if flg_snp else ["16550169", "17597076"]
+                    flg_snp.pmids if flg_snp else ["16550169", "16444271"]
                 ),
                 "detail_json": json.dumps(
                     {

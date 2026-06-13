@@ -175,7 +175,7 @@
           "coverage_note": "rs61816761 is the FLG R501X nonsense variant. This single-site result does not assess other FLG loss-of-function alleles such as 2282del4, so a negative result does not rule out FLG loss-of-function. Flagged as Insufficient Data for clinical-grade assessment.",
           "insufficient_data_flag": true,
           "evidence_level": 2,
-          "pmids": ["16550169", "17597076", "21714652"],
+          "pmids": ["16550169", "16444271", "16815158"],
           "recommendation_text": "FLG loss-of-function variants are the strongest genetic risk factor for atopic dermatitis. Carriers benefit from regular emollient use to maintain skin barrier. Note: this result reflects only the assayed R501X site and may not capture all FLG mutations. Discuss comprehensive testing with a dermatologist if clinically relevant.",
           "cross_module": {
             "module": "allergy",

@@ -378,6 +378,24 @@ class TestFLGLimitedCoverage:
         flg = self._get_flg(panel_data)
         assert flg["genotype_effects"]["AA"]["category"] == "Elevated"
 
+    def test_flg_cites_filaggrin_pmids(self, panel_data: dict) -> None:
+        # FLG R501X citations must be filaggrin loss-of-function evidence (#189):
+        #   16550169 — Palmer 2006 (FLG LOF → atopic dermatitis, Nat Genet)
+        #   16444271 — Smith 2006 (FLG LOF → ichthyosis vulgaris, Nat Genet)
+        #   16815158 — Weidinger 2006 (FLG LOF → AD + allergic sensitization, JACI)
+        flg = self._get_flg(panel_data)
+        assert flg["pmids"] == ["16550169", "16444271", "16815158"], flg["pmids"]
+
+    def test_no_unrelated_pmids_in_panel(self, panel_data: dict) -> None:
+        # Guard against the misattributed citations from the FLG row (#189):
+        # 17597076 is a protein-Neddylation paper and 21714652 a myelodysplastic-
+        # syndrome review — neither concerns FLG/skin. They must not reappear.
+        banned = {"17597076", "21714652"}
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                offending = banned & set(snp["pmids"])
+                assert not offending, f"{snp['rsid']} cites unrelated PMID(s): {offending}"
+
 
 # ── VDR cross-module tests ─────────────────────────────────────────────
 

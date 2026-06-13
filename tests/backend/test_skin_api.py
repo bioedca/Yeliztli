@@ -290,7 +290,7 @@ FLG_INSUFFICIENT_DATA_FINDING = {
     ),
     "pathway": "Skin Barrier & Inflammation",
     "pathway_level": None,
-    "pmid_citations": json.dumps(["16550169", "17597076"]),
+    "pmid_citations": json.dumps(["16550169", "16444271"]),
     "detail_json": json.dumps(
         {
             "observed_variant": "FLG R501X (p.Arg501Ter)",
