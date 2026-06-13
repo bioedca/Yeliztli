@@ -45,7 +45,13 @@ FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "sex_inference_synthetic"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Production §9.4 classifier + thresholds — the script above hand-duplicates these
+# (it imports neither), so the parity tests below cross-check the two copies so a
+# one-sided recalibration can't silently drift (#500).
+from backend.services import sex_inference as _prod  # noqa: E402 — sys.path tweak above
 from scripts.validate_sex_thresholds import (  # noqa: E402 — sys.path tweak above
+    DEFAULT_MIN_X_NONPAR_TYPED,
+    DEFAULT_MIN_Y_PROBES,
     DEFAULT_PAR_NOISE,
     DEFAULT_XY_CONFIRM,
     build_report,
@@ -203,6 +209,74 @@ def test_classify_branches(params: dict, expected: str) -> None:
             **params,
         )
         == expected
+    )
+
+
+# ---------------------------------------------------------------------------
+# Parity with the PRODUCTION §9.4 classifier (#500)
+#
+# scripts/validate_sex_thresholds.py hand-duplicates production's _classify() and
+# its four threshold constants instead of importing them. Each copy is tested only
+# against itself, so a one-sided recalibration (e.g. bumping production
+# MIN_Y_PROBES 50->60 while the script's DEFAULT_MIN_Y_PROBES stays 50) would leave
+# both suites green while the attestation in docs/sex_inference_threshold_validation.md
+# certifies a threshold production no longer uses. These tests cross-check the two.
+# ---------------------------------------------------------------------------
+
+
+def test_threshold_constants_match_production() -> None:
+    """Every script DEFAULT_* must equal the production constant it duplicates."""
+    assert DEFAULT_XY_CONFIRM == _prod._THRESHOLD_XY_CONFIRM
+    assert DEFAULT_PAR_NOISE == _prod._THRESHOLD_PAR_NOISE
+    assert DEFAULT_MIN_X_NONPAR_TYPED == _prod.MIN_X_NONPAR_TYPED
+    assert DEFAULT_MIN_Y_PROBES == _prod.MIN_Y_PROBES
+
+
+def test_classifier_parity_grid() -> None:
+    """The script's classify() and production's _classify() must agree on every
+    grid point spanning all four §9.4 thresholds.
+
+    The script's copy is invoked with the script's OWN default thresholds while
+    production's _classify reads its own module constants, so this catches BOTH a
+    logic divergence AND a one-sided constant drift (a sample near a drifted floor
+    classifies differently between the two copies).
+    """
+    import itertools
+
+    # Boundary-spanning values: x_nonpar_typed straddles MIN_X (100), y_total
+    # straddles MIN_Y (50), y_rate straddles PAR_NOISE (0.10) and XY_CONFIRM (0.30).
+    xs_typed = [0, 99, 100, 150]
+    ys_total = [0, 49, 50, 100]
+    hets = [0, 1, 3]
+    y_rates = [0.0, 0.10, 0.101, 0.30, 0.301, 0.6]
+
+    mismatches: list[str] = []
+    n = 0
+    for x_typed, y_tot, het, y_rate in itertools.product(xs_typed, ys_total, hets, y_rates):
+        het_eff = min(het, x_typed)
+        point = dict(
+            x_nonpar_het=het_eff,
+            x_nonpar_typed=x_typed,
+            x_nonpar_hom=x_typed - het_eff,
+            y_total=y_tot,
+            y_rate=y_rate,
+        )
+        prod_call = _prod._classify(**point)
+        script_call = classify(
+            xy_confirm=DEFAULT_XY_CONFIRM,
+            par_noise=DEFAULT_PAR_NOISE,
+            min_x_nonpar_typed=DEFAULT_MIN_X_NONPAR_TYPED,
+            min_y_probes=DEFAULT_MIN_Y_PROBES,
+            **point,
+        )
+        n += 1
+        if prod_call != script_call:
+            mismatches.append(f"{point}: prod={prod_call} script={script_call}")
+
+    assert n == 288  # full grid actually exercised (guards against a no-op shrink)
+    assert not mismatches, (
+        "production _classify and the validation script's classify() DIVERGED — the "
+        f"§9.4 copies have drifted ({len(mismatches)}/{n} points):\n" + "\n".join(mismatches[:8])
     )
 
 
