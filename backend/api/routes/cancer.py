@@ -448,11 +448,20 @@ def get_absolute_risk(
         build_breast_absolute_risk,
         get_consent,
     )
-    from backend.services.sex_inference import infer_biological_sex
+    from backend.services.sex_inference import (
+        get_recorded_biological_sex,
+        infer_biological_sex,
+    )
 
     sample_engine = _get_sample_engine(sample_id)
-    consented = get_consent(get_registry().reference_engine, sample_id)
+    reference_engine = get_registry().reference_engine
+    consented = get_consent(reference_engine, sample_id)
     inferred_sex = infer_biological_sex(sample_engine)
+    # Prefer the user-recorded biological sex over array inference (gh #254).
+    recorded_sex = get_recorded_biological_sex(reference_engine, sample_id)
     return build_breast_absolute_risk(
-        sample_engine, consented=consented, inferred_sex=inferred_sex
+        sample_engine,
+        consented=consented,
+        inferred_sex=inferred_sex,
+        recorded_sex=recorded_sex,
     )

@@ -154,6 +154,82 @@ class TestSexGating:
         assert "population_baseline" not in out
 
 
+class TestRecordedSexPrecedence:
+    """Recorded individuals.biological_sex precedence over inference (gh #254)."""
+
+    def test_recorded_only_resolves_context(self, sample_engine: sa.Engine) -> None:
+        # No inference available, but a recorded XX resolves the female context.
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex=None, recorded_sex="XX"
+        )
+        assert out["sex_context"] == "female"
+        assert out["sex_source"] == "recorded"
+        assert out["resolved_sex"] == "XX"
+        assert out["population_baseline"]["lifetime_risk_pct"] == 12.9
+        assert out["sex_conflict"] is False
+
+    def test_recorded_resolves_inconclusive_inference(self, sample_engine: sa.Engine) -> None:
+        # Inference is 'unknown' (would withhold), but a recorded XX resolves it.
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex="unknown", recorded_sex="XX"
+        )
+        assert out["sex_context"] == "female"
+        assert out["sex_source"] == "recorded"
+        assert "population_baseline" in out
+        assert out["sex_conflict"] is False
+
+    def test_recorded_overrides_inferred_with_conflict_note(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Recorded XX is authoritative even over a confident XY inference; the
+        # disagreement is surfaced as a conflict note.
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex="XY", recorded_sex="XX"
+        )
+        assert out["sex_context"] == "female"
+        assert out["sex_source"] == "recorded"
+        assert out["sex_conflict"] is True
+        assert "recorded biological sex differs" in out["sex_note"]
+
+    def test_inferred_used_when_no_recorded(self, sample_engine: sa.Engine) -> None:
+        # Absent a recorded value, behaviour falls back to inference (gh #151).
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex="XY", recorded_sex=None
+        )
+        assert out["sex_context"] == "male"
+        assert out["sex_source"] == "inferred"
+        assert "population_baseline" not in out
+        assert out["sex_conflict"] is False
+
+    def test_recorded_absent_inferred_unknown_stays_unresolved(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        out = build_breast_absolute_risk(
+            sample_engine, consented=True, inferred_sex="unknown", recorded_sex=None
+        )
+        assert out["sex_context"] == "unresolved"
+        assert out["sex_source"] == "inferred"
+        assert "population_baseline" not in out
+
+    def test_get_recorded_biological_sex_via_individual_link(self) -> None:
+        from backend.db.tables import individuals, samples
+        from backend.services.sex_inference import get_recorded_biological_sex
+
+        eng = _ref_engine()
+        with eng.begin() as conn:
+            conn.execute(
+                sa.insert(individuals).values(id=7, display_name="P", biological_sex="XX")
+            )
+            conn.execute(
+                sa.insert(samples).values(id=1, name="s", db_path="samples/s.db", individual_id=7)
+            )
+            # A sample with no linked individual.
+            conn.execute(sa.insert(samples).values(id=2, name="s2", db_path="samples/s2.db"))
+        assert get_recorded_biological_sex(eng, 1) == "XX"
+        assert get_recorded_biological_sex(eng, 2) is None  # no linked individual
+        assert get_recorded_biological_sex(eng, 999) is None  # unknown sample
+
+
 class TestMigration012:
     def _cfg(self, db_path) -> Config:
         cfg = Config()

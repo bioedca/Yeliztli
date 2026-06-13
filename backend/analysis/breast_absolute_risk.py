@@ -26,6 +26,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.db.tables import findings, risk_overlay_consent
+from backend.services.sex_inference import resolve_biological_sex
 
 logger = structlog.get_logger(__name__)
 
@@ -115,13 +116,22 @@ _UNRESOLVED_CARRIER_NOTE = (
 )
 
 # Per-sex framing surfaced to the user so the applicable context is explicit.
+# A recorded biological sex that disagrees with a confident array inference;
+# the recorded (user-set) value is authoritative and used, but the discrepancy
+# is surfaced (issue #254).
+_SEX_CONFLICT_NOTE = (
+    "Your recorded biological sex differs from the sex inferred from your array "
+    "data; the recorded value is used here. Confirm your recorded sex is correct "
+    "if this is unexpected."
+)
+
 SEX_NOTE = {
     "female": (
-        "Figures shown are female-specific (inferred biological sex XX): the SEER "
+        "Figures shown are female-specific (biological sex XX): the SEER "
         "female baseline and the BRCA1/2 female-carrier penetrance apply."
     ),
     "male": (
-        "Inferred biological sex is XY (male). The female SEER lifetime baseline and "
+        "Biological sex is XY (male). The female SEER lifetime baseline and "
         "the BRCA1/2 ~69–72% female penetrance figures do not apply to males and are "
         "not shown. Male breast cancer is rare; in male BRCA carriers breast-cancer "
         "risk is far lower than in females, while prostate cancer is a major "
@@ -266,12 +276,18 @@ def build_breast_absolute_risk(
     *,
     consented: bool,
     inferred_sex: str | None = None,
+    recorded_sex: str | None = None,
 ) -> dict:
     """Build the breast absolute-risk overlay payload.
 
     Pre-consent: returns only the opt-in prompt + disclaimer (no risk figures).
-    Post-consent the figures are **sex-gated** (``inferred_sex`` is the output of
-    :func:`backend.services.sex_inference.infer_biological_sex`):
+    Post-consent the figures are **sex-gated**. Biological sex is resolved by
+    :func:`backend.services.sex_inference.resolve_biological_sex`, which prefers
+    the user-recorded ``individuals.biological_sex`` (``recorded_sex``, an
+    authoritative ``XX``/``XY`` value) over the array inference (``inferred_sex``,
+    the output of :func:`~backend.services.sex_inference.infer_biological_sex`),
+    falling back to inference when no recorded value is set (issue #254). The
+    resolved value drives the context:
 
     * ``"XX"`` → the female SEER baseline + female BRCA1/2 penetrance (labelled
       female-specific);
@@ -281,7 +297,8 @@ def build_breast_absolute_risk(
       a handoff to CanRisk / clinical genetics until sex is resolved.
 
     This prevents a female ~69–72% BRCA penetrance from being shown to an XY/male or
-    sex-unresolved sample (gh #151).
+    sex-unresolved sample (gh #151), and uses a recorded sex to resolve the context
+    when inference is inconclusive (gh #254).
     """
     if not consented:
         return {
@@ -291,15 +308,24 @@ def build_breast_absolute_risk(
             "disclaimer": DISCLAIMER,
         }
 
-    context = _sex_context(inferred_sex)
+    resolved = resolve_biological_sex(recorded_sex=recorded_sex, inferred_sex=inferred_sex)
+    context = _sex_context(resolved.sex)
     carriers = _breast_monogenic_carriers(sample_engine)
+
+    sex_note = SEX_NOTE[context]
+    if resolved.conflict:
+        sex_note = f"{sex_note} {_SEX_CONFLICT_NOTE}"
 
     payload = {
         "consented": True,
         "opt_in_required": False,
         "inferred_sex": inferred_sex,
+        "recorded_sex": recorded_sex,
+        "resolved_sex": resolved.sex,
+        "sex_source": resolved.source,
+        "sex_conflict": resolved.conflict,
         "sex_context": context,
-        "sex_note": SEX_NOTE[context],
+        "sex_note": sex_note,
         "has_monogenic": bool(carriers),
         "monogenic": _monogenic_entries(carriers, context),
         "prs_note": PRS_NOTE,

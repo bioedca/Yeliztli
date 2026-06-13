@@ -196,3 +196,67 @@ def infer_biological_sex(sample_engine: sa.Engine) -> Classification:
     )
 
     return classification
+
+
+# ── Recorded biological sex + resolution (issue #254) ──────────────────────
+
+# The user-recorded individuals.biological_sex vocabulary (see
+# backend/api/routes/individuals.py ``_BIOLOGICAL_SEX``) matches the confident
+# inference codes, so both sides speak "XX"/"XY".
+RECORDED_SEX_VALUES: frozenset[str] = frozenset({"XX", "XY"})
+
+
+@dataclass(frozen=True)
+class ResolvedSex:
+    """A sample's biological sex resolved from recorded + inferred sources.
+
+    ``sex`` is the value to act on (``"XX"``/``"XY"``/``"manual_review"``/
+    ``"unknown"``/``None``); ``source`` is ``"recorded"`` (user-set,
+    authoritative), ``"inferred"`` (array inference ran), or ``"none"`` (neither
+    available). ``conflict`` is True only when a recorded value and a *confident*
+    inference (``XX``/``XY``) disagree — the recorded value still wins, but
+    callers can surface a discrepancy note.
+    """
+
+    sex: str | None
+    source: str
+    conflict: bool
+
+
+def get_recorded_biological_sex(reference_engine: sa.Engine, sample_id: int) -> str | None:
+    """Return the user-recorded ``individuals.biological_sex`` for a sample.
+
+    Resolved via ``samples.individual_id`` → ``individuals.biological_sex`` in
+    the reference DB. Returns ``"XX"`` / ``"XY"`` when explicitly recorded, or
+    ``None`` when the sample has no linked individual, no recorded sex, or a
+    value outside the recorded vocabulary.
+    """
+    from backend.db.tables import individuals, samples
+
+    with reference_engine.connect() as conn:
+        row = conn.execute(
+            sa.select(individuals.c.biological_sex)
+            .select_from(samples.join(individuals, samples.c.individual_id == individuals.c.id))
+            .where(samples.c.id == sample_id)
+        ).fetchone()
+    if row is None or row.biological_sex is None:
+        return None
+    value = str(row.biological_sex).strip().upper()
+    return value if value in RECORDED_SEX_VALUES else None
+
+
+def resolve_biological_sex(*, recorded_sex: str | None, inferred_sex: str | None) -> ResolvedSex:
+    """Resolve biological sex, preferring an explicit recorded value (issue #254).
+
+    Precedence: a recorded ``XX``/``XY`` is authoritative (the user set it) and
+    wins even over a confident inference; otherwise fall back to the array
+    inference. A recorded value that disagrees with a confident inference sets
+    ``conflict`` so the caller can note the discrepancy.
+    """
+    recorded = recorded_sex.strip().upper() if recorded_sex else None
+    if recorded in RECORDED_SEX_VALUES:
+        conflict = inferred_sex in ("XX", "XY") and inferred_sex != recorded
+        return ResolvedSex(sex=recorded, source="recorded", conflict=conflict)
+    if inferred_sex is not None:
+        return ResolvedSex(sex=inferred_sex, source="inferred", conflict=False)
+    return ResolvedSex(sex=None, source="none", conflict=False)
