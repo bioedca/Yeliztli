@@ -459,7 +459,11 @@ class TestFhirErrors:
     def test_missing_sample(self, client) -> None:
         tc, _ = client
         resp = tc.post("/api/export/fhir", json={"sample_id": 999})
-        assert resp.status_code == 422
+        # #453: a missing sample is 404 (existence checked before the export
+        # runs), distinct from an existing-but-empty sample's 422
+        # (test_no_annotated_variants). Previously both returned 422 because the
+        # gate passed a missing sample through to build_fhir_bundle's ValueError.
+        assert resp.status_code == 404
 
     def test_no_annotated_variants(self, empty_client) -> None:
         tc, sid = empty_client

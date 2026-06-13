@@ -45,6 +45,30 @@ from backend.db.tables import findings, lai_results
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
 
+def _seed_sample_one() -> None:
+    """Seed sample id=1 so require_fresh_sample's existence gate passes (#453).
+
+    The LAI status endpoints are sample-scoped (Depends(require_fresh_sample)).
+    Since #453 a *missing* sample 404s before the handler runs, so tests that
+    exercise the handler's own no-Java / no-job paths must seed the sample first
+    (mirrors the inline seed in test_get_results_returns_null_when_none). The
+    insert omits ``id``, so the first row autoincrements to 1.
+    """
+    from backend.db.connection import get_registry
+    from backend.db.tables import samples
+
+    registry = get_registry()
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                name="Test",
+                db_path="samples/sample_1.db",
+                file_format="23andme_v5",
+                file_hash="abc",
+            )
+        )
+
+
 @pytest.fixture()
 def sample_engine() -> sa.Engine:
     """In-memory SQLite engine with sample tables."""
@@ -435,6 +459,10 @@ class TestLAIAPIStatus:
         assert resp.status_code == 404
 
     def test_trigger_returns_503_no_java(self, test_client):
+        # #453: /lai/{sample_id} is Depends(require_fresh_sample)-gated, which
+        # now 404s a *missing* sample before the handler runs. Seed sample 1 so
+        # this reaches the handler's own no-Java (503) path.
+        _seed_sample_one()
         with (
             patch(
                 "backend.db.database_registry.validate_lai_bundle",
@@ -478,6 +506,9 @@ class TestLAIAPIStatus:
         assert resp.json() is None
 
     def test_get_progress_returns_null_when_no_job(self, test_client):
+        # #453: the gated progress route 404s a missing sample before the
+        # handler; seed sample 1 so this reaches the handler's no-job path.
+        _seed_sample_one()
         resp = test_client.get("/api/analysis/ancestry/lai/1/progress")
         assert resp.status_code == 200
         assert resp.json() is None
