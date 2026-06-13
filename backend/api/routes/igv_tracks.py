@@ -15,9 +15,20 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from pydantic import BaseModel
 
+from backend.analysis.zygosity import (
+    ZYG_HET,
+    ZYG_HOM_ALT,
+    ZYG_HOM_REF,
+    is_no_call,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
-from backend.db.tables import clinvar_variants, raw_variants, samples
+from backend.db.tables import (
+    annotated_variants,
+    clinvar_variants,
+    raw_variants,
+    samples,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -127,30 +138,92 @@ async def clinvar_vcf_region(
 # ── User sample VCF track (sourceType: "service", format: "vcf") ───
 
 
-USER_VCF_HEADER = """\
-##fileformat=VCFv4.2
-##source=Yeliztli-UserVariants
-##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE"""
+# Built as a single VCF line each (no embedded newlines); split across source
+# lines via implicit string concatenation only to stay within the line limit.
+_USER_VCF_NOTE = (
+    "##Yeliztli_note=Variants with an annotation-resolved reference allele use "
+    "true reference-aligned REF/ALT and a GT derived from zygosity vs the "
+    "plus-strand GRCh37 reference. Where the reference allele is unresolved "
+    "(sample not yet annotated, or no source supplied allele identity), REF is "
+    "set to N and observed bases are emitted as ALT so alternate-allele carriage "
+    "is never hidden and no allele is assumed to be the reference."
+)
+_USER_VCF_INFO_OBS = (
+    '##INFO=<ID=OBS,Number=1,Type=String,Description="Observed genotyping-array '
+    "call (vendor design strand); REF/ALT are reference-aligned only when "
+    'annotation resolved them, otherwise REF=N">'
+)
+USER_VCF_HEADER = "\n".join(
+    [
+        "##fileformat=VCFv4.2",
+        "##source=Yeliztli-UserVariants",
+        "##reference=GRCh37",
+        _USER_VCF_NOTE,
+        _USER_VCF_INFO_OBS,
+        '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
+    ]
+)
 
 
-def _genotype_to_vcf_fields(genotype: str) -> tuple[str, str, str]:
-    """Convert 23andMe genotype to VCF REF/ALT/GT fields.
+def _resolve_vcf_fields(
+    genotype: str | None,
+    ref: str | None,
+    alt: str | None,
+    zygosity: str | None,
+) -> tuple[str, str, str]:
+    """Resolve VCF (REF, ALT, GT) for one sample variant.
 
-    Returns (ref, alt, gt_field) tuple.
+    VCF genotype fields are allele-indexed against REF/ALT (``0`` = REF,
+    positive integers = ALT), so a SNP-array call can only be represented
+    correctly once its alleles are placed against the genome reference.
+
+    Reference-aligned path — when the variant carries an annotation-resolved
+    ``ref``/``alt`` and a resolved ``zygosity`` (``hom_ref``/``het``/``hom_alt``
+    computed by :func:`backend.analysis.zygosity.classify_zygosity` against the
+    plus-strand reference) — emit a standard reference-aligned record so a
+    homozygous-alternate call shows ``GT=1/1`` (never a false ``0/0``) and the
+    heterozygous REF/ALT follow biology rather than raw allele-string order.
+
+    Honest fallback — when the reference allele is unresolved (sample not yet
+    annotated, no source supplied allele identity, or carriage indeterminate) —
+    do not fabricate a reference-genome ``0/0``. ``REF`` is set to ``N`` (the
+    IUPAC unknown base) and every distinct observed base is emitted as an ALT,
+    so alternate-allele carriage is never hidden and no observed allele is
+    asserted to be the reference.
     """
-    if not genotype or genotype == "--":
+    if is_no_call(genotype):
         return "N", ".", "./."
-    if len(genotype) == 1:
-        # Haploid call (chrX male, chrY, chrMT)
-        return genotype, ".", "0"
-    allele1, allele2 = genotype[0], genotype[1]
-    if allele1 == allele2:
-        # Homozygous
-        return allele1, ".", "0/0"
+    gt = genotype.strip().upper()  # type: ignore[union-attr]  # is_no_call rules out None/empty
+    haploid = len(gt) == 1
+
+    # Reference-aligned path: trust the annotation-resolved ref/alt + zygosity.
+    if ref and alt and zygosity in (ZYG_HOM_REF, ZYG_HET, ZYG_HOM_ALT):
+        if zygosity == ZYG_HOM_REF:
+            gt_field = "0" if haploid else "0/0"
+        elif zygosity == ZYG_HOM_ALT:
+            gt_field = "1" if haploid else "1/1"
+        else:  # het — always diploid (one ref, one alt)
+            gt_field = "0/1"
+        return ref, alt, gt_field
+
+    # Honest fallback: reference base unknown. Emit observed bases as ALT
+    # against REF=N; never claim reference-genome 0/0.
+    observed: list[str] = []
+    for base in gt:
+        if base in "ACGT" and base not in observed:
+            observed.append(base)
+    if not observed:
+        # Non-nucleotide call (e.g. a stray indel code) — unscoreable.
+        return "N", ".", "./."
+    alt_field = ",".join(observed)
+    if haploid:
+        gt_field = "1"
+    elif len(observed) == 1:
+        gt_field = "1/1"  # homozygous observed (e.g. CC) vs unknown reference
     else:
-        # Heterozygous — first allele is REF
-        return allele1, allele2, "0/1"
+        gt_field = "1/2"  # heterozygous observed (e.g. AG) — two distinct ALTs
+    return "N", alt_field, gt_field
 
 
 @router.get("/sample/{sample_id}/header", dependencies=[Depends(require_fresh_sample)])
@@ -177,8 +250,31 @@ async def sample_vcf_region(
     chrom = _normalize_chrom(chr)
     sample_engine = _get_sample_engine(sample_id)
 
+    # LEFT JOIN the per-sample annotated_variants (reference-resolved ref/alt +
+    # zygosity, one row per raw variant once annotation has run) so each call
+    # can be emitted with a true reference-aligned REF/ALT/GT. raw_variants is
+    # the spine: a never-annotated sample (allowed past require_fresh_sample)
+    # simply has NULL ref/alt/zygosity and falls back to the honest REF=N path.
     query = (
-        sa.select(raw_variants)
+        sa.select(
+            raw_variants.c.rsid,
+            raw_variants.c.chrom,
+            raw_variants.c.pos,
+            raw_variants.c.genotype,
+            annotated_variants.c.ref,
+            annotated_variants.c.alt,
+            annotated_variants.c.zygosity,
+        )
+        .select_from(
+            raw_variants.outerjoin(
+                annotated_variants,
+                sa.and_(
+                    raw_variants.c.rsid == annotated_variants.c.rsid,
+                    raw_variants.c.chrom == annotated_variants.c.chrom,
+                    raw_variants.c.pos == annotated_variants.c.pos,
+                ),
+            )
+        )
         .where(
             raw_variants.c.chrom == chrom,
             raw_variants.c.pos >= start,
@@ -192,9 +288,9 @@ async def sample_vcf_region(
 
     lines = [USER_VCF_HEADER]
     for row in rows:
-        ref, alt, gt = _genotype_to_vcf_fields(row.genotype)
+        ref, alt, gt = _resolve_vcf_fields(row.genotype, row.ref, row.alt, row.zygosity)
         rsid = row.rsid if row.rsid else "."
-        info = f"GT={row.genotype}" if row.genotype else "."
+        info = f"OBS={row.genotype}" if row.genotype else "."
         lines.append(f"chr{row.chrom}\t{row.pos}\t{rsid}\t{ref}\t{alt}\t.\t.\t{info}\tGT\t{gt}")
 
     return Response(content="\n".join(lines) + "\n", media_type="text/plain")

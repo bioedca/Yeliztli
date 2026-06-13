@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from backend.db.connection import get_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    annotated_variants,
     clinvar_variants,
     raw_variants,
     samples,
@@ -113,6 +114,74 @@ def sample_with_variants(test_client: TestClient) -> int:
     return sample_id
 
 
+@pytest.fixture()
+def sample_with_annotations(test_client: TestClient) -> int:
+    """Create a sample whose variants are reference-resolved in annotated_variants.
+
+    Each raw variant has a matching ``annotated_variants`` row carrying the true
+    reference-aligned ``ref``/``alt`` and a resolved ``zygosity`` (as the real
+    annotation engine writes via ``classify_zygosity``). This exercises the
+    reference-aligned VCF path — the core fix for #471, where a homozygous-ALT
+    array call (``CC`` vs reference ``T``) must show ``GT=1/1``, not a false
+    ``0/0``.
+    """
+    registry = get_registry()
+
+    with registry.reference_engine.begin() as conn:
+        result = conn.execute(
+            samples.insert().values(
+                name="Annotated Sample",
+                db_path="samples/test_igv_annotated.db",
+                file_format="23andme",
+            )
+        )
+        sample_id = result.lastrowid
+
+    sample_db_path = registry.settings.data_dir / "samples" / "test_igv_annotated.db"
+    sample_db_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_engine = registry.get_sample_engine(sample_db_path)
+    create_sample_tables(sample_engine)
+
+    # rsid, chrom, pos, genotype, ref, alt, zygosity
+    variants = [
+        # Homozygous ALT vs reference T — the headline #471 case: observed CC
+        # must NOT be encoded as reference-genome 0/0.
+        ("rs200", "17", 41245466, "CC", "T", "C", "hom_alt"),
+        # Heterozygous — REF/ALT follow biology (ref A, alt G), not string order.
+        ("rs201", "17", 41245500, "AG", "A", "G", "het"),
+        # True homozygous reference — correctly shown as 0/0.
+        ("rs202", "17", 41246000, "GG", "G", "A", "hom_ref"),
+        # Haploid homozygous ALT (e.g. male non-PAR X / Y / MT).
+        ("rs203", "X", 2700000, "T", "A", "T", "hom_alt"),
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": r, "chrom": c, "pos": p, "genotype": g}
+                for (r, c, p, g, _ref, _alt, _zyg) in variants
+            ],
+        )
+        conn.execute(
+            annotated_variants.insert(),
+            [
+                {
+                    "rsid": r,
+                    "chrom": c,
+                    "pos": p,
+                    "genotype": g,
+                    "ref": ref,
+                    "alt": alt,
+                    "zygosity": zyg,
+                    "annotation_coverage": 0,
+                }
+                for (r, c, p, g, ref, alt, zyg) in variants
+            ],
+        )
+
+    return sample_id
+
+
 # ── ClinVar VCF Track Tests ─────────────────────────────────────────
 
 
@@ -190,6 +259,9 @@ class TestSampleVariantsTrack:
         assert resp.status_code == 200
         assert "##fileformat=VCFv4.2" in resp.text
         assert "FORMAT\tSAMPLE" in resp.text
+        # Honesty metadata: reference build + the inferred-allele caveat (#471).
+        assert "##reference=GRCh37" in resp.text
+        assert "REF is set to N" in resp.text
 
     def test_sample_header_404_missing(self, test_client: TestClient) -> None:
         resp = test_client.get("/api/igv-tracks/sample/9999/header")
@@ -207,13 +279,74 @@ class TestSampleVariantsTrack:
         data_lines = [line for line in lines if not line.startswith("#")]
         assert len(data_lines) == 3  # rs100, rs101, rs102 on chr17
 
-    def test_sample_region_het_genotype(
+    def test_sample_region_het_unannotated_fallback(
         self, test_client: TestClient, sample_with_variants: int
     ) -> None:
-        """AG genotype -> REF=A, ALT=G, GT=0/1"""
+        """Unannotated AG -> honest fallback REF=N, ALT=A,G, GT=1/2 (no arbitrary REF)."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
             params={"chr": "chr17", "start": 41245466, "end": 41245467},
+        )
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        fields = data_lines[0].split("\t")
+        assert fields[3] == "N"  # REF — reference unknown, not an arbitrary allele
+        assert fields[4] == "A,G"  # both observed bases as ALT
+        assert fields[9] == "1/2"  # GT — neither observed allele assumed reference
+
+    def test_sample_region_hom_unannotated_fallback(
+        self, test_client: TestClient, sample_with_variants: int
+    ) -> None:
+        """Unannotated CC -> REF=N, ALT=C, GT=1/1 (never a false reference-genome 0/0)."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_variants}/variants",
+            params={"chr": "chr17", "start": 41245500, "end": 41245501},
+        )
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        fields = data_lines[0].split("\t")
+        assert fields[3] == "N"  # REF — unknown
+        assert fields[4] == "C"  # observed homozygous base as ALT
+        assert fields[9] == "1/1"  # GT — carriage not hidden as 0/0
+
+    def test_sample_region_haploid_unannotated_fallback(
+        self, test_client: TestClient, sample_with_variants: int
+    ) -> None:
+        """Unannotated single-char call -> haploid ALT against REF=N."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_variants}/variants",
+            params={"chr": "chr17", "start": 41246000, "end": 41246001},
+        )
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        fields = data_lines[0].split("\t")
+        assert fields[3] == "N"  # REF — unknown
+        assert fields[4] == "A"  # observed base as ALT
+        assert fields[9] == "1"  # haploid GT
+
+    def test_sample_region_hom_alt_reference_aligned(
+        self, test_client: TestClient, sample_with_annotations: int
+    ) -> None:
+        """#471 core fix: annotated hom-ALT (CC vs ref T) -> REF=T, ALT=C, GT=1/1."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
+            params={"chr": "chr17", "start": 41245466, "end": 41245467},
+        )
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        fields = data_lines[0].split("\t")
+        assert fields[3] == "T"  # true reference allele
+        assert fields[4] == "C"  # alternate allele
+        assert fields[9] == "1/1"  # homozygous alternate — NOT a false 0/0
+        assert "OBS=CC" in fields[7]  # observed array call preserved as provenance
+
+    def test_sample_region_het_reference_aligned(
+        self, test_client: TestClient, sample_with_annotations: int
+    ) -> None:
+        """Annotated het -> reference-aligned REF/ALT (biology, not string order)."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
+            params={"chr": "chr17", "start": 41245500, "end": 41245501},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -222,33 +355,35 @@ class TestSampleVariantsTrack:
         assert fields[4] == "G"  # ALT
         assert fields[9] == "0/1"  # GT
 
-    def test_sample_region_hom_genotype(
-        self, test_client: TestClient, sample_with_variants: int
+    def test_sample_region_hom_ref_reference_aligned(
+        self, test_client: TestClient, sample_with_annotations: int
     ) -> None:
-        """CC genotype -> REF=C, ALT=., GT=0/0"""
+        """Annotated true hom-ref -> correctly shown as 0/0 (reference match)."""
         resp = test_client.get(
-            f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41245500, "end": 41245501},
-        )
-        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
-        assert len(data_lines) == 1
-        fields = data_lines[0].split("\t")
-        assert fields[3] == "C"  # REF
-        assert fields[4] == "."  # ALT (hom ref)
-        assert fields[9] == "0/0"  # GT
-
-    def test_sample_region_haploid_genotype(
-        self, test_client: TestClient, sample_with_variants: int
-    ) -> None:
-        """Single-char genotype (e.g., chrY/MT) -> haploid call."""
-        resp = test_client.get(
-            f"/api/igv-tracks/sample/{sample_with_variants}/variants",
+            f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
             params={"chr": "chr17", "start": 41246000, "end": 41246001},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
         fields = data_lines[0].split("\t")
-        assert fields[9] == "0"  # Haploid GT
+        assert fields[3] == "G"  # REF
+        assert fields[4] == "A"  # ALT
+        assert fields[9] == "0/0"  # GT — genuine homozygous reference
+
+    def test_sample_region_haploid_reference_aligned(
+        self, test_client: TestClient, sample_with_annotations: int
+    ) -> None:
+        """Annotated haploid hom-ALT -> single-allele GT=1 against true REF."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
+            params={"chr": "chrX", "start": 2700000, "end": 2700001},
+        )
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        fields = data_lines[0].split("\t")
+        assert fields[3] == "A"  # REF
+        assert fields[4] == "T"  # ALT
+        assert fields[9] == "1"  # haploid alternate
 
     def test_sample_region_nocall_genotype(
         self, test_client: TestClient, sample_with_variants: int
@@ -319,52 +454,84 @@ class TestEncodeCcresTrack:
 # ── Genotype conversion unit tests ───────────────────────────────────
 
 
-class TestGenotypeConversion:
-    """Unit tests for _genotype_to_vcf_fields helper."""
+class TestResolveVcfFields:
+    """Unit tests for the _resolve_vcf_fields helper (#471)."""
 
-    def test_het(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+    # ── Reference-aligned path (annotation-resolved ref/alt + zygosity) ──
 
-        ref, alt, gt = _genotype_to_vcf_fields("AG")
-        assert ref == "A"
-        assert alt == "G"
-        assert gt == "0/1"
+    def test_hom_alt_reference_aligned(self) -> None:
+        """Homozygous-ALT call (CC vs ref T) -> 1/1, never a false 0/0."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
 
-    def test_hom(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+        assert _resolve_vcf_fields("CC", "T", "C", "hom_alt") == ("T", "C", "1/1")
 
-        ref, alt, gt = _genotype_to_vcf_fields("CC")
-        assert ref == "C"
-        assert alt == "."
-        assert gt == "0/0"
+    def test_het_reference_aligned(self) -> None:
+        """Heterozygote uses biological REF/ALT, not raw allele-string order."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
 
-    def test_haploid(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+        assert _resolve_vcf_fields("AG", "A", "G", "het") == ("A", "G", "0/1")
 
-        ref, alt, gt = _genotype_to_vcf_fields("A")
-        assert ref == "A"
-        assert alt == "."
-        assert gt == "0"
+    def test_hom_ref_reference_aligned(self) -> None:
+        """True homozygous reference -> 0/0."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("GG", "G", "A", "hom_ref") == ("G", "A", "0/0")
+
+    def test_haploid_hom_alt_reference_aligned(self) -> None:
+        """Haploid homozygous-ALT -> single-allele GT=1."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("T", "A", "T", "hom_alt") == ("A", "T", "1")
+
+    def test_haploid_hom_ref_reference_aligned(self) -> None:
+        """Haploid homozygous-ref -> single-allele GT=0."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("A", "A", "T", "hom_ref") == ("A", "T", "0")
+
+    # ── Honest fallback (reference allele unresolved) ──
+
+    def test_hom_unannotated_fallback(self) -> None:
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("CC", None, None, None) == ("N", "C", "1/1")
+
+    def test_het_unannotated_fallback(self) -> None:
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("AG", None, None, None) == ("N", "A,G", "1/2")
+
+    def test_haploid_unannotated_fallback(self) -> None:
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("A", None, None, None) == ("N", "A", "1")
+
+    def test_indeterminate_zygosity_falls_back(self) -> None:
+        """ref/alt present but zygosity NULL (strand-ambiguous) -> honest fallback."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("CC", "T", "C", None) == ("N", "C", "1/1")
 
     def test_nocall(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
 
-        ref, alt, gt = _genotype_to_vcf_fields("--")
-        assert ref == "N"
-        assert alt == "."
-        assert gt == "./."
+        assert _resolve_vcf_fields("--", None, None, None) == ("N", ".", "./.")
 
     def test_empty(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
 
-        ref, alt, gt = _genotype_to_vcf_fields("")
-        assert gt == "./."
+        assert _resolve_vcf_fields("", None, None, None) == ("N", ".", "./.")
 
     def test_none(self) -> None:
-        from backend.api.routes.igv_tracks import _genotype_to_vcf_fields
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
 
-        ref, alt, gt = _genotype_to_vcf_fields(None)
-        assert gt == "./."
+        assert _resolve_vcf_fields(None, None, None, None) == ("N", ".", "./.")
+
+    def test_non_nucleotide_call_is_unscoreable(self) -> None:
+        """A stray single indel code (not a no-call sentinel) -> no-call output."""
+        from backend.api.routes.igv_tracks import _resolve_vcf_fields
+
+        assert _resolve_vcf_fields("I", None, None, None) == ("N", ".", "./.")
 
 
 # ── Chromosome normalization tests ───────────────────────────────────
