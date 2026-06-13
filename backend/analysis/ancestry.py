@@ -464,6 +464,59 @@ _MIN_COVERAGE = 0.55
 # 3.49; 3.0 cleanly separates them and errs toward the honest "admixed" verdict.
 _CONFIDENT_MARGIN_RATIO = 3.0
 
+# Weight (delta) for the sum-to-one augmentation row in the fully-constrained
+# least-squares (FCLS) admixture solve. Admixture proportions are, by definition,
+# a point on the simplex — non-negative AND summing to 1 (the admixture model's
+# natural probabilistic constraints). Free NNLS enforces only non-negativity, and
+# the population centroids are near-collinear (a handful of centroids spanning an
+# effectively lower-dimensional subspace), so the unconstrained problem is
+# ill-conditioned: free NNLS can reconstruct the target almost exactly using
+# astronomically large, nearly-cancelling coefficients (their sum reached ~3e7 on
+# the #486 sample) whose *proportions*, after post-hoc normalization, collapse to a
+# meaningless near-uniform spread that need not weight the nearest centroid.
+# Appending a row delta*1^T to the centroid matrix (and delta to the target) drives
+# sum(x) -> 1 *during* the solve (Heinz & Chang 2001, fully constrained least
+# squares); this bounds the weights to the simplex — regularizing away the
+# large-coefficient degeneracy — so the result is a genuine convex mixture of
+# centroids. delta=1e4 is large relative to the PC scale: the solution is stable
+# for any delta >= ~1e2 and unchanged through 1e6.
+_FCLS_SUM_TO_ONE_WEIGHT = 1.0e4
+
+
+def _solve_admixture_fcls(
+    centroid_matrix: np.ndarray,
+    target_pcs: np.ndarray,
+    n_pops: int,
+) -> np.ndarray:
+    """Solve fully-constrained least squares for admixture proportions.
+
+    Finds ``x`` minimizing ``||centroid_matrix @ x - target_pcs||`` subject to
+    ``x >= 0`` AND ``sum(x) == 1`` — i.e. ``x`` is a convex combination of the
+    population centroids (a point on the simplex). The sum-to-one constraint is
+    enforced *during* the solve via the augmented-row method rather than by
+    normalizing an unconstrained NNLS solution afterward; with near-collinear
+    centroids the unconstrained solve is ill-conditioned and can return huge,
+    nearly-cancelling coefficients whose normalized proportions are degenerate, so
+    constraining the weights to the simplex is what keeps the estimate coherent.
+
+    Args:
+        centroid_matrix: Centroid matrix ``C`` of shape (n_components, n_pops).
+        target_pcs: Target PC coordinates, shape (n_components,).
+        n_pops: Number of populations (columns of ``centroid_matrix``).
+
+    Returns:
+        Non-negative weight vector of shape (n_pops,) summing to 1.0.
+    """
+    aug_matrix = np.vstack([centroid_matrix, _FCLS_SUM_TO_ONE_WEIGHT * np.ones((1, n_pops))])
+    aug_target = np.concatenate([target_pcs, [_FCLS_SUM_TO_ONE_WEIGHT]])
+    x, _ = _scipy_nnls(aug_matrix, aug_target)
+
+    total = x.sum()
+    if total > 0:
+        return x / total
+    # Fallback: uniform distribution (degenerate input — no non-negative fit)
+    return np.ones(n_pops) / n_pops
+
 
 def _project_onto_pca(
     bundle: AncestryBundle,
@@ -589,10 +642,15 @@ def estimate_admixture_nnls(
     user_pcs: np.ndarray,
     bundle: AncestryBundle,
 ) -> dict[str, float]:
-    """Estimate admixture fractions via non-negative least squares.
+    """Estimate admixture fractions via fully-constrained least squares.
 
-    Solves min ||C @ x - user_pcs|| subject to x >= 0, where C is the
-    matrix of population centroids. The solution is normalized to sum to 1.0.
+    Solves min ||C @ x - user_pcs|| subject to x >= 0 AND sum(x) == 1, where C
+    is the matrix of population centroids — i.e. the fractions are a genuine
+    convex combination (a point on the simplex) of the centroids. The sum-to-one
+    constraint is enforced *during* the solve (see :func:`_solve_admixture_fcls`),
+    not by normalizing an unconstrained NNLS result afterward; with near-collinear
+    centroids the latter is ill-conditioned and spreads weight degenerately,
+    contradicting the nearest-centroid / kNN calls.
 
     Args:
         user_pcs: User's projected PC coordinates, shape (n_components,).
@@ -605,16 +663,7 @@ def estimate_admixture_nnls(
     # Build centroid matrix: (n_components, n_pops)
     centroid_matrix = np.column_stack([bundle.reference_centroids[p] for p in pops])
 
-    # NNLS: find x >= 0 such that ||centroid_matrix @ x - user_pcs|| is minimized
-    x, _ = _scipy_nnls(centroid_matrix, user_pcs)
-
-    # Normalize to sum to 1.0
-    total = x.sum()
-    if total > 0:
-        x = x / total
-    else:
-        # Fallback: uniform distribution
-        x = np.ones(len(pops)) / len(pops)
+    x = _solve_admixture_fcls(centroid_matrix, user_pcs, len(pops))
 
     fractions = {pop: round(float(x[i]), 4) for i, pop in enumerate(pops)}
 
@@ -689,15 +738,9 @@ def bootstrap_admixture_nnls(
         resampled_loadings = bundle.loadings[idx, :]
         pc_scores = standardized @ resampled_loadings
 
-        # NNLS
-        x, _ = _scipy_nnls(centroid_matrix, pc_scores)
-        total = x.sum()
-        if total > 0:
-            x = x / total
-        else:
-            x = np.ones(len(pops)) / len(pops)
-
-        all_fracs[it] = x
+        # Fully-constrained least squares (x >= 0, sum(x) == 1) — same solver as
+        # the point estimate, so the CI is consistent with estimate_admixture_nnls.
+        all_fracs[it] = _solve_admixture_fcls(centroid_matrix, pc_scores, len(pops))
 
     # Compute percentile-based confidence intervals
     ci_low_vals = np.percentile(all_fracs, alpha * 100, axis=0)

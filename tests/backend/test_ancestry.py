@@ -1130,6 +1130,66 @@ class TestEstimateAdmixtureNNLS:
         assert all(f >= 0.0 for f in fracs.values())
 
 
+# ── #486 regression: NNLS admixture must agree with nearest-centroid & kNN ──
+
+
+class TestAdmixtureCoherenceRealBundle:
+    """Issue #486: the reported (NNLS/FCLS) admixture breakdown must not contradict
+    the nearest-centroid ``top_population`` and the kNN admixture, since all three
+    derive from the same PC vector.
+
+    The repro is a real Harvard PGP sample (23andMe v5, GRCh37, coverage 0.98).
+    The centroids are near-collinear, so free NNLS reconstructs this sample with
+    huge, nearly-cancelling coefficients whose normalized proportions are
+    degenerate: the breakdown gave AMR only 1.8% (the *smallest* component) while
+    nearest-centroid said AMR by a 3.5x margin and kNN said AMR 100% — a
+    user-facing contradiction. The simplex-constrained solve restores coherence.
+    """
+
+    # Projected PC scores reported in issue #486 (8 PCs).
+    PGP_4215_PCS = np.array([35.2, -6.1, 42.9, 31.8, 2.3, 0.4, 0.9, 0.7])
+
+    def test_nearest_centroid_is_amr(self, bundle: AncestryBundle) -> None:
+        nearest, distances = _classify_nearest_centroid(
+            self.PGP_4215_PCS, bundle.reference_centroids
+        )
+        assert nearest == "AMR"
+        # AMR must win by a wide margin (the issue measured ~3.5x).
+        ordered = sorted(distances.values())
+        assert ordered[1] / ordered[0] > 3.0, distances
+
+    def test_knn_is_amr(self, bundle: AncestryBundle) -> None:
+        knn = estimate_admixture_knn(self.PGP_4215_PCS, bundle)
+        assert max(knn, key=lambda p: knn[p]) == "AMR"
+
+    def test_nnls_admixture_argmax_matches_nearest_centroid(self, bundle: AncestryBundle) -> None:
+        """The reported admixture's dominant population must equal top_population."""
+        fracs = estimate_admixture_nnls(self.PGP_4215_PCS, bundle)
+        nearest, _ = _classify_nearest_centroid(self.PGP_4215_PCS, bundle.reference_centroids)
+        assert max(fracs, key=lambda p: fracs[p]) == nearest == "AMR", fracs
+
+    def test_nnls_amr_is_not_the_smallest_component(self, bundle: AncestryBundle) -> None:
+        """Guards the exact #486 symptom: AMR was the least-represented ancestry."""
+        fracs = estimate_admixture_nnls(self.PGP_4215_PCS, bundle)
+        assert fracs["AMR"] == max(fracs.values()), fracs
+        assert fracs["AMR"] > min(fracs.values())
+
+    def test_nnls_and_knn_now_agree(self, bundle: AncestryBundle) -> None:
+        """Confidence (cosine similarity of NNLS vs kNN) must reflect agreement.
+
+        Free NNLS scored 0.0388 here (issue body); a coherent convex mixture
+        dominated by AMR aligns with the kNN AMR vector.
+        """
+        nnls = estimate_admixture_nnls(self.PGP_4215_PCS, bundle)
+        knn = estimate_admixture_knn(self.PGP_4215_PCS, bundle)
+        assert compute_confidence(nnls, knn) > 0.5
+
+    def test_fractions_sum_to_one(self, bundle: AncestryBundle) -> None:
+        fracs = estimate_admixture_nnls(self.PGP_4215_PCS, bundle)
+        assert abs(sum(fracs.values()) - 1.0) < 1e-6
+        assert all(f >= 0.0 for f in fracs.values())
+
+
 # ── kNN admixture tests (T-ANC-02) ────────────────────────────────────────
 
 
