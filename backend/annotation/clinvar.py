@@ -181,10 +181,15 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
     # Parse INFO
     info = _parse_info_field(info_str)
 
-    # Extract rsid — require RS field
+    # Extract rsid — require a numeric RS field. dbSNP rs numbers are bare
+    # positive integers, so a non-numeric RS value (e.g. ``abc``, ``12abc``,
+    # ``-5``) is malformed: turning it into ``rs{value}`` would store a junk
+    # rsid (``rsabc``, ``rs-5``) that never matches a real ``rsNNN`` lookup.
     rs_val = info.get("RS")
     if not rs_val:
         return None, SkipReason.NO_RSID
+    if not (rs_val.isascii() and rs_val.isdigit()):
+        return None, SkipReason.MALFORMED
     rsid = f"rs{rs_val}"
 
     # Parse variation ID from the ID column

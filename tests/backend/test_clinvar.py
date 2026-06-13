@@ -215,6 +215,19 @@ class TestParseClinvarVcfLine:
         assert rec is None
         assert skip == SkipReason.MALFORMED
 
+    def test_skips_non_numeric_rs(self):
+        """Non-numeric RS values should return skip_reason=MALFORMED, mirroring
+        the POS check — dbSNP rs numbers are bare positive integers, so a value
+        like ``abc``/``12abc``/``-5`` must be skipped, never built into a junk
+        ``rs{value}`` rsid."""
+        for bad in ("abc", "12abc", "-5"):
+            line = (
+                f"1\t100\t42\tA\tG\t.\t.\tRS={bad};CLNSIG=Benign;CLNREVSTAT=no_assertion_provided"
+            )
+            rec, skip = parse_clinvar_vcf_line(line)
+            assert rec is None, f"RS={bad} should be rejected"
+            assert skip == SkipReason.MALFORMED, f"RS={bad} skip reason"
+
     def test_clnacc_fallback(self):
         """When CLNVCID is absent, CLNACC is used for accession."""
         line = (
@@ -345,11 +358,12 @@ class TestMalformedVcfData:
         assert skip == SkipReason.NO_RSID
 
     def test_truncated_info_field(self):
-        """Truncated INFO should not crash."""
-        line = "1\t100\t42\tA\tG\t.\t.\tRS="
-        rec, skip = parse_clinvar_vcf_line(line)
-        # RS= with empty value → rs prefix added to empty string → rs
-        assert rec is None or rec.rsid == "rs"
+        """Truncated INFO with an empty RS value is skipped as NO_RSID: the
+        ``if not rs_val`` guard fires before any rsid is built, so the parser
+        never yields ``rsid == "rs"``."""
+        rec, skip = parse_clinvar_vcf_line("1\t100\t42\tA\tG\t.\t.\tRS=")
+        assert rec is None
+        assert skip == SkipReason.NO_RSID
 
     def test_empty_line(self):
         rec, skip = parse_clinvar_vcf_line("")
