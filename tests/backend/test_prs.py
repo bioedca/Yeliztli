@@ -1290,7 +1290,11 @@ class TestStrandHarmonization:
         assert result.snps_used == 0  # not counted as covered
         assert result.contributions[0].match_status == "ambiguous_dropped"
 
-    def test_palindrome_away_from_half_scored(self, sample_engine: sa.Engine) -> None:
+    def test_palindrome_homozygote_away_from_half_dropped(self, sample_engine: sa.Engine) -> None:
+        # #247: a palindromic HOMOZYGOTE is strand-ambiguous for a single sample
+        # (a minus-strand "AA" would be the complement "TT"), so even away from MAF
+        # 0.5 it is dropped rather than counted at + strand face value — otherwise a
+        # minus-strand chip call inverts the effect-allele dosage in the raw score.
         with sample_engine.begin() as conn:
             conn.execute(
                 sa.insert(annotated_variants),
@@ -1310,7 +1314,35 @@ class TestStrandHarmonization:
         )
         result = compute_prs(ws, sample_engine)
 
-        assert result.raw_score == pytest.approx(0.6)  # 0.3 * dosage 2
+        assert result.raw_score == pytest.approx(0.0)
+        assert result.snps_ambiguous_dropped == 1
+        assert result.snps_used == 0
+        assert result.contributions[0].match_status == "ambiguous_dropped"
+
+    def test_palindrome_heterozygote_away_from_half_scored(self, sample_engine: sa.Engine) -> None:
+        # A palindromic HETEROZYGOTE is strand-invariant (exactly one effect-allele
+        # copy on either strand), so away from MAF 0.5 it still scores its single
+        # copy — only the strand-ambiguous homozygote is dropped (#247).
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsPAL3",
+                        "chrom": "1",
+                        "pos": 4,
+                        "genotype": "AT",
+                        "gnomad_af_global": 0.04,
+                        "annotation_coverage": 4,
+                    }
+                ],
+            )
+        ws = _harmonized_weight_set(
+            [PRSSNPWeight(rsid="rsPAL3", effect_allele="A", other_allele="T", weight=0.3)]
+        )
+        result = compute_prs(ws, sample_engine)
+
+        assert result.raw_score == pytest.approx(0.3)  # 0.3 * dosage 1 (strand-invariant)
         assert result.snps_ambiguous_dropped == 0
         assert result.snps_used == 1
 

@@ -4,7 +4,8 @@ Covers EXPANSION_STRATEGY.md §10 harmonization (proposal #4):
   - the headline bug: a reverse-strand weight set silently inverts dosage under
     the old literal match, and is corrected here;
   - the bigsnpr strand-ambiguous-palindrome drop rule near MAF 0.5;
-  - palindromes away from 0.5 resolved by frequency;
+  - palindromes away from 0.5: strand-invariant heterozygote resolves, but a
+    strand-ambiguous homozygote is dropped for a single sample (#247);
   - no-call / non-ACGT / unresolved handling;
   - strict back-compatibility of the legacy (no other-allele) path;
   - the risk-genotype counting primitive (risk_dosage) incl. minus-strand.
@@ -57,15 +58,30 @@ class TestPalindromeAmbiguity:
         assert m.dosage is None
 
     def test_palindrome_drop_band_boundary(self) -> None:
-        # 0.41 is inside [0.40, 0.60] → dropped.
+        # The MAF band gates the strand-invariant heterozygote: 0.41 is inside
+        # [0.40, 0.60] → dropped; 0.39 is outside → resolves to one copy.
         assert match_effect_allele_dosage("AT", "A", "T", 0.41).status == AMBIGUOUS_DROPPED
-        # 0.39 is outside → resolvable.
-        assert match_effect_allele_dosage("AA", "A", "T", 0.39).status == MATCHED_REF
+        out = match_effect_allele_dosage("AT", "A", "T", 0.39)
+        assert out.status == MATCHED_REF
+        assert out.dosage == 1
 
-    def test_palindrome_away_from_half_resolved(self) -> None:
-        m = match_effect_allele_dosage("AA", "A", "T", 0.05)
+    def test_palindrome_heterozygote_is_strand_invariant(self) -> None:
+        # A palindromic het reads as {A,T} on either strand → exactly one effect
+        # copy regardless of chip strand, so away from 0.5 it resolves to dosage 1.
+        m = match_effect_allele_dosage("AT", "A", "T", 0.05)
         assert m.status == MATCHED_REF
-        assert m.dosage == 2
+        assert m.dosage == 1
+
+    def test_palindrome_homozygote_away_from_half_dropped(self) -> None:
+        # #247: a palindromic HOMOZYGOTE is strand-ambiguous for a single sample
+        # (an opposite-strand "AA" is the complement "TT"), so it must be dropped,
+        # not counted at + strand face value — frequency cannot orient one
+        # genotype's strand (a cohort technique, invalid for n=1; cf. #138 anchors).
+        m = match_effect_allele_dosage("AA", "A", "T", 0.05)
+        assert m.status == AMBIGUOUS_DROPPED
+        assert m.dosage is None
+        # C/G palindromic homozygote away from 0.5 is likewise dropped.
+        assert match_effect_allele_dosage("CC", "C", "G", 0.05).status == AMBIGUOUS_DROPPED
 
     def test_palindrome_without_maf_dropped(self) -> None:
         m = match_effect_allele_dosage("AT", "A", "T", None)
