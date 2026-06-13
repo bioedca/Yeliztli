@@ -82,6 +82,14 @@ class PanelSNP:
     evidence_level: int
     pmids: list[str]
     recommendation_text: str
+    # Optional ancestry-conditional caveat. When the called category is one of
+    # ``applies_to_categories`` and the sample's inferred ancestry is NOT in
+    # ``confident_ancestries`` (including unknown), ``caveat_text`` is appended to
+    # the effect summary and the result is flagged ``ancestry_caveated``. Used for
+    # markers whose validity is ancestry-specific (e.g. the European LCT -13910
+    # lactase marker, which does not predict non-persistence outside European/
+    # South-Asian ancestry — #181).
+    ancestry_caveat: dict | None = None
 
 
 @dataclass
@@ -121,6 +129,9 @@ class SNPResult:
     pmids: list[str]
     recommendation_text: str
     present_in_sample: bool
+    # True when an ancestry-conditional caveat was applied because the sample's
+    # inferred ancestry does not support this marker's model (see #181).
+    ancestry_caveated: bool = False
 
 
 @dataclass
@@ -191,6 +202,7 @@ def load_nutrigenomics_panel(panel_path: Path | None = None) -> NutrigenomicsPan
                     evidence_level=snp_data["evidence_level"],
                     pmids=snp_data.get("pmids", []),
                     recommendation_text=snp_data.get("recommendation_text", ""),
+                    ancestry_caveat=snp_data.get("ancestry_caveat"),
                 )
             )
         pathways.append(
@@ -223,15 +235,47 @@ def _normalize_genotype(genotype: str | None) -> str | None:
     return genotype.strip().upper()
 
 
-def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
+def _apply_ancestry_caveat(
+    snp: PanelSNP, category: str, effect_summary: str, inferred_ancestry: str | None
+) -> tuple[str, bool]:
+    """Append an ancestry-conditional caveat to ``effect_summary`` when warranted.
+
+    Returns ``(effect_summary, ancestry_caveated)``. The caveat fires when the SNP
+    carries an ``ancestry_caveat`` block, the called ``category`` is one it applies
+    to, and the sample's ``inferred_ancestry`` is **not** in its confident set
+    (an unknown/``None`` ancestry also caveats — the marker model can't be
+    confirmed). The category itself is left unchanged; the caveat downgrades the
+    *certainty* of the call in the user-facing text (see #181).
+    """
+    cfg = snp.ancestry_caveat
+    if not cfg:
+        return effect_summary, False
+    applies_to = cfg.get("applies_to_categories", [])
+    if category not in applies_to:
+        return effect_summary, False
+    confident = cfg.get("confident_ancestries", [])
+    if inferred_ancestry is not None and inferred_ancestry in confident:
+        return effect_summary, False
+    caveat = cfg.get("caveat_text", "")
+    return (f"{effect_summary} {caveat}".strip() if caveat else effect_summary), True
+
+
+def _score_snp(
+    snp: PanelSNP, genotype: str | None, inferred_ancestry: str | None = None
+) -> SNPResult:
     """Score a single SNP given a genotype.
 
     Applies evidence-level gating: ★☆ (evidence_level=1) variants
-    are hard-capped at Moderate regardless of genotype.
+    are hard-capped at Moderate regardless of genotype. When the SNP carries an
+    ``ancestry_caveat`` and the sample's ``inferred_ancestry`` doesn't support the
+    marker model, an ancestry/coverage caveat is appended and the result is
+    flagged ``ancestry_caveated`` (see :func:`_apply_ancestry_caveat`).
 
     Args:
         snp: The panel SNP definition.
         genotype: The sample's genotype string, or None if absent.
+        inferred_ancestry: The sample's inferred top ancestry code (e.g. ``EUR``),
+            or None if ancestry was not inferred.
 
     Returns:
         SNPResult with the assigned category and effect summary.
@@ -289,6 +333,19 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             evidence_level=snp.evidence_level,
         )
 
+    # Ancestry-conditional caveat (e.g. the European LCT -13910 marker is not a
+    # valid non-persistence predictor outside European/South-Asian ancestry, #181).
+    effect_summary, ancestry_caveated = _apply_ancestry_caveat(
+        snp, category, effect_summary, inferred_ancestry
+    )
+    if ancestry_caveated:
+        logger.info(
+            "ancestry_caveat_applied",
+            rsid=snp.rsid,
+            category=category,
+            inferred_ancestry=inferred_ancestry,
+        )
+
     return SNPResult(
         rsid=snp.rsid,
         gene=snp.gene,
@@ -300,6 +357,7 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
         pmids=snp.pmids,
         recommendation_text=snp.recommendation_text,
         present_in_sample=True,
+        ancestry_caveated=ancestry_caveated,
     )
 
 
@@ -348,10 +406,18 @@ def score_nutrigenomics_pathways(
     # Fetch all panel rsids from sample
     all_rsids = panel.all_rsids()
     genotypes = _fetch_genotypes(all_rsids, sample_engine)
+
+    # Inferred ancestry gates ancestry-conditional caveats (e.g. the European LCT
+    # -13910 lactase marker — #181). None when ancestry has not been inferred, in
+    # which case the marker model can't be confirmed and the caveat still applies.
+    from backend.analysis.ancestry import get_inferred_ancestry
+
+    inferred_ancestry = get_inferred_ancestry(sample_engine)
     logger.info(
         "nutrigenomics_genotypes_fetched",
         panel_rsids=len(all_rsids),
         found_in_sample=len(genotypes),
+        inferred_ancestry=inferred_ancestry,
     )
 
     pathway_results: list[PathwayResult] = []
@@ -359,7 +425,7 @@ def score_nutrigenomics_pathways(
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
             gt = _normalize_genotype(genotypes.get(snp.rsid))
-            result = _score_snp(snp, gt)
+            result = _score_snp(snp, gt, inferred_ancestry)
             snp_results.append(result)
 
         level = _determine_pathway_level(snp_results)
@@ -480,6 +546,7 @@ def store_nutrigenomics_findings(
                     "category": s.category,
                     "effect_summary": s.effect_summary,
                     "evidence_level": s.evidence_level,
+                    "ancestry_caveated": s.ancestry_caveated,
                 }
                 for s in pr.called_snps
             ],
@@ -534,6 +601,7 @@ def store_nutrigenomics_findings(
                             "variant_name": snp.variant_name,
                             "genotype": snp.genotype,
                             "recommendation": snp.recommendation_text,
+                            "ancestry_caveated": snp.ancestry_caveated,
                         }
                     ),
                 }

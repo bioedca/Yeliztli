@@ -342,6 +342,55 @@ class TestSNPScoring:
         assert "33331250" in cc.pmids
 
 
+class TestLactaseAncestryCaveat:
+    """#181 — the European LCT -13910 (rs4988235) non-persistence call must be
+    ancestry-caveated outside European/South-Asian ancestry, where other LCT
+    enhancer variants (not assayed) drive persistence."""
+
+    def _lct(self, panel: NutrigenomicsPanel) -> PanelSNP:
+        return next(snp for pw in panel.pathways for snp in pw.snps if snp.rsid == "rs4988235")
+
+    def test_panel_carries_ancestry_caveat(self, panel: NutrigenomicsPanel) -> None:
+        cfg = self._lct(panel).ancestry_caveat
+        assert cfg is not None
+        assert cfg["confident_ancestries"] == ["EUR", "SAS"]
+        assert cfg["applies_to_categories"] == ["Elevated"]
+        assert "does not assay" in cfg["caveat_text"]
+
+    def test_european_call_not_caveated(self, panel: NutrigenomicsPanel) -> None:
+        result = _score_snp(self._lct(panel), "GG", "EUR")
+        assert result.category == ELEVATED
+        assert result.ancestry_caveated is False
+        assert "Ancestry note" not in result.effect_summary
+
+    def test_south_asian_call_not_caveated(self, panel: NutrigenomicsPanel) -> None:
+        result = _score_snp(self._lct(panel), "GG", "SAS")
+        assert result.ancestry_caveated is False
+
+    def test_african_non_persistence_is_caveated(self, panel: NutrigenomicsPanel) -> None:
+        result = _score_snp(self._lct(panel), "GG", "AFR")
+        assert result.category == ELEVATED  # category unchanged; certainty caveated
+        assert result.ancestry_caveated is True
+        # Original call text preserved, with the ancestry/coverage caveat appended.
+        assert "lactase non-persistent" in result.effect_summary.lower()
+        assert "Ancestry note" in result.effect_summary
+        assert "does not assay" in result.effect_summary
+
+    def test_unknown_ancestry_is_caveated(self, panel: NutrigenomicsPanel) -> None:
+        # No inferred ancestry → can't confirm the European marker model → caveat.
+        result = _score_snp(self._lct(panel), "GG", None)
+        assert result.ancestry_caveated is True
+        assert "Ancestry note" in result.effect_summary
+
+    def test_persistent_call_never_caveated(self, panel: NutrigenomicsPanel) -> None:
+        # A persistent (AA) call is a positive *T-allele present result, valid
+        # across ancestries — only the absence-of-*T non-persistence call is gated.
+        result = _score_snp(self._lct(panel), "AA", "AFR")
+        assert result.category == STANDARD
+        assert result.ancestry_caveated is False
+        assert "Ancestry note" not in result.effect_summary
+
+
 # ── Pathway level determination tests ────────────────────────────────────
 
 

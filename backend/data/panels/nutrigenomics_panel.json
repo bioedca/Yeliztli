@@ -447,7 +447,12 @@
           },
           "evidence_level": 3,
           "pmids": ["11788828", "15106124"],
-          "recommendation_text": "Lactase non-persistent individuals may benefit from lactose-free dairy products or lactase enzyme supplements."
+          "recommendation_text": "Lactase non-persistent individuals may benefit from lactose-free dairy products or lactase enzyme supplements.",
+          "ancestry_caveat": {
+            "confident_ancestries": ["EUR", "SAS"],
+            "applies_to_categories": ["Elevated"],
+            "caveat_text": "Ancestry note: this non-persistence call relies on the European/South-Asian lactase marker (LCT -13910C>T, rs4988235). Lactase persistence in African and Middle Eastern populations is driven by other LCT enhancer variants (e.g. -13915*G, -14010*C, -13907*G, -14009*G) that this panel does not assay, so reduced lactase digestion cannot be confidently concluded for non-European/South-Asian ancestry (PMID 15106124, 19575818, 29063188)."
+          }
         },
         {
           "rsid": "rs182549",
