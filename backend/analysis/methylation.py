@@ -40,7 +40,11 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import is_strand_ambiguous, lookup_by_genotype
+from backend.analysis.genotype_lookup import (
+    genotype_candidates,
+    is_strand_ambiguous,
+    lookup_by_genotype,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -406,6 +410,25 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> tuple[str, bool]:
 # ── MTHFR compound heterozygosity ────────────────────────────────────────
 
 
+def _genotype_matches(genotype: str, accepted: Container[str]) -> bool:
+    """Whether any strand-/order-harmonized form of ``genotype`` is in ``accepted``.
+
+    The compound-het ``special_calling`` genotype lists are curated on the panel's
+    strand frame — C677T (``rs1801133``) on the genomic plus strand (``GA``/``AG``),
+    A1298C (``rs1801131``) on the cDNA/complement strand (``AC``/``CA``) — while array
+    vendors report each on their *design* strand (Ensembl GRCh37 ``rs1801131`` is
+    plus-strand ``T/G``, so the het reads ``GT``/``TG``). A raw ``in`` membership test
+    therefore silently misses real carriers. Matching via :func:`genotype_candidates`
+    (reference strand and allele order first, Watson–Crick complement as fallback)
+    makes this check strand-aware and consistent with the per-SNP path's
+    :func:`lookup_by_genotype`. (#528)
+
+    Neither MTHFR SNP is a palindromic A/T or C/G locus (C677T is G/A, A1298C is
+    T/G), so the complement fallback resolves homozygotes unambiguously here.
+    """
+    return any(candidate in accepted for candidate in genotype_candidates(genotype))
+
+
 def _assess_compound_heterozygosity(
     panel: MethylationPanel,
     genotypes: dict[str, str],
@@ -455,7 +478,7 @@ def _assess_compound_heterozygosity(
     c677t_het_gts = cpd_het.get("c677t_genotypes", [])
     a1298c_het_gts = cpd_het.get("a1298c_genotypes", [])
 
-    if c677t_gt in c677t_het_gts and a1298c_gt in a1298c_het_gts:
+    if _genotype_matches(c677t_gt, c677t_het_gts) and _genotype_matches(a1298c_gt, a1298c_het_gts):
         return CompoundHetResult(
             is_compound_het=True,
             is_double_homozygous=False,
@@ -470,7 +493,7 @@ def _assess_compound_heterozygosity(
     c677t_hom_gts = dbl_hom.get("c677t_genotypes", [])
     a1298c_hom_gts = dbl_hom.get("a1298c_genotypes", [])
 
-    if c677t_gt in c677t_hom_gts and a1298c_gt in a1298c_hom_gts:
+    if _genotype_matches(c677t_gt, c677t_hom_gts) and _genotype_matches(a1298c_gt, a1298c_hom_gts):
         return CompoundHetResult(
             is_compound_het=False,
             is_double_homozygous=True,

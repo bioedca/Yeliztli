@@ -287,6 +287,52 @@ class TestCompoundHeterozygosity:
         assert result.is_compound_het is False
         assert result.is_double_homozygous is False
 
+    # ── Plus-strand vendor data (strand-harmonization regression, #528) ──
+    #
+    # 23andMe / AncestryDNA report on the array design (plus) strand. Ensembl
+    # GRCh37 gives rs1801131 (A1298C) allele_string = "T/G", so a real A1298C
+    # heterozygote reads as "GT"/"TG" — NOT the cDNA/complement "AC"/"CA" the
+    # panel curates. Before #528 the raw ``in`` membership test missed these, so
+    # the compound-het / double-variant label never fired for real array data.
+
+    def test_compound_het_plus_strand_ancestrydna_repro(self, panel: MethylationPanel) -> None:
+        """Real AncestryDNA compound-het repro (PGP user_file/download/4190): C677T
+        het ``AG`` (plus) + A1298C het ``GT`` (plus, Ensembl T/G) must be detected.
+
+        Fails before #528 because ``"GT" in ["AC", "CA"]`` is False.
+        """
+        genotypes = {"rs1801133": "AG", "rs1801131": "GT"}
+        result = _assess_compound_heterozygosity(panel, genotypes)
+        assert result.is_compound_het is True
+        assert result.is_double_homozygous is False
+        assert result.label is not None
+        assert "compound" in result.label.lower()
+
+    def test_compound_het_a1298c_plus_strand_TG_order(self, panel: MethylationPanel) -> None:
+        """A1298C plus-strand het in the reversed allele order (``TG``) also resolves."""
+        genotypes = {"rs1801133": "GA", "rs1801131": "TG"}
+        result = _assess_compound_heterozygosity(panel, genotypes)
+        assert result.is_compound_het is True
+
+    def test_double_homozygous_plus_strand(self, panel: MethylationPanel) -> None:
+        """Plus-strand double variant: C677T ``AA`` + A1298C ``GG`` (plus-strand
+        1298CC) must be flagged as double homozygous.
+
+        Fails before #528 because ``"GG" in ["CC"]`` is False.
+        """
+        genotypes = {"rs1801133": "AA", "rs1801131": "GG"}
+        result = _assess_compound_heterozygosity(panel, genotypes)
+        assert result.is_compound_het is False
+        assert result.is_double_homozygous is True
+        assert result.label is not None
+
+    def test_no_compound_het_plus_strand_both_wild_type(self, panel: MethylationPanel) -> None:
+        """Plus-strand wild types stay negative: C677T ``GG`` + A1298C ``TT``."""
+        genotypes = {"rs1801133": "GG", "rs1801131": "TT"}
+        result = _assess_compound_heterozygosity(panel, genotypes)
+        assert result.is_compound_het is False
+        assert result.is_double_homozygous is False
+
 
 # ── CBS proxy tests ──────────────────────────────────────────────────────
 
