@@ -215,6 +215,31 @@ class TestSNPFields:
         assert snp["pmids"] == ["15342695", "26048407", "19665768"], snp["pmids"]
         # The two wrong-gene PMIDs must not remain on the STAT6 row.
         assert not ({"14608356", "18403759"} & set(snp["pmids"]))
+    def test_hla_b1502_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # HLA-B*15:02 / carbamazepine is a Level-4 pharmacogenomic safety row; its
+        # citations must be the verified SJS/TEN evidence trail, not the EMR
+        # pharmacogenomics paper (21248726) or the Japanese intracranial-aneurysm
+        # GWAS (22286173) attached in error (#194):
+        #   15057820 — Chung 2004, Nature: HLA-B*15:02 marker for carbamazepine SJS
+        #   29392710 — Phillips 2018, CPIC guideline: HLA genotype + carbamazepine/oxcarbazepine
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs144012689"
+        )
+        assert snp["pmids"] == ["15057820", "29392710"], snp["pmids"]
+        assert {"21248726", "22286173"}.isdisjoint(snp["pmids"])
+
+    def test_hla_b1502_proxy_lookup_cites_real_evidence(self) -> None:
+        # The HLA-B*15:02 entries in the proxy lookup carried the same unrelated
+        # EMR pharmacogenomics PMID (21248726, #194). They must cite real
+        # HLA-B*15:02/carbamazepine evidence instead.
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        b1502 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*15:02"]
+        assert b1502, "no HLA-B*15:02 entries in proxy lookup"
+        for entry in b1502:
+            assert entry["pmid"] == "15057820", (
+                f"HLA-B*15:02/{entry['ancestry_pop']} cites unexpected PMID: {entry['pmid']}"
+            )
+            assert entry["pmid"] not in {"21248726", "22286173"}
 
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing the two unrelated citations that were on
