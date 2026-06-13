@@ -1097,29 +1097,29 @@
           "gene": "CDKN2B-AS1",
           "variant_name": "CDKN2B-AS1 (ANRIL)",
           "hgvs_protein": null,
-          "risk_allele": "G",
-          "ref_allele": "T",
+          "risk_allele": "T",
+          "ref_allele": "C",
           "genotype_effects": {
+            "CC": {
+              "category": "Standard",
+              "effect_summary": "Two copies of the protective CDKN2B-AS1/9p21 (ANRIL) minor allele (C; rs2157719), associated with REDUCED primary open-angle glaucoma risk (replicated per-allele OR ~0.69-0.71) and smaller vertical cup-to-disc ratio. (These 9p21 alleles slightly raise intraocular pressure yet are net-protective for optic-nerve damage / POAG.) Not a risk genotype."
+            },
+            "CT": {
+              "category": "Standard",
+              "effect_summary": "One copy of the protective CDKN2B-AS1/9p21 minor allele (C); modestly reduced primary open-angle glaucoma risk relative to the common TT genotype. Not a risk genotype."
+            },
+            "TC": {
+              "category": "Standard",
+              "effect_summary": "One copy of the protective CDKN2B-AS1/9p21 minor allele (C); modestly reduced primary open-angle glaucoma risk relative to the common TT genotype. Not a risk genotype."
+            },
             "TT": {
               "category": "Standard",
-              "effect_summary": "No risk allele at CDKN2B-AS1/9p21 locus. Standard CDKN2B expression and retinal ganglion cell regulation."
-            },
-            "TG": {
-              "category": "Moderate",
-              "effect_summary": "One copy of CDKN2B-AS1 risk allele. The 9p21 locus affects CDKN2B expression, which regulates cell cycle arrest and apoptosis. Associated with increased glaucoma susceptibility and optic disc morphology."
-            },
-            "GT": {
-              "category": "Moderate",
-              "effect_summary": "One copy of CDKN2B-AS1 risk allele. The 9p21 locus affects CDKN2B expression, which regulates cell cycle arrest and apoptosis. Associated with increased glaucoma susceptibility and optic disc morphology."
-            },
-            "GG": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous CDKN2B-AS1 risk allele. Replicated GWAS association with primary open-angle glaucoma (OR ~1.3) and vertical cup-to-disc ratio. The 9p21 locus is also associated with cardiovascular disease and type 2 diabetes through different mechanisms."
+              "effect_summary": "Homozygous for the common major allele (T) at CDKN2B-AS1/9p21; population-baseline primary open-angle glaucoma risk. This is the reference genotype and lacks the protective minor allele, but is not itself a risk-elevating genotype (the 9p21 minor allele is protective; the major allele is the baseline)."
             }
           },
           "evidence_level": 2,
           "pmids": ["21532571", "27064256", "22570617"],
-          "recommendation_text": "CDKN2B-AS1 (ANRIL) at the 9p21 locus is associated with glaucoma susceptibility and optic disc morphology. This pleiotropic locus also influences cardiovascular and metabolic traits. Regular ophthalmological surveillance is recommended."
+          "recommendation_text": "CDKN2B-AS1 (ANRIL) at the 9p21 locus modulates primary open-angle glaucoma risk and optic disc morphology: the minor allele (C, rs2157719 plus strand) is associated with REDUCED POAG risk and smaller vertical cup-to-disc ratio, so no genotype at this locus is risk-elevating. This pleiotropic locus also influences cardiovascular and metabolic traits. Routine ophthalmological surveillance remains advisable for general eye health."
         },
         {
           "rsid": "rs80338939",

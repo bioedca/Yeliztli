@@ -169,7 +169,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs2230199", "19", 6669387, "CG"),  # C3 R102G het -> Moderate
     ("rs74315329", "1", 171605519, "GA"),  # MYOC Q368X het -> Elevated
     ("rs4236601", "7", 116165018, "CA"),  # CAV1/CAV2 het -> Moderate
-    ("rs2157719", "9", 22003367, "TG"),  # CDKN2B-AS1 het -> Moderate
+    ("rs2157719", "9", 22033366, "CT"),  # CDKN2B-AS1 het (protective C minor allele) -> Standard
     ("rs80338939", "13", 20763612, "GG"),  # GJB2 35delG ref -> Standard (special)
     ("rs111033313", "7", 107683453, "GA"),  # SLC26A4 het -> Standard carrier context
     ("rs10955255", "8", 102508925, "GA"),  # GRHL2 het -> Moderate
@@ -432,6 +432,31 @@ class TestSNPScoring:
         for genotype in ("AA", "AG", "GA", "GG"):
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
+
+    def test_cdkn2b_as1_plus_strand_and_protective_direction(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """CDKN2B-AS1/9p21 (rs2157719): the entry must be on the plus strand (C/T,
+        per Ensembl GRCh37) AND in the correct, protective direction — the minor
+        allele C is PROTECTIVE for primary open-angle glaucoma (replicated per-allele
+        OR ~0.69-0.71; Wiggs 2012 PMID 22570617, Li 2015, Pasquale 2012), so no
+        genotype is risk-elevating. Guards against #491, where the entry was on the
+        wrong strand (G/T) AND inverted (it scored the protective minor allele as a
+        'Moderate' glaucoma-risk genotype, and a real plus-strand C/T het silently
+        no-matched -> Standard for the wrong reason).
+        """
+        snp = self._get_snp(panel, "rs2157719")
+        # Plus strand: alleles are drawn from {C, T} only — never the minus-strand G.
+        assert snp.risk_allele == "T"  # major allele = the higher-risk/baseline direction
+        assert snp.ref_allele == "C"  # minor allele = protective
+        assert set(snp.genotype_effects) == {"CC", "CT", "TC", "TT"}
+        # Protective variant: every genotype (incl. the real plus-strand het CT, which
+        # pre-fix silently no-matched) scores Standard — the minor allele never inflates
+        # the sensory pathway level.
+        for genotype in ("CC", "CT", "TC", "TT"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
+            assert result.present_in_sample is True
 
     def test_hla_drb1_ra_proxy_uses_g_risk_allele(self, panel: GeneHealthPanel) -> None:
         """RA shared-epitope proxy rs6910071 uses the catalogued G risk allele."""
