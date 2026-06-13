@@ -41,6 +41,7 @@ from backend.analysis.ancestry import (
 )
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    annotated_variants,
     findings,
     haplogroup_assignments,
     raw_variants,
@@ -592,14 +593,17 @@ class TestAssignHaplogroups:
         assert results[0].tree_type == "mt"
         assert results[0].haplogroup == "H1a"
 
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     def test_mt_assigned_when_vendor_rsids_differ_from_bundle(
-        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine, source_table: sa.Table
     ) -> None:
         """#498: real vendor files label mtDNA with their own ids (or none) — never the
         bundle's synthetic ``i5<pos>`` ids — so mtDNA must be assigned by rCRS POSITION
         on chrom MT, not by a doomed rsid join. Re-key the H1a fixture onto vendor-style
         rsids that are absent from the bundle (keeping the real chrom MT + pos) and
-        confirm H1a is still assigned."""
+        confirm H1a is still assigned. Parameterized over both source tables, since
+        assign_haplogroups reads annotated_variants once that table is populated and
+        falls back to raw_variants otherwise — both MT position paths must hold."""
         vendor_rows = [
             {**row, "rsid": f"i{900000 + idx}"} for idx, row in enumerate(_H1A_GENOTYPES)
         ]
@@ -608,7 +612,7 @@ class TestAssignHaplogroups:
         assert not ({r["rsid"] for r in vendor_rows} & bundle.mt_snp_rsids)
 
         with sample_engine.begin() as conn:
-            conn.execute(sa.insert(raw_variants), vendor_rows)
+            conn.execute(sa.insert(source_table), vendor_rows)
 
         results = assign_haplogroups(bundle, sample_engine)
 
