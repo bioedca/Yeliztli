@@ -350,7 +350,9 @@ def test_no_slco1b1_decreased_allele_lacks_c521c(reference_engine: sa.Engine) ->
     (reference) or *1B (only the normal/increased c.388A>G marker) — must never be
     labeled "Decreased function". Locks the *1B mislabel bug class for the gene.
     """
-    for a in _fetch_alleles_for_gene("SLCO1B1", reference_engine):
+    alleles = _fetch_alleles_for_gene("SLCO1B1", reference_engine)
+    assert alleles, "no SLCO1B1 alleles loaded — guard against a vacuous pass"
+    for a in alleles:
         rsids = {v["rsid"] for v in a["defining_variants"]}
         has_c521c = "rs4149056" in rsids
         if a["function"] == "Decreased function":
