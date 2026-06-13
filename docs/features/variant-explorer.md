@@ -1,0 +1,39 @@
+# Variant Explorer
+
+The Variant Explorer is the central table for browsing every variant in your sample.
+
+## Navigation
+
+- **Chromosome anchors** — jump to any chromosome from the navigation bar.
+- **Infinite scroll** — variants load progressively as you scroll.
+- **Total count** — shown asynchronously, so the first page appears immediately.
+
+## Filtering
+
+- Toggle between **all variants** and **annotated only**.
+- Use the advanced filter panel for specific criteria — gene, consequence, allele frequency,
+  ClinVar significance, and more.
+- Filter by the **tags** you've applied (see below).
+
+## Column presets
+
+Switch between predefined column layouts, or build your own from **Column Settings**:
+
+| Preset | Columns shown |
+|--------|---------------|
+| Clinical | Gene, consequence, ClinVar, gnomAD AF, HGVS |
+| Research | All annotation sources, in-silico scores |
+| Frequency | Population frequencies (gnomAD subpopulations) |
+| Scores | CADD, REVEL, SIFT, PolyPhen, MutationTaster |
+
+## Tagging
+
+Apply tags to variants for personal tracking — predefined ones (*Pathogenic interest*,
+*Benign confirmed*, *Follow-up*, *Research*) or your own. You can then filter the table by tag.
+
+## Watching a VUS
+
+For a **Variant of Uncertain Significance**, click **Watch**. When reference databases are
+updated, watched variants are re-checked and you're notified if any are reclassified.
+
+Click any row to open the **[variant detail](variant-detail.md)** panel.

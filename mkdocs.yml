@@ -87,6 +87,46 @@ nav:
   - Home: index.md
   - Intended use & disclaimers: intended-use.md
   - Privacy: privacy.md
+  - Getting started:
+      - getting-started/index.md
+      - Install (quick start): getting-started/install-quickstart.md
+      - Upload your DNA: getting-started/upload-your-dna.md
+      - Reading your results: getting-started/reading-your-results.md
+  - Modules:
+      - modules/index.md
+      - Health & hereditary risk:
+          - Hereditary cancer: modules/health-risk/cancer.md
+          - Cardiovascular: modules/health-risk/cardiovascular.md
+          - Carrier status: modules/health-risk/carrier-status.md
+          - Gene health: modules/health-risk/gene-health.md
+          - Familial hypercholesterolemia: modules/health-risk/familial-hypercholesterolemia.md
+          - Metabolic: modules/health-risk/metabolic.md
+          - Bone density (eBMD): modules/health-risk/bone-density-ebmd.md
+      - Pharmacogenomics: modules/pharma/pharmacogenomics.md
+      - Wellness & traits:
+          - Nutrigenomics: modules/wellness/nutrigenomics.md
+          - Methylation: modules/wellness/methylation.md
+          - Fitness: modules/wellness/fitness.md
+          - Sleep: modules/wellness/sleep.md
+          - Skin: modules/wellness/skin.md
+          - Allergy & immune: modules/wellness/allergy.md
+          - Traits & personality: modules/wellness/traits-personality.md
+      - Ancestry: modules/ancestry/ancestry.md
+      - Disclosure-gated:
+          - APOE: modules/gated/apoe.md
+          - Parkinson's (LRRK2): modules/gated/parkinsons.md
+          - Sex-chromosome aneuploidy: modules/gated/sex-aneuploidy.md
+      - Specialized findings: modules/specialized.md
+      - Rare variants: modules/rare-variants.md
+  - Features:
+      - Variant Explorer: features/variant-explorer.md
+      - Variant detail: features/variant-detail.md
+      - Genome Browser: features/genome-browser.md
+      - Query Builder: features/query-builder.md
+      - Reports: features/reports.md
+      - Export: features/export.md
+      - Settings & admin: features/settings-and-admin.md
+      - Keyboard shortcuts: features/keyboard-shortcuts.md
   - Install & self-host:
       - install/index.md
       - System requirements: install/system-requirements.md

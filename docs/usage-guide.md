@@ -23,9 +23,10 @@ Use the sample selector in the top navigation bar to switch between uploaded sam
 
 ### Supported formats
 
-Yeliztli accepts 23andMe raw data files:
+Yeliztli accepts consumer genotyping raw-data files:
 
-- **23andMe v3, v4, v5** — Auto-detected from file header
+- **23andMe v3, v4, v5** and **AncestryDNA v2.0** — vendor and version auto-detected from the
+  file header
 - File types: `.txt` (plain text) or `.zip` (compressed)
 
 ### Upload process
@@ -320,7 +321,7 @@ Yes. Upload additional files from the Upload page. Each sample gets its own isol
 Yeliztli uses crash recovery: the partial annotation is deleted and re-run from scratch. With under 2-minute runtime, checkpointing is unnecessary.
 
 **Q: Can I use files from other services (AncestryDNA, MyHeritage)?**
-Not yet in v1. 23andMe (v3/v4/v5) is the only supported format. AncestryDNA support is the top priority for post-v1.
+**23andMe** (v3/v4/v5) and **AncestryDNA** (v2.0) are both supported, and the vendor/version is auto-detected from the file header. Other services (e.g. MyHeritage) are not supported yet.
 
 **Q: Do I need an internet connection?**
 Only for initial database downloads and optional PubMed literature lookups. All analysis runs locally once databases are installed.
