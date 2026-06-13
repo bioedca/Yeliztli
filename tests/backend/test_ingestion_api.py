@@ -30,9 +30,11 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.ingestion.parser_23andme import parse_23andme
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 V5_FILE = FIXTURES / "sample_23andme_v5.txt"
+V3_FILE = FIXTURES / "sample_23andme_v3.txt"  # build 36 (hg18) — issue #480
 ANCESTRY_FILE = FIXTURES / "sample_ancestrydna_v2.txt"
 # AncestryDNA fixture body has 589 data rows — locked by
 # ``test_parser_ancestrydna.py::test_variant_count_matches_data_rows``.
@@ -249,6 +251,78 @@ class TestIngestEndpoint:
             r2 = client.post("/api/ingest", files={"file": ("sample2.txt", f2, "text/plain")})
         assert r1.json()["sample_id"] != r2.json()["sample_id"]
         assert r1.json()["job_id"] != r2.json()["job_id"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Genome-build gate (issue #480)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestGenomeBuildGate:
+    """The ingest route refuses non-GRCh37 builds rather than silently
+    consuming them.
+
+    23andMe v3 raw-data files are reported on NCBI build 36 (hg18), but the
+    whole pipeline treats stored (chrom, pos) as GRCh37 and there is no
+    build-36→37 liftover. A v3 upload accepted verbatim would be mis-placed by
+    up to several megabases at the wrong build, corrupting the genome browser,
+    GRCh38 liftover, and polygenic scores with no error (issue #480). The gate
+    rejects it with HTTP 422 before any sample/job rows are written.
+    """
+
+    def test_v3_fixture_is_genuinely_build36(self):
+        """Premise check: the v3 fixture really is build 36, with a coordinate
+        far from its GRCh37 locus (rs7412 @ 19:50103919, ~4.69 Mb from the true
+        GRCh37 19:45412079) — so the gate is rejecting genuine build-36 input,
+        not a mislabel."""
+        result = parse_23andme(V3_FILE)
+        assert result.build == "GRCh36"
+        rs7412 = next(v for v in result.variants if v.rsid == "rs7412")
+        assert (rs7412.chrom, rs7412.pos) == ("19", 50103919)
+
+    def test_v3_build36_upload_rejected_422(self, client):
+        with open(V3_FILE, "rb") as f:
+            response = client.post(
+                "/api/ingest",
+                files={"file": ("pgp_v3_build36.txt", f, "text/plain")},
+            )
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        # A plain string so the upload UI renders it verbatim (frontend
+        # api/setup.ts shows only string ``detail``; an object body would fall
+        # back to a generic "Upload failed: 422").
+        assert isinstance(detail, str)
+        assert "GRCh36" in detail
+        assert "GRCh37" in detail
+        assert "build 36" in detail
+        assert "polygenic" in detail.lower()
+
+    def test_v3_rejection_writes_no_sample_or_job_rows(self, client, tmp_data_dir):
+        """The gate fires before any persistence: no sample/job row is left
+        behind from a rejected build-36 upload."""
+        with open(V3_FILE, "rb") as f:
+            response = client.post(
+                "/api/ingest",
+                files={"file": ("pgp_v3_build36.txt", f, "text/plain")},
+            )
+        assert response.status_code == 422
+        ref_path = Settings(data_dir=tmp_data_dir, wal_mode=False).reference_db_path
+        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        with engine.connect() as conn:
+            assert conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar() == 0
+            assert conn.execute(sa.select(sa.func.count()).select_from(jobs)).scalar() == 0
+        engine.dispose()
+
+    def test_v5_build37_upload_still_accepted(self, client):
+        """The gate is build-scoped, not a blanket 23andMe block: a build-37
+        23andMe file (v5) still ingests at 202."""
+        with open(V5_FILE, "rb") as f:
+            response = client.post(
+                "/api/ingest",
+                files={"file": ("sample_v5.txt", f, "text/plain")},
+            )
+        assert response.status_code == 202, response.text
+        assert response.json()["file_format"] == "23andme_v5"
 
 
 # ═══════════════════════════════════════════════════════════════════════

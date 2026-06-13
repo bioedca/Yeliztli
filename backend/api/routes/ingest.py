@@ -36,7 +36,8 @@ _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA = Version("2.0.0")
 
 # The only genome build the analysis pipeline can process. Vendor parsers tag
 # each ``ParseResult`` with its source reference assembly (parser_23andme:
-# v3→GRCh36, v4/v5→GRCh37; AncestryDNA→GRCh37). Every position-dependent path —
+# v3→GRCh36 — the parser's label for NCBI Build 36 / hg18, which predates the
+# GRC — v4/v5→GRCh37; AncestryDNA→GRCh37). Every position-dependent path —
 # GRCh38 liftover (backend/ingestion/liftover.py), positional PRS/annotation
 # joins (backend/analysis/prs.py, backend/annotation/engine.py), VCF/FHIR export
 # — assumes the stored (chrom, pos) are GRCh37, and there is no build-36→37
@@ -156,8 +157,9 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
                 f"This file is reported on genome build {result.build}, but analysis "
                 f"requires build 37 ({_SUPPORTED_BUILD}). 23andMe v3 exports use NCBI "
                 "build 36 (hg18); processing build-36 coordinates as GRCh37 would "
-                "silently misplace every variant by up to several megabases and "
-                "produce incorrect polygenic scores, so the upload was refused. "
+                "silently shift variant positions — by up to several megabases in "
+                "affected regions — and produce incorrect polygenic scores, so the "
+                "upload was refused. "
                 "Please upload a build-37 export (23andMe v4/v5 or AncestryDNA)."
             ),
         )
