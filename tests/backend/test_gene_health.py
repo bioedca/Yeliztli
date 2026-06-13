@@ -124,10 +124,11 @@ def _seed_gwas(
         )
 
 
-# All 42 panel SNPs with chromosome positions and representative genotypes.
+# All 41 panel SNPs with chromosome positions and representative genotypes.
+# APOE rs429358 (ε4) is deliberately excluded — the gated APOE module owns ε4
+# disclosure, so Gene Health must not score it (#329; mirrors the GBA1 exclusion).
 ALL_GENE_HEALTH_VARIANTS = [
-    # --- Neurological (13 SNPs) ---
-    ("rs429358", "19", 44908684, "TC"),  # APOE e4 det het -> Elevated
+    # --- Neurological (12 SNPs) ---
     ("rs3764650", "19", 1046520, "TG"),  # ABCA7 het -> Moderate
     ("rs11136000", "8", 27464519, "CT"),  # CLU het -> Moderate
     ("rs34637584", "12", 40340400, "GA"),  # LRRK2 G2019S het -> Moderate
@@ -195,12 +196,14 @@ class TestPanelLoading:
 
     def test_panel_all_rsids(self, panel: GeneHealthPanel) -> None:
         rsids = panel.all_rsids()
-        assert len(rsids) == 42
+        assert len(rsids) == 41
         # Spot-check a few from each pathway
-        assert "rs429358" in rsids  # neurological
+        assert "rs356219" in rsids  # neurological (SNCA)
         assert "rs7903146" in rsids  # metabolic
         assert "rs2476601" in rsids  # autoimmune
         assert "rs1061170" in rsids  # sensory
+        # APOE ε4 (rs429358) is gated-module-owned, never in Gene Health (#329).
+        assert "rs429358" not in rsids
 
     def test_gba1_n370s_absent_to_match_parkinsons_suppression(self) -> None:
         """Gene Health must not independently report array-based GBA1 PD risk."""
@@ -211,6 +214,14 @@ class TestPanelLoading:
         assert "rs76763715" not in rsids
         assert "GBA1 is DELIBERATELY EXCLUDED" in parkinsons["description"]
         assert "GBAP1 pseudogene" in parkinsons["description"]
+
+    def test_apoe_e4_absent_to_match_apoe_gate(self) -> None:
+        """Gene Health must not score APOE ε4 (rs429358); the gated APOE opt-in
+        module owns ε4 disclosure (#329). Mirrors the GBA1 exclusion above."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        rsids = {snp["rsid"] for pathway in gene_health["pathways"] for snp in pathway["snps"]}
+        assert "rs429358" not in rsids
+        assert "deliberately NOT scored here" in gene_health["description"]
 
     def test_panel_snps_have_genotype_effects(self, panel: GeneHealthPanel) -> None:
         for pathway in panel.pathways:
@@ -229,7 +240,8 @@ class TestPanelLoading:
                 if snp.cross_module:
                     cross_modules[snp.rsid] = snp.cross_module["module"]
 
-        assert cross_modules.get("rs429358") == "apoe"
+        # APOE ε4 is NOT cross-linked from Gene Health (gated APOE module owns it, #329).
+        assert "rs429358" not in cross_modules
         assert cross_modules.get("rs34637584") == "parkinsons"
         assert cross_modules.get("rs9939609") == "nutrigenomics"
         assert cross_modules.get("rs1801133") == "methylation"
@@ -714,21 +726,43 @@ class TestPathwayLevel:
 
 
 class TestCrossModuleFindings:
-    def test_apoe_cross_link(
+    def test_apoe_e4_not_disclosed_via_gene_health(
         self,
         panel: GeneHealthPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """rs429358 carrier -> apoe cross-link."""
-        _seed_variants(
-            sample_engine,
-            [("rs429358", "19", 44908684, "TC")],
-        )
+        """#329: an APOE ε4 carrier gets NO ε4 / Alzheimer's disclosure from Gene
+        Health — no scored finding, no cross-link, nothing in stored findings (the
+        source for the generic /api/analysis/findings aggregator). ε4 is disclosed
+        only through the gated APOE opt-in module."""
+        _seed_variants(sample_engine, [("rs429358", "19", 44908684, "TC")])  # ε4 het
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
-        apoe_links = [f for f in result.cross_module_findings if f.target_module == "apoe"]
-        assert len(apoe_links) >= 1
-        assert "APOE" in apoe_links[0].finding_text
+
+        # rs429358 is not in the panel → never scored, never cross-linked.
+        scored = {s.rsid for pr in result.pathway_results for s in pr.snp_results}
+        assert "rs429358" not in scored
+        assert [f for f in result.cross_module_findings if f.target_module == "apoe"] == []
+
+        # No ε4 / Alzheimer's text in any in-memory scored or cross-module finding.
+        in_memory = " ".join(
+            [s.effect_summary for pr in result.pathway_results for s in pr.snp_results]
+            + [f.finding_text for f in result.cross_module_findings]
+        ).lower()
+        assert "epsilon" not in in_memory
+        assert "alzheimer" not in in_memory
+
+        # Storage layer (feeds the generic aggregator): no ε4 leak persisted.
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            persisted = " ".join(
+                r.finding_text
+                for r in conn.execute(
+                    sa.select(findings.c.finding_text).where(findings.c.module == MODULE_NAME)
+                )
+            ).lower()
+        assert "epsilon" not in persisted
+        assert "alzheimer" not in persisted
 
     def test_fto_nutrigenomics_cross_link(
         self,
@@ -754,13 +788,19 @@ class TestCrossModuleFindings:
         reference_engine: sa.Engine,
     ) -> None:
         """Ref genotype -> no cross-module findings for that SNP."""
+        # rs1801133 (MTHFR, G/A — non-palindromic) GG is homozygous-ref → Standard,
+        # so it produces no methylation cross-link. (A palindromic SNP's homozygote
+        # would be withheld as Indeterminate rather than Standard — see #269 — and
+        # so would still cross-link; pick a non-palindromic SNP for this check.)
         _seed_variants(
             sample_engine,
-            [("rs429358", "19", 44908684, "TT")],  # ref
+            [("rs1801133", "1", 11856378, "GG")],  # MTHFR ref (Standard)
         )
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
-        apoe_links = [f for f in result.cross_module_findings if f.target_module == "apoe"]
-        assert len(apoe_links) == 0
+        methyl_links = [
+            f for f in result.cross_module_findings if f.target_module == "methylation"
+        ]
+        assert len(methyl_links) == 0
 
     def test_cross_module_deduplication(
         self,
@@ -777,7 +817,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs429358", "19", 44908684, "TC"),  # APOE -> apoe
+                ("rs747302", "11", 637339, "CG"),  # DRD4 -> traits
                 ("rs9939609", "16", 53820527, "TA"),  # FTO -> nutrigenomics
                 ("rs1801133", "1", 11856378, "GA"),  # MTHFR -> methylation
             ],
@@ -785,7 +825,7 @@ class TestCrossModuleFindings:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         # Each cross-module target should appear exactly once
         targets = [f.target_module for f in result.cross_module_findings]
-        assert targets.count("apoe") == 1
+        assert targets.count("traits") == 1
         assert targets.count("nutrigenomics") == 1
         assert targets.count("methylation") == 1
 
@@ -869,11 +909,11 @@ class TestFullScoring:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """All 42 panel SNPs are scored when present."""
+        """All 41 panel SNPs are scored when present."""
         _seed_variants(sample_engine, ALL_GENE_HEALTH_VARIANTS)
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         total_snps = sum(len(pr.snp_results) for pr in result.pathway_results)
-        assert total_snps == 42
+        assert total_snps == 41
 
     def test_four_pathways_scored(
         self,
@@ -1367,7 +1407,7 @@ class TestPanelCoverage:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Panel coverage rows are stored for all 42 SNPs."""
+        """Panel coverage rows are stored for all 41 SNPs."""
         _seed_variants(sample_engine, ALL_GENE_HEALTH_VARIANTS)
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         store_gene_health_findings(result, sample_engine)
@@ -1376,7 +1416,7 @@ class TestPanelCoverage:
             rows = conn.execute(
                 sa.select(panel_coverage).where(panel_coverage.c.module == MODULE_NAME)
             ).fetchall()
-        assert len(rows) == 42
+        assert len(rows) == 41
 
     def test_called_status(
         self,
@@ -1415,7 +1455,7 @@ class TestPanelCoverage:
             row = conn.execute(
                 sa.select(panel_coverage).where(
                     panel_coverage.c.module == MODULE_NAME,
-                    panel_coverage.c.rsid == "rs429358",
+                    panel_coverage.c.rsid == "rs3764650",
                 )
             ).fetchone()
         assert row is not None

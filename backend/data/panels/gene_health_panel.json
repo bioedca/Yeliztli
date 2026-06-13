@@ -1,7 +1,7 @@
 {
   "module": "gene_health",
   "version": "1.0.0",
-  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to APOE, Parkinson's, Allergy, Methylation, Nutrigenomics, and Traits modules.",
+  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to Parkinson's, Allergy, Methylation, Nutrigenomics, and Traits modules. APOE epsilon-4 (rs429358) is deliberately NOT scored here — it is disclosed only through the gated APOE opt-in module (#329).",
   "evidence_cap": null,
   "module_disclaimer": "Gene Health findings are based on published genetic association studies and ClinVar pathogenic classifications. Results indicate statistical associations, not diagnoses. Many conditions have complex environmental and lifestyle components. Consult a healthcare provider or genetic counselor for clinical interpretation.",
   "pathways": [
@@ -10,39 +10,6 @@
       "name": "Neurological Conditions",
       "description": "Variants associated with neurological disease susceptibility including Alzheimer's disease, Parkinson's disease, multiple sclerosis, ADHD, and migraine. These variants affect neuroinflammatory, dopaminergic, and vascular pathways. Many neurological conditions are polygenic with significant environmental contributions.",
       "snps": [
-        {
-          "rsid": "rs429358",
-          "gene": "APOE",
-          "variant_name": "APOE epsilon 4 determinant",
-          "hgvs_protein": "p.Cys112Arg",
-          "risk_allele": "C",
-          "ref_allele": "T",
-          "genotype_effects": {
-            "TT": {
-              "category": "Standard",
-              "effect_summary": "No APOE epsilon 4 allele at this position. Baseline population risk for late-onset Alzheimer's disease."
-            },
-            "TC": {
-              "category": "Elevated",
-              "effect_summary": "One copy of the APOE epsilon 4 determinant. Associated with approximately 3-fold increased risk of late-onset Alzheimer's disease compared to epsilon 3/3. Earlier average age of onset."
-            },
-            "CT": {
-              "category": "Elevated",
-              "effect_summary": "One copy of the APOE epsilon 4 determinant. Associated with approximately 3-fold increased risk of late-onset Alzheimer's disease compared to epsilon 3/3. Earlier average age of onset."
-            },
-            "CC": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous APOE epsilon 4 determinant. Associated with approximately 12-fold increased risk of late-onset Alzheimer's disease. Substantially earlier average age of onset. This is the strongest common genetic risk factor for Alzheimer's disease."
-            }
-          },
-          "evidence_level": 4,
-          "pmids": ["8346443", "19734902", "23571587"],
-          "recommendation_text": "APOE epsilon 4 is the strongest common genetic risk factor for late-onset Alzheimer's disease. Carriers should discuss risk management with a neurologist or genetic counselor. Modifiable risk factors include cardiovascular health, physical activity, and cognitive engagement. See the APOE module for comprehensive epsilon allele calling and additional context.",
-          "cross_module": {
-            "module": "apoe",
-            "note": "This SNP is a component of APOE epsilon allele determination. See APOE module for full epsilon 2/3/4 haplotype calling and cardiovascular implications."
-          }
-        },
         {
           "rsid": "rs3764650",
           "gene": "ABCA7",
