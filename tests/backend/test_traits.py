@@ -455,7 +455,7 @@ class TestCrossModuleFindings:
                     category=MODERATE,
                     effect_summary="One copy of proxy allele.",
                     evidence_level=1,
-                    pmids=["8776587"],
+                    pmids=["12210280"],
                     recommendation_text="",
                     present_in_sample=True,
                     trait_domain="novelty_seeking",

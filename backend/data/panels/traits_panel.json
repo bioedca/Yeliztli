@@ -236,7 +236,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["8776587", "18197166", "32075956"],
+          "pmids": ["12210280", "30260901", "32075956"],
           "recommendation_text": "DRD4 exon III VNTR has been associated with novelty seeking and ADHD susceptibility in candidate gene studies, but effect sizes are small and replication is inconsistent. rs747302 is the DRD4 -616 C/G promoter SNP and is not direct VNTR genotyping; treat any signal as low-confidence context only.",
           "trait_domain": "novelty_seeking",
           "associative_language": true,

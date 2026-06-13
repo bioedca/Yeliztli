@@ -413,6 +413,37 @@ class TestDRD4Proxy:
         assert "VNTR" in sc["proxy_target"]
         assert "not be treated as direct evidence" in sc["r_squared_note"]
 
+    # ── Citation provenance (issue #217) ────────────────────────────────
+    # The DRD4 row previously cited two unrelated papers: 8776587 (a lysosomal
+    # aspartylglucosaminidase mutation study) and 18197166 (a microRNA review).
+    # Pin the row to verified DRD4 VNTR novelty-seeking / ADHD references so
+    # those off-topic PMIDs cannot silently reappear.
+    _DRD4_PMIDS = {
+        "12210280",  # Schinka 2002 — DRD4 and novelty seeking, meta-analyses
+        "30260901",  # He 2018 — DRD4 exon III VNTR novelty-seeking meta-analysis
+        "32075956",  # Bonvicini 2020 — DRD4 48-bp VNTR in ADHD
+    }
+    _BANNED_PMIDS = {"8776587", "18197166"}
+
+    def test_drd4_cites_verified_vntr_refs(self, panel_data: dict) -> None:
+        assert set(self._get_drd4(panel_data)["pmids"]) == self._DRD4_PMIDS
+
+    def test_banned_pmids_absent_from_whole_traits_panel(self, panel_data: dict) -> None:
+        # Both banned PMIDs were exclusive to the DRD4 row, so neither should
+        # appear anywhere in the traits panel after the fix.
+        def _all_pmids(obj: object):
+            if isinstance(obj, dict):
+                if isinstance(obj.get("pmids"), list):
+                    yield from obj["pmids"]
+                for value in obj.values():
+                    yield from _all_pmids(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    yield from _all_pmids(item)
+
+        leaked = self._BANNED_PMIDS & set(_all_pmids(panel_data))
+        assert not leaked, f"unrelated PMID(s) still in traits panel: {sorted(leaked)}"
+
     def test_drd4_gene_health_cross_link(self, panel_data: dict) -> None:
         """DRD4 should cross-link to Gene Health module (ADHD)."""
         drd4 = self._get_drd4(panel_data)
