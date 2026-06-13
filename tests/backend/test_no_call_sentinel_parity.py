@@ -50,6 +50,10 @@ from backend.analysis.apoe import (
 from backend.analysis.lai_runner import LAIRunner
 from backend.analysis.pharmacogenomics import _count_alt_alleles
 from backend.analysis.prs import _count_effect_allele
+from backend.analysis.risk_genotype import (
+    _TRUE_NO_CALLS as _RISK_GENOTYPE_TRUE_NO_CALLS,
+)
+from backend.analysis.zygosity import _NO_CALL_SENTINELS
 from backend.api.routes.variants import _classify_genotype
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants
@@ -270,3 +274,34 @@ _CLASSIFY_GENOTYPE_CALLED_INPUTS: list[tuple[str, str]] = [
 def test_classify_genotype_called_rows_unchanged(genotype: str, expected: str) -> None:
     """Called rows (het / hom) retain their pre-MRG-01a classification."""
     assert _classify_genotype(genotype) == expected
+
+
+# ── risk_genotype._TRUE_NO_CALLS (second hand-maintained sentinel set) ───────
+#
+# risk_genotype keeps its OWN no-call set rather than delegating to
+# ``is_no_call`` because it must *score* I/D calls at indel-typed loci (e.g.
+# APOL1 G2) instead of discarding them — so it recognises every genuine no-call
+# sentinel EXCEPT the indel codes. The set is now derived from
+# ``_NO_CALL_SENTINELS`` so it cannot drift, but this guard pins the invariant
+# with an INDEPENDENT indel-code literal: it fails if a new sentinel added to
+# the shared set fails to reach risk_genotype, or if the set of excluded indel
+# codes changes (#525).
+
+_INDEL_NO_CALL_CODES = frozenset({"II", "DD", "DI", "ID"})
+
+
+def test_risk_genotype_true_no_calls_match_shared_sentinels_minus_indels() -> None:
+    """``risk_genotype._TRUE_NO_CALLS`` == shared sentinels minus the indel codes.
+
+    Every *genuine* no-call recognised by ``is_no_call`` must also be a no-call
+    for the by-rsID risk modules (gout, AMD, hemochromatosis, APOL1, …). The
+    only intended difference is the four indel codes, which risk_genotype scores
+    at indel-typed loci. If the two sets drift apart, this fails — the lock the
+    issue (#525) asked for, mirroring the per-module cases above.
+    """
+    assert _RISK_GENOTYPE_TRUE_NO_CALLS == _NO_CALL_SENTINELS - _INDEL_NO_CALL_CODES
+    # Every risk-genotype no-call is also a shared-recognition no-call: no extra
+    # sentinel unknown to is_no_call leaks in.
+    assert _RISK_GENOTYPE_TRUE_NO_CALLS <= _NO_CALL_SENTINELS
+    # …and the shared set differs from it by exactly the indel codes.
+    assert _NO_CALL_SENTINELS - _RISK_GENOTYPE_TRUE_NO_CALLS == _INDEL_NO_CALL_CODES

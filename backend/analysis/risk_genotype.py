@@ -43,7 +43,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.allele_match import risk_dosage
-from backend.analysis.zygosity import is_no_call
+from backend.analysis.zygosity import _NO_CALL_SENTINELS, is_no_call
 from backend.db.tables import findings, raw_variants
 
 logger = structlog.get_logger(__name__)
@@ -59,14 +59,20 @@ PROBE_ABSENT = "absent"
 ALLELE_TYPE_SNV = "snv"
 ALLELE_TYPE_INDEL = "indel"
 
+# The indel codes the global :func:`backend.analysis.zygosity.is_no_call`
+# treats as no-calls because most modules cannot map an I/D call to ref/alt —
+# but an indel-typed :class:`RiskLocus` declares its own I/D risk/ref tokens
+# (e.g. APOL1 G2, a 6-bp deletion), so for those loci we recognise I/D calls as
+# real genotypes instead of discarding them.
+_INDEL_NO_CALL_CODES = frozenset({"DD", "II", "DI", "ID"})
+
 # The genotype sentinels that are *always* a no-call, even for an indel-typed
-# locus. The global :func:`backend.analysis.zygosity.is_no_call` additionally
-# treats ``"DD"/"II"/"DI"/"ID"`` as no-calls because most modules cannot map an
-# I/D call to ref/alt — but an indel-typed :class:`RiskLocus` declares its own
-# I/D risk/ref tokens (e.g. APOL1 G2, a 6-bp deletion), so for those loci we
-# recognise I/D calls as real genotypes instead of discarding them. A genuine
-# no-call ("--", "??", empty, …) stays indeterminate for every locus type.
-_TRUE_NO_CALLS = frozenset({"", "--", "??", "-", "0", "00"})
+# locus — a genuine no-call ("--", "??", empty, …) stays indeterminate for every
+# locus type. Derived from the shared zygosity recognition set (minus the indel
+# codes above) so this second copy cannot silently drift from ``is_no_call``
+# (#525); the parity guard in tests/backend/test_no_call_sentinel_parity.py
+# locks the invariant.
+_TRUE_NO_CALLS = _NO_CALL_SENTINELS - _INDEL_NO_CALL_CODES
 
 # ── Shared caveat registry ─────────────────────────────────────────────────
 # Caveat keys referenced by panel models resolve to standing language so the
