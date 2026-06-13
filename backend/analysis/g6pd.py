@@ -80,14 +80,17 @@ Southeast/South-Asian literature (Nuchprayoon 2002; Iwai 2001; Ainoon 1999):
   own; relevant only as the A− background. Forward T/C; the 376G allele is
   forward **C**. Context, never a deficiency call by itself.
 
-**Which of these a consumer array actually types varies.** A− (rs1050828) and
-Mediterranean (rs5030868) are standard content on the Illumina GSA and therefore on
-23andMe v5 / AncestryDNA; the remaining (mostly East/Southeast-Asian) alleles are
-CPIC-defined deficiency variants whose presence depends on the specific chip/version,
-so they are included for sensitivity but their *absence* from a sample is reported as
-not-called, never as a false deficiency call (SNP chips type common variants reliably
-yet rarer ones inconsistently — Weedon 2021, PMID 33589468). Adding a locus can only
-*raise* sensitivity for ancestries whose deficiency is not driven by A−/Mediterranean.
+**Array typeability (#321).** Every CPIC deficiency variant below is present on the
+Illumina Infinium Global Screening Array-24 v3.0 backbone — the documented basis for
+23andMe v5 and AncestryDNA — verified against the public GSA-24v3 manifest by rsID and
+GRCh37 position (``backend/data/array_manifests/gsa_24v3_typeability.json``, with
+provenance). Each variant therefore carries a ``gsa_v3_typed`` flag surfaced in the
+API, so a no-call on a covered locus is a genuine reference/absent call rather than the
+locus being un-interrogated. DTC vendors add/remove custom content, so the GSA backbone
+is the best public proxy and a non-call is still never reported as a false deficiency
+call. (Adding a locus can only *raise* sensitivity for ancestries whose deficiency is
+not driven by A−/Mediterranean; SNP chips type common variants reliably yet rarer ones
+inconsistently — Weedon 2021, PMID 33589468.)
 
 **Palindromic (C/G) loci — strand-ambiguity withholding.** Seattle/Lodi and Cosenza
 are C↔G SNPs whose two alleles are reverse complements. Unlike every other locus
@@ -110,6 +113,8 @@ layer changes no finding. See :data:`backend.disclaimers.G6PD_PGX_CONTEXT_ONLY`.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -118,6 +123,23 @@ from backend.analysis.pharmacogenomics import _fetch_sample_genotypes
 from backend.analysis.zygosity import COMPLEMENT, is_no_call
 from backend.disclaimers import G6PD_PGX_CONTEXT_ONLY
 from backend.services.sex_inference import infer_biological_sex
+
+# Array typeability for the curated G6PD/LCT loci, derived from the public Illumina
+# Infinium Global Screening Array-24 v3.0 manifest (#321). GSA-24v3 is the documented
+# backbone for 23andMe v5 and AncestryDNA; the bundled artifact records which rsIDs the
+# backbone interrogates (membership facts only, with provenance) so a non-call on a
+# covered locus is distinguished from a locus the array never types. Every CPIC G6PD
+# deficiency variant in this module is on the GSA-24v3 backbone (verified by rsID and
+# GRCh37 position).
+_GSA_TYPEABILITY_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "array_manifests"
+    / "gsa_24v3_typeability.json"
+)
+_GSA_V3_TYPED_RSIDS: frozenset[str] = frozenset(
+    json.loads(_GSA_TYPEABILITY_PATH.read_text())["typed"]
+)
 
 # CPIC: expanded medication guideline (primary) + the rasburicase guideline; He 2020
 # (Han-Chinese variant spectrum) backs the East/Southeast-Asian deficiency panel.
@@ -143,9 +165,9 @@ G6PD_MED_DEF = "A"  # forward = gene "T" (Mediterranean deficiency allele)
 # plus-strand base of the DEFICIENCY allele. G6PD is minus-strand, so these are the
 # complement of the cDNA base — and exactly what 23andMe/AncestryDNA and dbSNP report
 # (plus strand). Every row is from the CPIC G6PD Allele Definition Table (PMID 36049896)
-# and was cross-checked on Ensembl GRCh37 REST + NCBI dbSNP. A−/Mediterranean are
-# reliably array-typed; the remaining (mostly E/SE-Asian) CPIC deficiency alleles vary
-# by chip — a non-call never excludes them (see the module docstring). Note rs72554665
+# and was cross-checked on Ensembl GRCh37 REST + NCBI dbSNP. All rows are present on the
+# GSA-24v3 backbone (#321; gsa_24v3_typeability.json) and surface a gsa_v3_typed flag —
+# a non-call never excludes them (see the module docstring). Note rs72554665
 # (Canton C>A and Cosenza C>G, two rows sharing the position), rs5030869 (Chatham) are
 # multiallelic; only the deficiency alt is encoded per row, and a base outside a row's
 # {ref, alt} never cross-calls. Seattle/Lodi and Cosenza are C/G *palindromic*: their
@@ -344,6 +366,10 @@ def _locus_call(
         "called": state is not None,
         "deficiency_alleles": state["deficiency"] if state else None,
         "strand_ambiguous": _strand_ambiguous_call(genotype, ref, deficiency_allele),
+        # Whether the GSA-24v3 backbone (23andMe v5 / AncestryDNA) interrogates this
+        # locus (#321). When True, a no-call is a genuine reference/absent call on a
+        # covered probe; when False it would mean the array never types the locus.
+        "gsa_v3_typed": rsid in _GSA_V3_TYPED_RSIDS,
     }
 
 

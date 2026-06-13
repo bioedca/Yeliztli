@@ -41,6 +41,11 @@ class G6pdVariantResponse(BaseModel):
     # because its strand is unresolvable (see backend.analysis.g6pd) — distinct from a
     # plain no-call.
     strand_ambiguous: bool = False
+    # True when the locus is on the Illumina GSA-24v3 backbone (23andMe v5 /
+    # AncestryDNA basis), so a no-call is a genuine reference/absent call on a covered
+    # probe rather than the array never interrogating the locus (#321). Provenance:
+    # backend/data/array_manifests/gsa_24v3_typeability.json.
+    gsa_v3_typed: bool = False
 
 
 class G6pdResponse(BaseModel):

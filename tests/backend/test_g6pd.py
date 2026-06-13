@@ -330,3 +330,56 @@ class TestExpandedDeficiencyPanel:
     def test_han_chinese_frequency_citation_present(self) -> None:
         # He 2020 (PMID 33051526) backs the East/Southeast-Asian deficiency panel.
         assert "33051526" in G6PD_PMID_CITATIONS
+
+
+# ── GSA-24v3 array typeability (issue #321) ───────────────────────────────
+
+
+class TestGsaArrayTypeability:
+    """Every CPIC G6PD deficiency variant is on the GSA-24v3 backbone (#321).
+
+    The repo previously could only assert that A-/Mediterranean were standard GSA
+    content and the rest "varied by chip". The public Illumina GSA-24v3 manifest was
+    checked (by rsID and GRCh37 position) and bundled as derived membership facts in
+    backend/data/array_manifests/gsa_24v3_typeability.json; all G6PD deficiency loci
+    are present, so each carries gsa_v3_typed=True.
+    """
+
+    def _artifact(self) -> dict:
+        import json
+        from pathlib import Path
+
+        path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "backend"
+            / "data"
+            / "array_manifests"
+            / "gsa_24v3_typeability.json"
+        )
+        return json.loads(path.read_text())
+
+    def test_artifact_has_provenance(self) -> None:
+        prov = self._artifact()["_provenance"]
+        for key in ("source", "url", "genome_build", "accessed", "derivation"):
+            assert prov.get(key), f"provenance missing {key}"
+        assert prov["genome_build"] == "GRCh37"
+
+    def test_all_g6pd_deficiency_variants_are_gsa_typed(self) -> None:
+        typed = set(self._artifact()["typed"])
+        for _name, rsid, *_ in G6PD_DEFICIENCY_VARIANTS:
+            assert rsid in typed, f"{rsid} not recorded as GSA-24v3 typed"
+
+    def test_locus_calls_surface_gsa_v3_typed(self) -> None:
+        # Every locus comes back gsa_v3_typed=True regardless of genotype (here a single
+        # reference A- call; the rest are no-calls but still GSA-typed).
+        engine = _make_sample({G6PD_A_MINUS_RSID: "C"})
+        with patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"):
+            result = assess_g6pd(engine)
+        for v in result["variants"]:
+            assert v["gsa_v3_typed"] is True, f"{v['rsid']} should be gsa_v3_typed"
+
+    def test_non_european_lct_absentees_recorded(self) -> None:
+        # The two LCT variants absent from the GSA backbone are recorded as not_typed
+        # (consumed by the #291 lactase-persistence work).
+        not_typed = set(self._artifact()["not_typed"])
+        assert {"rs145946881", "rs869051967"} <= not_typed

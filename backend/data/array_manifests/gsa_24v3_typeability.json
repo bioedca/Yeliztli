@@ -1,0 +1,136 @@
+{
+  "_provenance": {
+    "source": "Illumina Infinium Global Screening Array-24 v3.0 manifest (GSA-24v3-0_A1)",
+    "url": "https://www.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/global-screening-array-24/v3-0/GSA-24v3-0-A1-manifest-file-csv.zip",
+    "genome_build": "GRCh37",
+    "manifest_probe_count": 654059,
+    "accessed": "2026-06-13",
+    "derivation": "Derived dbSNP rsID membership only \u2014 which curated loci the GSA-24v3 backbone interrogates, extracted by matching the manifest Name/Chr/MapInfo columns. The manifest's probe sequences and designs are NOT redistributed.",
+    "scope_note": "GSA-24v3 is the documented backbone for 23andMe v5 and AncestryDNA, which add/remove custom content. A rsID under 'typed' is reliably interrogated on the GSA backbone (best public proxy for DTC coverage); exact per-vendor content may differ. A locus under 'not_typed' is unobserved on this backbone \u2014 never a reference call.",
+    "license_note": "Factual array-membership derived from the public Illumina product manifest; not a redistribution of the manifest file."
+  },
+  "typed": {
+    "rs1050828": {
+      "locus": "G6PD A- (rs1050828, c.202G>A)",
+      "chr": "X",
+      "pos": 153764217,
+      "ref_strand": "-",
+      "snp": "[A/G]"
+    },
+    "rs5030868": {
+      "locus": "G6PD Mediterranean (rs5030868, c.563C>T)",
+      "chr": "X",
+      "pos": 153762634,
+      "ref_strand": "+",
+      "snp": "[A/G]"
+    },
+    "rs137852314": {
+      "locus": "G6PD Mahidol (rs137852314)",
+      "chr": "X",
+      "pos": 153762710,
+      "ref_strand": "+",
+      "snp": "[T/C]"
+    },
+    "rs72554665": {
+      "locus": "G6PD Canton/Cosenza (rs72554665, multiallelic)",
+      "chr": "X",
+      "pos": 153760484,
+      "ref_strand": "+",
+      "snp": "[A/C]"
+    },
+    "rs72554664": {
+      "locus": "G6PD Kaiping (rs72554664)",
+      "chr": "X",
+      "pos": 153760472,
+      "ref_strand": "+",
+      "snp": "[T/C]"
+    },
+    "rs137852327": {
+      "locus": "G6PD Viangchan (rs137852327)",
+      "chr": "X",
+      "pos": 153761337,
+      "ref_strand": "-",
+      "snp": "[A/G]"
+    },
+    "rs398123546": {
+      "locus": "G6PD Union (rs398123546)",
+      "chr": "X",
+      "pos": 153760605,
+      "ref_strand": "-",
+      "snp": "[T/C]"
+    },
+    "rs137852342": {
+      "locus": "G6PD Chinese-5 (rs137852342)",
+      "chr": "X",
+      "pos": 153761184,
+      "ref_strand": "+",
+      "snp": "[A/G]"
+    },
+    "rs137852330": {
+      "locus": "G6PD Coimbra (rs137852330)",
+      "chr": "X",
+      "pos": 153762605,
+      "ref_strand": "+",
+      "snp": "[A/G]"
+    },
+    "rs5030869": {
+      "locus": "G6PD Chatham (rs5030869)",
+      "chr": "X",
+      "pos": 153761205,
+      "ref_strand": "+",
+      "snp": "[T/C]"
+    },
+    "rs137852340": {
+      "locus": "G6PD Gaohe (rs137852340)",
+      "chr": "X",
+      "pos": 153774276,
+      "ref_strand": "+",
+      "snp": "[T/C]"
+    },
+    "rs137852318": {
+      "locus": "G6PD Seattle/Lodi (rs137852318)",
+      "chr": "X",
+      "pos": 153761811,
+      "ref_strand": "+",
+      "snp": "[C/G]"
+    },
+    "rs1050829": {
+      "locus": "G6PD c.376A>G A+ background (rs1050829)",
+      "chr": "X",
+      "pos": 153763492,
+      "ref_strand": "+",
+      "snp": "[T/C]"
+    },
+    "rs4988235": {
+      "locus": "LCT -13910 European LP (rs4988235)",
+      "chr": "2",
+      "pos": 136608646,
+      "ref_strand": "+",
+      "snp": "[A/G]"
+    },
+    "rs41380347": {
+      "locus": "LCT -13915*G Middle Eastern LP (rs41380347)",
+      "chr": "2",
+      "pos": 136608651,
+      "ref_strand": "-",
+      "snp": "[T/G]"
+    },
+    "rs41525747": {
+      "locus": "LCT -13907*G East African LP (rs41525747)",
+      "chr": "2",
+      "pos": 136608643,
+      "ref_strand": "-",
+      "snp": "[G/C]"
+    }
+  },
+  "not_typed": {
+    "rs145946881": {
+      "locus": "LCT -14010*C East African LP (rs145946881)",
+      "reason": "absent from GSA-24v3 manifest (checked by rsID and GRCh37 position)"
+    },
+    "rs869051967": {
+      "locus": "LCT -14009*G NE African LP (rs869051967)",
+      "reason": "absent from GSA-24v3 manifest (checked by rsID and GRCh37 position)"
+    }
+  }
+}
