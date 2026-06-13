@@ -341,6 +341,35 @@ class TestSNPScoring:
         assert "lower estimated" in cc.effect_summary.lower()
         assert "33331250" in cc.pmids
 
+    def test_cyp2r1_rs10741657_g_is_lower_vitamin_d_direction(
+        self, panel: NutrigenomicsPanel
+    ) -> None:
+        """CYP2R1 rs10741657: G is the lower-25(OH)D / deficiency-risk allele (#242).
+
+        Duan et al. 2018 meta-analysis (PMID 30120973, 52,417 participants): GG has
+        lower 25(OH)D than AA, and risk-allele G raises vitamin D deficiency risk. The
+        SNP is A/G (a non-palindromic transition), so the panel and the literature
+        share the strand — GG, not AA, must carry the lower-vitamin-D concern. Guards
+        against re-inverting the direction.
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs10741657")
+
+        assert snp.risk_allele == "G"
+        gg = _score_snp(snp, "GG")
+        ga = _score_snp(snp, "GA")
+        ag = _score_snp(snp, "AG")
+        aa = _score_snp(snp, "AA")
+
+        # G carriers (GG) carry the reduced-expression / lower-vitamin-D concern.
+        assert gg.category == MODERATE
+        assert "lower vitamin d" in gg.effect_summary.lower()
+        assert "30120973" in gg.pmids
+        # Heterozygotes: one risk allele, mildly reduced (strand/order invariant).
+        assert ga.category == ag.category == MODERATE
+        # AA (no risk allele) is the normal / higher-vitamin-D genotype.
+        assert aa.category == STANDARD
+        assert "lower vitamin d" not in aa.effect_summary.lower()
+
 
 class TestLactaseAncestryCaveat:
     """#181 — the European LCT -13910 (rs4988235) non-persistence call must be
