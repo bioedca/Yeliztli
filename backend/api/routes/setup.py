@@ -30,6 +30,7 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 
 from backend.config import (
+    config_write_lock,
     get_settings,
     read_config_section,
     write_config_section,
@@ -940,17 +941,18 @@ async def save_credentials(body: SaveCredentialsRequest) -> SaveCredentialsRespo
     # Ensure data dir exists
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read existing config and update credentials
-    existing_content = _read_config_toml(config_path)
-    section = read_config_section(existing_content)
-    section["pubmed_email"] = body.pubmed_email
-    # Config key is pubmed_api_key (matching Settings/Entrez naming);
-    # API field is ncbi_api_key for end-user clarity.
-    section["pubmed_api_key"] = body.ncbi_api_key
-    section["omim_api_key"] = body.omim_api_key
-    write_config_section(existing_content, section)
-
-    write_config_toml(config_path, existing_content)
+    # Read existing config and update credentials under the shared lock so a
+    # concurrent theme/auth save can't clobber these keys (or vice versa).
+    with config_write_lock:
+        existing_content = _read_config_toml(config_path)
+        section = read_config_section(existing_content)
+        section["pubmed_email"] = body.pubmed_email
+        # Config key is pubmed_api_key (matching Settings/Entrez naming);
+        # API field is ncbi_api_key for end-user clarity.
+        section["pubmed_api_key"] = body.ncbi_api_key
+        section["omim_api_key"] = body.omim_api_key
+        write_config_section(existing_content, section)
+        write_config_toml(config_path, existing_content)
 
     logger.info(
         "credentials_saved",

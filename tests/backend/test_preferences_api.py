@@ -49,10 +49,9 @@ def prefs_client(tmp_data_dir: Path) -> TestClient:
         patch("backend.main.get_settings", return_value=base_settings),
         patch("backend.db.connection.get_settings", return_value=base_settings),
         patch("backend.api.routes.preferences.get_settings", side_effect=_make_settings),
-        patch(
-            "backend.api.routes.preferences.DEFAULT_DATA_DIR",
-            tmp_data_dir,
-        ),
+        # set_theme now targets get_settings().data_dir (= tmp_data_dir via the
+        # side_effect above), so the old DEFAULT_DATA_DIR patch is unnecessary —
+        # and would fail now that preferences.py no longer imports that symbol.
         patch("backend.api.routes.databases.get_settings", return_value=base_settings),
     ):
         reset_registry()

@@ -4,6 +4,7 @@ Layered: defaults -> ~/.yeliztli/config.toml ([yeliztli] table) -> environment
 variables (YELIZTLI_*).
 """
 
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -312,6 +313,13 @@ def write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) 
     """Write ``content`` to ``config_path`` as escaped TOML (creating parents)."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(dump_config_toml(content), encoding="utf-8")
+
+
+# Serializes the read-modify-write of config.toml across every writer (setup
+# credentials, preferences theme, auth settings). Without one shared lock, two
+# concurrent saves each read the file, mutate their own key, and write back —
+# last-writer-wins silently drops the other's key.
+config_write_lock = threading.Lock()
 
 
 def write_data_dir_pointer(data_dir: Path) -> None:

@@ -6,7 +6,6 @@ Endpoints for persisting UI preferences (theme) to config.toml.
 from __future__ import annotations
 
 import logging
-import threading
 from pathlib import Path
 from typing import Literal
 
@@ -14,7 +13,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.config import (
-    DEFAULT_DATA_DIR,
+    config_write_lock,
     get_settings,
     read_config_section,
     write_config_section,
@@ -24,8 +23,6 @@ from backend.config import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
-
-_config_lock = threading.Lock()
 
 
 # ── TOML helpers (reuse pattern from setup.py) ─────────────────────
@@ -71,9 +68,12 @@ async def get_theme() -> ThemeResponse:
 @router.put("/theme", response_model=ThemeResponse)
 async def set_theme(body: ThemeRequest) -> ThemeResponse:
     """Update theme preference and persist to config.toml."""
-    config_path = DEFAULT_DATA_DIR / "config.toml"
+    # Write to the effective data_dir (which the wizard can relocate), NOT the
+    # default home dir — otherwise a relocated install's theme would be saved to
+    # the wrong, unread config.toml.
+    config_path = get_settings().data_dir / "config.toml"
 
-    with _config_lock:
+    with config_write_lock:
         content = _read_config_toml(config_path)
 
         section = read_config_section(content)

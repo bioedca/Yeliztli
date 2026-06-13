@@ -28,6 +28,7 @@ from backend.auth import (
     verify_password,
 )
 from backend.config import (
+    config_write_lock,
     get_settings,
     read_config_section,
     write_config_section,
@@ -104,12 +105,15 @@ def _persist_auth_settings(*, auth_enabled: bool, auth_password_hash: str) -> No
     config_path = settings.data_dir / "config.toml"
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
-    existing = _read_config_toml(config_path)
-    section = read_config_section(existing)
-    section["auth_enabled"] = auth_enabled
-    section["auth_password_hash"] = auth_password_hash
-    write_config_section(existing, section)
-    write_config_toml(config_path, existing)
+    # Read-modify-write under the shared lock so a concurrent credentials/theme
+    # save can't clobber the auth keys (or vice versa).
+    with config_write_lock:
+        existing = _read_config_toml(config_path)
+        section = read_config_section(existing)
+        section["auth_enabled"] = auth_enabled
+        section["auth_password_hash"] = auth_password_hash
+        write_config_section(existing, section)
+        write_config_toml(config_path, existing)
 
     # Bust the lru_cache so new settings take effect
     get_settings.cache_clear()
