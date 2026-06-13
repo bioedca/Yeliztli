@@ -18,6 +18,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.apol1 import assess_apol1, load_apol1_panel, store_apol1_findings
+from backend.analysis.risk_genotype import PROBE_TYPED, read_genotypes
 from backend.db.tables import findings, raw_variants
 
 
@@ -348,3 +349,51 @@ class TestG1HaplotypeConcordance:
         assert len(a.calls) == 1
         assert "indeterminate" in a.calls[0].risk_classification.lower()
         assert "high-risk" not in a.calls[0].risk_classification.lower()
+
+
+def _g2_alias(rsid: str, genotype: str) -> dict:
+    """Seed the G2 6-bp deletion under one of its merged alias rsIDs."""
+    return {"rsid": rsid, "chrom": "22", "pos": 36662042, "genotype": genotype}
+
+
+class TestG2AliasResolution:
+    """#262 — the APOL1 G2 deletion carries merged rsIDs (rs71785313 ≡
+    rs143830837 ≡ rs1317778148). A G2 typed under an alias must be read as G2,
+    not under-called as off-chip."""
+
+    def test_panel_declares_verified_g2_aliases(self, panel) -> None:
+        g2 = panel.locus("rs71785313")
+        assert g2 is not None
+        assert g2.alias_rsids == ("rs143830837", "rs1317778148")
+
+    @pytest.mark.parametrize("alias", ["rs143830837", "rs1317778148"])
+    def test_g2_under_alias_read_as_g2(self, panel, sample_engine: sa.Engine, alias: str) -> None:
+        # G2 deletion stored under an alias rsID (canonical rs71785313 absent).
+        _seed(sample_engine, [_g2_alias(alias, "DI")])
+        readouts = read_genotypes(panel, sample_engine)
+        g2 = readouts["rs71785313"]  # keyed back to the canonical rsid
+        assert g2.status == PROBE_TYPED
+        assert g2.genotype == "DI"
+
+    def test_g1g2_high_risk_with_g2_under_alias(self, panel, sample_engine: sa.Engine) -> None:
+        # The sensitivity fix: G1 het (tag AG = 1) + a real G2 het (DI = 1) typed
+        # under an alias = two risk alleles → recessive high-risk. Pre-fix the
+        # alias-stored G2 read as off-chip, under-calling this to indeterminate.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(
+            sample_engine,
+            [_g1("AG"), _g1b("AG"), _g2_alias("rs143830837", "DI"), _n264k("CC")],
+        )
+        a = assess_apol1(panel, sample_engine)
+        assert len(a.calls) == 1
+        assert "high-risk" in a.calls[0].risk_classification.lower()
+        assert "rs71785313" not in a.indeterminate_loci
+
+    def test_canonical_rsid_still_resolves_without_alias(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # Regression: a G2 under the canonical rsid is unaffected by the alias path.
+        _seed(sample_engine, [_g2("DD")])
+        readouts = read_genotypes(panel, sample_engine)
+        assert readouts["rs71785313"].status == PROBE_TYPED
+        assert readouts["rs71785313"].genotype == "DD"

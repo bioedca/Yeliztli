@@ -44,6 +44,8 @@
       "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "indel",
+      "alias_rsids": ["rs143830837", "rs1317778148"],
+      "alias_rsids_note": "Merged dbSNP/gnomAD synonym records of the SAME APOL1 G2 6-bp deletion as rs71785313: rs143830837 (the dbSNP record cited by David et al. 2018) and rs1317778148 (gnomAD's label). Verified 2026-06-13 via Ensembl — rs71785313's synonyms array lists both, all sharing allele_string ATAATTATAA/ATAA (6-bp inframe deletion) at chr22:36,265,996-36,266,005 (GRCh38), ClinVar VCV000006081 / OMIM 603743.0002. read_genotypes reads the union and resolves the first typed match so a G2 stored under an alias is not under-called as off-chip (#262).",
       "indel_polarity": {
         "variant_class": "deletion",
         "variant_allele_token": "D",

@@ -183,6 +183,14 @@ class RiskLocus:
     # suppress a real call. An untyped/no-call partner does not veto — the tag SNP
     # alone is a validated G1 readout. (#160)
     concordant_rsids: tuple[str, ...] = ()
+    # Additional rsIDs that are merged/synonym records of the SAME variant as
+    # this locus. ``read_genotypes`` reads the union of ``rsid`` + ``alias_rsids``
+    # and resolves the first *typed* match, keyed back to the canonical ``rsid``,
+    # so a sample that stored this variant under an alias is not under-called to
+    # off-chip. Only seed with dbSNP/gnomAD-verified merges of the same variant
+    # (e.g. the APOL1 G2 6-bp deletion rs71785313 ≡ rs143830837 ≡ rs1317778148);
+    # an incorrect alias would mis-read a different variant as this locus. (#262)
+    alias_rsids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -322,6 +330,7 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             allele_type=loc.get("allele_type", ALLELE_TYPE_SNV),
             allow_strand_complement=loc.get("allow_strand_complement", True),
             concordant_rsids=tuple(loc.get("concordant_rsids", ())),
+            alias_rsids=tuple(loc.get("alias_rsids", ())),
         )
         for loc in data["loci"]
     ]
@@ -337,6 +346,20 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
                     f"Panel '{data['module']}' locus '{loc.rsid}' lists concordant_rsids "
                     f"partner '{partner}' that is not a declared locus in this panel."
                 )
+
+    # No rsID may map to two loci: every canonical rsid and alias rsid across the
+    # panel must be unique, else a single sample variant could be claimed by two
+    # loci (ambiguous read). Guards against an alias colliding with another
+    # locus's canonical rsid or alias. (#262)
+    seen_rsids: dict[str, str] = {}
+    for loc in loci:
+        for rid in (loc.rsid, *loc.alias_rsids):
+            if rid in seen_rsids:
+                raise ValueError(
+                    f"Panel '{data['module']}' rsID '{rid}' is declared by both locus "
+                    f"'{seen_rsids[rid]}' and locus '{loc.rsid}' (canonical/alias collision)."
+                )
+            seen_rsids[rid] = loc.rsid
 
     models: list[GenotypeModel] = []
     for m in data["genotype_models"]:
@@ -446,25 +469,49 @@ def _validate_pmids(module: str, model_id: str, field_name: str, pmids: Any) -> 
 def read_genotypes(panel: RiskPanel, sample_engine: sa.Engine) -> dict[str, ProbeReadout]:
     """Read each panel locus's genotype from ``raw_variants``.
 
-    A probe absent from ``raw_variants`` (off-chip) is ``PROBE_ABSENT`` and a
-    no-call is ``PROBE_NO_CALL`` — both yield an indeterminate dosage downstream,
-    never a false-negative.
+    A locus is read from its canonical ``rsid`` or any of its ``alias_rsids``
+    (merged/synonym records of the same variant). The first *typed* match wins,
+    keyed back to the canonical rsid, so a variant stored under an alias is not
+    under-called as off-chip (#262). A probe absent from ``raw_variants``
+    (off-chip) is ``PROBE_ABSENT`` and a no-call is ``PROBE_NO_CALL`` — both
+    yield an indeterminate dosage downstream, never a false-negative.
     """
+    query_rsids: set[str] = set()
+    for loc in panel.loci:
+        query_rsids.add(loc.rsid)
+        query_rsids.update(loc.alias_rsids)
+
     with sample_engine.connect() as conn:
         stmt = sa.select(raw_variants.c.rsid, raw_variants.c.genotype).where(
-            raw_variants.c.rsid.in_(panel.rsids)
+            raw_variants.c.rsid.in_(query_rsids)
         )
         rows = {row.rsid: row.genotype for row in conn.execute(stmt)}
 
     readouts: dict[str, ProbeReadout] = {}
-    for rsid in panel.rsids:
-        locus = panel.locus(rsid)
-        if rsid not in rows:
-            readouts[rsid] = ProbeReadout(rsid, None, PROBE_ABSENT)
-        elif _locus_is_no_call(locus, rows[rsid]):
-            readouts[rsid] = ProbeReadout(rsid, rows[rsid], PROBE_NO_CALL)
+    for loc in panel.loci:
+        # Prefer a real typed call from the canonical rsid or any alias (in
+        # order); fall back to a no-call if some record was present but uncalled;
+        # else off-chip. For loci with no aliases this is identical to reading the
+        # canonical rsid alone.
+        typed_genotype: str | None = None
+        nocall_genotype: str | None = None
+        for candidate in (loc.rsid, *loc.alias_rsids):
+            if candidate not in rows:
+                continue
+            genotype = rows[candidate]
+            if _locus_is_no_call(loc, genotype):
+                if nocall_genotype is None:
+                    nocall_genotype = genotype
+            else:
+                typed_genotype = genotype
+                break
+
+        if typed_genotype is not None:
+            readouts[loc.rsid] = ProbeReadout(loc.rsid, typed_genotype, PROBE_TYPED)
+        elif nocall_genotype is not None:
+            readouts[loc.rsid] = ProbeReadout(loc.rsid, nocall_genotype, PROBE_NO_CALL)
         else:
-            readouts[rsid] = ProbeReadout(rsid, rows[rsid], PROBE_TYPED)
+            readouts[loc.rsid] = ProbeReadout(loc.rsid, None, PROBE_ABSENT)
     return readouts
 
 
