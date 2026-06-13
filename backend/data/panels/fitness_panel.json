@@ -129,8 +129,8 @@
               "effect_summary": "Proxy for ACE ID genotype (insertion/deletion). Intermediate ACE activity; performance evidence is mixed and not deterministic."
             },
             "GG": {
-              "category": "Elevated",
-              "effect_summary": "Proxy for ACE DD genotype (deletion/deletion). Often discussed for power/sprint phenotypes, but evidence is heterogeneous and should be treated as contextual."
+              "category": "Moderate",
+              "effect_summary": "Proxy for ACE DD genotype (deletion/deletion). Often discussed for power/sprint phenotypes, but the association is modest, population-specific, and heterogeneous (some cohorts find DD unfavourable for power or enriched in endurance), and the largest meta-analysis finds no overall genomic-variant association with performance. Treated as contextual, not a strong (Elevated) signal."
             }
           },
           "coverage_note": "rs4341 is a proxy SNP for the ACE insertion/deletion (I/D) polymorphism, which is a 287 bp Alu repeat not directly genotyped on SNP arrays. Published genotyping studies report high linkage disequilibrium with ACE I/D in specific cohorts, but proxy accuracy may vary by ancestry and assay.",

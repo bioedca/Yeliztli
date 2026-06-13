@@ -303,11 +303,16 @@ class TestACEProxy:
         assert "proxy" in ace["coverage_note"].lower()
         assert "linkage disequilibrium" in ace["coverage_note"].lower()
 
-    def test_ace_gg_elevated_power(self, panel_data: dict) -> None:
-        """DD proxy (GG) → Elevated category (power)."""
+    def test_ace_gg_moderate_power(self, panel_data: dict) -> None:
+        """DD proxy (GG) → Moderate, not Elevated (#352).
+
+        The strongest tier overstates ACE I/D's heterogeneous, largely-null evidence
+        (Psatha 2024, PMID 38760851); GG matches the ID (AG/GA) Moderate row so ACE
+        alone cannot drive the Power pathway summary to Elevated.
+        """
         ace = self._get_ace(panel_data)
         effect = ace["genotype_effects"]["GG"]
-        assert effect["category"] == "Elevated"
+        assert effect["category"] == "Moderate"
         summary = effect["effect_summary"].lower()
         assert "power" in summary or "sprint" in summary
 

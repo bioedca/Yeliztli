@@ -281,11 +281,18 @@ class TestACEProxy:
         assert ace.coverage_note is not None
         assert "proxy" in ace.coverage_note.lower()
 
-    def test_ace_gg_elevated(self, panel: FitnessPanel) -> None:
-        """DD proxy (GG) → Elevated Power."""
+    def test_ace_gg_moderate(self, panel: FitnessPanel) -> None:
+        """DD proxy (GG) → Moderate, not Elevated (#352).
+
+        The largest meta-analysis (Psatha 2024, PMID 38760851) finds no overall
+        genomic-variant association with power/endurance, and the ACE DD→power signal
+        is modest, population-specific, and even contradicted (DD unfavourable for
+        power in some cohorts; enriched in endurance in others). So ACE alone must not
+        push the Power pathway to the strongest tier; GG matches the ID (AG/GA) row.
+        """
         ace = self._get_ace(panel)
         result = _score_snp(ace, "GG")
-        assert result.category == ELEVATED
+        assert result.category == MODERATE
         assert result.coverage_note is not None
 
     def test_ace_ag_moderate(self, panel: FitnessPanel) -> None:
@@ -599,10 +606,10 @@ class TestCrossContextFindings:
         ACE I/D sport-performance evidence is heterogeneous, sport-specific, and
         not a reliable individual predictor — the broad meta-analysis finds no
         overall power/endurance association (Psatha et al. 2024, PMID 38760851).
-        Both reachable non-Standard genotypes (AG/GA = Moderate ID proxy; GG =
-        Elevated DD proxy) must carry the panel's caveated effect_summary, not
-        the old hardcoded deterministic strings. AA (II) is Standard and never
-        reaches cross-context generation.
+        Both reachable non-Standard genotypes (AG/GA = ID proxy; GG = DD proxy) are
+        Moderate (#352) and must carry the panel's caveated effect_summary, not the
+        old hardcoded deterministic strings. AA (II) is Standard and never reaches
+        cross-context generation.
         """
         ace_snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs4341")
         # Each is the exact hardcoded string the old code emitted for one genotype;
@@ -613,7 +620,7 @@ class TestCrossContextFindings:
             "enhanced endurance performance",  # old II (AA) string
         )
 
-        for genotype, category in (("AG", MODERATE), ("GG", ELEVATED)):
+        for genotype, category in (("AG", MODERATE), ("GG", MODERATE)):
             summary = ace_snp.genotype_effects[genotype]["effect_summary"]
             power_pr = PathwayResult(
                 pathway_id="power",
@@ -759,10 +766,11 @@ class TestScorePathways:
         endurance = next(pr for pr in result.pathway_results if pr.pathway_id == "endurance")
         assert endurance.level == MODERATE
 
-        # Power: ACE GG=Elevated drives Elevated; MCT1 TT is a palindromic A/T
-        # homozygote → Indeterminate (#170), which does not lower the level.
+        # Power: ACE GG=Moderate (#352 — DD proxy no longer Elevated); MCT1 TT is a
+        # palindromic A/T homozygote → Indeterminate (#170), which does not lower the
+        # level. So ACE alone can no longer drive Power to Elevated → pathway = Moderate.
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
-        assert power.level == ELEVATED
+        assert power.level == MODERATE
         mct1 = next(s for s in power.snp_results if s.rsid == "rs1049434")
         assert mct1.category == INDETERMINATE
 
@@ -1084,7 +1092,7 @@ class TestStoreFindingsIntegration:
                 ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Elevated
                 ("rs8192678", "4", 23814519, "AA"),  # PPARGC1A → Moderate (capped)
                 ("rs17602729", "1", 114677654, "TT"),  # AMPD1 → Moderate (capped)
-                ("rs4341", "17", 63488529, "GG"),  # ACE DD → Elevated
+                ("rs4341", "17", 63488529, "GG"),  # ACE DD → Moderate (#352)
                 ("rs1049434", "1", 113545811, "AA"),  # MCT1 → Moderate (capped)
                 ("rs12722", "9", 137048876, "TT"),  # COL5A1 → Moderate (capped)
                 ("rs1800012", "17", 50201587, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
