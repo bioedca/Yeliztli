@@ -2,6 +2,8 @@
 
 Once annotation finishes, the **dashboard** is your home screen.
 
+![The Yeliztli dashboard with a loaded sample and its analysis modules](../assets/img/dashboard.png)
+
 ## The dashboard
 
 - **Status bar** (top) — the current sample, annotation status, and reference-database

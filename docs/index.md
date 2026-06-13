@@ -10,6 +10,11 @@ more.
 Your genome never leaves your computer: Yeliztli runs on `localhost` with **no telemetry,
 no cloud processing, and no outbound variant data**.
 
+![The Yeliztli dashboard, showing the analysis-module overview for a loaded sample](assets/img/dashboard.png)
+
+*The dashboard — a loaded sample with its analysis modules. (Shown with a synthetic test
+sample; no real genetic data.)*
+
 !!! danger "Read this first — not medical advice"
     Yeliztli is for **research and educational use only**. It analyses consumer
     genotyping-array data, which is **not a clinical-grade test**: results are **not
