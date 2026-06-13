@@ -40,9 +40,11 @@ function pathwaysPayload(pathwayId: string, pathwayName: string) {
     ],
     total: 1,
     cross_module: [],
+    cross_context: [],
     module_disclaimer: null,
     mc1r_aggregate: null,
     insufficient_data: [],
+    compound_het: [],
   }
 }
 
@@ -80,6 +82,10 @@ function detailPayload(pathwayId: string, pathwayName: string) {
 const MODULES = [
   { key: 'gene_health', path: '/gene-health', pathwayId: 'metabolic_health', pathwayName: 'Metabolic Health' },
   { key: 'skin', path: '/skin', pathwayId: 'sun_sensitivity', pathwayName: 'Sun Sensitivity' },
+  { key: 'fitness', path: '/fitness', pathwayId: 'power', pathwayName: 'Power' },
+  { key: 'methylation', path: '/methylation', pathwayId: 'folate_cycle', pathwayName: 'Folate Cycle' },
+  { key: 'nutrigenomics', path: '/nutrigenomics', pathwayId: 'caffeine', pathwayName: 'Caffeine Metabolism' },
+  { key: 'traits', path: '/traits', pathwayId: 'cognition', pathwayName: 'Cognition' },
 ]
 
 for (const m of MODULES) {
@@ -102,6 +108,13 @@ for (const m of MODULES) {
 
       const panel = page.getByRole('dialog', { name: new RegExp(`${m.pathwayName} pathway details`) })
       await expect(panel).toBeVisible()
+
+      // Some panels (methylation) collapse the per-SNP breakdown behind an
+      // "Advanced View" toggle — expand it if present.
+      const advanced = panel.getByRole('button', { name: /Advanced View/i })
+      if (await advanced.count()) {
+        await advanced.first().click()
+      }
 
       // The per-SNP category badge reads "Indeterminate" and uses the shared
       // neutral slate colour — NOT the emerald "Standard" fallback.
