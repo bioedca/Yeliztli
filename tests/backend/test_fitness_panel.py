@@ -190,12 +190,27 @@ class TestSNPFields:
         )
         assert ppargc1a["pmids"] == ["15705733", "29762540", "30625151", "33956903"]
 
+    def test_col5a1_cites_verified_sources(self, panel_data: dict) -> None:
+        """#385 — the COL5A1 (rs12722) row must cite COL5A1/tendon-ligament literature.
+
+        The originals resolved (NCBI esummary) to non-COL5A1 topics: 19455179 = a
+        SIRT1/insulin-resistance review, 21747786 = a Legionella pneumophila
+        transcriptome study. Verified replacements (Consensus-checked):
+          - 29632650 = Lv 2018, Oncotarget — meta-analysis of rs12722 in COL5A1 &
+            musculoskeletal soft-tissue injuries
+          - 29922378 = Lulinska-Kuklik 2018, J Hum Kinet — COL5A1 & ACL rupture risk
+        """
+        col5a1 = next(
+            s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs12722"
+        )
+        assert col5a1["pmids"] == ["29632650", "29922378"]
+
     def test_no_unrelated_transposed_pmids(self, panel_data: dict) -> None:
         """The verified-unrelated PMIDs must not appear in any fitness panel row."""
-        # 1346618/16205547 were exclusive to the AMPD1 row (#185); 12563186/
-        # 23667795 were exclusive to the PPARGC1A row (#382) — all safe to ban
-        # panel-wide.
-        unrelated = {"1346618", "16205547", "12563186", "23667795"}
+        # 1346618/16205547: AMPD1 transpositions (#185). 12563186/23667795: PPARGC1A
+        # transpositions (#382). 19455179 (SIRT1/insulin) and 21747786 (Legionella
+        # transcriptome): COL5A1-row transpositions (#385). All safe to ban panel-wide.
+        unrelated = {"1346618", "16205547", "12563186", "23667795", "19455179", "21747786"}
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 stray = unrelated.intersection(snp["pmids"])
