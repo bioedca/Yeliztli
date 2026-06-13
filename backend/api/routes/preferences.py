@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.config import (
+    config_toml_path,
     config_write_lock,
     get_settings,
     read_config_section,
@@ -68,10 +69,9 @@ async def get_theme() -> ThemeResponse:
 @router.put("/theme", response_model=ThemeResponse)
 async def set_theme(body: ThemeRequest) -> ThemeResponse:
     """Update theme preference and persist to config.toml."""
-    # Write to the effective data_dir (which the wizard can relocate), NOT the
-    # default home dir — otherwise a relocated install's theme would be saved to
-    # the wrong, unread config.toml.
-    config_path = get_settings().data_dir / "config.toml"
+    # The single config.toml the Settings read source loads (home dir). Writing
+    # anywhere else (e.g. a relocated data_dir) would never round-trip back.
+    config_path = config_toml_path()
 
     with config_write_lock:
         content = _read_config_toml(config_path)

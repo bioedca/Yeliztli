@@ -30,6 +30,7 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 
 from backend.config import (
+    config_toml_path,
     config_write_lock,
     get_settings,
     read_config_section,
@@ -935,11 +936,10 @@ async def save_credentials(body: SaveCredentialsRequest) -> SaveCredentialsRespo
     NCBI API key is optional but raises the rate limit from 3 to 10 req/sec.
     OMIM API key is optional — enables gene-phenotype enrichment beyond MONDO/HPO.
     """
-    settings = get_settings()
-    config_path = settings.data_dir / "config.toml"
-
-    # Ensure data dir exists
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    # The single config.toml the Settings read source loads (home dir); writing
+    # to a relocated data_dir would never round-trip back. write_config_toml
+    # creates the parent dir as needed.
+    config_path = config_toml_path()
 
     # Read existing config and update credentials under the shared lock so a
     # concurrent theme/auth save can't clobber these keys (or vice versa).

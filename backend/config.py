@@ -46,6 +46,19 @@ def data_dir_pointer_path() -> Path:
     return DEFAULT_DATA_DIR / DATA_DIR_POINTER_NAME
 
 
+def config_toml_path() -> Path:
+    """The single config.toml location, read by Settings and written by every writer.
+
+    Lives in ``DEFAULT_DATA_DIR`` (the home dir), NOT the effective ``data_dir``:
+    the read source (:class:`_ConfigTomlTableSource`) loads from here, so writers
+    must target the same file or their values never round-trip back into Settings.
+    Keeping it in the home dir (alongside the data_dir pointer) also means user
+    config survives a relocated data volume being unmounted, while the bulk DBs
+    live under the relocated ``data_dir``.
+    """
+    return DEFAULT_DATA_DIR / "config.toml"
+
+
 class _ConfigTomlTableSource(PydanticBaseSettingsSource):
     """Load settings from the ``[yeliztli]`` table of config.toml.
 
@@ -231,7 +244,7 @@ class Settings(BaseSettings):
             init_settings,
             env_settings,
             _DataDirPointerSource(settings_cls, data_dir_pointer_path()),
-            _ConfigTomlTableSource(settings_cls, DEFAULT_DATA_DIR / "config.toml"),
+            _ConfigTomlTableSource(settings_cls, config_toml_path()),
             dotenv_settings,
         )
 

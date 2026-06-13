@@ -134,6 +134,9 @@ def auth_client(tmp_data_dir: Path):
         patch("backend.db.connection.get_settings", return_value=settings),
         patch("backend.auth.get_settings", return_value=settings),
         patch("backend.api.routes.auth.get_settings", return_value=settings),
+        # config.toml (incl. auth settings) lives in DEFAULT_DATA_DIR; isolate it
+        # to the temp dir so _persist_auth_settings never writes the real home.
+        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
     ):
         reset_registry()
         from backend.main import create_app
@@ -163,6 +166,9 @@ def noauth_client(tmp_data_dir: Path):
         patch("backend.db.connection.get_settings", return_value=settings),
         patch("backend.auth.get_settings", return_value=settings),
         patch("backend.api.routes.auth.get_settings", return_value=settings),
+        # config.toml (incl. auth settings) lives in DEFAULT_DATA_DIR; isolate it
+        # to the temp dir so _persist_auth_settings never writes the real home.
+        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
     ):
         reset_registry()
         from backend.main import create_app
