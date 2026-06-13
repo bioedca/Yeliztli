@@ -1,7 +1,7 @@
 {
   "module": "gene_health",
   "version": "1.0.0",
-  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to Parkinson's, Allergy, Methylation, Nutrigenomics, and Traits modules. APOE epsilon-4 (rs429358) is deliberately NOT scored here — it is disclosed only through the gated APOE opt-in module (#329).",
+  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to Allergy, Methylation, Nutrigenomics, and Traits modules. APOE epsilon-4 (rs429358) and LRRK2 G2019S (rs34637584) are deliberately NOT scored here — each is disclosed only through its gated opt-in module (APOE #329, Parkinson's #404).",
   "evidence_cap": null,
   "module_disclaimer": "Gene Health findings are based on published genetic association studies and ClinVar pathogenic classifications. Results indicate statistical associations, not diagnoses. Many conditions have complex environmental and lifestyle components. Consult a healthcare provider or genetic counselor for clinical interpretation.",
   "pathways": [
@@ -67,39 +67,6 @@
           "evidence_level": 2,
           "pmids": ["19734903", "21460841", "24162737"],
           "recommendation_text": "CLU is a replicated Alzheimer's disease GWAS locus with a modest effect size. Clusterin (apolipoprotein J) is involved in amyloid-beta clearance and complement regulation. This finding contributes to polygenic risk assessment but has limited individual predictive value."
-        },
-        {
-          "rsid": "rs34637584",
-          "gene": "LRRK2",
-          "variant_name": "G2019S",
-          "hgvs_protein": "p.Gly2019Ser",
-          "risk_allele": "A",
-          "ref_allele": "G",
-          "genotype_effects": {
-            "GG": {
-              "category": "Standard",
-              "effect_summary": "No LRRK2 G2019S variant detected. Baseline population risk for Parkinson's disease at this locus."
-            },
-            "GA": {
-              "category": "Moderate",
-              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
-            },
-            "AG": {
-              "category": "Moderate",
-              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
-            },
-            "AA": {
-              "category": "Moderate",
-              "effect_summary": "LRRK2 G2019S detected. This is a reduced-penetrance Parkinson's disease risk factor, not a deterministic result. Published age-80 estimates vary by cohort design, ancestry, and modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates around 25-42.5%, so many carriers never develop Parkinson's."
-            }
-          },
-          "evidence_level": 2,
-          "pmids": ["26062626", "28639421", "38804604", "40926580"],
-          "recommendation_text": "LRRK2 G2019S should be interpreted through the dedicated Parkinson's risk module and, if confirmed clinically, discussed with a neurologist or genetics professional. It is a reduced-penetrance risk factor rather than a diagnosis; there is no proven prevention strategy, but clinical monitoring and research trial eligibility may be relevant.",
-          "cross_module": {
-            "module": "parkinsons",
-            "note": "Dedicated Parkinson's module uses reduced-penetrance, opt-in framing for LRRK2 G2019S."
-          }
         },
         {
           "rsid": "rs356219",
@@ -1267,11 +1234,6 @@
       "to_module": "apoe",
       "link_type": "phenotype_correlation",
       "description": "Alzheimer's disease risk overlaps with APOE epsilon 4 findings"
-    },
-    {
-      "to_module": "parkinsons",
-      "link_type": "shared_variant",
-      "description": "LRRK2 G2019S uses the dedicated Parkinson's module for reduced-penetrance opt-in framing"
     },
     {
       "to_module": "allergy",
