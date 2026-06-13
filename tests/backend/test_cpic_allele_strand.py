@@ -133,6 +133,56 @@ def test_csv_exists() -> None:
     assert _CPIC_ALLELES_CSV.is_file(), f"missing CPIC allele table: {_CPIC_ALLELES_CSV}"
 
 
+# Genes whose SNV star-allele defining variants the plus-strand guard protects.
+# Pinned so the parametrized guard can never silently degrade to a no-op (#485):
+# the parametrized test below is fed _snv_defining_variants(), and pytest reports
+# an EMPTY parametrize set as *skipped* (green), not failed. If a future
+# cpic_alleles.csv regeneration blanks the defining_variants column, or a ref/alt
+# format change (e.g. "A>G" or whitespace) trips the SNV `len(...) == 1` filter for
+# every row, the list goes empty and the strand guard would protect nothing without
+# any red signal. This test makes that failure loud.
+_EXPECTED_STRAND_GUARD_GENES = frozenset(
+    {
+        "CYP2B6",
+        "CYP2C19",
+        "CYP2C9",
+        "CYP2D6",
+        "CYP3A5",
+        "DPYD",
+        "NAT2",
+        "NUDT15",
+        "SLCO1B1",
+        "TPMT",
+        "UGT1A1",
+    }
+)
+
+
+def test_snv_defining_variants_nonempty_and_cover_expected_genes() -> None:
+    """The plus-strand parametrize source must stay non-empty and gene-complete.
+
+    Guards the silent-skip trap: an empty ``_snv_defining_variants()`` makes the
+    parametrized ``test_snv_defining_variant_is_plus_strand`` (and the
+    ``test_no_palindromic_ambiguity_unpinned`` loop) vacuous-green. Asserting a
+    non-empty list AND full coverage of every expected PGx gene means a blanked /
+    mis-parsed table fails loudly here instead. Uses a subset check so adding new
+    genes/alleles never breaks this lock.
+    """
+    snvs = _snv_defining_variants()
+    assert snvs, (
+        "_snv_defining_variants() is EMPTY — the parametrized plus-strand guard would "
+        "silently SKIP (green) and protect nothing. Check that cpic_alleles.csv still "
+        "has a populated defining_variants column with single-base ref/alt values."
+    )
+    genes_covered = {gene for gene, *_ in snvs}
+    missing = _EXPECTED_STRAND_GUARD_GENES - genes_covered
+    assert not missing, (
+        f"the CPIC plus-strand guard lost SNV coverage of gene(s) {sorted(missing)} — "
+        "their defining variants vanished from _snv_defining_variants(), so the strand "
+        "trap (#382: rs776746 / rs3892097) is no longer guarded for them."
+    )
+
+
 @pytest.mark.parametrize("gene,allele,rsid,ref,alt", _snv_defining_variants())
 def test_snv_defining_variant_is_plus_strand(
     gene: str, allele: str, rsid: str, ref: str, alt: str
