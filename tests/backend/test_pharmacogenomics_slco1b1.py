@@ -45,13 +45,14 @@ import sqlalchemy as sa
 from backend.analysis.pharmacogenomics import (
     CallConfidence,
     _fetch_alleles_for_gene,
+    _fetch_diplotype_phenotype,
     call_all_star_alleles,
     call_star_alleles_for_gene,
     generate_prescribing_alerts,
 )
 from backend.annotation.cpic import load_cpic_from_csvs
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import raw_variants, reference_metadata
+from backend.db.tables import cpic_diplotypes, raw_variants, reference_metadata
 
 _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 
@@ -123,10 +124,10 @@ def test_reference_is_normal_function(reference_engine: sa.Engine) -> None:
 # decreased-function haplotype (issue #110).
 _POOR_FUNCTION = [
     ("*5/*5", {"rs2306283": "AA", "rs4149056": "CC"}, 1.0),
-    ("*5/*15", {"rs2306283": "AG", "rs4149056": "CC"}, 0.75),
+    ("*5/*15", {"rs2306283": "AG", "rs4149056": "CC"}, 1.0),
     ("*5/*17", {"rs2306283": "AG", "rs4149056": "CC", "rs4149015": "GA"}, 1.0),
-    ("*15/*15", {"rs2306283": "GG", "rs4149056": "CC"}, 0.5),
-    ("*15/*17", {"rs2306283": "GG", "rs4149056": "CC", "rs4149015": "GA"}, 0.75),
+    ("*15/*15", {"rs2306283": "GG", "rs4149056": "CC"}, 1.0),
+    ("*15/*17", {"rs2306283": "GG", "rs4149056": "CC", "rs4149015": "GA"}, 1.0),
     ("*17/*17", {"rs2306283": "GG", "rs4149056": "CC", "rs4149015": "AA"}, 1.0),
 ]
 
@@ -135,18 +136,21 @@ _POOR_FUNCTION = [
 # *1b/*5 or *1b/*15).
 _DECREASED_FUNCTION = [
     ("*1A/*5", {"rs2306283": "AA", "rs4149056": "TC"}, 1.5),
-    ("*1A/*15", {"rs2306283": "AG", "rs4149056": "TC"}, 1.25),
+    ("*1A/*15", {"rs2306283": "AG", "rs4149056": "TC"}, 1.5),
     ("*1A/*17", {"rs2306283": "AG", "rs4149056": "TC", "rs4149015": "GA"}, 1.5),
-    ("*1B/*15", {"rs2306283": "GG", "rs4149056": "TC"}, 1.0),
-    ("*1B/*17", {"rs2306283": "GG", "rs4149056": "TC", "rs4149015": "GA"}, 1.25),
+    ("*1B/*15", {"rs2306283": "GG", "rs4149056": "TC"}, 1.5),
+    ("*1B/*17", {"rs2306283": "GG", "rs4149056": "TC", "rs4149015": "GA"}, 1.5),
 ]
 
 # No c.521C anywhere -> Normal function: c.388A>G (*1B) and g.-11187G>A are
 # normal/increased-function markers on their own (Nies et al. 2013), so without
-# the c.521C loss-of-function variant the call cannot be *17 or decreased.
+# the c.521C loss-of-function variant the call cannot be *17 or decreased. *1B is a
+# Normal-function allele (activity_score 1.0, same as *1A), so *1A/*1B and *1B/*1B
+# score 2.0 like *1A/*1A — corrected from the prior 1.75/1.5 that implied *1B was
+# reduced (issue #227).
 _NORMAL_FUNCTION = [
-    ("*1A/*1B", {"rs2306283": "AG", "rs4149056": "TT"}, 1.75),
-    ("*1B/*1B", {"rs2306283": "GG", "rs4149056": "TT"}, 1.5),
+    ("*1A/*1B", {"rs2306283": "AG", "rs4149056": "TT"}, 2.0),
+    ("*1B/*1B", {"rs2306283": "GG", "rs4149056": "TT"}, 2.0),
 ]
 
 
@@ -317,3 +321,89 @@ def test_star17_emits_no_statin_caution_without_c521c(reference_engine: sa.Engin
         assert alert.phenotype == "Normal function"
         assert "Avoid simvastatin" not in alert.recommendation
         assert "lower dose or alternative statin" not in alert.recommendation
+
+
+def test_star1b_allele_is_normal_function(reference_engine: sa.Engine) -> None:
+    """SLCO1B1 *1B (c.388A>G / rs2306283) is a Normal-function allele (issue #227).
+
+    c.388A>G alone is associated with normal/increased OATP1B1 function; the
+    decreased-function alleles are the c.521T>C (rs4149056)-bearing *5/*15/*17
+    (Nies et al. 2013; Maeda 2015; CPIC Cooper-DeHoff et al. 2022, PMID 35152405).
+    The prior allele-level "Decreased function" label contradicted both the biology
+    and the gene's own *1B/*1B -> Normal-function diplotype row.
+    """
+    alleles = {a["allele_name"]: a for a in _fetch_alleles_for_gene("SLCO1B1", reference_engine)}
+    assert alleles["*1B"]["function"] == "Normal function"
+    # A Normal-function allele scores like the *1A reference (both 1.0).
+    assert alleles["*1B"]["activity_score"] == alleles["*1A"]["activity_score"] == 1.0
+    # Consistency with the diplotype table (issue #227's requested regression):
+    # *1B/*1B resolves to Normal function, which is irreconcilable with *1B being a
+    # decreased-function allele.
+    star1b_homo = _fetch_diplotype_phenotype("SLCO1B1", "*1B/*1B", reference_engine)
+    assert star1b_homo is not None and star1b_homo["phenotype"] == "Normal function"
+
+
+def test_no_slco1b1_decreased_allele_lacks_c521c(reference_engine: sa.Engine) -> None:
+    """Decreased OATP1B1 function requires the c.521T>C (rs4149056) variant (issue #227).
+
+    Loss of OATP1B1 function is driven by c.521T>C; an allele lacking it — *1A
+    (reference) or *1B (only the normal/increased c.388A>G marker) — must never be
+    labeled "Decreased function". Locks the *1B mislabel bug class for the gene.
+    """
+    for a in _fetch_alleles_for_gene("SLCO1B1", reference_engine):
+        rsids = {v["rsid"] for v in a["defining_variants"]}
+        has_c521c = "rs4149056" in rsids
+        if a["function"] == "Decreased function":
+            assert has_c521c, f"{a['allele_name']} is Decreased function without c.521C"
+        if not has_c521c:
+            assert a["function"] != "Decreased function", (
+                f"{a['allele_name']} lacks c.521C but is labeled Decreased function"
+            )
+
+
+def test_slco1b1_diplotype_score_is_sum_of_allele_scores(reference_engine: sa.Engine) -> None:
+    """Each SLCO1B1 diplotype activity_score == the sum of its two alleles' scores.
+
+    The diplotype activity_scores are derived as the per-allele sum; miscalibrating an
+    allele score (the *1B=0.75 / *15=0.25 bug, issue #227) silently desynchronised the
+    diplotype column. Lock the invariant so an allele/diplotype score can't drift apart.
+    """
+    scores = {
+        a["allele_name"]: a["activity_score"]
+        for a in _fetch_alleles_for_gene("SLCO1B1", reference_engine)
+    }
+    with reference_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(cpic_diplotypes.c.diplotype, cpic_diplotypes.c.activity_score).where(
+                cpic_diplotypes.c.gene == "SLCO1B1"
+            )
+        ).fetchall()
+    assert rows
+    for diplotype, score in rows:
+        a1, a2 = diplotype.split("/")
+        assert score == pytest.approx(scores[a1] + scores[a2]), diplotype
+
+
+def test_slco1b1_activity_score_maps_one_to_one_with_phenotype(
+    reference_engine: sa.Engine,
+) -> None:
+    """Within SLCO1B1, every diplotype sharing a phenotype shares an activity_score.
+
+    Correcting *1B (Normal) and *15 (issue #227) makes the scale clean and
+    monotonic: Normal=2.0 > Decreased=1.5 > Poor=1.0. Before the fix, same-phenotype
+    diplotypes carried different scores (e.g. Poor: *5/*5=1.0 but *15/*15=0.5).
+    """
+    with reference_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(cpic_diplotypes.c.phenotype, cpic_diplotypes.c.activity_score).where(
+                cpic_diplotypes.c.gene == "SLCO1B1"
+            )
+        ).fetchall()
+    by_phenotype: dict[str, set[float]] = {}
+    for phenotype, score in rows:
+        by_phenotype.setdefault(phenotype, set()).add(score)
+    assert by_phenotype == {
+        "Normal function": {2.0},
+        "Decreased function": {1.5},
+        "Poor function": {1.0},
+    }

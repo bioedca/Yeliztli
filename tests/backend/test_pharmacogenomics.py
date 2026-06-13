@@ -162,8 +162,8 @@ def pgx_reference_engine() -> sa.Engine:
             "gene": "SLCO1B1",
             "allele_name": "*1B",
             "defining_variants": json.dumps([{"rsid": "rs2306283", "ref": "A", "alt": "G"}]),
-            "function": "Decreased function",
-            "activity_score": 0.75,
+            "function": "Normal function",
+            "activity_score": 1.0,
         },
         {
             "gene": "SLCO1B1",
@@ -182,7 +182,7 @@ def pgx_reference_engine() -> sa.Engine:
                 ]
             ),
             "function": "Decreased function",
-            "activity_score": 0.25,
+            "activity_score": 0.5,
         },
     ]
 
@@ -329,14 +329,14 @@ def pgx_reference_engine() -> sa.Engine:
             "diplotype": "*1A/*15",
             "phenotype": "Decreased function",
             "ehr_notation": "SLCO1B1 Decreased function",
-            "activity_score": 1.25,
+            "activity_score": 1.5,
         },
         {
             "gene": "SLCO1B1",
             "diplotype": "*1A/*1B",
             "phenotype": "Normal function",
             "ehr_notation": "SLCO1B1 Normal function",
-            "activity_score": 1.75,
+            "activity_score": 2.0,
         },
     ]
 
