@@ -169,9 +169,33 @@ class TestSNPFields:
         )
         assert ampd1["pmids"] == ["1631143", "40332645"]
 
+    def test_ppargc1a_cites_verified_sources(self, panel_data: dict) -> None:
+        """#382 — the PPARGC1A (rs8192678, Gly482Ser) row must cite PPARGC1A-
+        specific literature.
+
+        The originals resolved (NCBI eutils) to non-PPARGC1A topics: 12563186 =
+        an anticoagulation-therapy article, 23667795 = an overtraining/adrenal-
+        insufficiency article. Verified replacements (NCBI + Consensus, #293):
+          - 15705733 = Lucia 2005, J Appl Physiol — PPARGC1A Gly482Ser predicts
+            exceptional endurance capacity in European men
+          - 29762540 = Petr 2018, Int J Mol Sci — PPAR/coactivator variants in
+            human trainability (rs8192678 aerobic-training response)
+          - 30625151 = Tharabenjasin 2019, PLoS One — PPARGC1A rs8192678 &
+            athletic ability meta-analysis
+          - 33956903 = Tharabenjasin 2021, PLoS One — formal correction to that
+            meta-analysis
+        """
+        ppargc1a = next(
+            s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs8192678"
+        )
+        assert ppargc1a["pmids"] == ["15705733", "29762540", "30625151", "33956903"]
+
     def test_no_unrelated_transposed_pmids(self, panel_data: dict) -> None:
         """The verified-unrelated PMIDs must not appear in any fitness panel row."""
-        unrelated = {"1346618", "16205547"}
+        # 1346618/16205547 were exclusive to the AMPD1 row (#185); 12563186/
+        # 23667795 were exclusive to the PPARGC1A row (#382) — all safe to ban
+        # panel-wide.
+        unrelated = {"1346618", "16205547", "12563186", "23667795"}
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 stray = unrelated.intersection(snp["pmids"])
