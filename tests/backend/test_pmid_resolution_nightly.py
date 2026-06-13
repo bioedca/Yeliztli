@@ -102,9 +102,10 @@ def _fetch_live_records(pmids: list[str]) -> dict[str, dict]:
 _KNOWN_UNRESOLVED: dict[str, str] = {
     # 11746697 (allergy HNMT row) fixed in #417 — replaced with verified HNMT
     # Thr105Ile evidence (9547362 Preuss 1998, 10803682 Yan 2000).
+    # 19187342 (methylation TCN2 row) fixed in #314 — the whole TCN2 rs1801198
+    # row was re-cited with verified one-carbon refs (28814397, 20808328, 12911562).
     "12874175": "gene_health_panel.json",  # KCNJ11 — delegated to #326
     "27457907": "gene_health_panel.json",  # ABCG2 — delegated to #326
-    "19187342": "methylation_panel.json",  # TCN2 — delegated to #314 (whole row's 3 cites bad)
 }
 
 

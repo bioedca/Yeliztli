@@ -122,7 +122,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["11745004", "17445041"],
+          "pmids": ["33935279", "16750224", "24597986"],
           "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. AA carriers may have reduced folate transport efficiency."
         },
         {
@@ -151,7 +151,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["19190234", "22012967"],
+          "pmids": ["22918695", "30120883"],
           "recommendation_text": "FOLH1 (GCPII) cleaves polyglutamated folates in the gut for absorption. Variants may reduce dietary folate bioavailability from natural food sources."
         },
         {
@@ -180,7 +180,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["12161596", "16159893", "19187342"],
+          "pmids": ["28814397", "20808328", "12911562"],
           "recommendation_text": "TCN2 encodes transcobalamin II, the B12 transport protein. GG carriers may have lower active B12 despite normal total B12. Consider holotranscobalamin testing rather than total B12 alone."
         },
         {
@@ -209,7 +209,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16234067", "21212450"],
+          "pmids": ["31739835", "14597182", "15564880"],
           "recommendation_text": "GGH removes glutamate residues from folate polyglutamates. Variants may affect intracellular folate retention and methotrexate response."
         },
         {
@@ -238,7 +238,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["12815591", "16200083"],
+          "pmids": ["16137637", "17446168", "11386852"],
           "recommendation_text": "SHMT1 directs one-carbon units from serine into the folate cycle. Variants may alter the partitioning of folate-derived one-carbon units between DNA synthesis and methylation."
         }
       ]
@@ -274,7 +274,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["11595027", "15637710", "19190234"],
+          "pmids": ["32722923", "19826453", "30559146"],
           "recommendation_text": "MTR (methionine synthase) uses B12 as a cofactor to remethylate homocysteine to methionine. GG carriers may benefit from ensuring adequate B12 intake."
         },
         {
@@ -332,7 +332,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["17190769", "21399649"],
+          "pmids": ["20335551", "21185701", "22807109"],
           "recommendation_text": "MAT1A converts methionine to S-adenosylmethionine (SAM) in the liver. Variants may affect the rate of SAM synthesis from dietary methionine."
         },
         {
@@ -361,7 +361,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["17190769", "20299362"],
+          "pmids": ["19619139", "15241484"],
           "recommendation_text": "AHCY hydrolyzes S-adenosylhomocysteine (SAH), a potent inhibitor of methyltransferases. Efficient SAH clearance is essential for maintaining methylation capacity."
         },
         {
@@ -390,7 +390,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["15477547", "18175331"],
+          "pmids": ["18457970", "27578989", "12818402"],
           "recommendation_text": "BHMT provides an alternative homocysteine remethylation pathway using betaine (from choline) as the methyl donor. Especially relevant when MTHFR function is reduced."
         },
         {
@@ -419,7 +419,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["15950375", "19190234"],
+          "pmids": ["28473984", "33854407", "37833704"],
           "recommendation_text": "DNMT1 is responsible for maintaining DNA methylation patterns during cell division. Variants may influence global methylation maintenance."
         },
         {
@@ -448,7 +448,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["15950375", "15701835"],
+          "pmids": ["21854760", "36980848", "27789275"],
           "recommendation_text": "DNMT3B performs de novo DNA methylation. Promoter variants may influence the establishment of new methylation patterns."
         }
       ]
@@ -514,7 +514,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["18404103", "21399649"],
+          "pmids": ["15151507", "18476726", "19428278"],
           "recommendation_text": "CTH performs the second step of transsulfuration (cystathionine → cysteine + α-ketobutyrate). Also produces hydrogen sulfide (H₂S), a gasotransmitter with vasodilatory effects."
         },
         {
@@ -659,7 +659,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["12815591", "18404103"],
+          "pmids": ["33888803", "15717202"],
           "recommendation_text": "GSS catalyzes the second step of glutathione synthesis (γ-glutamylcysteine + glycine → glutathione). Variants may affect overall glutathione production capacity."
         }
       ]
@@ -724,7 +724,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["12815591", "18404103"],
+          "pmids": ["9797477", "17274004", "15899948"],
           "recommendation_text": "VDR FokI affects vitamin D receptor activity. VDR influences expression of genes involved in methylation, immune regulation, and calcium homeostasis. Adequate vitamin D status supports these functions."
         },
         {
@@ -753,7 +753,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["12815591", "15509580"],
+          "pmids": ["23134477", "33238893"],
           "recommendation_text": "VDR BsmI is in the 3' region and may affect mRNA stability. Combined with FokI, provides a more complete picture of VDR functional status."
         },
         {
@@ -782,7 +782,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["16200083", "15477547"],
+          "pmids": ["18767138", "12384833", "24977710"],
           "recommendation_text": "MTHFD1 is a trifunctional enzyme connecting multiple folate cycle reactions. The Arg653Gln variant may affect purine synthesis and indirectly influence BH4 availability through folate pool partitioning."
         },
         {
@@ -811,7 +811,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16200083", "19190234"],
+          "pmids": ["16365037", "22303332", "30031689"],
           "recommendation_text": "MTHFS regulates folate interconversion, channeling 5-formyl-THF into the active folate pool. Variants may affect overall folate cycle efficiency."
         },
         {
@@ -840,7 +840,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16962000", "21680034"],
+          "pmids": ["24136375", "18598896"],
           "recommendation_text": "GCH1 is the rate-limiting enzyme for BH4 de novo synthesis. BH4 is essential for neurotransmitter precursor synthesis (serotonin, dopamine, norepinephrine). Adequate folate supports BH4 recycling."
         },
         {
@@ -869,7 +869,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16962000", "21680034"],
+          "pmids": ["20615890", "16917893"],
           "recommendation_text": "QDPR recycles quinonoid-dihydrobiopterin back to BH4. Efficient BH4 recycling reduces demand for de novo synthesis and supports continuous neurotransmitter production."
         }
       ]
@@ -905,7 +905,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["16207938", "17522615", "19064519"],
+          "pmids": ["16816108", "20861172", "21059658"],
           "recommendation_text": "PEMT synthesizes phosphatidylcholine from phosphatidylethanolamine using three SAM-derived methyl groups. CC carriers have higher dietary choline requirements. Good sources include eggs, liver, and soybeans."
         },
         {
@@ -934,7 +934,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16207938", "19064519"],
+          "pmids": ["16816108", "28134761", "24671709"],
           "recommendation_text": "CHDH oxidizes choline to betaine (via betaine aldehyde). Variants may reduce betaine availability for BHMT-mediated homocysteine remethylation."
         },
         {
@@ -963,7 +963,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["15477547", "18175331"],
+          "pmids": ["18457970", "20662904", "15887275"],
           "recommendation_text": "BHMT2 uses S-methylmethionine (from plant sources) as a methyl donor for homocysteine remethylation. This provides a plant-derived backup pathway for the betaine-dependent BHMT enzyme."
         },
         {
@@ -992,7 +992,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16207938", "20860029"],
+          "pmids": ["24671709", "28134761", "22483272"],
           "recommendation_text": "SLC44A1 is the primary choline transporter. Variants may reduce cellular choline uptake, potentially increasing dietary choline requirements."
         },
         {
@@ -1021,7 +1021,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["10666248", "15289165"],
+          "pmids": ["10640514", "31317802", "12052141"],
           "recommendation_text": "FMO3 oxidizes trimethylamine (TMA, from choline/carnitine gut metabolism) to TMAO. In the methylation context, FMO3 activity reflects the fate of choline-derived metabolites. E158K alone rarely causes clinically significant trimethylaminuria."
         },
         {
@@ -1050,7 +1050,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["16207938", "20860029"],
+          "pmids": ["30055775", "24671709", "28134761"],
           "recommendation_text": "PCYT1A is the rate-limiting enzyme of the CDP-choline (Kennedy) pathway. Variants may increase reliance on the PEMT pathway for phosphatidylcholine synthesis, which consumes 3 SAM molecules per PC molecule."
         }
       ]

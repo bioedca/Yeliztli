@@ -870,3 +870,114 @@ class TestGlutathioneAntioxidantCitationProvenance:
         assert not leaked, (
             f"off-topic PMID(s) exclusive to the glutathione rows still in panel: {sorted(leaked)}"
         )
+
+
+# ── Panel-wide citation remediation (issue #314, remaining rows) ──────
+
+
+class TestMethylationCitationRemediation:
+    """Pin the remaining ~25 rows remediated in #314 to verified, on-topic citations.
+
+    The #314 audit found ~30 of 35 methylation rows cited unrelated placeholder
+    PMIDs (e.g. AHCY cited a malignant-obstructive-jaundice paper; FMO3 a Lassa-virus
+    epitope paper). The glutathione/antioxidant slice (GCLC, GCLM, GPX1, SOD2) is
+    locked above; this completes the panel. Every row below was re-cited with
+    gene/variant-specific one-carbon / folate / transsulfuration / BH4 /
+    choline-betaine / vitamin-D references — each PMID title verified via NCBI
+    esummary and the association verified with the Consensus connector. rsIDs with
+    little/no PubMed footprint (MTHFS rs6495446, MAT1A rs10887718, AHCY rs819147,
+    GSS rs3761144, QDPR rs1677693, BHMT2 rs585800) cite the gene's
+    functional/discovery papers rather than a fabricated variant-specific one. The
+    TCN2 row also drops the dead PMID 19187342 (#417).
+    """
+
+    # rsid -> exact verified on-topic PMID set the row must cite:
+    _REMEDIATED: dict[str, set[str]] = {
+        "rs1051266": {"33935279", "16750224", "24597986"},  # SLC19A1 RFC1 G80A
+        "rs202676": {"22918695", "30120883"},  # FOLH1 folate hydrolase
+        "rs3758149": {"31739835", "14597182", "15564880"},  # GGH -401C>T
+        "rs1979277": {"16137637", "17446168", "11386852"},  # SHMT1 L474F
+        "rs2236225": {"18767138", "12384833", "24977710"},  # MTHFD1 R653Q
+        "rs6495446": {"16365037", "22303332", "30031689"},  # MTHFS (gene-level)
+        "rs1801198": {
+            "28814397",
+            "20808328",
+            "12911562",
+        },  # TCN2 776C>G; drops dead 19187342 (#417)
+        "rs1805087": {"32722923", "19826453", "30559146"},  # MTR A2756G
+        "rs10887718": {
+            "20335551",
+            "21185701",
+            "22807109",
+        },  # MAT1A (gene-level; rsID has 0 PubMed hits)
+        "rs819147": {"19619139", "15241484"},  # AHCY (gene-level; rsID has 0 PubMed hits)
+        "rs2228611": {"28473984", "33854407", "37833704"},  # DNMT1
+        "rs2424913": {"21854760", "36980848", "27789275"},  # DNMT3B -149C>T
+        "rs1021737": {"15151507", "18476726", "19428278"},  # CTH S403I
+        "rs3761144": {"33888803", "15717202"},  # GSS (gene-level)
+        "rs8007267": {"24136375", "18598896"},  # GCH1
+        "rs1677693": {"20615890", "16917893"},  # QDPR (gene-level)
+        "rs2228570": {"9797477", "17274004", "15899948"},  # VDR FokI
+        "rs1544410": {"23134477", "33238893"},  # VDR BsmI
+        "rs3733890": {"18457970", "27578989", "12818402"},  # BHMT R239Q
+        "rs585800": {"18457970", "20662904", "15887275"},  # BHMT2 (gene-level)
+        "rs12325817": {"16816108", "20861172", "21059658"},  # PEMT
+        "rs9001": {"16816108", "28134761", "24671709"},  # CHDH A119S
+        "rs3199966": {"24671709", "28134761", "22483272"},  # SLC44A1
+        "rs7639752": {"30055775", "24671709", "28134761"},  # PCYT1A
+        "rs2266782": {"10640514", "31317802", "12052141"},  # FMO3 E158K
+    }
+
+    # Unrelated/placeholder PMIDs removed by this remediation; none may reappear
+    # anywhere in the methylation panel.
+    _BANNED: frozenset[str] = frozenset(
+        {
+            "10666248",
+            "11595027",
+            "11745004",
+            "12161596",
+            "12815591",
+            "15289165",
+            "15477547",
+            "15509580",
+            "15637710",
+            "15701835",
+            "15950375",
+            "16159893",
+            "16200083",
+            "16207938",
+            "16234067",
+            "16962000",
+            "17190769",
+            "17445041",
+            "17522615",
+            "18175331",
+            "18404103",
+            "19064519",
+            "19187342",
+            "19190234",
+            "20299362",
+            "20860029",
+            "21212450",
+            "21399649",
+            "21680034",
+            "22012967",
+        }
+    )
+
+    def test_each_remediated_row_cites_verified_refs(self, panel_data: dict) -> None:
+        by_rsid = {
+            snp["rsid"]: snp for pathway in panel_data["pathways"] for snp in pathway["snps"]
+        }
+        for rsid, allow in self._REMEDIATED.items():
+            assert rsid in by_rsid, f"{rsid} missing from methylation panel"
+            assert set(by_rsid[rsid]["pmids"]) == allow, (
+                f"{rsid} ({by_rsid[rsid]['gene']}) cites {by_rsid[rsid]['pmids']}, "
+                f"expected {sorted(allow)}"
+            )
+
+    def test_unrelated_pmids_absent_from_panel(self, panel_data: dict) -> None:
+        leaked = self._BANNED & set(_all_pmids(panel_data))
+        assert not leaked, (
+            f"unrelated PMID(s) {sorted(leaked)} still present in the methylation panel"
+        )
