@@ -19,8 +19,15 @@ from tests.backend.citation_provenance import GLOBALLY_UNRELATED_PMIDS
 
 PANELS_DIR = Path(__file__).resolve().parent.parent.parent / "backend" / "data" / "panels"
 
-# Keys under which curated JSON stores citations (list[str] or a bare str).
-_PMID_KEYS = ("pmids", "pmid_citations", "pmid")
+# Keys under which curated JSON stores citations (list[str] or a bare str):
+#   pmids        — the common per-row list (most panels)
+#   pmid         — single citation (e.g. hla_proxy_lookup.json)
+#   source_pmid  — PRS/score provenance (pgs_score_registry, cancer_prs_weights, traits)
+#   pmid_citations — the runtime findings output shape; not present in curated input
+#                    today, covered for forward-compat.
+# test_pmid_bearing_keys_are_all_covered() fails if a panel ever introduces a new
+# PMID-bearing key not listed here, so the scan can't silently miss a citation.
+_PMID_KEYS = ("pmids", "pmid_citations", "pmid", "source_pmid")
 
 
 def _collect_pmids(obj: object, into: set[str]) -> None:
@@ -54,6 +61,17 @@ def _pmids_by_panel() -> dict[str, set[str]]:
     return result
 
 
+def _all_keys(obj: object, into: set[str]) -> None:
+    """Recursively collect every dict key present in a loaded JSON document."""
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            into.add(key)
+            _all_keys(value, into)
+    elif isinstance(obj, list):
+        for item in obj:
+            _all_keys(item, into)
+
+
 class TestGlobalCitationProvenance:
     def test_globally_unrelated_pmids_absent_from_all_panels(self) -> None:
         """No off-domain PMID from the registry may appear in any curated panel."""
@@ -78,7 +96,7 @@ class TestGlobalCitationProvenance:
 
     def test_registry_is_nontrivial(self) -> None:
         """Guard against the registry being accidentally emptied/gutted."""
-        assert len(GLOBALLY_UNRELATED_PMIDS) >= 20
+        assert len(GLOBALLY_UNRELATED_PMIDS) >= 21
 
     def test_scanner_sees_real_citations(self) -> None:
         """Sanity: the scanner actually finds the (legitimate) panel citations."""
@@ -87,3 +105,33 @@ class TestGlobalCitationProvenance:
             all_pmids |= pmids
         # The curated panels collectively cite hundreds of (legitimate) PMIDs.
         assert len(all_pmids) > 100
+
+    def test_pmid_bearing_keys_are_all_covered(self) -> None:
+        """Every PMID-bearing key used by any panel must be scanned.
+
+        Without this, a panel could introduce a new citation key (e.g. a future
+        ``*_pmid`` field) that the scanner silently ignores — exactly the
+        ``source_pmid`` blind spot this guard was hardened against. Any panel key
+        whose name references a PMID must be listed in ``_PMID_KEYS``.
+        """
+        keys: set[str] = set()
+        for path in _panel_files():
+            _all_keys(json.loads(path.read_text(encoding="utf-8")), keys)
+        pmid_keys = {k for k in keys if "pmid" in k.lower()}
+        uncovered = pmid_keys - set(_PMID_KEYS)
+        assert not uncovered, (
+            f"panel JSON uses PMID-bearing key(s) not scanned by the guard: "
+            f"{sorted(uncovered)} — add them to _PMID_KEYS"
+        )
+
+    def test_scanner_collects_all_pmid_key_shapes(self) -> None:
+        """``_collect_pmids`` reads every supported key, as both str and list."""
+        doc = {
+            "a": {"pmids": ["111", "222"]},
+            "b": [{"pmid": "333"}, {"source_pmid": "444"}],
+            "c": {"pmid_citations": ["555"]},
+            "ignored": {"note": "999", "id": "888"},  # non-citation keys skipped
+        }
+        found: set[str] = set()
+        _collect_pmids(doc, found)
+        assert found == {"111", "222", "333", "444", "555"}
