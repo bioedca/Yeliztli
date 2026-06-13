@@ -535,11 +535,11 @@
             },
             "CC": {
               "category": "Standard",
-              "effect_summary": "Homozygous at the rs41525747 -13907 marker. Because this is a palindromic (C/G) SNP, the array strand cannot be resolved, so whether this is the -13907*G persistence allele or the ancestral allele is indeterminate; confirm by sequencing. Only the strand-invariant heterozygous call is scored here."
+              "effect_summary": "Would be two copies of the -13907*G persistence allele (lactase persistent). Because rs41525747 is a palindromic (C/G) SNP, the array strand cannot be resolved, so this homozygous call is withheld as indeterminate at runtime rather than risking a strand-flipped read; confirm by sequencing. Only the strand-invariant heterozygous call is scored."
             },
             "GG": {
-              "category": "Standard",
-              "effect_summary": "Homozygous at the rs41525747 -13907 marker. Because this is a palindromic (C/G) SNP, the array strand cannot be resolved, so whether this is the -13907*G persistence allele or the ancestral allele is indeterminate; confirm by sequencing. Only the strand-invariant heterozygous call is scored here."
+              "category": "Moderate",
+              "effect_summary": "Would be the ancestral homozygote (no -13907*G persistence allele). Because rs41525747 is a palindromic (C/G) SNP, the array strand cannot be resolved, so this homozygous call is withheld as indeterminate at runtime rather than risking a strand-flipped read; confirm by sequencing. Only the strand-invariant heterozygous call is scored."
             }
           },
           "evidence_level": 3,

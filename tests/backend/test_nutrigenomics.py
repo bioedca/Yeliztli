@@ -1306,16 +1306,21 @@ class TestNonEuropeanLCTVariants:
         assert aa.category == STANDARD
         assert "does not establish" in aa.effect_summary.lower()
 
-    def test_rs41525747_palindromic_het_scored_homozygote_strand_safe(self, panel):
+    def test_rs41525747_palindromic_het_scored_homozygote_withheld(self, panel):
         snp = self._snp(panel, "rs41525747")
+        # The strand-invariant heterozygote is a confident persistence call.
         for gt in ("CG", "GC"):
             r = _score_snp(snp, gt)
             assert r.category == STANDARD
             assert "persistent" in r.effect_summary.lower()
-        cc = _score_snp(snp, "CC").effect_summary
-        gg = _score_snp(snp, "GG").effect_summary
-        assert "palindromic" in cc.lower() and "indeterminate" in cc.lower()
-        assert cc == gg, "C/G homozygote effects must be identical (strand-flip safe)"
+        # The palindromic homozygotes (CC=Standard vs GG=Moderate diverge by strand)
+        # are WITHHELD as Indeterminate at runtime by is_strand_ambiguous, not scored
+        # Standard — the call cannot silently revert to a confident category.
+        for gt in ("CC", "GG"):
+            r = _score_snp(snp, gt)
+            assert r.category == INDETERMINATE, gt
+            assert "palindromic" in r.effect_summary.lower()
+            assert "cannot be determined from the array" in r.effect_summary.lower()
 
     def test_verified_citations(self, panel):
         assert set(self._snp(panel, "rs41380347").pmids) == {"18179885", "29063188", "17159977"}
