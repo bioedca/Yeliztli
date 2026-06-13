@@ -44,7 +44,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, reference_metadata, samples
+from backend.db.tables import annotated_variants, apoe_gate, reference_metadata, samples
 from backend.db.tables import findings as findings_table
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -805,3 +805,62 @@ class TestMergePreviewRoute:
         )
         assert resp.status_code == 422
         assert "not linked" in resp.json()["detail"]
+
+
+class TestAggregateFindingsCountGatesDisclosure:
+    """#388 — a gated module's high-confidence finding must not shift
+    ``aggregated_findings_count`` before its disclosure gate is acknowledged.
+
+    The aggregate is a per-sample union of evidence>=3 findings. A gated finding
+    (APOE #222, sex-aneuploidy #299, Parkinson's #298 — all evidence>=3) leaked a +1
+    count delta that re-opened the gated disclosure as a weak signal, even though the
+    dedicated routes and /api/analysis/findings withhold it until acknowledged. The
+    count must mirror that gate posture (per sample, since gate ack is per sample).
+    """
+
+    def _sample1_engine(self, client: TestClient) -> sa.Engine:
+        return sa.create_engine(f"sqlite:///{client.data_dir / 'samples/sample_1.db'}")
+
+    def _add_gated_apoe_finding(self, client: TestClient) -> None:
+        # A high-confidence APOE (gated) finding on sample 1, which the fixture
+        # already seeded with two non-gated rsids (rs12345, rs67890).
+        engine = self._sample1_engine(client)
+        with engine.begin() as conn:
+            conn.execute(
+                findings_table.insert(),
+                [
+                    {
+                        "module": "apoe",
+                        "evidence_level": 4,
+                        "rsid": "rs429358",
+                        "finding_text": "APOE diplotype — gated disclosure",
+                    }
+                ],
+            )
+        engine.dispose()
+
+    def _acknowledge_apoe_gate(self, client: TestClient) -> None:
+        engine = self._sample1_engine(client)
+        with engine.begin() as conn:
+            conn.execute(apoe_gate.insert().values(id=1, acknowledged=True))
+        engine.dispose()
+
+    def test_gated_finding_excluded_from_count_until_acknowledged(
+        self, individuals_client: TestClient
+    ) -> None:
+        client = individuals_client
+        sample1_id = client.sample1_id  # type: ignore[attr-defined]
+        self._add_gated_apoe_finding(client)
+
+        ind_id = client.post("/api/individuals", json={"display_name": "Subject"}).json()["id"]
+        body = client.post(
+            f"/api/individuals/{ind_id}/link-sample",
+            json={"sample_id": sample1_id},
+        ).json()
+        # Two non-gated rsids count; the APOE finding (rs429358) is withheld pre-ack.
+        assert body["aggregated_findings_count"] == 2
+
+        # After acknowledging the APOE gate for this sample, it counts.
+        self._acknowledge_apoe_gate(client)
+        body = client.get(f"/api/individuals/{ind_id}").json()
+        assert body["aggregated_findings_count"] == 3

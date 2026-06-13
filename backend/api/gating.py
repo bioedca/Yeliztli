@@ -17,6 +17,7 @@ the gate logic is not duplicated.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 import sqlalchemy as sa
@@ -79,3 +80,24 @@ def is_parkinsons_gate_acknowledged(sample_engine: sa.Engine) -> bool:
     """Return ``True`` iff the Parkinson's disclosure gate is acknowledged."""
     acknowledged, _ = parkinsons_gate_status(sample_engine)
     return acknowledged
+
+
+# Modules whose findings are opt-in *gated*: each is withheld from any aggregate
+# response until its disclosure gate is acknowledged for the sample, mirroring the
+# module's own gated endpoint — otherwise an aggregator re-opens the disclosure via a
+# side route (APOE #222, sex-aneuploidy #299, Parkinson's #298, individuals
+# findings-count #388). This is the single source of truth shared by every aggregator
+# (``routes/findings.py``, ``routes/individuals.py``); adding a newly gated module is a
+# single entry here. Gate acknowledgment is per sample, so callers must evaluate this
+# against each sample's own engine.
+GATED_MODULES: dict[str, Callable[[sa.Engine], bool]] = {
+    "apoe": is_apoe_gate_acknowledged,
+    "sex_aneuploidy": is_aneuploidy_gate_acknowledged,
+    "parkinsons": is_parkinsons_gate_acknowledged,
+}
+
+
+def gated_modules_to_hide(sample_engine: sa.Engine) -> list[str]:
+    """Gated modules whose disclosure gate is NOT yet acknowledged for this sample —
+    their findings must be withheld from aggregate responses."""
+    return [module for module, is_ack in GATED_MODULES.items() if not is_ack(sample_engine)]

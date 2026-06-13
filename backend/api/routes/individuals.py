@@ -35,6 +35,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings as findings_table
 from backend.db.tables import individuals, jobs, samples
@@ -218,12 +219,19 @@ def _aggregate_findings_count(linked: list[sa.Row]) -> int:
             )
             continue
         try:
+            # Withhold opt-in-gated modules whose gate is unacknowledged for THIS
+            # sample (gate ack is per-sample), mirroring /api/analysis/findings and
+            # the dedicated routes — otherwise a gated high-confidence finding
+            # (APOE #222, sex-aneuploidy #299, Parkinson's #298) shifts this
+            # aggregate count and re-opens the disclosure as a count delta (#388).
+            hidden_modules = gated_modules_to_hide(sample_engine)
+            stmt = sa.select(findings_table.c.rsid).where(findings_table.c.evidence_level >= 3)
+            if hidden_modules:
+                stmt = stmt.where(findings_table.c.module.not_in(hidden_modules))
             with sample_engine.connect() as sample_conn:
-                result = sample_conn.execute(
-                    sa.select(findings_table.c.rsid).where(findings_table.c.evidence_level >= 3)
-                ).fetchall()
+                result = sample_conn.execute(stmt).fetchall()
         except sa.exc.OperationalError:
-            # findings table may not exist on a freshly-created sample DB
+            # findings/gate tables may not exist on a freshly-created sample DB
             # that has never finished annotation; that simply means zero
             # high-confidence findings have been written yet.
             continue

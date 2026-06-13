@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -24,32 +23,11 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from backend.api.dependencies import require_fresh_sample
-from backend.api.gating import (
-    is_aneuploidy_gate_acknowledged,
-    is_apoe_gate_acknowledged,
-    is_parkinsons_gate_acknowledged,
-)
+from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
 logger = logging.getLogger(__name__)
-
-# Modules whose findings are opt-in *gated*: each is withheld from this
-# module-agnostic aggregator until its disclosure gate is acknowledged for the
-# sample, mirroring the module's own gated endpoint — otherwise the aggregate API
-# re-opens the disclosure via a side route (APOE #222, sex-aneuploidy #299,
-# Parkinson's #298). Adding a newly gated module is a single entry here.
-_GATED_MODULES: dict[str, Callable[[sa.Engine], bool]] = {
-    "apoe": is_apoe_gate_acknowledged,
-    "sex_aneuploidy": is_aneuploidy_gate_acknowledged,
-    "parkinsons": is_parkinsons_gate_acknowledged,
-}
-
-
-def _gated_modules_to_hide(sample_engine: sa.Engine) -> list[str]:
-    """Gated modules whose disclosure gate is NOT yet acknowledged — their
-    findings must be withheld from aggregate responses."""
-    return [module for module, is_ack in _GATED_MODULES.items() if not is_ack(sample_engine)]
 
 
 router = APIRouter(
@@ -221,7 +199,7 @@ async def list_findings(
     # route (leaking e.g. the APOE diplotype or the possible-XXY screen text).
     # Even an explicit module=<gated> filter yields an empty list pre-ack (not a
     # 403, which would itself confirm the gated data exists).
-    hidden_modules = _gated_modules_to_hide(engine)
+    hidden_modules = gated_modules_to_hide(engine)
     if hidden_modules:
         clauses.append(findings.c.module.not_in(hidden_modules))
 
@@ -253,7 +231,7 @@ async def findings_summary(
     # whose per-module counts, top_finding_text, and high_confidence_findings
     # would otherwise surface a gated finding's narrative pre-gate (APOE #222,
     # sex-aneuploidy #299). Drop each unacknowledged gated module from every query.
-    hidden_modules = _gated_modules_to_hide(engine)
+    hidden_modules = gated_modules_to_hide(engine)
 
     with engine.connect() as conn:
         # Per-module aggregation
@@ -330,7 +308,7 @@ async def get_finding_svg(
     # small, enumerable integers, so without this check a gated card leaks via this
     # by-id side route. 404 (not 403) to match the no-leak posture used elsewhere:
     # do not confirm a gated finding exists before its gate is acknowledged.
-    if row.module in _gated_modules_to_hide(engine):
+    if row.module in gated_modules_to_hide(engine):
         raise HTTPException(status_code=404, detail="Finding not found")
 
     svg_path_str = row.svg_path
