@@ -401,6 +401,7 @@ class TestHLAProxyCalling:
                     by_pop = snp["hla_proxy"]["r_squared_by_population"]
                     assert min(by_pop.values()) < 0.85
                     assert "r_squared_eur" not in snp["hla_proxy"]
+                    assert "r_squared_eas" not in snp["hla_proxy"]
                     assert "r_squared_afr" not in snp["hla_proxy"]
                     assert "clinical_grade_context" in snp["hla_proxy"]
                 else:
