@@ -492,3 +492,56 @@ class TestEnduranceReducedCapacityDirection:
             assert "Elevated" not in categories, (
                 f"{rsid} (a reduced-capacity endurance SNP) still has an Elevated genotype"
             )
+
+
+class TestMCT1DirectionAndCitations:
+    """MCT1 rs1049434 row: verified citations + no inverted/asserted direction
+    (#376 + #377).
+
+    #376 — the row cited two unrelated PMIDs (24898615 = adipose-stem-cell/eNOS
+    differentiation; 25298029 = azobenzene macrocyclization chemistry). Replaced
+    with verified MCT1/rs1049434 exercise-lactate sources: 27026015 (Cupeiro 2016,
+    lactate clearance in active recovery), 34475628 (Guilherme 2020, endurance /
+    lactate / VO2max), 23628675 (Fedotovskaya 2014, MCT1 & athletic performance).
+
+    #377 — AA was `Elevated` while its summary described `reduced` clearance. But
+    Consensus showed the row's direction is itself contradicted/debated: Cupeiro
+    2016 (same TT/TA/AA notation) found AA cleared lactate FASTER than TT, and the
+    allele nomenclature/direction is inconsistent across cohorts. So the row is
+    reframed direction-neutral and AA downgraded from Elevated — no genotype
+    asserts a firm reduced/elevated direction (evidence_level 1 star_1 cap).
+    """
+
+    _ROW = "rs1049434"
+    _VERIFIED = ["27026015", "34475628", "23628675"]
+    _UNRELATED = {"24898615", "25298029"}
+
+    def _get(self, panel_data: dict) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == self._ROW:
+                    return snp
+        pytest.fail("MCT1 rs1049434 not found in panel")
+
+    def test_cites_verified_mct1_sources(self, panel_data: dict) -> None:
+        assert self._get(panel_data)["pmids"] == self._VERIFIED
+
+    def test_unrelated_pmids_absent_panel_wide(self, panel_data: dict) -> None:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                stray = self._UNRELATED & set(snp["pmids"])
+                assert not stray, f"{snp['rsid']} cites unrelated PMID(s): {stray}"
+
+    def test_aa_not_elevated_and_no_elevated_genotype(self, panel_data: dict) -> None:
+        ge = self._get(panel_data)["genotype_effects"]
+        assert ge["AA"]["category"] == "Moderate"
+        cats = {e["category"] for e in ge.values()}
+        assert "Elevated" not in cats
+
+    def test_direction_is_not_firmly_asserted(self, panel_data: dict) -> None:
+        # Must NOT re-assert the inverted "AA = reduced / slower clearance"
+        # (Cupeiro 2016 shows AA clears faster); the direction is marked debated.
+        aa = self._get(panel_data)["genotype_effects"]["AA"]["effect_summary"].lower()
+        assert "debated" in aa
+        assert "slower lactate clearance" not in aa
+        assert "reduced mct1 lactate transporter activity" not in aa

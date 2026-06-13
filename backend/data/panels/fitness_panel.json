@@ -148,24 +148,24 @@
           "genotype_effects": {
             "TT": {
               "category": "Standard",
-              "effect_summary": "Normal MCT1 lactate transporter activity. Standard lactate clearance during high-intensity exercise."
+              "effect_summary": "MCT1 rs1049434 TT (reference). MCT1 (SLC16A1) facilitates lactate transport across muscle-cell membranes."
             },
             "TA": {
               "category": "Moderate",
-              "effect_summary": "One copy of Glu490 variant. Mildly reduced MCT1 lactate transport. May experience slightly slower lactate clearance."
+              "effect_summary": "One copy of the MCT1 rs1049434 (Asp490Glu) variant. Associated with genotype-dependent differences in lactate transport/clearance during high-intensity exercise; the direction and performance impact are debated and cohort-dependent."
             },
             "AT": {
               "category": "Moderate",
-              "effect_summary": "One copy of Glu490 variant. Mildly reduced MCT1 lactate transport. May experience slightly slower lactate clearance."
+              "effect_summary": "One copy of the MCT1 rs1049434 (Asp490Glu) variant. Associated with genotype-dependent differences in lactate transport/clearance during high-intensity exercise; the direction and performance impact are debated and cohort-dependent."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous Glu490. Reduced MCT1 lactate transporter activity. May experience slower lactate clearance during repeated high-intensity bouts."
+              "category": "Moderate",
+              "effect_summary": "Homozygous MCT1 rs1049434 (Asp490Glu) variant. Associated with genotype-dependent differences in lactate handling, but the direction is debated across cohorts (some studies link this genotype to faster lactate clearance and endurance/power phenotypes, others link the alternate allele), so no firm directional effect is asserted."
             }
           },
           "evidence_level": 1,
-          "pmids": ["24898615", "25298029"],
-          "recommendation_text": "MCT1 facilitates lactate transport across cell membranes. Individuals with reduced activity may benefit from longer recovery intervals between high-intensity sets."
+          "pmids": ["27026015", "34475628", "23628675"],
+          "recommendation_text": "MCT1 (SLC16A1) facilitates lactate transport across cell membranes. rs1049434 (Asp490Glu) is associated with differences in lactate handling during high-intensity exercise, but the allele-direction and performance impact are debated and cohort-dependent — treat as research-grade context, not deterministic recovery advice."
         }
       ]
     },
