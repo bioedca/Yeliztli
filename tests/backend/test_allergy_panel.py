@@ -215,6 +215,7 @@ class TestSNPFields:
         assert snp["pmids"] == ["15342695", "26048407", "19665768"], snp["pmids"]
         # The two wrong-gene PMIDs must not remain on the STAT6 row.
         assert not ({"14608356", "18403759"} & set(snp["pmids"]))
+
     def test_hla_b1502_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-B*15:02 / carbamazepine is a Level-4 pharmacogenomic safety row; its
         # citations must be the verified SJS/TEN evidence trail, not the EMR
