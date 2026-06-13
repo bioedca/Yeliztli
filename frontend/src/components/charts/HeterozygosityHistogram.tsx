@@ -82,7 +82,10 @@ export default function HeterozygosityHistogram({
           {
             x: chroms.length - 1,
             y: overallRate,
-            text: `Mean: ${overallRate.toFixed(3)}`,
+            // The reference line is the pooled AUTOSOMAL heterozygosity rate (the
+            // QC baseline used for outlier detection), not the arithmetic mean of
+            // the per-chromosome bars (#513).
+            text: `Autosomal: ${overallRate.toFixed(3)}`,
             showarrow: false,
             yshift: 12,
             font: { color: '#EF4444', size: 11 },

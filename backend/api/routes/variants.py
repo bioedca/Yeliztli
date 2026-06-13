@@ -47,6 +47,13 @@ CHROM_ORDER: dict[str, int] = {
     "MT": 25,
 }
 
+# Autosomes (chr1-22). The overall heterozygosity rate is, by convention, an
+# autosomal quantity — sex chromosomes carry sex-dependent heterozygosity (a
+# male's hemizygous single-char X/Y calls bucket as homozygous) and are QC'd
+# separately. Mirrors ``backend.analysis.qc._AUTOSOMES``; the two definitions are
+# locked equal by test_qc_stats (qc-stats het rate == compute_qc_metrics) (#513).
+_AUTOSOMES = frozenset(str(n) for n in range(1, 23))
+
 # Merge-provenance filter values per AncestryDNA Plan §10.4/§10.7 (Step 71).
 # These columns live on ``raw_variants`` (server_default ''); when a merged
 # sample is being read through ``annotated_variants`` we LEFT-JOIN to surface
@@ -701,7 +708,16 @@ def qc_stats(
     called = total - nocall
 
     call_rate = called / total if total > 0 else 0.0
-    het_rate = het / called if called > 0 else 0.0
+
+    # Heterozygosity rate is AUTOSOMAL-only so the dashboard value equals the
+    # canonical compute_qc_metrics() rate that het_outlier_zscore flags against,
+    # and is not depressed by a male's hemizygous (single-char → "hom") X/Y/MT
+    # calls. Counts and call_rate above stay genome-wide; the per-chromosome
+    # het/hom bars (incl. X/Y/MT) are unchanged for display (#513).
+    auto_het = sum(s.het_count for s in per_chrom if s.chrom in _AUTOSOMES)
+    auto_hom = sum(s.hom_count for s in per_chrom if s.chrom in _AUTOSOMES)
+    auto_called = auto_het + auto_hom
+    het_rate = auto_het / auto_called if auto_called > 0 else 0.0
 
     return QCStatsResponse(
         total_variants=total,

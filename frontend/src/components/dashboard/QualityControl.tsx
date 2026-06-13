@@ -3,7 +3,7 @@
  * Shows basic sample quality metrics: call rate, heterozygosity rate, Ti/Tv.
  * When QC data is available, displays Plotly.js charts:
  *   - Per-chromosome variant count bar chart (stacked het/hom/nocall)
- *   - Per-chromosome heterozygosity rate histogram with mean line
+ *   - Per-chromosome heterozygosity rate histogram with the autosomal-rate baseline line
  */
 
 import { useState } from 'react'

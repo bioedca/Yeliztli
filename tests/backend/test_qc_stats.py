@@ -13,6 +13,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.analysis.qc import compute_qc_metrics
 from backend.api.routes.variants import _classify_genotype
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
@@ -230,8 +231,11 @@ class TestQCStatsEndpoint:
     def test_heterozygosity_rate(self, qc_client):
         client, sid = qc_client
         data = client.get(f"/api/variants/qc-stats?sample_id={sid}").json()
-        # 3 het / 9 called = 0.333...
-        assert data["heterozygosity_rate"] == pytest.approx(1 / 3, abs=0.001)
+        # AUTOSOMAL het / autosomal called (#513): the X (AA hom, A haploid-hom) and
+        # MT (CC hom) calls are excluded from the rate. Autosomal het = AG(chr1),
+        # CT(chr2), TC(chr19) = 3; autosomal hom = AA(chr1), GG(chr2), CC(chr10) = 3;
+        # so 3 / (3 + 3) = 0.5 — NOT the sex-biased all-chrom 3/9 = 0.333.
+        assert data["heterozygosity_rate"] == pytest.approx(0.5, abs=0.001)
 
     def test_per_chromosome_count(self, qc_client):
         client, sid = qc_client
@@ -258,3 +262,81 @@ class TestQCStatsEndpoint:
         client, _ = qc_client
         response = client.get("/api/variants/qc-stats?sample_id=9999")
         assert response.status_code == 404
+
+
+# A MALE sample: autosomal het+hom plus hemizygous single-char X/Y calls (which
+# _classify_genotype buckets as "hom"). The hemizygous calls depress an all-chrom
+# heterozygosity rate but must NOT touch the autosomal QC rate (#513).
+MALE_QC_VARIANTS = [
+    {"rsid": "rs1", "chrom": "1", "pos": 1000, "genotype": "AG"},  # autosomal het
+    {"rsid": "rs2", "chrom": "1", "pos": 2000, "genotype": "AA"},  # autosomal hom
+    {"rsid": "rs3", "chrom": "2", "pos": 3000, "genotype": "CT"},  # autosomal het
+    {"rsid": "rs4", "chrom": "2", "pos": 4000, "genotype": "GG"},  # autosomal hom
+    # Hemizygous single-char X (male) → bucketed hom; depresses all-chrom rate.
+    {"rsid": "rsX1", "chrom": "X", "pos": 10, "genotype": "A"},
+    {"rsid": "rsX2", "chrom": "X", "pos": 20, "genotype": "G"},
+    {"rsid": "rsX3", "chrom": "X", "pos": 30, "genotype": "C"},
+    {"rsid": "rsX4", "chrom": "X", "pos": 40, "genotype": "T"},
+    {"rsid": "rsX5", "chrom": "X", "pos": 50, "genotype": "A"},
+    {"rsid": "rsX6", "chrom": "X", "pos": 60, "genotype": "G"},
+    {"rsid": "rsY1", "chrom": "Y", "pos": 10, "genotype": "A"},
+    {"rsid": "rsY2", "chrom": "Y", "pos": 20, "genotype": "C"},
+]
+
+
+class TestHeterozygosityRateIsAutosomal:
+    """#513: the dashboard qc-stats heterozygosity_rate must be autosomal-only, so
+    it equals the canonical compute_qc_metrics value (used for outlier detection)
+    and is not depressed by a male's hemizygous X/Y calls."""
+
+    def test_qc_stats_het_rate_equals_compute_qc_metrics_for_male(
+        self, tmp_data_dir: Path
+    ) -> None:
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+        ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(ref_engine)
+        with ref_engine.begin() as conn:
+            sample_id = conn.execute(
+                samples.insert().values(
+                    name="male_qc",
+                    db_path="samples/sample_1.db",
+                    file_format="23andme_v5",
+                    file_hash="malehash",
+                )
+            ).lastrowid
+        ref_engine.dispose()
+
+        sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(raw_variants.insert(), MALE_QC_VARIANTS)
+
+        # Canonical autosomal rate (the value het_outlier_zscore flags against).
+        canonical = compute_qc_metrics(sample_engine).heterozygosity_rate
+        sample_engine.dispose()
+        assert canonical == pytest.approx(0.5, abs=0.001)  # 2 het / (2 het + 2 hom)
+
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.api.routes.variants.get_registry") as mock_reg,
+        ):
+            reset_registry()
+            registry = DBRegistry(settings)
+            mock_reg.return_value = registry
+            from backend.main import create_app
+
+            with TestClient(create_app()) as tc:
+                data = tc.get(f"/api/variants/qc-stats?sample_id={sample_id}").json()
+            registry.dispose_all()
+            reset_registry()
+
+        # The dashboard value now matches the canonical autosomal rate exactly...
+        assert data["heterozygosity_rate"] == pytest.approx(canonical, abs=0.0001)
+        # ...and is NOT the sex-biased all-chrom rate (2 het / 12 called = 0.1667),
+        # which the hemizygous X/Y homs would otherwise produce.
+        all_chrom_rate = data["het_count"] / data["called_variants"]
+        assert all_chrom_rate == pytest.approx(2 / 12, abs=0.001)
+        assert data["heterozygosity_rate"] != pytest.approx(all_chrom_rate, abs=0.01)
