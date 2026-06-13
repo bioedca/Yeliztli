@@ -24,7 +24,11 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from backend.api.dependencies import require_fresh_sample
-from backend.api.gating import is_aneuploidy_gate_acknowledged, is_apoe_gate_acknowledged
+from backend.api.gating import (
+    is_aneuploidy_gate_acknowledged,
+    is_apoe_gate_acknowledged,
+    is_parkinsons_gate_acknowledged,
+)
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -33,11 +37,12 @@ logger = logging.getLogger(__name__)
 # Modules whose findings are opt-in *gated*: each is withheld from this
 # module-agnostic aggregator until its disclosure gate is acknowledged for the
 # sample, mirroring the module's own gated endpoint — otherwise the aggregate API
-# re-opens the disclosure via a side route (APOE #222, sex-aneuploidy #299).
-# Adding a newly gated module is a single entry here.
+# re-opens the disclosure via a side route (APOE #222, sex-aneuploidy #299,
+# Parkinson's #298). Adding a newly gated module is a single entry here.
 _GATED_MODULES: dict[str, Callable[[sa.Engine], bool]] = {
     "apoe": is_apoe_gate_acknowledged,
     "sex_aneuploidy": is_aneuploidy_gate_acknowledged,
+    "parkinsons": is_parkinsons_gate_acknowledged,
 }
 
 

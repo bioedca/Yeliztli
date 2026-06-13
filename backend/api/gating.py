@@ -3,14 +3,16 @@
 Several findings are opt-in *gated*: the finding is itself sensitive enough that
 the user chooses whether to learn it, and its acknowledgment state is persisted
 per sample in a single-row gate table. The APOE ε4 / Alzheimer-risk gate
-(``apoe_gate``, see ``routes/apoe.py``) and the sex-chromosome-aneuploidy screen
-gate (``aneuploidy_gate``, see ``routes/sex_aneuploidy.py``) are two such gates.
+(``apoe_gate``, see ``routes/apoe.py``), the sex-chromosome-aneuploidy screen
+gate (``aneuploidy_gate``, see ``routes/sex_aneuploidy.py``), and the Parkinson's
+LRRK2 G2019S gate (``parkinsons_gate``, see ``routes/parkinsons.py``) are such
+gates.
 
 Any endpoint that can surface a gated finding — including the module-agnostic
 aggregators in ``routes/findings.py`` — must consult the gate, or the disclosure
-is re-opened via a side route (issues #222 APOE, #299 sex-aneuploidy). These
-helpers are the single source of truth for those checks so the gate logic is not
-duplicated.
+is re-opened via a side route (issues #222 APOE, #299 sex-aneuploidy, #298
+Parkinson's). These helpers are the single source of truth for those checks so
+the gate logic is not duplicated.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from datetime import datetime
 
 import sqlalchemy as sa
 
-from backend.db.tables import aneuploidy_gate, apoe_gate
+from backend.db.tables import aneuploidy_gate, apoe_gate, parkinsons_gate
 
 
 def _gate_status(sample_engine: sa.Engine, gate_table: sa.Table) -> tuple[bool, str | None]:
@@ -65,4 +67,15 @@ def aneuploidy_gate_status(sample_engine: sa.Engine) -> tuple[bool, str | None]:
 def is_aneuploidy_gate_acknowledged(sample_engine: sa.Engine) -> bool:
     """Return ``True`` iff the sex-aneuploidy disclosure gate is acknowledged."""
     acknowledged, _ = aneuploidy_gate_status(sample_engine)
+    return acknowledged
+
+
+def parkinsons_gate_status(sample_engine: sa.Engine) -> tuple[bool, str | None]:
+    """Return the Parkinson's gate state ``(acknowledged, acknowledged_at)``."""
+    return _gate_status(sample_engine, parkinsons_gate)
+
+
+def is_parkinsons_gate_acknowledged(sample_engine: sa.Engine) -> bool:
+    """Return ``True`` iff the Parkinson's disclosure gate is acknowledged."""
+    acknowledged, _ = parkinsons_gate_status(sample_engine)
     return acknowledged

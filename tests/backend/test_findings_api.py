@@ -672,3 +672,262 @@ class TestAneuploidyGateOnGenericFindings:
         assert resp.status_code == 200
         data = resp.json()
         assert "sex_aneuploidy" in {m["module"] for m in data["modules"]}
+
+
+# ── Parkinson's disclosure gate on the generic aggregator (issue #298) ──
+
+
+@pytest.fixture
+def parkinsons_findings_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Client with both Parkinson's and non-Parkinson's findings for one sample.
+
+    The Parkinson's gate is NOT acknowledged by default (no parkinsons_gate row),
+    so the generic ``/api/analysis/findings`` aggregator must withhold the
+    Parkinson's rows (the LRRK2 G2019S reduced-penetrance risk narrative).
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_path = settings.reference_db_path
+    ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Test Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="abc123",
+            )
+        )
+
+    seed_findings = [
+        # Non-Parkinson's finding — must always be visible.
+        {
+            "module": "cancer",
+            "category": "monogenic_variant",
+            "evidence_level": 4,
+            "gene_symbol": "BRCA1",
+            "finding_text": "BRCA1 Pathogenic",
+        },
+        # A second gated module (APOE), to prove gate independence: acknowledging
+        # Parkinson's must NOT reveal APOE.
+        {
+            "module": "apoe",
+            "category": "alzheimers_risk",
+            "evidence_level": 4,
+            "gene_symbol": "APOE",
+            "finding_text": "APOE ε3/ε4 — probabilistic Alzheimer's disease risk",
+            "diplotype": "ε3/ε4",
+        },
+        # Parkinson's finding — the LRRK2 G2019S risk narrative the gate protects.
+        # evidence_level 4 (vs production's 2) is intentional: it exercises the
+        # high_confidence_findings (>=3) leak path in the summary assertions.
+        {
+            "module": "parkinsons",
+            "category": "risk_variant",
+            "evidence_level": 4,
+            "gene_symbol": "LRRK2",
+            "rsid": "rs34637584",
+            "finding_text": ("LRRK2 G2019S — reduced-penetrance Parkinson's disease risk variant"),
+            "conditions": "Parkinson's disease",
+        },
+    ]
+    with sample_engine.begin() as conn:
+        for f in seed_findings:
+            conn.execute(findings.insert().values(**f))
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+
+
+class TestParkinsonsGateOnGenericFindings:
+    """The generic findings aggregator must honor the Parkinson's gate (#298)."""
+
+    _ACK = "/api/analysis/parkinsons/acknowledge-gate"
+
+    def test_withheld_from_unfiltered_list_before_ack(self, parkinsons_findings_client):
+        resp = parkinsons_findings_client.get("/api/analysis/findings?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        modules = {f["module"] for f in data}
+        assert "parkinsons" not in modules
+        assert "cancer" in modules  # non-gated finding still surfaces
+        assert "lrrk2" not in resp.text.lower()
+        assert "g2019s" not in resp.text.lower()
+
+    def test_withheld_from_explicit_module_filter_before_ack(self, parkinsons_findings_client):
+        resp = parkinsons_findings_client.get(
+            "/api/analysis/findings?sample_id=1&module=parkinsons"
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_withheld_from_summary_before_ack(self, parkinsons_findings_client):
+        resp = parkinsons_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "parkinsons" not in {m["module"] for m in data["modules"]}
+        assert "g2019s" not in resp.text.lower()
+        assert all(f["module"] != "parkinsons" for f in data["high_confidence_findings"])
+
+    def test_visible_in_list_after_ack(self, parkinsons_findings_client):
+        ack = parkinsons_findings_client.post(self._ACK, params={"sample_id": 1})
+        assert ack.status_code == 200
+        resp = parkinsons_findings_client.get(
+            "/api/analysis/findings?sample_id=1&module=parkinsons"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["module"] == "parkinsons"
+        assert "G2019S" in data[0]["finding_text"]
+
+    def test_visible_in_summary_after_ack(self, parkinsons_findings_client):
+        parkinsons_findings_client.post(self._ACK, params={"sample_id": 1})
+        resp = parkinsons_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        pk = next((m for m in data["modules"] if m["module"] == "parkinsons"), None)
+        assert pk is not None
+        assert pk["count"] == 1
+        assert any(f["module"] == "parkinsons" for f in data["high_confidence_findings"])
+
+    def test_apoe_still_independently_gated(self, parkinsons_findings_client):
+        # Acknowledging Parkinson's must NOT unlock APOE — the fixture seeds an
+        # APOE row, so this is non-vacuous: the acked gate appears, the other stays
+        # withheld (a blanket-unlock regression would fail here).
+        parkinsons_findings_client.post(self._ACK, params={"sample_id": 1})
+        resp = parkinsons_findings_client.get("/api/analysis/findings?sample_id=1")
+        modules = {f["module"] for f in resp.json()}
+        assert "parkinsons" in modules  # the acknowledged gate is now visible
+        assert "apoe" not in modules  # the un-acknowledged APOE gate stays withheld
+        assert "alzheimer" not in resp.text.lower()
+
+    def test_both_gates_acknowledged_reveals_both(self, parkinsons_findings_client):
+        # Empty-withheld branch: acknowledging every gate reveals all gated modules.
+        parkinsons_findings_client.post(self._ACK, params={"sample_id": 1})
+        parkinsons_findings_client.post(
+            "/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1}
+        )
+        resp = parkinsons_findings_client.get("/api/analysis/findings?sample_id=1")
+        modules = {f["module"] for f in resp.json()}
+        assert {"apoe", "parkinsons", "cancer"} <= modules
+
+
+@pytest.fixture
+def parkinsons_svg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Client where a Parkinson's finding and a non-Parkinson's finding have SVGs."""
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_path = settings.reference_db_path
+    ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_dir = tmp_data_dir / "samples"
+    sample_db_path = sample_dir / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    svg_dir = sample_dir / "svgs"
+    svg_dir.mkdir(exist_ok=True)
+    (svg_dir / "pk_card.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>LRRK2 G2019S</text></svg>',
+        encoding="utf-8",
+    )
+    (svg_dir / "cancer_card.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>BRCA1</text></svg>',
+        encoding="utf-8",
+    )
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Test Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="abc123",
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            findings.insert().values(
+                id=1,
+                module="parkinsons",
+                category="risk_variant",
+                evidence_level=4,
+                gene_symbol="LRRK2",
+                finding_text="LRRK2 G2019S Parkinson's risk",
+                svg_path="svgs/pk_card.svg",
+            )
+        )
+        conn.execute(
+            findings.insert().values(
+                id=2,
+                module="cancer",
+                category="monogenic_variant",
+                evidence_level=4,
+                gene_symbol="BRCA1",
+                finding_text="BRCA1 Pathogenic",
+                svg_path="svgs/cancer_card.svg",
+            )
+        )
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+
+
+class TestParkinsonsSvgGate:
+    """GET /findings/{id}/svg must honor the Parkinson's gate (issue #298)."""
+
+    def test_parkinsons_svg_withheld_before_ack(self, parkinsons_svg_client):
+        resp = parkinsons_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
+        assert resp.status_code == 404
+
+    def test_non_parkinsons_svg_served_regardless(self, parkinsons_svg_client):
+        resp = parkinsons_svg_client.get("/api/analysis/findings/2/svg?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/svg+xml")
+
+    def test_parkinsons_svg_served_after_ack(self, parkinsons_svg_client):
+        parkinsons_svg_client.post(
+            "/api/analysis/parkinsons/acknowledge-gate", params={"sample_id": 1}
+        )
+        resp = parkinsons_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/svg+xml")
+        assert "G2019S" in resp.text
