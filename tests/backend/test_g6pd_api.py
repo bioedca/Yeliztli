@@ -120,6 +120,7 @@ class TestG6pdEndpoint:
         # the strand-ambiguity behaviour itself is unit-tested in test_g6pd.py.
         data = g6pd_client.get("/api/analysis/g6pd?sample_id=1").json()
         assert data["strand_ambiguous_loci"] == []
+        assert data["variants"], "expected at least one variant in response"
         assert all("strand_ambiguous" in v for v in data["variants"])
 
     def test_noncarrier_is_normal(self, g6pd_client: TestClient) -> None:
