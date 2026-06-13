@@ -49,11 +49,6 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "cardiac cell biology (Bcl-2), not a germline variant",
         "caught_in": "cardiovascular",
     },
-    "12181445": {
-        "title": "Inhibition of CDK2 by the Chk1-Cdc25A pathway (fludarabine)",
-        "field": "cancer pharmacology",
-        "caught_in": "methylation (MTRR, #206)",
-    },
     "17343727": {
         "title": "Automated array-CGH optimized for archival FFPE tissue",
         "field": "lab methodology (array-CGH on FFPE)",
@@ -69,11 +64,6 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "optics / instrumentation",
         "caught_in": "allergy",
     },
-    "19289833": {
-        "title": "Resistance to CCR5 inhibitors via HIV-1 fusion-peptide changes",
-        "field": "HIV virology",
-        "caught_in": "sleep",
-    },
     "20162554": {
         "title": "Antigenic strength controls antigen-specific IL-10-secreting T cells",
         "field": "T-cell immunology",
@@ -83,11 +73,6 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "title": "The biodiversity of the Mediterranean Sea: estimates, patterns, and threats",
         "field": "marine ecology",
         "caught_in": "gene_health",
-    },
-    "21149639": {
-        "title": "G protein-coupled estrogen receptor 1 / GPR30 localization",
-        "field": "estrogen-receptor pharmacology",
-        "caught_in": "hemochromatosis/HFE (#175)",
     },
     "22177658": {
         "title": "Treatment decision-making and information preferences of patients",
@@ -115,6 +100,22 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "caught_in": "cancer (MUTYH)",
     },
 }
+
+# PMIDs that WERE caught misattributed but are biomedical/genomics-ADJACENT (they
+# name real human genes or sit in an oncology/infection/receptor field), so they
+# could legitimately back some *correct* gene in future. They must NOT be in the
+# repo-wide registry above — repo-wide banning would block a valid citation. They
+# stay caught by their existing gene/panel-scoped guards (the #277 layer), e.g.
+# 12181445 -> test_methylation_panel.py (MTRR), 19289833 -> test_sleep_panel.py
+# (PER3), 21149639 -> test_hemochromatosis.py (HFE). This set locks that
+# decision so they can't be re-added to the global ban by mistake.
+_GENE_SCOPED_NOT_REPO_BANNED: frozenset[str] = frozenset(
+    {
+        "12181445",  # CDK2/Chk1-Cdc25A cancer cell-cycle pharmacology (CHEK1/CDC25A/CDK2)
+        "19289833",  # HIV gp41/CCR5 — CCR5 is a real human gene (Delta32 trait)
+        "21149639",  # GPER1/GPR30 human GPCR cell biology
+    }
+)
 
 
 def _iter_pmids(obj) -> list[str]:
@@ -163,6 +164,16 @@ def test_registry_is_well_formed() -> None:
         assert meta.get("title"), f"{pmid}: missing real title (provenance)"
         assert meta.get("field"), f"{pmid}: missing off-topic field"
         assert meta.get("caught_in"), f"{pmid}: missing source panel"
+
+
+def test_gene_adjacent_pmids_stay_gene_scoped() -> None:
+    """Genomics-adjacent misattributions must never enter the repo-wide ban — they
+    are legitimately citable for their correct gene and stay in per-panel guards."""
+    wrongly_global = _GENE_SCOPED_NOT_REPO_BANNED & set(BANNED_OFF_TOPIC_PMIDS)
+    assert not wrongly_global, (
+        f"genomics-adjacent PMID(s) {sorted(wrongly_global)} must not be repo-wide "
+        "banned (false-positive risk); keep them in gene-scoped per-panel guards"
+    )
 
 
 def test_banned_pmids_absent_from_every_panel() -> None:
