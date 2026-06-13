@@ -220,6 +220,43 @@ class TestCHEK2ColorectalConditional:
         assert "family history" in notes or "familial" in notes  # conditional framing
 
 
+class TestCHEK2CancerTypes:
+    """CHEK2 cancer_types audited against current large-cohort evidence (#393).
+
+    Breast is established. Prostate and kidney are confirmed by population-scale
+    genomic-ascertainment cohorts not selected on family history (Kim 2025 JAMA
+    Netw Open, PMID 41396600; Mukhtar 2024 J Med Genet, PMID 39209703). Thyroid
+    (OR 1.63) and kidney (OR 2.57) are significant in Bychkovsky 2022 (JAMA Oncol,
+    PMID 36136322). The common attenuated missense alleles (I157T/S428F/T476M)
+    carry NO non-breast association — documented in notes."""
+
+    def test_chek2_cancer_types_audited_set(self, panel: CancerPanel) -> None:
+        chek2 = panel.get_gene("CHEK2")
+        assert chek2 is not None
+        assert set(chek2.cancer_types) == {"Breast", "Prostate", "Thyroid", "Kidney"}
+
+    def test_chek2_returned_for_thyroid_and_kidney_queries(self, panel: CancerPanel) -> None:
+        for cancer_type in ("Thyroid", "Kidney", "Prostate"):
+            symbols = {g.gene_symbol for g in panel.genes_by_cancer_type(cancer_type)}
+            assert "CHEK2" in symbols, f"CHEK2 missing from {cancer_type} query"
+
+    def test_chek2_cites_audit_evidence(self, panel: CancerPanel) -> None:
+        # The large-cohort evidence that adds thyroid/kidney and confirms prostate.
+        pmids = panel.get_gene("CHEK2").pmids
+        for pmid in ("36136322", "41396600", "39209703"):
+            assert pmid in pmids, f"CHEK2 missing audit PMID {pmid}"
+
+    def test_chek2_notes_document_attenuated_variant_caveat(self, panel: CancerPanel) -> None:
+        # The non-breast associations do NOT apply to the common attenuated
+        # missense alleles — this caveat must survive in notes so the broader
+        # cancer_types can't be read as variant-agnostic.
+        notes = panel.get_gene("CHEK2").notes.lower()
+        assert "i157t" in notes
+        assert "s428f" in notes
+        assert "t476m" in notes
+        assert "non-breast" in notes or "nonbreast" in notes
+
+
 # ── Citation provenance ──────────────────────────────────────────────────
 
 
@@ -716,6 +753,9 @@ class TestCHEK2CitationProvenance:
             "37490054",  # Hanson 2023, Genet Med — ACMG CHEK2 management practice resource
             "27269948",  # Schmidt 2016, JCO — age/subtype-specific risk for CHEK2*1100delC
             "15492928",  # Cybulski 2004, AJHG — "CHEK2 is a multiorgan cancer susceptibility gene"
+            "36136322",  # Bychkovsky 2022 JAMA Oncol: thyroid/kidney + attenuated caveat (#393)
+            "41396600",  # Kim 2025 JAMA Netw Open: genomic-ascertainment prostate/kidney (#393)
+            "39209703",  # Mukhtar 2024 J Med Genet: UKB WES prostate/kidney (#393)
         }
     )
     # Unrelated PMIDs wrongly cited by the CHEK2 row before the fix. NOTE:

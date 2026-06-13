@@ -116,7 +116,7 @@
       "name": "Checkpoint Kinase 2",
       "chromosome": "22",
       "syndromes": ["Hereditary Breast Cancer", "Li-Fraumeni Syndrome-2"],
-      "cancer_types": ["Breast", "Prostate"],
+      "cancer_types": ["Breast", "Prostate", "Thyroid", "Kidney"],
       "inheritance": "AD",
       "evidence_level": 3,
       "cross_links": [],
@@ -127,8 +127,8 @@
         "rs200928781",
         "rs587780174"
       ],
-      "pmids": ["37490054", "27269948", "15492928"],
-      "notes": "Moderate-penetrance breast cancer gene; 1100delC is the most-studied variant. Colorectal cancer is intentionally NOT a general associated type: recent large cohorts find no overall CRC risk in unselected CHEK2 carriers (Bychkovsky 2022 JAMA Oncol; Mundt 2023 Cancer Genet, PMID 37839337, 'little to no risk'). Any colorectal association is variant-specific (truncating 1100delC, missense I157T) and concentrated in familial/HBCC contexts (Xiang 2011 familial OR 2.80 but sporadic NS, PMID 21807500; Wasielewski 2008 HNPCC OR 4.3; Schreurs 2024 1100delC-family SIR 1.43, PMID 38828701). ACMG recommends colorectal/prostate surveillance be considered based on family history, not unconditionally (Hanson 2023, PMID 37490054)."
+      "pmids": ["37490054", "27269948", "15492928", "36136322", "41396600", "39209703"],
+      "notes": "Moderate-penetrance breast cancer gene; 1100delC is the most-studied variant. Associated cancer types (#393): breast (established; Schmidt 2016 JCO 1100delC risk estimates, PMID 27269948), prostate, thyroid, and kidney. Prostate and kidney are confirmed by population-scale genomic-ascertainment cohorts not selected on family history (Kim 2025 JAMA Netw Open, UK Biobank + Geisinger MyCode: prostate OR 1.62-1.78, kidney OR 1.58-1.84, PMID 41396600; Mukhtar 2024 J Med Genet, UKB WES: prostate and kidney among CHEK2 PTV associations, PMID 39209703). Thyroid (OR 1.63) and kidney (OR 2.57) are also significant in Bychkovsky 2022 (JAMA Oncol, 3,783 carriers, PMID 36136322); CHEK2 is a long-recognised multi-organ susceptibility gene (Cybulski 2004, PMID 15492928). IMPORTANT attenuated-variant caveat: the common missense alleles p.I157T, p.S428F and p.T476M have an attenuated breast association and were NOT associated with any non-breast cancer in Bychkovsky 2022 — the prostate/thyroid/kidney associations apply to other (truncating and non-attenuated missense) CHEK2 pathogenic variants. Colorectal cancer is intentionally NOT a general associated type: recent large cohorts find no overall CRC risk in unselected CHEK2 carriers, which are in fact LESS likely to have colorectal cancer (Bychkovsky 2022 OR 0.62; Mundt 2023 Cancer Genet, PMID 37839337, 'little to no risk'). Any colorectal association is variant-specific (truncating 1100delC, missense I157T) and concentrated in familial/HBCC contexts (Xiang 2011 familial OR 2.80 but sporadic NS, PMID 21807500; Wasielewski 2008 HNPCC OR 4.3; Schreurs 2024 1100delC-family SIR 1.43, PMID 38828701). ACMG recommends colorectal/prostate surveillance be considered based on family history, not unconditionally (Hanson 2023, PMID 37490054)."
     },
     {
       "gene_symbol": "RAD51C",
