@@ -22,6 +22,13 @@ tests are **self-discovering** (#508): they enumerate every I/D-token locus in
 the panels and the carrier module from disk, so a newly added or edited indel
 locus that omits its ``indel_polarity`` provenance fails CI automatically — there
 is no hand-maintained allow-list to forget (the omission DHFR slipped through).
+
+Scope: the guard covers the vendor ``I``/``D``-token encoding (risk/ref alleles
+literally in {D, I}) and the ``indel_genotype_map`` form — the encodings where a
+D↔I inversion can silently flip a call. Bare-base indels written as explicit
+sequences (e.g. MMP1 -1607 1G/2G as ``G``/``GG`` in skin_panel.json) are
+intentionally out of scope: they carry no I/D token, so there is no polarity to
+invert and no ``indel_polarity`` record is required.
 """
 
 from __future__ import annotations
