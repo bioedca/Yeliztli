@@ -3,6 +3,9 @@
 Yeliztli runs many analysis **modules** over your data. Each one loads a curated panel of
 variants, extracts the ones you carry, and stores **findings** with an
 [evidence rating](../getting-started/reading-your-results.md#findings-and-evidence-ratings).
+For how to read each kind of output — evidence stars, categorical levels, diplotypes,
+polygenic percentiles, and the recurring caveats — see the
+[interpretation reference](interpretation-reference.md).
 
 Modules come in three kinds:
 
