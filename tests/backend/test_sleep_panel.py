@@ -323,6 +323,43 @@ class TestPER3Proxy:
         per3 = self._get_per3(panel_data)
         assert per3["evidence_level"] == 1  # VNTR proxy, less replicated
 
+    # ── Citation provenance (issue #188) ────────────────────────────────
+    # The PER3 row previously cited three unrelated papers: 17343727
+    # (array-CGH cancer methods), 23430975 (Duchenne muscular dystrophy
+    # arginine-butyrate), and 19289833 (HIV gp41/CCR5 resistance). Pin the
+    # row to verified PER3 VNTR / rs57875989 circadian references so those
+    # off-topic PMIDs cannot silently reappear.
+    _PER3_PMIDS = {
+        "22324552",  # Lazar 2012 — PER3 VNTR rs57875989 diurnal preference / sleep timing
+        "29248294",  # Archer 2018, Sleep Med Rev — PER3 variant circadian/sleep phenotyping
+    }
+    _BANNED_PMIDS = {"17343727", "23430975", "19289833"}
+
+    def test_per3_cites_verified_circadian_refs(self, panel_data: dict) -> None:
+        per3 = self._get_per3(panel_data)
+        assert set(per3["pmids"]) == self._PER3_PMIDS
+
+    def test_per3_drops_unrelated_pmids(self, panel_data: dict) -> None:
+        per3 = self._get_per3(panel_data)
+        leaked = self._BANNED_PMIDS & set(per3["pmids"])
+        assert not leaked, f"PER3 still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_unrelated_pmids_absent_from_whole_sleep_panel(self, panel_data: dict) -> None:
+        # All three banned PMIDs were exclusive to the PER3 row, so none should
+        # appear anywhere in the sleep panel after the fix.
+        def _all_pmids(obj: object):
+            if isinstance(obj, dict):
+                if isinstance(obj.get("pmids"), list):
+                    yield from obj["pmids"]
+                for value in obj.values():
+                    yield from _all_pmids(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    yield from _all_pmids(item)
+
+        leaked = self._BANNED_PMIDS & set(_all_pmids(panel_data))
+        assert not leaked, f"unrelated PMID(s) still in sleep panel: {sorted(leaked)}"
+
 
 # ── ADORA2A tests ────────────────────────────────────────────────────────
 

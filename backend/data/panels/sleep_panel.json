@@ -105,7 +105,7 @@
           },
           "coverage_note": "rs57875989 is a proxy SNP for the PER3 54-bp variable number tandem repeat (VNTR) polymorphism (4-repeat vs. 5-repeat), which is not directly genotyped on SNP arrays. Proxy accuracy depends on linkage disequilibrium in the individual's ancestry population.",
           "evidence_level": 1,
-          "pmids": ["17343727", "23430975", "19289833"],
+          "pmids": ["22324552", "29248294"],
           "recommendation_text": "PER3 VNTR influences circadian period length. Individuals with the 4-repeat allele (eveningness) may benefit from consistent sleep schedules and morning light exposure to maintain circadian alignment."
         }
       ]
