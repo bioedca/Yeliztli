@@ -204,6 +204,33 @@ describe("AncestryResultCard", () => {
     expect(screen.getByText("0.3200")).toBeInTheDocument()
   })
 
+  it("labels the ranking metric and its direction (#532)", () => {
+    render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
+    // A caption must name the metric (distance to centroid) and state which
+    // direction is "better", so the increasing-down-the-list numbers don't read
+    // backwards as "bigger = stronger match".
+    expect(
+      screen.getByText(/distance to population centroid/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/lower is closer/i)).toBeInTheDocument()
+  })
+
+  it("shows an ordinal rank so best-first ordering is explicit (#532)", () => {
+    render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
+    expect(screen.getByText("#1")).toBeInTheDocument()
+    expect(screen.getByText("#7")).toBeInTheDocument()
+  })
+
+  it("gives each distance an accessible label with direction (#532)", () => {
+    render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
+    // Best match (European, 0.0400) is rank 1 and carries the lower-is-closer hint.
+    expect(
+      screen.getByLabelText(
+        /European: rank 1, distance 0\.0400 \(lower is closer\)/,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it("has accessible test id", () => {
     render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
     expect(screen.getByTestId("ancestry-result-card")).toBeInTheDocument()

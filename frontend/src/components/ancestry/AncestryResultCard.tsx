@@ -102,24 +102,39 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
       {/* Population ranking */}
       {finding.population_ranking.length > 0 && (
         <div className="mt-4 pt-3 border-t">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Population Ranking</p>
+          <p className="text-xs font-medium text-muted-foreground">Population Ranking</p>
+          {/* The value is the distance to each population's PCA centroid; the list
+              is sorted best-first, so the numbers increase down the list. Without
+              this caption a reader naturally misreads "bigger number = stronger
+              match", which is backwards (#532). */}
+          <p className="text-[11px] text-muted-foreground mb-2">
+            Distance to population centroid · lower is closer
+          </p>
           <div className="space-y-1">
-            {finding.population_ranking.map((pr) => {
+            {finding.population_ranking.map((pr, index) => {
               const label = POPULATION_LABELS[pr.population] ?? pr.population
               const color = POPULATION_COLORS[pr.population] ?? "#94A3B8"
+              const rank = index + 1
               return (
                 <div
                   key={pr.population}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono tabular-nums text-muted-foreground w-5 shrink-0">
+                      #{rank}
+                    </span>
                     <span
                       className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: color }}
                     />
-                    <span className="text-foreground">{label}</span>
+                    <span className="text-foreground truncate">{label}</span>
                   </span>
-                  <span className="text-muted-foreground font-mono">
+                  <span
+                    className="text-muted-foreground font-mono shrink-0"
+                    title={`${label}: distance ${pr.distance.toFixed(4)} to the population centroid (lower is closer)`}
+                    aria-label={`${label}: rank ${rank}, distance ${pr.distance.toFixed(4)} (lower is closer)`}
+                  >
                     {pr.distance.toFixed(4)}
                   </span>
                 </div>
