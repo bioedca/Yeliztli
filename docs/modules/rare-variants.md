@@ -1,9 +1,6 @@
 # Rare variants
 
-!!! warning "Research/educational use — not diagnostic"
-    These are consumer genotyping-array calls. Rare-variant calls from arrays are **especially
-    error-prone** and must be confirmed by an accredited clinical laboratory before they mean
-    anything for your health. See [Intended use & disclaimers](../intended-use.md).
+--8<-- "health-disclaimer.md"
 
 The Rare Variant Finder is a flexible tool for surfacing the **rare** and **ultra-rare**
 variants you actually carry, with filters you control.

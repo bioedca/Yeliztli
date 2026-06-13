@@ -4,6 +4,5 @@
     validated**, and must **not** be used to make medical decisions. Array data is
     especially unreliable for rare, disease-causing variants. Always confirm any finding
     with an accredited clinical laboratory and discuss it with a qualified clinician or
-    genetic counsellor before acting on it. See
-    [Intended use & disclaimers](../../intended-use.md) for details and the evidence behind
-    this warning.
+    genetic counsellor before acting on it. See the **Intended use &amp; disclaimers** page for
+    the details and the evidence behind this warning.

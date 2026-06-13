@@ -1,9 +1,6 @@
 # Specialized findings
 
-!!! warning "Research/educational use — not diagnostic"
-    These are consumer genotyping-array results, **not** clinical tests. Confirm anything
-    health-relevant with an accredited laboratory and a clinician. See
-    [Intended use & disclaimers](../intended-use.md).
+--8<-- "health-disclaimer.md"
 
 These condition-specific modules run automatically but don't have their own dashboard page —
 their findings appear in the **Findings Explorer**. Each looks at a small, well-defined set of
