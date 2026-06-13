@@ -650,3 +650,72 @@ class TestDHFRCoverage:
         assert "coverage_note" in dhfr
         note = dhfr["coverage_note"].lower()
         assert "19bp" in note or "deletion" in note
+
+
+# ── MTRR citation provenance (issue #206) ────────────────────────────────
+
+
+def _all_pmids(obj: object):
+    """Recursively yield every PMID string under any ``pmids`` list."""
+    if isinstance(obj, dict):
+        if isinstance(obj.get("pmids"), list):
+            yield from obj["pmids"]
+        for value in obj.values():
+            yield from _all_pmids(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from _all_pmids(item)
+
+
+class TestMTRRCitationProvenance:
+    """Validate MTRR rs1801394 A66G cites on-topic homocysteine evidence.
+
+    The MTRR A66G row previously cited PMID 12181445, which resolves to an
+    unrelated fludarabine / Chk1-Cdc25A S-phase-checkpoint paper (Sampath et
+    al., Mol Pharmacol 2002) and does not support MTRR / methionine-synthase-
+    reductase / homocysteine-remethylation biology. It was replaced with two
+    verified MTRR A66G / homocysteine references. Pin the row so the off-topic
+    PMID cannot silently reappear anywhere in the panel.
+    """
+
+    # Verified on-topic citations for the MTRR rs1801394 A66G row:
+    _MTRR_PMIDS = {
+        "23824729",  # van Meurs 2013, AJCN — homocysteine GWAS (pre-existing, valid)
+        "11472746",  # Gaughan 2001, Atherosclerosis — MTRR A66G determines plasma homocysteine
+        "15514263",  # Vaughn 2004, J Nutr — MTRR 66A>G + MTHFR 677TT elevate homocysteine
+    }
+    _BANNED_PMID = "12181445"  # unrelated fludarabine / Chk1-Cdc25A paper
+
+    def _get_mtrr(self, panel_data: dict) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == "rs1801394":
+                    return snp
+        pytest.fail("MTRR rs1801394 not found in panel")
+
+    def test_mtrr_cites_verified_homocysteine_refs(self, panel_data: dict) -> None:
+        mtrr = self._get_mtrr(panel_data)
+        assert set(mtrr["pmids"]) == self._MTRR_PMIDS
+
+    def test_mtrr_drops_unrelated_pmid(self, panel_data: dict) -> None:
+        mtrr = self._get_mtrr(panel_data)
+        assert self._BANNED_PMID not in mtrr["pmids"], (
+            f"MTRR still cites the unrelated PMID {self._BANNED_PMID}"
+        )
+
+    def test_unrelated_pmid_absent_from_whole_panel(self, panel_data: dict) -> None:
+        # The banned PMID was exclusive to the MTRR row, so it should not
+        # appear anywhere in the methylation panel after the fix.
+        leaked = self._BANNED_PMID in set(_all_pmids(panel_data))
+        assert not leaked, (
+            f"unrelated PMID {self._BANNED_PMID} still present somewhere in methylation panel"
+        )
+
+    def test_mtrr_evidence_level_stays_supportive(self, panel_data: dict) -> None:
+        # MTRR A66G alone is a weak/inconsistent homocysteine determinant; the
+        # row stays evidence_level 1 (supportive, no Elevated) and is framed as
+        # relevant in combination with MTHFR — matching the cited evidence.
+        mtrr = self._get_mtrr(panel_data)
+        assert mtrr["evidence_level"] == 1
+        categories = {e["category"] for e in mtrr["genotype_effects"].values()}
+        assert "Elevated" not in categories
