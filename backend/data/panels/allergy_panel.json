@@ -550,8 +550,8 @@
       }
     },
     "histamine_combined_assessment": {
-      "description": "Combined AOC1 (extracellular/gut DAO) and HNMT (intracellular) assessment. Three of the four main AOC1 DAO-deficiency variants are tracked (rs10156191 Thr16Met, rs1049742 Ser332Phe, rs2052129 c.-691G>T promoter); HNMT rs11558538 affects intracellular histamine inactivation. The cumulative AOC1 risk-allele load (especially the homozygous count) is more predictive of reduced DAO activity than any single variant. Compound reduction across AOC1 and HNMT may amplify histamine intolerance risk. All are ★☆ evidence (candidate gene level) and should be visually de-emphasized relative to GWAS and clinical-grade findings.",
-      "rsids": ["rs10156191", "rs1049742", "rs2052129", "rs11558538"],
+      "description": "Combined AOC1 (extracellular/gut DAO) and HNMT (intracellular) assessment. All four main AOC1 DAO-deficiency variants are tracked (rs10156191 Thr16Met, rs1049742 Ser332Phe, rs1049793 His664Asp, rs2052129 c.-691G>T promoter); HNMT rs11558538 affects intracellular histamine inactivation. The cumulative AOC1 risk-allele load (especially the homozygous count) is more predictive of reduced DAO activity than any single variant. Compound reduction across AOC1 and HNMT may amplify histamine intolerance risk. All are ★☆ evidence (candidate gene level) and should be visually de-emphasized relative to GWAS and clinical-grade findings.",
+      "rsids": ["rs10156191", "rs1049742", "rs1049793", "rs2052129", "rs11558538"],
       "de_emphasize_in_ui": true
     }
   },

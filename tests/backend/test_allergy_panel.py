@@ -662,6 +662,17 @@ class TestHistamineMetabolism:
         sc = panel_data["special_calling"]["histamine_combined_assessment"]
         assert sc["de_emphasize_in_ui"] is True
 
+    def test_histamine_metadata_tracks_all_four_aoc1_variants(self, panel_data: dict) -> None:
+        """#469: the combined-assessment metadata must list all four AOC1 DAO
+        variants (incl. rs1049793 His664Asp, added to the panel in #436) plus HNMT,
+        so the metadata stays consistent with the Histamine Metabolism pathway."""
+        sc = panel_data["special_calling"]["histamine_combined_assessment"]
+        expected = {"rs10156191", "rs1049742", "rs1049793", "rs2052129", "rs11558538"}
+        missing = expected - set(sc["rsids"])
+        assert set(sc["rsids"]) == expected, f"metadata rsids missing {missing}"
+        assert "rs1049793" in sc["description"]
+        assert "all four" in sc["description"].lower()
+
     def test_aoc1_has_hgvs(self, panel_data: dict) -> None:
         for snp in self._get_histamine_snps(panel_data):
             if snp["rsid"] == "rs10156191":
