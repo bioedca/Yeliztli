@@ -437,7 +437,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["10862766", "16702423", "17463246", "20179158", "32728045"],
+          "pmids": ["17463246", "20179158", "32728045"],
           "recommendation_text": "PPARG Pro12Ala is a well-replicated type 2 diabetes locus where the minor Ala12 (G) allele is protective (per-allele OR ~0.86; Gouda 2010, Sarhangi 2020). The common Pro12 (C) allele is the higher-risk direction, but the effect is small and Ala12-carrying genotypes are not risk-elevating. PPARG is the molecular target of thiazolidinedione drugs. Lifestyle intervention remains effective regardless of genotype."
         },
         {

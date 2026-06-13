@@ -104,6 +104,12 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "infectious-disease epidemiology",
         "caught_in": "sleep (ADORA2A)",
     },
+    "16702423": {
+        "title": "Mapping quantitative trait loci by an extension of the "
+        "Haley-Knott regression method using estimating equations",
+        "field": "statistical-genetics methodology (no specific gene/variant)",
+        "caught_in": "gene_health (PPARG, #285)",
+    },
     "18197166": {
         "title": "Mechanisms of post-transcriptional regulation by microRNAs",
         "field": "RNA-biology review (no specific variant)",

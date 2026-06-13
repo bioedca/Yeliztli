@@ -1606,3 +1606,45 @@ class TestGoutRowsAreRiskModifiers:
             assert "gout module" in snp.recommendation_text.lower(), (
                 f"{snp.gene} {rsid} should point users to the dedicated gout module"
             )
+
+
+class TestPPARGCitationProvenance:
+    """Guard the PPARG Pro12Ala (rs1801282) evidence links (issue #285).
+
+    The PPARG row previously cited two papers unrelated to PPARG/T2D: 10862766
+    (an MLK-3/SPRK kinase-oligomerization study) and 16702423 (a Haley-Knott QTL
+    statistical-methods paper). Pin the row to verified PPARG Pro12Ala / T2D
+    references so those off-topic PMIDs cannot silently reappear.
+    """
+
+    # PPARG Pro12Ala / type-2-diabetes references verified on NCBI ESummary.
+    _PPARG_PMIDS = frozenset(
+        {
+            "17463246",  # Saxena 2007, Science (DGI) — T2D GWAS confirming loci incl. PPARG
+            "20179158",  # Gouda 2010, Am J Epidemiol — PPARG2 Pro12Ala/T2D HuGE meta-analysis
+            "32728045",  # 2020, Sci Rep — PPARG Pro12Ala & T2DM systematic review/meta-analysis
+        }
+    )
+    # Off-topic PMIDs wrongly cited by the PPARG row before the fix. Both were
+    # exclusive to this row; 16702423 (QTL-methods) is also locked repo-wide via
+    # test_citation_provenance_guard.BANNED_OFF_TOPIC_PMIDS, while 10862766 (names
+    # the human gene MAP3K11/MLK-3) is kept gene-scoped here.
+    _BANNED_PMIDS = frozenset({"10862766", "16702423"})
+
+    def _get_pparg(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs1801282":
+                    return snp
+        raise AssertionError("PPARG rs1801282 not found in panel")
+
+    def test_pparg_cites_verified_t2d_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_pparg(panel).pmids) == self._PPARG_PMIDS
+
+    def test_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        # Both banned PMIDs were exclusive to the PPARG row, so neither should
+        # appear anywhere in the gene-health panel after the fix.
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._BANNED_PMIDS & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
