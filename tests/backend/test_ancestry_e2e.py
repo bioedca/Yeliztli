@@ -9,6 +9,7 @@ Covers:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import platform
 import time
@@ -27,6 +28,7 @@ from backend.analysis.ancestry import (
     infer_ancestry,
     load_ancestry_bundle,
     store_ancestry_findings,
+    store_haplogroup_findings,
 )
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -290,6 +292,43 @@ class TestTier1Storage:
         assert "population_distances" in detail
         assert "snps_used" in detail
         assert detail["snps_used"] == 5000
+
+    _ANCESTRY_CATS = ("pca_projection", "nnls_admixture", "knn_admixture")
+    _HAPLO_CATS = ("haplogroup_mt", "haplogroup_y")
+
+    def _count(self, engine, cats) -> int:
+        with engine.connect() as conn:
+            return conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.category.in_(cats))
+            ).scalar()
+
+    def test_insufficient_rerun_clears_stale_ancestry_findings(
+        self, bundle, eur_sample_engine, eur_result
+    ) -> None:
+        # #479: a sufficient run persists 3 findings; an insufficient rerun must
+        # CLEAR them, not leave the stale earlier result (the #348 class).
+        assert store_ancestry_findings(eur_result, eur_sample_engine) == 3
+        insufficient = dataclasses.replace(eur_result, is_sufficient=False)
+        assert store_ancestry_findings(insufficient, eur_sample_engine) == 0
+        assert self._count(eur_sample_engine, self._ANCESTRY_CATS) == 0
+
+    def test_empty_rerun_clears_stale_haplogroup_findings(self, eur_sample_engine) -> None:
+        # #479: a prior haplogroup finding must be cleared by a rerun yielding none.
+        with eur_sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "ancestry",
+                        "category": "haplogroup_mt",
+                        "finding_text": "stale H2a2a1",
+                    }
+                ],
+            )
+        assert store_haplogroup_findings([], eur_sample_engine) == 0
+        assert self._count(eur_sample_engine, self._HAPLO_CATS) == 0
 
     def test_nnls_finding_has_ci(self, bundle, eur_sample_engine, eur_result) -> None:
         store_ancestry_findings(eur_result, eur_sample_engine)

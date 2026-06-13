@@ -1048,12 +1048,22 @@ def store_ancestry_findings(
     Returns:
         Number of findings inserted (0 or 3).
     """
+    categories = ("pca_projection", "nnls_admixture", "knn_admixture")
     if not result.is_sufficient:
         logger.warning(
             "ancestry_finding_skipped_insufficient",
             coverage=result.coverage_fraction,
             snps_used=result.snps_used,
         )
+        # Clear any prior ancestry findings even on an insufficient/empty rerun, so a
+        # stale earlier result never persists (#479 / #348 class).
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.delete(findings).where(
+                    findings.c.module == "ancestry",
+                    findings.c.category.in_(categories),
+                )
+            )
         return 0
 
     # Sort populations by distance (ascending) for display
@@ -1146,8 +1156,6 @@ def store_ancestry_findings(
         "finding_text": (f"kNN admixture estimate (k=15): {result.top_population}"),
         "detail_json": json.dumps(knn_detail),
     }
-
-    categories = ("pca_projection", "nnls_admixture", "knn_admixture")
 
     with sample_engine.begin() as conn:
         # Clear previous ancestry admixture findings
@@ -1793,11 +1801,9 @@ def store_haplogroup_findings(
     Returns:
         Number of findings inserted.
     """
-    if not results:
-        return 0
-
     with sample_engine.begin() as conn:
-        # Clear previous haplogroup data
+        # Clear previous haplogroup data FIRST, so an empty rerun (no results) does not
+        # leave stale haplogroup assignments/findings (#479 / #348 class).
         conn.execute(sa.delete(haplogroup_assignments))
         conn.execute(
             sa.delete(findings).where(
@@ -1805,6 +1811,8 @@ def store_haplogroup_findings(
                 findings.c.category.in_(["haplogroup_mt", "haplogroup_y"]),
             )
         )
+        if not results:
+            return 0
 
         count = 0
         for result in results:
