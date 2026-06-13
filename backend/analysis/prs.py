@@ -712,14 +712,21 @@ def check_ancestry_mismatch(
     source = result.source_ancestry.upper()
     inferred = inferred_ancestry.upper()
 
-    # For a multi-ancestry score, a mismatch means the inferred ancestry is not
-    # in the development set — NOT merely that it differs from the single
-    # resolved source label (which is ancestries[0]). Comparing against the
-    # source label alone would falsely flag a covered ancestry whose label
-    # differs from ancestries[0], and make the "none matching" wording untrue
-    # (issue #239 review). Single-ancestry scores keep the direct comparison.
+    # For a multi-ancestry score, flag a mismatch only when the inferred
+    # ancestry is genuinely uncovered. Two complementary checks are required:
+    #   - source != inferred: source_ancestry is the alias-aware *resolved*
+    #     label (``_resolve_source_ancestry`` returns the inferred ancestry when
+    #     the score covers it, including via the CSA→SAS alias), so equality
+    #     means covered — this keeps a covered CSA user off the warning even
+    #     though "CSA" is not literally in the SAS-labelled development set.
+    #   - inferred not in development set: guards a directly-constructed result
+    #     whose source label was not resolved through ``_resolve_source_ancestry``
+    #     but whose inferred ancestry is literally a development ancestry.
+    # Requiring both keeps the "none matching" wording truthful (issue #239 +
+    # review). Single-ancestry scores keep the direct comparison.
     if is_multi:
-        mismatch = inferred not in {a.upper() for a in result.development_ancestries}
+        dev_upper = {a.upper() for a in result.development_ancestries}
+        mismatch = source != inferred and inferred not in dev_upper
     else:
         mismatch = source != inferred
 

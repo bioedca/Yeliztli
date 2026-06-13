@@ -354,6 +354,12 @@ class TestCsaSasAlias:
         )
         assert ws is not None
         assert ws.source_ancestry == "CSA"
+        # Faithfully thread the multi-ancestry provenance the bridge populates,
+        # so this exercises the multi-ancestry branch (not the single-ancestry
+        # default) — a CSA user is covered by the SAS-labelled dev set via the
+        # CSA→SAS alias and must NOT be flagged (issue #239 review regression).
+        assert ws.multi_ancestry is True
+        assert "SAS" in ws.development_ancestries and "CSA" not in ws.development_ancestries
         result = PRSResult(
             weight_set_name=ws.name,
             trait=ws.trait,
@@ -363,6 +369,8 @@ class TestCsaSasAlias:
             source_pmid=ws.source_pmid,
             sample_size=ws.sample_size,
             raw_score=0.0,
+            multi_ancestry=ws.multi_ancestry,
+            development_ancestries=list(ws.development_ancestries),
         )
         result = check_ancestry_mismatch(result, "CSA")
         assert result.ancestry_mismatch is False

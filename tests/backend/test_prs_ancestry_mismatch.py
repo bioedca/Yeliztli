@@ -793,10 +793,31 @@ class TestMultiAncestryProvenanceWarning:
         assert "population study" not in text
 
     def test_multi_ancestry_covered_ancestry_no_false_warning(self) -> None:
-        # A covered ancestry whose label differs from ancestries[0] must NOT be
-        # flagged: mismatch is membership in the development set, not equality
-        # with the single source label (issue #239 review — Critical).
+        # A covered ancestry literally present in the development set must NOT be
+        # flagged even when its label differs from ancestries[0] (the resolved
+        # source label) — guards CodeRabbit's direct-construction case (#239).
         result = check_ancestry_mismatch(self._multi_result(), inferred_ancestry="EAS")
+        assert result.ancestry_mismatch is False
+        assert result.ancestry_warning_text is None
+
+    def test_multi_ancestry_csa_sas_alias_no_false_warning(self) -> None:
+        # CSA (app label for Central/South Asian) is covered by a SAS-labelled
+        # development set via the CSA→SAS alias. _resolve_source_ancestry returns
+        # "CSA" (covered), so source==inferred and no warning must fire — even
+        # though "CSA" is not literally in development_ancestries (#239 review).
+        covered = PRSResult(
+            weight_set_name="BMI (multi-ancestry)",
+            trait="body_mass_index",
+            module="traits",
+            source_ancestry="CSA",  # resolved label for a covered CSA sample
+            source_study="Multi 2023",
+            source_pmid="1",
+            sample_size=100000,
+            raw_score=0.5,
+            multi_ancestry=True,
+            development_ancestries=["AFR", "AMR", "EAS", "EUR", "SAS"],
+        )
+        result = check_ancestry_mismatch(covered, inferred_ancestry="CSA")
         assert result.ancestry_mismatch is False
         assert result.ancestry_warning_text is None
 
