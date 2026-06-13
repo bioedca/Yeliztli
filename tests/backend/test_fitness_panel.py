@@ -153,6 +153,30 @@ class TestSNPFields:
                 for pmid in snp["pmids"]:
                     assert pmid.isdigit(), f"{snp['rsid']} has non-numeric PMID: {pmid}"
 
+    def test_ampd1_cites_verified_sources(self, panel_data: dict) -> None:
+        """#185 — the AMPD1 (rs17602729) row must cite AMPD1-specific literature.
+
+        Locks the verified set so the previously-transposed unrelated PMIDs
+        cannot return. The originals resolved (NCBI eutils) to non-AMPD1 topics:
+        1346618 = a cardiac neutrophil-adherence study, 16205547 = an EMT
+        bioterrorism-training study. Verified replacements:
+          - 1631143  = Morisaki 1992, PNAS — molecular basis of AMP deaminase
+            deficiency (c.34C>T nonsense, absent AMPD1 peptide in muscle)
+          - 40332645 = Kartibou 2025, Sports Medicine — rs17602729 & athlete status
+        """
+        ampd1 = next(
+            s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs17602729"
+        )
+        assert ampd1["pmids"] == ["1631143", "40332645"]
+
+    def test_no_unrelated_transposed_pmids(self, panel_data: dict) -> None:
+        """The verified-unrelated PMIDs must not appear in any fitness panel row."""
+        unrelated = {"1346618", "16205547"}
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                stray = unrelated.intersection(snp["pmids"])
+                assert not stray, f"{snp['rsid']} cites unrelated PMID(s): {stray}"
+
 
 # ── Genotype effects validation ─────────────────────────────────────────
 
