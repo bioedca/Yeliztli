@@ -1472,6 +1472,14 @@ def _collect_rsids(node: HaplogroupNode) -> set[str]:
     return rsids
 
 
+def _collect_snps(node: HaplogroupNode) -> list[HaplogroupSNP]:
+    """Collect all defining SNPs (rsid + pos + allele) from a tree recursively."""
+    snps = list(node.defining_snps)
+    for child in node.children:
+        snps.extend(_collect_snps(child))
+    return snps
+
+
 def load_haplogroup_bundle(
     bundle_path: Path | None = None,
 ) -> HaplogroupBundle:
@@ -1524,6 +1532,12 @@ def load_haplogroup_bundle(
 # (``snps_conflicting == 0``) — a missing/untyped marker is lack of evidence, an
 # ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
+
+# Normalized mitochondrial chromosome label. Every ingestion parser normalizes the
+# vendor mtDNA code (23andMe/AncestryDNA "25"/"26", etc.) to "MT" (see
+# backend.ingestion.chromosomes), so mtDNA defining SNPs are joined to the sample on
+# chrom == "MT" by rCRS position (#498).
+_MT_CHROM = "MT"
 
 
 def _classify_node_match(
@@ -1675,34 +1689,49 @@ def assign_haplogroups(
     Returns:
         List of HaplogroupResult (1 for XX samples, 2 for XY samples).
     """
-    # Collect all needed rsids
-    all_rsids = list(bundle.mt_snp_rsids | bundle.y_snp_rsids)
-
-    # Fetch genotypes — try annotated_variants first, fall back to raw_variants
+    # Build a genotype_map keyed by the bundle's defining-SNP rsids. The tree-walk
+    # resolves a node's SNPs via ``genotype_map.get(snp.rsid)``, so the two clades
+    # are resolved differently here to match how each is actually stored:
+    #
+    #   * mtDNA — the bundle's defining SNPs use synthetic ``i5<pos>`` ids that exist
+    #     in NO vendor file (23andMe/AncestryDNA label mtDNA with real rs/ i ids or
+    #     none at all), so an rsid join silently matched nothing and the mt haplogroup
+    #     was never assigned for real data (#498). Only the ``pos`` field is a real
+    #     coordinate — the rCRS (revised Cambridge Reference Sequence) position that
+    #     both PhyloTree/ISOGG motifs and vendor mtDNA reporting use — so mt SNPs are
+    #     matched by POSITION on the MT chromosome, then mapped back onto their bundle
+    #     rsid so the existing tree-walk is unchanged.
+    #   * Y — the bundle's defining SNPs carry real dbSNP rsids that vendors do emit,
+    #     so the Y clade keeps its rsid join.
     genotype_map: dict[str, str | None] = {}
     with sample_engine.connect() as conn:
+        # Source table: annotated_variants if populated, else raw_variants.
         try:
-            count = conn.execute(
+            annotated_count = conn.execute(
                 sa.select(sa.func.count()).select_from(annotated_variants)
             ).scalar()
         except sa.exc.OperationalError:
-            count = 0
+            annotated_count = 0
+        source = annotated_variants if annotated_count else raw_variants
 
-        if count:
-            stmt = sa.select(
-                annotated_variants.c.rsid,
-                annotated_variants.c.genotype,
-            ).where(annotated_variants.c.rsid.in_(all_rsids))
-            rows = conn.execute(stmt).fetchall()
-        else:
-            stmt = sa.select(
-                raw_variants.c.rsid,
-                raw_variants.c.genotype,
-            ).where(raw_variants.c.rsid.in_(all_rsids))
-            rows = conn.execute(stmt).fetchall()
+        # mtDNA: match defining SNPs by rCRS position on the MT chromosome.
+        mt_rows = conn.execute(
+            sa.select(source.c.pos, source.c.genotype).where(source.c.chrom == _MT_CHROM)
+        ).fetchall()
+        mt_pos_to_genotype = {row.pos: row.genotype for row in mt_rows}
+        for snp in _collect_snps(bundle.mt_tree):
+            genotype = mt_pos_to_genotype.get(snp.pos)
+            if genotype is not None:
+                genotype_map[snp.rsid] = genotype
 
-    for row in rows:
-        genotype_map[row.rsid] = row.genotype
+        # Y chromosome: match defining SNPs by rsid (vendors emit these).
+        y_rows = conn.execute(
+            sa.select(source.c.rsid, source.c.genotype).where(
+                source.c.rsid.in_(list(bundle.y_snp_rsids))
+            )
+        ).fetchall()
+        for row in y_rows:
+            genotype_map[row.rsid] = row.genotype
 
     results: list[HaplogroupResult] = []
 

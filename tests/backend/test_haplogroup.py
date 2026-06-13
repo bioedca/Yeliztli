@@ -592,6 +592,32 @@ class TestAssignHaplogroups:
         assert results[0].tree_type == "mt"
         assert results[0].haplogroup == "H1a"
 
+    def test_mt_assigned_when_vendor_rsids_differ_from_bundle(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """#498: real vendor files label mtDNA with their own ids (or none) — never the
+        bundle's synthetic ``i5<pos>`` ids — so mtDNA must be assigned by rCRS POSITION
+        on chrom MT, not by a doomed rsid join. Re-key the H1a fixture onto vendor-style
+        rsids that are absent from the bundle (keeping the real chrom MT + pos) and
+        confirm H1a is still assigned."""
+        vendor_rows = [
+            {**row, "rsid": f"i{900000 + idx}"} for idx, row in enumerate(_H1A_GENOTYPES)
+        ]
+        # The test is only meaningful if NONE of these rsids match the bundle — i.e.
+        # any successful assignment comes from the position join, not a lucky rsid hit.
+        assert not ({r["rsid"] for r in vendor_rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), vendor_rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        assert len(results) == 1
+        assert results[0].tree_type == "mt"
+        # Assigned by rCRS position despite zero rsid matches (pre-#498 this was mt-MRCA).
+        assert results[0].haplogroup == "H1a"
+        assert results[0].defining_snps_present > 0
+
     def test_both_mt_and_y(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
         """XY sample gets both mt and Y haplogroup assignments."""
         _seed_both(sample_engine)
