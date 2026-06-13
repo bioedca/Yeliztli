@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -23,11 +24,28 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from backend.api.dependencies import require_fresh_sample
-from backend.api.gating import is_apoe_gate_acknowledged
+from backend.api.gating import is_aneuploidy_gate_acknowledged, is_apoe_gate_acknowledged
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
 logger = logging.getLogger(__name__)
+
+# Modules whose findings are opt-in *gated*: each is withheld from this
+# module-agnostic aggregator until its disclosure gate is acknowledged for the
+# sample, mirroring the module's own gated endpoint — otherwise the aggregate API
+# re-opens the disclosure via a side route (APOE #222, sex-aneuploidy #299).
+# Adding a newly gated module is a single entry here.
+_GATED_MODULES: dict[str, Callable[[sa.Engine], bool]] = {
+    "apoe": is_apoe_gate_acknowledged,
+    "sex_aneuploidy": is_aneuploidy_gate_acknowledged,
+}
+
+
+def _gated_modules_to_hide(sample_engine: sa.Engine) -> list[str]:
+    """Gated modules whose disclosure gate is NOT yet acknowledged — their
+    findings must be withheld from aggregate responses."""
+    return [module for module, is_ack in _GATED_MODULES.items() if not is_ack(sample_engine)]
+
 
 router = APIRouter(
     prefix="/analysis/findings",
@@ -192,15 +210,15 @@ async def list_findings(
     if min_stars is not None:
         clauses.append(findings.c.evidence_level >= min_stars)
 
-    # APOE ε4 is the Alzheimer-risk disclosure the opt-in gate exists to protect.
-    # The dedicated APOE routes gate it; this module-agnostic aggregator must too,
-    # or it re-opens the disclosure via a side route — leaking the diplotype and
-    # the full clinical narrative (issue #222). Withhold module="apoe" findings
-    # until the gate is acknowledged. With an explicit module=apoe filter this
-    # yields an empty list pre-acknowledgment (not a 403, which would itself
-    # confirm APOE data exists).
-    if not is_apoe_gate_acknowledged(engine):
-        clauses.append(findings.c.module != "apoe")
+    # Withhold opt-in-gated modules (APOE #222, sex-aneuploidy #299) until each
+    # gate is acknowledged — the dedicated module routes gate them, and this
+    # module-agnostic aggregator must too or it re-opens the disclosure via a side
+    # route (leaking e.g. the APOE diplotype or the possible-XXY screen text).
+    # Even an explicit module=<gated> filter yields an empty list pre-ack (not a
+    # 403, which would itself confirm the gated data exists).
+    hidden_modules = _gated_modules_to_hide(engine)
+    if hidden_modules:
+        clauses.append(findings.c.module.not_in(hidden_modules))
 
     stmt = sa.select(findings)
     if clauses:
@@ -226,11 +244,11 @@ async def findings_summary(
     """Per-module finding summary with counts and top findings."""
     engine = _get_sample_engine(sample_id)
 
-    # Mirror list_findings: the APOE disclosure gate also covers this summary,
+    # Mirror list_findings: the opt-in disclosure gates also cover this summary,
     # whose per-module counts, top_finding_text, and high_confidence_findings
-    # would otherwise surface the APOE diplotype/Alzheimer's narrative pre-gate
-    # (issue #222). Drop module="apoe" from every query until acknowledged.
-    apoe_visible = is_apoe_gate_acknowledged(engine)
+    # would otherwise surface a gated finding's narrative pre-gate (APOE #222,
+    # sex-aneuploidy #299). Drop each unacknowledged gated module from every query.
+    hidden_modules = _gated_modules_to_hide(engine)
 
     with engine.connect() as conn:
         # Per-module aggregation
@@ -243,8 +261,8 @@ async def findings_summary(
             .group_by(findings.c.module)
             .order_by(sa.desc("max_ev"))
         )
-        if not apoe_visible:
-            agg_stmt = agg_stmt.where(findings.c.module != "apoe")
+        if hidden_modules:
+            agg_stmt = agg_stmt.where(findings.c.module.not_in(hidden_modules))
         agg_rows = conn.execute(agg_stmt).fetchall()
 
         # All findings for top finding per module
@@ -252,8 +270,8 @@ async def findings_summary(
             sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
             findings.c.module,
         )
-        if not apoe_visible:
-            all_stmt = all_stmt.where(findings.c.module != "apoe")
+        if hidden_modules:
+            all_stmt = all_stmt.where(findings.c.module.not_in(hidden_modules))
         all_rows = conn.execute(all_stmt).fetchall()
 
     # Build per-module summary
@@ -302,12 +320,12 @@ async def get_finding_svg(
     if row is None:
         raise HTTPException(status_code=404, detail="Finding not found")
 
-    # The APOE SVG card renders the ε4 diplotype and an Alzheimer-risk label — the
-    # same disclosure list_findings/summary withhold (issue #222). Finding ids are
-    # small, enumerable integers, so without this check an APOE card leaks via this
+    # A gated module's SVG card (e.g. the APOE ε4/Alzheimer card) renders the same
+    # disclosure list_findings/summary withhold (#222, #299). Finding ids are
+    # small, enumerable integers, so without this check a gated card leaks via this
     # by-id side route. 404 (not 403) to match the no-leak posture used elsewhere:
-    # do not confirm an APOE finding exists before the gate is acknowledged.
-    if row.module == "apoe" and not is_apoe_gate_acknowledged(engine):
+    # do not confirm a gated finding exists before its gate is acknowledged.
+    if row.module in _gated_modules_to_hide(engine):
         raise HTTPException(status_code=404, detail="Finding not found")
 
     svg_path_str = row.svg_path

@@ -548,3 +548,127 @@ class TestAPOESvgGate:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("image/svg+xml")
         assert "ε3/ε4" in resp.text
+
+
+@pytest.fixture
+def aneuploidy_findings_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Test client with a gated sex-aneuploidy finding + a non-gated finding.
+
+    The aneuploidy gate is NOT acknowledged by default (no aneuploidy_gate row),
+    so the generic ``/api/analysis/findings`` aggregator must withhold the
+    sex_aneuploidy row (issue #299).
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_path = settings.reference_db_path
+    ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Test Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="abc123",
+            )
+        )
+
+    seed_findings = [
+        # Non-gated finding — must always be visible.
+        {
+            "module": "cancer",
+            "category": "monogenic_variant",
+            "evidence_level": 4,
+            "gene_symbol": "BRCA1",
+            "finding_text": "BRCA1 Pathogenic",
+        },
+        # The gated sex-aneuploidy screen result (possible XXY / Klinefelter).
+        {
+            "module": "sex_aneuploidy",
+            "category": "aneuploidy_screen",
+            "evidence_level": 3,
+            "finding_text": (
+                "Screen suggests a possible sex-chromosome aneuploidy with an XXY "
+                "(Klinefelter) pattern — confirmation required."
+            ),
+        },
+    ]
+    with sample_engine.begin() as conn:
+        for f in seed_findings:
+            conn.execute(findings.insert().values(**f))
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+
+
+class TestAneuploidyGateOnGenericFindings:
+    """The generic findings aggregator must honor the sex-aneuploidy gate (#299)."""
+
+    def test_withheld_from_unfiltered_list_before_ack(self, aneuploidy_findings_client):
+        resp = aneuploidy_findings_client.get("/api/analysis/findings?sample_id=1")
+        assert resp.status_code == 200
+        modules = {f["module"] for f in resp.json()}
+        assert "sex_aneuploidy" not in modules
+        assert "cancer" in modules  # non-gated findings still surface
+        # The XXY/Klinefelter screen text must not leak.
+        assert "xxy" not in resp.text.lower()
+        assert "klinefelter" not in resp.text.lower()
+
+    def test_withheld_from_explicit_module_filter_before_ack(self, aneuploidy_findings_client):
+        resp = aneuploidy_findings_client.get(
+            "/api/analysis/findings?sample_id=1&module=sex_aneuploidy"
+        )
+        assert resp.status_code == 200  # empty list, not a 403 that confirms data exists
+        assert resp.json() == []
+
+    def test_withheld_from_summary_before_ack(self, aneuploidy_findings_client):
+        resp = aneuploidy_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "sex_aneuploidy" not in {m["module"] for m in data["modules"]}
+        assert "xxy" not in resp.text.lower()
+        assert "klinefelter" not in resp.text.lower()
+        assert all(f["module"] != "sex_aneuploidy" for f in data["high_confidence_findings"])
+
+    def test_visible_in_list_after_ack(self, aneuploidy_findings_client):
+        ack = aneuploidy_findings_client.post(
+            "/api/analysis/sex-aneuploidy/acknowledge-gate", params={"sample_id": 1}
+        )
+        assert ack.status_code == 200
+        resp = aneuploidy_findings_client.get(
+            "/api/analysis/findings?sample_id=1&module=sex_aneuploidy"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["module"] == "sex_aneuploidy"
+        assert "XXY" in data[0]["finding_text"]
+
+    def test_visible_in_summary_after_ack(self, aneuploidy_findings_client):
+        aneuploidy_findings_client.post(
+            "/api/analysis/sex-aneuploidy/acknowledge-gate", params={"sample_id": 1}
+        )
+        resp = aneuploidy_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "sex_aneuploidy" in {m["module"] for m in data["modules"]}
