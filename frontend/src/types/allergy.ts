@@ -1,5 +1,7 @@
 /** Gene Allergy API types (P3-61). */
 
+import type { SnpCategory } from "@/lib/snpCategory"
+
 /** Categorical level for an allergy pathway. */
 export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
@@ -37,7 +39,13 @@ export interface SNPDetail {
   gene: string
   variant_name: string
   genotype: string | null
-  category: PathwayLevel
+  /**
+   * Per-SNP effect category. Widens the pathway-level `PathwayLevel` with the
+   * runtime-only `Indeterminate` value (#369/#465): a strand-ambiguous
+   * palindromic homozygote whose call the backend withholds (#269/#436, e.g.
+   * AOC1 rs1049793 CC/GG). Rendered neutral slate, never green Standard.
+   */
+  category: SnpCategory
   effect_summary: string
   evidence_level: number
   recommendation: string | null

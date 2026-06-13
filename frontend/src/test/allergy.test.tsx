@@ -289,3 +289,65 @@ describe("HLAProxyBadge", () => {
     expect(badge.textContent).not.toContain("r²=")
   })
 })
+
+// ── Indeterminate SNP category rendering (#465) ───────────────────────
+// Since #436 extended the #269 palindromic strand guard to the allergy
+// scorer, an A/T or C/G homozygote whose strand cannot be resolved from the
+// array (e.g. AOC1 rs1049793 CC/GG) is withheld as the runtime-only
+// `Indeterminate` category. It must render neutral slate, never the green
+// "Standard" colour, mirroring the six categorical modules standardized in
+// #369. (e2e: tests/e2e/categorical-indeterminate.spec.ts.)
+
+const INDETERMINATE_SNP: SNPDetail = {
+  rsid: "rs1049793",
+  gene: "AOC1",
+  variant_name: "His664Asp",
+  genotype: "CC",
+  category: "Indeterminate",
+  effect_summary:
+    "CC is a palindromic (A/T or C/G) homozygote: its strand — and therefore its " +
+    "effect category — cannot be determined from the array genotype alone, so it is " +
+    "reported as indeterminate rather than a possibly strand-flipped call.",
+  evidence_level: 1,
+  recommendation: null,
+  pmids: [],
+  hla_proxy: null,
+  hla_proxy_lookup: null,
+  coverage_note: null,
+}
+
+describe("SNPRow Indeterminate category (#465)", () => {
+  beforeEach(() => {
+    mockUseDetail.mockReset()
+  })
+
+  it("renders a strand-withheld homozygote as neutral slate, not green Standard", () => {
+    mockUseDetail.mockReturnValue({
+      data: {
+        ...detailWith(INDETERMINATE_SNP),
+        pathway_id: "histamine_metabolism",
+        pathway_name: "Histamine Metabolism",
+        level: "Standard",
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as ReturnType<typeof useAllergyPathwayDetail>)
+    render(
+      <PathwayDetailPanel
+        pathwayId="histamine_metabolism"
+        pathwayName="Histamine Metabolism"
+        sampleId={1}
+        onClose={() => {}}
+      />,
+    )
+    const badge = screen.getByText("Indeterminate")
+    expect(badge).toBeInTheDocument()
+    // Shared neutral slate from SNP_CATEGORY_COLORS.Indeterminate (#427), not the
+    // emerald Standard fallback.
+    expect(badge).toHaveClass("text-slate-600")
+    expect(badge).not.toHaveClass("text-emerald-700")
+    // Strand caveat is surfaced so the user understands why the call is withheld.
+    expect(screen.getByText(/palindromic/i)).toBeInTheDocument()
+  })
+})
