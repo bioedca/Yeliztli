@@ -26,6 +26,7 @@ import sqlalchemy as sa
 
 from backend.analysis.methylation import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     MODULE_NAME,
     STANDARD,
@@ -380,6 +381,22 @@ class TestSNPScoring:
         snp = _make_test_snp(evidence_level=2, genotype_category=ELEVATED)
         result = _score_snp(snp, "AA")
         assert result.category == ELEVATED
+
+    def test_palindromic_homozygote_withheld_as_indeterminate(
+        self, panel: MethylationPanel
+    ) -> None:
+        """#269: TCN2 rs1801198 is C/G palindromic (CC=Standard, GG=Elevated), so
+        both homozygotes are withheld as Indeterminate with a strand caveat; the
+        heterozygote stays resolvable."""
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1801198")
+        for homozygote in ("CC", "GG"):
+            result = _score_snp(snp, homozygote)
+            assert result.category == INDETERMINATE, homozygote
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+        assert _score_snp(snp, "CG").category == MODERATE
+        assert _score_snp(snp, "GC").category == MODERATE
 
     def test_reversed_genotype_lookup(self, panel: MethylationPanel) -> None:
         """Panel handles reversed genotype strings (e.g. GA vs AG)."""

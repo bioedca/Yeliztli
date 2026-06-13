@@ -23,6 +23,7 @@ import sqlalchemy as sa
 
 from backend.analysis.gene_health import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     MODULE_NAME,
     STANDARD,
@@ -469,14 +470,15 @@ class TestSNPScoring:
         result = _score_snp(snp, "TC")
         assert result.category == MODERATE
 
-    def test_evidence_gating_star1_caps_moderate(self, panel: GeneHealthPanel) -> None:
-        """DRD4 rs747302 has evidence_level=1. Even if panel says Moderate for GG,
-        evidence_level=1 hard-caps at Moderate (can never reach Elevated)."""
+    def test_drd4_palindromic_guard_precedes_evidence_gating(self, panel: GeneHealthPanel) -> None:
+        """DRD4 rs747302 is C/G palindromic (CC=Standard, GG=Moderate). The strand
+        guard returns INDETERMINATE before any evidence-level gating runs, so a
+        strand-ambiguous homozygote is never reported as a (possibly flipped)
+        confident category (#269)."""
         snp = self._get_snp(panel, "rs747302")
         assert snp.evidence_level == 1
-        # GG is the highest-risk genotype for DRD4, panel says Moderate
         result = _score_snp(snp, "GG")
-        assert result.category == MODERATE  # capped at Moderate by star-1
+        assert result.category == INDETERMINATE
 
     def test_drd4_uses_c_g_allele_model(self, panel: GeneHealthPanel) -> None:
         snp = self._get_snp(panel, "rs747302")
@@ -486,9 +488,29 @@ class TestSNPScoring:
 
     def test_drd4_scores_published_c_g_genotypes(self, panel: GeneHealthPanel) -> None:
         snp = self._get_snp(panel, "rs747302")
+        # Heterozygotes are strand-resolvable, so they keep their curated category.
         assert _score_snp(snp, "CG").category == MODERATE
         assert _score_snp(snp, "GC").category == MODERATE
-        assert _score_snp(snp, "GG").category == MODERATE
+        # GG is a C/G palindromic homozygote (CC=Standard, GG=Moderate) → its strand
+        # cannot be resolved from the genotype, so it is withheld as Indeterminate (#269).
+        assert _score_snp(snp, "GG").category == INDETERMINATE
+
+    def test_palindromic_homozygote_withheld_as_indeterminate(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """#269: FTO rs9939609 is A/T palindromic with strand-differing categories
+        (TT=Standard, AA=Elevated), so both homozygotes are withheld as
+        Indeterminate with a strand caveat; the heterozygote stays resolvable."""
+        snp = self._get_snp(panel, "rs9939609")
+        for homozygote in ("AA", "TT"):
+            result = _score_snp(snp, homozygote)
+            assert result.category == INDETERMINATE, homozygote
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+        # Heterozygote is strand-resolvable and keeps its curated category.
+        assert _score_snp(snp, "AT").category == MODERATE
+        assert _score_snp(snp, "TA").category == MODERATE
 
     def test_drd4_t_containing_genotype_is_not_curated(self, panel: GeneHealthPanel) -> None:
         snp = self._get_snp(panel, "rs747302")
@@ -797,31 +819,29 @@ class TestFullScoring:
         for pr in result.pathway_results:
             assert pr.level == STANDARD
 
-    def test_drd4_cc_non_carrier_does_not_emit_snp_finding(
+    def test_drd4_cc_palindromic_is_indeterminate_not_standard(
         self,
         panel: GeneHealthPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """All-reference rs747302 CC must stay absent from stored SNP findings."""
+        """rs747302 CC is a C/G palindromic homozygote: it is surfaced as
+        Indeterminate (strand-ambiguous) rather than a confident Standard call, and
+        it must not raise the neurological pathway level (#269)."""
         _seed_variants(sample_engine, [("rs747302", "11", 637339, "CC")])
 
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
         drd4 = next(snp for snp in neurological.snp_results if snp.rsid == "rs747302")
 
-        assert drd4.category == STANDARD
+        assert drd4.category == INDETERMINATE
+        assert "strand" in (drd4.coverage_note or "").lower()
+        # Withheld from aggregation: a strand-ambiguous call neither raises nor
+        # lowers the pathway level.
         assert neurological.level == STANDARD
 
         store_gene_health_findings(result, sample_engine)
         with sample_engine.connect() as conn:
-            drd4_findings = conn.execute(
-                sa.select(findings).where(
-                    findings.c.module == MODULE_NAME,
-                    findings.c.rsid == "rs747302",
-                    findings.c.category == "snp_finding",
-                )
-            ).fetchall()
             neurological_summary = conn.execute(
                 sa.select(findings.c.pathway_level).where(
                     findings.c.module == MODULE_NAME,
@@ -830,7 +850,6 @@ class TestFullScoring:
                 )
             ).scalar_one()
 
-        assert drd4_findings == []
         assert neurological_summary == STANDARD
 
     def test_il23r_r381q_alone_does_not_raise_autoimmune_pathway(

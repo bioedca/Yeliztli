@@ -29,6 +29,7 @@ from backend.analysis.evidence import TRAITS_EVIDENCE_CAP
 from backend.analysis.prs import run_prs
 from backend.analysis.traits import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     MODULE_NAME,
     STANDARD,
@@ -245,20 +246,26 @@ class TestDRD4Proxy:
         drd4 = self._get_drd4(panel)
         assert drd4.evidence_level == 1
 
-    def test_drd4_capped_at_moderate(self, panel: TraitsPanel) -> None:
-        """★☆ evidence means no Elevated category allowed."""
+    def test_drd4_gg_palindromic_is_indeterminate(self, panel: TraitsPanel) -> None:
+        """DRD4 rs747302 is C/G palindromic (CC=Standard, GG=Moderate); the strand
+        guard returns INDETERMINATE for the homozygote before any scoring, so it is
+        never reported as a (possibly flipped) confident category (#269)."""
         drd4 = self._get_drd4(panel)
         result = _score_snp(drd4, "GG")
-        assert result.category != ELEVATED
-        assert result.category == MODERATE
+        assert result.category == INDETERMINATE
+        # The DRD4 proxy coverage note is preserved alongside the strand caveat.
+        assert "strand" in (result.coverage_note or "").lower()
 
     def test_drd4_scores_published_c_g_genotypes(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
         assert drd4.ref_allele == "C"
         assert drd4.risk_allele == "G"
+        # Heterozygotes are strand-resolvable and keep their curated category.
         assert _score_snp(drd4, "CG").category == MODERATE
         assert _score_snp(drd4, "GC").category == MODERATE
-        assert _score_snp(drd4, "GG").category == MODERATE
+        # GG/CC homozygotes are strand-ambiguous → withheld as Indeterminate (#269).
+        assert _score_snp(drd4, "GG").category == INDETERMINATE
+        assert _score_snp(drd4, "CC").category == INDETERMINATE
 
     def test_drd4_has_cross_module(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)

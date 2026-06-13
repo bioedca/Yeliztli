@@ -21,6 +21,7 @@ import sqlalchemy as sa
 
 from backend.analysis.nutrigenomics import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     STANDARD,
     NutrigenomicsPanel,
@@ -298,6 +299,23 @@ class TestSNPScoring:
         result = _score_snp(snp, None)
         assert result.category == STANDARD
         assert result.present_in_sample is False
+
+    def test_palindromic_homozygote_withheld_as_indeterminate(
+        self, panel: NutrigenomicsPanel
+    ) -> None:
+        """#269: HFE rs1799945 is C/G palindromic (CC=Standard, GG=Moderate), so
+        both homozygotes are withheld as Indeterminate with a strand caveat; the
+        heterozygote stays resolvable."""
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1799945")
+        for homozygote in ("CC", "GG"):
+            result = _score_snp(snp, homozygote)
+            assert result.category == INDETERMINATE, homozygote
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in result.effect_summary.lower()
+        # Heterozygote is strand-resolvable and keeps its curated category.
+        assert _score_snp(snp, "CG").category == STANDARD
+        assert _score_snp(snp, "GC").category == STANDARD
 
     def test_evidence_gating_caps_at_moderate(self) -> None:
         """★☆ evidence hard-caps pathway at Moderate (key rule)."""
