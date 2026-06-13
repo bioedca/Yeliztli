@@ -116,7 +116,7 @@
       "name": "Checkpoint Kinase 2",
       "chromosome": "22",
       "syndromes": ["Hereditary Breast Cancer", "Li-Fraumeni Syndrome-2"],
-      "cancer_types": ["Breast", "Colorectal", "Prostate"],
+      "cancer_types": ["Breast", "Prostate"],
       "inheritance": "AD",
       "evidence_level": 3,
       "cross_links": [],
@@ -128,7 +128,7 @@
         "rs587780174"
       ],
       "pmids": ["37490054", "27269948", "15492928"],
-      "notes": "Moderate penetrance breast cancer gene. 1100delC is the most studied variant."
+      "notes": "Moderate-penetrance breast cancer gene; 1100delC is the most-studied variant. Colorectal cancer is intentionally NOT a general associated type: recent large cohorts find no overall CRC risk in unselected CHEK2 carriers (Bychkovsky 2022 JAMA Oncol; Mundt 2023 Cancer Genet, PMID 37839337, 'little to no risk'). Any colorectal association is variant-specific (truncating 1100delC, missense I157T) and concentrated in familial/HBCC contexts (Xiang 2011 familial OR 2.80 but sporadic NS, PMID 21807500; Wasielewski 2008 HNPCC OR 4.3; Schreurs 2024 1100delC-family SIR 1.43, PMID 38828701). ACMG recommends colorectal/prostate surveillance be considered based on family history, not unconditionally (Hanson 2023, PMID 37490054)."
     },
     {
       "gene_symbol": "RAD51C",

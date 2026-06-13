@@ -192,6 +192,34 @@ class TestGeneLookup:
         assert "MSH2" in symbols
 
 
+class TestCHEK2ColorectalConditional:
+    """CHEK2's colorectal-cancer association is variant-specific (1100delC/I157T)
+    and family-history-dependent — recent large cohorts find no overall CRC risk
+    in unselected carriers (Bychkovsky 2022; Mundt 2023). So 'Colorectal' is not an
+    unconditional cancer_type, the conditional rationale is kept in notes, and the
+    generic colorectal query no longer returns CHEK2 (#324)."""
+
+    def test_chek2_cancer_types_exclude_colorectal(self, panel: CancerPanel) -> None:
+        chek2 = panel.get_gene("CHEK2")
+        assert chek2 is not None
+        assert "Colorectal" not in chek2.cancer_types
+        assert "Breast" in chek2.cancer_types  # the established association remains
+
+    def test_chek2_not_returned_for_colorectal_query(self, panel: CancerPanel) -> None:
+        symbols = {g.gene_symbol for g in panel.genes_by_cancer_type("Colorectal")}
+        assert "CHEK2" not in symbols
+        # the established colorectal-cancer genes are unaffected
+        assert {"APC", "MLH1", "MSH2"} <= symbols
+
+    def test_chek2_notes_document_conditional_colorectal(self, panel: CancerPanel) -> None:
+        # The rationale is documented (not silently dropped), so it can't be
+        # re-added as an unconditional type without the caveat.
+        notes = panel.get_gene("CHEK2").notes.lower()
+        assert "colorectal" in notes
+        assert "1100delc" in notes  # variant-specific
+        assert "family history" in notes or "familial" in notes  # conditional framing
+
+
 # ── Citation provenance ──────────────────────────────────────────────────
 
 
