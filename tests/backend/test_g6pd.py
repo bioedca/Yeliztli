@@ -206,6 +206,7 @@ class TestExpandedDeficiencyPanel:
         }
 
     def test_table_rows_well_formed(self) -> None:
+        assert G6PD_DEFICIENCY_VARIANTS, "panel must not be empty"
         seen: set[str] = set()
         for name, rsid, cdna, ref, deff in G6PD_DEFICIENCY_VARIANTS:
             assert name and cdna.startswith("c.")
