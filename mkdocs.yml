@@ -150,4 +150,9 @@ nav:
       - Project structure: develop/project-structure.md
       - Testing: develop/testing.md
       - Contributing: develop/contributing.md
+  - Maintainer:
+      - maintainer/index.md
+      - Bundle build & release: bundle-release-runbook.md
+      - LAI bundle: maintainer/lai-bundle.md
+      - App release process: maintainer/release-process.md
   - Attribution: attribution.md
