@@ -65,12 +65,23 @@ class TestGenotypes:
         assert "illustrative" in text
         assert "wide confidence interval" in text
 
-    def test_both_heterozygous_intermediate(self, panel, sample_engine: sa.Engine) -> None:
+    def test_both_heterozygous_synergistic(self, panel, sample_engine: sa.Engine) -> None:
+        # #267: one risk allele at EACH locus puts the genotype in the synergistic
+        # both-loci group (meta OR ~7.2 vs ~2.1 single-locus; Jabbarpoor Bonyadi 2020),
+        # so the framing must convey that synergy — not "additively increased AMD risk,
+        # below either homozygous genotype", which understated the both-loci interaction.
         _seed(sample_engine, [_cfh("CT"), _arms2("GT")])
         a = assess_amd(panel, sample_engine)
         call = a.calls[0]
-        assert "compound heterozygous" in call.risk_classification
+        assert "both-heterozygous" in call.risk_classification
+        assert "synergistic" in call.risk_classification.lower()
         assert call.evidence_stars == 2
+        text = call.finding_text.lower()
+        assert "synergistic" in text
+        assert "multiplicat" in text  # synergistic/multiplicative, not merely additive
+        assert "7.2" in call.finding_text  # the any-risk-at-both-loci group OR
+        # The corrected framing must not revert to the prior understatement.
+        assert "below either homozygous" not in text
 
     def test_cfh_heterozygous(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_cfh("CT"), _arms2("GG")])

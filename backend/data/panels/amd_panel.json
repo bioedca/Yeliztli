@@ -96,15 +96,15 @@
     {
       "id": "both_heterozygous",
       "match": {"rs1061170": {"dosage": 1}, "rs10490924": {"dosage": 1}},
-      "risk_classification": "CFH + ARMS2 compound heterozygous (intermediate)",
+      "risk_classification": "CFH + ARMS2 both-heterozygous (synergistic both-loci risk)",
       "primary_rsid": "rs1061170",
       "zygosity": "het",
       "evidence_stars": 2,
-      "odds_ratio": "Carrying one risk allele at both CFH Y402H and ARMS2 confers an intermediate, additively increased AMD risk, below either homozygous genotype",
-      "absolute_risk_context": "This is a relative, intermediate risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "odds_ratio": "Both AMD loci carry a risk allele, a combination a meta-analysis associates with a synergistic, multiplicatively (not merely additively) increased risk: the pooled OR for the any-risk-allele-at-both-loci group (which this both-heterozygous genotype belongs to) is ~7.2 (95% CI 5.0–10.6) vs the no-risk reference, well above the ~2.1 OR of carrying a risk allele at only one locus (synergy index S=2.57). On an allele-dose basis, carrying one risk allele at each locus places this genotype at the lower end of that group — below the three-risk-allele mixed genotypes and the double-homozygous tier, and broadly comparable to a single-locus homozygote rather than below it",
+      "absolute_risk_context": "This is a relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
       "finding_text": "You carry one risk allele at both CFH Y402H and ARMS2 ({genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
-      "pmids": ["23867343", "26691988"]
+      "pmids": ["23867343", "26691988", "32406777"]
     },
     {
       "id": "cfh_heterozygous",
