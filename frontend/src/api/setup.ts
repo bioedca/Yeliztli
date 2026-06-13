@@ -76,7 +76,7 @@ function isBundleVersionMismatchPayload(
   )
 }
 
-const SETUP_STATUS_KEY = ['setup', 'status'] as const
+export const SETUP_STATUS_KEY = ['setup', 'status'] as const
 const DISCLAIMER_KEY = ['setup', 'disclaimer'] as const
 const DETECT_EXISTING_KEY = ['setup', 'detect-existing'] as const
 
@@ -102,7 +102,10 @@ export function useSetupStatus() {
   return useQuery({
     queryKey: SETUP_STATUS_KEY,
     queryFn: fetchSetupStatus,
-    staleTime: 60_000,
+    // Short staleTime so AuthGuard reflects live DB health quickly — a DB that
+    // goes corrupt/partial (or finishes downloading) flips needs_setup within
+    // seconds rather than admitting/trapping the user for up to a minute.
+    staleTime: 5_000,
   })
 }
 

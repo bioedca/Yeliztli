@@ -8,7 +8,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DATABASE_LIST_KEY, useDatabaseList, useTriggerDownload } from '@/api/setup'
+import {
+  DATABASE_LIST_KEY,
+  SETUP_STATUS_KEY,
+  useDatabaseList,
+  useTriggerDownload,
+} from '@/api/setup'
 import {
   DB_HEALTH_KEY,
   useDatabaseHealth,
@@ -150,6 +155,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
       const refreshCaches = () => {
         queryClient.invalidateQueries({ queryKey: DATABASE_LIST_KEY })
         queryClient.invalidateQueries({ queryKey: DB_HEALTH_KEY })
+        // Re-evaluate the dashboard gate (needs_setup) against fresh health the
+        // moment a download finishes or fails — keeps the wizard's single
+        // source of truth in sync with the backend.
+        queryClient.invalidateQueries({ queryKey: SETUP_STATUS_KEY })
       }
 
       es.addEventListener('progress', (event: MessageEvent) => {

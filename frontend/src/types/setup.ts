@@ -1,9 +1,22 @@
 /** Setup wizard types. */
 
+/** Health/readiness of one database that gates the dashboard. */
+export interface DbReadiness {
+  name: string
+  /** Mirrors backend DatabaseHealth.state (ready | partial | corrupt | …). */
+  state: string
+  ready: boolean
+  build_mode: string
+}
+
 export interface SetupStatus {
   needs_setup: boolean
   disclaimer_accepted: boolean
   has_databases: boolean
+  /** True only when every required, downloadable DB is integrity-`ready`. */
+  required_dbs_ready: boolean
+  /** Per-DB readiness for the required, downloadable gate set. */
+  db_readiness: DbReadiness[]
   has_samples: boolean
   data_dir: string
 }
