@@ -34,7 +34,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["12925570", "18403759", "21804549"],
+          "pmids": ["15711639", "10887320", "10699178"],
           "recommendation_text": "IL13 R130Q is a well-replicated GWAS hit for atopic conditions. Carriers may have elevated IgE levels and increased susceptibility to asthma and eczema. Allergen avoidance, environmental controls, and regular follow-up with an allergist are recommended for symptomatic individuals.",
           "cross_module": {
             "module": "skin",

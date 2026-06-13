@@ -218,7 +218,7 @@ SNP_FINDING = {
     "finding_text": "IL13 R130Q (GA) — One copy of the R130Q variant.",
     "pathway": "Atopic Conditions",
     "pathway_level": "Moderate",
-    "pmid_citations": json.dumps(["12925570"]),
+    "pmid_citations": json.dumps(["15711639"]),
     "detail_json": json.dumps(
         {
             "variant_name": "R130Q",

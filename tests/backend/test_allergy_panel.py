@@ -189,6 +189,19 @@ class TestSNPFields:
         )
         assert snp["pmids"] == ["11888582", "18256392", "22378157"], snp["pmids"]
 
+    def test_il13_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # IL13 R130Q (rs20541) is an atopy/asthma cytokine-pathway row; its citations
+        # must point to IL13 R130Q evidence, not the Parkinson linkage paper
+        # (12925570) or the CHI3L1 asthma paper (18403759) attached in error (#191):
+        #   15711639 — Vladich 2005, J Clin Invest: R130Q enhances IL-13 activity
+        #   10887320 — Liu 2000, J Allergy Clin Immunol: IL13 variant → high IgE + AD
+        #   10699178 — Heinzmann 2000, Hum Mol Genet: IL13 R130Q (Gln110Arg) & asthma/atopy
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs20541"
+        )
+        assert snp["pmids"] == ["15711639", "10887320", "10699178"], snp["pmids"]
+        assert "12925570" not in snp["pmids"]  # Parkinson linkage paper, not IL13
+
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing the two unrelated citations that were on
         # the abacavir row (#176): 18196153 is a 1983 X-ray optics paper and
