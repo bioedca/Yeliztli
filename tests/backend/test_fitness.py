@@ -593,58 +593,65 @@ class TestCrossContextFindings:
     def test_ace_cross_context_reuses_softened_summary_not_deterministic(
         self, panel: FitnessPanel
     ) -> None:
-        """ACE cross-context text reuses the softened row summary, with no
-        deterministic endurance/power claims (gh #257).
+        """ACE cross-context text reuses the softened row summary for every
+        reachable genotype, with no deterministic endurance/power claims (gh #257).
 
         ACE I/D sport-performance evidence is heterogeneous, sport-specific, and
         not a reliable individual predictor — the broad meta-analysis finds no
         overall power/endurance association (Psatha et al. 2024, PMID 38760851).
-        The cross-context finding must therefore carry the panel's caveated
-        effect_summary, not the old hardcoded deterministic strings.
+        Both reachable non-Standard genotypes (AG/GA = Moderate ID proxy; GG =
+        Elevated DD proxy) must carry the panel's caveated effect_summary, not
+        the old hardcoded deterministic strings. AA (II) is Standard and never
+        reaches cross-context generation.
         """
-        # The real curated GG (DD-proxy) summary from the panel.
         ace_snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs4341")
-        gg_summary = ace_snp.genotype_effects["GG"]["effect_summary"]
-
-        power_pr = PathwayResult(
-            pathway_id="power",
-            pathway_name="Power",
-            pathway_description="",
-            level=ELEVATED,
-            snp_results=[
-                SNPResult(
-                    rsid="rs4341",
-                    gene="ACE",
-                    variant_name="I/D proxy",
-                    genotype="GG",
-                    category=ELEVATED,
-                    effect_summary=gg_summary,
-                    evidence_level=2,
-                    pmids=["38760851"],
-                    recommendation_text="",
-                    present_in_sample=True,
-                    coverage_note="Proxy caveat",
-                ),
-            ],
+        # Each is the exact hardcoded string the old code emitted for one genotype;
+        # iterating both reachable genotypes makes every ban a live guard.
+        banned = (
+            "power-oriented with less endurance advantage",  # old DD (GG) string
+            "mixed endurance/power profile",  # old ID (AG/GA) string
+            "enhanced endurance performance",  # old II (AA) string
         )
-        endurance_pr = PathwayResult(
-            pathway_id="endurance",
-            pathway_name="Endurance",
-            pathway_description="",
-            level=STANDARD,
-        )
-        cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
-        ace_cross = next(c for c in cross if c.rsid == "rs4341")
 
-        # Reuses the softened, curated summary verbatim (single source of truth).
-        assert gg_summary in ace_cross.finding_text
-        text = ace_cross.finding_text.lower()
-        # None of the old deterministic performance strings.
-        assert "power-oriented with less endurance advantage" not in text
-        assert "mixed endurance/power profile" not in text
-        assert "enhanced endurance performance" not in text
-        # Carries the heterogeneity / non-deterministic framing.
-        assert any(k in text for k in ("heterogeneous", "contextual", "not deterministic"))
+        for genotype, category in (("AG", MODERATE), ("GG", ELEVATED)):
+            summary = ace_snp.genotype_effects[genotype]["effect_summary"]
+            power_pr = PathwayResult(
+                pathway_id="power",
+                pathway_name="Power",
+                pathway_description="",
+                level=category,
+                snp_results=[
+                    SNPResult(
+                        rsid="rs4341",
+                        gene="ACE",
+                        variant_name="I/D proxy",
+                        genotype=genotype,
+                        category=category,
+                        effect_summary=summary,
+                        evidence_level=2,
+                        pmids=["38760851"],
+                        recommendation_text="",
+                        present_in_sample=True,
+                        coverage_note="Proxy caveat",
+                    ),
+                ],
+            )
+            endurance_pr = PathwayResult(
+                pathway_id="endurance",
+                pathway_name="Endurance",
+                pathway_description="",
+                level=STANDARD,
+            )
+            cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
+            ace_cross = next(c for c in cross if c.rsid == "rs4341")
+
+            # Reuses the softened, curated summary verbatim (single source of truth).
+            assert summary in ace_cross.finding_text
+            text = ace_cross.finding_text.lower()
+            for phrase in banned:
+                assert phrase not in text, f"deterministic '{phrase}' leaked for {genotype}"
+            # Carries the heterogeneity / non-deterministic framing.
+            assert any(k in text for k in ("heterogeneous", "contextual", "not deterministic"))
 
     def test_no_cross_context_for_standard(self, panel: FitnessPanel) -> None:
         """No cross-context findings when both ACTN3 and ACE are Standard."""
