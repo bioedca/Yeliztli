@@ -1130,9 +1130,6 @@ def store_prescribing_alerts(
     Returns:
         Number of findings rows inserted.
     """
-    if not alerts:
-        return 0
-
     rows = []
     for alert in alerts:
         detail = {
@@ -1169,7 +1166,19 @@ def store_prescribing_alerts(
         )
 
     with sample_engine.begin() as conn:
-        conn.execute(findings.insert(), rows)
+        # Clear prior prescribing alerts BEFORE (re)inserting so a rerun never
+        # duplicates them, and a rerun that now yields none doesn't leave stale ones
+        # (#481). Scoped to this category so other pharmacogenomics findings (e.g.
+        # gene/phenotype rows) are untouched. The delete runs even when ``rows`` is
+        # empty, which is the empty-path clear that every sibling store_* must do.
+        conn.execute(
+            sa.delete(findings).where(
+                findings.c.module == "pharmacogenomics",
+                findings.c.category == "prescribing_alert",
+            )
+        )
+        if rows:
+            conn.execute(findings.insert(), rows)
 
     logger.info("pgx_alerts_stored", count=len(rows))
     return len(rows)

@@ -1643,10 +1643,52 @@ class TestStorePrescribingAlerts:
         )
 
     def test_empty_alerts_returns_zero(self):
-        """Storing empty alerts list returns 0 without DB interaction."""
+        """Storing an empty alerts list returns 0 (and clears any stale alerts)."""
         sample = _make_sample_engine([])
         count = store_prescribing_alerts([], sample)
         assert count == 0
+
+    @staticmethod
+    def _alert(gene="CYP2C19", drug="clopidogrel") -> PrescribingAlert:
+        return PrescribingAlert(
+            gene=gene,
+            drug=drug,
+            diplotype="*1/*2",
+            phenotype="Intermediate Metabolizer",
+            recommendation="Consider alternative therapy.",
+            classification="A",
+            guideline_url="https://cpicpgx.org/",
+            call_confidence=CallConfidence.COMPLETE,
+            confidence_note="All defining positions assessed.",
+            evidence_level=4,
+            involved_rsids=["rs4244285"],
+        )
+
+    def test_rerun_does_not_duplicate_alerts(self):
+        """#481: re-storing the same alerts must not duplicate them (clear-on-rerun)."""
+        sample = _make_sample_engine([])
+        assert store_prescribing_alerts([self._alert()], sample) == 1
+        assert store_prescribing_alerts([self._alert()], sample) == 1  # rerun
+        with sample.connect() as conn:
+            n = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.category == "prescribing_alert")
+            ).scalar()
+        assert n == 1, "rerun duplicated the prescribing alert"
+
+    def test_empty_rerun_clears_stale_alerts(self):
+        """#481: a rerun yielding no alerts must clear prior ones, not leave them."""
+        sample = _make_sample_engine([])
+        store_prescribing_alerts([self._alert("CYP2D6", "codeine")], sample)
+        assert store_prescribing_alerts([], sample) == 0  # empty rerun
+        with sample.connect() as conn:
+            n = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.category == "prescribing_alert")
+            ).scalar()
+        assert n == 0, "empty rerun left stale prescribing alerts"
 
 
 # ═══════════════════════════════════════════════════════════════════════
