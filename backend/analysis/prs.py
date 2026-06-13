@@ -242,7 +242,8 @@ class PRSResult:
     # in the sample but excluded from / adjusted in the score, surfaced rather
     # than silently dropped.
     snps_no_call: int = 0  # present but unscoreable genotype
-    # strand-ambiguous palindrome: near MAF 0.5, or a homozygote away from it (#247)
+    # strand-ambiguous palindromes dropped: near MAF 0.5, a homozygote away from it
+    # (#247), or no MAF available to place it relative to the band (missing_freq)
     snps_ambiguous_dropped: int = 0
     snps_strand_flipped: int = 0  # resolved on the complemented strand
     snps_unresolved: int = 0  # alleles fit neither strand
