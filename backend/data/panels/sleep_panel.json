@@ -141,7 +141,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["17634447", "21779176", "24839885"],
+          "pmids": ["26498236", "26703954", "29029846"],
           "recommendation_text": "MEIS1 is the strongest known genetic risk factor for restless legs syndrome (RLS). GG carriers with RLS symptoms should consult a sleep specialist. Iron status evaluation may be warranted, as iron deficiency can exacerbate RLS."
         },
         {
@@ -170,7 +170,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["17634447", "19081515", "23340844"],
+          "pmids": ["17634447", "26498236", "28329290"],
           "recommendation_text": "BTBD9 is associated with periodic limb movements during sleep (PLMS) and RLS. BTBD9 may influence brain iron metabolism. If sleep is frequently disrupted, a sleep study can evaluate for PLMS."
         }
       ]

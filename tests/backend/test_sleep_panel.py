@@ -465,6 +465,56 @@ class TestRLSSNPs:
         snp = self._get_snp(panel_data, "rs9357271")
         assert snp["evidence_level"] == 1
 
+    # ── Citation provenance (issue #208) ─────────────────────────────────
+    # The MEIS1 (rs2300478) and BTBD9 (rs9357271) rows previously cited
+    # unrelated papers: 24839885 (preschool internalizing-problems GWAS) on
+    # the MEIS1 row, and 19081515 (variant Creutzfeldt-Jakob disease GWAS) +
+    # 23340844 (FOXO3 transcription-regulation) on the BTBD9 row. Pin both
+    # rows to verified RLS/PLMS references for those exact loci — two of each
+    # row's citations name the panel's own variant — so the off-topic PMIDs
+    # cannot silently reappear.
+    _MEIS1_PMIDS = {
+        "26498236",  # Winkelman 2015, Sleep Med — MrOS: rs2300478[G] (MEIS1) → PLMS
+        "26703954",  # Haba-Rubio 2016, Ann Neurol — HypnoLaus: rs2300478 (MEIS1) → PLMS
+        "29029846",  # Schormair 2017, Lancet Neurol — MEIS1 confirmed strongest RLS locus
+    }
+    _BTBD9_PMIDS = {
+        "17634447",  # Stefánsson 2007, NEJM — BTBD9 intron variant → PLMS + ferritin
+        "26498236",  # Winkelman 2015, Sleep Med — MrOS: rs9357271[T] (BTBD9) → PLMS
+        "28329290",  # Gen Li 2017, Sleep — rs9357271 (BTBD9) → RLS (Chinese / Asian meta)
+    }
+    _BANNED_PMIDS = {"24839885", "19081515", "23340844"}
+
+    def test_meis1_cites_verified_rls_refs(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs2300478")
+        assert set(snp["pmids"]) == self._MEIS1_PMIDS
+
+    def test_btbd9_cites_verified_rls_refs(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs9357271")
+        assert set(snp["pmids"]) == self._BTBD9_PMIDS
+
+    def test_rls_rows_drop_unrelated_pmids(self, panel_data: dict) -> None:
+        for rsid in ("rs2300478", "rs9357271"):
+            snp = self._get_snp(panel_data, rsid)
+            leaked = self._BANNED_PMIDS & set(snp["pmids"])
+            assert not leaked, f"{rsid} still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_rls_unrelated_pmids_absent_from_whole_sleep_panel(self, panel_data: dict) -> None:
+        # All three banned PMIDs were exclusive to the MEIS1/BTBD9 rows, so none
+        # should appear anywhere in the sleep panel after the fix.
+        def _all_pmids(obj: object):
+            if isinstance(obj, dict):
+                if isinstance(obj.get("pmids"), list):
+                    yield from obj["pmids"]
+                for value in obj.values():
+                    yield from _all_pmids(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    yield from _all_pmids(item)
+
+        leaked = self._BANNED_PMIDS & set(_all_pmids(panel_data))
+        assert not leaked, f"unrelated PMID(s) still in sleep panel: {sorted(leaked)}"
+
 
 # ── Scoring rules tests ─────────────────────────────────────────────────
 
