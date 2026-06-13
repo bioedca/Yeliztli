@@ -7,22 +7,31 @@ cannot flag a brand-new fabricated, mistyped, or never-existed citation. This is
 free form: confirm that every panel- and proxy-cited PMID actually *resolves* to a
 real PubMed record.
 
-The resolution check fetches NCBI live, so it is ``@pytest.mark.slow`` — it runs only
-in the nightly tier (``nightly.yml``, ``pytest -m slow``), never in per-PR CI
-(network-flaky), and **skips** (does not fail) on a network error so a flaky NCBI
-cannot redden the run. It reuses the guard's PMID-extraction path so the offline and
-online checks share one source of cited PMIDs (#365's "share one extraction path").
+These checks fetch NCBI live, so they are ``@pytest.mark.slow`` — they run only in
+the nightly tier (``nightly.yml``, ``pytest -m slow``), never in per-PR CI
+(network-flaky), and **skip** (do not fail) on a network error so a flaky NCBI
+cannot redden the run. They reuse the guard's PMID-extraction path so the offline
+and online checks share one source of cited PMIDs (#365's "share one extraction
+path").
 
-Deliberately out of scope here (kept open on #365, to land incrementally per panel
-once the active per-row PMID cleanup settles, avoiding fleet CI thrash):
-  * the checked-in PMID -> {title, journal, year} metadata snapshot, and
-  * the offline title-shares-a-gene/condition-term topic-consistency heuristic.
-This resolution check is the safe, immediate net under those.
+Two nightly checks live here:
+  1. ``test_every_cited_pmid_resolves_on_pubmed`` — every cited PMID resolves to a
+     real PubMed record (catches fabricated / mistyped citations).
+  2. ``test_snapshot_titles_match_live_pubmed`` (#425, part 3 of #365) — the
+     network-gated complement to the committed offline snapshot
+     (``pmid_metadata_snapshot.json``) and the offline topic-consistency guard
+     (``test_citation_topic_consistency.py``, parts 1-2, landed in #419): re-fetch
+     each snapshotted PMID's live title and assert (a) it still matches the
+     committed snapshot (drift / retraction detector → prompts a snapshot
+     regeneration) and (b) the registered gene/condition topic terms still appear
+     in the live title. This closes the loop the offline snapshot only approximates.
 """
 
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -35,6 +44,56 @@ from test_citation_provenance_guard import all_panel_pmids, all_proxy_pmids
 # and be polite to the service.
 _ESUMMARY_BATCH = 180
 _FALLBACK_EMAIL = "ci@yeliztli.example"
+
+_SNAPSHOT_PATH = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "pmid_metadata_snapshot.json"
+)
+
+
+def _configure_entrez():
+    """Configure and return ``Bio.Entrez`` (caller must ``importorskip('Bio')`` first)."""
+    from Bio import Entrez
+
+    try:  # config is optional here; fall back to a generic contact email
+        from backend.config import get_settings
+
+        settings = get_settings()
+        Entrez.email = settings.pubmed_email or _FALLBACK_EMAIL
+        if getattr(settings, "pubmed_api_key", ""):
+            Entrez.api_key = settings.pubmed_api_key
+    except Exception:
+        Entrez.email = _FALLBACK_EMAIL
+    Entrez.tool = "yeliztli-citation-nightly-verifier"
+    return Entrez
+
+
+def _fetch_live_records(pmids: list[str]) -> dict[str, dict]:
+    """Fetch live esummary records for *pmids* → ``{pmid: record}``.
+
+    ``retmode=json`` returns a per-UID result dict (title + optional ``error``), so
+    one bad UID does not abort the batch the way ``Entrez.read()`` would. On any
+    network/NCBI error this ``pytest.skip``s rather than failing — a flaky NCBI must
+    not redden the nightly run.
+    """
+    entrez = _configure_entrez()
+    records: dict[str, dict] = {}
+    for start in range(0, len(pmids), _ESUMMARY_BATCH):
+        batch = pmids[start : start + _ESUMMARY_BATCH]
+        try:
+            handle = entrez.esummary(db="pubmed", id=",".join(batch), retmode="json")
+            try:
+                data = json.load(handle)
+            finally:
+                handle.close()
+        except Exception as exc:  # network/NCBI error — don't redden the nightly run
+            pytest.skip(f"PubMed esummary unreachable ({exc!r}); skipping live check")
+        result = data.get("result", {})
+        for pmid in batch:
+            rec = result.get(pmid)
+            if rec is not None:
+                records[pmid] = rec
+    return records
+
 
 # PMIDs that already fail to resolve on PubMed today (verified via NCBI esearch
 # ``[uid]`` -> count 0: fabricated / mistyped / deleted), tracked for replacement in
@@ -84,42 +143,17 @@ def test_every_cited_pmid_resolves_on_pubmed() -> None:
     only on a *new* one. Network-gated: a fetch error skips (does not fail).
     """
     pytest.importorskip("Bio", reason="biopython required for the live PubMed verifier")
-    from Bio import Entrez
-
-    try:  # config is optional here; fall back to a generic contact email
-        from backend.config import get_settings
-
-        settings = get_settings()
-        Entrez.email = settings.pubmed_email or _FALLBACK_EMAIL
-        if getattr(settings, "pubmed_api_key", ""):
-            Entrez.api_key = settings.pubmed_api_key
-    except Exception:
-        Entrez.email = _FALLBACK_EMAIL
-    Entrez.tool = "yeliztli-citation-resolution-verifier"
 
     sources = _cited_pmid_sources()
     pmids = sorted(sources)
     assert pmids, "no cited PMIDs found — collector regression"
 
-    resolved: set[str] = set()
-    for start in range(0, len(pmids), _ESUMMARY_BATCH):
-        batch = pmids[start : start + _ESUMMARY_BATCH]
-        try:
-            # retmode=json returns a per-UID result dict (title + optional 'error'),
-            # so one bad UID does not abort the batch the way Entrez.read() would.
-            handle = Entrez.esummary(db="pubmed", id=",".join(batch), retmode="json")
-            try:
-                data = json.load(handle)
-            finally:
-                handle.close()
-        except Exception as exc:  # network/NCBI error — don't redden the nightly run
-            pytest.skip(f"PubMed esummary unreachable ({exc!r}); skipping resolution check")
-
-        result = data.get("result", {})
-        for pmid in batch:
-            rec = result.get(pmid, {})
-            if not rec.get("error") and str(rec.get("title", "")).strip():
-                resolved.add(pmid)
+    records = _fetch_live_records(pmids)
+    resolved = {
+        pmid
+        for pmid, rec in records.items()
+        if not rec.get("error") and str(rec.get("title", "")).strip()
+    }
 
     unresolved = [p for p in pmids if p not in resolved]
     new_unresolved = sorted(set(unresolved) - set(_KNOWN_UNRESOLVED))
@@ -129,3 +163,115 @@ def test_every_cited_pmid_resolves_on_pubmed() -> None:
         "tracking issue: "
         + "; ".join(f"{p} (cited in {sorted(sources[p])})" for p in new_unresolved)
     )
+
+
+def _normalize_title(title: str) -> str:
+    """Collapse to lowercase alphanumeric words so trivial punctuation / whitespace /
+    casing differences don't read as drift — but real word-level changes (retraction
+    prefixes, corrected words) do."""
+    return " ".join(re.split(r"[^a-z0-9]+", title.lower())).strip()
+
+
+@pytest.mark.slow
+def test_snapshot_titles_match_live_pubmed() -> None:
+    """Live drift + topic verifier (#425, part 3 of #365).
+
+    The committed ``pmid_metadata_snapshot.json`` and the offline topic-consistency
+    guard only *approximate* PubMed (they're a frozen point-in-time copy). This
+    nightly check re-fetches each snapshotted PMID's live title and asserts:
+
+      (a) **No drift** — the live title still matches the committed snapshot title
+          (normalized for punctuation/case). A mismatch usually means a title
+          correction or a *Retracted:/WITHDRAWN:* prefix → the snapshot should be
+          regenerated (and the citation re-reviewed).
+      (b) **Topic terms hold live** — for every registered ``_GENE_TOPIC_LOCKED`` /
+          ``_CONDITION_TOPIC_LOCKED`` entry, the gene symbol / expected condition
+          term still appears in at least one cited PMID's *live* title.
+
+    Network-gated: a fetch error skips (does not fail). Entries whose cited PMIDs
+    aren't all in the snapshot are skipped (the same fleet-safe rule the offline
+    guard uses — re-snapshot to cover them).
+    """
+    pytest.importorskip("Bio", reason="biopython required for the live PubMed verifier")
+
+    # Reuse the offline guard's registries + extraction helpers (sibling module).
+    from test_citation_topic_consistency import (
+        _CONDITION_TOPIC_LOCKED,
+        _GENE_KEYS,
+        _GENE_TOPIC_LOCKED,
+        _entry_pmids,
+        _load_snapshot,
+        _panel_entries,
+        _tokens,
+    )
+
+    snapshot = _load_snapshot()
+    snap_pmids = sorted(snapshot)
+    assert snap_pmids, "empty snapshot — regeneration regression"
+
+    records = _fetch_live_records(snap_pmids)
+    live_titles: dict[str, str] = {}
+    for pmid in snap_pmids:
+        rec = records.get(pmid, {})
+        title = str(rec.get("title", "")).strip()
+        if not rec.get("error") and title:
+            live_titles[pmid] = title
+
+    # (a) Drift: every snapshotted PMID whose live record we got back must still
+    # carry the snapshot's title (normalized). A PMID that no longer resolves live
+    # is reported too (likely a retraction/withdrawal removing the title).
+    drift: list[str] = []
+    for pmid in snap_pmids:
+        snap_title = snapshot[pmid]["title"]
+        if pmid not in live_titles:
+            drift.append(
+                f"{pmid}: no live title now (withdrawn/retracted?) — snapshot {snap_title!r}"
+            )
+            continue
+        if _normalize_title(live_titles[pmid]) != _normalize_title(snap_title):
+            drift.append(f"{pmid}: snapshot {snap_title!r} != live {live_titles[pmid]!r}")
+
+    # (b) Topic terms still present in the LIVE titles of registered entries.
+    entries = _panel_entries()
+
+    def _live_title_tokens(pmids: list[str]) -> set[str]:
+        toks: set[str] = set()
+        for p in pmids:
+            toks |= _tokens(live_titles[p])
+        return toks
+
+    topic_failures: list[str] = []
+    for key in sorted(_GENE_TOPIC_LOCKED):
+        for entry in entries.get(key, []):
+            gene = next((entry[k] for k in _GENE_KEYS if entry.get(k)), None)
+            pmids = _entry_pmids(entry)
+            if not gene or not pmids or any(p not in live_titles for p in pmids):
+                continue  # unresolved / not-yet-snapshotted → skip (fleet-safe)
+            if not (_tokens(gene) & _live_title_tokens(pmids)):
+                titles = "; ".join(live_titles[p] for p in pmids)
+                topic_failures.append(
+                    f"{key} ({gene}): gene token absent from live titles — [{titles}]"
+                )
+    for key, expected in _CONDITION_TOPIC_LOCKED.items():
+        for entry in entries.get(key, []):
+            pmids = _entry_pmids(entry)
+            if not pmids or any(p not in live_titles for p in pmids):
+                continue
+            if not (expected & _live_title_tokens(pmids)):
+                titles = "; ".join(live_titles[p] for p in pmids)
+                topic_failures.append(
+                    f"{key}: no expected term {sorted(expected)} in live titles — [{titles}]"
+                )
+
+    problems: list[str] = []
+    if drift:
+        problems.append(
+            "Live PubMed titles drifted from the committed snapshot — regenerate "
+            "tests/fixtures/pmid_metadata_snapshot.json (and re-review any retracted "
+            "citation):\n" + "\n".join(drift)
+        )
+    if topic_failures:
+        problems.append(
+            "Registered topic terms no longer in live titles:\n" + "\n".join(topic_failures)
+        )
+    assert not problems, "\n\n".join(problems)
