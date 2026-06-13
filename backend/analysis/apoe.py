@@ -44,9 +44,13 @@ logger = structlog.get_logger(__name__)
 APOE_RS429358 = "rs429358"  # codon 112: T=Cys (ε2/ε3), C=Arg (ε4)
 APOE_RS7412 = "rs7412"  # codon 158: C=Arg (ε3/ε4), T=Cys (ε2)
 
-# Chromosome 19 positions (GRCh37)
-APOE_RS429358_POS = 44908684
-APOE_RS7412_POS = 44908822
+# Chromosome 19 positions on the app's primary build, GRCh37 (Ensembl GRCh37 REST;
+# the GRCh38 positions are 44908684 / 44908822, which had been hardcoded here while
+# mislabeled GRCh37 — #476). APOE genotypes are matched by rsID, so these are
+# reference/display constants; they must match the GRCh37 vep_bundle and real
+# build-37 23andMe data.
+APOE_RS429358_POS = 45411941
+APOE_RS7412_POS = 45412079
 APOE_CHROM = "19"
 
 
