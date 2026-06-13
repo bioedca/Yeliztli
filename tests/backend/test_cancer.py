@@ -209,13 +209,25 @@ class TestLynchCitations:
             )
 
     def test_mmr_genes_cite_curated_pmids(self, panel: CancerPanel) -> None:
-        # MLH1/MSH2/MSH6 cite the Lynch GeneReviews overview (20301390) plus the
-        # gene-specific cancer-risk evidence from the Prospective Lynch Syndrome
-        # Database (31337882, Dominguez-Valentin et al., Genet Med 2020).
-        for symbol in ("MLH1", "MSH2", "MSH6"):
+        # All four MMR Lynch genes cite the Lynch GeneReviews overview (20301390)
+        # plus the gene-specific cancer-risk evidence from the Prospective Lynch
+        # Syndrome Database (31337882, Dominguez-Valentin et al., Genet Med 2020,
+        # which reports risks for MLH1/MSH2/MSH6 *and* PMS2). PMS2 previously
+        # cited the unrelated CHEK2/papillary-thyroid paper 25583358 (#283).
+        for symbol in ("MLH1", "MSH2", "MSH6", "PMS2"):
             gene = panel.get_gene(symbol)
             assert gene is not None
             assert gene.pmids == ["20301390", "31337882"], (symbol, gene.pmids)
+
+    def test_lynch_genes_drop_unrelated_chek2_thyroid_pmid(self, panel: CancerPanel) -> None:
+        # 25583358 = 'CHEK2 mutations and the risk of papillary thyroid cancer'
+        # (Int J Cancer 2015) — CHEK2 is not a mismatch-repair gene and papillary
+        # thyroid cancer is not Lynch. It must not appear on any Lynch (MMR) gene
+        # (#283). (RAD51C's separate 25583358 mis-cite is tracked in #284.)
+        for gene in panel.genes_by_syndrome("Lynch"):
+            assert "25583358" not in gene.pmids, (
+                f"{gene.gene_symbol} cites unrelated CHEK2/thyroid PMID 25583358"
+            )
 
 
 # ── Cross-links and dual-role genes ──────────────────────────────────────
