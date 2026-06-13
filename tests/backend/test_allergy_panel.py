@@ -202,6 +202,20 @@ class TestSNPFields:
         assert snp["pmids"] == ["15711639", "10887320", "10699178"], snp["pmids"]
         assert "12925570" not in snp["pmids"]  # Parkinson linkage paper, not IL13
 
+    def test_stat6_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # STAT6 rs324011 (intron 2) → IgE/atopy; citations must be rs324011-
+        # specific evidence (#193). Previously cited 14608356 (SLC22A4/RUNX1
+        # rheumatoid-arthritis) and 18403759 (CHI3L1/YKL-40), both wrong-gene:
+        #   15342695 — Weidinger 2004, J Med Genet: rs324011 → total serum IgE
+        #   26048407 — Lee 2015, J Dermatol Sci: rs324011 → childhood atopic dermatitis
+        #   19665768 — Schedel 2009, JACI: rs324011 alters NF-κB binding / STAT6 expression
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs324011"
+        )
+        assert snp["pmids"] == ["15342695", "26048407", "19665768"], snp["pmids"]
+        # The two wrong-gene PMIDs must not remain on the STAT6 row.
+        assert not ({"14608356", "18403759"} & set(snp["pmids"]))
+
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing the two unrelated citations that were on
         # the abacavir row (#176): 18196153 is a 1983 X-ray optics paper and
