@@ -87,3 +87,16 @@ nav:
   - Home: index.md
   - Intended use & disclaimers: intended-use.md
   - Privacy: privacy.md
+  - Install & self-host:
+      - install/index.md
+      - System requirements: install/system-requirements.md
+      - Native install: install/native-install.md
+      - Docker: install/docker.md
+      - Setup wizard: install/setup-wizard.md
+      - Reference data: install/reference-data.md
+      - Configuration: install/configuration.md
+      - Updating: install/updating.md
+      - Backup & restore: install/backup-restore.md
+      - Windows (WSL2): install/wsl2.md
+      - Uninstall: install/uninstall.md
+      - Troubleshooting: install/troubleshooting.md
