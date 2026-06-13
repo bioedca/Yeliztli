@@ -14,6 +14,7 @@ import sqlalchemy as sa
 
 from backend.analysis.pgs_bridge import (
     PgsScoreSpec,
+    _covers,
     _resolve_source_ancestry,
     build_trait_weight_set,
     build_weight_set_from_pgs,
@@ -389,3 +390,42 @@ class TestCsaSasAlias:
         chosen = select_pgs_for_ancestry(reg["body_mass_index"], "CSA")
         assert chosen is not None and chosen.pgs_id == "PGS005198"
         assert _resolve_source_ancestry(chosen, "CSA") == "CSA"
+
+    def test_covers_agrees_with_check_ancestry_mismatch(self) -> None:
+        """pgs_bridge selection coverage and prs's warning use ONE rule (#339).
+
+        For each (inferred, dev-set), ``_covers`` must agree with "no ancestry
+        mismatch" from ``check_ancestry_mismatch`` on a multi-ancestry result
+        built the way the bridge builds it (``source_ancestry`` resolved through
+        ``_resolve_source_ancestry``). Centralizing the canonical coverage rule
+        in ``ancestry.ancestry_covered`` means these two decisions can no longer
+        drift apart (the latent fragility behind the #239 regression).
+        """
+        cases = [
+            ("CSA", ["AFR", "AMR", "EAS", "EUR", "SAS"]),  # covered via CSA→SAS alias
+            ("EUR", ["AFR", "EUR", "SAS"]),  # covered directly
+            ("SAS", ["AFR", "SAS"]),  # covered directly
+            ("MID", ["AFR", "EUR", "SAS"]),  # uncovered (no SA alias)
+            ("AFR", ["EUR", "EAS"]),  # uncovered
+        ]
+        for inferred, dev in cases:
+            spec = _spec("PGS", multi=True, ancestries=dev)
+            covered = _covers(spec, inferred)
+            result = PRSResult(
+                weight_set_name="ws",
+                trait="t",
+                module="m",
+                source_ancestry=_resolve_source_ancestry(spec, inferred),
+                source_study="s",
+                source_pmid="1",
+                sample_size=1,
+                raw_score=0.0,
+                multi_ancestry=True,
+                development_ancestries=list(dev),
+            )
+            result = check_ancestry_mismatch(result, inferred)
+            no_mismatch = result.ancestry_mismatch is False
+            assert covered == no_mismatch, (
+                f"coverage divergence for inferred={inferred}, dev={dev}: "
+                f"_covers={covered} but no_mismatch={no_mismatch}"
+            )

@@ -30,6 +30,7 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.pool import NullPool
 
+from backend.analysis.ancestry import ancestry_covered
 from backend.analysis.prs import PRSSNPWeight, PRSWeightSet
 from backend.annotation.pgs_catalog import (
     load_score_weights,
@@ -118,32 +119,16 @@ def load_pgs_registry(path: Path | None = None) -> dict[str, list[PgsScoreSpec]]
 
 # ── Score selection (SW-B4) ───────────────────────────────────────────────
 
-# The app's inferred-ancestry codes (gnomAD/HGDP continental grouping;
-# ``ancestry.POPULATIONS``) and the PGS Catalog's score-development ancestry
-# labels diverge for the same continental bucket. The app names the
-# Central/South Asian bucket ``CSA`` — and already maps it to gnomAD ``sas`` in
-# ``prs_calibration.py`` — whereas the PGS Catalog labels the same South Asian
-# development ancestry ``SAS``. Canonicalise both sides before matching so a
-# ``CSA`` sample is recognised as covered by a score's South Asian component
-# (e.g. the multi-ancestry Smit et al. 2025 BMI PGS, PGS005198), rather than
-# falling through to "any multi-ancestry" and being mislabelled as AFR-derived.
-_ANCESTRY_ALIASES = {
-    "CSA": "SAS",  # Central/South Asian (app) ≡ South Asian (PGS Catalog / 1000G)
-}
-
-
-def _canonical_ancestry(code: str) -> str:
-    """Fold an ancestry code to its canonical bucket for coverage comparison."""
-    upper = code.upper()
-    return _ANCESTRY_ALIASES.get(upper, upper)
-
 
 def _covers(spec: PgsScoreSpec, inferred_ancestry: str | None) -> bool:
-    """Whether a score's development ancestries include the inferred ancestry."""
-    if not inferred_ancestry:
-        return False
-    target = _canonical_ancestry(inferred_ancestry)
-    return target in {_canonical_ancestry(a) for a in spec.ancestries}
+    """Whether a score's development ancestries include the inferred ancestry.
+
+    Thin wrapper over the shared :func:`ancestry_covered` (which applies the
+    app↔catalog ancestry alias, e.g. CSA≡SAS), so score-selection coverage here
+    and the warning decision in ``prs.check_ancestry_mismatch`` use one rule and
+    cannot diverge (issue #339).
+    """
+    return ancestry_covered(inferred_ancestry, spec.ancestries)
 
 
 def select_pgs_for_ancestry(

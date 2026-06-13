@@ -65,6 +65,7 @@ from backend.analysis.allele_match import (
     UNRESOLVED,
     match_effect_allele_dosage,
 )
+from backend.analysis.ancestry import ancestry_covered
 from backend.analysis.evidence import PRS_EVIDENCE_LEVEL
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
@@ -725,17 +726,15 @@ def check_ancestry_mismatch(
     inferred = inferred_ancestry.upper()
 
     # For a multi-ancestry score, flag a mismatch only when the inferred
-    # ancestry is genuinely uncovered. Two complementary checks are required:
-    #   - source != inferred: source_ancestry is the alias-aware *resolved*
-    #     label (``_resolve_source_ancestry`` returns the inferred ancestry when
-    #     the score covers it, including via the CSA→SAS alias), so equality
-    #     means covered — this keeps a covered CSA user off the warning even
-    #     though "CSA" is not literally in the SAS-labelled development set.
-    #   - inferred not in development set: guards a directly-constructed result
-    #     whose source label was not resolved through ``_resolve_source_ancestry``
-    #     but whose inferred ancestry is literally a development ancestry.
-    # Requiring both keeps the "none matching" wording truthful (issue #239 +
-    # review). Single-ancestry scores keep the direct comparison.
+    # ancestry is genuinely uncovered, decided by the shared
+    # ``ancestry_covered`` helper — the same canonical coverage rule
+    # (applying the CSA≡SAS alias) that ``pgs_bridge`` uses to select the score
+    # and resolve its source label. Routing both through one helper means the
+    # warning decision here can no longer drift from selection-time coverage
+    # (issue #339), and it is robust even for a directly-constructed result
+    # whose ``source_ancestry`` was not alias-resolved through
+    # ``_resolve_source_ancestry`` (the latent fragility behind the #239
+    # regression). Single-ancestry scores keep the direct source comparison.
     if inferred in _NON_POPULATION_ANCESTRIES:
         # No confident single top population (admixed / uncertain). Don't compare
         # it against the source as a pseudo-population; surface a calibration
@@ -758,8 +757,7 @@ def check_ancestry_mismatch(
             )
     else:
         if is_multi:
-            dev_upper = {a.upper() for a in result.development_ancestries}
-            mismatch = source != inferred and inferred not in dev_upper
+            mismatch = not ancestry_covered(inferred_ancestry, result.development_ancestries)
         else:
             mismatch = source != inferred
 

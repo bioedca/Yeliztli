@@ -72,6 +72,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -104,6 +105,40 @@ _HAPLOGROUP_BUNDLE_PATH = (
 
 # Super-population codes used throughout the module (canonical order, 7 populations)
 POPULATIONS = ("AFR", "AMR", "CSA", "EAS", "EUR", "MID", "OCE")
+
+# Ancestry-bucket aliases for cross-source coverage comparison. This app infers
+# Central/South Asian as ``CSA`` (see POPULATIONS above), whereas external score
+# catalogs label the same South Asian development ancestry ``SAS`` (PGS Catalog /
+# 1000G). Fold both labels to one canonical bucket so a ``CSA`` sample is
+# recognised as covered by a score's South Asian component. Shared here (a
+# low-level module both pgs_bridge and prs import without a cycle) so the
+# coverage rule cannot drift between them (issue #339; the split caused the #239
+# review regression).
+_ANCESTRY_ALIASES = {
+    "CSA": "SAS",  # Central/South Asian (app) ≡ South Asian (PGS Catalog / 1000G)
+}
+
+
+def canonical_ancestry(code: str) -> str:
+    """Fold an ancestry code to its canonical bucket for coverage comparison."""
+    upper = code.upper()
+    return _ANCESTRY_ALIASES.get(upper, upper)
+
+
+def ancestry_covered(inferred: str | None, development_ancestries: Iterable[str]) -> bool:
+    """Whether a score's development ancestries cover the inferred ancestry.
+
+    Canonicalises both sides (applying the app↔catalog alias, e.g. CSA≡SAS) so a
+    ``CSA`` sample is treated as covered by a ``SAS``-labelled development set.
+    The single source of truth for "does this score cover this ancestry", shared
+    by ``pgs_bridge`` (score selection / source-label resolution) and
+    ``prs.check_ancestry_mismatch`` (warning decision) so the two cannot diverge.
+    """
+    if not inferred:
+        return False
+    target = canonical_ancestry(inferred)
+    return target in {canonical_ancestry(a) for a in development_ancestries}
+
 
 # Human-readable labels for each population
 POPULATION_LABELS: dict[str, str] = {

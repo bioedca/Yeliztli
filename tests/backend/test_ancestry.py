@@ -34,7 +34,9 @@ from backend.analysis.ancestry import (
     _classify_with_confidence,
     _encode_dosage,
     _project_onto_pca,
+    ancestry_covered,
     bootstrap_admixture_nnls,
+    canonical_ancestry,
     classify_ancestry,
     compute_admixture_fractions,
     compute_confidence,
@@ -1640,3 +1642,38 @@ class TestMIDWarning:
         assert ancestry["EUR"]["confidence"] > 0.8
         # Populations with 0 windows should have 0 confidence
         assert ancestry["AFR"]["confidence"] == 0.0
+
+
+# ── Ancestry-bucket coverage helper (issue #339) ─────────────────────────
+
+
+class TestAncestryCoverage:
+    """Shared CSA≡SAS canonicalization + coverage helper (centralized in #339)."""
+
+    def test_canonical_folds_csa_to_sas(self) -> None:
+        assert canonical_ancestry("CSA") == "SAS"
+        assert canonical_ancestry("csa") == "SAS"  # case-insensitive
+
+    def test_canonical_passes_through_other_codes(self) -> None:
+        for code in ("EUR", "AFR", "EAS", "AMR", "MID", "OCE", "SAS"):
+            assert canonical_ancestry(code) == code
+            assert canonical_ancestry(code.lower()) == code  # uppercased
+
+    def test_covered_direct_membership(self) -> None:
+        assert ancestry_covered("EUR", ["AFR", "EUR", "EAS"]) is True
+
+    def test_covered_via_csa_sas_alias(self) -> None:
+        # A CSA sample is covered by a SAS-labelled development set.
+        assert ancestry_covered("CSA", ["AFR", "AMR", "EAS", "EUR", "SAS"]) is True
+
+    def test_uncovered(self) -> None:
+        assert ancestry_covered("MID", ["AFR", "EUR", "SAS"]) is False
+        assert ancestry_covered("AFR", ["EUR", "EAS"]) is False
+
+    def test_none_or_empty_inferred_is_uncovered(self) -> None:
+        assert ancestry_covered(None, ["EUR", "SAS"]) is False
+        assert ancestry_covered("", ["EUR", "SAS"]) is False
+
+    def test_case_insensitive_on_both_sides(self) -> None:
+        assert ancestry_covered("csa", ["afr", "sas"]) is True
+        assert ancestry_covered("Eur", ["eur"]) is True
