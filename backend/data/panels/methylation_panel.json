@@ -73,6 +73,24 @@
           "hgvs_protein": null,
           "risk_allele": "D",
           "ref_allele": "I",
+          "indel_polarity": {
+            "variant_class": "deletion",
+            "variant_allele_token": "D",
+            "reference_allele_token": "I",
+            "d_token_meaning": "deletion (the 19-bp intron-1 deletion variant allele; the 19-bp segment is absent)",
+            "i_token_meaning": "insertion / reference (wild-type; the 19-bp segment is present)",
+            "hgvs": "DHFR intron 1, 19-bp deletion ~60 bp from the splice-donor site (panel coverage_note c.86+60_78); dbSNP rs70991108 del/ins polymorphism",
+            "dbsnp": "rs70991108",
+            "vendor_id_convention": "23andMe / AncestryDNA encode indel markers with literal I/D tokens where D = the deletion (shorter) allele and I = the insertion/reference (longer) allele; the ingested-array parsers (parser_23andme.py / parser_ancestrydna.py _canonical_genotype) pass these tokens through unchanged, so the D token resolves to the 19-bp deletion variant and I to the reference (19-bp segment present), matching this panel's II=Standard / D-carrier=Moderate genotype_effects.",
+            "pmids": [
+              "19022952"
+            ],
+            "sources": [
+              "dbSNP rs70991108 — 19-bp insertion/deletion polymorphism (DIP) in DHFR intron 1 (GRCh38 NC_000005.10:g.80654344, 19-bp segment TGGCGCGTCCCGCCCAGGT present=reference / absent=deletion)",
+              "Kalmbach et al. 2008, J Nutr (PMID 19022952) — the 19-bp noncoding deletion allele maps to DHFR intron 1, ~60 bp from the splice-donor site (del/del vs wild-type genotypes)"
+            ],
+            "accessed": "2026-06-13"
+          },
           "genotype_effects": {
             "II": {
               "category": "Standard",
