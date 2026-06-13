@@ -29,7 +29,12 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 
-from backend.config import get_settings, read_config_section, write_config_section
+from backend.config import (
+    get_settings,
+    read_config_section,
+    write_config_section,
+    write_config_toml,
+)
 from backend.db.connection import get_registry
 from backend.db.database_registry import get_all_databases
 from backend.db.db_health import get_database_health
@@ -873,30 +878,6 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
         return {}
 
 
-def _write_config_toml(
-    config_path: Path,
-    content: dict[str, dict[str, object]],
-) -> None:
-    """Write config.toml from a parsed TOML dict."""
-    # Write TOML manually (tomllib is read-only, avoid tomli_w dependency)
-    lines: list[str] = []
-    for table_name, table_values in content.items():
-        lines.append(f"[{table_name}]")
-        if isinstance(table_values, dict):
-            for key, value in table_values.items():
-                if isinstance(value, str):
-                    lines.append(f'{key} = "{value}"')
-                elif isinstance(value, bool):
-                    lines.append(f"{key} = {'true' if value else 'false'}")
-                elif isinstance(value, (int, float)):
-                    lines.append(f"{key} = {value}")
-                else:
-                    lines.append(f'{key} = "{value}"')
-        lines.append("")
-
-    config_path.write_text("\n".join(lines), encoding="utf-8")
-
-
 # ── P1-19e: External service credentials ─────────────────────────
 
 
@@ -962,7 +943,7 @@ async def save_credentials(body: SaveCredentialsRequest) -> SaveCredentialsRespo
     section["omim_api_key"] = body.omim_api_key
     write_config_section(existing_content, section)
 
-    _write_config_toml(config_path, existing_content)
+    write_config_toml(config_path, existing_content)
 
     logger.info(
         "credentials_saved",

@@ -18,6 +18,7 @@ from backend.config import (
     get_settings,
     read_config_section,
     write_config_section,
+    write_config_toml,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,27 +45,6 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
             extra={"path": str(config_path), "error": str(exc)},
         )
         return {}
-
-
-def _write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) -> None:
-    """Write config.toml from a nested dict."""
-    lines: list[str] = []
-    for table_name, table_values in content.items():
-        lines.append(f"[{table_name}]")
-        if isinstance(table_values, dict):
-            for key, value in table_values.items():
-                if isinstance(value, str):
-                    lines.append(f'{key} = "{value}"')
-                elif isinstance(value, bool):
-                    lines.append(f"{key} = {'true' if value else 'false'}")
-                elif isinstance(value, (int, float)):
-                    lines.append(f"{key} = {value}")
-                else:
-                    lines.append(f'{key} = "{value}"')
-        lines.append("")
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 # ── Models ──────────────────────────────────────────────────────────
@@ -100,7 +80,7 @@ async def set_theme(body: ThemeRequest) -> ThemeResponse:
         section["theme"] = body.theme
         write_config_section(content, section)
 
-        _write_config_toml(config_path, content)
+        write_config_toml(config_path, content)
 
     # Clear cached settings so next read picks up the new value
     get_settings.cache_clear()

@@ -202,6 +202,70 @@ def write_config_section(content: dict[str, Any], section: dict[str, Any]) -> No
     content[CONFIG_SECTION] = section
 
 
+# Control characters that have a short TOML escape; everything else < 0x20 (and
+# DEL) is emitted as ``\uXXXX``.
+_TOML_SHORT_ESCAPES = {
+    "\\": "\\\\",
+    '"': '\\"',
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
+
+
+def _escape_toml_basic_string(value: str) -> str:
+    """Escape ``value`` for use inside a TOML basic (double-quoted) string.
+
+    Implements the TOML basic-string escape rules: backslash and double-quote
+    are escaped, the named control escapes are used where they exist, and any
+    other control character (or DEL) becomes ``\\uXXXX``. Without this, a value
+    containing ``\\`` / ``"`` / a newline (a Windows path, an API key, an email
+    with odd characters) produces an unparseable config.toml that
+    ``_read_config_toml`` then silently drops *in full* — losing every persisted
+    setting, not just the offending value.
+    """
+    out: list[str] = []
+    for ch in value:
+        escaped = _TOML_SHORT_ESCAPES.get(ch)
+        if escaped is not None:
+            out.append(escaped)
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append(f"\\u{ord(ch):04X}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def dump_config_toml(content: dict[str, dict[str, object]]) -> str:
+    """Serialize a nested ``{table: {key: value}}`` mapping to TOML text.
+
+    String values are escaped per :func:`_escape_toml_basic_string`. ``bool`` is
+    checked before ``int`` (``bool`` is an ``int`` subclass) so flags render as
+    ``true``/``false``, not ``1``/``0``.
+    """
+    lines: list[str] = []
+    for table_name, table_values in content.items():
+        lines.append(f"[{table_name}]")
+        if isinstance(table_values, dict):
+            for key, value in table_values.items():
+                if isinstance(value, bool):
+                    lines.append(f"{key} = {'true' if value else 'false'}")
+                elif isinstance(value, (int, float)):
+                    lines.append(f"{key} = {value}")
+                else:
+                    lines.append(f'{key} = "{_escape_toml_basic_string(str(value))}"')
+        lines.append("")
+    return "\n".join(lines)
+
+
+def write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) -> None:
+    """Write ``content`` to ``config_path`` as escaped TOML (creating parents)."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(dump_config_toml(content), encoding="utf-8")
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Create and return application settings instance."""

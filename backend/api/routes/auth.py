@@ -27,7 +27,12 @@ from backend.auth import (
     validate_session,
     verify_password,
 )
-from backend.config import get_settings, read_config_section, write_config_section
+from backend.config import (
+    get_settings,
+    read_config_section,
+    write_config_section,
+    write_config_toml,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -93,31 +98,6 @@ def _read_config_toml(config_path: Path) -> dict:
         return {}
 
 
-def _escape_toml_string(value: str) -> str:
-    """Escape a string for TOML basic string representation."""
-    return value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def _write_config_toml(config_path: Path, content: dict) -> None:
-    """Write a dict as TOML to config_path."""
-    lines: list[str] = []
-    for table_name, table_values in content.items():
-        if not isinstance(table_values, dict):
-            continue
-        lines.append(f"[{table_name}]")
-        for key, value in table_values.items():
-            if isinstance(value, bool):
-                lines.append(f"{key} = {'true' if value else 'false'}")
-            elif isinstance(value, (int, float)):
-                lines.append(f"{key} = {value}")
-            elif isinstance(value, str):
-                lines.append(f'{key} = "{_escape_toml_string(value)}"')
-            else:
-                lines.append(f'{key} = "{_escape_toml_string(str(value))}"')
-        lines.append("")
-    config_path.write_text("\n".join(lines), encoding="utf-8")
-
-
 def _persist_auth_settings(*, auth_enabled: bool, auth_password_hash: str) -> None:
     """Write auth settings to config.toml and bust the settings cache."""
     settings = get_settings()
@@ -129,7 +109,7 @@ def _persist_auth_settings(*, auth_enabled: bool, auth_password_hash: str) -> No
     section["auth_enabled"] = auth_enabled
     section["auth_password_hash"] = auth_password_hash
     write_config_section(existing, section)
-    _write_config_toml(config_path, existing)
+    write_config_toml(config_path, existing)
 
     # Bust the lru_cache so new settings take effect
     get_settings.cache_clear()
