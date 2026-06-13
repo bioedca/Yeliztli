@@ -93,7 +93,7 @@
           },
           "coverage_note": "rs70991108 represents a 19bp insertion/deletion polymorphism in the DHFR promoter region. Not all SNP arrays genotype this variant directly. Coverage depends on the specific array version used.",
           "evidence_level": 1,
-          "pmids": ["18175331", "20162554"],
+          "pmids": ["19022952", "26269242"],
           "recommendation_text": "DHFR converts dietary folic acid to dihydrofolate. The 19bp deletion may alter the efficiency of folic acid utilization. Relevance is primarily in the context of folic acid supplementation vs. natural folate sources."
         },
         {

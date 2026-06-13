@@ -746,3 +746,60 @@ class TestMTRRCitationProvenance:
         assert mtrr["evidence_level"] == 1
         categories = {e["category"] for e in mtrr["genotype_effects"].values()}
         assert "Elevated" not in categories
+
+
+# ── DHFR citation provenance (issue #261) ────────────────────────────────
+
+
+class TestDHFRCitationProvenance:
+    """Validate DHFR rs70991108 19bp del cites on-topic folate evidence.
+
+    The DHFR 19bp-deletion row previously cited PMID 18175331 (a 1800 MHz GSM
+    mouse-brain transcription paper) and PMID 20162554 (an IL-10-secreting Treg
+    immunology paper), neither of which supports DHFR / rs70991108 / folic-acid
+    metabolism. They were replaced with DHFR 19bp-deletion references reflecting
+    the genuinely mixed evidence base. Pin the row so the off-topic PMIDs cannot
+    silently reappear.
+    """
+
+    # Verified DHFR 19bp del/ins (rs70991108) references (NCBI + Consensus):
+    _DHFR_PMIDS = frozenset(
+        {
+            "19022952",  # Kalmbach 2008, J Nutr - del/del raises unmetabolized folic acid
+            "26269242",  # Ozaki 2015, J Nutr - largest cohort, null association (mixed evidence)
+        }
+    )
+    # Off-topic PMIDs that were exclusive to the DHFR row -> safe to ban panel-wide.
+    _DHFR_EXCLUSIVE_BANNED = frozenset({"20162554"})
+    # Off-topic for DHFR, but BHMT/BHMT2 rows also cite 18175331 -> ban from the DHFR row only.
+    _DHFR_ROW_BANNED = frozenset({"18175331", "20162554"})
+
+    def _get_dhfr(self, panel_data: dict) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == "rs70991108":
+                    return snp
+        pytest.fail("DHFR rs70991108 not found in panel")
+
+    def test_dhfr_cites_verified_folate_refs(self, panel_data: dict) -> None:
+        assert set(self._get_dhfr(panel_data)["pmids"]) == self._DHFR_PMIDS
+
+    def test_dhfr_row_drops_unrelated_pmids(self, panel_data: dict) -> None:
+        leaked = self._DHFR_ROW_BANNED & set(self._get_dhfr(panel_data)["pmids"])
+        assert not leaked, f"DHFR row still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_dhfr_exclusive_banned_pmid_absent_from_panel(self, panel_data: dict) -> None:
+        # 20162554 was exclusive to the DHFR row -> must not appear anywhere in
+        # the panel. (18175331 is NOT asserted panel-wide: BHMT/BHMT2 rows still
+        # carry it as a separate concern tracked by #314.)
+        leaked = self._DHFR_EXCLUSIVE_BANNED & set(_all_pmids(panel_data))
+        assert not leaked, f"DHFR-exclusive unrelated PMID(s) still in panel: {sorted(leaked)}"
+
+    def test_dhfr_evidence_level_stays_supportive(self, panel_data: dict) -> None:
+        # DHFR 19bp del evidence is mixed (Kalmbach functional vs Ozaki null), so
+        # the row stays evidence_level 1 (supportive, no Elevated) with cautious
+        # "may" wording.
+        dhfr = self._get_dhfr(panel_data)
+        assert dhfr["evidence_level"] == 1
+        categories = {e["category"] for e in dhfr["genotype_effects"].values()}
+        assert "Elevated" not in categories
