@@ -663,6 +663,16 @@ def compute_prs_bootstrap_ci(
 
 # ── Ancestry mismatch warning ───────────────────────────────────────────
 
+# ADMIXED / UNCERTAIN are non-population classification sentinels emitted by the
+# PCA/NNLS ancestry classifier (backend.analysis.ancestry) when there is no
+# confident single top population — they are NOT user ancestries. A PRS mismatch
+# must not compare the score's source population against them as if they were a
+# population: that reifies a non-population ("ADMIXED differs from EUR") and, when
+# paired with a None top-fraction, used to suppress the real admixed caveat (#300).
+_ADMIXED = "ADMIXED"
+_UNCERTAIN = "UNCERTAIN"
+_NON_POPULATION_ANCESTRIES = frozenset({_ADMIXED, _UNCERTAIN})
+
 
 def check_ancestry_mismatch(
     result: PRSResult,
@@ -726,31 +736,52 @@ def check_ancestry_mismatch(
     #     but whose inferred ancestry is literally a development ancestry.
     # Requiring both keeps the "none matching" wording truthful (issue #239 +
     # review). Single-ancestry scores keep the direct comparison.
-    if is_multi:
-        dev_upper = {a.upper() for a in result.development_ancestries}
-        mismatch = source != inferred and inferred not in dev_upper
-    else:
-        mismatch = source != inferred
-
-    if mismatch:
+    if inferred in _NON_POPULATION_ANCESTRIES:
+        # No confident single top population (admixed / uncertain). Don't compare
+        # it against the source as a pseudo-population; surface a calibration
+        # caveat. The fraction-based admixed warning below still applies — its
+        # fraction now comes from the dominant population component (#300).
         result.ancestry_mismatch = True
-        if is_multi:
-            dev = ", ".join(result.development_ancestries)
+        if inferred == _ADMIXED:
             result.ancestry_warning_text = (
-                f"This PRS was developed across multiple ancestries ({dev}), none "
-                f"matching your inferred ancestry ({inferred_ancestry}). Percentile "
-                f"estimates may be less accurate for your genetic background."
+                "Your genotype did not resolve to a single top ancestry (admixed "
+                "composition), so it cannot be matched to this score's development "
+                "population. PRS portability depends on ancestry composition, linkage "
+                "disequilibrium, and allele-frequency differences, so percentile "
+                "estimates may be less accurate for an admixed background."
             )
-        else:
+        else:  # UNCERTAIN
             result.ancestry_warning_text = (
-                f"This PRS was derived from a single-ancestry ({result.source_ancestry}) "
-                f"population study. Your inferred ancestry ({inferred_ancestry}) differs "
-                f"from the source population. Percentile estimates may be less accurate "
-                f"for your genetic background."
+                "Ancestry could not be confidently inferred (insufficient data), so the "
+                "match between your background and this score's development population "
+                "cannot be assessed. Interpret the percentile with caution."
             )
     else:
-        result.ancestry_mismatch = False
-        result.ancestry_warning_text = None
+        if is_multi:
+            dev_upper = {a.upper() for a in result.development_ancestries}
+            mismatch = source != inferred and inferred not in dev_upper
+        else:
+            mismatch = source != inferred
+
+        if mismatch:
+            result.ancestry_mismatch = True
+            if is_multi:
+                dev = ", ".join(result.development_ancestries)
+                result.ancestry_warning_text = (
+                    f"This PRS was developed across multiple ancestries ({dev}), none "
+                    f"matching your inferred ancestry ({inferred_ancestry}). Percentile "
+                    f"estimates may be less accurate for your genetic background."
+                )
+            else:
+                result.ancestry_warning_text = (
+                    f"This PRS was derived from a single-ancestry ({result.source_ancestry}) "
+                    f"population study. Your inferred ancestry ({inferred_ancestry}) differs "
+                    f"from the source population. Percentile estimates may be less accurate "
+                    f"for your genetic background."
+                )
+        else:
+            result.ancestry_mismatch = False
+            result.ancestry_warning_text = None
 
     # Admixture-aware threshold: warn if top ancestry < 70%
     if top_ancestry_fraction is not None and top_ancestry_fraction < 0.70:

@@ -1280,6 +1280,17 @@ def get_top_ancestry_fraction(sample_engine: sa.Engine) -> float | None:
             return float(fracs[top_pop])
         except (ValueError, TypeError):
             return None
+    # ADMIXED / UNCERTAIN are non-population sentinels (no confident single top
+    # population), so top_pop is not a key in the population-coded
+    # admixture_fractions. Fall back to the largest population fraction — the
+    # dominant component — so the <70% admixed-composition warning in
+    # check_ancestry_mismatch still fires instead of being silently suppressed by
+    # a None fraction (#300).
+    if top_pop in (ADMIXED, UNCERTAIN) and fracs:
+        try:
+            return max(float(v) for v in fracs.values())
+        except (ValueError, TypeError):
+            return None
     return None
 
 

@@ -603,6 +603,60 @@ class TestAdmixtureAwareThreshold:
         assert "admixed" in result.ancestry_warning_text.lower()
 
 
+class TestAdmixedSentinelHandling:
+    """#300 — ADMIXED / UNCERTAIN are non-population classification sentinels (the
+    PCA classifier found no confident single top population), not a user ancestry.
+    They must not be reified as a population that "differs from" the score source,
+    and the admixed-composition warning must still surface."""
+
+    def _make_result(self, source_ancestry: str = "EUR") -> PRSResult:
+        return PRSResult(
+            weight_set_name="Test PRS",
+            trait="test",
+            module="test",
+            source_ancestry=source_ancestry,
+            source_study="Test",
+            source_pmid="123",
+            sample_size=1000,
+            raw_score=0.5,
+        )
+
+    def test_admixed_is_not_a_pseudo_population_mismatch(self) -> None:
+        # The 0.55 dominant-component fraction is what get_top_ancestry_fraction now
+        # returns for an ADMIXED finding, so the composition warning fires too.
+        result = check_ancestry_mismatch(
+            self._make_result("EUR"), inferred_ancestry="ADMIXED", top_ancestry_fraction=0.55
+        )
+        assert result.ancestry_mismatch is True
+        text = result.ancestry_warning_text
+        assert text is not None
+        # Never reified as a population that "differs from" the source.
+        assert "ADMIXED" not in text
+        assert "differs from the source population" not in text
+        # Surfaces the admixed calibration caveat + the composition fraction.
+        assert "admixed" in text.lower()
+        assert "55%" in text
+
+    def test_admixed_without_fraction_caveats_not_mismatches(self) -> None:
+        result = check_ancestry_mismatch(
+            self._make_result("EUR"), inferred_ancestry="ADMIXED", top_ancestry_fraction=None
+        )
+        assert result.ancestry_mismatch is True
+        assert "ADMIXED" not in result.ancestry_warning_text
+        assert "admixed" in result.ancestry_warning_text.lower()
+
+    def test_uncertain_is_not_a_pseudo_population_mismatch(self) -> None:
+        result = check_ancestry_mismatch(
+            self._make_result("EUR"), inferred_ancestry="UNCERTAIN", top_ancestry_fraction=None
+        )
+        assert result.ancestry_mismatch is True
+        text = result.ancestry_warning_text
+        assert text is not None
+        assert "UNCERTAIN" not in text
+        assert "differs from the source population" not in text
+        assert "confidently inferred" in text.lower()
+
+
 class TestLAIPreferredOverTier1:
     """T-PRS-04: LAI-derived ancestry preferred over Tier 1 when available."""
 
@@ -740,6 +794,36 @@ class TestGetTopAncestryFraction:
 
         result = get_top_ancestry_fraction(sample_engine)
         assert result == pytest.approx(0.65)
+
+    def test_admixed_sentinel_returns_max_population_fraction(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # #300: an ADMIXED top_population is a non-population sentinel, not a key in
+        # the population-coded admixture_fractions. Fall back to the dominant
+        # component's fraction (not None) so check_ancestry_mismatch's <70%
+        # admixed-composition warning still fires instead of being suppressed.
+        from backend.analysis.ancestry import get_top_ancestry_fraction
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "ancestry",
+                    "category": "nnls_admixture",
+                    "evidence_level": 2,
+                    "finding_text": "NNLS admixed",
+                    "detail_json": json.dumps(
+                        {
+                            "top_population": "ADMIXED",
+                            "classification_status": "admixed",
+                            "admixture_fractions": {"AFR": 0.55, "EUR": 0.45},
+                        }
+                    ),
+                },
+            )
+
+        result = get_top_ancestry_fraction(sample_engine)
+        assert result == pytest.approx(0.55)
 
 
 class TestMultiAncestryProvenanceWarning:
