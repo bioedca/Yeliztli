@@ -92,6 +92,7 @@ nav:
       - Install (quick start): getting-started/install-quickstart.md
       - Upload your DNA: getting-started/upload-your-dna.md
       - Reading your results: getting-started/reading-your-results.md
+      - Multi-sample merging: getting-started/multi-sample-merging.md
   - Modules:
       - modules/index.md
       - Health & hereditary risk:

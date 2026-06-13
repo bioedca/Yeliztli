@@ -35,5 +35,6 @@ If you've tested with more than one service, you can upload additional files and
 files from the same person** under a single *individual* — and optionally combine them into
 one merged sample with a concordance check. Each uploaded sample otherwise keeps its own
 isolated database; use the **sample selector** in the top navigation to switch between them.
+See **[multi-sample merging](multi-sample-merging.md)** for the full walkthrough.
 
 Next: **[read your results](reading-your-results.md)**.
