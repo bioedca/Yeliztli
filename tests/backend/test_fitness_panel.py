@@ -205,12 +205,36 @@ class TestSNPFields:
         )
         assert col5a1["pmids"] == ["29632650", "29922378"]
 
+    def test_fto_cites_verified_sources(self, panel_data: dict) -> None:
+        """#387 — the FTO (rs9939609) row must cite FTO/physical-activity literature.
+
+        The originals resolved (NCBI eutils) to non-FTO topics: 22449884 = a nursing
+        staff-development conference report, 27126078 = a biopolyol/ethanol
+        hydrothermal-liquefaction chemistry paper. Verified set:
+          - 17434869 = Frayling 2007, Science — FTO variant associated with BMI/obesity
+          - 22069379 = Kilpelainen 2011, PLoS Med — physical activity attenuates the
+            influence of FTO variants on obesity risk (meta-analysis)
+        """
+        fto = next(
+            s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs9939609"
+        )
+        assert fto["pmids"] == ["17434869", "22069379"]
+
     def test_no_unrelated_transposed_pmids(self, panel_data: dict) -> None:
         """The verified-unrelated PMIDs must not appear in any fitness panel row."""
-        # 1346618/16205547: AMPD1 transpositions (#185). 12563186/23667795: PPARGC1A
-        # transpositions (#382). 19455179 (SIRT1/insulin) and 21747786 (Legionella
-        # transcriptome): COL5A1-row transpositions (#385). All safe to ban panel-wide.
-        unrelated = {"1346618", "16205547", "12563186", "23667795", "19455179", "21747786"}
+        # Each pair was exclusive to its original row before being fixed, so all are
+        # safe to ban panel-wide: 1346618/16205547 AMPD1 (#185); 12563186/23667795
+        # PPARGC1A (#382); 19455179/21747786 COL5A1 (#385); 22449884/27126078 FTO (#387).
+        unrelated = {
+            "1346618",
+            "16205547",
+            "12563186",
+            "23667795",
+            "19455179",
+            "21747786",
+            "22449884",
+            "27126078",
+        }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 stray = unrelated.intersection(snp["pmids"])

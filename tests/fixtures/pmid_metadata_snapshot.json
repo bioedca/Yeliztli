@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-13",
-    "pmid_count": 356,
+    "pmid_count": 355,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -1053,10 +1053,10 @@
       "journal": "Chem Asian J",
       "year": "2012"
     },
-    "22449884": {
-      "title": "NNSDO in Boston in 2012: revolutionizing healthcare education.",
-      "journal": "J Nurses Staff Dev",
-      "year": "2012"
+    "22069379": {
+      "title": "Physical activity attenuates the influence of FTO variants on obesity risk: a meta-analysis of 218,166 adults and 19,268 children.",
+      "journal": "PLoS Med",
+      "year": "2011"
     },
     "22884227": {
       "title": "Early gastric fistula after laparoscopic sleeve gastrectomy: surgical management.",
@@ -1356,11 +1356,6 @@
     "27104173": {
       "title": "Sitosterolemia: a review and update of pathophysiology, clinical spectrum, diagnosis, and management.",
       "journal": "Ann Pediatr Endocrinol Metab",
-      "year": "2016"
-    },
-    "27126078": {
-      "title": "The effect of ethanol on hydroxyl and carbonyl groups in biopolyol produced by hydrothermal liquefaction of loblolly pine: (31)P-NMR and (19)F-NMR analysis.",
-      "journal": "Bioresour Technol",
       "year": "2016"
     },
     "27184023": {
