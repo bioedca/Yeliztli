@@ -51,5 +51,7 @@ Upload your raw genotype file. Yeliztli supports **23andMe** (v3/v4/v5) and **An
 finishes, annotation runs automatically in the background, followed by the analysis modules.
 
 !!! tip "Multiple files for one person"
-    If you have tested with more than one service, you can add additional files later and
-    combine them — this is covered in the Getting started guide.
+    If you have tested with more than one service, you can add additional files later from
+    the Upload page. Files from the same person — for example a 23andMe and an AncestryDNA
+    export — can be grouped under one **individual** and optionally combined into a single
+    merged sample.

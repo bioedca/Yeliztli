@@ -24,7 +24,9 @@ port = 8000
 debug = false
 
 # Paths
-data_dir = "~/.yeliztli"
+# Note: data_dir is NOT set here. It defines *where* this config.toml lives, so it
+# cannot be read back from it — set it with the YELIZTLI_DATA_DIR environment
+# variable (or via the setup wizard) instead.
 
 # Authentication (optional)
 auth_enabled = false
@@ -58,7 +60,7 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 |---------|---------|---------|---------|
 | `host` | `YELIZTLI_HOST` | `127.0.0.1` | Bind address. Keep it on loopback for local-only access. |
 | `port` | `YELIZTLI_PORT` | `8000` | Server port. |
-| `data_dir` | `YELIZTLI_DATA_DIR` | `~/.yeliztli` | Where all databases, samples, and logs live. |
+| `data_dir` | `YELIZTLI_DATA_DIR` | `~/.yeliztli` | Where all databases, samples, and logs live. Set via the **env var only** — it cannot be configured in `config.toml`. |
 | `auth_enabled` | `YELIZTLI_AUTH_ENABLED` | `false` | Require a PIN/password to use the app. |
 | `pubmed_email` | `YELIZTLI_PUBMED_EMAIL` | `""` | Contact email for NCBI literature lookups. |
 | `omim_api_key` | `YELIZTLI_OMIM_API_KEY` | `""` | Optional OMIM enrichment key. |

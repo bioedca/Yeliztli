@@ -32,6 +32,8 @@ updated from **Settings → Database Management**, where you can configure:
 
 - per-database auto-update toggles,
 - update check frequency (startup / daily / weekly),
-- an optional bandwidth window for large downloads.
+- an optional bandwidth window for large downloads, given as a 24-hour
+  `"HH:MM-HH:MM"` range (e.g. `"02:00-06:00"`). The updates route holds large downloads to
+  that window; a **Force update** action bypasses it when you need a download now.
 
 Update history is logged and viewable in the Settings panel.
