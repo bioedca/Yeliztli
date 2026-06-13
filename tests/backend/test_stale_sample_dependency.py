@@ -29,7 +29,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Body
 
-from backend.api.dependencies import require_fresh_sample
+from backend.api.dependencies import _sample_existence, require_fresh_sample
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -329,6 +329,48 @@ class TestRequireFreshSample:
         with pytest.raises(HTTPException) as exc:
             require_fresh_sample(gate_env["sample_id"])
         assert exc.value.detail["required_version"] == "v2.0.0"
+
+    def test_missing_sample_raises_404(self, manifest_env, gate_env):
+        # #453 — a *missing* samples row is answered 404, not 423. Existence is
+        # checked before staleness, so the gate no longer leaks-vs-blocks by
+        # bundle state. gate_env seeds only sample id=1, so 9999 is absent.
+        with pytest.raises(HTTPException) as exc:
+            require_fresh_sample(9999)
+        assert exc.value.status_code == 404
+        assert "9999" in str(exc.value.detail)
+
+    def test_missing_sample_404_is_independent_of_bundle_baseline(self, manifest_env, gate_env):
+        # Determinism (#453): even with a newer baseline installed — which would
+        # have made the Plan §7.4 v1.0.0 missing-state fallback look "stale" and
+        # answered 423 under the old contract — a missing sample is still 404.
+        _seed_installed_bundle(gate_env["settings"], "v3.0.0")
+        with pytest.raises(HTTPException) as exc:
+            require_fresh_sample(9999)
+        assert exc.value.status_code == 404
+
+
+class TestSampleExistence:
+    """Tri-state ``_sample_existence`` underpinning the #453 missing → 404 gate."""
+
+    def test_existing_sample_is_true(self, gate_env):
+        assert _sample_existence(gate_env["sample_id"]) is True
+
+    def test_absent_sample_is_false(self, gate_env):
+        # samples table is readable and has no id=9999 row → definitively absent.
+        assert _sample_existence(9999) is False
+
+    def test_unreadable_table_is_none(self, tmp_data_dir):
+        # No reference_metadata.create_all → the ``samples`` table does not exist,
+        # so existence cannot be affirmed. Must be None (unknown), NOT False — the
+        # gate falls through to staleness instead of 404-ing on a read it could
+        # not make (preserving the "never raise" contract).
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        with patch("backend.db.connection.get_settings", return_value=settings):
+            reset_registry()
+            try:
+                assert _sample_existence(1) is None
+            finally:
+                reset_registry()
 
 
 # ── Drift guard ────────────────────────────────────────────────────────

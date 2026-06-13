@@ -7,6 +7,12 @@ It calls :func:`backend.services.staleness.is_sample_stale` and raises
 ``annotation_state.vep_bundle_version`` has a strictly lower **major**
 ``packaging.version.Version`` than the installed bundle.
 
+A *missing* sample (no ``samples`` row) is answered ``HTTPException(404)``
+uniformly across analysis and merge/migrate routes — existence is checked
+*before* staleness, so a missing sample is 404 deterministically rather
+than 404-or-423 by local bundle state (#453). See
+:func:`require_fresh_sample` for the full resolution order.
+
 The 423 ``detail`` payload carries the four keys mandated by Plan §7.5:
 
 * ``installed_version`` — the version recorded in the sample's
@@ -80,21 +86,27 @@ def _read_recorded_sample_version(sample_id: int) -> str:
     return value_row.value
 
 
-def _sample_exists(sample_id: int) -> bool:
-    """Whether ``sample_id`` has a row in the reference DB ``samples`` table.
+def _sample_existence(sample_id: int) -> bool | None:
+    """Tri-state existence of ``sample_id`` in the reference DB ``samples`` table.
 
-    Returns ``False`` defensively when the reference DB or ``samples``
-    table is unreachable (e.g. a fresh install before setup) — the caller
-    then falls through to :func:`is_sample_stale`, which already tolerates
-    a missing table. This mirrors the staleness service's "never raise"
-    contract so the gate cannot turn an unreadable reference DB into a 500.
+    * ``True``  — a row exists.
+    * ``False`` — the ``samples`` table is readable and has **no** such row, so
+      the sample is *definitively* absent.
+    * ``None``  — the reference DB / ``samples`` table is unreachable (e.g. a
+      fresh install before setup), so existence cannot be affirmed.
+
+    The ``None`` case must never be treated as "missing": turning an unreadable
+    reference DB into a 404 (or a 500) would break the staleness service's
+    "never raise" contract, so :func:`require_fresh_sample` falls through to the
+    staleness gate (which already tolerates a missing table) instead of
+    answering 404 on the strength of a read it could not actually make.
     """
     registry = get_registry()
     try:
         with registry.reference_engine.connect() as conn:
             row = conn.execute(sa.select(samples.c.id).where(samples.c.id == sample_id)).fetchone()
     except sa.exc.OperationalError:
-        return False
+        return None
     return row is not None
 
 
@@ -126,34 +138,48 @@ def _resolve_update_url() -> str:
 
 
 def require_fresh_sample(sample_id: int) -> int:
-    """Block stale samples (Plan §7.5).
+    """Gate sample-scoped routes on existence, then staleness (Plan §7.5, #453).
 
-    When :func:`backend.services.staleness.is_sample_stale` returns
-    ``True``, raise ``HTTPException(423, detail={...})`` with the
-    Plan §7.5 payload. Otherwise return ``sample_id`` unchanged so
-    routes can declare the dependency without losing path-parameter
-    access (``sample_id: int = Depends(require_fresh_sample)`` keeps
-    the value bound to the handler signature).
+    Resolution order, applied uniformly on **every** gated route
+    (analysis *and* merge/migrate) so the same request can never flip
+    answer with the local bundle baseline:
 
-    An **existing** sample that has never completed an annotation run (no
-    recorded ``annotation_state.vep_bundle_version`` row) is *not* gated
-    here: it has no stale data to block, it needs its *first* annotation.
-    Gating it would surface the re-annotation banner (implying the bundle
-    is out of date) instead of the dashboard's "Run Annotation" CTA — the
-    bug a freshly imported sample otherwise hits, since Plan §7.4's
-    missing-state fallback treats an absent row as ``v1.0.0``. That
-    fallback predates the migration-008 / restore explicit ``v1.0.0``
-    backfill, which now covers every genuinely pre-Phase-0 *annotated*
-    sample, so an absent row on an existing sample reliably means "never
-    annotated". (``is_sample_stale`` keeps the fallback for the merge
-    stale-source gate, where blocking an un-annotated source before merge
-    is intended.)
+    1. **Missing** sample (the ``samples`` row is definitively absent) →
+       ``HTTPException(404)``. Existence is checked *before* staleness, so a
+       missing sample is 404 deterministically — never 423 — independent of
+       whether a newer bundle baseline is installed. This is the maintainer
+       decision for #453: a single-principal, self-hosted app has no
+       per-user data partitioning, so the existence signal carries no
+       cross-user information, and 404-for-missing is the simpler, RESTful
+       contract. (Supersedes the prior "missing falls through to 423 to
+       avoid leaking existence" wording.)
+    2. **Existing but never annotated** (no recorded
+       ``annotation_state.vep_bundle_version`` row) → returned unchanged.
+       It has no stale data to block; it needs its *first* annotation,
+       surfaced by the dashboard's "Run Annotation" CTA rather than the
+       re-annotation banner. (Plan §7.4's missing-state fallback would
+       otherwise treat the absent row as ``v1.0.0``; the migration-008 /
+       restore ``v1.0.0`` backfill now covers every genuinely pre-Phase-0
+       *annotated* sample, so an absent row on an existing sample reliably
+       means "never annotated". ``is_sample_stale`` keeps the fallback for
+       the merge stale-source gate, where blocking an un-annotated source
+       before merge is intended.)
+    3. **Existing and stale** (bundle major < installed major) →
+       ``HTTPException(423, detail={...})`` with the Plan §7.5 payload.
+    4. Otherwise → ``sample_id`` returned unchanged so routes can declare
+       the dependency without losing path-parameter access
+       (``sample_id: int = Depends(require_fresh_sample)`` keeps the value
+       bound to the handler signature).
 
-    A *missing* ``samples`` row falls through to the gate below (423),
-    preserving the existing contract that gated routes do not leak sample
-    existence via a 404.
+    When existence cannot be affirmed (the reference DB / ``samples`` table
+    is unreachable, :func:`_sample_existence` → ``None``) the gate does not
+    404; it falls through to the staleness check, preserving the staleness
+    service's "never raise" contract.
     """
-    if _sample_exists(sample_id) and get_recorded_bundle_version(sample_id) is None:
+    existence = _sample_existence(sample_id)
+    if existence is False:
+        raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
+    if existence and get_recorded_bundle_version(sample_id) is None:
         return sample_id
     if not is_sample_stale(sample_id):
         return sample_id

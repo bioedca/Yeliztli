@@ -502,14 +502,14 @@ class TestMergeProvenanceRoute:
         assert resp.status_code == 404
         assert "no merge provenance" in resp.json()["detail"]
 
-    def test_nonexistent_sample_blocked_by_stale_gate(self, merge_client: TestClient) -> None:
-        # ``Depends(require_fresh_sample)`` runs before the handler, and the
-        # staleness service treats a missing ``samples`` row as v1.0.0 (the
-        # Plan §7.4 missing-state fallback). The gated route therefore
-        # answers 423 rather than leaking sample existence — consistent
-        # with every other ``Depends(require_fresh_sample)`` route.
+    def test_nonexistent_sample_returns_404(self, merge_client: TestClient) -> None:
+        # #453 — ``Depends(require_fresh_sample)`` checks existence before
+        # staleness, so a missing ``samples`` row answers 404 deterministically
+        # (not 423 by bundle state), uniformly across analysis and merge/migrate
+        # routes. Supersedes the prior "423 to avoid leaking existence" contract:
+        # a single-principal, self-hosted app leaks nothing cross-user.
         resp = merge_client.get("/api/samples/9999/merge-provenance")
-        assert resp.status_code == 423
+        assert resp.status_code == 404
 
 
 # ── GET /api/samples/{id}/concordance-report ───────────────────────────
@@ -597,11 +597,11 @@ class TestConcordanceReportRoute:
         )
         assert resp.status_code == 404
 
-    def test_nonexistent_sample_blocked_by_stale_gate(self, merge_client: TestClient) -> None:
-        # See ``TestMergeProvenanceRoute.test_nonexistent_sample_blocked_by_stale_gate``
-        # for the rationale — the gate answers 423 before the handler runs.
+    def test_nonexistent_sample_returns_404(self, merge_client: TestClient) -> None:
+        # See ``TestMergeProvenanceRoute.test_nonexistent_sample_returns_404``
+        # for the rationale — the existence-first gate answers 404 (#453).
         resp = merge_client.get("/api/samples/9999/concordance-report")
-        assert resp.status_code == 423
+        assert resp.status_code == 404
 
 
 # ── require_fresh_sample wiring on the new read routes ─────────────────

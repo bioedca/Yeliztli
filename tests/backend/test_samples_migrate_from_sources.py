@@ -364,13 +364,14 @@ class TestMigrateFromSourcesEdges:
             "reannotate_url",
         } <= set(detail.keys())
 
-    def test_nonexistent_merged_id_blocked_by_stale_gate(self, migrate_client: TestClient) -> None:
+    def test_nonexistent_merged_id_returns_404(self, migrate_client: TestClient) -> None:
         # Mirrors the merge-provenance + concordance-report contract from
-        # test_merge_routes.py: a missing samples row is treated as
-        # v1.0.0 by the staleness service, so the gate fires before the
-        # handler runs (no existence leak).
+        # test_merge_routes.py (#453): require_fresh_sample (via
+        # require_fresh_merged_sample) checks existence before staleness, so a
+        # missing samples row answers 404 deterministically, not 423 by bundle
+        # state.
         resp = migrate_client.get("/api/samples/9999/watched-variants/migrate-from-sources")
-        assert resp.status_code == 423
+        assert resp.status_code == 404
 
     def test_empty_when_sources_have_no_watches(self, tmp_data_dir: Path) -> None:
         """Merged sample whose sources never watched anything → ``{candidates: []}``."""
