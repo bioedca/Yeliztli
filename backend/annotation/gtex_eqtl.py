@@ -35,9 +35,6 @@ from typing import IO
 
 import sqlalchemy as sa
 
-# GTEx Consortium 2020 (Science) — the v8 atlas.
-GTEX_PMID = "32913098"
-
 # variant_id format: chr1_64764_C_T_b38  (GRCh38, 'chr'-prefixed).
 _VARIANT_ID_RE = re.compile(r"^chr([0-9XYM]+)_(\d+)_([ACGT]+)_([ACGT]+)_b38$", re.IGNORECASE)
 
