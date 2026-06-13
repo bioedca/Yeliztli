@@ -25,7 +25,6 @@ import argparse
 import json
 import sys
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -57,7 +56,10 @@ def _fetch_batch(pmids: list[str]) -> dict[str, dict[str, str]]:
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed NCBI host)
             payload = json.loads(resp.read().decode())
-    except urllib.error.URLError as exc:
+    except OSError as exc:
+        # OSError is the superset of urllib URLError/HTTPError, socket read-phase
+        # TimeoutError, and connection errors — so a stalled response can't crash
+        # unhandled despite the 60s timeout.
         raise SystemExit(f"ERROR: NCBI esummary request failed: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise SystemExit(
