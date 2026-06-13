@@ -1095,17 +1095,22 @@ class TestFullScoring:
         assert il2il21_findings == []
         assert autoimmune_summary == STANDARD
 
+    # GG = hom-ref non-carrier, GA = het carrier, AA = hom-risk (the strongest
+    # disclosure trigger if it were still scored). None may disclose anything.
+    @pytest.mark.parametrize("genotype", ["GG", "GA", "AA"])
     def test_lrrk2_g2019s_not_disclosed_via_gene_health(
         self,
+        genotype: str,
         panel: GeneHealthPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """#404: an LRRK2 G2019S carrier gets NO Parkinson's disclosure from Gene
-        Health — no scored finding, no parkinsons cross-link, nothing in stored
-        findings (the source for the generic /api/analysis/findings aggregator).
-        LRRK2 G2019S is disclosed only through the gated Parkinson's opt-in module."""
-        _seed_variants(sample_engine, [("rs34637584", "12", 40340400, "GA")])  # G2019S het
+        """#404: an LRRK2 G2019S sample (non-carrier, het, or hom-risk) gets NO
+        Parkinson's disclosure from Gene Health — no scored finding, no parkinsons
+        cross-link, no panel_coverage row, and nothing in stored findings (the source
+        for the generic /api/analysis/findings aggregator). LRRK2 G2019S is disclosed
+        only through the gated Parkinson's opt-in module."""
+        _seed_variants(sample_engine, [("rs34637584", "12", 40340400, genotype)])
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
 
         # rs34637584 is not in the panel → never scored, never cross-linked.
@@ -1121,7 +1126,8 @@ class TestFullScoring:
         assert "parkinson" not in in_memory
         assert "g2019s" not in in_memory
 
-        # Storage layer (feeds the generic aggregator): no leak persisted.
+        # Storage layer (feeds the generic aggregator): no leak persisted, and no
+        # findings or panel_coverage row is keyed to rs34637584.
         store_gene_health_findings(result, sample_engine)
         with sample_engine.connect() as conn:
             persisted = " ".join(
@@ -1130,14 +1136,21 @@ class TestFullScoring:
                     sa.select(findings.c.finding_text).where(findings.c.module == MODULE_NAME)
                 )
             ).lower()
-            lrrk2_rows = conn.execute(
+            lrrk2_finding_rows = conn.execute(
                 sa.select(findings.c.id).where(
                     findings.c.module == MODULE_NAME, findings.c.rsid == "rs34637584"
                 )
             ).fetchall()
+            lrrk2_coverage_rows = conn.execute(
+                sa.select(panel_coverage.c.rsid).where(
+                    panel_coverage.c.module == MODULE_NAME,
+                    panel_coverage.c.rsid == "rs34637584",
+                )
+            ).fetchall()
         assert "parkinson" not in persisted
         assert "g2019s" not in persisted
-        assert lrrk2_rows == []
+        assert lrrk2_finding_rows == []
+        assert lrrk2_coverage_rows == []
 
     def test_gba1_n370s_alone_does_not_surface_gene_health_risk(
         self,
