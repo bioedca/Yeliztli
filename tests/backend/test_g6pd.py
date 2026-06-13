@@ -400,6 +400,21 @@ class TestRecordedBiologicalSex:
         assert r["sex_source"] == "recorded"
         assert r["phenotype"] == "deficient"  # XY hemizygote + 1 deficiency allele
 
+    def test_recorded_sex_overrides_conflicting_inference(self) -> None:
+        # True precedence case: a confident inference (XX) DISAGREES with the recorded
+        # value (XY). The user-set recorded sex is authoritative, so the phenotype must
+        # follow XY (hemizygote → deficient), not the XX heterozygote reading that
+        # inference alone would have produced (#475; resolve_biological_sex precedence).
+        engine = _make_sample({G6PD_A_MINUS_RSID: "T"})  # one A- deficiency allele
+        with (
+            patch("backend.analysis.g6pd.infer_biological_sex", return_value="XX"),
+            patch("backend.analysis.g6pd.get_recorded_biological_sex", return_value="XY"),
+        ):
+            r = assess_g6pd(engine, reference_engine=engine, sample_id=1)
+        assert r["inferred_sex"] == "XY"
+        assert r["sex_source"] == "recorded"
+        assert r["phenotype"] == "deficient"  # follows recorded XY, not inferred XX
+
     def test_inferred_sex_used_when_no_recorded(self) -> None:
         engine = _make_sample({G6PD_A_MINUS_RSID: "T"})
         with (
