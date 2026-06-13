@@ -1479,3 +1479,54 @@ class TestMTHFRCitationProvenance:
             for snp in pathway.snps:
                 leaked = self._BANNED_PMIDS & set(snp.pmids)
                 assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+class TestSTAT4CitationProvenance:
+    """Guard the STAT4 rs7574865 evidence links (issue #226).
+
+    The STAT4 row previously cited three papers that resolve to other loci, not
+    STAT4: 17804836 (Plenge 2007, the TRAF1-C5 RA GWAS), 19503088 (Gregersen
+    2009, the REL/NF-kappaB RA locus), and 22286173 (Low 2012, an intracranial-
+    aneurysm EDNRA GWAS). Pin the row to verified STAT4 rs7574865 RA/SLE
+    references so those off-topic PMIDs cannot silently reappear.
+
+    NB: 17804836 (TRAF1-C5) is *also* cited by other gene-health rows (PTPN22
+    rs2476601 and one more) where it is a separate concern, so it is banned only
+    from the STAT4 row, not panel-wide. 19503088 and 22286173 were exclusive to
+    the STAT4 row and are banned across the whole panel.
+    """
+
+    # Verified STAT4 rs7574865 RA/SLE references (NCBI + Consensus):
+    _STAT4_PMIDS = frozenset(
+        {
+            "17804842",  # Remmers 2007, NEJM - STAT4 rs7574865 intron-3 RA/SLE haplotype
+            "19479340",  # Ji 2010, Mol Biol Rep - STAT4 rs7574865 RA/SLE meta-analysis
+        }
+    )
+    # Off-topic PMIDs that were exclusive to the STAT4 row -> safe to ban panel-wide.
+    _STAT4_EXCLUSIVE_BANNED = frozenset({"19503088", "22286173"})
+    # Off-topic for STAT4, but other rows cite 17804836 -> ban the trio from the STAT4 row only.
+    _STAT4_ROW_BANNED = frozenset({"17804836", "19503088", "22286173"})
+
+    def _get_stat4(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs7574865":
+                    return snp
+        raise AssertionError("STAT4 rs7574865 not found in panel")
+
+    def test_stat4_cites_verified_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_stat4(panel).pmids) == self._STAT4_PMIDS
+
+    def test_stat4_row_drops_all_unrelated_pmids(self, panel: GeneHealthPanel) -> None:
+        leaked = self._STAT4_ROW_BANNED & set(self._get_stat4(panel).pmids)
+        assert not leaked, f"STAT4 row still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_stat4_exclusive_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        # 19503088 and 22286173 were exclusive to the STAT4 row, so they must not
+        # appear anywhere in the gene-health panel after the fix. (17804836 is
+        # intentionally NOT asserted panel-wide: PTPN22 and another row retain it.)
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._STAT4_EXCLUSIVE_BANNED & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites STAT4-misattributed PMID(s) {sorted(leaked)}"
