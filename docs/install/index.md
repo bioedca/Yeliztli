@@ -12,7 +12,7 @@ is recommended for day-to-day use.
 - **[Docker Compose](docker.md)** — run the API and background worker as containers with a
   persistent data volume. Good if you already use Docker.
 - **Development mode** — hot-reloading backend + frontend for contributors, via
-  `make dev` (starts the API, the Vite dev server, and the background worker together).
+  `make dev`. See the [Develop](../develop/index.md) section.
 
 ## After installing
 

@@ -143,4 +143,11 @@ nav:
       - Uninstall: install/uninstall.md
       - Troubleshooting: install/troubleshooting.md
   - Ancestry methods & validation: ancestry-methods.md
+  - Develop:
+      - develop/index.md
+      - Architecture: develop/architecture.md
+      - Development setup: develop/development-setup.md
+      - Project structure: develop/project-structure.md
+      - Testing: develop/testing.md
+      - Contributing: develop/contributing.md
   - Attribution: attribution.md
