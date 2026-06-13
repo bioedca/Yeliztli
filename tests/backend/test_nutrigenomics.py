@@ -393,6 +393,33 @@ class TestSNPScoring:
         assert aa.category == STANDARD
         assert "lower vitamin d" not in aa.effect_summary.lower()
 
+    def test_cyp2r1_rs12794714_direction_is_marked_unsettled(
+        self, panel: NutrigenomicsPanel
+    ) -> None:
+        """CYP2R1 rs12794714: the literature genuinely conflicts on direction (#335).
+
+        Unlike rs10741657 (clear G→lower), rs12794714 has no meta-analytic verdict and
+        studies disagree: A→lower (Arabi 2016, Zhang 2013, Zgheib 2013) vs G→lower
+        (Nam 2019, Xu 2021) vs null (Alharazy 2021; Duan 2018 meta-analyzed only
+        rs10741657). So the row must NOT assert a firm direction — it is downgraded to
+        low-confidence (evidence_level 1) and its text is hedged. Guards against
+        silently re-asserting a firm/established effect.
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs12794714")
+
+        # Low-confidence: evidence_level 1 (★☆ hard-caps at Moderate — no Elevated).
+        assert snp.evidence_level == 1
+        categories = {e["category"] for e in snp.genotype_effects.values()}
+        assert ELEVATED not in categories
+
+        # The A-allele text must hedge, not assert an established reduction.
+        carrier_text = " ".join(
+            snp.genotype_effects[g]["effect_summary"].lower() for g in ("GA", "AG", "AA")
+        )
+        assert "not firmly established" in carrier_text
+        assert "reduced vitamin d 25-hydroxylation efficiency" not in carrier_text
+        assert "low-confidence" in snp.recommendation_text.lower()
+
 
 class TestLactaseAncestryCaveat:
     """#181 — the European LCT -13910 (rs4988235) non-persistence call must be

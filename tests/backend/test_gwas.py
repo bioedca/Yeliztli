@@ -1079,3 +1079,37 @@ class TestGWASAnnotationSet:
             ],
         )
         assert aset.best_p_value == 1e-10
+
+
+class TestGwasSeedVitaminDDirection:
+    """Guard the CYP2R1 rs10741657 GWAS seed direction (#335 / #340).
+
+    The seed row previously encoded risk_allele=A with beta=-1.05 ("A lowers
+    vitamin D"), the inverse of the corrected #242/#332 direction and of the
+    weight of evidence (Duan 2018, PMID 30120973: risk-allele G lowers 25(OH)D;
+    rs10741657 is A/G non-palindromic). The GWAS Catalog reports the A allele
+    RAISING 'vitamin D amount'. Convention in gwas_seed.csv: beta is the effect of
+    risk_allele on the trait, so for risk_allele=A on a vitamin-D-LEVELS trait the
+    beta must be POSITIVE (A raises 25(OH)D). Lock it so it cannot re-invert.
+    """
+
+    _SEED = Path(__file__).resolve().parent.parent / "fixtures" / "seed_csvs" / "gwas_seed.csv"
+
+    def _row(self, rsid: str) -> dict:
+        with open(self._SEED, encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if row["rsid"] == rsid:
+                    return row
+        pytest.fail(f"{rsid} not found in gwas_seed.csv")
+
+    def test_rs10741657_seed_encodes_A_raises_vitamin_d(self) -> None:
+        row = self._row("rs10741657")
+        assert "vitamin d" in row["trait"].lower()
+        assert row["risk_allele"] == "A"
+        beta = float(row["beta"])
+        # A is the higher-25(OH)D allele -> beta must be positive (G is the
+        # lower-vitamin-D / deficiency-risk allele, consistent with the panel).
+        assert beta > 0, (
+            f"rs10741657 seed beta {beta} encodes A-lowers-vitamin-D (inverted); "
+            "G is the lower-25(OH)D allele (#242/#335)"
+        )

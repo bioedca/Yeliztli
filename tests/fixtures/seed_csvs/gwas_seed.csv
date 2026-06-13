@@ -53,7 +53,7 @@ rs1535,11,61603510,Omega-6 fatty acids,5e-38,,0.55,G,24023261,Wu et al. 2013,863
 rs2282679,4,71742666,Vitamin D levels,3e-75,,-2.15,G,20541252,Wang et al. 2010,33996
 rs7041,4,71752617,Vitamin D levels,5e-42,,-1.62,C,20541252,Wang et al. 2010,33996
 rs12794714,11,14875043,Vitamin D levels,2e-28,,-0.98,A,20541252,Wang et al. 2010,33996
-rs10741657,11,14878017,Vitamin D levels,8e-32,,-1.05,A,20541252,Wang et al. 2010,33996
+rs10741657,11,14878017,Vitamin D levels,8e-32,,1.05,A,20541252,Wang et al. 2010,33996
 rs662,7,95308134,Cardiovascular disease,3e-12,1.12,,G,25231870,Wheeler et al. 2004,3686
 rs854560,7,95316772,Organophosphate metabolism,1e-18,,-0.78,T,18628293,Furlong et al. 2010,3219
 rs708272,16,57015091,HDL cholesterol,5e-50,,0.82,A,20686565,Teslovich et al. 2010,100184

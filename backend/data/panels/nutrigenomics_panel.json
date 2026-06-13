@@ -170,24 +170,24 @@
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "Normal vitamin D 25-hydroxylase activity."
+              "effect_summary": "Reference genotype at CYP2R1 rs12794714."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced vitamin D 25-hydroxylation efficiency."
+              "effect_summary": "One copy of the rs12794714 minor (A) allele. CYP2R1 vitamin D-pathway variant; its individual effect on 25(OH)D is low-confidence and not firmly established."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced vitamin D 25-hydroxylation efficiency."
+              "effect_summary": "One copy of the rs12794714 minor (A) allele. CYP2R1 vitamin D-pathway variant; its individual effect on 25(OH)D is low-confidence and not firmly established."
             },
             "AA": {
               "category": "Moderate",
-              "effect_summary": "Reduced vitamin D 25-hydroxylation efficiency."
+              "effect_summary": "Two copies of the rs12794714 minor (A) allele. Associated with altered 25(OH)D in some cohorts, but the direction of effect is unsettled and not firmly established."
             }
           },
-          "evidence_level": 2,
+          "evidence_level": 1,
           "pmids": ["20541252"],
-          "recommendation_text": "May contribute to lower vitamin D levels. Discuss with a clinician if deficiency is suspected."
+          "recommendation_text": "rs12794714 is a CYP2R1 vitamin D-pathway variant whose individual effect on 25(OH)D is low-confidence and directionally unsettled across populations. Treated as supportive context only; interpret with a clinician alongside a measured 25(OH)D level."
         },
         {
           "rsid": "rs10741657",
