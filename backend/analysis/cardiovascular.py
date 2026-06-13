@@ -50,8 +50,13 @@ import structlog
 
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
+from backend.analysis.inheritance import (
+    DISEASE_CARRIER,
+    DISEASE_POSSIBLE_BIALLELIC,
+    classify_disease_status,
+)
 from backend.analysis.insilico_tiers import insilico_block
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HET, ZYG_HOM_ALT
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -389,43 +394,6 @@ def extract_cardiovascular_variants(
 
 
 # ── Findings storage ─────────────────────────────────────────────────────
-
-
-# Disease-status classes for a P/LP variant in the user-facing finding.
-DISEASE_AFFECTED = "affected"
-DISEASE_CARRIER = "carrier"
-DISEASE_POSSIBLE_BIALLELIC = "possible_biallelic"
-
-
-def classify_disease_status(
-    variant: CardiovascularVariantResult,
-    variants: list[CardiovascularVariantResult],
-) -> str:
-    """Classify whether a P/LP variant supports an affected-disease finding.
-
-    Autosomal-dominant (AD) variants are disease-relevant when heterozygous.
-    Autosomal-recessive (AR) conditions — e.g. ABCG5/ABCG8 sitosterolemia —
-    require a biallelic genotype, so a single heterozygous P/LP allele is a
-    *carrier* state, not an affected diagnosis (issue #36).
-
-    Returns:
-        - ``DISEASE_AFFECTED``: AD variant, or AR variant homozygous for the alt
-          (biallelic at one locus).
-        - ``DISEASE_POSSIBLE_BIALLELIC``: AR gene with ≥2 heterozygous P/LP loci —
-          a possible compound heterozygote, but genotype data cannot phase the
-          alleles, so biallelic status is unconfirmed.
-        - ``DISEASE_CARRIER``: AR gene with a single heterozygous P/LP allele.
-    """
-    if variant.inheritance != "AR":
-        return DISEASE_AFFECTED
-    if variant.zygosity == ZYG_HOM_ALT:
-        return DISEASE_AFFECTED
-    gene_het_plp = sum(
-        1 for v in variants if v.gene_symbol == variant.gene_symbol and v.zygosity == ZYG_HET
-    )
-    if gene_het_plp >= 2:
-        return DISEASE_POSSIBLE_BIALLELIC
-    return DISEASE_CARRIER
 
 
 def _cardiovascular_finding_text(variant: CardiovascularVariantResult, status: str) -> str:

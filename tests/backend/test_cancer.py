@@ -22,17 +22,19 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.cancer import (
-    DISEASE_AFFECTED,
-    DISEASE_CARRIER,
-    DISEASE_POSSIBLE_BIALLELIC,
     CancerAnalysisResult,
     CancerGene,
     CancerPanel,
     CancerVariantResult,
-    classify_disease_status,
     extract_cancer_variants,
     load_cancer_panel,
     store_cancer_findings,
+)
+from backend.analysis.inheritance import (
+    DISEASE_AFFECTED,
+    DISEASE_CARRIER,
+    DISEASE_POSSIBLE_BIALLELIC,
+    classify_disease_status,
 )
 from backend.db.tables import annotated_variants, findings
 

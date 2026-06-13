@@ -31,9 +31,6 @@ from backend.analysis.cardiovascular import (
     CATEGORY_CHANNELOPATHY,
     CATEGORY_FH,
     CATEGORY_LIPID,
-    DISEASE_AFFECTED,
-    DISEASE_CARRIER,
-    DISEASE_POSSIBLE_BIALLELIC,
     FH_STATUS_NEGATIVE,
     FH_STATUS_POSITIVE,
     CardiovascularAnalysisResult,
@@ -41,12 +38,17 @@ from backend.analysis.cardiovascular import (
     CardiovascularVariantResult,
     FHStatus,
     _assign_evidence_level,
-    classify_disease_status,
     determine_fh_status,
     extract_cardiovascular_variants,
     load_cardiovascular_panel,
     store_cardiovascular_findings,
     store_fh_status_finding,
+)
+from backend.analysis.inheritance import (
+    DISEASE_AFFECTED,
+    DISEASE_CARRIER,
+    DISEASE_POSSIBLE_BIALLELIC,
+    classify_disease_status,
 )
 from backend.db.tables import annotated_variants, findings
 
