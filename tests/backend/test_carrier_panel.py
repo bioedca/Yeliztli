@@ -378,6 +378,30 @@ class TestPMIDs:
                 f"{gene.gene_symbol} cites unrelated PMID 29241104"
             )
 
+    def test_cftr_cites_verified_cf_sources(self, panel: CarrierPanel) -> None:
+        """#440 — the CFTR carrier entry must cite CFTR/CF-screening sources.
+
+        Locks the verified set so the unrelated febrile-infant PMID can't be
+        transposed back in (PMID 31283134 was "Points & Pearls: Evaluation and
+        management of the febrile young infant in the emergency department",
+        Pediatr Emerg Med Pract 2019 — no CFTR/cystic-fibrosis relevance):
+          - 20301428 = GeneReviews "Cystic Fibrosis"
+          - 12007216 = Bobadilla 2002, Hum Mutat — worldwide CFTR mutation analysis
+            & screening
+          - 37310422 = ACMG 2023, Genet Med — updated CFTR carrier-screening
+            position statement
+        """
+        cftr = panel.get_gene("CFTR")
+        assert cftr is not None
+        assert cftr.pmids == ["20301428", "12007216", "37310422"]
+
+    def test_no_unrelated_febrile_infant_pmid(self, panel: CarrierPanel) -> None:
+        """The transposed febrile-infant ED PMID must not reappear in any entry."""
+        for gene in panel.genes:
+            assert "31283134" not in gene.pmids, (
+                f"{gene.gene_symbol} cites unrelated PMID 31283134"
+            )
+
 
 # ── Gene metadata ────────────────────────────────────────────────────────
 
