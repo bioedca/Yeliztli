@@ -587,7 +587,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18834626", "22884227", "27457907"],
-          "recommendation_text": "ABCG2 Q141K is one of the strongest genetic risk factors for gout. The variant reduces urate excretion through the kidneys and intestines. Carriers should monitor serum urate levels, maintain hydration, limit purine-rich foods and alcohol, and discuss urate-lowering therapy with a rheumatologist if symptomatic."
+          "recommendation_text": "ABCG2 Q141K is one of the strongest common genetic risk factors for elevated serum urate and gout, reducing urate excretion via the kidneys and intestines. This is a risk modifier, not a diagnosis: genotype alone does not establish hyperuricemia or gout, and does not by itself warrant any specific lifestyle or treatment change. Serum urate is a clinical measurement — interpret this marker with a clinician alongside measured urate levels and symptoms. See the dedicated gout module for the consolidated urate-risk readout."
         },
         {
           "rsid": "rs12498742",
@@ -616,7 +616,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18327257", "19503597", "22884227"],
-          "recommendation_text": "SLC2A9 (GLUT9) is the principal renal urate transporter and the largest single genetic contributor to serum urate variation. Risk allele carriers should monitor serum urate, stay well hydrated, and moderate purine and fructose intake."
+          "recommendation_text": "SLC2A9 (GLUT9) is the principal renal urate transporter and the largest single common-variant contributor to serum-urate variation. This is a risk modifier, not a diagnosis: the genotype shifts average urate levels but does not by itself establish hyperuricemia or gout, nor warrant any specific lifestyle or treatment change. Interpret alongside a clinical serum-urate measurement and clinical context; see the dedicated gout module for the consolidated urate-risk readout."
         },
         {
           "rsid": "rs738409",

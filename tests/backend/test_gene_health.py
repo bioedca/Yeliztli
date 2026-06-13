@@ -1549,3 +1549,60 @@ class TestSTAT4CitationProvenance:
             for snp in pathway.snps:
                 leaked = self._STAT4_EXCLUSIVE_BANNED & set(snp.pmids)
                 assert not leaked, f"{snp.rsid} cites STAT4-misattributed PMID(s) {sorted(leaked)}"
+
+
+class TestGoutRowsAreRiskModifiers:
+    """#287 — the legacy Gene Health gout rows (ABCG2 Q141K rs2231142, SLC2A9
+    rs12498742) must NOT give genotype-triggered dietary/treatment prescriptions.
+    They are risk modifiers, aligned with the dedicated gout module
+    (`tests/backend/test_gout.py` denylist). Evidence: diet explains very little
+    serum-urate variance versus genetics (Major et al. 2018, BMJ, PMID 30305269)
+    and has a weak/minor causal role (Topless et al. 2021, PMID 33663556);
+    urate-lowering therapy is assessed in people *with* gout, not triggered by
+    genotype. Genotype alone does not validate purine/fructose restriction or
+    ULT advice."""
+
+    # Phrases that would turn an educational urate-risk readout into an
+    # unvalidated dietary/treatment prescription. Mirrors test_gout.py's
+    # _PRESCRIPTION_DENYLIST, plus fructose / hydration / urate-lowering-therapy.
+    _PRESCRIPTION_DENYLIST = (
+        "purine",
+        "fructose",
+        "alcohol",
+        "low-purine",
+        "urate-lowering",
+        "hydrat",
+        "lose weight",
+        "cherry",
+        "diet",
+    )
+    _GOUT_RSIDS = ("rs2231142", "rs12498742")  # ABCG2 Q141K, SLC2A9
+
+    def _snp(self, panel: GeneHealthPanel, rsid: str) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == rsid:
+                    return snp
+        raise AssertionError(f"gout SNP {rsid} not found in panel")
+
+    def test_gout_rows_have_no_prescriptive_language(self, panel: GeneHealthPanel) -> None:
+        for rsid in self._GOUT_RSIDS:
+            snp = self._snp(panel, rsid)
+            blob = " ".join(
+                [
+                    snp.recommendation_text,
+                    *(e["effect_summary"] for e in snp.genotype_effects.values()),
+                ]
+            ).lower()
+            for term in self._PRESCRIPTION_DENYLIST:
+                assert term not in blob, (
+                    f"{snp.gene} {rsid} surfaces prescriptive term {term!r}; "
+                    "genotype alone does not warrant diet/treatment advice (#287)"
+                )
+
+    def test_gout_rows_refer_to_dedicated_module(self, panel: GeneHealthPanel) -> None:
+        for rsid in self._GOUT_RSIDS:
+            snp = self._snp(panel, rsid)
+            assert "gout module" in snp.recommendation_text.lower(), (
+                f"{snp.gene} {rsid} should point users to the dedicated gout module"
+            )
