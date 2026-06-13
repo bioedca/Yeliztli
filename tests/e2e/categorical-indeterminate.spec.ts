@@ -99,6 +99,17 @@ for (const m of MODULES) {
       await page.route(`**/api/analysis/${m.key}/pathway/**`, async (route) => {
         await route.fulfill(jsonRoute(detailPayload(m.pathwayId, m.pathwayName)))
       })
+      // Traits is the only module with a PRS section, and its view gates ALL
+      // main content (pathway cards included) on the PRS query — `isError`
+      // OR's pathwaysQuery and prsQuery. The /prs route is gated by
+      // `require_fresh_sample`, which 404s for this synthetic sample_id, so an
+      // unstubbed /prs flips the page to a full-page error and the pathway card
+      // never renders. Stub it with an empty PRS list so the list renders.
+      if (m.key === 'traits') {
+        await page.route(`**/api/analysis/${m.key}/prs**`, async (route) => {
+          await route.fulfill(jsonRoute({ items: [], total: 0, module_disclaimer: '' }))
+        })
+      }
 
       await page.goto(`${m.path}?sample_id=1`)
       await waitForReactHydration(page)
