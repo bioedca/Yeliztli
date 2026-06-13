@@ -772,6 +772,7 @@ class TestCDKN2ACitationProvenance:
     def test_banned_pmids_absent_from_panel(self, panel: CancerPanel) -> None:
         # The LEOPARD GeneReviews chapter and the osteoporosis trial were exclusive
         # to the CDKN2A row, so neither should appear anywhere in the panel.
+        assert panel.genes, "cancer panel has no genes — collector regression"
         for gene in panel.genes:
             leaked = self._BANNED_FROM_CDKN2A & set(gene.pmids)
             assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
