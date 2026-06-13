@@ -194,28 +194,28 @@
           "gene": "CYP2R1",
           "variant_name": "CYP2R1 promoter variant",
           "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
+          "risk_allele": "G",
+          "ref_allele": "A",
           "genotype_effects": {
             "GG": {
-              "category": "Standard",
-              "effect_summary": "Normal CYP2R1 promoter activity."
+              "category": "Moderate",
+              "effect_summary": "Two copies of the lower-vitamin-D G allele; associated with reduced 25-hydroxylase activity, lower 25(OH)D, and increased vitamin D deficiency risk."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced CYP2R1 expression."
+              "effect_summary": "One copy of the lower-vitamin-D G allele; mildly reduced 25(OH)D."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "Mildly reduced CYP2R1 expression."
+              "effect_summary": "One copy of the lower-vitamin-D G allele; mildly reduced 25(OH)D."
             },
             "AA": {
-              "category": "Moderate",
-              "effect_summary": "Reduced CYP2R1 expression. May contribute to lower vitamin D levels."
+              "category": "Standard",
+              "effect_summary": "Two copies of the A allele; associated with higher 25(OH)D — no CYP2R1-related vitamin D concern at this marker."
             }
           },
           "evidence_level": 2,
-          "pmids": ["20541252"],
+          "pmids": ["20541252", "30120973"],
           "recommendation_text": "Supportive variant for vitamin D pathway assessment."
         }
       ]

@@ -341,6 +341,48 @@ class TestSNPScoring:
         assert "lower estimated" in cc.effect_summary.lower()
         assert "33331250" in cc.pmids
 
+    def test_cyp2r1_rs10741657_g_is_lower_vitamin_d_direction(
+        self, panel: NutrigenomicsPanel
+    ) -> None:
+        """CYP2R1 rs10741657: G (ancestral/major) is the lower-25(OH)D risk allele
+        and A tracks higher vitamin D — not the reverse (#242).
+
+        Decisive, mutually-consistent evidence:
+          - Duan 2018 meta-analysis (52,417 participants, PMID 30120973): the
+            risk-allele G is associated with increased vitamin D deficiency
+            (OR 1.09) and GG with lower 25(OH)D than AA.
+          - GWAS Catalog (EBI): the A allele raises 'vitamin D amount'
+            (beta +2.1 mmol/L, p=3e-11).
+        The panel previously inverted this (A flagged as the lower-vitamin-D
+        allele, GG treated as Standard).
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs10741657")
+
+        assert snp.risk_allele == "G"
+        assert snp.ref_allele == "A"
+
+        gg = _score_snp(snp, "GG")
+        ga = _score_snp(snp, "GA")
+        ag = _score_snp(snp, "AG")
+        aa = _score_snp(snp, "AA")
+
+        # G is the lower-vitamin-D direction: any G carrier is a concern; AA is not.
+        assert gg.category == MODERATE
+        assert ga.category == ag.category == MODERATE
+        assert aa.category == STANDARD
+
+        # Guard against re-inversion — the exact bug #242 fixed: AA must never be
+        # the concern and GG must never be Standard.
+        assert aa.category == STANDARD and gg.category != STANDARD
+
+        # Direction-bearing text travels with the correct genotype.
+        assert "lower" in gg.effect_summary.lower()
+        assert "higher" in aa.effect_summary.lower()
+
+        # Direction-establishing meta-analysis is cited alongside the GWAS locus.
+        assert "30120973" in snp.pmids
+        assert "20541252" in snp.pmids
+
 
 class TestLactaseAncestryCaveat:
     """#181 — the European LCT -13910 (rs4988235) non-persistence call must be
