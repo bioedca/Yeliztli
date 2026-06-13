@@ -234,6 +234,23 @@ class TestSNPFields:
         # The dead and wrong-topic PMIDs must not remain on the HNMT row.
         assert not ({"11746697", "23886886"} & set(snp["pmids"]))
 
+    def test_aoc1_thr16met_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # AOC1 (DAO) Thr16Met (rs10156191) is a functional DAO-activity variant. Its
+        # citations must be DAO/rs10156191 evidence, not the coagulation case report
+        # 15046637 or the cerebral-palsy neurorehab RCT 23886886 attached in error (#452):
+        #   21488903 — Maintz 2011, Allergy: DAO-gene SNPs (incl. rs10156191) associated
+        #              with reduced DAO serum activity (the functional landmark)
+        #   19450133 — García-Martín 2009, Pharmacogenomics: histamine pharmacogenomics,
+        #              names ABP1/AOC1 rs10156191 Thr16Met as a relevant functional SNP
+        #   17490952 — Maintz & Novak 2007, Am J Clin Nutr: histamine & histamine
+        #              intolerance (DAO catabolism context; kept)
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs10156191"
+        )
+        assert snp["pmids"] == ["21488903", "19450133", "17490952"], snp["pmids"]
+        # The coagulation + cerebral-palsy PMIDs must not remain on the AOC1 row.
+        assert not ({"15046637", "23886886"} & set(snp["pmids"]))
+
     def test_hla_b1502_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-B*15:02 / carbamazepine is a Level-4 pharmacogenomic safety row; its
         # citations must be the verified SJS/TEN evidence trail, not the EMR
@@ -328,9 +345,10 @@ class TestSNPFields:
         #     active surveillance), 26092464 (ectomycorrhizal fungi) — HLA-B*58:01
         #     allopurinol row + proxy entries (#232)
         #   11746697 (non-resolving / dead PubMed UID) — HNMT Thr105Ile row (#417)
-        # NB 23886886 (a stroke-neurorehabilitation RCT, unrelated to histamine) was
-        # removed from the HNMT row here but is NOT panel-wide-banned yet: the AOC1
-        # rs10156191 row still cites it (separate misattribution, follow-up issue).
+        #   23886886 (cerebral-palsy neurorehabilitation RCT) — was on the HNMT row
+        #     (#417) AND the AOC1 rs10156191 row; now removed from both (AOC1 fixed in
+        #     #452), so it is finally safe to ban panel-wide.
+        #   15046637 (protein-C/S coagulation case report) — AOC1 rs10156191 row (#452)
         banned = {
             "18196153",
             "18192541",
@@ -338,6 +356,8 @@ class TestSNPFields:
             "22177658",
             "26092464",
             "11746697",
+            "23886886",
+            "15046637",
         }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
