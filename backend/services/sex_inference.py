@@ -3,6 +3,17 @@
 The Plan §9.4 algorithm is PAR-aware and conservative about discordant
 chrX/chrY evidence:
 
+0. **Minimum evidence.** Sex inference is an aggregate quality-control step,
+   not a single-locus Mendelian call: validated genotype-array tools score
+   X-chromosome heterozygosity together with chrY missingness over many
+   markers (seXY, PMID 28035028), and a lone non-PAR chrX heterozygous call
+   occurs even in males as a genotyping/imputation artifact (Chen et al.,
+   PMID 38073250). So a *confident* ``XX``/``XY``/``manual_review`` verdict
+   requires a minimum evaluable denominator on **both** sex chromosomes —
+   ``x_nonpar_typed >= MIN_X_NONPAR_TYPED`` and ``y_total >= MIN_Y_PROBES``.
+   Below either floor the data is too thin to resolve sex and we return
+   ``unknown`` rather than a call that would gate sex-specific findings
+   (issue #363).
 1. **Pre-filter.** Drop every chrX call whose position falls inside PAR1
    or PAR2 — PAR sites are diploid in both XX and XY individuals and
    carry no sex signal. Both vendor parsers collapse PAR rows to chrX,
@@ -57,6 +68,22 @@ _PAR2: tuple[int, int] = (154_931_044, 155_260_560)
 _THRESHOLD_XY_CONFIRM: float = 0.30
 _THRESHOLD_PAR_NOISE: float = 0.10
 
+# Minimum evaluable sex-chromosome evidence required before a *confident*
+# (XX / XY / manual_review) verdict; below either floor the sample is too thin
+# to resolve and ``_classify`` returns ``unknown`` (issue #363). These are the
+# shared single source of truth — ``backend/analysis/sex_aneuploidy.py`` imports
+# them for the same denominators it screens on.
+#
+# Local calibration: real consumer arrays carry thousands of non-PAR chrX and
+# hundreds of chrY probes, so these floors exclude stray single probes and
+# partially-parsed inputs while passing every genuine export. The aggregate-
+# evidence requirement (X-heterozygosity + chrY missingness over many markers,
+# never one locus) is the published basis for genotype-array sex inference
+# (seXY, PMID 28035028); a lone non-PAR chrX het is unreliable and occurs even
+# in males (Chen et al., PMID 38073250).
+MIN_X_NONPAR_TYPED: int = 100
+MIN_Y_PROBES: int = 50
+
 # Narrow no-call set used here; backend/analysis/zygosity.is_no_call (lands
 # at Step 60) becomes the codebase-wide canonical set. These are the values
 # the current parser canonicalisation and validate_sex_thresholds.py both
@@ -89,14 +116,28 @@ def _classify(
     x_nonpar_het: int,
     x_nonpar_typed: int,
     x_nonpar_hom: int,
+    y_total: int,
     y_rate: float,
 ) -> Classification:
     """Apply the Plan §9.4 decision tree to pre-tabulated counts.
 
-    Order is load-bearing: non-PAR chrX heterozygosity is XX evidence only
-    while chrY is at/below the PAR-noise floor. Stronger chrY evidence makes
-    the X/Y signals discordant and returns ``manual_review``.
+    Order is load-bearing:
+
+    - **Step 0 (minimum evidence).** A confident verdict needs an aggregate
+      denominator on both sex chromosomes: ``x_nonpar_typed`` and ``y_total``
+      at or above ``MIN_X_NONPAR_TYPED`` / ``MIN_Y_PROBES``. Below either floor
+      the data is too thin to resolve sex (a single non-PAR chrX het is not
+      evidence of two X chromosomes — it occurs even in males), so we return
+      ``unknown`` rather than a call that would gate sex-specific findings
+      (#363). A zero ``y_total`` also makes ``y_rate`` a vacuous 0.0, so the
+      Y floor additionally guards against treating "no chrY probes" as
+      "chrY absent".
+    - non-PAR chrX heterozygosity is XX evidence only while chrY is at/below
+      the PAR-noise floor; stronger chrY evidence makes the X/Y signals
+      discordant and returns ``manual_review``.
     """
+    if x_nonpar_typed < MIN_X_NONPAR_TYPED or y_total < MIN_Y_PROBES:
+        return "unknown"
     if x_nonpar_het >= 1:
         if y_rate > _THRESHOLD_PAR_NOISE:
             return "manual_review"
@@ -181,6 +222,7 @@ def infer_biological_sex(sample_engine: sa.Engine) -> Classification:
         x_nonpar_het=s.x_nonpar_het,
         x_nonpar_typed=s.x_nonpar_typed,
         x_nonpar_hom=s.x_nonpar_hom,
+        y_total=s.y_total,
         y_rate=s.y_rate,
     )
 

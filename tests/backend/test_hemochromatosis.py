@@ -31,11 +31,17 @@ def _seed(engine: sa.Engine, rows: list[dict]) -> None:
 
 
 def _xy_chr_rows() -> list[dict]:
-    """chrX non-PAR homozygous + chrY typed → infer_biological_sex == 'XY'."""
-    return [
-        {"rsid": "rsX1", "chrom": "X", "pos": 50_000_000, "genotype": "GG"},
-        {"rsid": "rsY1", "chrom": "Y", "pos": 2_700_000, "genotype": "GG"},
+    """chrX non-PAR homozygous + chrY typed at evaluable densities (≥100 non-PAR
+    chrX, ≥50 chrY — issue #363) → infer_biological_sex == 'XY'."""
+    rows = [
+        {"rsid": f"rsX{i}", "chrom": "X", "pos": 50_000_000 + i, "genotype": "GG"}
+        for i in range(120)
     ]
+    rows += [
+        {"rsid": f"rsY{i}", "chrom": "Y", "pos": 2_700_000 + i, "genotype": "GG"}
+        for i in range(60)
+    ]
+    return rows
 
 
 class TestC282YHomozygous:

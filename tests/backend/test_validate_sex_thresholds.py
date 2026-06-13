@@ -64,19 +64,20 @@ def test_xx_fixture_classifies_as_xx_with_unopposed_x_het() -> None:
     assert report.version == "v2.0"
     assert report.classification == "XX"
 
-    # Non-PAR chrX tabulation: 2 het + 2 hom + 1 no-call.
-    assert report.x_nonpar_het == 2
-    assert report.x_nonpar_hom == 2
+    # Non-PAR chrX tabulation: 60 het + 60 hom + 1 no-call (evaluable: ≥100 typed).
+    assert report.x_nonpar_het == 60
+    assert report.x_nonpar_hom == 60
     assert report.x_nonpar_nocall == 1
-    assert report.x_nonpar_typed == 4
+    assert report.x_nonpar_typed == 120
     assert report.x_nonpar_het_rate == pytest.approx(0.5)
 
     # Two PAR1 het rows (chr 25) must be pre-filtered out of the typed pool.
     assert report.x_par_count == 2
     assert report.x_total == report.x_par_count + report.x_nonpar_typed + report.x_nonpar_nocall
 
-    # chrY rate is 0 here; the X-het signal is unopposed and yields XX.
-    assert report.y_total == 6
+    # chrY rate is 0 over an evaluable denominator (≥50 probes); the X-het signal
+    # is unopposed and yields XX.
+    assert report.y_total == 60
     assert report.y_typed == 0
     assert report.y_rate == pytest.approx(0.0)
 
@@ -86,16 +87,16 @@ def test_xy_fixture_classifies_as_xy_with_chry_confirmation() -> None:
 
     assert report.classification == "XY"
     assert report.x_nonpar_het == 0
-    assert report.x_nonpar_hom == 4
-    assert report.x_nonpar_typed == 4
+    assert report.x_nonpar_hom == 120
+    assert report.x_nonpar_typed == 120
 
     # One chr 25 PAR1 het exists and must be filtered (otherwise classification
     # would flip to XX dispositively).
     assert report.x_par_count == 1
 
-    # 8 typed chrY calls out of 10 → 0.80 > 0.30 confirm threshold.
-    assert report.y_total == 10
-    assert report.y_typed == 8
+    # 48 typed chrY calls out of 60 → 0.80 > 0.30 confirm threshold.
+    assert report.y_total == 60
+    assert report.y_typed == 48
     assert report.y_rate == pytest.approx(0.8)
 
 
@@ -104,12 +105,12 @@ def test_manual_review_fixture_classifies_as_manual_review() -> None:
 
     assert report.classification == "manual_review"
     assert report.x_nonpar_het == 0
-    assert report.x_nonpar_hom == 4
-    assert report.x_nonpar_typed == 4
+    assert report.x_nonpar_hom == 120
+    assert report.x_nonpar_typed == 120
 
-    # 2 typed chrY calls out of 10 → 0.20 (in the (0.10, 0.30] band).
-    assert report.y_total == 10
-    assert report.y_typed == 2
+    # 12 typed chrY calls out of 60 → 0.20 (in the (0.10, 0.30] band).
+    assert report.y_total == 60
+    assert report.y_typed == 12
     assert report.y_rate == pytest.approx(0.2)
 
 
@@ -124,25 +125,74 @@ def test_manual_review_thresholds_round_trip_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
+# Branch cases run at evaluable densities (≥100 typed non-PAR chrX, ≥50 chrY) so
+# the issue-363 minimum-evidence gate passes and the §9.4 tree is exercised.
 @pytest.mark.parametrize(
     "params, expected",
     [
         # Non-PAR chrX het supports XX when chrY is at/below the noise floor.
-        (dict(x_nonpar_het=1, x_nonpar_typed=1, x_nonpar_hom=0, y_rate=0.0), "XX"),
-        (dict(x_nonpar_het=1, x_nonpar_typed=1, x_nonpar_hom=0, y_rate=0.10), "XX"),
+        (dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=60, y_rate=0.0), "XX"),
+        (
+            dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=60, y_rate=0.10),
+            "XX",
+        ),
         # Non-PAR chrX het + chrY above the noise floor is discordant.
-        (dict(x_nonpar_het=1, x_nonpar_typed=4, x_nonpar_hom=3, y_rate=0.11), "manual_review"),
-        (dict(x_nonpar_het=1, x_nonpar_typed=4, x_nonpar_hom=3, y_rate=0.9), "manual_review"),
+        (
+            dict(x_nonpar_het=1, x_nonpar_typed=120, x_nonpar_hom=119, y_total=60, y_rate=0.11),
+            "manual_review",
+        ),
+        (
+            dict(x_nonpar_het=1, x_nonpar_typed=120, x_nonpar_hom=119, y_total=60, y_rate=0.9),
+            "manual_review",
+        ),
         # Candidate XY — chrY rate above XY-confirm → XY.
-        (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.31), "XY"),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=60, y_rate=0.31),
+            "XY",
+        ),
         # Candidate XY — chrY rate in (PAR-noise, XY-confirm] → manual_review.
-        (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.30), "manual_review"),
-        (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.11), "manual_review"),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=60, y_rate=0.30),
+            "manual_review",
+        ),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=60, y_rate=0.11),
+            "manual_review",
+        ),
         # Candidate XY — chrY rate at/below PAR-noise → unknown (don't auto-assign).
-        (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.10), "unknown"),
-        (dict(x_nonpar_het=0, x_nonpar_typed=4, x_nonpar_hom=4, y_rate=0.00), "unknown"),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=60, y_rate=0.10),
+            "unknown",
+        ),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=60, y_rate=0.00),
+            "unknown",
+        ),
         # Zero typed non-PAR chrX → unknown regardless of chrY rate.
-        (dict(x_nonpar_het=0, x_nonpar_typed=0, x_nonpar_hom=0, y_rate=0.99), "unknown"),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=0, x_nonpar_hom=0, y_total=60, y_rate=0.99),
+            "unknown",
+        ),
+        # issue #363 minimum-evidence gate — too few non-PAR chrX probes → unknown
+        # even with an otherwise-XX het signal and full chrY denominator.
+        (
+            dict(x_nonpar_het=1, x_nonpar_typed=1, x_nonpar_hom=0, y_total=60, y_rate=0.0),
+            "unknown",
+        ),
+        (
+            dict(x_nonpar_het=50, x_nonpar_typed=99, x_nonpar_hom=49, y_total=60, y_rate=0.0),
+            "unknown",
+        ),
+        # issue #363 — evaluable chrX but no/thin chrY denominator → unknown
+        # (a vacuous y_rate==0.0 from zero probes is not "chrY absent").
+        (
+            dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=0, y_rate=0.0),
+            "unknown",
+        ),
+        (
+            dict(x_nonpar_het=0, x_nonpar_typed=120, x_nonpar_hom=120, y_total=49, y_rate=0.9),
+            "unknown",
+        ),
     ],
 )
 def test_classify_branches(params: dict, expected: str) -> None:
@@ -185,8 +235,11 @@ def test_cli_json_output_round_trips_through_build_report() -> None:
     payload = json.loads(result.stdout)
     assert payload["classification"] == "manual_review"
     assert payload["vendor"] == "ancestrydna"
-    assert payload["x_nonpar_typed"] == 4
+    assert payload["x_nonpar_typed"] == 120
     assert payload["y_rate"] == pytest.approx(0.2)
+    # The evidence floors used are recorded in the attestation-grade report.
+    assert payload["min_x_nonpar_typed"] == 100
+    assert payload["min_y_probes"] == 50
 
 
 def test_cli_lower_xy_threshold_promotes_manual_review_to_xy() -> None:
@@ -221,6 +274,46 @@ def test_cli_higher_par_noise_demotes_manual_review_to_unknown() -> None:
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["classification"] == "unknown"
+
+
+def test_cli_raising_min_x_demotes_confident_call_to_unknown() -> None:
+    """issue #363 — re-calibrating the chrX evidence floor above the fixture's
+    typed count demotes a confident XY to ``unknown``."""
+    result = _run(
+        [
+            str(FIXTURE_DIR / "xy_sample.txt"),
+            "--min-x-nonpar-typed",
+            "200",
+            "--json",
+        ]
+    )
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["classification"] == "unknown"
+    assert payload["min_x_nonpar_typed"] == 200
+
+
+def test_cli_raising_min_y_demotes_confident_call_to_unknown() -> None:
+    """issue #363 — raising the chrY denominator floor above the fixture's
+    probe count demotes a confident XX to ``unknown``."""
+    result = _run(
+        [
+            str(FIXTURE_DIR / "xx_sample.txt"),
+            "--min-y-probes",
+            "100",
+            "--json",
+        ]
+    )
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["classification"] == "unknown"
+    assert payload["min_y_probes"] == 100
+
+
+def test_cli_rejects_negative_min_evidence() -> None:
+    result = _run([str(FIXTURE_DIR / "xy_sample.txt"), "--min-y-probes", "-1"])
+    assert result.returncode == 2
+    assert "--min-y-probes must be >= 0" in result.stderr
 
 
 def test_cli_missing_file_exits_nonzero(tmp_path: Path) -> None:

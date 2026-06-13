@@ -140,8 +140,19 @@ def _v(rsid: str, chrom: str, pos: int, genotype: str) -> dict:
 #   Haplogroup   — synthetic chrM rsids (mt tree-walk; non-overlapping with
 #                  the real bundle on purpose — tests "tree-walk completes",
 #                  not "matches a known haplogroup").
-#   Sex          — one non-PAR chrX hom call (same on both) + four chrY
-#                  calls all typed → Plan §9.4 → "XY", gates Y tree-walk.
+#   Sex          — an evaluable pool of non-PAR chrX hom calls + all-typed chrY
+#                  (same on both, so concordant post-merge) → Plan §9.4 → "XY",
+#                  gates the Y tree-walk. Sex inference requires a minimum
+#                  aggregate denominator on both sex chromosomes (issue #363:
+#                  ≥ MIN_X_NONPAR_TYPED non-PAR chrX, ≥ MIN_Y_PROBES chrY), so a
+#                  single chrX hom + four chrY would now classify as "unknown".
+
+# Concordant sex filler (identical on both sources → merges 1:1) that clears the
+# issue-363 evidence floors: non-PAR chrX homozygous (candidate XY) + all-typed
+# chrY (y_rate 1.0 → confirmed XY). Synthetic rsids — no panel/VEP/clinvar match.
+_SEX_FILLER: list[dict] = [_v(f"rs_xfill_{i}", "X", 50000001 + i, "GG") for i in range(119)] + [
+    _v(f"rs_yfill_{i}", "Y", 14182000 + i, "AA") for i in range(50)
+]
 
 S1_VARIANTS: list[dict] = [
     _v("rs429358", "19", 44908684, "TC"),  # APOE — S1-only
@@ -152,6 +163,7 @@ S1_VARIANTS: list[dict] = [
     _v("rs_yA", "Y", 14181010, "AA"),  # synthetic Y rsid — typed
     _v("rs_yB", "Y", 14181020, "TT"),  # synthetic Y rsid — typed
     _v("rs_xA", "X", 50000000, "AA"),  # non-PAR chrX hom → candidate XY
+    *_SEX_FILLER,
 ]
 
 S2_VARIANTS: list[dict] = [
@@ -165,6 +177,7 @@ S2_VARIANTS: list[dict] = [
     _v("rs_yC", "Y", 14181030, "CC"),  # synthetic Y rsid — typed
     _v("rs_yD", "Y", 14181040, "GG"),  # synthetic Y rsid — typed
     _v("rs_xA", "X", 50000000, "AA"),  # same non-PAR chrX hom on both
+    *_SEX_FILLER,
 ]
 
 

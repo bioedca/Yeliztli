@@ -32,7 +32,11 @@ import sqlalchemy as sa
 import structlog
 
 from backend.db.tables import findings
-from backend.services.sex_inference import compute_sex_signals
+from backend.services.sex_inference import (
+    MIN_X_NONPAR_TYPED,
+    MIN_Y_PROBES,
+    compute_sex_signals,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -41,9 +45,10 @@ CATEGORY = "aneuploidy_screen"
 
 # Minimum typed probes before either chromosome is judged (real arrays have
 # thousands of non-PAR X and hundreds of Y probes; this excludes stray single
-# probes — e.g. the one spurious Y call on an otherwise-XX sample).
-MIN_X_NONPAR_TYPED = 100
-MIN_Y_PROBES = 50
+# probes — e.g. the one spurious Y call on an otherwise-XX sample). The shared
+# single source of truth lives in ``backend.services.sex_inference`` (re-exported
+# above): both this screen and the sex-inference classifier judge the same
+# ``compute_sex_signals`` denominators, so they gate on the same floors.
 # ≥2 heterozygous non-PAR X calls indicates ≥2 X chromosomes (1 tolerates a
 # single genotyping error).
 MIN_X_HET_FOR_TWO_X = 2

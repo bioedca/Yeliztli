@@ -105,14 +105,28 @@ _H1A_GENOTYPES = [
 
 # Non-PAR chrX hom calls needed for the Plan §9.4 sex-inference algorithm
 # (Step 54) to classify a sample as candidate XY. Positions sit well past
-# PAR1 (ends at 2,699,520) and before PAR2 (starts at 154,931,044). Two
-# rows is enough — the algorithm requires "≥1 non-PAR chrX typed and every
-# typed call homozygous", and these two rows leave the legacy ``Y count >
-# 0`` heuristic with the same result (no chrY signal needed for the
-# legacy gate; the algorithm only reads chrX here).
+# PAR1 (ends at 2,699,520) and before PAR2 (starts at 154,931,044). The pool
+# clears the issue-363 minimum-evidence floor (≥ MIN_X_NONPAR_TYPED typed
+# non-PAR chrX), and every typed call is homozygous so the §9.4 candidate-XY
+# branch fires.
 _NONPAR_X_HOM_GENOTYPES = [
-    {"rsid": "rs_haplo_x_hom_1", "chrom": "X", "pos": 50_000_001, "genotype": "AA"},
-    {"rsid": "rs_haplo_x_hom_2", "chrom": "X", "pos": 50_000_002, "genotype": "GG"},
+    {"rsid": f"rs_haplo_x_hom_{i}", "chrom": "X", "pos": 50_000_001 + i, "genotype": "GG"}
+    for i in range(120)
+]
+
+# chrY typed padding so an XY fixture clears the issue-363 chrY floor
+# (≥ MIN_Y_PROBES probes); these are non-tree-defining positions the Y
+# tree-walk ignores while sex inference counts them toward ``y_total``.
+_Y_TYPED_PADDING = [
+    {"rsid": f"rs_haplo_y_pad_{i}", "chrom": "Y", "pos": 3_000_000 + i, "genotype": "AA"}
+    for i in range(60)
+]
+
+# chrY no-call padding so an XX fixture has an evaluable chrY denominator at
+# rate 0.0 (issue #363) rather than zero chrY probes.
+_Y_NOCALL_PADDING = [
+    {"rsid": f"rs_haplo_ync_{i}", "chrom": "Y", "pos": 4_000_000 + i, "genotype": "--"}
+    for i in range(60)
 ]
 
 # Known genotype fixture for R1b1a path in Y-chromosome:
@@ -152,9 +166,10 @@ def _seed_mt_h1a(engine: sa.Engine) -> None:
 
 
 def _seed_both(engine: sa.Engine) -> None:
-    """Seed mt H1a, Y R1b1a, and the chrX hom evidence the sex-inference
-    service needs to classify the sample as XY (Plan §9.4)."""
-    all_rows = _H1A_GENOTYPES + _R1B1A_GENOTYPES + _NONPAR_X_HOM_GENOTYPES
+    """Seed mt H1a, Y R1b1a, and the chrX/chrY evidence the sex-inference
+    service needs to classify the sample as XY (Plan §9.4) at evaluable
+    densities (issue #363)."""
+    all_rows = _H1A_GENOTYPES + _R1B1A_GENOTYPES + _Y_TYPED_PADDING + _NONPAR_X_HOM_GENOTYPES
     with engine.begin() as conn:
         conn.execute(sa.insert(raw_variants), all_rows)
 
@@ -840,11 +855,14 @@ class TestRunHaplogroupAssignment:
 # ── Sex-inference rewire regression (Step 54 / Plan §9.4) ───────────────
 
 
-# Heterozygous non-PAR chrX call with no chrY evidence → XX under the
-# Plan §9.4 algorithm.
+# Heterozygous non-PAR chrX calls over an evaluable denominator (issue #363);
+# combined with ``_Y_NOCALL_PADDING`` (chrY at rate 0.0) → XX under §9.4.
 _XX_CHROM_X_HET = [
-    {"rsid": "rs_xx_x_het_1", "chrom": "X", "pos": 50_000_001, "genotype": "AG"},
-    {"rsid": "rs_xx_x_hom_1", "chrom": "X", "pos": 50_000_002, "genotype": "GG"},
+    {"rsid": f"rs_xx_x_het_{i}", "chrom": "X", "pos": 50_000_001 + i, "genotype": "AG"}
+    for i in range(60)
+] + [
+    {"rsid": f"rs_xx_x_hom_{i}", "chrom": "X", "pos": 50_100_001 + i, "genotype": "GG"}
+    for i in range(60)
 ]
 
 
@@ -867,7 +885,10 @@ class TestHaplogroupSexInferenceRewire:
         from backend.services.sex_inference import infer_biological_sex
 
         with sample_engine.begin() as conn:
-            conn.execute(sa.insert(raw_variants), _H1A_GENOTYPES + _XX_CHROM_X_HET)
+            conn.execute(
+                sa.insert(raw_variants),
+                _H1A_GENOTYPES + _XX_CHROM_X_HET + _Y_NOCALL_PADDING,
+            )
 
         assert infer_biological_sex(sample_engine) == "XX"
 

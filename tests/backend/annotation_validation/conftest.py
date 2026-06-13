@@ -512,12 +512,37 @@ def clinvar_row(
 
 # ── Reusable genotype scaffolding ─────────────────────────────────────────
 
-# A small spread of autosomal hom-ref calls plus one heterozygous non-PAR chrX
-# call. With no chrY evidence above the noise floor, ``infer_biological_sex``
-# treats this as XX, so prepending it to a variant list yields an XX sample
-# without needing a full chip's worth of rows.
+# An evaluable non-PAR chrX pool (one heterozygous call + homozygous filler) plus
+# a chrY no-call denominator. Sex inference now requires an aggregate denominator
+# on both sex chromosomes before a confident call (issue #363:
+# ``MIN_X_NONPAR_TYPED`` typed non-PAR chrX, ``MIN_Y_PROBES`` chrY probes), so the
+# scaffold clears both floors. With the chrY denominator all no-call (rate 0.0,
+# at/below the noise floor) and a heterozygous non-PAR chrX call,
+# ``infer_biological_sex`` resolves XX — prepending it to a variant list yields an
+# XX sample without a full chip's worth of rows.
 XX_SCAFFOLD: tuple[dict, ...] = (
-    {"rsid": "rs_xx_scaffold", "chrom": "X", "pos": 50_000_000, "genotype": "AG"},
+    {"rsid": "rs_xx_scaffold_het", "chrom": "X", "pos": 50_000_000, "genotype": "AG"},
+    *(
+        {
+            "rsid": f"rs_xx_scaffold_hom_{i}",
+            "chrom": "X",
+            "pos": 50_000_001 + i,
+            "genotype": "GG",
+        }
+        for i in range(119)
+    ),
+)
+
+# chrY no-call denominator (≥ MIN_Y_PROBES) so the chrY missingness signal is
+# evaluable for the XX scaffold; all no-call → contributes 0 to ``y_rate``.
+XX_CHRY_DENOMINATOR: tuple[dict, ...] = tuple(
+    {
+        "rsid": f"rs_xx_y_denom_{i}",
+        "chrom": "Y",
+        "pos": 2_800_000 + i,
+        "genotype": "--",
+    }
+    for i in range(50)
 )
 
 CHRY_NOISE_FLOOR_NOCALLS: tuple[dict, ...] = tuple(
@@ -532,8 +557,9 @@ CHRY_NOISE_FLOOR_NOCALLS: tuple[dict, ...] = tuple(
 
 
 def with_xx_scaffold(variants: list[dict]) -> list[dict]:
-    """Return *variants* prefixed with the XX-supporting chrX het call."""
-    return [*XX_SCAFFOLD, *variants]
+    """Return *variants* prefixed with the evaluable XX-supporting chrX pool and
+    chrY denominator (issue #363)."""
+    return [*XX_SCAFFOLD, *XX_CHRY_DENOMINATOR, *variants]
 
 
 def with_chry_noise_floor(typed_y_variant: dict) -> list[dict]:

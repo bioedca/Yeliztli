@@ -22,6 +22,11 @@ Plan §9.4 thresholds:
   which a candidate XY is confirmed.
 - ``_THRESHOLD_PAR_NOISE`` default ``0.10`` — chrY non-no-call rate above
   which a candidate XY without confirmation is flagged for manual review.
+- ``MIN_X_NONPAR_TYPED`` default ``100`` / ``MIN_Y_PROBES`` default ``50`` —
+  minimum evaluable probes on each sex chromosome before *any* confident
+  verdict; below either floor the sample is ``unknown`` (issue #363). Use
+  ``--min-x-nonpar-typed`` / ``--min-y-probes`` to re-calibrate against a real
+  export.
 
 GRCh37 PAR coordinates (load-bearing — PAR sites carry no sex signal and
 must be excluded from the chrX zygosity check):
@@ -34,6 +39,7 @@ Usage::
     python scripts/validate_sex_thresholds.py <path-to-raw-export>
     python scripts/validate_sex_thresholds.py <path> --json
     python scripts/validate_sex_thresholds.py <path> --xy-threshold 0.25 --par-noise 0.08
+    python scripts/validate_sex_thresholds.py <path> --min-x-nonpar-typed 100 --min-y-probes 50
 """
 
 from __future__ import annotations
@@ -61,6 +67,12 @@ PAR1: tuple[int, int] = (60001, 2_699_520)
 PAR2: tuple[int, int] = (154_931_044, 155_260_560)
 DEFAULT_XY_CONFIRM: float = 0.30
 DEFAULT_PAR_NOISE: float = 0.10
+# Minimum evaluable evidence on each sex chromosome before a confident verdict;
+# below either floor the sample is too thin and ``classify`` returns
+# ``unknown`` (issue #363). Mirrors
+# ``backend.services.sex_inference.MIN_X_NONPAR_TYPED`` / ``MIN_Y_PROBES``.
+DEFAULT_MIN_X_NONPAR_TYPED: int = 100
+DEFAULT_MIN_Y_PROBES: int = 50
 NO_CALL: str = "--"
 
 
@@ -89,6 +101,8 @@ class Report:
     y_rate: float
     xy_confirm_threshold: float
     par_noise_threshold: float
+    min_x_nonpar_typed: int
+    min_y_probes: int
     classification: str
 
 
@@ -116,14 +130,23 @@ def classify(
     x_nonpar_het: int,
     x_nonpar_typed: int,
     x_nonpar_hom: int,
+    y_total: int,
     y_rate: float,
     xy_confirm: float,
     par_noise: float,
+    min_x_nonpar_typed: int = DEFAULT_MIN_X_NONPAR_TYPED,
+    min_y_probes: int = DEFAULT_MIN_Y_PROBES,
 ) -> str:
     """Apply the Plan §9.4 algorithm to pre-tabulated counts.
 
     Order is load-bearing:
 
+    0. A confident verdict requires a minimum evaluable denominator on both
+       sex chromosomes — ``x_nonpar_typed >= min_x_nonpar_typed`` and
+       ``y_total >= min_y_probes``. Below either floor the data is too thin to
+       resolve sex (a lone non-PAR chrX het is not evidence of two X
+       chromosomes — it occurs even in males, Chen et al. PMID 38073250), so
+       return ``unknown`` rather than a confident call (issue #363).
     1. ``≥1`` heterozygous non-PAR chrX call supports XX only when chrY
        evidence is at/below the PAR-noise floor. Above that floor, the
        X/Y signals are discordant and require manual review.
@@ -135,6 +158,8 @@ def classify(
        at/below ``par_noise`` falls back to ``unknown`` rather than auto-
        assigning.
     """
+    if x_nonpar_typed < min_x_nonpar_typed or y_total < min_y_probes:
+        return "unknown"
     if x_nonpar_het >= 1:
         if y_rate > par_noise:
             return "manual_review"
@@ -152,6 +177,8 @@ def build_report(
     *,
     xy_confirm: float = DEFAULT_XY_CONFIRM,
     par_noise: float = DEFAULT_PAR_NOISE,
+    min_x_nonpar_typed: int = DEFAULT_MIN_X_NONPAR_TYPED,
+    min_y_probes: int = DEFAULT_MIN_Y_PROBES,
 ) -> Report:
     """Parse *path* via the vendor dispatcher and tabulate sex-inference inputs."""
     result: ParseResult = dispatch_parse(path)
@@ -205,13 +232,18 @@ def build_report(
         y_rate=y_rate,
         xy_confirm_threshold=xy_confirm,
         par_noise_threshold=par_noise,
+        min_x_nonpar_typed=min_x_nonpar_typed,
+        min_y_probes=min_y_probes,
         classification=classify(
             x_nonpar_het=x_nonpar_het,
             x_nonpar_typed=x_nonpar_typed,
             x_nonpar_hom=x_nonpar_hom,
+            y_total=y_total,
             y_rate=y_rate,
             xy_confirm=xy_confirm,
             par_noise=par_noise,
+            min_x_nonpar_typed=min_x_nonpar_typed,
+            min_y_probes=min_y_probes,
         ),
     )
 
@@ -237,6 +269,8 @@ def _format_text(report: Report) -> str:
             "",
             f"thresholds (XY-confirm / PAR-noise): "
             f"{report.xy_confirm_threshold} / {report.par_noise_threshold}",
+            f"min evidence (X-typed / Y-probes): "
+            f"{report.min_x_nonpar_typed} / {report.min_y_probes}",
             f"classification            : {report.classification}",
         ]
     )
@@ -274,6 +308,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--min-x-nonpar-typed",
+        type=int,
+        default=DEFAULT_MIN_X_NONPAR_TYPED,
+        help=(
+            "Minimum typed non-PAR chrX probes required before a confident "
+            f"verdict; below it the sample is unknown. Default "
+            f"{DEFAULT_MIN_X_NONPAR_TYPED}."
+        ),
+    )
+    parser.add_argument(
+        "--min-y-probes",
+        type=int,
+        default=DEFAULT_MIN_Y_PROBES,
+        help=(
+            "Minimum chrY probes (typed + no-call) required before a confident "
+            f"verdict; below it the sample is unknown. Default "
+            f"{DEFAULT_MIN_Y_PROBES}."
+        ),
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON report instead of the text summary.",
@@ -297,12 +351,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.par_noise > args.xy_threshold:
         sys.stderr.write("error: --par-noise must be <= --xy-threshold\n")
         return 2
+    if args.min_x_nonpar_typed < 0:
+        sys.stderr.write("error: --min-x-nonpar-typed must be >= 0\n")
+        return 2
+    if args.min_y_probes < 0:
+        sys.stderr.write("error: --min-y-probes must be >= 0\n")
+        return 2
 
     try:
         report = build_report(
             args.path,
             xy_confirm=args.xy_threshold,
             par_noise=args.par_noise,
+            min_x_nonpar_typed=args.min_x_nonpar_typed,
+            min_y_probes=args.min_y_probes,
         )
     except ParserError as exc:
         sys.stderr.write(f"error: failed to parse {args.path}: {exc}\n")

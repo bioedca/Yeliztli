@@ -1,13 +1,13 @@
 """Tests for ``backend.services.sex_inference`` (Plan §9.4, IND-08 part b).
 
 Covers the four classifications (XX / XY / manual_review / unknown), the
-discordant chrX/chrY evidence branch, the PAR pre-filter, and the
-load-bearing threshold + PAR constants from
-``docs/sex_inference_threshold_validation.md``.
+minimum-evidence guard (issue #363), the discordant chrX/chrY evidence branch,
+the PAR pre-filter, and the load-bearing threshold + PAR constants.
 
-See Step 53 (``docs/sex_inference_threshold_validation.md``) for the
-bio-validator attestation that fixes the threshold values these tests
-expect.
+A confident verdict requires an aggregate denominator on both sex chromosomes
+(``MIN_X_NONPAR_TYPED`` typed non-PAR chrX probes and ``MIN_Y_PROBES`` chrY
+probes), so the branch tests seed evaluable densities; the sparse-input cases
+that must return ``unknown`` live in :class:`TestMinimumEvidenceGuard`.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ from backend.services.sex_inference import (
     _PAR2,
     _THRESHOLD_PAR_NOISE,
     _THRESHOLD_XY_CONFIRM,
+    MIN_X_NONPAR_TYPED,
+    MIN_Y_PROBES,
     Classification,
     _classify,
     infer_biological_sex,
@@ -32,6 +34,11 @@ from backend.services.sex_inference import (
 _NONPAR_X_BASE = 50_000_000
 _PAR1_POS = 1_000_000  # inside PAR1
 _PAR2_POS = 155_000_000  # inside PAR2
+
+# Evaluable baselines that clear the issue-363 minimum-evidence floors
+# (``MIN_X_NONPAR_TYPED`` / ``MIN_Y_PROBES``) so the §9.4 decision tree runs.
+_EVAL_X = 120  # ≥ MIN_X_NONPAR_TYPED (100)
+_EVAL_Y = 60  # ≥ MIN_Y_PROBES (50)
 
 
 @pytest.fixture()
@@ -44,6 +51,24 @@ def sample_engine() -> sa.Engine:
 def _seed(engine: sa.Engine, rows: list[dict]) -> None:
     with engine.begin() as conn:
         conn.execute(sa.insert(raw_variants), rows)
+
+
+def _x_rows(
+    *, het: int = 0, hom: int = 0, nocall: int = 0, base: int = _NONPAR_X_BASE
+) -> list[dict]:
+    """Build non-PAR chrX rows: ``het`` ('AG') + ``hom`` ('GG') + ``nocall`` ('--')."""
+    rows: list[dict] = []
+    i = 0
+    for _ in range(het):
+        rows.append({"rsid": f"rs_x_het_{i}", "chrom": "X", "pos": base + i, "genotype": "AG"})
+        i += 1
+    for _ in range(hom):
+        rows.append({"rsid": f"rs_x_hom_{i}", "chrom": "X", "pos": base + i, "genotype": "GG"})
+        i += 1
+    for _ in range(nocall):
+        rows.append({"rsid": f"rs_x_nc_{i}", "chrom": "X", "pos": base + i, "genotype": "--"})
+        i += 1
+    return rows
 
 
 def _y_rows(*, typed: int, nocall: int, base_pos: int = 1_000_000) -> list[dict]:
@@ -74,9 +99,9 @@ def _y_rows(*, typed: int, nocall: int, base_pos: int = 1_000_000) -> list[dict]
 
 
 class TestValidatedConstants:
-    """Lock the validated thresholds + PAR coordinates against the
-    bio-validator attestation (``docs/sex_inference_threshold_validation.md``).
-    Any drift here demands a re-attestation, not a test edit."""
+    """Lock the validated thresholds, PAR coordinates, and minimum-evidence
+    floors. Any drift here demands a re-attestation/re-calibration, not a
+    test edit."""
 
     def test_xy_confirm_threshold(self) -> None:
         assert _THRESHOLD_XY_CONFIRM == 0.30
@@ -94,21 +119,26 @@ class TestValidatedConstants:
         # Defensive: the manual-review band must be non-empty.
         assert _THRESHOLD_PAR_NOISE < _THRESHOLD_XY_CONFIRM
 
+    def test_minimum_evidence_floors(self) -> None:
+        # issue #363 — shared with the sex-aneuploidy screen; calibrated to real
+        # consumer-array densities (thousands of non-PAR chrX, hundreds of chrY).
+        assert MIN_X_NONPAR_TYPED == 100
+        assert MIN_Y_PROBES == 50
+
 
 # ── Core classification paths ───────────────────────────────────────────
 
 
 class TestClassificationBranches:
-    """One canonical happy-path test per Plan §9.4 branch."""
+    """One canonical happy-path test per Plan §9.4 branch, at evaluable
+    densities (≥ MIN_X_NONPAR_TYPED non-PAR chrX, ≥ MIN_Y_PROBES chrY)."""
 
-    def test_xx_single_nonpar_het_without_chry_signal(self, sample_engine: sa.Engine) -> None:
-        """A single non-PAR chrX het with no chrY evidence yields XX."""
+    def test_xx_evaluable_nonpar_het_without_chry_signal(self, sample_engine: sa.Engine) -> None:
+        """Heterozygous non-PAR chrX over an evaluable denominator with no chrY
+        signal yields XX."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE + 1, "genotype": "GG"},
-            ],
+            [*_x_rows(het=60, hom=60), *_y_rows(typed=0, nocall=_EVAL_Y)],
         )
         assert infer_biological_sex(sample_engine) == "XX"
 
@@ -116,12 +146,7 @@ class TestClassificationBranches:
         """All non-PAR chrX hom + chrY rate > 0.30 → XY."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x1", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                {"rsid": "rs_x2", "chrom": "X", "pos": _NONPAR_X_BASE + 1, "genotype": "GG"},
-                # 4/5 typed = 0.80 — well above _THRESHOLD_XY_CONFIRM (0.30).
-                *_y_rows(typed=4, nocall=1),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=48, nocall=12)],  # 48/60 = 0.80
         )
         assert infer_biological_sex(sample_engine) == "XY"
 
@@ -129,11 +154,7 @@ class TestClassificationBranches:
         """Candidate XY + chrY rate in (PAR_NOISE, XY_CONFIRM] → manual_review."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                # 2/10 = 0.20 — strictly between 0.10 and 0.30.
-                *_y_rows(typed=2, nocall=8),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=12, nocall=48)],  # 12/60 = 0.20
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
 
@@ -163,14 +184,13 @@ class TestClassificationBranches:
         assert infer_biological_sex(sample_engine) == "unknown"
 
     def test_unknown_chrY_rate_below_par_noise(self, sample_engine: sa.Engine) -> None:
-        """Candidate XY + chrY rate ≤ PAR_NOISE → unknown (don't auto-assign)."""
+        """Candidate XY + chrY rate ≤ PAR_NOISE → unknown (don't auto-assign).
+
+        Seeded at evaluable density so the ``unknown`` comes from the §9.4
+        chrY floor, not the minimum-evidence guard."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                # 1/20 = 0.05 — at/below 0.10.
-                *_y_rows(typed=1, nocall=19),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=3, nocall=57)],  # 3/60 = 0.05 ≤ 0.10
         )
         assert infer_biological_sex(sample_engine) == "unknown"
 
@@ -179,7 +199,7 @@ class TestClassificationBranches:
 
 
 class TestPARPreFilter:
-    """Plan §9.4 step 0 — PAR sites carry no sex signal and must be
+    """Plan §9.4 step 1 — PAR sites carry no sex signal and must be
     excluded before the chrX zygosity check."""
 
     def test_par1_het_alone_yields_unknown(self, sample_engine: sa.Engine) -> None:
@@ -202,14 +222,14 @@ class TestPARPreFilter:
         assert infer_biological_sex(sample_engine) == "unknown"
 
     def test_par_het_plus_nonpar_hom_yields_candidate_xy(self, sample_engine: sa.Engine) -> None:
-        """PAR het is pre-filtered; the non-PAR hom alone makes the sample
-        a candidate XY, then confirmed by chrY rate."""
+        """PAR het is pre-filtered; an evaluable pool of non-PAR hom calls makes
+        the sample a candidate XY, then confirmed by chrY rate."""
         _seed(
             sample_engine,
             [
                 {"rsid": "rs_par", "chrom": "X", "pos": _PAR1_POS, "genotype": "AG"},
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "GG"},
-                *_y_rows(typed=3, nocall=1),  # 0.75
+                *_x_rows(hom=_EVAL_X),
+                *_y_rows(typed=48, nocall=12),  # 0.80
             ],
         )
         assert infer_biological_sex(sample_engine) == "XY"
@@ -217,7 +237,8 @@ class TestPARPreFilter:
 
 class TestXHetWithChrYSignal:
     """Non-PAR chrX heterozygosity stays XX only while chrY is at/below
-    the PAR-noise floor; stronger chrY signal is discordant."""
+    the PAR-noise floor; stronger chrY signal is discordant. All seeded at
+    evaluable density so the verdict comes from the §9.4 tree, not the gate."""
 
     def test_chrY_at_par_noise_floor_does_not_override_x_het(
         self, sample_engine: sa.Engine
@@ -225,9 +246,8 @@ class TestXHetWithChrYSignal:
         _seed(
             sample_engine,
             [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                # 1/10 chrY = 0.10, exactly the PAR-noise floor.
-                *_y_rows(typed=1, nocall=9),
+                *_x_rows(het=60, hom=60),
+                *_y_rows(typed=6, nocall=54),  # 6/60 = 0.10, exactly the PAR-noise floor
             ],
         )
         assert infer_biological_sex(sample_engine) == "XX"
@@ -238,9 +258,8 @@ class TestXHetWithChrYSignal:
         _seed(
             sample_engine,
             [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                # 2/10 chrY = 0.20, above the PAR-noise floor.
-                *_y_rows(typed=2, nocall=8),
+                *_x_rows(het=60, hom=60),
+                *_y_rows(typed=12, nocall=48),  # 12/60 = 0.20, above the PAR-noise floor
             ],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
@@ -250,8 +269,8 @@ class TestXHetWithChrYSignal:
         _seed(
             sample_engine,
             [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                *_y_rows(typed=8, nocall=2),  # 0.80
+                *_x_rows(het=60, hom=60),
+                *_y_rows(typed=48, nocall=12),  # 0.80
             ],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
@@ -263,17 +282,104 @@ class TestXHetWithChrYSignal:
         _seed(
             sample_engine,
             [
-                {"rsid": "rs_x_het_1", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                {
-                    "rsid": "rs_x_het_2",
-                    "chrom": "X",
-                    "pos": _NONPAR_X_BASE + 1,
-                    "genotype": "CT",
-                },
-                *_y_rows(typed=8, nocall=2),  # 0.80
+                *_x_rows(het=2, hom=118),
+                *_y_rows(typed=48, nocall=12),  # 0.80
             ],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
+
+
+# ── Minimum-evidence guard (issue #363) ─────────────────────────────────
+
+
+class TestMinimumEvidenceGuard:
+    """issue #363 — a confident ``XX``/``XY``/``manual_review`` verdict requires
+    an aggregate denominator on **both** sex chromosomes
+    (``x_nonpar_typed >= MIN_X_NONPAR_TYPED`` and ``y_total >= MIN_Y_PROBES``).
+    Sparse inputs that would previously have produced a confident call now
+    return ``unknown`` so they cannot gate sex-specific findings.
+
+    Sex inference is an aggregate QC step, not a single-locus Mendelian call:
+    validated tools score X-heterozygosity together with chrY missingness over
+    many markers (seXY, PMID 28035028), and a lone non-PAR chrX het occurs even
+    in males (Chen et al., PMID 38073250)."""
+
+    def test_single_nonpar_het_no_chry_is_unknown(self, sample_engine: sa.Engine) -> None:
+        """The headline case from the issue: one non-PAR chrX het, no chrY
+        probes — too little evidence for a confident XX → ``unknown``."""
+        _seed(sample_engine, _x_rows(het=1))
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_single_nonpar_het_with_full_chry_is_unknown(self, sample_engine: sa.Engine) -> None:
+        """Even with an evaluable chrY denominator, one typed non-PAR chrX
+        probe is below the chrX floor → ``unknown``."""
+        _seed(sample_engine, [*_x_rows(het=1), *_y_rows(typed=0, nocall=_EVAL_Y)])
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_evaluable_x_het_without_chry_denominator_is_unknown(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """A strong non-PAR chrX het signal but ZERO chrY probes: ``y_rate`` is
+        a vacuous 0.0, not evidence chrY is absent → ``unknown``, not XX."""
+        _seed(sample_engine, _x_rows(het=_EVAL_X // 2, hom=_EVAL_X // 2))
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_evaluable_x_with_thin_chry_is_unknown(self, sample_engine: sa.Engine) -> None:
+        """chrY denominator just below ``MIN_Y_PROBES`` → ``unknown`` even though
+        the typed-rate alone (1.0) would otherwise confirm XY."""
+        _seed(
+            sample_engine,
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=MIN_Y_PROBES - 1, nocall=0)],
+        )
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_classify_at_exact_floors_runs_the_tree(self) -> None:
+        # Exactly at both floors → the §9.4 tree runs (candidate XY confirmed).
+        assert (
+            _classify(
+                x_nonpar_het=0,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=MIN_X_NONPAR_TYPED,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.9,
+            )
+            == "XY"
+        )
+        # An XX het at the floors resolves too.
+        assert (
+            _classify(
+                x_nonpar_het=1,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=MIN_X_NONPAR_TYPED - 1,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.0,
+            )
+            == "XX"
+        )
+
+    def test_classify_just_below_x_floor_is_unknown(self) -> None:
+        assert (
+            _classify(
+                x_nonpar_het=1,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED - 1,
+                x_nonpar_hom=MIN_X_NONPAR_TYPED - 2,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.0,
+            )
+            == "unknown"
+        )
+
+    def test_classify_just_below_y_floor_is_unknown(self) -> None:
+        assert (
+            _classify(
+                x_nonpar_het=0,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=MIN_X_NONPAR_TYPED,
+                y_total=MIN_Y_PROBES - 1,
+                y_rate=0.9,
+            )
+            == "unknown"
+        )
 
 
 # ── Parametric assertion: returned type lands in the Literal alphabet ──
@@ -284,32 +390,10 @@ class TestXHetWithChrYSignal:
     [
         # Branch coverage parametrized: each tuple exercises one branch of
         # Plan §9.4 from the same call site, so the type checker can lock
-        # the Literal alphabet on the return.
-        (
-            [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-            ],
-            "XX",
-        ),
-        (
-            [
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "GG"},
-                {"rsid": "rs_y_t", "chrom": "Y", "pos": 1_000_000, "genotype": "TT"},
-                {"rsid": "rs_y_t2", "chrom": "Y", "pos": 1_000_001, "genotype": "AA"},
-            ],
-            "XY",
-        ),
-        (
-            [
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "GG"},
-                {"rsid": "rs_y_t", "chrom": "Y", "pos": 1_000_000, "genotype": "TT"},
-                *[
-                    {"rsid": f"rs_y_nc_{i}", "chrom": "Y", "pos": 1_000_001 + i, "genotype": "--"}
-                    for i in range(4)
-                ],
-            ],
-            "manual_review",
-        ),
+        # the Literal alphabet on the return. Seeded at evaluable densities.
+        ([*_x_rows(het=60, hom=60), *_y_rows(typed=0, nocall=_EVAL_Y)], "XX"),
+        ([*_x_rows(hom=_EVAL_X), *_y_rows(typed=48, nocall=12)], "XY"),
+        ([*_x_rows(hom=_EVAL_X), *_y_rows(typed=12, nocall=48)], "manual_review"),
         ([], "unknown"),
     ],
 )
@@ -400,18 +484,16 @@ class TestIND09bEdgeCases:
     def test_ii_bis_par_het_plus_nonpar_hom_without_chrY_returns_unknown(
         self, sample_engine: sa.Engine
     ) -> None:
-        """PAR1 het + at least one homozygous non-PAR chrX call + **no
+        """PAR1 het + an evaluable pool of homozygous non-PAR chrX calls + **no
         chrY data** → ``unknown``. The PAR pre-filter strips the PAR het,
-        leaving a candidate-XY pattern on non-PAR chrX; with zero chrY
-        rows ``y_rate == 0.0`` which is at/below ``_THRESHOLD_PAR_NOISE``,
-        so the algorithm falls back to ``unknown`` rather than auto-
-        assigning XY. Pinning this guards against a future regression
-        that mistakes silence on chrY for confirmation."""
+        leaving a candidate-XY pattern on non-PAR chrX; with zero chrY rows the
+        minimum-evidence guard (``y_total < MIN_Y_PROBES``) returns ``unknown``
+        rather than mistaking silence on chrY for confirmation."""
         _seed(
             sample_engine,
             [
                 {"rsid": "rs_par1_het", "chrom": "X", "pos": _PAR1_POS, "genotype": "AG"},
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "GG"},
+                *_x_rows(hom=_EVAL_X),
             ],
         )
         assert infer_biological_sex(sample_engine) == "unknown"
@@ -422,14 +504,11 @@ class TestIND09bEdgeCases:
         self, sample_engine: sa.Engine
     ) -> None:
         """All non-PAR chrX hom + chrY rate **just above** the PAR-noise
-        floor → ``manual_review``. 2/18 ≈ 0.111 — strictly above 0.10 and
-        well below 0.30 (the existing mid-band case sits at 0.20)."""
+        floor → ``manual_review``. 7/60 ≈ 0.117 — strictly above 0.10 and
+        well below 0.30."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                *_y_rows(typed=2, nocall=16),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=7, nocall=53)],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
 
@@ -437,28 +516,22 @@ class TestIND09bEdgeCases:
         self, sample_engine: sa.Engine
     ) -> None:
         """All non-PAR chrX hom + chrY rate **exactly equal to**
-        ``_THRESHOLD_XY_CONFIRM`` (3/10 = 0.30) → ``manual_review``.
+        ``_THRESHOLD_XY_CONFIRM`` (18/60 = 0.30) → ``manual_review``.
         Locks the strict-``>`` semantics of the confirm branch — equality
         is not enough to promote to XY."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                *_y_rows(typed=3, nocall=7),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=18, nocall=42)],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
 
     def test_iii_chrY_rate_just_above_xy_confirm_yields_xy(self, sample_engine: sa.Engine) -> None:
-        """Defensive boundary mate to the equality case above: 31/100 =
-        0.31 — just above ``_THRESHOLD_XY_CONFIRM`` — promotes the
+        """Defensive boundary mate to the equality case above: 19/60 ≈
+        0.317 — just above ``_THRESHOLD_XY_CONFIRM`` — promotes the
         candidate XY to confirmed ``XY``."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x_hom", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AA"},
-                *_y_rows(typed=31, nocall=69),
-            ],
+            [*_x_rows(hom=_EVAL_X), *_y_rows(typed=19, nocall=41)],
         )
         assert infer_biological_sex(sample_engine) == "XY"
 
@@ -468,14 +541,11 @@ class TestIND09bEdgeCases:
         self, sample_engine: sa.Engine
     ) -> None:
         """Non-PAR het + chrY rate **just above** ``_THRESHOLD_PAR_NOISE``
-        (2/18 ≈ 0.111) → ``manual_review``. This pins the floor-adjacent
+        (7/60 ≈ 0.117) → ``manual_review``. This pins the floor-adjacent
         boundary for discordant X/Y evidence."""
         _seed(
             sample_engine,
-            [
-                {"rsid": "rs_x_het", "chrom": "X", "pos": _NONPAR_X_BASE, "genotype": "AG"},
-                *_y_rows(typed=2, nocall=16),
-            ],
+            [*_x_rows(het=1, hom=119), *_y_rows(typed=7, nocall=53)],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
 
@@ -484,10 +554,10 @@ class TestIND09bEdgeCases:
     ) -> None:
         """Direct ``_classify`` assertion of the X-het / chrY boundary.
 
-        With ``x_nonpar_het >= 1`` the classifier returns ``"XX"`` only
-        while chrY remains at/below the PAR-noise floor. Anything above
-        that floor returns ``manual_review`` instead of silently reporting
-        ordinary XX."""
+        With ``x_nonpar_het >= 1`` over an evaluable denominator the classifier
+        returns ``"XX"`` only while chrY remains at/below the PAR-noise floor.
+        Anything above that floor returns ``manual_review`` instead of silently
+        reporting ordinary XX."""
         for y_rate, expected in (
             (0.0, "XX"),
             (_THRESHOLD_PAR_NOISE, "XX"),
@@ -501,8 +571,9 @@ class TestIND09bEdgeCases:
             assert (
                 _classify(
                     x_nonpar_het=1,
-                    x_nonpar_typed=1,
-                    x_nonpar_hom=0,
+                    x_nonpar_typed=_EVAL_X,
+                    x_nonpar_hom=_EVAL_X - 1,
+                    y_total=_EVAL_Y,
                     y_rate=y_rate,
                 )
                 == expected

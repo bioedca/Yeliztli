@@ -53,8 +53,20 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
                 {"rsid": "r1", "chrom": "1", "pos": 1000, "genotype": "AG"},
                 {"rsid": "r2", "chrom": "2", "pos": 2000, "genotype": "AA"},
                 {"rsid": "r3", "chrom": "3", "pos": 3000, "genotype": "CT"},
-                # A heterozygous non-PAR chrX call with no chrY evidence → genetic XX.
+                # A heterozygous non-PAR chrX call → genetic XX, but sex inference
+                # now needs an aggregate denominator on both sex chromosomes
+                # (issue #363), so add non-PAR chrX homozygous filler (≥
+                # MIN_X_NONPAR_TYPED total) + an all-no-call chrY denominator
+                # (≥ MIN_Y_PROBES, rate 0.0). 1 het + 99 hom = 100 typed chrX.
                 {"rsid": "rx", "chrom": "X", "pos": 5_000_000, "genotype": "AG"},
+                *(
+                    {"rsid": f"rx_fill_{i}", "chrom": "X", "pos": 5_000_001 + i, "genotype": "GG"}
+                    for i in range(99)
+                ),
+                *(
+                    {"rsid": f"ry_nc_{i}", "chrom": "Y", "pos": 2_800_000 + i, "genotype": "--"}
+                    for i in range(50)
+                ),
             ],
         )
 
@@ -102,8 +114,9 @@ class TestRunAndMetrics:
 
         m = client.get("/api/analysis/qc/metrics?sample_id=1").json()
         assert m["computed"] is True
-        assert m["total_variants"] == 4
-        assert m["nocall_variants"] == 0
+        # 4 original rows + 99 chrX hom filler + 50 chrY no-call denominator (#363).
+        assert m["total_variants"] == 153
+        assert m["nocall_variants"] == 50
         assert m["genetic_sex"] == "XX"
         assert m["recorded_sex"] == "XX"
         assert m["sex_check"] == "concordant"

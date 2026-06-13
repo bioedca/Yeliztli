@@ -9,6 +9,15 @@ exercise a specific branch of the Plan §9.4 algorithm. The bio-validator's
 real-export attestation lives in `docs/sex_inference_threshold_validation.md`
 (Step 53) and reports aggregate counts only.
 
+**Evaluable densities (issue #363).** A confident `XX`/`XY`/`manual_review`
+verdict now requires a minimum aggregate denominator on both sex chromosomes —
+`x_nonpar_typed ≥ MIN_X_NONPAR_TYPED` (100) and `y_total ≥ MIN_Y_PROBES` (50)
+in `backend/services/sex_inference.py`. Each fixture below therefore carries
+**≥100 typed non-PAR chrX and ≥50 chrY probes**; thinner inputs are classified
+`unknown` (a single non-PAR chrX het is not evidence of two X chromosomes — it
+occurs even in males, Chen et al. PMID 38073250). The het/hom ratio and chrY
+rate that select each branch are preserved at the larger scale.
+
 ## Format
 
 AncestryDNA V2.0 raw export (5-column TSV: `rsid chromosome position allele1
@@ -35,29 +44,32 @@ of both PAR intervals.
 
 ### `xx_sample.txt` → classification **`XX`**
 
-XX-supporting: ≥1 het call on non-PAR chrX with chrY at/below the noise floor.
+XX-supporting: heterozygous non-PAR chrX (het rate 0.5) with chrY at/below the
+noise floor, both chromosomes evaluable.
 
-- chr 23 (non-PAR X): 2 het, 2 hom, 1 no-call → `x_nonpar_het = 2`
+- chr 23 (non-PAR X): 60 het, 60 hom, 1 no-call → `x_nonpar_typed = 120`, `x_nonpar_het = 60`
 - chr 25 (PAR X): 2 het rows in PAR1 — pre-filtered out
-- chr 24 (Y): 6 no-call rows → `y_rate = 0.0`
+- chr 24 (Y): 60 no-call rows → `y_total = 60`, `y_rate = 0.0`
 
 ### `xy_sample.txt` → classification **`XY`** (confirmed)
 
 Candidate XY on chrX + chrY rate well above the 0.30 confirm threshold.
 
-- chr 23 (non-PAR X): 0 het, 4 hom, 1 no-call → candidate XY
+- chr 23 (non-PAR X): 0 het, 120 hom → candidate XY, `x_nonpar_typed = 120`
 - chr 25 (PAR X): 1 het row in PAR1 — pre-filtered out
-- chr 24 (Y): 10 rows, 8 typed, 2 no-call → `y_rate = 0.800`
+- chr 24 (Y): 60 rows, 48 typed, 12 no-call → `y_rate = 0.800`
 
 ### `manual_review_sample.txt` → classification **`manual_review`**
 
 Candidate XY on chrX + chrY rate in the `(0.10, 0.30]` intermediate band.
 
-- chr 23 (non-PAR X): 0 het, 4 hom, 1 no-call → candidate XY
-- chr 24 (Y): 10 rows, 2 typed, 8 no-call → `y_rate = 0.200`
+- chr 23 (non-PAR X): 0 het, 120 hom → candidate XY, `x_nonpar_typed = 120`
+- chr 24 (Y): 60 rows, 12 typed, 48 no-call → `y_rate = 0.200`
 
 ## Regenerating
 
-These files are hand-edited TSVs — there is no generator. To add a new branch
-case, add a new `<name>_sample.txt`, update this README, and parametrize the
-new case in `tests/backend/test_validate_sex_thresholds.py`.
+These files are committed TSVs generated to exercise one Plan §9.4 branch each
+at evaluable probe densities (≥100 non-PAR chrX, ≥50 chrY — issue #363). To add
+a new branch case, add a new `<name>_sample.txt` clearing both floors, update
+this README, and parametrize the new case in
+`tests/backend/test_validate_sex_thresholds.py`.

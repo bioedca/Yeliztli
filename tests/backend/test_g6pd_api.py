@@ -19,6 +19,19 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, reference_metadata, samples
 
+# Evaluable sex-chromosome filler so ``infer_biological_sex`` clears the
+# minimum-evidence floors (issue #363) and resolves XX from the heterozygous
+# non-PAR chrX call below — without it a couple of probes classify as ``unknown``.
+# Non-PAR chrX homozygous filler (positions clear of PAR1/PAR2 and the G6PD
+# locus at 153,764,217) + a chrY no-call denominator (rate 0.0).
+_EVAL_SEX_FILLER: list[dict] = [
+    {"rsid": f"rs_g6pd_xfill_{i}", "chrom": "X", "pos": 50_000_000 + i, "genotype": "GG"}
+    for i in range(120)
+] + [
+    {"rsid": f"rs_g6pd_yfill_{i}", "chrom": "Y", "pos": 2_800_000 + i, "genotype": "--"}
+    for i in range(60)
+]
+
 
 @pytest.fixture
 def tmp_data_dir(tmp_path: Path) -> Path:
@@ -69,16 +82,20 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     with sample_engine.begin() as conn:
         conn.execute(
             raw_variants.insert(),
-            [{"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CT"}],
+            [
+                {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CT"},
+                *_EVAL_SEX_FILLER,
+            ],
         )
     with noncarrier_engine.begin() as conn:
         conn.execute(
             raw_variants.insert(),
             [
-                # Dummy non-PAR chrX het with no chrY evidence → XX.
+                # Dummy non-PAR chrX het + evaluable filler with no chrY signal → XX.
                 {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
                 # Reference G6PD A- allele → no deficiency.
                 {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CC"},
+                *_EVAL_SEX_FILLER,
             ],
         )
 
