@@ -451,6 +451,20 @@ class TestPMIDs:
             for pmid in gene.pmids:
                 assert pmid.isdigit(), f"Invalid PMID: {pmid} in {gene.gene_symbol}"
 
+    def test_lpa_cites_lpa_specific_evidence(self, panel: CardiovascularPanel) -> None:
+        """The LPA row must cite real LPA/Lp(a)-CAD genetics, not the unrelated
+        retired-LGMD-GeneReviews (20301582) / withdrawn-PSMA-PET (30580001) PMIDs
+        that were attached in error (gh #178). Locked to the verified set:
+          - 20032323  Clarke 2009, NEJM (rs10455872/rs3798220 → Lp(a) & coronary disease)
+          - 32681934  Page 2020, Clin Chim Acta (rs3798220/rs10455872 & CAD in FH)
+        """
+        lpa = panel.get_gene("LPA")
+        assert lpa is not None
+        cited = set(lpa.pmids)
+        unrelated = {"20301582", "30580001"}
+        assert cited.isdisjoint(unrelated), f"LPA cites unrelated PMIDs {cited & unrelated}"
+        assert cited == {"20032323", "32681934"}, f"unexpected LPA PMIDs: {cited}"
+
 
 # ── Gene metadata ────────────────────────────────────────────────────────
 
