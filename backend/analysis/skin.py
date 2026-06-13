@@ -544,11 +544,22 @@ def _generate_cross_module_findings(
                     f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
                 )
 
-            # Deduplicate: only one cross-link per gene+target combination
-            if (snp_result.gene, target_module) in seen_keys:
+            # Deduplicate at variant granularity, not gene-only: distinct VDR
+            # polymorphisms (FokI rs2228570, BsmI rs1544410) share gene "VDR"
+            # but are different vitamin-D signals — for melanoma they even point
+            # in opposite directions — and must not collapse into one cross-link.
+            # MC1R is the deliberate exception: its three RHC alleles aggregate
+            # into a single MC1R → Cancer link reporting the total R-allele
+            # count, so key on the gene for the MC1R aggregate path, else rsid.
+            if snp_result.gene == "MC1R" and mc1r_aggregate is not None:
+                dedup_identity = snp_result.gene
+            else:
+                dedup_identity = snp_result.rsid
+            dedup_key = (dedup_identity, target_module)
+            if dedup_key in seen_keys:
                 continue
 
-            seen_keys.add((snp_result.gene, target_module))
+            seen_keys.add(dedup_key)
             cross_findings.append(
                 CrossModuleFinding(
                     rsid=snp_result.rsid,

@@ -755,7 +755,12 @@ class TestCrossModuleFindings:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Only one cross-module finding per gene+target combination."""
+        """MC1R's RHC alleles aggregate into a single MC1R → Cancer link.
+
+        Dedup is at variant granularity (rsid + target) everywhere except the
+        MC1R aggregate path, where the RHC 'R' alleles intentionally collapse
+        into one MC1R → Cancer cross-link reporting the total R-allele count.
+        """
         _seed_variants(
             sample_engine,
             [
@@ -766,6 +771,36 @@ class TestCrossModuleFindings:
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         mc1r_cross = [c for c in result.cross_module_findings if c.gene == "MC1R"]
         assert len(mc1r_cross) == 1  # Deduplicated
+
+    def test_distinct_vdr_polymorphisms_keep_separate_nutrigenomics_links(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Distinct VDR SNPs (FokI, BsmI) → two Nutrigenomics cross-links.
+
+        FokI (rs2228570) and BsmI (rs1544410) share gene "VDR" but are
+        different vitamin-D signals — opposite-direction melanoma risk, and
+        only FokI modulates the response to supplementation — so they must not
+        collapse into one VDR → Nutrigenomics cross-link. Regression for #205;
+        fails under the old gene-only dedup.
+        """
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2228570", "12", 48272895, "AA"),  # VDR FokI hom
+                ("rs1544410", "12", 48239835, "AA"),  # VDR BsmI hom
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        vdr_cross = [
+            c
+            for c in result.cross_module_findings
+            if c.gene == "VDR" and c.target_module == "nutrigenomics"
+        ]
+        assert len(vdr_cross) == 2
+        assert {c.rsid for c in vdr_cross} == {"rs2228570", "rs1544410"}
 
 
 # ── Integration tests ────────────────────────────────────────────────────
