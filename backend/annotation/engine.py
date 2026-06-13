@@ -1147,8 +1147,9 @@ def run_annotation(
     gene-phenotype lookups, merges results, computes the annotation_coverage
     bitmask, and bulk-upserts into annotated_variants.
 
-    Crash recovery: deletes all existing annotations before starting,
-    then re-annotates from scratch.
+    Crash recovery (F28): annotates into a fresh staging clone and swaps it
+    into annotated_variants in a single transaction at the end, so a crash
+    before the swap leaves the prior annotation untouched.
 
     Args:
         sample_engine: SQLAlchemy engine for the per-sample database.

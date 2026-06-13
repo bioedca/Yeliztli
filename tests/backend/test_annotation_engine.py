@@ -42,6 +42,8 @@ from backend.annotation.engine import (
     VEP_BIT,
     AnnotationEngineResult,
     _annot_to_dict,
+    _bulk_upsert,
+    _dbnsfp_annot_to_dict,
     _lookup_alphamissense,
     _lookup_clinvar,
     _lookup_dbnsfp,
@@ -552,7 +554,6 @@ class TestMergeAnnotations:
         assert merged[0]["alphamissense_pathogenicity"] == pytest.approx(0.91)
         assert merged[0]["alphamissense_class"] == "likely_pathogenic"
         assert merged[0]["annotation_coverage"] == ALPHAMISSENSE_BIT
-
 
 
 # ═══════════════════════════════════════════════════════════════════════
