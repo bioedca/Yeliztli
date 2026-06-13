@@ -471,22 +471,18 @@ def _generate_cross_context_findings(
                 None,
             )
             if ace_result and ace_result.category != STANDARD:
-                # ACE II proxy (AA) is endurance-relevant
-                if ace_result.genotype in ("AA",):
-                    context_text = (
-                        f"ACE I/D proxy ({ace_result.genotype}) — Proxy for II genotype. "
-                        "Lower ACE activity associated with enhanced endurance performance."
-                    )
-                elif ace_result.genotype in ("AG", "GA"):
-                    context_text = (
-                        f"ACE I/D proxy ({ace_result.genotype}) — Proxy for ID genotype. "
-                        "Intermediate ACE activity; mixed endurance/power profile."
-                    )
-                else:
-                    context_text = (
-                        f"ACE I/D proxy ({ace_result.genotype}) — Proxy for DD genotype. "
-                        "Higher ACE activity; power-oriented with less endurance advantage."
-                    )
+                # Reuse the softened, non-deterministic row-level summary instead
+                # of hardcoded genotype-specific performance strings. ACE I/D
+                # sport-performance evidence is heterogeneous, sport-specific, and
+                # not a reliable individual predictor — the broad meta-analysis
+                # finds no overall power/endurance association (Psatha et al. 2024,
+                # PMID 38760851) — so the cross-context text must not assert a
+                # deterministic power/endurance outcome (gh #257). Keeping a single
+                # source of truth (the panel effect_summary) also prevents this
+                # text from drifting out of sync with the curated row again.
+                context_text = (
+                    f"ACE I/D proxy ({ace_result.genotype}) — {ace_result.effect_summary}"
+                )
 
                 cross_findings.append(
                     CrossContextFinding(
