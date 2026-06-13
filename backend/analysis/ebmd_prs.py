@@ -87,16 +87,15 @@ def score_ebmd_prs(
 
 
 def store_ebmd_findings(prs: PRSResult | None, sample_engine: sa.Engine) -> int:
-    """Store the eBMD PRS finding (replaced on re-run); 0 when unavailable."""
-    if prs is None:
-        # Clear any stale finding so an un-installed BYO score reads as absent.
-        from backend.db.tables import findings
+    """Store the eBMD PRS finding (replaced on re-run); 0 when unavailable.
 
-        with sample_engine.begin() as conn:
-            conn.execute(
-                sa.delete(findings).where(
-                    findings.c.module == MODULE_NAME, findings.c.category == "prs"
-                )
-            )
-        return 0
-    return store_prs_findings([prs], sample_engine, module=MODULE_NAME, store_insufficient=True)
+    store_prs_findings clears prior module/prs rows unconditionally (it deletes
+    before the empty-list early return, #244), so passing [] when the BYO score is
+    un-installed clears any stale finding identically and reads as absent.
+    """
+    return store_prs_findings(
+        [prs] if prs is not None else [],
+        sample_engine,
+        module=MODULE_NAME,
+        store_insufficient=True,
+    )
