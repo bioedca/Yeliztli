@@ -1544,3 +1544,38 @@ class TestSitosterolemiaCitationProvenance:
         for gene in panel.genes:
             leaked = self._BANNED_PMIDS & set(gene.pmids)
             assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+class TestTNNT2CitationProvenance:
+    """Guard the TNNT2 cardiomyopathy evidence links (issue #192).
+
+    The TNNT2 row previously cited PMID 11735260 — a Bcl-2 / sodium-calcium
+    exchange transgenic-mouse study, unrelated to TNNT2 or inherited
+    cardiomyopathy. This pins the row to the generic HCM GeneReviews overview
+    plus verified TNNT2-specific HCM/DCM references so the off-topic PMID
+    cannot silently reappear.
+    """
+
+    # TNNT2 cardiomyopathy references verified on PubMed + Consensus.
+    _TNNT2_PMIDS = frozenset(
+        {
+            "20301725",  # Nonsyndromic HCM Overview, GeneReviews (generic CM reference)
+            "32278834",  # Tadros 2020, JMCC — troponin (incl. TNNT2) cardiomyopathy hotspots
+            "15542288",  # Mogensen 2004, JACC — TNNT2 mutations in idiopathic DCM families
+        }
+    )
+    # Unrelated PMID wrongly cited by the TNNT2 row before the fix (Bcl-2 study),
+    # exclusive to that row.
+    _BANNED_PMID = "11735260"
+
+    def test_tnnt2_cites_verified_cardiomyopathy_refs(self, panel: CardiovascularPanel) -> None:
+        gene = panel.get_gene("TNNT2")
+        assert gene is not None
+        assert set(gene.pmids) == self._TNNT2_PMIDS
+
+    def test_bcl2_pmid_absent_from_panel(self, panel: CardiovascularPanel) -> None:
+        # 11735260 was exclusive to the TNNT2 row, so it must appear nowhere.
+        for gene in panel.genes:
+            assert self._BANNED_PMID not in gene.pmids, (
+                f"{gene.gene_symbol} cites the unrelated Bcl-2 PMID {self._BANNED_PMID}"
+            )
