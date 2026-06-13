@@ -1439,3 +1439,43 @@ class TestAnnotationCoverage:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         updated = update_annotation_coverage_gwas(result, sample_engine)
         assert updated == 0
+
+
+class TestMTHFRCitationProvenance:
+    """Guard the MTHFR C677T evidence links (issue #200).
+
+    The MTHFR rs1801133 row previously cited three papers that do not support
+    its migraine-with-aura claim: 15592354 (a non-resolving/invalid PubMed ID),
+    20689844 (Mediterranean Sea biodiversity), and 25904306 (a macrophage /
+    nanocarbon-dispersant study). Pin the row to verified MTHFR C677T
+    migraine-with-aura references so those off-topic PMIDs cannot reappear.
+    """
+
+    # MTHFR C677T migraine-with-aura references verified on PubMed + Consensus.
+    _MTHFR_PMIDS = frozenset(
+        {
+            "17714520",  # Rubino 2009, Cephalalgia — C677T/migraine meta-analysis (aura only)
+            "16365871",  # Scher 2006, Ann Neurol — MTHFR C677T in a population-based sample
+            "15053827",  # Lea 2004, BMC Med — C677T influences migraine-with-aura susceptibility
+        }
+    )
+    # Off-topic / invalid PMIDs wrongly cited by the MTHFR row before the fix.
+    _BANNED_PMIDS = frozenset({"15592354", "20689844", "25904306"})
+
+    def _get_mthfr(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs1801133":
+                    return snp
+        raise AssertionError("MTHFR rs1801133 not found in panel")
+
+    def test_mthfr_cites_verified_migraine_aura_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_mthfr(panel).pmids) == self._MTHFR_PMIDS
+
+    def test_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        # All three banned PMIDs were exclusive to the MTHFR row, so none should
+        # appear anywhere in the gene-health panel after the fix.
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._BANNED_PMIDS & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"

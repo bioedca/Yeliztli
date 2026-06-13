@@ -339,7 +339,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["15592354", "20689844", "25904306"],
+          "pmids": ["17714520", "16365871", "15053827"],
           "recommendation_text": "MTHFR C677T TT genotype is associated with elevated homocysteine and increased risk of migraine with aura. Folate supplementation (as methylfolate) may help reduce homocysteine levels. See the Methylation module for comprehensive MTHFR functional assessment and folate pathway analysis.",
           "cross_module": {
             "module": "methylation",
