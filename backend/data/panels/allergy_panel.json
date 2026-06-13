@@ -1,7 +1,7 @@
 {
   "module": "allergy",
   "version": "1.0.0",
-  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 7 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
+  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 9 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
   "pathways": [
     {
       "id": "atopic_conditions",
@@ -389,6 +389,64 @@
           "recommendation_text": "AOC1 (DAO) Thr16Met affects diamine oxidase activity, the primary enzyme for gut histamine degradation. Individuals with reduced DAO may benefit from limiting histamine-rich foods (aged cheese, wine, fermented foods) if symptomatic. Evidence is at the candidate gene level — clinical significance requires further validation."
         },
         {
+          "rsid": "rs1049742",
+          "gene": "AOC1",
+          "variant_name": "Ser332Phe",
+          "hgvs_protein": "p.Ser332Phe",
+          "risk_allele": "T",
+          "ref_allele": "C",
+          "genotype_effects": {
+            "CC": {
+              "category": "Standard",
+              "effect_summary": "No rs1049742 (Ser332Phe) risk allele detected at this marker. This single AOC1 SNP does not establish normal DAO activity or rule out reduced histamine catabolism, which depend on additional variants and non-genetic factors."
+            },
+            "CT": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the Ser332Phe variant. Minor allele associated with reduced DAO serum activity. May modestly decrease histamine clearance capacity."
+            },
+            "TC": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the Ser332Phe variant. Minor allele associated with reduced DAO serum activity. May modestly decrease histamine clearance capacity."
+            },
+            "TT": {
+              "category": "Moderate",
+              "effect_summary": "Homozygous Ser332Phe. Associated with reduced DAO enzyme activity and decreased histamine catabolism. Contributes to the cumulative AOC1 risk-allele load that is more predictive of DAO deficiency than any single variant. Evidence is preliminary."
+            }
+          },
+          "evidence_level": 1,
+          "pmids": ["21488903", "23152756", "37359379"],
+          "recommendation_text": "AOC1 (DAO) Ser332Phe (rs1049742) is one of the four main DAO-deficiency variants; its minor allele is associated with reduced DAO serum activity. Most informative as part of the cumulative AOC1 risk-allele load rather than in isolation. Evidence is at the candidate gene level."
+        },
+        {
+          "rsid": "rs2052129",
+          "gene": "AOC1",
+          "variant_name": "c.-691G>T (promoter)",
+          "hgvs_protein": null,
+          "risk_allele": "T",
+          "ref_allele": "G",
+          "genotype_effects": {
+            "GG": {
+              "category": "Standard",
+              "effect_summary": "No rs2052129 (c.-691G>T) risk allele detected at this marker. This single AOC1 promoter SNP does not establish normal DAO activity or rule out reduced histamine catabolism, which depend on additional variants and non-genetic factors."
+            },
+            "GT": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the c.-691T promoter allele. Associated with lower AOC1 promoter activity and reduced DAO expression. May modestly decrease histamine clearance capacity."
+            },
+            "TG": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the c.-691T promoter allele. Associated with lower AOC1 promoter activity and reduced DAO expression. May modestly decrease histamine clearance capacity."
+            },
+            "TT": {
+              "category": "Moderate",
+              "effect_summary": "Homozygous c.-691T. The promoter variant with the strongest reported effect on DAO expression/activity; homozygotes show the lowest DAO activity. Contributes to the cumulative AOC1 risk-allele load that is more predictive of DAO deficiency than any single variant. Evidence is preliminary."
+            }
+          },
+          "evidence_level": 1,
+          "pmids": ["21488903", "25612138", "38674832"],
+          "recommendation_text": "AOC1 (DAO) c.-691G>T (rs2052129) is a promoter variant; its minor T allele lowers AOC1 promoter activity and DAO expression, with the strongest single-variant effect on DAO activity reported to date (homozygotes lowest). Most informative as part of the cumulative AOC1 risk-allele load. Evidence is at the candidate gene level."
+        },
+        {
           "rsid": "rs11558538",
           "gene": "HNMT",
           "variant_name": "Thr105Ile",
@@ -463,8 +521,8 @@
       }
     },
     "histamine_combined_assessment": {
-      "description": "Combined AOC1 (extracellular/gut DAO) and HNMT (intracellular) assessment. AOC1 rs10156191 affects gut histamine clearance; HNMT rs11558538 affects intracellular histamine inactivation. Compound reduction in both pathways may amplify histamine intolerance risk. Both are ★☆ evidence (candidate gene level) and should be visually de-emphasized relative to GWAS and clinical-grade findings.",
-      "rsids": ["rs10156191", "rs11558538"],
+      "description": "Combined AOC1 (extracellular/gut DAO) and HNMT (intracellular) assessment. Three of the four main AOC1 DAO-deficiency variants are tracked (rs10156191 Thr16Met, rs1049742 Ser332Phe, rs2052129 c.-691G>T promoter); HNMT rs11558538 affects intracellular histamine inactivation. The cumulative AOC1 risk-allele load (especially the homozygous count) is more predictive of reduced DAO activity than any single variant. Compound reduction across AOC1 and HNMT may amplify histamine intolerance risk. All are ★☆ evidence (candidate gene level) and should be visually de-emphasized relative to GWAS and clinical-grade findings.",
+      "rsids": ["rs10156191", "rs1049742", "rs2052129", "rs11558538"],
       "de_emphasize_in_ui": true
     }
   },

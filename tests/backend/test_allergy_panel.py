@@ -2,7 +2,7 @@
 
 Covers:
   - Panel JSON loading and structural validation
-  - All 11 curated SNPs present with correct genes (7 direct + 4 HLA drug proxies)
+  - All 13 curated SNPs present with correct genes (9 direct + 4 HLA drug proxies)
   - 4 pathway cards (Atopic Conditions, Drug Hypersensitivity,
     Food Sensitivity, Histamine Metabolism)
   - HLA proxy calling metadata (r², ancestry, confirmatory_test_required)
@@ -46,7 +46,9 @@ EXPECTED_RSIDS = {
     "rs9263726",  # HLA-B*58:01 allopurinol
     "rs2187668",  # HLA-DQ2 celiac
     "rs7775228",  # HLA-DQ8 celiac
-    "rs10156191",  # AOC1 DAO histamine
+    "rs10156191",  # AOC1 DAO histamine (Thr16Met)
+    "rs1049742",  # AOC1 DAO histamine (Ser332Phe, #386)
+    "rs2052129",  # AOC1 DAO histamine (c.-691G>T promoter, #386)
     "rs11558538",  # HNMT histamine
 }
 
@@ -117,7 +119,7 @@ class TestPanelStructure:
 
 class TestSNPCoverage:
     def test_all_expected_rsids_present(self, panel_data: dict) -> None:
-        """All 11 curated SNPs from the PRD must be present."""
+        """All 13 curated SNPs must be present (9 direct + 4 HLA drug proxies)."""
         all_rsids = set()
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
@@ -132,9 +134,9 @@ class TestSNPCoverage:
         assert all_genes == EXPECTED_GENES
 
     def test_total_snp_count(self, panel_data: dict) -> None:
-        """11 curated SNPs total across all pathways."""
+        """13 curated SNPs total across all pathways (2 AOC1 added in #386)."""
         count = sum(len(p["snps"]) for p in panel_data["pathways"])
-        assert count == 11
+        assert count == 13
 
 
 # ── SNP field validation tests ──────────────────────────────────────────

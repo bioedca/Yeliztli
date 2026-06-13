@@ -213,7 +213,9 @@ ALL_ALLERGY_VARIANTS = [
     ("rs2187668", "6", 32605884, "CT"),  # HLA-DQ2 proxy het
     ("rs7775228", "6", 32713862, "CC"),  # HLA-DQ8 proxy ref
     # Histamine Metabolism
-    ("rs10156191", "7", 150554592, "CT"),  # AOC1 het
+    ("rs10156191", "7", 150554592, "CT"),  # AOC1 Thr16Met het
+    ("rs1049742", "7", 150554553, "CT"),  # AOC1 Ser332Phe het (#386)
+    ("rs2052129", "7", 150548972, "GT"),  # AOC1 c.-691G>T promoter het (#386)
     ("rs11558538", "2", 138759649, "CT"),  # HNMT het
 ]
 
@@ -238,7 +240,7 @@ class TestPanelLoading:
 
     def test_panel_all_rsids(self, panel: AllergyPanel) -> None:
         rsids = panel.all_rsids()
-        assert len(rsids) == 11
+        assert len(rsids) == 13
         expected = {
             "rs20541",
             "rs8076131",
@@ -250,6 +252,8 @@ class TestPanelLoading:
             "rs2187668",
             "rs7775228",
             "rs10156191",
+            "rs1049742",
+            "rs2052129",
             "rs11558538",
         }
         assert set(rsids) == expected
@@ -685,9 +689,9 @@ class TestHistamineCombined:
     ) -> None:
         """Both ref → neutral coverage text, NOT a 'standard catabolism' reassurance.
 
-        Absence of the two tagged AOC1/HNMT risk genotypes must not be framed as
-        normal/expected histamine catabolism: this 2-SNP panel covers only one of
-        the four main AOC1 DAO-deficiency variants and DAO genotypes alone do not
+        Absence of the tagged AOC1/HNMT risk genotypes must not be framed as
+        normal/expected histamine catabolism: this panel covers three of the four
+        main AOC1 DAO-deficiency variants (#386) and DAO genotypes alone do not
         establish or exclude histamine intolerance (Maintz 2011, PMID 21488903;
         van Odijk 2023, PMID 37447214). See #307.
         """
@@ -706,6 +710,51 @@ class TestHistamineCombined:
         # The overstated reassurance phrasings must be gone.
         assert "Standard histamine catabolism expected" not in text
         assert "No histamine metabolism variants detected" not in text
+
+    def test_new_aoc1_snps_present_with_verified_alleles(self, panel: AllergyPanel) -> None:
+        """The two AOC1 DAO-deficiency SNPs added in #386 carry verified alleles."""
+        histamine = next(p for p in panel.pathways if p.id == "histamine_metabolism")
+        by_rsid = {s.rsid: s for s in histamine.snps}
+
+        assert by_rsid["rs1049742"].gene == "AOC1"
+        assert (by_rsid["rs1049742"].risk_allele, by_rsid["rs1049742"].ref_allele) == ("T", "C")
+        assert by_rsid["rs2052129"].gene == "AOC1"
+        assert (by_rsid["rs2052129"].risk_allele, by_rsid["rs2052129"].ref_allele) == ("T", "G")
+        # Both are candidate-gene (★☆) and cap at Moderate (no Elevated genotype).
+        for rsid in ("rs1049742", "rs2052129"):
+            snp = by_rsid[rsid]
+            assert snp.evidence_level == 1
+            cats = {e["category"] for e in snp.genotype_effects.values()}
+            assert cats <= {"Standard", "Moderate"}
+            assert "21488903" in snp.pmids  # Maintz 2011 DAO-activity SNP study
+
+    def test_cumulative_aoc1_load(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Cumulative AOC1 risk-allele + homozygous load is tallied across the 3 SNPs (#386)."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs10156191", "7", 150554592, "TT"),  # homozygous risk → 2 alleles
+                ("rs1049742", "7", 150554553, "CT"),  # 1 allele
+                ("rs2052129", "7", 150548972, "GT"),  # 1 allele
+                ("rs11558538", "2", 138759649, "CC"),  # HNMT ref
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        hc = result.histamine_combined
+        assert hc is not None
+        assert hc.aoc1_snps_assessed == 3
+        assert hc.aoc1_risk_allele_count == 4  # 2 + 1 + 1
+        assert hc.aoc1_homozygous_risk_count == 1  # rs10156191 TT
+        assert "Cumulative AOC1 load: 4 DAO-deficiency risk allele(s)" in hc.combined_text
+        assert "1 homozygous" in hc.combined_text
+        # AOC1-only (HNMT ref): mentions AOC1, not HNMT.
+        assert "AOC1" in hc.combined_text and "HNMT" not in hc.combined_text
 
 
 # ── HLA proxy lookup tests ──────────────────────────────────────────────
@@ -920,12 +969,12 @@ class TestFullScoring:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """All 11 panel SNPs are scored when present."""
+        """All 13 panel SNPs are scored when present."""
         _seed_variants(sample_engine, ALL_ALLERGY_VARIANTS)
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         total_snps = sum(len(pr.snp_results) for pr in result.pathway_results)
-        assert total_snps == 11
+        assert total_snps == 13
 
     def test_four_pathways_scored(
         self,
@@ -1255,7 +1304,7 @@ class TestPanelCoverage:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Panel coverage rows are stored for all 11 SNPs."""
+        """Panel coverage rows are stored for all 13 SNPs."""
         _seed_variants(sample_engine, ALL_ALLERGY_VARIANTS)
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
@@ -1265,7 +1314,7 @@ class TestPanelCoverage:
             rows = conn.execute(
                 sa.select(panel_coverage).where(panel_coverage.c.module == MODULE_NAME)
             ).fetchall()
-        assert len(rows) == 11
+        assert len(rows) == 13
 
     def test_called_status(
         self,

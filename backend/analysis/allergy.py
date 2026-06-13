@@ -208,6 +208,13 @@ class HistamineCombinedResult:
     hnmt_category: str
     combined_text: str
     de_emphasize: bool  # Always True for ★☆ evidence
+    # Cumulative AOC1 DAO-deficiency load across the tracked AOC1 SNPs (#386). The
+    # literature reports the cumulative risk-allele load — especially the
+    # homozygous count — is more predictive of reduced DAO activity than the
+    # presence of any single variant (Maintz 2011, Duelo 2024, Okutan 2023).
+    aoc1_risk_allele_count: int = 0
+    aoc1_homozygous_risk_count: int = 0
+    aoc1_snps_assessed: int = 0
 
 
 @dataclass
@@ -551,32 +558,74 @@ def _compute_histamine_combined(
     if histamine_pr is None:
         return None
 
-    aoc1_result = next(
-        (s for s in histamine_pr.snp_results if s.rsid == "rs10156191"),
+    # Map each tracked AOC1 SNP to its risk allele from the panel definition
+    # (SNPResult does not carry the risk allele), so we can tally the cumulative
+    # DAO-deficiency load rather than gate on a single variant (#386).
+    histamine_panel_pw = next(
+        (pw for pw in panel.pathways if pw.id == "histamine_metabolism"),
         None,
     )
+    aoc1_risk_alleles = {
+        snp.rsid: snp.risk_allele
+        for snp in (histamine_panel_pw.snps if histamine_panel_pw else [])
+        if snp.gene == "AOC1"
+    }
+
+    aoc1_risk_allele_count = 0
+    aoc1_homozygous_risk_count = 0
+    aoc1_snps_assessed = 0
+    aoc1_cat = STANDARD
+    rs10156191_result = None
+    for s in histamine_pr.snp_results:
+        if s.rsid not in aoc1_risk_alleles:
+            continue
+        if s.rsid == "rs10156191":
+            rs10156191_result = s
+        if not s.present_in_sample or not s.genotype:
+            continue
+        aoc1_snps_assessed += 1
+        n_risk = s.genotype.upper().count(aoc1_risk_alleles[s.rsid].upper())
+        aoc1_risk_allele_count += n_risk
+        if n_risk == 2:
+            aoc1_homozygous_risk_count += 1
+        if s.category == ELEVATED:
+            aoc1_cat = ELEVATED
+        elif s.category == MODERATE and aoc1_cat != ELEVATED:
+            aoc1_cat = MODERATE
+
     hnmt_result = next(
         (s for s in histamine_pr.snp_results if s.rsid == "rs11558538"),
         None,
     )
-
-    aoc1_gt = aoc1_result.genotype if aoc1_result and aoc1_result.present_in_sample else None
+    # rs10156191 genotype kept as the representative AOC1 genotype for back-compat.
+    aoc1_gt = (
+        rs10156191_result.genotype
+        if rs10156191_result and rs10156191_result.present_in_sample
+        else None
+    )
     hnmt_gt = hnmt_result.genotype if hnmt_result and hnmt_result.present_in_sample else None
-
-    aoc1_cat = aoc1_result.category if aoc1_result and aoc1_result.present_in_sample else STANDARD
     hnmt_cat = hnmt_result.category if hnmt_result and hnmt_result.present_in_sample else STANDARD
 
+    aoc1_present = aoc1_risk_allele_count > 0
+    load_phrase = (
+        f"Cumulative AOC1 load: {aoc1_risk_allele_count} DAO-deficiency risk "
+        f"allele(s) across {aoc1_snps_assessed} assessed SNP(s) "
+        f"({aoc1_homozygous_risk_count} homozygous); a higher load — especially "
+        "the homozygous count — is more predictive of reduced DAO activity than "
+        "any single variant."
+    )
+
     # Build combined text
-    if aoc1_cat != STANDARD and hnmt_cat != STANDARD:
+    if aoc1_present and hnmt_cat != STANDARD:
         combined_text = (
-            "Both AOC1 (DAO) and HNMT variants detected. Combined reduction "
-            "in histamine catabolism may amplify histamine intolerance risk. "
-            "Evidence is at the candidate gene level."
+            f"Both AOC1 (DAO) and HNMT variants detected. {load_phrase} Combined "
+            "reduction in histamine catabolism may amplify histamine intolerance "
+            "risk. Evidence is at the candidate gene level."
         )
-    elif aoc1_cat != STANDARD:
+    elif aoc1_present:
         combined_text = (
-            "AOC1 (DAO) variant detected. Reduced gut histamine clearance. "
-            "Evidence is at the candidate gene level."
+            f"AOC1 (DAO) variant(s) detected. {load_phrase} Reduced gut histamine "
+            "clearance. Evidence is at the candidate gene level."
         )
     elif hnmt_cat != STANDARD:
         combined_text = (
@@ -585,10 +634,11 @@ def _compute_histamine_combined(
         )
     else:
         combined_text = (
-            "No panel-tracked AOC1/HNMT risk genotypes detected. This limited "
-            "candidate-gene panel does not rule out reduced DAO activity or "
-            "histamine intolerance, which depend on additional variants and "
-            "non-genetic factors (diet, medications, clinical phenotype)."
+            "No panel-tracked AOC1/HNMT risk genotypes detected. This candidate-gene "
+            "panel (three of the four main AOC1 DAO-deficiency variants) does not "
+            "rule out reduced DAO activity or histamine intolerance, which depend on "
+            "additional variants and non-genetic factors (diet, medications, "
+            "clinical phenotype)."
         )
 
     return HistamineCombinedResult(
@@ -598,6 +648,9 @@ def _compute_histamine_combined(
         hnmt_category=hnmt_cat,
         combined_text=combined_text,
         de_emphasize=histamine_config.get("de_emphasize_in_ui", True),
+        aoc1_risk_allele_count=aoc1_risk_allele_count,
+        aoc1_homozygous_risk_count=aoc1_homozygous_risk_count,
+        aoc1_snps_assessed=aoc1_snps_assessed,
     )
 
 
@@ -1104,7 +1157,9 @@ def store_allergy_findings(
                 "finding_text": f"Histamine Metabolism — {hc.combined_text}",
                 "pathway": "Histamine Metabolism",
                 "pathway_level": None,
-                "pmid_citations": json.dumps(["15046637", "17490952", "23886886"]),
+                "pmid_citations": json.dumps(
+                    ["15046637", "17490952", "23886886", "21488903", "38674832"]
+                ),
                 "detail_json": json.dumps(
                     {
                         "aoc1_genotype": hc.aoc1_genotype,
@@ -1112,6 +1167,9 @@ def store_allergy_findings(
                         "aoc1_category": hc.aoc1_category,
                         "hnmt_category": hc.hnmt_category,
                         "de_emphasize": hc.de_emphasize,
+                        "aoc1_risk_allele_count": hc.aoc1_risk_allele_count,
+                        "aoc1_homozygous_risk_count": hc.aoc1_homozygous_risk_count,
+                        "aoc1_snps_assessed": hc.aoc1_snps_assessed,
                     }
                 ),
             }

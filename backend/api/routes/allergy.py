@@ -90,6 +90,10 @@ class HistamineCombinedItem(BaseModel):
     combined_text: str = ""
     de_emphasize: bool = True
     evidence_level: int = 1
+    # Cumulative AOC1 DAO-deficiency load across the tracked AOC1 SNPs (#386).
+    aoc1_risk_allele_count: int = 0
+    aoc1_homozygous_risk_count: int = 0
+    aoc1_snps_assessed: int = 0
     pmids: list[str] = []
 
 
@@ -269,6 +273,9 @@ def list_pathways(
             de_emphasize=detail.get("de_emphasize", True),
             evidence_level=hf["evidence_level"] if hf["evidence_level"] is not None else 1,
             pmids=hf["pmids"],
+            aoc1_risk_allele_count=detail.get("aoc1_risk_allele_count", 0),
+            aoc1_homozygous_risk_count=detail.get("aoc1_homozygous_risk_count", 0),
+            aoc1_snps_assessed=detail.get("aoc1_snps_assessed", 0),
         )
 
     # Cross-module findings
