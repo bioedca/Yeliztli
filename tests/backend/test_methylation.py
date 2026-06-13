@@ -309,11 +309,16 @@ class TestCBSProxy:
         assert cbs_note["rsid"] == "rs234706"
         assert "synonymous" in cbs_note["proxy_accuracy_note"].lower()
 
-    def test_cbs_tt_moderate(self, panel: MethylationPanel) -> None:
+    def test_cbs_tt_standard_not_actionable(self, panel: MethylationPanel) -> None:
+        # #211: rs234706 is a synonymous proxy whose best directly-relevant
+        # evidence found no homocysteine association, so TT is no longer reported
+        # as an actionable (Moderate) transsulfuration finding — it is Standard
+        # (informational), but still carries its proxy coverage_note.
         cbs = self._get_cbs(panel)
         result = _score_snp(cbs, "TT")
-        assert result.category in (MODERATE, ELEVATED)
+        assert result.category == STANDARD
         assert result.coverage_note is not None
+        assert "no association" in result.effect_summary.lower()
 
     def test_cbs_cc_standard(self, panel: MethylationPanel) -> None:
         cbs = self._get_cbs(panel)
@@ -774,14 +779,18 @@ class TestStoreFindingsIntegration:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """CBS SNP finding includes coverage_note in detail_json."""
+        """CBS coverage_note is surfaced via the transsulfuration pathway-summary
+        snp_details. #211: rs234706 is now Standard (informational), so it no
+        longer emits a standalone snp_finding, but its proxy coverage_note still
+        travels with the pathway summary."""
         _seed_variants(sample_engine, [("rs234706", "21", 44483228, "TT")])
 
         result = score_methylation_pathways(panel, sample_engine, reference_engine)
         store_methylation_findings(result, sample_engine)
 
         with sample_engine.connect() as conn:
-            row = conn.execute(
+            # The now-Standard CBS variant must NOT produce a standalone finding.
+            standalone = conn.execute(
                 sa.select(findings).where(
                     sa.and_(
                         findings.c.module == MODULE_NAME,
@@ -789,11 +798,24 @@ class TestStoreFindingsIntegration:
                     )
                 )
             ).first()
+            assert standalone is None
+            summaries = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                    )
+                )
+            ).fetchall()
 
-        assert row is not None
-        detail = json.loads(row.detail_json)
-        assert "coverage_note" in detail
-        assert "proxy" in detail["coverage_note"].lower()
+        cbs_detail = next(
+            s
+            for r in summaries
+            for s in json.loads(r.detail_json)["snp_details"]
+            if s["rsid"] == "rs234706"
+        )
+        assert cbs_detail["category"] == "Standard"
+        assert "proxy" in cbs_detail["coverage_note"].lower()
 
     def test_store_clears_previous_findings(
         self,

@@ -402,6 +402,33 @@ class TestCBSProxy:
         assert sc["rsid"] == "rs234706"
         assert "proxy_accuracy_note" in sc
 
+    def test_cbs_cites_relevant_evidence_not_unrelated(self, panel_data: dict) -> None:
+        """#211 — the CBS row must cite the directly-relevant association study,
+        not the CLN6 lipofuscinosis (12815591), Crisponi (15637710), or
+        mouse-brain GSM (18175331) papers it carried in error. 12529702 =
+        Lievers 2003, Eur J Hum Genet (CBS 699C>T & hyperhomocysteinaemia: no
+        association)."""
+        cbs = self._get_cbs(panel_data)
+        assert cbs["pmids"] == ["12529702"], cbs["pmids"]
+        assert {"12815591", "15637710", "18175331"}.isdisjoint(cbs["pmids"])
+
+    def test_cbs_not_reported_as_actionable(self, panel_data: dict) -> None:
+        """#211 — rs234706 is a synonymous proxy with no demonstrated homocysteine
+        association, so no genotype may be an actionable (non-Standard) finding."""
+        cbs = self._get_cbs(panel_data)
+        for gt, effect in cbs["genotype_effects"].items():
+            assert effect["category"] == "Standard", (
+                f"{gt} is {effect['category']}, expected Standard"
+            )
+
+    def test_cbs_effect_text_states_no_association(self, panel_data: dict) -> None:
+        """The TT effect text must convey the null/no-association framing rather
+        than the previous 'upregulated transsulfuration' overstatement."""
+        cbs = self._get_cbs(panel_data)
+        tt = cbs["genotype_effects"]["TT"]["effect_summary"].lower()
+        assert "no association" in tt
+        assert "upregulated transsulfuration" not in tt
+
 
 # ── COMT catecholamine framing tests ────────────────────────────────────
 

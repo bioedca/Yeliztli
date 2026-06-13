@@ -468,25 +468,25 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "Standard cystathionine beta-synthase activity. Normal transsulfuration flux."
+              "effect_summary": "Standard CBS reference genotype at rs234706 (synonymous C699T)."
             },
             "CT": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous CBS C699T. This synonymous variant is a proxy for functional CBS variants in linkage disequilibrium. May modestly affect transsulfuration flux."
+              "category": "Standard",
+              "effect_summary": "Heterozygous CBS C699T (rs234706), a synonymous/silent variant (Tyr233Tyr). Informational only: the directly relevant association studies found no consistent association between this marker and homocysteine or transsulfuration flux (Lievers 2003). Not an actionable methylation finding."
             },
             "TC": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous CBS C699T. This synonymous variant is a proxy for functional CBS variants in linkage disequilibrium. May modestly affect transsulfuration flux."
+              "category": "Standard",
+              "effect_summary": "Heterozygous CBS C699T (rs234706), a synonymous/silent variant (Tyr233Tyr). Informational only: the directly relevant association studies found no consistent association between this marker and homocysteine or transsulfuration flux (Lievers 2003). Not an actionable methylation finding."
             },
             "TT": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous CBS C699T proxy. Associated with upregulated transsulfuration, potentially increasing homocysteine clearance through the cysteine/glutathione pathway. May increase sulfite/sulfate production. Evidence is limited due to proxy nature of this variant."
+              "category": "Standard",
+              "effect_summary": "Homozygous CBS C699T (rs234706), a synonymous/silent variant. Informational only: the best direct evidence found no association between CBS genotype and homocysteine concentrations (Lievers 2003), and any functional variant this silent marker might tag is not established. No actionable transsulfuration/upregulation effect is asserted."
             }
           },
-          "coverage_note": "rs234706 (CBS C699T) is a synonymous variant used as a proxy for functional CBS polymorphisms in linkage disequilibrium. It does not directly alter CBS protein sequence. The proxy relationship varies by ancestry population, and the functional variant(s) it tags are not fully characterized. Results should be interpreted with caution.",
+          "coverage_note": "rs234706 (CBS C699T) is a synonymous (silent) variant (Tyr233Tyr) used as a proxy for functional CBS polymorphisms in linkage disequilibrium. It does not directly alter CBS protein sequence, the functional variant(s) it tags are not characterized, and the proxy relationship varies by ancestry. The best directly relevant study reported no association with homocysteine, so this row is informational context only — not an actionable transsulfuration finding.",
           "evidence_level": 1,
-          "pmids": ["12815591", "15637710", "18175331"],
-          "recommendation_text": "CBS catalyzes the first step of transsulfuration (homocysteine → cystathionine). rs234706 is a proxy SNP — the functional variant it tags is not fully characterized. Upregulated CBS may increase homocysteine clearance but also increase demand for vitamin B6 (the CBS cofactor)."
+          "pmids": ["12529702"],
+          "recommendation_text": "CBS catalyzes the first step of transsulfuration (homocysteine → cystathionine). rs234706 is a synonymous proxy SNP whose best directly relevant evidence showed no association with homocysteine (Lievers 2003); it is reported as pathway context only, not as an actionable result. General methylation support (adequate B6, B12, folate) applies regardless of this marker."
         },
         {
           "rsid": "rs1021737",
@@ -1079,7 +1079,7 @@
       "description": "CBS rs234706 (C699T) is a synonymous variant used as a proxy for functional CBS polymorphisms. It does not directly alter CBS protein sequence. The proxy relationship and the specific functional variant(s) it tags are incompletely characterized.",
       "rsid": "rs234706",
       "proxy_target": "Functional CBS polymorphism(s) in linkage disequilibrium",
-      "proxy_accuracy_note": "rs234706 is a synonymous (silent) variant. Its association with altered CBS activity is based on linkage disequilibrium with nearby functional variants, which are not fully identified. The proxy relationship varies by ancestry. Results should be interpreted as suggestive, not definitive."
+      "proxy_accuracy_note": "rs234706 is a synonymous (silent) variant whose putative link to CBS activity rests on linkage disequilibrium with unidentified nearby functional variants, and the proxy relationship varies by ancestry. Critically, the best directly relevant association study found no association between CBS genotype and homocysteine (Lievers 2003, PMID 12529702), so this marker is reported as informational pathway context only — not as an actionable transsulfuration result."
     },
     "COMT_catecholamine_framing": {
       "description": "COMT Val158Met is included in the methylation panel specifically for its role in catecholamine clearance (SAM consumption for catechol-O-methylation). This module does NOT interpret COMT in psychiatric, cognitive, or warrior/worrier frameworks. Framing is strictly metabolic: SAM consumption rate and catecholamine signaling duration.",
