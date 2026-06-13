@@ -99,6 +99,44 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "environmental chemistry",
         "caught_in": "cancer (MUTYH)",
     },
+    "15657627": {
+        "title": "A review of Salmonella surveillance in New South Wales, 1998-2000",
+        "field": "infectious-disease epidemiology",
+        "caught_in": "sleep (ADORA2A)",
+    },
+    "18197166": {
+        "title": "Mechanisms of post-transcriptional regulation by microRNAs",
+        "field": "RNA-biology review (no specific variant)",
+        "caught_in": "traits",
+    },
+    "21248726": {
+        "title": "The emerging role of electronic medical records in pharmacogenomics",
+        "field": "health informatics",
+        "caught_in": "allergy",
+    },
+    "22232607": {
+        "title": "Is There a Relationship between DNA Methylation and Phenotypic "
+        "Plasticity in Invertebrates?",
+        "field": "invertebrate epigenetics",
+        "caught_in": "sleep (ADORA2A)",
+    },
+    "25979839": {
+        "title": "Transcranial Direct Current Stimulation Against Sudden Unexpected "
+        "Death in Epilepsy",
+        "field": "neurostimulation therapy",
+        "caught_in": "sleep (ADORA2A)",
+    },
+    "26547463": {
+        "title": "Advancing Cardiovascular Science (editorial)",
+        "field": "journal editorial (not a variant association)",
+        "caught_in": "cardiovascular",
+    },
+    "30580001": {
+        "title": "WITHDRAWN: Impact of Staging 68Ga-PSMA-11 PET scans on radiation "
+        "treatment plans",
+        "field": "withdrawn nuclear-medicine/radiology paper",
+        "caught_in": "cardiovascular (LPA)",
+    },
 }
 
 # PMIDs that WERE caught misattributed but are biomedical/genomics-ADJACENT (they
@@ -118,21 +156,43 @@ _GENE_SCOPED_NOT_REPO_BANNED: frozenset[str] = frozenset(
 )
 
 
+# Keys under which curated JSON stores citations (a list, or a bare str/int):
+#   pmids        — the common per-row list (most panels)
+#   pmid         — single citation (e.g. hla_proxy_lookup.json)
+#   source_pmid  — PRS/score provenance (pgs_score_registry, cancer_prs_weights, traits)
+#   pmid_citations — the runtime findings output shape; not in curated input today.
+# test_all_pmid_bearing_keys_are_covered() fails if a panel introduces a new
+# PMID-bearing key not listed here, so the scan can't silently miss a citation.
+_PMID_KEYS = ("pmids", "pmid_citations", "pmid", "source_pmid")
+
+
 def _iter_pmids(obj) -> list[str]:
     """Recursively collect PMIDs from the structured citation fields of a panel."""
     out: list[str] = []
     if isinstance(obj, dict):
         for key, val in obj.items():
-            if key in ("pmids", "pmid_citations") and isinstance(val, list):
-                out.extend(str(x) for x in val)
-            elif key == "pmid" and isinstance(val, (str, int)):
-                out.append(str(val))
+            if key in _PMID_KEYS:
+                if isinstance(val, list):
+                    out.extend(str(x) for x in val)
+                elif isinstance(val, (str, int)):
+                    out.append(str(val))
             else:
                 out.extend(_iter_pmids(val))
     elif isinstance(obj, list):
         for item in obj:
             out.extend(_iter_pmids(item))
     return out
+
+
+def _iter_keys(obj, into: set[str]) -> None:
+    """Recursively collect every dict key present in a loaded JSON document."""
+    if isinstance(obj, dict):
+        for key, val in obj.items():
+            into.add(key)
+            _iter_keys(val, into)
+    elif isinstance(obj, list):
+        for item in obj:
+            _iter_keys(item, into)
 
 
 def all_panel_pmids() -> dict[str, set[str]]:
@@ -206,3 +266,22 @@ def test_collectors_find_known_citations() -> None:
     by_panel = all_panel_pmids()
     total = sum(len(v) for v in by_panel.values())
     assert total > 100, f"expected many panel PMIDs, collector found only {total}"
+
+
+def test_all_pmid_bearing_keys_are_covered() -> None:
+    """Every PMID-bearing key used by any panel must be in ``_PMID_KEYS``.
+
+    Without this, a panel could introduce a new citation key (e.g. a future
+    ``*_pmid`` field) that the collector silently ignores — the ``source_pmid``
+    blind spot this guard was hardened against. Any panel key whose name
+    references a PMID must be scanned.
+    """
+    keys: set[str] = set()
+    for path in sorted(_PANELS_DIR.glob("*.json")):
+        _iter_keys(json.loads(path.read_text(encoding="utf-8")), keys)
+    pmid_keys = {k for k in keys if "pmid" in k.lower()}
+    uncovered = pmid_keys - set(_PMID_KEYS)
+    assert not uncovered, (
+        f"panel JSON uses PMID-bearing key(s) not scanned by the guard: "
+        f"{sorted(uncovered)} — add them to _PMID_KEYS"
+    )
