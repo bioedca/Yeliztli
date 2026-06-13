@@ -34,6 +34,19 @@ _INSERT_BATCH = 10_000
 # Minimum vep_bundle semver required to accept AncestryDNA uploads (Plan §5.4).
 _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA = Version("2.0.0")
 
+# The only genome build the analysis pipeline can process. Vendor parsers tag
+# each ``ParseResult`` with its source reference assembly (parser_23andme:
+# v3→GRCh36, v4/v5→GRCh37; AncestryDNA→GRCh37). Every position-dependent path —
+# GRCh38 liftover (backend/ingestion/liftover.py), positional PRS/annotation
+# joins (backend/analysis/prs.py, backend/annotation/engine.py), VCF/FHIR export
+# — assumes the stored (chrom, pos) are GRCh37, and there is no build-36→37
+# (hg18→hg19) liftover. A 23andMe v3 file is build 36 (hg18); stored verbatim it
+# would be silently mis-placed by up to several megabases at the wrong build,
+# producing wrong polygenic scores with no error (issue #480). Until an
+# hg18→hg19 lift lands, reject non-GRCh37 builds at ingest rather than emit
+# silently-wrong coordinates and scores.
+_SUPPORTED_BUILD = "GRCh37"
+
 
 def _coerce_semver(raw: str | None) -> Version | None:
     """Parse a manifest/version-row string into a ``Version`` if possible."""
@@ -119,6 +132,35 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     if "\ufffd" in text:
         logger.warning("File %s contains invalid UTF-8 sequences that were replaced", filename)
     result = parse(io.StringIO(text))
+
+    # Genome-build gate (issue #480), keyed off the *parsed* build so it cannot
+    # be bypassed by an unusual header. The pipeline treats every sample's
+    # (chrom, pos) as GRCh37 and there is no build-36→37 liftover, so a build-36
+    # (23andMe v3 / hg18) file accepted here would be silently processed ~Mb off
+    # at the wrong build — corrupting the genome browser, GRCh38 liftover, and
+    # polygenic scores (a clinical-tier result) with no error. rsID-keyed paths
+    # would still work, but shipping silently-wrong positional results is not
+    # worth it: refuse before any sample/job rows are written. The detail is a
+    # plain string so the upload UI renders it verbatim (api/setup.ts only shows
+    # string ``detail``; an object falls back to a generic "Upload failed").
+    if result.build != _SUPPORTED_BUILD:
+        logger.info(
+            "genome_build_gate vendor=%s version=%s build=%s",
+            result.vendor.value,
+            result.version,
+            result.build,
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"This file is reported on genome build {result.build}, but analysis "
+                f"requires build 37 ({_SUPPORTED_BUILD}). 23andMe v3 exports use NCBI "
+                "build 36 (hg18); processing build-36 coordinates as GRCh37 would "
+                "silently misplace every variant by up to several megabases and "
+                "produce incorrect polygenic scores, so the upload was refused. "
+                "Please upload a build-37 export (23andMe v4/v5 or AncestryDNA)."
+            ),
+        )
 
     # §5.4 bundle-version gate, keyed off the *parsed* vendor (not a pre-parse
     # byte sniff) so it cannot be bypassed by an unusual header. AncestryDNA
