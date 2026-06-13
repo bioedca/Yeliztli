@@ -1509,3 +1509,38 @@ class TestRecessiveInheritanceGating:
             assert "Pathogenic for Sitosterolemia" not in text
             assert json.loads(row["detail_json"])["disease_status"] == DISEASE_POSSIBLE_BIALLELIC
             assert "compound" in text.lower() or "unconfirmed" in text.lower()
+
+
+class TestSitosterolemiaCitationProvenance:
+    """Guard the ABCG5/ABCG8 evidence links (issue #183).
+
+    Both rows previously cited two unrelated papers — PMID 20301451 (a
+    Mucopolysaccharidosis Type II GeneReviews entry) and 27095798 (a
+    family-practice antibiotic-prescribing study). This pins them to verified
+    sitosterolemia / ABCG5-ABCG8 references so those off-topic PMIDs cannot
+    silently reappear.
+    """
+
+    # Sitosterolemia / ABCG5-ABCG8 references verified on PubMed + Consensus.
+    _SITOSTEROLEMIA_PMIDS = frozenset(
+        {
+            "36897412",  # Rocha 2023, Curr Atheroscler Rep — sitosterolemia & atherosclerosis
+            "27104173",  # Yoo 2016, Ann Pediatr Endocrinol Metab — sitosterolemia review
+            "11452359",  # Lu 2001, AJHG — STSL locus: ABCG5/ABCG8 cause sitosterolemia
+        }
+    )
+    # Unrelated PMIDs wrongly cited by the ABCG5/ABCG8 rows before the fix.
+    _BANNED_PMIDS = frozenset({"20301451", "27095798"})
+
+    def test_abcg_rows_cite_verified_sitosterolemia_refs(self, panel: CardiovascularPanel) -> None:
+        for symbol in ("ABCG5", "ABCG8"):
+            gene = panel.get_gene(symbol)
+            assert gene is not None
+            assert set(gene.pmids) == self._SITOSTEROLEMIA_PMIDS, symbol
+
+    def test_banned_pmids_absent_from_panel(self, panel: CardiovascularPanel) -> None:
+        # Both unrelated PMIDs were exclusive to the ABCG5/ABCG8 rows, so neither
+        # should appear anywhere in the cardiovascular panel after the fix.
+        for gene in panel.genes:
+            leaked = self._BANNED_PMIDS & set(gene.pmids)
+            assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
