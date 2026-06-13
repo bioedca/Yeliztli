@@ -31,30 +31,63 @@ const CATEGORY_DOT: Record<PathwayLevel, string> = {
   Standard: "bg-emerald-500",
 }
 
-/** HLA proxy confidence badge showing r-squared and ancestry. */
+/**
+ * Per-population r² for an HLA-proxy SNP. The clean source is the runtime
+ * lookup (`hla_proxy_lookup.r_squared_by_pop`); fall back to the panel block's
+ * `r_squared_by_population` or legacy `r_squared_<pop>` keys. Returns {} when no
+ * r² is available so the badge can render the allele without a (NaN) r².
+ */
+function rSquaredByPop(snp: SNPDetail): Record<string, number> {
+  const lookup = snp.hla_proxy_lookup?.r_squared_by_pop
+  if (lookup && Object.keys(lookup).length > 0) return lookup
+
+  const block = snp.hla_proxy
+  if (!block) return {}
+  if (block.r_squared_by_population && Object.keys(block.r_squared_by_population).length > 0) {
+    return block.r_squared_by_population
+  }
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(block)) {
+    const match = /^r_squared_([a-z]+)$/.exec(key)
+    if (match && typeof value === "number") out[match[1].toUpperCase()] = value
+  }
+  return out
+}
+
+/** HLA proxy confidence badge showing the (min) per-population r² and ancestries. */
 function HLAProxyBadge({ snp }: { snp: SNPDetail }) {
   if (!snp.hla_proxy) return null
 
-  const r2 = snp.hla_proxy.r_squared
-  const pop = snp.hla_proxy.ancestry_pop
   const allele = snp.hla_proxy.hla_allele
+  const byPop = rSquaredByPop(snp)
+  const pops = Object.keys(byPop).sort()
+  // Conservative (non-exclusionary): show the lowest r² across populations.
+  const minR2 = pops.length > 0 ? Math.min(...pops.map((p) => byPop[p])) : null
 
-  // Color based on r² strength
+  // Color based on r² strength (neutral when no r² is available).
   const r2Color =
-    r2 >= 0.9
-      ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700"
-      : r2 >= 0.7
-        ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700"
-        : "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700"
+    minR2 === null
+      ? "bg-muted text-muted-foreground border-border"
+      : minR2 >= 0.9
+        ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700"
+        : minR2 >= 0.7
+          ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700"
+          : "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700"
 
   return (
     <div className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium", r2Color)}>
       <Shield className="h-3 w-3 shrink-0" aria-hidden="true" />
       <span>HLA Proxy: {allele}</span>
-      <span className="opacity-75">|</span>
-      <span>r²={r2.toFixed(2)}</span>
-      <span className="opacity-75">|</span>
-      <span>{pop}</span>
+      {minR2 !== null && (
+        <>
+          <span className="opacity-75">|</span>
+          <span>
+            {pops.length > 1 ? "min " : ""}r²={minR2.toFixed(2)}
+          </span>
+          <span className="opacity-75">|</span>
+          <span>{pops.join(", ")}</span>
+        </>
+      )}
     </div>
   )
 }

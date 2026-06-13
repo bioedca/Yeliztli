@@ -4,7 +4,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/allergy/PathwayCard"
-import type { PathwaySummary } from "@/types/allergy"
+import PathwayDetailPanel from "@/components/allergy/PathwayDetailPanel"
+import { useAllergyPathwayDetail } from "@/api/allergy"
+import type { PathwaySummary, SNPDetail, PathwayDetailResponse } from "@/types/allergy"
+
+vi.mock("@/api/allergy", () => ({ useAllergyPathwayDetail: vi.fn() }))
+const mockUseDetail = vi.mocked(useAllergyPathwayDetail)
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -173,5 +178,102 @@ describe("PathwayCard", () => {
       expect(screen.getByText(pathway.pathway_name)).toBeInTheDocument()
       unmount()
     }
+  })
+})
+
+// ── HLAProxyBadge (via PathwayDetailPanel) tests ──────────────────────
+// Regression for #402: the badge previously read snp.hla_proxy.r_squared
+// (singular), which is undefined on the backend's hla_proxy block, so
+// undefined.toFixed(2) crashed for every HLA-proxy SNP. None of these paths
+// were exercised by any test.
+
+const HLA_SNP_BASE: SNPDetail = {
+  rsid: "rs2395029",
+  gene: "HLA-B",
+  variant_name: "HLA-B*57:01 proxy",
+  genotype: "TG",
+  category: "Moderate",
+  effect_summary: "HLA-B*57:01 tag-SNP positive",
+  evidence_level: 4,
+  recommendation: null,
+  pmids: [],
+  hla_proxy: { hla_allele: "HLA-B*57:01", clinical_grade: true, confirmatory_test_required: true },
+  hla_proxy_lookup: null,
+  coverage_note: null,
+}
+
+function detailWith(snp: SNPDetail): PathwayDetailResponse {
+  return {
+    pathway_id: "drug_hypersensitivity",
+    pathway_name: "Drug Hypersensitivity",
+    level: "Moderate",
+    evidence_level: 4,
+    called_snps: 1,
+    total_snps: 1,
+    missing_snps: [],
+    pmids: [],
+    snp_details: [snp],
+    hla_proxy_lookup: null,
+  }
+}
+
+describe("HLAProxyBadge", () => {
+  beforeEach(() => {
+    mockUseDetail.mockReset()
+  })
+
+  function renderBadge(snp: SNPDetail): HTMLElement {
+    mockUseDetail.mockReturnValue({
+      data: detailWith(snp),
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as ReturnType<typeof useAllergyPathwayDetail>)
+    render(
+      <PathwayDetailPanel
+        pathwayId="drug_hypersensitivity"
+        pathwayName="Drug Hypersensitivity"
+        sampleId={1}
+        onClose={() => {}}
+      />,
+    )
+    return screen.getByText(/HLA Proxy:/).closest("div") as HTMLElement
+  }
+
+  it("renders the min per-population r² from hla_proxy_lookup without crashing", () => {
+    const badge = renderBadge({
+      ...HLA_SNP_BASE,
+      hla_proxy_lookup: {
+        hla_allele: "HLA-B*57:01",
+        r_squared_by_pop: { EUR: 0.97, AFR: 0.85 },
+      },
+    })
+    expect(badge.textContent).toContain("HLA Proxy: HLA-B*57:01")
+    expect(badge.textContent).toContain("min r²=0.85") // conservative: lowest across pops
+    expect(badge.textContent).toContain("AFR, EUR")
+    expect(badge.textContent).not.toContain("NaN")
+  })
+
+  it("falls back to the panel block's legacy r_squared_<pop> when the lookup is null", () => {
+    const badge = renderBadge({
+      ...HLA_SNP_BASE,
+      hla_proxy: { hla_allele: "HLA-B*57:01", r_squared_eur: 0.97 },
+      hla_proxy_lookup: null,
+    })
+    expect(badge.textContent).toContain("HLA Proxy: HLA-B*57:01")
+    expect(badge.textContent).toContain("r²=0.97")
+    expect(badge.textContent).toContain("EUR")
+    expect(badge.textContent).not.toContain("NaN")
+  })
+
+  it("renders the allele only (no r², no NaN) when no per-population r² exists", () => {
+    const badge = renderBadge({
+      ...HLA_SNP_BASE,
+      hla_proxy: { hla_allele: "HLA-B*57:01" },
+      hla_proxy_lookup: null,
+    })
+    expect(badge.textContent).toContain("HLA Proxy: HLA-B*57:01")
+    expect(badge.textContent).not.toContain("NaN")
+    expect(badge.textContent).not.toContain("r²=")
   })
 })

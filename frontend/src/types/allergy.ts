@@ -3,14 +3,32 @@
 /** Categorical level for an allergy pathway. */
 export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
-/** HLA proxy metadata for a SNP. */
+/**
+ * HLA proxy metadata for a SNP — the curated `hla_proxy` block from the panel
+ * definition (backend `sd["hla_proxy"]`). It has NO singular `r_squared` /
+ * `ancestry_pop`; per-population r² lives either in `r_squared_by_population`
+ * or in legacy `r_squared_<pop>` keys (e.g. `r_squared_eur`). The clean
+ * per-population r² for display comes from the sibling `HLAProxyLookup`.
+ */
 export interface HLAProxyInfo {
   hla_allele: string
-  proxy_rsid: string
-  r_squared: number
-  ancestry_pop: string
-  clinical_context: string | null
-  pmid: string | null
+  clinical_grade?: boolean
+  clinical_grade_context?: string | null
+  confirmatory_test_required?: boolean
+  /** Post-#333 per-population r² map, when present. */
+  r_squared_by_population?: Record<string, number>
+  /** Tolerate legacy per-population r² keys such as `r_squared_eur`. */
+  [key: string]: unknown
+}
+
+/**
+ * Runtime HLA proxy lookup result (backend `hla_proxy_lookup`): the clean
+ * per-population r² source. Null when the proxy SNP has no lookup row.
+ */
+export interface HLAProxyLookup {
+  hla_allele?: string
+  r_squared_by_pop?: Record<string, number>
+  clinical_context?: string | null
 }
 
 /** Per-SNP result within an allergy pathway. */
@@ -26,8 +44,8 @@ export interface SNPDetail {
   pmids: string[]
   /** HLA proxy metadata from panel definition. */
   hla_proxy: HLAProxyInfo | null
-  /** HLA proxy lookup result from reference DB. */
-  hla_proxy_lookup: Record<string, unknown> | null
+  /** HLA proxy lookup result from reference DB (clean per-population r²). */
+  hla_proxy_lookup: HLAProxyLookup | null
   /** Coverage caveat text. */
   coverage_note: string | null
 }
