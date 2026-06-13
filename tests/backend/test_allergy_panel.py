@@ -2,7 +2,7 @@
 
 Covers:
   - Panel JSON loading and structural validation
-  - All 13 curated SNPs present with correct genes (9 direct + 4 HLA drug proxies)
+  - All 14 curated SNPs present with correct genes (10 direct + 4 HLA drug proxies)
   - 4 pathway cards (Atopic Conditions, Drug Hypersensitivity,
     Food Sensitivity, Histamine Metabolism)
   - HLA proxy calling metadata (r², ancestry, confirmatory_test_required)
@@ -49,6 +49,7 @@ EXPECTED_RSIDS = {
     "rs10156191",  # AOC1 DAO histamine (Thr16Met)
     "rs1049742",  # AOC1 DAO histamine (Ser332Phe, #386)
     "rs2052129",  # AOC1 DAO histamine (c.-691G>T promoter, #386)
+    "rs1049793",  # AOC1 DAO histamine (His664Asp, palindromic C/G, #436)
     "rs11558538",  # HNMT histamine
 }
 
@@ -119,7 +120,7 @@ class TestPanelStructure:
 
 class TestSNPCoverage:
     def test_all_expected_rsids_present(self, panel_data: dict) -> None:
-        """All 13 curated SNPs must be present (9 direct + 4 HLA drug proxies)."""
+        """All 14 curated SNPs must be present (10 direct + 4 HLA drug proxies)."""
         all_rsids = set()
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
@@ -134,9 +135,10 @@ class TestSNPCoverage:
         assert all_genes == EXPECTED_GENES
 
     def test_total_snp_count(self, panel_data: dict) -> None:
-        """13 curated SNPs total across all pathways (2 AOC1 added in #386)."""
+        """14 curated SNPs total across all pathways (2 AOC1 added in #386, the 4th
+        AOC1 DAO-deficiency SNP rs1049793 added in #436)."""
         count = sum(len(p["snps"]) for p in panel_data["pathways"])
-        assert count == 13
+        assert count == 14
 
 
 # ── SNP field validation tests ──────────────────────────────────────────

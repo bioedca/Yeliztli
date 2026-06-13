@@ -1,7 +1,7 @@
 {
   "module": "allergy",
   "version": "1.0.0",
-  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 7 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
+  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 8 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
   "pathways": [
     {
       "id": "atopic_conditions",
@@ -445,6 +445,35 @@
           "evidence_level": 1,
           "pmids": ["21488903", "25612138", "38674832"],
           "recommendation_text": "AOC1 (DAO) c.-691G>T (rs2052129) is a promoter variant; its minor T allele lowers AOC1 promoter activity and DAO expression, with the strongest single-variant effect on DAO activity reported to date (homozygotes lowest). Most informative as part of the cumulative AOC1 risk-allele load. Evidence is at the candidate gene level."
+        },
+        {
+          "rsid": "rs1049793",
+          "gene": "AOC1",
+          "variant_name": "His664Asp",
+          "hgvs_protein": "p.His664Asp",
+          "risk_allele": "G",
+          "ref_allele": "C",
+          "genotype_effects": {
+            "CC": {
+              "category": "Standard",
+              "effect_summary": "No rs1049793 (His664Asp) risk allele detected at this marker. This single AOC1 SNP does not establish normal DAO activity or rule out reduced histamine catabolism, which depend on additional variants and non-genetic factors. (rs1049793 is a C/G palindromic SNP; a homozygous array call is reported as indeterminate because its strand cannot be resolved.)"
+            },
+            "CG": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the His664Asp (c.1990C>G) variant. Associated with reduced diamine oxidase activity. May modestly decrease histamine clearance capacity; contributes one allele to the cumulative AOC1 risk-allele load."
+            },
+            "GC": {
+              "category": "Moderate",
+              "effect_summary": "One copy of the His664Asp (c.1990C>G) variant. Associated with reduced diamine oxidase activity. May modestly decrease histamine clearance capacity; contributes one allele to the cumulative AOC1 risk-allele load."
+            },
+            "GG": {
+              "category": "Moderate",
+              "effect_summary": "Homozygous His664Asp. A functionally significant AOC1 missense variant associated with reduced DAO activity; contributes to the cumulative AOC1 risk-allele load that is more predictive of DAO deficiency than any single variant. Evidence is preliminary. (A homozygous C/G call is reported as indeterminate because its strand cannot be resolved from array data.)"
+            }
+          },
+          "evidence_level": 1,
+          "pmids": ["19450133", "37359379", "40004469"],
+          "recommendation_text": "AOC1 (DAO) His664Asp (rs1049793, c.1990C>G) is one of the four main AOC1 DAO-deficiency variants, noted for its functional effect on DAO activity. Because it is a C/G palindromic SNP, homozygous calls cannot be strand-resolved from array data and are withheld as indeterminate; only heterozygous calls are scored. Most informative as part of the cumulative AOC1 risk-allele load. Evidence is at the candidate gene level."
         },
         {
           "rsid": "rs11558538",
