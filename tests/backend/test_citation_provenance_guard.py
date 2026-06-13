@@ -152,6 +152,8 @@ _GENE_SCOPED_NOT_REPO_BANNED: frozenset[str] = frozenset(
         "12181445",  # CDK2/Chk1-Cdc25A cancer cell-cycle pharmacology (CHEK1/CDC25A/CDK2)
         "19289833",  # HIV gp41/CCR5 — CCR5 is a real human gene (Delta32 trait)
         "21149639",  # GPER1/GPR30 human GPCR cell biology
+        "23430975",  # arginine butyrate for Duchenne MD — names the DMD gene/disease
+        "27914672",  # superficial basal cell carcinoma — skin-cancer clinical (skin panel)
     }
 )
 
@@ -285,3 +287,14 @@ def test_all_pmid_bearing_keys_are_covered() -> None:
         f"panel JSON uses PMID-bearing key(s) not scanned by the guard: "
         f"{sorted(uncovered)} — add them to _PMID_KEYS"
     )
+
+
+def test_iter_pmids_collects_all_key_shapes() -> None:
+    """``_iter_pmids`` reads every supported key, as list / str / int, at any depth."""
+    doc = {
+        "a": {"pmids": ["111", "222"]},
+        "b": [{"pmid": "333"}, {"source_pmid": "444"}],
+        "c": {"pmid_citations": [555]},  # ints coerced to str
+        "ignored": {"note": "999", "gene_symbol": "888"},  # non-citation keys skipped
+    }
+    assert set(_iter_pmids(doc)) == {"111", "222", "333", "444", "555"}
