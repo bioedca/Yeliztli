@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from backend.analysis.g6pd import assess_g6pd
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
+from backend.db.connection import get_registry
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,9 @@ class G6pdResponse(BaseModel):
     """Context-only, sex-aware G6PD deficiency summary for a sample."""
 
     inferred_sex: str
+    # How `inferred_sex` was resolved: "recorded" (authoritative
+    # individuals.biological_sex won), "inferred" (array inference), or "none" (#475).
+    sex_source: str = "inferred"
     variants: list[G6pdVariantResponse]
     any_called: bool
     # Names of palindromic loci observed as a homozygote/hemizygote but withheld as
@@ -84,4 +88,10 @@ def get_g6pd(
     finding. G6PD status is confirmed by an enzyme-activity assay.
     """
     sample_engine = resolve_sample_engine(sample_id)
-    return G6pdResponse(**assess_g6pd(sample_engine))
+    # Thread the reference engine + sample_id so an authoritative recorded
+    # individuals.biological_sex can resolve an X-linked phenotype that array
+    # inference alone would withhold (#475).
+    reference_engine = get_registry().reference_engine
+    return G6pdResponse(
+        **assess_g6pd(sample_engine, reference_engine=reference_engine, sample_id=sample_id)
+    )

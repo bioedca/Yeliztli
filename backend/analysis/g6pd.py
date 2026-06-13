@@ -122,7 +122,11 @@ import sqlalchemy as sa
 from backend.analysis.pharmacogenomics import _fetch_sample_genotypes
 from backend.analysis.zygosity import COMPLEMENT, is_no_call
 from backend.disclaimers import G6PD_PGX_CONTEXT_ONLY
-from backend.services.sex_inference import infer_biological_sex
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 # Array typeability for the curated G6PD/LCT loci, derived from the public Illumina
 # Infinium Global Screening Array-24 v3.0 manifest (#321). GSA-24v3 is the documented
@@ -373,15 +377,31 @@ def _locus_call(
     }
 
 
-def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
+def assess_g6pd(
+    sample_engine: sa.Engine,
+    *,
+    reference_engine: sa.Engine | None = None,
+    sample_id: int | None = None,
+) -> dict[str, Any]:
     """Context-only, sex-aware G6PD deficiency summary for a sample.
 
-    Read-only. Infers biological sex, genotypes the array-typeable G6PD variants,
-    and assigns an X-linked-aware phenotype (normal / variable / deficient /
-    indeterminate) plus high-risk-drug context. Emits no diagnosis and changes no
-    finding — G6PD status is confirmed by an enzyme-activity assay.
+    Read-only. Resolves biological sex (an explicit recorded
+    ``individuals.biological_sex`` is authoritative and wins over array inference —
+    #254/#475; pass ``reference_engine`` + ``sample_id`` to enable it), genotypes
+    the array-typeable G6PD variants, and assigns an X-linked-aware phenotype
+    (normal / variable / deficient / indeterminate) plus high-risk-drug context.
+    Because G6PD is X-linked, a recorded sex can resolve a zygosity-dependent
+    phenotype the array inference would otherwise withhold. Emits no diagnosis and
+    changes no finding — G6PD status is confirmed by an enzyme-activity assay.
     """
-    sex = infer_biological_sex(sample_engine)
+    inferred = infer_biological_sex(sample_engine)
+    recorded = (
+        get_recorded_biological_sex(reference_engine, sample_id)
+        if reference_engine is not None and sample_id is not None
+        else None
+    )
+    resolved = resolve_biological_sex(recorded_sex=recorded, inferred_sex=inferred)
+    sex = resolved.sex
     rsids = [rsid for _, rsid, _, _, _ in G6PD_DEFICIENCY_VARIANTS]
     genotypes = _fetch_sample_genotypes([*rsids, G6PD_376_RSID], sample_engine)
 
@@ -425,7 +445,11 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
     )
 
     return {
+        # The biological sex used for the phenotype (resolved value); sex_source is
+        # "recorded" when an authoritative individuals.biological_sex resolved it
+        # over (or in the absence of) array inference, else "inferred"/"none" (#475).
         "inferred_sex": sex,
+        "sex_source": resolved.source,
         "variants": deficiency_loci,
         "any_called": any_called,
         "strand_ambiguous_loci": strand_ambiguous_loci,

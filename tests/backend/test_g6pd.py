@@ -383,3 +383,36 @@ class TestGsaArrayTypeability:
         # (consumed by the #291 lactase-persistence work).
         not_typed = set(self._artifact()["not_typed"])
         assert {"rs145946881", "rs869051967"} <= not_typed
+
+
+class TestRecordedBiologicalSex:
+    """#475: an authoritative recorded individuals.biological_sex resolves the
+    X-linked G6PD phenotype that array inference alone would withhold."""
+
+    def test_recorded_sex_overrides_unknown_inference(self) -> None:
+        engine = _make_sample({G6PD_A_MINUS_RSID: "T"})  # one A- deficiency allele
+        with (
+            patch("backend.analysis.g6pd.infer_biological_sex", return_value=None),
+            patch("backend.analysis.g6pd.get_recorded_biological_sex", return_value="XY"),
+        ):
+            r = assess_g6pd(engine, reference_engine=engine, sample_id=1)
+        assert r["inferred_sex"] == "XY"
+        assert r["sex_source"] == "recorded"
+        assert r["phenotype"] == "deficient"  # XY hemizygote + 1 deficiency allele
+
+    def test_inferred_sex_used_when_no_recorded(self) -> None:
+        engine = _make_sample({G6PD_A_MINUS_RSID: "T"})
+        with (
+            patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"),
+            patch("backend.analysis.g6pd.get_recorded_biological_sex", return_value=None),
+        ):
+            r = assess_g6pd(engine, reference_engine=engine, sample_id=1)
+        assert r["inferred_sex"] == "XY"
+        assert r["sex_source"] == "inferred"
+
+    def test_no_reference_engine_falls_back_to_inference(self) -> None:
+        engine = _make_sample({G6PD_A_MINUS_RSID: "C"})
+        with patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"):
+            r = assess_g6pd(engine)  # no reference_engine / sample_id threaded
+        assert r["sex_source"] == "inferred"
+        assert r["inferred_sex"] == "XY"
