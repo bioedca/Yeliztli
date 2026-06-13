@@ -861,6 +861,7 @@ class TestQueryEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_matching"] == 2
+        assert len(data["items"]) == 2
         assert all(item["clinvar_significance"] == "Pathogenic" for item in data["items"])
 
     def test_and_filter(self, client) -> None:
@@ -1072,6 +1073,7 @@ class TestQueryEndpoint:
         data = resp.json()
         # 4 out of 5 are not benign
         assert data["total_matching"] == 4
+        assert len(data["items"]) == 4
         assert all(item["clinvar_significance"] != "benign" for item in data["items"])
 
 
