@@ -281,11 +281,17 @@ class TestACEProxy:
         assert ace.coverage_note is not None
         assert "proxy" in ace.coverage_note.lower()
 
-    def test_ace_gg_elevated(self, panel: FitnessPanel) -> None:
-        """DD proxy (GG) → Elevated Power."""
+    def test_ace_gg_moderate(self, panel: FitnessPanel) -> None:
+        """DD proxy (GG) → Moderate, not Elevated (#352).
+
+        Heterogeneous, population-specific evidence (Psatha 2024 meta-analysis
+        finds no significant association) does not support the strongest tier
+        from this single contextual proxy.
+        """
         ace = self._get_ace(panel)
         result = _score_snp(ace, "GG")
-        assert result.category == ELEVATED
+        assert result.category == MODERATE
+        assert result.category != ELEVATED
         assert result.coverage_note is not None
 
     def test_ace_ag_moderate(self, panel: FitnessPanel) -> None:
@@ -600,9 +606,9 @@ class TestCrossContextFindings:
         not a reliable individual predictor — the broad meta-analysis finds no
         overall power/endurance association (Psatha et al. 2024, PMID 38760851).
         Both reachable non-Standard genotypes (AG/GA = Moderate ID proxy; GG =
-        Elevated DD proxy) must carry the panel's caveated effect_summary, not
-        the old hardcoded deterministic strings. AA (II) is Standard and never
-        reaches cross-context generation.
+        Moderate DD proxy, #352) must carry the panel's caveated effect_summary,
+        not the old hardcoded deterministic strings. AA (II) is Standard and
+        never reaches cross-context generation.
         """
         ace_snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs4341")
         # Each is the exact hardcoded string the old code emitted for one genotype;
@@ -613,7 +619,7 @@ class TestCrossContextFindings:
             "enhanced endurance performance",  # old II (AA) string
         )
 
-        for genotype, category in (("AG", MODERATE), ("GG", ELEVATED)):
+        for genotype, category in (("AG", MODERATE), ("GG", MODERATE)):
             summary = ace_snp.genotype_effects[genotype]["effect_summary"]
             power_pr = PathwayResult(
                 pathway_id="power",
@@ -759,10 +765,12 @@ class TestScorePathways:
         endurance = next(pr for pr in result.pathway_results if pr.pathway_id == "endurance")
         assert endurance.level == MODERATE
 
-        # Power: ACE GG=Elevated drives Elevated; MCT1 TT is a palindromic A/T
-        # homozygote → Indeterminate (#170), which does not lower the level.
+        # Power: ACE GG=Moderate (#352 — one heterogeneous proxy must not drive
+        # the Power summary to Elevated); MCT1 TT is a palindromic A/T homozygote
+        # → Indeterminate (#170), which does not raise or lower the level. With no
+        # Elevated SNP, the Power pathway is Moderate.
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
-        assert power.level == ELEVATED
+        assert power.level == MODERATE
         mct1 = next(s for s in power.snp_results if s.rsid == "rs1049434")
         assert mct1.category == INDETERMINATE
 
@@ -786,6 +794,27 @@ class TestScorePathways:
 
         # Cross-context findings should exist
         assert len(result.cross_context_findings) >= 1
+
+    def test_ace_gg_alone_does_not_elevate_power(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """ACE GG (DD proxy) alone must NOT drive the Power summary to Elevated (#352).
+
+        Only rs4341 is genotyped (the other Power SNP, MCT1 rs1049434, is absent),
+        so ACE is the sole scoreable Power SNP. Because its heterogeneous evidence
+        now categorizes GG as Moderate (not Elevated), the Power pathway summary is
+        Moderate — a single contextual proxy can no longer surface the strongest tier.
+        """
+        _seed_variants(sample_engine, [("rs4341", "17", 63488529, "GG")])
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
+        ace = next(s for s in power.snp_results if s.rsid == "rs4341")
+        assert ace.category == MODERATE
+        assert power.level == MODERATE
+        assert power.level != ELEVATED
 
     def test_actn3_tt_scoring(
         self,
