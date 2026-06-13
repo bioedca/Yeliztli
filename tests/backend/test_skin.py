@@ -221,6 +221,34 @@ class TestPanelLoading:
         assert cross_modules.get("VDR") == "nutrigenomics"
 
 
+class TestMMP1CitationProvenance:
+    """The MMP1 rs1799750 (1G/2G) row must cite real MMP1/skin-aging evidence, not
+    the unrelated obstetrics/psychopharmacology/andrology papers it previously
+    carried (#345). All PMIDs verified via NCBI esummary."""
+
+    # 2G -> skin/lung aging (Vierkötter 2015, SALIA, rs1799750-specific); 2G ETS-site
+    # greater transcription (Tower 2003); MMP1 -> dermal collagen aging (Quan 2023).
+    _CURATED = frozenset({"25599395", "14519134", "36914001"})
+    # Unrelated papers previously attached: twin-transfusion / drug-preference /
+    # sperm-donor-ethics. Scoped to the MMP1 row (the repo-wide ban lives in
+    # test_citation_provenance_guard.py::BANNED_OFF_TOPIC_PMIDS).
+    _BANNED = frozenset({"11251926", "16826401", "20622888"})
+
+    def _mmp1(self, panel: SkinPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs1799750":
+                    return snp
+        raise AssertionError("rs1799750 (MMP1) row not found in skin panel")
+
+    def test_mmp1_cites_curated_pmids(self, panel: SkinPanel) -> None:
+        assert set(self._mmp1(panel).pmids) == self._CURATED
+
+    def test_mmp1_drops_unrelated_pmids(self, panel: SkinPanel) -> None:
+        leaked = self._BANNED & set(self._mmp1(panel).pmids)
+        assert not leaked, f"MMP1 row still cites unrelated PMID(s) {sorted(leaked)}"
+
+
 # ── Genotype normalization tests ─────────────────────────────────────────
 
 

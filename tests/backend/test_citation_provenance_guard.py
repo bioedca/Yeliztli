@@ -143,6 +143,22 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "withdrawn nuclear-medicine/radiology paper",
         "caught_in": "cardiovascular (LPA)",
     },
+    "11251926": {
+        "title": "Twin reversed arterial perfusion sequence in twin-to-twin transfusion syndrome",
+        "field": "obstetrics / fetal medicine",
+        "caught_in": "skin (MMP1, #345)",
+    },
+    "16826401": {
+        "title": "Renewal effect: context-dependent extinction of a cocaine- and a "
+        "morphine-induced conditioned floor preference",
+        "field": "behavioural psychopharmacology",
+        "caught_in": "skin (MMP1, #345)",
+    },
+    "20622888": {
+        "title": "To name or not to name? ... removing anonymity from sperm donors",
+        "field": "reproductive-ethics review (andrology)",
+        "caught_in": "skin (MMP1, #345)",
+    },
 }
 
 # PMIDs that WERE caught misattributed but are biomedical/genomics-ADJACENT (they

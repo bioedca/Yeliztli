@@ -241,7 +241,7 @@
           },
           "coverage_note": "The MMP1 -1607 1G/2G polymorphism involves a guanine insertion creating an ETS binding site. On SNP arrays, this is typically captured as rs1799750 with alleles reported as a single G vs GG insertion. Genotype representation may vary by platform.",
           "evidence_level": 1,
-          "pmids": ["11251926", "16826401", "20622888"],
+          "pmids": ["25599395", "14519134", "36914001"],
           "recommendation_text": "MMP1 2G allele carriers have higher collagenase expression, which may accelerate collagen breakdown and photoaging. Consistent sunscreen use and topical retinoids (under dermatologist guidance) can help counteract collagen degradation."
         },
         {
