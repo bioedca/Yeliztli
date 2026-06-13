@@ -424,3 +424,127 @@ class TestAPOEGateOnGenericFindings:
         apoe_mod = next((m for m in data["modules"] if m["module"] == "apoe"), None)
         assert apoe_mod is not None
         assert apoe_mod["count"] == 4
+        # The high-evidence APOE rows re-enter high_confidence_findings post-ack —
+        # guards against an over-gating regression that permanently drops them.
+        assert any(f["module"] == "apoe" for f in data["high_confidence_findings"])
+
+    def test_apoe_withheld_with_min_stars_filter_before_ack(self, apoe_findings_client):
+        # min_stars combined with the APOE gate: the high-evidence APOE rows
+        # (cardiovascular/alzheimers = 4★, lipid = 3★) must stay withheld pre-ack.
+        resp = apoe_findings_client.get("/api/analysis/findings?sample_id=1&min_stars=3")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert {f["module"] for f in data} == {"cancer"}
+        assert "ε3/ε4" not in resp.text
+
+        apoe_findings_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+        resp = apoe_findings_client.get("/api/analysis/findings?sample_id=1&min_stars=3")
+        data = resp.json()
+        assert "apoe" in {f["module"] for f in data}
+
+
+@pytest.fixture
+def apoe_svg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Client where an APOE finding and a non-APOE finding both have on-disk SVGs.
+
+    The APOE SVG card renders the ε4 diplotype + risk label, so the by-id SVG
+    endpoint must honor the same gate as list/summary (issue #222). Findings are
+    inserted with explicit ids so the test can request them directly: id=1 is the
+    APOE card (gated), id=2 is a non-APOE card (always served).
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_path = settings.reference_db_path
+    ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_dir = tmp_data_dir / "samples"
+    sample_db_path = sample_dir / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    # Write the on-disk SVGs the endpoint serves (relative to the sample dir).
+    svg_dir = sample_dir / "svgs"
+    svg_dir.mkdir(exist_ok=True)
+    (svg_dir / "apoe_card.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>Diplotype: ε3/ε4</text></svg>',
+        encoding="utf-8",
+    )
+    (svg_dir / "cancer_card.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>BRCA1</text></svg>',
+        encoding="utf-8",
+    )
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Test Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="abc123",
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            findings.insert().values(
+                id=1,
+                module="apoe",
+                category="alzheimers_risk",
+                evidence_level=4,
+                gene_symbol="APOE",
+                finding_text="APOE ε3/ε4 — probabilistic Alzheimer's disease risk modifier",
+                diplotype="ε3/ε4",
+                svg_path="svgs/apoe_card.svg",
+            )
+        )
+        conn.execute(
+            findings.insert().values(
+                id=2,
+                module="cancer",
+                category="monogenic_variant",
+                evidence_level=4,
+                gene_symbol="BRCA1",
+                finding_text="BRCA1 Pathogenic",
+                svg_path="svgs/cancer_card.svg",
+            )
+        )
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+
+
+class TestAPOESvgGate:
+    """GET /findings/{id}/svg must honor the APOE disclosure gate (issue #222)."""
+
+    def test_apoe_svg_withheld_before_ack(self, apoe_svg_client):
+        # 404 (not 403) pre-ack: must not even confirm the APOE finding exists.
+        resp = apoe_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
+        assert resp.status_code == 404
+
+    def test_non_apoe_svg_served_regardless(self, apoe_svg_client):
+        # Non-APOE SVGs are unaffected by the gate.
+        resp = apoe_svg_client.get("/api/analysis/findings/2/svg?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/svg+xml")
+
+    def test_apoe_svg_served_after_ack(self, apoe_svg_client):
+        apoe_svg_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+        resp = apoe_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("image/svg+xml")
+        assert "ε3/ε4" in resp.text

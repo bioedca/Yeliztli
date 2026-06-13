@@ -296,10 +296,18 @@ async def get_finding_svg(
 
     with engine.connect() as conn:
         row = conn.execute(
-            sa.select(findings.c.svg_path).where(findings.c.id == finding_id)
+            sa.select(findings.c.module, findings.c.svg_path).where(findings.c.id == finding_id)
         ).fetchone()
 
     if row is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    # The APOE SVG card renders the ε4 diplotype and an Alzheimer-risk label — the
+    # same disclosure list_findings/summary withhold (issue #222). Finding ids are
+    # small, enumerable integers, so without this check an APOE card leaks via this
+    # by-id side route. 404 (not 403) to match the no-leak posture used elsewhere:
+    # do not confirm an APOE finding exists before the gate is acknowledged.
+    if row.module == "apoe" and not is_apoe_gate_acknowledged(engine):
         raise HTTPException(status_code=404, detail="Finding not found")
 
     svg_path_str = row.svg_path
