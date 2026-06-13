@@ -9,7 +9,8 @@ import { useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useFitnessPathwayDetail } from "@/api/fitness"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import type { SNPDetail, PathwayLevel } from "@/types/fitness"
+import { SNP_CATEGORY_COLORS, SNP_CATEGORY_DOT } from "@/lib/snpCategory"
+import type { SNPDetail } from "@/types/fitness"
 import { X, Loader2, ExternalLink, AlertCircle, Dna, Info } from "lucide-react"
 
 interface PathwayDetailPanelProps {
@@ -19,21 +20,9 @@ interface PathwayDetailPanelProps {
   onClose: () => void
 }
 
-const CATEGORY_COLORS: Record<PathwayLevel, string> = {
-  Elevated: "text-amber-700 dark:text-amber-400",
-  Moderate: "text-blue-700 dark:text-blue-400",
-  Standard: "text-emerald-700 dark:text-emerald-400",
-}
-
-const CATEGORY_DOT: Record<PathwayLevel, string> = {
-  Elevated: "bg-amber-500",
-  Moderate: "bg-blue-500",
-  Standard: "bg-emerald-500",
-}
-
 function SNPRow({ snp }: { snp: SNPDetail }) {
-  const categoryColor = CATEGORY_COLORS[snp.category] || CATEGORY_COLORS.Standard
-  const dotColor = CATEGORY_DOT[snp.category] || CATEGORY_DOT.Standard
+  const categoryColor = SNP_CATEGORY_COLORS[snp.category] || SNP_CATEGORY_COLORS.Standard
+  const dotColor = SNP_CATEGORY_DOT[snp.category] || SNP_CATEGORY_DOT.Standard
 
   return (
     <div className="rounded-lg border bg-card p-4">

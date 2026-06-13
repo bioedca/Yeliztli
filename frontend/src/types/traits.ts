@@ -1,5 +1,7 @@
 /** Traits & Personality API types (P3-64). */
 
+import type { SnpCategory } from "@/lib/snpCategory"
+
 /** Categorical level for a traits pathway. */
 export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
@@ -9,7 +11,7 @@ export interface SNPDetail {
   gene: string
   variant_name: string
   genotype: string | null
-  category: PathwayLevel
+  category: SnpCategory
   effect_summary: string
   evidence_level: number
   trait_domain: string | null

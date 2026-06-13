@@ -1,5 +1,7 @@
 /** Gene Skin API types (P3-56). */
 
+import type { SnpCategory } from "@/lib/snpCategory"
+
 /** Categorical level for a skin pathway. */
 export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
@@ -9,7 +11,7 @@ export interface SNPDetail {
   gene: string
   variant_name: string
   genotype: string | null
-  category: PathwayLevel
+  category: SnpCategory
   effect_summary: string
   evidence_level: number
   recommendation: string | null
