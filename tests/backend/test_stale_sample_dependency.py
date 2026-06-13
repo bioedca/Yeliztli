@@ -31,7 +31,7 @@ from fastapi.params import Body
 
 from backend.api.dependencies import require_fresh_sample
 from backend.config import Settings
-from backend.db.connection import reset_registry
+from backend.db.connection import get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotation_state,
@@ -323,6 +323,10 @@ class TestRequireFreshSample:
         # v1.0.0 fallback would treat the absent row as stale and raise 423 here,
         # making the response environment-dependent (404 in CI vs 423 on a dev box).
         _seed_installed_bundle(gate_env["settings"], "v2.0.0")
+        # Pin the singleton to this test's reference DB before asserting (the gate
+        # reads the module-level registry), so a leaked registry from a concurrent
+        # run can't masquerade as a spurious 999 row and confuse the result.
+        assert get_registry().settings.data_dir == gate_env["settings"].data_dir
         # sample_id 999 has no row in the seeded reference DB.
         assert require_fresh_sample(999) == 999
 
