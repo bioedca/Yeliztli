@@ -12,7 +12,11 @@
 
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { waitForReactHydration } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 // All pages within the main AppLayout (auth-guarded, sidebar-wrapped)
 const APP_PAGES = [

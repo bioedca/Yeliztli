@@ -67,6 +67,80 @@ def setup_settings(tmp_data_dir: Path) -> Settings:
     return Settings(data_dir=tmp_data_dir, wal_mode=False)
 
 
+def _seed_required_dbs_ready(tmp_data_dir: Path) -> None:
+    """Seed every required, downloadable DB to integrity-``ready`` state.
+
+    Mirrors the row shapes the db_health integrity spec checks: the consumer
+    table non-empty for each reference-resident DB plus a ``database_versions``
+    stamp (pipeline mode requires a version), and a standalone ``dbnsfp.db``.
+    After this, ``_required_dbs_ready()`` should report every gate DB ready.
+    """
+    import sqlite3
+
+    from backend.db.tables import (
+        clinvar_variants,
+        cpic_alleles,
+        database_versions,
+        dbsnp_merges,
+        gene_phenotype,
+        gwas_associations,
+    )
+
+    ref_path = tmp_data_dir / "reference.db"
+    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [{"rsid": "rs429358", "chrom": "19", "pos": 44908684, "ref": "T", "alt": "C"}],
+        )
+        conn.execute(
+            cpic_alleles.insert(),
+            [{"gene": "CYP2D6", "allele_name": "*1", "defining_variants": json.dumps([])}],
+        )
+        conn.execute(
+            gwas_associations.insert(),
+            [{"rsid": "rs429358", "chrom": "19", "pos": 44908684, "trait": "AD"}],
+        )
+        conn.execute(
+            dbsnp_merges.insert(),
+            [{"old_rsid": "rs1", "current_rsid": "rs2", "build_id": 151}],
+        )
+        conn.execute(
+            gene_phenotype.insert(),
+            [
+                {
+                    "gene_symbol": "BRCA1",
+                    "disease_name": "HBOC",
+                    "disease_id": "MONDO:0011450",
+                    "source": "mondo_hpo",
+                }
+            ],
+        )
+        conn.execute(
+            database_versions.insert(),
+            [
+                {"db_name": name, "version": "20260101"}
+                for name in ("clinvar", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo", "dbnsfp")
+            ],
+        )
+    engine.dispose()
+
+    # Standalone dbnsfp.db with a non-empty consumer table.
+    conn = sqlite3.connect(str(tmp_data_dir / "dbnsfp.db"))
+    try:
+        conn.execute("CREATE TABLE dbnsfp_scores (rsid TEXT, cadd_phred REAL)")
+        conn.execute("INSERT INTO dbnsfp_scores VALUES ('rs429358', 12.3)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# The required, downloadable databases that gate the dashboard (the universe of
+# ``_required_dbs_ready``). gnomad is required but ``bundled`` → exempt.
+_GATE_DB_NAMES = {"clinvar", "dbnsfp", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo"}
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/setup/status
 # ═══════════════════════════════════════════════════════════════════════
@@ -98,29 +172,31 @@ class TestSetupStatus:
         assert data["has_databases"] is False
         assert data["needs_setup"] is True
 
-    def test_complete_setup_no_longer_needed(
+    def test_presence_only_no_longer_completes_setup(
         self, setup_client: TestClient, tmp_data_dir: Path
     ) -> None:
-        """With disclaimer accepted and DBs present, setup is complete."""
+        """Regression: a present-but-unhealthy DB file must not complete setup.
+
+        Under the old presence gate, a fake standalone file flipped
+        ``needs_setup`` to False and routed the user to a broken dashboard.
+        """
         flag_path = tmp_data_dir / ".disclaimer_accepted"
         flag_path.write_text('{"accepted_at": "2026-01-01T00:00:00", "version": "1.0"}')
-        # Use a standalone DB file (gnomad) to mark as having databases
-        (tmp_data_dir / "gnomad_af.db").write_text("fake")
+        (tmp_data_dir / "gnomad_af.db").write_text("fake")  # bundled → exempt anyway
+        (tmp_data_dir / "dbnsfp.db").write_text("fake")  # corrupt required DB
 
-        resp = setup_client.get("/api/setup/status")
-        data = resp.json()
+        data = setup_client.get("/api/setup/status").json()
         assert data["disclaimer_accepted"] is True
-        assert data["has_databases"] is True
-        assert data["needs_setup"] is False
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
 
-    def test_complete_setup_with_reference_db_versions(
+    def test_version_stamp_without_data_does_not_complete_setup(
         self, setup_client: TestClient, tmp_data_dir: Path
     ) -> None:
-        """With disclaimer accepted and database_versions entries, setup is complete."""
+        """Regression: a database_versions stamp with no table data is corrupt, not ready."""
         flag_path = tmp_data_dir / ".disclaimer_accepted"
         flag_path.write_text('{"accepted_at": "2026-01-01T00:00:00", "version": "1.0"}')
 
-        # Insert a database_versions entry for a reference.db-resident DB
         from backend.db.tables import database_versions
 
         ref_path = tmp_data_dir / "reference.db"
@@ -129,11 +205,10 @@ class TestSetupStatus:
             conn.execute(database_versions.insert().values(db_name="clinvar", version="20260101"))
         engine.dispose()
 
-        resp = setup_client.get("/api/setup/status")
-        data = resp.json()
+        data = setup_client.get("/api/setup/status").json()
         assert data["disclaimer_accepted"] is True
-        assert data["has_databases"] is True
-        assert data["needs_setup"] is False
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
 
     def test_has_samples_detection(self, setup_client: TestClient, tmp_data_dir: Path) -> None:
         """Detect existing sample databases."""
@@ -150,6 +225,120 @@ class TestSetupStatus:
         resp = setup_client.get("/api/setup/status")
         data = resp.json()
         assert data["data_dir"] == str(tmp_data_dir)
+
+
+def _accept_disclaimer(tmp_data_dir: Path) -> None:
+    (tmp_data_dir / ".disclaimer_accepted").write_text(
+        '{"accepted_at": "2026-01-01T00:00:00", "version": "1.0"}'
+    )
+
+
+class TestRequiredDbsReadyGate:
+    """The dashboard gate keys on DB *health/readiness*, not mere file presence.
+
+    Closes the hole where an empty/partial/corrupt download flipped
+    ``needs_setup`` False and routed the user onto a non-functional dashboard.
+    """
+
+    def test_fresh_install_reports_gate_set_not_ready(self, setup_client: TestClient) -> None:
+        """A fresh install reports each gate DB and none ready."""
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is False
+        assert {d["name"] for d in data["db_readiness"]} == _GATE_DB_NAMES
+        assert all(d["ready"] is False for d in data["db_readiness"])
+        # gnomad is required but bundled → exempt from the gate set.
+        assert "gnomad" not in {d["name"] for d in data["db_readiness"]}
+
+    def test_empty_required_file_does_not_satisfy_gate(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A 0-byte dbnsfp.db must NOT count as a ready database."""
+        _accept_disclaimer(tmp_data_dir)
+        (tmp_data_dir / "dbnsfp.db").write_bytes(b"")
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
+        dbnsfp = next(d for d in data["db_readiness"] if d["name"] == "dbnsfp")
+        assert dbnsfp["ready"] is False
+
+    def test_corrupt_required_file_does_not_satisfy_gate(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A malformed (non-SQLite) dbnsfp.db is corrupt, not ready."""
+        _accept_disclaimer(tmp_data_dir)
+        (tmp_data_dir / "dbnsfp.db").write_bytes(b"not a sqlite image at all")
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
+        dbnsfp = next(d for d in data["db_readiness"] if d["name"] == "dbnsfp")
+        assert dbnsfp["state"] == "corrupt"
+
+    def test_stray_version_row_for_exempt_db_does_not_satisfy_gate(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A database_versions stamp for an exempt DB must not flip the gate."""
+        _accept_disclaimer(tmp_data_dir)
+        from backend.db.tables import database_versions
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        with engine.begin() as conn:
+            conn.execute(
+                database_versions.insert().values(db_name="encode_ccres", version="20260101")
+            )
+        engine.dispose()
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
+
+    def test_all_required_ready_clears_gate(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """When every gate DB is integrity-ready, setup is complete."""
+        _accept_disclaimer(tmp_data_dir)
+        _seed_required_dbs_ready(tmp_data_dir)
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is True
+        assert data["needs_setup"] is False
+        assert {d["name"] for d in data["db_readiness"]} == _GATE_DB_NAMES
+        assert all(d["ready"] for d in data["db_readiness"])
+
+    def test_bundled_required_db_is_exempt(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """gnomad (required + bundled) is exempt; absent gnomad does not block."""
+        _accept_disclaimer(tmp_data_dir)
+        _seed_required_dbs_ready(tmp_data_dir)
+        # No gnomad artifact created at all.
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is True
+        assert "gnomad" not in {d["name"] for d in data["db_readiness"]}
+
+    def test_partial_required_db_blocks_gate(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A built-but-unstamped required DB is 'partial', not ready."""
+        _accept_disclaimer(tmp_data_dir)
+        _seed_required_dbs_ready(tmp_data_dir)
+        # Drop dbnsfp's version stamp → built on disk but never finalized.
+        from backend.db.tables import database_versions
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.delete(database_versions).where(database_versions.c.db_name == "dbnsfp")
+            )
+        engine.dispose()
+
+        data = setup_client.get("/api/setup/status").json()
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
+        dbnsfp = next(d for d in data["db_readiness"] if d["name"] == "dbnsfp")
+        assert dbnsfp["state"] == "partial"
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -1,9 +1,16 @@
 /**
  * Playwright global setup — bypass setup wizard for E2E tests.
  *
- * Creates the disclaimer flag file and a dummy database file so the
- * AuthGuard doesn't redirect to /setup. This runs before the web
- * servers start, so we write files directly instead of calling the API.
+ * Creates the disclaimer flag file so `_is_disclaimer_accepted()` returns true.
+ * This runs before the web servers start, so we write files directly instead of
+ * calling the API.
+ *
+ * NOTE: the dashboard gate is now health-based — `needs_setup` stays true until
+ * every required, downloadable reference DB is integrity-`ready`, which an empty
+ * dummy file no longer satisfies. Specs that drive the dashboard therefore stub
+ * `/api/setup/status` via `bypassSetup(page)` (see `helpers.ts`) rather than rely
+ * on an on-disk DB. The dummy `gnomad_af.db` below is kept only as a harmless
+ * legacy fallback for any spec that does not call `bypassSetup`.
  *
  * The backend data_dir defaults to ~/.yeliztli (Path.home() / ".yeliztli").
  */

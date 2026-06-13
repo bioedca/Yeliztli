@@ -17,7 +17,11 @@
 
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { waitForReactHydration } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 // All 7 module pages with expected content
 const MODULE_PAGES = [

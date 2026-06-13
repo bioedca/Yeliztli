@@ -16,6 +16,11 @@
 
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { bypassSetup } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 // ── Core pages representing every major workflow area ───────────────────
 const CORE_PAGES = [

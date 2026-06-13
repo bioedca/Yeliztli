@@ -9,6 +9,11 @@
 
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { bypassSetup } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 test.describe('F18-v2: Ancestry page E2E', () => {
   test.describe('Page structure', () => {

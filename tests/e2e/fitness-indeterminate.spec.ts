@@ -10,7 +10,11 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { waitForReactHydration } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 function jsonRoute(payload: unknown, status = 200) {
   return { status, contentType: 'application/json', body: JSON.stringify(payload) }

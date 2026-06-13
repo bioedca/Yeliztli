@@ -30,6 +30,9 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 
 from backend.config import get_settings, read_config_section, write_config_section
+from backend.db.connection import get_registry
+from backend.db.database_registry import get_all_databases
+from backend.db.db_health import get_database_health
 from backend.disclaimers import (
     GLOBAL_DISCLAIMER_ACCEPT_LABEL,
     GLOBAL_DISCLAIMER_TEXT,
@@ -43,12 +46,23 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 # ── Response models ──────────────────────────────────────────────────
 
 
+class DbReadiness(BaseModel):
+    """Health/readiness of one database that gates the dashboard."""
+
+    name: str
+    state: str  # mirrors DatabaseHealth.state
+    ready: bool
+    build_mode: str
+
+
 class SetupStatusResponse(BaseModel):
     """Current setup status — determines whether wizard should be shown."""
 
     needs_setup: bool
     disclaimer_accepted: bool
     has_databases: bool
+    required_dbs_ready: bool
+    db_readiness: list[DbReadiness]
     has_samples: bool
     data_dir: str
 
@@ -172,6 +186,47 @@ def _has_any_samples() -> bool:
     return any(samples_dir.glob("sample_*.db"))
 
 
+# Build modes the readiness gate enforces. ``bundled`` ships with the app and
+# ``manual`` is user-built, so both are exempt — only artifacts the wizard must
+# fetch/build (download/pipeline) gate the dashboard.
+_GATE_BUILD_MODES = frozenset({"download", "pipeline"})
+
+
+def _required_dbs_ready() -> tuple[bool, list[DbReadiness]]:
+    """Whether every required, downloadable database is integrity-``ready``.
+
+    Reuses the :mod:`backend.db.db_health` state machine (it never re-implements
+    integrity), so this gate and ``GET /databases/health`` cannot disagree. Only
+    databases with ``required and build_mode in {download, pipeline}`` count;
+    ``bundled``/``manual`` are exempt. Fails closed: if health cannot be
+    determined the database is treated as not-ready, so a broken install never
+    silently satisfies setup and routes the user to a non-functional dashboard.
+    """
+    settings = get_settings()
+    try:
+        engine = get_registry().reference_engine
+    except Exception:
+        logger.warning("readiness_engine_unavailable")
+        return False, []
+
+    readiness: list[DbReadiness] = []
+    all_ready = True
+    for db in get_all_databases():
+        if not (db.required and db.build_mode in _GATE_BUILD_MODES):
+            continue
+        try:
+            state = get_database_health(db, settings, engine).state
+            ready = state == "ready"
+        except Exception:
+            logger.warning("readiness_health_failed", db_name=db.name)
+            state, ready = "unknown", False
+        readiness.append(
+            DbReadiness(name=db.name, state=state, ready=ready, build_mode=db.build_mode)
+        )
+        all_ready = all_ready and ready
+    return all_ready, readiness
+
+
 # ── GET /api/setup/status ────────────────────────────────────────────
 
 
@@ -184,16 +239,21 @@ async def setup_status() -> SetupStatusResponse:
     """
     settings = get_settings()
     disclaimer_accepted = _is_disclaimer_accepted()
-    has_dbs = _has_any_databases()
+    required_ready, db_readiness = _required_dbs_ready()
     has_samples = _has_any_samples()
 
-    # Needs setup if disclaimer not accepted OR no databases downloaded
-    needs_setup = not disclaimer_accepted or not has_dbs
+    # Needs setup until the disclaimer is accepted AND every required,
+    # downloadable reference database is integrity-``ready`` (health-verified,
+    # not merely present). A present-but-empty/partial/corrupt file must NOT
+    # satisfy setup — that is the hole that routed users to a broken dashboard.
+    needs_setup = not disclaimer_accepted or not required_ready
 
     return SetupStatusResponse(
         needs_setup=needs_setup,
         disclaimer_accepted=disclaimer_accepted,
-        has_databases=has_dbs,
+        has_databases=_has_any_databases(),
+        required_dbs_ready=required_ready,
+        db_readiness=db_readiness,
         has_samples=has_samples,
         data_dir=str(settings.data_dir),
     )

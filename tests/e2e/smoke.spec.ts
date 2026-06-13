@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test'
+import { bypassSetup } from './helpers'
 
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8000'
+
+test.beforeEach(async ({ page }) => {
+  await bypassSetup(page)
+})
 
 test.describe('Application smoke tests', () => {
   test('homepage loads successfully', async ({ page }) => {
