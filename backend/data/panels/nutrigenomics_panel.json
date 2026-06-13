@@ -195,7 +195,7 @@
           "variant_name": "CYP2R1 promoter variant",
           "hgvs_protein": null,
           "risk_allele": "G",
-          "ref_allele": "G",
+          "ref_allele": "A",
           "genotype_effects": {
             "GG": {
               "category": "Moderate",

@@ -355,6 +355,11 @@ class TestSNPScoring:
         snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs10741657")
 
         assert snp.risk_allele == "G"
+        # ref_allele is the non-risk allele (the complementary half of the
+        # {risk, ref} dosage frame) — it must differ from risk_allele. A is the
+        # higher-25(OH)D minor allele here; risk==ref would be invalid metadata (#336).
+        assert snp.ref_allele == "A"
+        assert snp.ref_allele != snp.risk_allele
         gg = _score_snp(snp, "GG")
         ga = _score_snp(snp, "GA")
         ag = _score_snp(snp, "AG")
