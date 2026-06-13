@@ -190,6 +190,32 @@ class TestGeneLookup:
         assert "MSH2" in symbols
 
 
+# ── Citation provenance ──────────────────────────────────────────────────
+
+
+class TestLynchCitations:
+    """Lynch syndrome (mismatch-repair) rows must cite Lynch/MMR literature, not
+    the unrelated environmental-chemistry paper that was attached (#180)."""
+
+    def test_lynch_genes_drop_unrelated_chemistry_pmid(self, panel: CancerPanel) -> None:
+        # 28774630 = 'The chlorination transformation characteristics of
+        # benzophenone-4...' (J Environ Sci 2017) — unrelated to Lynch syndrome
+        # or DNA mismatch repair. It must not appear on any Lynch (MMR) gene.
+        for gene in panel.genes_by_syndrome("Lynch"):
+            assert "28774630" not in gene.pmids, (
+                f"{gene.gene_symbol} cites unrelated chemistry PMID 28774630"
+            )
+
+    def test_mmr_genes_cite_curated_pmids(self, panel: CancerPanel) -> None:
+        # MLH1/MSH2/MSH6 cite the Lynch GeneReviews overview (20301390) plus the
+        # gene-specific cancer-risk evidence from the Prospective Lynch Syndrome
+        # Database (31337882, Dominguez-Valentin et al., Genet Med 2020).
+        for symbol in ("MLH1", "MSH2", "MSH6"):
+            gene = panel.get_gene(symbol)
+            assert gene is not None
+            assert gene.pmids == ["20301390", "31337882"], (symbol, gene.pmids)
+
+
 # ── Cross-links and dual-role genes ──────────────────────────────────────
 
 
