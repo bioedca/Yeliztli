@@ -795,6 +795,29 @@ class TestScorePathways:
         # Cross-context findings should exist
         assert len(result.cross_context_findings) >= 1
 
+    def test_ace_gg_alone_does_not_elevate_power(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """The ACE DD proxy (GG) on its own cannot drive the Power pathway to
+        Elevated (#352). The all-SNPs integration test also lands Power=Moderate,
+        but there MCT1 TT being Indeterminate makes that implicit; here ACE is the
+        ONLY seeded Power SNP, so the 'one modest, contested proxy can't reach the
+        strongest tier' guarantee is self-evident rather than incidental."""
+        _seed_variants(
+            sample_engine,
+            [("rs4341", "17", 63488529, "GG")],  # ACE DD proxy — the only Power SNP seeded
+        )
+
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+
+        power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
+        assert power.level == MODERATE  # not ELEVATED
+        ace = next(s for s in power.snp_results if s.rsid == "rs4341")
+        assert ace.category == MODERATE
+
     def test_actn3_tt_scoring(
         self,
         panel: FitnessPanel,
@@ -1089,7 +1112,7 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Elevated
+                ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Standard (context-only, #182)
                 ("rs8192678", "4", 23814519, "AA"),  # PPARGC1A → Moderate (capped)
                 ("rs17602729", "1", 114677654, "TT"),  # AMPD1 → Moderate (capped)
                 ("rs4341", "17", 63488529, "GG"),  # ACE DD → Moderate (#352)
