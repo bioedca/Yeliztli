@@ -140,3 +140,4 @@ nav:
       - Windows (WSL2): install/wsl2.md
       - Uninstall: install/uninstall.md
       - Troubleshooting: install/troubleshooting.md
+  - Attribution: attribution.md
