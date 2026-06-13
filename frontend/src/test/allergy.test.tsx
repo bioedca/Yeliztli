@@ -276,4 +276,16 @@ describe("HLAProxyBadge", () => {
     expect(badge.textContent).not.toContain("NaN")
     expect(badge.textContent).not.toContain("r²=")
   })
+
+  it("drops non-finite r² (NaN) instead of rendering 'NaN'", () => {
+    // typeof NaN === "number", so an unvalidated r_squared_* must be filtered.
+    const badge = renderBadge({
+      ...HLA_SNP_BASE,
+      hla_proxy: { hla_allele: "HLA-B*57:01", r_squared_eur: NaN },
+      hla_proxy_lookup: { hla_allele: "HLA-B*57:01", r_squared_by_pop: { EAS: NaN } },
+    })
+    expect(badge.textContent).toContain("HLA Proxy: HLA-B*57:01")
+    expect(badge.textContent).not.toContain("NaN")
+    expect(badge.textContent).not.toContain("r²=")
+  })
 })

@@ -38,20 +38,36 @@ const CATEGORY_DOT: Record<PathwayLevel, string> = {
  * r² is available so the badge can render the allele without a (NaN) r².
  */
 function rSquaredByPop(snp: SNPDetail): Record<string, number> {
-  const lookup = snp.hla_proxy_lookup?.r_squared_by_pop
-  if (lookup && Object.keys(lookup).length > 0) return lookup
+  // Single sanitization point: only finite numbers enter the map (typeof NaN is
+  // "number", so an unvalidated `r_squared_*: NaN` from any source would
+  // otherwise survive and render as "NaN"). Sources are tried in priority order;
+  // the first that yields at least one finite r² wins.
+  const collect = (source: Record<string, unknown> | undefined): Record<string, number> => {
+    const out: Record<string, number> = {}
+    for (const [pop, value] of Object.entries(source ?? {})) {
+      if (typeof value === "number" && Number.isFinite(value)) out[pop] = value
+    }
+    return out
+  }
+
+  const fromLookup = collect(snp.hla_proxy_lookup?.r_squared_by_pop)
+  if (Object.keys(fromLookup).length > 0) return fromLookup
 
   const block = snp.hla_proxy
   if (!block) return {}
-  if (block.r_squared_by_population && Object.keys(block.r_squared_by_population).length > 0) {
-    return block.r_squared_by_population
-  }
-  const out: Record<string, number> = {}
+
+  const fromBlockMap = collect(block.r_squared_by_population)
+  if (Object.keys(fromBlockMap).length > 0) return fromBlockMap
+
+  // Legacy `r_squared_<pop>` keys (e.g. `r_squared_eur`).
+  const fromLegacy: Record<string, number> = {}
   for (const [key, value] of Object.entries(block)) {
     const match = /^r_squared_([a-z]+)$/.exec(key)
-    if (match && typeof value === "number") out[match[1].toUpperCase()] = value
+    if (match && typeof value === "number" && Number.isFinite(value)) {
+      fromLegacy[match[1].toUpperCase()] = value
+    }
   }
-  return out
+  return fromLegacy
 }
 
 /** HLA proxy confidence badge showing the (min) per-population r² and ancestries. */
@@ -60,7 +76,11 @@ function HLAProxyBadge({ snp }: { snp: SNPDetail }) {
 
   const allele = snp.hla_proxy.hla_allele
   const byPop = rSquaredByPop(snp)
-  const pops = Object.keys(byPop).sort()
+  // Defense-in-depth: rSquaredByPop already drops non-finite values, but guard
+  // here too so the badge can never compute (or render) a NaN min.
+  const pops = Object.keys(byPop)
+    .filter((p) => Number.isFinite(byPop[p]))
+    .sort()
   // Conservative (non-exclusionary): show the lowest r² across populations.
   const minR2 = pops.length > 0 ? Math.min(...pops.map((p) => byPop[p])) : null
 
