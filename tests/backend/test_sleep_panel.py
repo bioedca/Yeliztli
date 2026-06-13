@@ -159,6 +159,23 @@ class TestSNPFields:
                 for pmid in snp["pmids"]:
                     assert pmid.isdigit(), f"{snp['rsid']} has non-numeric PMID: {pmid}"
 
+    def test_adora2a_cites_caffeine_evidence(self, panel_data: dict) -> None:
+        """ADORA2A rs5751876 must cite real ADORA2A/caffeine-sensitivity evidence, not
+        the unrelated Salmonella-surveillance (15657627) / invertebrate-methylation
+        (22232607) / brain-stimulation (25979839) PMIDs attached in error (gh #187).
+        Locked to the verified set:
+          - 17329997  Rétey 2007, Clin Pharmacol Ther (ADORA2A & caffeine effects on sleep)
+          - 18305461  Childs 2008, Neuropsychopharmacology (ADORA2A & caffeine-induced anxiety)
+          - 31817803  Erblang 2019, Genes (ADORA2A & caffeine/sleep)
+        """
+        adora2a = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs5751876"
+        )
+        cited = set(adora2a["pmids"])
+        unrelated = {"15657627", "22232607", "25979839"}
+        assert cited.isdisjoint(unrelated), f"ADORA2A cites unrelated PMIDs {cited & unrelated}"
+        assert cited == {"17329997", "18305461", "31817803"}, f"unexpected ADORA2A PMIDs: {cited}"
+
 
 # ── Genotype effects validation ─────────────────────────────────────────
 
