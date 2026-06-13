@@ -1627,3 +1627,48 @@ class TestTNNT2CitationProvenance:
             assert self._BANNED_PMID not in gene.pmids, (
                 f"{gene.gene_symbol} cites the unrelated Bcl-2 PMID {self._BANNED_PMID}"
             )
+
+
+class TestSCN5ASpecificPMIDProvenance:
+    """Guard the SCN5A-specific review citation (issue #444).
+
+    PMID 29798782 (Wilde & Amin 2018, JACC Clin Electrophysiol — "Clinical
+    Spectrum of SCN5A Mutations: Long QT Syndrome, Brugada Syndrome, and
+    Cardiomyopathy") is an SCN5A-specific review. It was wrongly reused on eight
+    non-SCN5A cardiomyopathy/channelopathy rows (KCNQ1, MYBPC3, MYH7, LMNA, DSP,
+    PKP2, KCNH2, RYR2) where it does not support the gene-disease claim. Unlike a
+    fully off-topic citation it is legitimate *on the SCN5A row*, so it must not be
+    banned panel-wide — instead it must appear on SCN5A and nowhere else.
+
+    The seven rows where it was replaced now cite their condition GeneReviews plus
+    the verified Del Duca 2024 sudden-cardiac-death genetic-testing panel review
+    (PMID 38793126, J Pers Med), whose abstract lists all eight genes; KCNQ1
+    instead kept its three LQT1-specific references and simply dropped the review.
+    """
+
+    _SCN5A_REVIEW_PMID = "29798782"
+    _SCD_PANEL_PMID = "38793126"  # Del Duca 2024 — covers all 8 non-SCN5A genes
+
+    def test_scn5a_review_pmid_only_on_scn5a(self, panel: CardiovascularPanel) -> None:
+        citing = {g.gene_symbol for g in panel.genes if self._SCN5A_REVIEW_PMID in g.pmids}
+        assert citing == {"SCN5A"}, (
+            f"SCN5A-specific PMID {self._SCN5A_REVIEW_PMID} must cite only SCN5A, "
+            f"not {sorted(citing)}"
+        )
+
+    def test_scn5a_row_still_cites_its_review(self, panel: CardiovascularPanel) -> None:
+        scn5a = panel.get_gene("SCN5A")
+        assert scn5a is not None
+        assert self._SCN5A_REVIEW_PMID in scn5a.pmids
+
+    def test_former_miscite_rows_carry_appropriate_refs(self, panel: CardiovascularPanel) -> None:
+        # Rows where the SCN5A review was replaced by the verified SCD-panel review.
+        for symbol in ("MYBPC3", "MYH7", "LMNA", "DSP", "PKP2", "KCNH2", "RYR2"):
+            gene = panel.get_gene(symbol)
+            assert gene is not None
+            assert self._SCD_PANEL_PMID in gene.pmids, symbol
+            assert self._SCN5A_REVIEW_PMID not in gene.pmids, symbol
+        # KCNQ1 kept its three LQT1-specific refs and simply dropped the review.
+        kcnq1 = panel.get_gene("KCNQ1")
+        assert kcnq1 is not None
+        assert self._SCN5A_REVIEW_PMID not in kcnq1.pmids

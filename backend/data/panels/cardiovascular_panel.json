@@ -142,7 +142,7 @@
         "rs120074180",
         "rs199472709"
       ],
-      "pmids": ["20301308", "29798782", "27041150", "38825991"],
+      "pmids": ["20301308", "27041150", "38825991"],
       "notes": "Most common cause of congenital long QT syndrome (LQT1). This AD panel entry reports heterozygous KCNQ1 findings for the LQT1/Romano-Ward spectrum; Jervell and Lange-Nielsen syndrome is an autosomal recessive, biallelic KCNQ1/KCNE1 presentation with congenital deafness and should not be inferred from a single heterozygous variant."
     },
     {
@@ -185,7 +185,7 @@
         "rs200411226",
         "rs397516083"
       ],
-      "pmids": ["20301725", "29798782"],
+      "pmids": ["20301725", "38793126"],
       "notes": "Most common cause of hypertrophic cardiomyopathy (HCM). Truncating variants predominate. Variable expressivity and age-dependent penetrance."
     },
     {
@@ -205,7 +205,7 @@
         "rs121913629",
         "rs121913630"
       ],
-      "pmids": ["20301725", "29798782"],
+      "pmids": ["20301725", "38793126"],
       "notes": "Second most common cause of HCM. Missense variants in converter and mesa domains are hotspots."
     },
     {
@@ -244,7 +244,7 @@
         "rs267607605",
         "rs267607606"
       ],
-      "pmids": ["20301725", "29798782"],
+      "pmids": ["20301725", "38793126"],
       "notes": "LMNA cardiomyopathy has high risk of sudden cardiac death. Early ICD implantation may be warranted. Conduction disease often precedes cardiomyopathy."
     },
     {
@@ -263,7 +263,7 @@
         "rs397516863",
         "rs397516864"
       ],
-      "pmids": ["20301310", "29798782"],
+      "pmids": ["20301310", "38793126"],
       "notes": "Desmoplakin variants cause arrhythmogenic cardiomyopathy (formerly ARVC). Left-dominant pattern is characteristic of DSP-related disease."
     },
     {
@@ -282,7 +282,7 @@
         "rs397516097",
         "rs397516098"
       ],
-      "pmids": ["20301310", "29798782"],
+      "pmids": ["20301310", "38793126"],
       "notes": "Most common cause of arrhythmogenic right ventricular cardiomyopathy (ARVC). Exercise restriction is recommended for variant carriers."
     },
     {
@@ -302,7 +302,7 @@
         "rs104893762",
         "rs104893763"
       ],
-      "pmids": ["20301308", "29798782"],
+      "pmids": ["20301308", "38793126"],
       "notes": "Second most common cause of Long QT Syndrome (LQT2). Auditory triggers for cardiac events are characteristic."
     },
     {
@@ -321,7 +321,7 @@
         "rs121918580",
         "rs121918581"
       ],
-      "pmids": ["20301466", "29798782"],
+      "pmids": ["20301466", "38793126"],
       "notes": "CPVT presents with exercise-induced ventricular arrhythmias. Beta-blocker therapy and exercise restriction are mainstays of management."
     }
   ]
