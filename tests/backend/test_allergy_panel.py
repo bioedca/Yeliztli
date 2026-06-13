@@ -278,17 +278,39 @@ class TestSNPFields:
         assert {"22286173", "22177658", "26092464"}.isdisjoint(snp["pmids"])
 
     def test_hla_b5801_proxy_lookup_cites_real_evidence(self) -> None:
-        # The HLA-B*58:01 entries in the proxy lookup carried the unrelated Japanese
-        # intracranial-aneurysm GWAS PMID (22286173, #232). They must cite the
-        # rs9263726-surrogate evidence (Saksit, 29392141) instead.
+        # The HLA-B*58:01 proxy-lookup entries carried the unrelated Japanese
+        # intracranial-aneurysm GWAS PMID (22286173, #232), then a Thai surrogate
+        # study (29392141) whose precise EUR/EAS/AFR r² values were unsupported
+        # (#333). They now carry source-matched per-population LD from Zhang 2018
+        # (PMID 30080910): Han Chinese (r²=0.886) / Tibetan (0.606) / Hui (0.622).
         proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
         b5801 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*58:01"]
         assert b5801, "no HLA-B*58:01 entries in proxy lookup"
         for entry in b5801:
-            assert entry["pmid"] == "29392141", (
+            assert entry["pmid"] == "30080910", (
                 f"HLA-B*58:01/{entry['ancestry_pop']} cites unexpected PMID: {entry['pmid']}"
             )
             assert entry["pmid"] not in {"22286173", "22177658", "26092464"}
+        # Source-matched sub-population labels, not unsupported continental bins.
+        pops = {e["ancestry_pop"] for e in b5801}
+        assert pops == {"Han Chinese", "Tibetan", "Hui"}, pops
+
+    def test_hla_b5801_recommendation_drops_unsupported_continental_r2(
+        self, panel_data: dict
+    ) -> None:
+        # #333: the rs9263726 recommendation text + hla_proxy block must not assert
+        # the unsupported continental r² values (EUR 0.91 / EAS 0.87 / AFR 0.78)
+        # that were attributed to a Thai study (29392141); they now carry
+        # source-matched population LD (Zhang 2018, PMID 30080910).
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs9263726"
+        )
+        rec = snp["recommendation_text"]
+        for banned in ("EUR r2=0.91", "EAS r2=0.87", "AFR r2=0.78"):
+            assert banned not in rec, f"recommendation still hard-codes {banned}"
+        assert "Han Chinese" in rec
+        for key in ("r_squared_eur", "r_squared_eas", "r_squared_afr"):
+            assert key not in snp["hla_proxy"], f"hla_proxy still carries {key}"
 
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing citations that were attached in error and
@@ -384,8 +406,13 @@ class TestHLAProxyCalling:
             if snp["rsid"] in self.DRUG_PROXY_RSIDS:
                 if snp["rsid"] == "rs9263726":
                     assert snp["hla_proxy"]["clinical_grade"] is False
-                    assert snp["hla_proxy"]["r_squared_afr"] < 0.85
-                    assert "clinical_grade_context" in snp["hla_proxy"]
+                    # Unsupported continental r² values (EUR/EAS/AFR) were removed
+                    # (#333); the clinical_grade_context now carries the cited,
+                    # population-specific basis (Tibetan/Hui LD below threshold).
+                    assert "r_squared_afr" not in snp["hla_proxy"]
+                    context = snp["hla_proxy"]["clinical_grade_context"]
+                    assert "0.85" in context
+                    assert "30080910" in context
                 else:
                     assert snp["hla_proxy"]["clinical_grade"] is True, (
                         f"{snp['rsid']} drug proxy should be clinical_grade=true"

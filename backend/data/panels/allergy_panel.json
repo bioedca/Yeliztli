@@ -250,16 +250,13 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-B*58:01",
-            "r_squared_eur": 0.91,
-            "r_squared_eas": 0.87,
-            "r_squared_afr": 0.78,
             "clinical_grade": false,
-            "clinical_grade_context": "Not clinical-grade across all stored ancestry populations; hla_proxy_lookup records AFR r2=0.78, below the 0.85 threshold.",
+            "clinical_grade_context": "Not clinical-grade across populations. rs9263726-HLA-B*58:01 LD is strong in Han Chinese (r2=0.886) but falls below the 0.85 threshold in Tibetan (r2=0.606) and Hui (r2=0.622) groups, where it cannot substitute for HLA-B*58:01 typing (Zhang 2018, PMID 30080910), and is not characterized in European or African populations.",
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
           "pmids": ["15743917", "29392141", "30080910", "33071783"],
-          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP with ancestry-dependent LD (EUR r2=0.91, EAS r2=0.87, AFR r2=0.78 in the lookup table), so a negative proxy result is not exclusionary. Confirmatory high-resolution HLA typing is required.",
+          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is only a tag/proxy SNP whose LD with HLA-B*58:01 is population-dependent — strong in Han Chinese (r2~0.89) but substantially weaker in Tibetan (r2~0.61) and Hui (r2~0.62) groups, where it cannot replace HLA-B*58:01 typing (Zhang 2018), and not characterized in European or African populations — so a negative proxy result is not exclusionary. Confirmatory high-resolution HLA typing is required.",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Allopurinol/HLA-B*58:01 cross-links with PGx module for prescribing guidance."
