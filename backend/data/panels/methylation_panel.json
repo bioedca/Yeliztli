@@ -543,7 +543,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["10662760", "15277203"],
+          "pmids": ["12598062", "32715377"],
           "recommendation_text": "GCLC is the rate-limiting enzyme in glutathione synthesis. TT carriers may have lower glutathione production, which can be supported by adequate cysteine-rich protein intake and N-acetylcysteine (discuss with a clinician)."
         },
         {
@@ -572,7 +572,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["10662760", "16217669"],
+          "pmids": ["12081989", "32715377"],
           "recommendation_text": "GCLM modulates the catalytic subunit (GCLC) of glutamate-cysteine ligase. Combined GCLC + GCLM variants may have additive effects on glutathione production."
         },
         {
@@ -601,7 +601,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["15504747", "17709398"],
+          "pmids": ["16287877", "19415410", "35626163"],
           "recommendation_text": "GPX1 uses glutathione to neutralize hydrogen peroxide. Leu198 carriers have reduced enzyme activity, particularly under low selenium conditions. Adequate selenium intake (Brazil nuts, seafood) supports GPX1 function."
         },
         {
@@ -630,7 +630,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["10085127", "15509580"],
+          "pmids": ["12618592", "15864132", "23952573"],
           "recommendation_text": "SOD2 (MnSOD) is the primary mitochondrial superoxide dismutase. The Val16 allele has less efficient mitochondrial import. Antioxidant-rich diet may support mitochondrial redox balance."
         },
         {

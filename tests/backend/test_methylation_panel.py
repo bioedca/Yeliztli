@@ -803,3 +803,70 @@ class TestDHFRCitationProvenance:
         assert dhfr["evidence_level"] == 1
         categories = {e["category"] for e in dhfr["genotype_effects"].values()}
         assert "Elevated" not in categories
+
+
+# ── Glutathione/antioxidant citation provenance (issue #314, pathway-group slice)
+
+
+class TestGlutathioneAntioxidantCitationProvenance:
+    """Validate the glutathione/antioxidant rows cite on-topic evidence (#314).
+
+    The #314 audit found these four rows cited zero on-topic papers (e.g. GCLC &
+    GCLM both cited 10662760 "Who owns your DNA?"; SOD2 cited a cerebral-ischemia
+    NOS-2 paper; GPX1 cited a sphingosine-1-phosphate paper). Each row's PMIDs were
+    replaced with gene/variant-specific references — every title verified via NCBI
+    esummary, the functional direction verified with the Consensus connector — and
+    pinned here so the off-topic PMIDs cannot silently reappear. This is the
+    glutathione/antioxidant pathway-group slice of the panel-wide #314 remediation.
+    """
+
+    # Verified, on-topic citations per row (NCBI esummary + Consensus):
+    _ROW_PMIDS = {
+        # SOD2 rs4880 Val16Ala — Sutton import functional x2 + Bresciani review
+        "rs4880": {"12618592", "15864132", "23952573"},
+        # GPX1 rs1050450 Pro198Leu — Ravn-Haren + Jablonska activity/Se + Zhao review
+        "rs1050450": {"16287877", "19415410", "35626163"},
+        # GCLC -129C>T rs17883901 — Koide functional/MI + Azarova (names rs17883901)
+        "rs17883901": {"12598062", "32715377"},
+        # GCLM -588C>T rs41303970 — Nakamura functional/MI + Azarova (names rs41303970)
+        "rs41303970": {"12081989", "32715377"},
+    }
+
+    # Off-topic PMIDs that were EXCLUSIVE to these four rows -> after the fix they
+    # must not appear anywhere in the methylation panel.
+    _EXCLUSIVE_BANNED = frozenset(
+        {
+            "10662760",  # "Who owns your DNA?" (was on GCLC + GCLM)
+            "15277203",  # aorta SOD gene transfer / endotoxin (was on GCLC)
+            "16217669",  # antimalarial methylene blue (was on GCLM)
+            "15504747",  # sphingosine-1-phosphate cardiovascular (was on GPX1)
+            "17709398",  # Swi/Snf histone eviction (was on GPX1)
+            "10085127",  # cerebral-ischemia NOS-2 promoter (was on SOD2)
+        }
+    )
+    # 15509580 (celastrols / heat-shock) was off-topic on SOD2 but the VDR
+    # rs1544410 row still cites it (tracked by #314) -> ban from the SOD2 row only.
+    _SOD2_ROW_BANNED = frozenset({"15509580"})
+
+    def _get(self, panel_data: dict, rsid: str) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found in methylation panel")
+
+    def test_rows_cite_verified_refs(self, panel_data: dict) -> None:
+        for rsid, expected in self._ROW_PMIDS.items():
+            assert set(self._get(panel_data, rsid)["pmids"]) == expected, (
+                f"{rsid} does not cite exactly its verified reference set"
+            )
+
+    def test_sod2_row_drops_shared_off_topic_pmid(self, panel_data: dict) -> None:
+        leaked = self._SOD2_ROW_BANNED & set(self._get(panel_data, "rs4880")["pmids"])
+        assert not leaked, f"SOD2 row still cites off-topic PMID(s) {sorted(leaked)}"
+
+    def test_exclusive_off_topic_pmids_absent_from_panel(self, panel_data: dict) -> None:
+        leaked = self._EXCLUSIVE_BANNED & set(_all_pmids(panel_data))
+        assert not leaked, (
+            f"off-topic PMID(s) exclusive to the glutathione rows still in panel: {sorted(leaked)}"
+        )
