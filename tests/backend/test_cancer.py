@@ -839,10 +839,20 @@ class TestRAD51CCitationProvenance:
 
     # RAD51C hereditary breast/ovarian-cancer references verified on PubMed
     # (esummary/efetch) and cross-checked against the literature (Consensus).
+    # Expanded by the #442 moderate-penetrance audit (see TestRAD51CCancerTypesAudit
+    # for the cancer_types/caveat assertions); this set stays the citation-provenance
+    # lock for the row.
     _RAD51C_PMIDS = frozenset(
         {
             "32107557",  # Yang 2020, JNCI — RAD51C/RAD51D tubo-ovarian & breast cancer risks
-            "32359370",  # Suszynska 2020, J Ovarian Res — RAD51C ovarian-cancer meta-analysis
+            "32359370",  # Suszynska 2020 — RAD51C ovarian-cancer meta-analysis
+            "26261251",  # Song 2015 — germline RAD51B/C/D in ovarian cancer
+            "33471974",  # Hu 2021 CARRIERS — population-based breast cancer genes
+            "35084436",  # 2022 — tumor pathology of 9 breast susceptibility genes (TNBC)
+            "38986768",  # Rowlands 2024 — population breast-cancer gene meta-analysis
+            "40875208",  # established predisposition genes, single/multiple cancers (UKB)
+            "41070818",  # ACMG 2025 — RAD51C/RAD51D/BARD1 management resource
+            "36411032",  # UK consensus — clinical management for women with germline variants
         }
     )
     # Unrelated PMIDs wrongly cited by the RAD51C row before the fix. NOTE:
@@ -889,8 +899,25 @@ class TestHereditaryCancerSyndromeCitationProvenance:
     _VERIFIED: dict[str, frozenset[str]] = {
         # Li-Fraumeni GeneReviews + Frébourg 2020 TP53 guidelines
         "TP53": frozenset({"20301488", "32457520"}),
-        # ATM-Related Cancer Predisposition GeneReviews + Marabelli 2016 BC penetrance
-        "ATM": frozenset({"42258614", "27112364"}),
+        # ATM: expanded by the #442 moderate-penetrance audit to current large-cohort
+        # + ACMG sources (see TestATMCancerTypesAudit for cancer_types/caveats). Drops
+        # the bare ATM GeneReviews 42258614 in favour of the ACMG management resource.
+        "ATM": frozenset(
+            {
+                "33471991",  # BCAC/BRIDGES — breast cancer risk genes (>113k women)
+                "33471974",  # Hu 2021 CARRIERS — population breast cancer genes
+                "34529012",  # Hsu 2021 — ATM pancreatic cancer risk
+                "33436325",  # Karlsson 2021 PRACTICAL — ATM prostate cancer
+                "31214711",  # Momozawa 2020 — Japanese prostate cancer germline variants
+                "39209703",  # Mukhtar 2024 — ATM/CHEK2 PTV/missense, UK Biobank
+                "39636577",  # Pal 2024 — ACMG ATM management resource
+                "40451289",  # Mukhtar 2025 — ATM c.7271T>G cancer risk (BCAC)
+                "33509806",  # Hall 2021 — ATM truncating variants, cancer associations
+                "30128536",  # Lu 2019 JAMA Oncol — breast/ovarian predisposition genes
+                "28888541",  # Lilyquist 2017 — ovarian cancer ascertained series
+                "27112364",  # Marabelli 2016 — ATM breast-cancer penetrance meta-analysis
+            }
+        ),
         # APC Polyposis GeneReviews + Zaffaroni 2024 FAP guidelines
         "APC": frozenset({"20301519", "38722804"}),
         # VHL GeneReviews + Binderup 2022 VHL diagnosis/surveillance
@@ -911,3 +938,164 @@ class TestHereditaryCancerSyndromeCitationProvenance:
         for gene in panel.genes:
             leaked = self._BANNED & set(gene.pmids)
             assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+# ── Moderate-penetrance cancer_types audit (issue #442) ───────────────────
+#
+# #442 audited the cancer_types of the moderate-penetrance genes against current
+# large-cohort / ACMG-NCCN evidence (the CHEK2 #393/#438 template). All four
+# genes' cancer_types were CONFIRMED unchanged; the audit enriched notes with the
+# conditional associations (documented, NOT added to cancer_types) and variant-
+# risk caveats, updated PMIDs to verified current sources, and dropped off-topic
+# citations (PALB2's 24136374 = a plant-mycorrhiza paper).
+
+
+class TestATMCancerTypesAudit:
+    """#442 audit of ATM cancer_types + notes.
+
+    The ATM citation set (incl. dropping the bare GeneReviews 42258614) is locked
+    by TestHereditaryCancerSyndromeCitationProvenance; this class owns the
+    cancer_types + conditional/caveat assertions added by #442.
+    """
+
+    _TYPES = {"Prostate", "Pancreatic", "Breast"}
+    _CAVEAT_TERMS = ["c.7271t>g", "ovarian", "gastric", "acmg"]
+
+    def _gene(self, panel: CancerPanel):
+        g = panel.get_gene("ATM")
+        assert g is not None, "ATM missing from cancer panel"
+        return g
+
+    def test_cancer_types_confirmed(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).cancer_types) == self._TYPES
+
+    def test_returned_for_each_cancer_type(self, panel: CancerPanel) -> None:
+        for ct in self._TYPES:
+            symbols = {g.gene_symbol for g in panel.genes_by_cancer_type(ct)}
+            assert "ATM" in symbols
+
+    def test_notes_document_conditional_and_caveats(self, panel: CancerPanel) -> None:
+        notes = self._gene(panel).notes.lower()
+        for term in self._CAVEAT_TERMS:
+            assert term in notes, f"notes missing expected term {term!r}"
+
+
+class TestPALB2CancerTypesAudit:
+    """#442 audit of PALB2 cancer_types + citations."""
+
+    _PMIDS = frozenset(
+        {
+            "31841383",
+            "33471991",
+            "33976419",
+            "41066089",
+            "37651980",
+            "32546565",
+            "37493628",
+            "34006922",
+        }
+    )
+    _TYPES = {"Ovarian", "Pancreatic", "Breast"}
+    _CAVEAT_TERMS = ["prostate", "aggressive", "male breast"]
+    _DROPPED = {"24136374"}
+
+    def _gene(self, panel: CancerPanel):
+        g = panel.get_gene("PALB2")
+        assert g is not None, "PALB2 missing from cancer panel"
+        return g
+
+    def test_cancer_types_confirmed(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).cancer_types) == self._TYPES
+
+    def test_returned_for_each_cancer_type(self, panel: CancerPanel) -> None:
+        for ct in self._TYPES:
+            symbols = {g.gene_symbol for g in panel.genes_by_cancer_type(ct)}
+            assert "PALB2" in symbols
+
+    def test_cites_verified_audit_refs(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).pmids) == self._PMIDS
+
+    def test_drops_superseded_or_off_topic_pmids(self, panel: CancerPanel) -> None:
+        leaked = self._DROPPED & set(self._gene(panel).pmids)
+        assert not leaked, f"still cites dropped PMID(s) {sorted(leaked)}"
+
+    def test_notes_document_conditional_and_caveats(self, panel: CancerPanel) -> None:
+        notes = self._gene(panel).notes.lower()
+        for term in self._CAVEAT_TERMS:
+            assert term in notes, f"notes missing expected term {term!r}"
+
+
+class TestRAD51CCancerTypesAudit:
+    """#442 audit of RAD51C cancer_types + notes.
+
+    The RAD51C citation set is locked by TestRAD51CCitationProvenance (expanded by
+    this audit); this class owns the cancer_types + caveat assertions.
+    """
+
+    _TYPES = {"Ovarian", "Breast"}
+    _CAVEAT_TERMS = ["triple-negative", "prostate", "pancreatic"]
+
+    def _gene(self, panel: CancerPanel):
+        g = panel.get_gene("RAD51C")
+        assert g is not None, "RAD51C missing from cancer panel"
+        return g
+
+    def test_cancer_types_confirmed(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).cancer_types) == self._TYPES
+
+    def test_returned_for_each_cancer_type(self, panel: CancerPanel) -> None:
+        for ct in self._TYPES:
+            symbols = {g.gene_symbol for g in panel.genes_by_cancer_type(ct)}
+            assert "RAD51C" in symbols
+
+    def test_notes_document_conditional_and_caveats(self, panel: CancerPanel) -> None:
+        notes = self._gene(panel).notes.lower()
+        for term in self._CAVEAT_TERMS:
+            assert term in notes, f"notes missing expected term {term!r}"
+
+
+class TestRAD51DCancerTypesAudit:
+    """#442 audit of RAD51D cancer_types + citations."""
+
+    _PMIDS = frozenset(
+        {
+            "32107557",
+            "32359370",
+            "33471991",
+            "33471974",
+            "38986768",
+            "35084436",
+            "30099541",
+            "41070818",
+            "36411032",
+            "40875208",
+        }
+    )
+    _TYPES = {"Ovarian", "Breast"}
+    _CAVEAT_TERMS = ["triple-negative", "prostate", "pancreatic"]
+    _DROPPED = {"29446198", "22006311"}
+
+    def _gene(self, panel: CancerPanel):
+        g = panel.get_gene("RAD51D")
+        assert g is not None, "RAD51D missing from cancer panel"
+        return g
+
+    def test_cancer_types_confirmed(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).cancer_types) == self._TYPES
+
+    def test_returned_for_each_cancer_type(self, panel: CancerPanel) -> None:
+        for ct in self._TYPES:
+            symbols = {g.gene_symbol for g in panel.genes_by_cancer_type(ct)}
+            assert "RAD51D" in symbols
+
+    def test_cites_verified_audit_refs(self, panel: CancerPanel) -> None:
+        assert set(self._gene(panel).pmids) == self._PMIDS
+
+    def test_drops_superseded_or_off_topic_pmids(self, panel: CancerPanel) -> None:
+        leaked = self._DROPPED & set(self._gene(panel).pmids)
+        assert not leaked, f"still cites dropped PMID(s) {sorted(leaked)}"
+
+    def test_notes_document_conditional_and_caveats(self, panel: CancerPanel) -> None:
+        notes = self._gene(panel).notes.lower()
+        for term in self._CAVEAT_TERMS:
+            assert term in notes, f"notes missing expected term {term!r}"
