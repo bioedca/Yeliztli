@@ -547,9 +547,13 @@ ancestry at APOL1, a directly observed two-risk-allele genotype may still be \
 shown for other inferred ancestries with an extra validation caveat; partial \
 APOL1 genotypes may remain hidden when ancestry context is not supportive.
 
-2. **Recessive — two risk alleles are needed.** Increased kidney-disease risk \
-requires two risk alleles (any combination of G1 and G2). Carrying a single \
-risk allele does not raise risk.
+2. **Recessive-like — two risk alleles define the high-risk genotype.** The \
+established high-risk genotype requires two risk alleles (any combination of G1 \
+and G2). One risk allele is usually lower risk than two, but recent West African \
+data (Gbadegesin et al., NEJM 2025) found that monoallelic APOL1 variants \
+modestly raise the odds of chronic kidney disease and focal segmental \
+glomerulosclerosis versus none — so a single risk allele should not be treated \
+as zero risk.
 
 3. **Relative risk, with incomplete penetrance.** The two-risk-allele genotype \
 is associated with higher odds of focal segmental glomerulosclerosis (OR ~10.5) \

@@ -101,8 +101,11 @@ CAVEAT_REGISTRY: dict[str, str] = {
         "SERPINA1 sequencing before treating it as definitive PiSZ."
     ),
     "apol1_recessive": (
-        "APOL1 kidney risk is recessive: two risk alleles (any combination of G1 "
-        "and G2) are required. Carrying one risk allele does not raise risk."
+        "APOL1 kidney risk is recessive-like: two risk alleles (any combination of "
+        "G1 and G2) define the established high-risk genotype. One risk allele is "
+        "usually lower risk than two, but recent West African data (Gbadegesin et al., "
+        "NEJM 2025) suggest monoallelic variants may modestly raise CKD/FSGS odds, so "
+        "it is not zero risk."
     ),
     "apol1_second_hit": (
         "Even the two-risk-allele genotype has incomplete penetrance — most people "

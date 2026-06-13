@@ -101,7 +101,7 @@
       "partial_disclosure": {
         "risk_classification": "APOL1 indeterminate (partial genotype)",
         "evidence_stars": 1,
-        "finding_text": "You carry one APOL1 risk allele ({genotype}), but at least one other APOL1 variant was not typed on this array — in particular the G2 6-bp deletion (rs71785313), which is frequently off-chip. Because APOL1 kidney risk is recessive (two risk alleles are needed), your status cannot be determined from these data: it would be high-risk if you also carry an untyped G2 (or second G1) risk allele, and low-risk if you do not. This is not a low-risk result. Consider sequencing-based confirmation and discuss with a clinician or genetic counselor."
+        "finding_text": "You carry one APOL1 risk allele ({genotype}), but at least one other APOL1 variant was not typed on this array — in particular the G2 6-bp deletion (rs71785313), which is frequently off-chip. Because APOL1 kidney risk is recessive (two risk alleles are needed), your status cannot be determined from these data: it would be high-risk if you also carry an untyped G2 (or second G1) risk allele, and a single-risk-allele genotype if you do not — usually lower risk than two alleles, though recent West African data (Gbadegesin et al., NEJM 2025) suggest one risk allele may modestly raise CKD/FSGS odds. This is not a low-risk result. Consider sequencing-based confirmation and discuss with a clinician or genetic counselor."
       },
       "caveats": ["apol1_recessive", "apol1_second_hit", "apol1_ancestry_gated", "confirm_clinically"],
       "pmids": ["20647424"]

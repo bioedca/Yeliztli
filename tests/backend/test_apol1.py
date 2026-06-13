@@ -397,3 +397,35 @@ class TestG2AliasResolution:
         readouts = read_genotypes(panel, sample_engine)
         assert readouts["rs71785313"].status == PROBE_TYPED
         assert readouts["rs71785313"].genotype == "DD"
+
+
+class TestMonoallelicWording:
+    """#313: APOL1 single-risk-allele wording must not claim zero risk, in light
+    of monoallelic CKD/FSGS evidence (Gbadegesin et al., NEJM 2025). Two risk
+    alleles remain the established high-risk genotype."""
+
+    def test_disclaimer_does_not_claim_single_allele_zero_risk(self) -> None:
+        from backend.disclaimers import APOL1_DISCLAIMER_TEXT
+
+        text = APOL1_DISCLAIMER_TEXT.lower()
+        assert "does not raise risk" not in text
+        assert "monoallelic" in text
+        assert "gbadegesin" in text
+        # The two-risk-allele high-risk framing is retained.
+        assert "two risk alleles" in text
+
+    def test_recessive_caveat_softened(self) -> None:
+        from backend.analysis.risk_genotype import CAVEAT_REGISTRY
+
+        caveat = CAVEAT_REGISTRY["apol1_recessive"].lower()
+        assert "does not raise risk" not in caveat
+        assert "monoallelic" in caveat
+        assert "not zero risk" in caveat
+        assert "high-risk genotype" in caveat
+
+    def test_partial_disclosure_not_called_low_risk(self, panel) -> None:
+        # The partial (one-typed-allele, second-untyped) disclosure must not call a
+        # single-risk-allele genotype "low-risk", and must carry the monoallelic caveat.
+        blob = json.dumps(panel.__dict__, default=str).lower()
+        assert "low-risk if you do not" not in blob
+        assert "gbadegesin" in blob
