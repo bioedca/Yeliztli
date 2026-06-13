@@ -80,18 +80,18 @@
             },
             "ID": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous 19bp deletion in DHFR promoter. May modestly increase DHFR expression and alter folic acid metabolism."
+              "effect_summary": "Heterozygous 19bp deletion in DHFR intron 1 (removes a putative Sp1 regulatory element). May modestly increase DHFR expression and alter folic acid metabolism."
             },
             "DI": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous 19bp deletion in DHFR promoter. May modestly increase DHFR expression and alter folic acid metabolism."
+              "effect_summary": "Heterozygous 19bp deletion in DHFR intron 1 (removes a putative Sp1 regulatory element). May modestly increase DHFR expression and alter folic acid metabolism."
             },
             "DD": {
               "category": "Moderate",
-              "effect_summary": "Homozygous 19bp deletion in DHFR promoter. Associated with increased DHFR expression. May affect response to folic acid supplementation vs. methylfolate."
+              "effect_summary": "Homozygous 19bp deletion in DHFR intron 1 (removes a putative Sp1 regulatory element). Associated with increased DHFR expression. May affect response to folic acid supplementation vs. methylfolate."
             }
           },
-          "coverage_note": "rs70991108 represents a 19bp insertion/deletion polymorphism in the DHFR promoter region. Not all SNP arrays genotype this variant directly. Coverage depends on the specific array version used.",
+          "coverage_note": "rs70991108 represents a 19bp insertion/deletion polymorphism in DHFR intron 1 (HGVS c.86+60_78, ~60 bp from the intron-1 splice-donor site); it removes a putative Sp1 regulatory element, so it may affect DHFR expression despite being intronic. Not all SNP arrays genotype this variant directly. Coverage depends on the specific array version used.",
           "evidence_level": 1,
           "pmids": ["19022952", "26269242"],
           "recommendation_text": "DHFR converts dietary folic acid to dihydrofolate. The 19bp deletion may alter the efficiency of folic acid utilization. Relevance is primarily in the context of folic acid supplementation vs. natural folate sources."

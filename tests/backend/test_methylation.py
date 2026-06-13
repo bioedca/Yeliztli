@@ -570,6 +570,23 @@ class TestScorePathways:
         assert dhfr.genotype == genotype
         assert dhfr.category == expected_category
 
+    def test_dhfr_19bp_indel_located_in_intron_1_not_promoter(self) -> None:
+        """#351: the DHFR rs70991108 19 bp del/ins is in intron 1, not the
+        promoter (Johnson 2004 PMID 14735580 'intron-1'; Kalmbach 2008 PMID
+        19022952 'maps to intron 1'). Its effect summaries and coverage note
+        must say 'intron 1', not 'promoter'."""
+        data = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        dhfr = next(s for pw in data["pathways"] for s in pw["snps"] if s["rsid"] == "rs70991108")
+        effects = dhfr["genotype_effects"]
+        # No text may mislabel the variant as promoter-located.
+        all_texts = [e["effect_summary"] for e in effects.values()] + [dhfr["coverage_note"]]
+        for text in all_texts:
+            assert "promoter" not in text.lower(), text
+        # The coverage note and each deletion-bearing genotype place it in intron 1.
+        assert "intron 1" in dhfr["coverage_note"].lower()
+        for gt in ("ID", "DI", "DD"):
+            assert "intron 1" in effects[gt]["effect_summary"].lower(), gt
+
     def test_full_scoring_mthfr_variants(
         self,
         panel: MethylationPanel,
