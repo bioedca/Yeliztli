@@ -761,8 +761,23 @@ class TestCrossModuleFindings:
                     sa.select(findings.c.finding_text).where(findings.c.module == MODULE_NAME)
                 )
             ).lower()
+            # Direct column check: no gene_health finding or panel_coverage row is
+            # keyed to the APOE ε4 SNP at all.
+            apoe_findings = conn.execute(
+                sa.select(findings.c.id).where(
+                    findings.c.module == MODULE_NAME, findings.c.rsid == "rs429358"
+                )
+            ).fetchall()
+            apoe_coverage = conn.execute(
+                sa.select(panel_coverage.c.rsid).where(
+                    panel_coverage.c.module == MODULE_NAME,
+                    panel_coverage.c.rsid == "rs429358",
+                )
+            ).fetchall()
         assert "epsilon" not in persisted
         assert "alzheimer" not in persisted
+        assert apoe_findings == []
+        assert apoe_coverage == []
 
     def test_fto_nutrigenomics_cross_link(
         self,
