@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the offline PMID → metadata snapshot for the citation-provenance guard (#365).
 
-Generates ``tests/backend/data/pmid_metadata_snapshot.json``: a checked-in map of
+Generates ``tests/fixtures/pmid_metadata_snapshot.json``: a checked-in map of
 every panel-cited PMID → ``{title, journal, year}``, used by the *offline
 topic-consistency* half of the citation-provenance guard (the complement to the
 #358 denylist). The snapshot is **committed data**, never fetched at test time —
@@ -25,6 +25,7 @@ import argparse
 import json
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -53,8 +54,15 @@ def _fetch_batch(pmids: list[str]) -> dict[str, dict[str, str]]:
         {"db": "pubmed", "id": ",".join(pmids), "retmode": "json"}
     ).encode()
     req = urllib.request.Request(_ESUMMARY, data=data)
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed NCBI host)
-        payload = json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed NCBI host)
+            payload = json.loads(resp.read().decode())
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"ERROR: NCBI esummary request failed: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"ERROR: NCBI esummary returned non-JSON for {len(pmids)} ids: {exc}"
+        ) from exc
     result = payload.get("result", {})
     out: dict[str, dict[str, str]] = {}
     for pmid in result.get("uids", []):
