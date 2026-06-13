@@ -310,7 +310,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["12402218", "17965720", "20584310"],
+          "pmids": ["10889551", "16088329", "26941099"],
           "recommendation_text": "SNAP25 variants have been associated with ADHD in candidate gene studies. The SNAP25 protein is critical for synaptic vesicle fusion and neurotransmitter release. Effect sizes are small and this finding contributes to polygenic ADHD risk assessment only."
         },
         {
@@ -974,7 +974,7 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["16429160", "17620523", "25533199"],
+          "pmids": ["16642019", "17166181", "31018759"],
           "recommendation_text": "IRF5 is a key regulator of the type I interferon response and a replicated SLE susceptibility locus. The interferon pathway is a validated therapeutic target — anifrolumab (anti-IFNAR) is approved for SLE treatment. Carriers with symptoms of SLE (joint pain, malar rash, photosensitivity) should seek rheumatological evaluation."
         },
         {
@@ -1126,7 +1126,7 @@
             }
           },
           "evidence_level": 4,
-          "pmids": ["9671762", "24507775", "29785011"],
+          "pmids": ["10196380", "23029558", "30267046"],
           "recommendation_text": "MYOC Q368X is the most common pathogenic MYOC mutation, found in ~1.6% of primary open-angle glaucoma patients. MYOC mutations cause autosomal dominant glaucoma through toxic gain-of-function (misfolded myocilin). Carriers require regular intraocular pressure monitoring and ophthalmological surveillance. Early treatment can prevent irreversible optic nerve damage."
         },
         {
@@ -1289,7 +1289,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["19578363", "25006839", "30068587"],
+          "pmids": ["17921507", "31232964"],
           "recommendation_text": "GRHL2 is a replicated GWAS locus for age-related hearing loss (presbycusis). The gene encodes a transcription factor critical for cochlear epithelial barrier integrity. Risk carriers should protect their hearing by limiting noise exposure and having regular audiometric assessments."
         }
       ]

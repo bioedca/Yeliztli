@@ -1725,3 +1725,189 @@ class TestPPARGCitationProvenance:
             for snp in pathway.snps:
                 leaked = self._BANNED_PMIDS & set(snp.pmids)
                 assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+class TestSNAP25CitationProvenance:
+    """Guard the SNAP25 rs3746544 evidence links (issue #326).
+
+    The SNAP25 3'-UTR row previously cited three papers with no connection to
+    SNAP25 or ADHD: 12402218 (a bioethics-of-genetic-engineering essay),
+    17965720 (a Pkd1 kidney-cyst study), and 20584310 (a thioredoxin-reductase
+    breast-cancer prognosis study). Pin the row to verified SNAP25 rs3746544 /
+    ADHD references so those off-topic PMIDs cannot silently reappear.
+    """
+
+    # SNAP25 rs3746544 / ADHD references verified on NCBI ESummary + Consensus.
+    _SNAP25_PMIDS = frozenset(
+        {
+            "10889551",  # Barr 2000, Mol Psychiatry — original SNAP-25/ADHD 3'-UTR linkage
+            "16088329",  # Feng 2005, Mol Psychiatry — SNAP25 as ADHD susceptibility gene
+            "26941099",  # Liu 2017, Mol Neurobiol — SNAP25/ADHD meta-analysis (rs3746544 OR 1.14)
+        }
+    )
+    # Off-topic PMIDs wrongly cited by the SNAP25 row; all three were exclusive to
+    # this row, so none may appear anywhere in the panel after the fix.
+    _BANNED_PMIDS = frozenset({"12402218", "17965720", "20584310"})
+
+    def _get_snap25(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs3746544":
+                    return snp
+        raise AssertionError("SNAP25 rs3746544 not found in panel")
+
+    def test_snap25_cites_verified_adhd_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_snap25(panel).pmids) == self._SNAP25_PMIDS
+
+    def test_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._BANNED_PMIDS & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
+
+
+class TestIRF5CitationProvenance:
+    """Guard the IRF5 rs2004640 evidence links (issue #326).
+
+    The IRF5 exon-1B splice-site row previously cited three papers unrelated to
+    IRF5/SLE: 16429160 (a mouse Nalp1b/anthrax-toxin study), 17620523 (a
+    maternal/social-origins-of-hypertension review), and 25533199 (a histone-H3
+    K79-dimethylation mitosis study). Pin the row to verified IRF5 rs2004640 /
+    SLE references so those off-topic PMIDs cannot silently reappear.
+
+    NB: 25533199 is *also* cited by two other gene-health rows (a separate
+    concern tracked by #326's umbrella), so it is banned only from the IRF5 row,
+    not panel-wide. 16429160 and 17620523 were exclusive to the IRF5 row and are
+    banned across the whole panel.
+    """
+
+    # Verified IRF5 rs2004640 / SLE references (NCBI ESummary + Consensus):
+    _IRF5_PMIDS = frozenset(
+        {
+            "16642019",  # Graham 2006, Nat Genet — rs2004640 T creates exon-1B splice donor (SLE)
+            "17166181",  # Demirci 2007, Ann Hum Genet — rs2004640/SLE replication (OR 1.68)
+            "31018759",  # Bae 2019, Lupus — rs2004640/SLE updated meta-analysis (OR 1.47)
+        }
+    )
+    # Off-topic PMIDs exclusive to the IRF5 row -> safe to ban panel-wide.
+    _IRF5_EXCLUSIVE_BANNED = frozenset({"16429160", "17620523"})
+    # 25533199 is shared with other rows -> ban from the IRF5 row only.
+    _IRF5_ROW_BANNED = frozenset({"16429160", "17620523", "25533199"})
+
+    def _get_irf5(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs2004640":
+                    return snp
+        raise AssertionError("IRF5 rs2004640 not found in panel")
+
+    def test_irf5_cites_verified_sle_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_irf5(panel).pmids) == self._IRF5_PMIDS
+
+    def test_irf5_row_drops_all_unrelated_pmids(self, panel: GeneHealthPanel) -> None:
+        leaked = self._IRF5_ROW_BANNED & set(self._get_irf5(panel).pmids)
+        assert not leaked, f"IRF5 row still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_irf5_exclusive_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        # 16429160 and 17620523 were exclusive to the IRF5 row, so they must not
+        # appear anywhere in the panel. (25533199 is intentionally NOT asserted
+        # panel-wide: two other rows retain it pending their own #326 fix.)
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._IRF5_EXCLUSIVE_BANNED & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites IRF5-misattributed PMID(s) {sorted(leaked)}"
+
+
+class TestMYOCCitationProvenance:
+    """Guard the MYOC Q368X (rs74315329) evidence links (issue #326).
+
+    The MYOC Q368X row previously cited three papers unrelated to MYOC/glaucoma:
+    9671762 (a von Hippel-Lindau gene-product study), 24507775 (an LDL-cholesterol
+    coding-variant exome study), and 29785011 (an asthma/allergic-disease cross-
+    trait GWAS). Pin the row to verified MYOC p.Gln368Ter / primary-open-angle-
+    glaucoma references so those off-topic PMIDs cannot silently reappear.
+
+    NB: 29785011 is *also* cited by one other gene-health row (a separate concern
+    tracked by #326's umbrella), so it is banned only from the MYOC row, not
+    panel-wide. 9671762 and 24507775 were exclusive to the MYOC row and are
+    banned across the whole panel.
+    """
+
+    # Verified MYOC p.Gln368Ter / POAG references (NCBI ESummary + Consensus):
+    _MYOC_PMIDS = frozenset(
+        {
+            "10196380",  # Fingert 1999, Hum Mol Genet — Q368X most common MYOC mutation (1703 pts)
+            "23029558",  # Cheng 2012, PLoS One — myocilin/POAG meta-analysis (Q368X OR 4.68)
+            "30267046",  # Souzeau 2019, JAMA Ophthalmol — rs74315329 penetrance (pop.+registry)
+        }
+    )
+    # Off-topic PMIDs exclusive to the MYOC row -> safe to ban panel-wide.
+    _MYOC_EXCLUSIVE_BANNED = frozenset({"9671762", "24507775"})
+    # 29785011 is shared with another row -> ban from the MYOC row only.
+    _MYOC_ROW_BANNED = frozenset({"9671762", "24507775", "29785011"})
+
+    def _get_myoc(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs74315329":
+                    return snp
+        raise AssertionError("MYOC rs74315329 not found in panel")
+
+    def test_myoc_cites_verified_glaucoma_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_myoc(panel).pmids) == self._MYOC_PMIDS
+
+    def test_myoc_row_drops_all_unrelated_pmids(self, panel: GeneHealthPanel) -> None:
+        leaked = self._MYOC_ROW_BANNED & set(self._get_myoc(panel).pmids)
+        assert not leaked, f"MYOC row still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_myoc_exclusive_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        # 9671762 and 24507775 were exclusive to the MYOC row, so they must not
+        # appear anywhere in the panel. (29785011 is intentionally NOT asserted
+        # panel-wide: one other row retains it pending its own #326 fix.)
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._MYOC_EXCLUSIVE_BANNED & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites MYOC-misattributed PMID(s) {sorted(leaked)}"
+
+
+class TestGRHL2CitationProvenance:
+    """Guard the GRHL2 rs10955255 evidence links (issue #326).
+
+    The GRHL2 intron row previously cited three papers with no connection to
+    GRHL2 or age-related hearing loss: 19578363 (a basal-cell-carcinoma GWAS),
+    25006839 (a physics-of-hearing fluid-mechanics review), and 30068587 (a
+    small-RNA northern-hybridization lab protocol). Pin the row to verified
+    GRHL2 rs10955255 / age-related-hearing-impairment references so those
+    off-topic PMIDs cannot silently reappear.
+
+    Two references suffice here (discovery + meta-analysis): both directly test
+    rs10955255 against ARHI, whereas later large hearing GWAS implicate other
+    SNPs/genes. This mirrors the verified-pair precedent for STAT4 above.
+    """
+
+    # Verified GRHL2 rs10955255 / ARHI references (NCBI ESummary + Consensus):
+    _GRHL2_PMIDS = frozenset(
+        {
+            "17921507",  # Van Laer 2008, Hum Mol Genet — GRHL2/rs10955255 ARHI discovery
+            "31232964",  # Han 2019, Medicine — rs10955255/ARHI meta-analysis (OR 1.26-1.33)
+        }
+    )
+    # Off-topic PMIDs wrongly cited by the GRHL2 row; all three were exclusive to
+    # this row, so none may appear anywhere in the panel after the fix.
+    _BANNED_PMIDS = frozenset({"19578363", "25006839", "30068587"})
+
+    def _get_grhl2(self, panel: GeneHealthPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs10955255":
+                    return snp
+        raise AssertionError("GRHL2 rs10955255 not found in panel")
+
+    def test_grhl2_cites_verified_arhi_refs(self, panel: GeneHealthPanel) -> None:
+        assert set(self._get_grhl2(panel).pmids) == self._GRHL2_PMIDS
+
+    def test_banned_pmids_absent_from_panel(self, panel: GeneHealthPanel) -> None:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                leaked = self._BANNED_PMIDS & set(snp.pmids)
+                assert not leaked, f"{snp.rsid} cites unrelated PMID(s) {sorted(leaked)}"
