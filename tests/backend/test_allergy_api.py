@@ -437,7 +437,16 @@ class TestListPathways:
         assert data["items"] == []
 
     def test_missing_sample_404(self, client: TestClient) -> None:
-        resp = client.get("/api/analysis/allergy/pathways?sample_id=999")
+        # Hermetic (#414): the gated route runs require_fresh_sample first, whose
+        # is_sample_stale() verdict for a missing sample depends on the dev box's
+        # bundle manifest (no baseline → not stale → handler 404; a newer baseline →
+        # the Plan §7.4 v1.0.0 fallback → 423). Pin staleness off so this asserts the
+        # allergy route's own missing-sample 404 deterministically, independent of
+        # local bundle state. (Whether a *missing* sample should instead be gated 423
+        # to avoid leaking existence is a separate, unresolved cross-route contract —
+        # the merge/migrate routes intentionally do block it with 423; see #414.)
+        with patch("backend.api.dependencies.is_sample_stale", return_value=False):
+            resp = client.get("/api/analysis/allergy/pathways?sample_id=999")
         assert resp.status_code == 404
 
     def test_hla_proxy_lookup_in_pathway(self, seeded_client: TestClient) -> None:
