@@ -12,6 +12,8 @@ that must return ``unknown`` live in :class:`TestMinimumEvidenceGuard`.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
 
@@ -578,3 +580,18 @@ class TestIND09bEdgeCases:
                 )
                 == expected
             ), f"_classify misclassified discordant X/Y evidence at y_rate={y_rate}"
+
+
+def test_threshold_validation_doc_exists_and_matches_constants() -> None:
+    """#435: the referenced threshold-validation doc must exist (it was never
+    committed at Step 53, leaving several code/README/CHANGELOG references dangling)
+    and must stay in sync with the live constants so it can't silently drift."""
+    doc = Path(__file__).resolve().parents[2] / "docs" / "sex_inference_threshold_validation.md"
+    assert doc.exists(), "referenced sex-inference threshold-validation doc is missing (#435)"
+    text = doc.read_text(encoding="utf-8")
+    # The doc documents the live constant values, so it cannot drift from code.
+    assert "0.30" in text and str(_THRESHOLD_XY_CONFIRM) in text
+    assert "0.10" in text and str(_THRESHOLD_PAR_NOISE) in text
+    assert str(MIN_X_NONPAR_TYPED) in text  # 100
+    assert str(MIN_Y_PROBES) in text  # 50
+    assert "validate_sex_thresholds.py" in text  # reproduction command
