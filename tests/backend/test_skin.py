@@ -249,6 +249,37 @@ class TestMMP1CitationProvenance:
         assert not leaked, f"MMP1 row still cites unrelated PMID(s) {sorted(leaked)}"
 
 
+class TestGSTP1CitationProvenance:
+    """The GSTP1 rs1695 (Ile105Val) row must cite real GSTP1/skin oxidative-stress
+    evidence, not the unrelated RCC-antigen / FGFR4-NFκB / pediatric-sleep papers
+    it previously carried (#391). All PMIDs verified via NCBI esummary + Consensus.
+    """
+
+    # 105Val -> reduced GST enzyme activity (Watson 1998, the functional paper);
+    # GSTP1 Val105 -> atopic dermatitis risk + lower erythrocyte glutathione
+    # (Chung 2009); GSTP1 Ile105Val -> skin-cancer/melanoma meta (Zhou 2015).
+    _CURATED = frozenset({"9498276", "19842992", "26044055"})
+    # Unrelated papers previously attached: renal-cell-carcinoma antigens /
+    # FGFR4-NFκB signaling / pediatric sleep-obesity meta. Scoped to the GSTP1
+    # row (FGFR4 names a real gene → same-field wrong-gene, deliberately not in
+    # the repo-wide test_citation_provenance_guard.py::BANNED_OFF_TOPIC_PMIDS).
+    _BANNED = frozenset({"10508479", "21203561", "25589359"})
+
+    def _gstp1(self, panel: SkinPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs1695":
+                    return snp
+        raise AssertionError("rs1695 (GSTP1) row not found in skin panel")
+
+    def test_gstp1_cites_curated_pmids(self, panel: SkinPanel) -> None:
+        assert set(self._gstp1(panel).pmids) == self._CURATED
+
+    def test_gstp1_drops_unrelated_pmids(self, panel: SkinPanel) -> None:
+        leaked = self._BANNED & set(self._gstp1(panel).pmids)
+        assert not leaked, f"GSTP1 row still cites unrelated PMID(s) {sorted(leaked)}"
+
+
 # ── Genotype normalization tests ─────────────────────────────────────────
 
 
