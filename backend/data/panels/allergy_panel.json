@@ -1,7 +1,7 @@
 {
   "module": "allergy",
   "version": "1.0.0",
-  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 9 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
+  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 7 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
   "pathways": [
     {
       "id": "atopic_conditions",
