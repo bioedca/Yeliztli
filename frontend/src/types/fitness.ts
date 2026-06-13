@@ -29,6 +29,12 @@ export interface PathwaySummary {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** rsIDs that were called but are strand-INDETERMINATE (palindromic A/T or
+   * C/G homozygotes, e.g. FTO rs9939609) whose curated category cannot be
+   * resolved from the array genotype alone. A Standard pathway carrying these
+   * is NOT confidently clear (#270/#356). Optional: older cached responses may
+   * omit it. */
+  indeterminate_snps?: string[]
   pmids: string[]
 }
 

@@ -8,7 +8,7 @@
 import { cn } from "@/lib/utils"
 import type { PathwaySummary, PathwayLevel } from "@/types/fitness"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, HelpCircle } from "lucide-react"
 
 interface PathwayCardProps {
   pathway: PathwaySummary
@@ -57,6 +57,7 @@ const PATHWAY_DESCRIPTIONS: Record<string, string> = {
 export default function PathwayCard({ pathway, onClick, selected }: PathwayCardProps) {
   const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard
   const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || ""
+  const indeterminateCount = pathway.indeterminate_snps?.length ?? 0
 
   return (
     <button
@@ -84,6 +85,26 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
           {config.label}
         </span>
       </div>
+
+      {/* Strand-indeterminate caveat (#270/#356/#360): a pathway whose call(s)
+          are palindromic-strand-unresolved is NOT confidently clear. Neutral
+          styling (not Elevated amber / Moderate blue / Standard emerald) — this
+          is uncertainty, not elevated risk. */}
+      {indeterminateCount > 0 && (
+        <p
+          className={cn(
+            "mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
+            "bg-muted text-muted-foreground",
+          )}
+          data-testid="pathway-indeterminate-caveat"
+        >
+          <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {indeterminateCount} variant{indeterminateCount === 1 ? "" : "s"} observed but
+            strand-unresolved — not interpreted
+          </span>
+        </p>
+      )}
 
       {/* Description */}
       {description && (

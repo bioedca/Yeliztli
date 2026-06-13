@@ -52,6 +52,21 @@ const TRAINING_PATHWAY: PathwaySummary = {
   pmids: ["18285522"],
 }
 
+// A Standard-level pathway whose only called SNP is strand-INDETERMINATE
+// (palindromic FTO rs9939609 homozygote). Without the caveat this looks
+// identical to a confidently-clear "Standard" pathway (#270/#356/#360).
+const INDETERMINATE_PATHWAY: PathwaySummary = {
+  pathway_id: "training_response",
+  pathway_name: "Training Response",
+  level: "Standard",
+  evidence_level: 1,
+  called_snps: 1,
+  total_snps: 1,
+  missing_snps: [],
+  indeterminate_snps: ["rs9939609"],
+  pmids: [],
+}
+
 // ── PathwayCard tests ─────────────────────────────────────────────────
 
 describe("PathwayCard", () => {
@@ -169,5 +184,51 @@ describe("PathwayCard", () => {
       expect(screen.getByText(pathway.pathway_name)).toBeInTheDocument()
       unmount()
     }
+  })
+
+  // ── Strand-indeterminate caveat (#360) ──────────────────────────────
+
+  it("renders the strand-indeterminate caveat when indeterminate_snps present", () => {
+    render(<PathwayCard pathway={INDETERMINATE_PATHWAY} onClick={onClick} />)
+    const caveat = screen.getByTestId("pathway-indeterminate-caveat")
+    expect(caveat).toBeInTheDocument()
+    expect(caveat).toHaveTextContent(/strand-unresolved/i)
+    expect(caveat).toHaveTextContent(/not interpreted/i)
+    // Singular wording for exactly one indeterminate variant.
+    expect(caveat).toHaveTextContent(/1 variant\b/)
+  })
+
+  it("does NOT render the caveat for a confidently-clear Standard pathway", () => {
+    // RECOVERY_PATHWAY is Standard with no indeterminate_snps.
+    render(<PathwayCard pathway={RECOVERY_PATHWAY} onClick={onClick} />)
+    expect(screen.queryByTestId("pathway-indeterminate-caveat")).not.toBeInTheDocument()
+  })
+
+  it("does NOT render the caveat when indeterminate_snps is empty", () => {
+    render(
+      <PathwayCard
+        pathway={{ ...INDETERMINATE_PATHWAY, indeterminate_snps: [] }}
+        onClick={onClick}
+      />,
+    )
+    expect(screen.queryByTestId("pathway-indeterminate-caveat")).not.toBeInTheDocument()
+  })
+
+  it("pluralizes the caveat for multiple indeterminate variants", () => {
+    render(
+      <PathwayCard
+        pathway={{ ...INDETERMINATE_PATHWAY, indeterminate_snps: ["rs9939609", "rs1815739"] }}
+        onClick={onClick}
+      />,
+    )
+    expect(screen.getByTestId("pathway-indeterminate-caveat")).toHaveTextContent(/2 variants\b/)
+  })
+
+  it("shows both the Standard badge and the caveat (not just 'no concern')", () => {
+    // The #270 regression: an all-indeterminate pathway must NOT read as a
+    // confidently-clear Standard. Both the level badge and the caveat appear.
+    render(<PathwayCard pathway={INDETERMINATE_PATHWAY} onClick={onClick} />)
+    expect(screen.getByText("Standard")).toBeInTheDocument()
+    expect(screen.getByTestId("pathway-indeterminate-caveat")).toBeInTheDocument()
   })
 })
