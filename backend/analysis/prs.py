@@ -712,7 +712,18 @@ def check_ancestry_mismatch(
     source = result.source_ancestry.upper()
     inferred = inferred_ancestry.upper()
 
-    if source != inferred:
+    # For a multi-ancestry score, a mismatch means the inferred ancestry is not
+    # in the development set — NOT merely that it differs from the single
+    # resolved source label (which is ancestries[0]). Comparing against the
+    # source label alone would falsely flag a covered ancestry whose label
+    # differs from ancestries[0], and make the "none matching" wording untrue
+    # (issue #239 review). Single-ancestry scores keep the direct comparison.
+    if is_multi:
+        mismatch = inferred not in {a.upper() for a in result.development_ancestries}
+    else:
+        mismatch = source != inferred
+
+    if mismatch:
         result.ancestry_mismatch = True
         if is_multi:
             dev = ", ".join(result.development_ancestries)
@@ -722,12 +733,11 @@ def check_ancestry_mismatch(
                 f"estimates may be less accurate for your genetic background."
             )
         else:
-            article = "an" if result.source_ancestry[:1].upper() in "AEIOU" else "a"
             result.ancestry_warning_text = (
-                f"This PRS was derived from {article} {result.source_ancestry} "
-                f"population study. Your inferred ancestry ({inferred_ancestry}) "
-                f"differs from the source population. Percentile estimates may be "
-                f"less accurate for your genetic background."
+                f"This PRS was derived from a single-ancestry ({result.source_ancestry}) "
+                f"population study. Your inferred ancestry ({inferred_ancestry}) differs "
+                f"from the source population. Percentile estimates may be less accurate "
+                f"for your genetic background."
             )
     else:
         result.ancestry_mismatch = False

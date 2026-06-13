@@ -792,8 +792,17 @@ class TestMultiAncestryProvenanceWarning:
         assert "AFR, AMR, EAS, EUR, SAS" in text
         assert "population study" not in text
 
-    def test_single_ancestry_wording_unchanged_with_article_fix(self) -> None:
-        # A genuine single-ancestry score keeps the "... population study" wording.
+    def test_multi_ancestry_covered_ancestry_no_false_warning(self) -> None:
+        # A covered ancestry whose label differs from ancestries[0] must NOT be
+        # flagged: mismatch is membership in the development set, not equality
+        # with the single source label (issue #239 review — Critical).
+        result = check_ancestry_mismatch(self._multi_result(), inferred_ancestry="EAS")
+        assert result.ancestry_mismatch is False
+        assert result.ancestry_warning_text is None
+
+    def test_single_ancestry_wording_is_grammatical(self) -> None:
+        # A genuine single-ancestry score keeps the "single-ancestry (...) population
+        # study" wording (no fragile "a/an {CODE}" article logic).
         single = PRSResult(
             weight_set_name="T2D (EAS)",
             trait="t2d",
@@ -807,5 +816,6 @@ class TestMultiAncestryProvenanceWarning:
         result = check_ancestry_mismatch(single, inferred_ancestry="EUR")
         text = result.ancestry_warning_text
         assert text is not None
-        assert "an EAS population study" in text  # vowel-initial → "an"
+        assert "single-ancestry (EAS) population study" in text
         assert "multiple ancestries" not in text
+        assert "a EAS" not in text and "a AFR" not in text  # no ungrammatical article
