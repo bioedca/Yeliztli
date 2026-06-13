@@ -175,7 +175,10 @@ class TestHLAProxyQueries:
             ).fetchall()
         assert len(rows) >= 1
         pops = {r.ancestry_pop for r in rows}
-        assert "EUR" in pops
+        # rs9263726-HLA-B*58:01 LD is curated per source-matched sub-population
+        # (Han Chinese / Tibetan / Hui; Zhang 2018, PMID 30080910), not the
+        # unsupported continental EUR/EAS/AFR bins removed in #333.
+        assert pops == {"Han Chinese", "Tibetan", "Hui"}, pops
 
     def test_ancestry_specific_r_squared(self, reference_engine: sa.Engine) -> None:
         self._seed(reference_engine)

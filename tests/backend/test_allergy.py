@@ -747,7 +747,9 @@ class TestHLAProxyLookup:
         production hla_proxy_lookup table, so it can't drift back to the
         misattributed citations scrubbed from the panel + proxy JSON by
         #176/#194/#232 (#278): HLA-B*15:02 -> 15057820 (not 21248726),
-        HLA-B*58:01 -> 29392141 (not 22286173)."""
+        HLA-B*58:01 -> 30080910 (source-matched Han/Tibetan/Hui LD; the
+        unsupported continental r² citing the Thai study 29392141 was removed
+        in #333, and not 22286173)."""
         proxy_path = (
             Path(__file__).resolve().parents[2]
             / "backend"
