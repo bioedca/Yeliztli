@@ -23,9 +23,15 @@ chrX/chrY evidence:
    when chrY evidence is at or below the PAR-noise floor. If chrY rises
    above the manual-review threshold, the sample is discordant and must
    not be silently treated as ordinary XX.
-3. **Candidate XY.** If at least one non-PAR chrX SNP was typed and
-   every typed call is homozygous, the sample is a *candidate* XY that
-   needs chrY confirmation.
+3. **Candidate XY.** If at least one non-PAR chrX SNP was typed and no
+   typed call is heterozygous — i.e. every call is a diploid homozygote
+   *or* a hemizygous single-allele male call — the sample is a
+   *candidate* XY that needs chrY confirmation. Males are hemizygous on
+   the non-PAR X (one X copy), so 23andMe reports their non-PAR chrX
+   calls as single-character genotypes (``"A"``), whereas AncestryDNA
+   pads them to a diploid homozygote (``"AA"``); both are
+   non-heterozygous evidence of a single X and count toward the
+   candidate-XY denominator (issue #504).
 4. **chrY confirmation.** Non-no-call rate strictly above
    ``_THRESHOLD_XY_CONFIRM`` (default 0.30) confirms XY. Above
    ``_THRESHOLD_PAR_NOISE`` (default 0.10) but not above the confirm
@@ -111,6 +117,18 @@ def _is_hom(genotype: str) -> bool:
     return len(genotype) == 2 and genotype[0] == genotype[1] and not _is_no_call(genotype)
 
 
+def _is_hemizygous(genotype: str) -> bool:
+    """A single-allele non-PAR call — the hallmark of a single X copy.
+
+    Males are hemizygous on the non-PAR X, so 23andMe reports their non-PAR chrX
+    (and chrY) genotypes as a single character (``"A"``), not a padded diploid
+    homozygote (``"AA"``). Such a call is typed, non-heterozygous evidence, so it
+    counts toward ``x_nonpar_typed`` alongside diploid homozygotes for the §9.4
+    candidate-XY test. No-call sentinels (``"0"``, ``""``) are excluded (issue
+    #504)."""
+    return len(genotype) == 1 and not _is_no_call(genotype)
+
+
 def _classify(
     *,
     x_nonpar_het: int,
@@ -118,6 +136,7 @@ def _classify(
     x_nonpar_hom: int,
     y_total: int,
     y_rate: float,
+    x_nonpar_hemizygous: int = 0,
 ) -> Classification:
     """Apply the Plan §9.4 decision tree to pre-tabulated counts.
 
@@ -135,6 +154,11 @@ def _classify(
     - non-PAR chrX heterozygosity is XX evidence only while chrY is at/below
       the PAR-noise floor; stronger chrY evidence makes the X/Y signals
       discordant and returns ``manual_review``.
+    - the candidate-XY denominator is every non-heterozygous typed call:
+      diploid homozygotes (``x_nonpar_hom``) plus hemizygous single-allele
+      male calls (``x_nonpar_hemizygous``). The 23andMe male representation is
+      hemizygous, so without counting it ``x_nonpar_hom != x_nonpar_typed`` and
+      every 23andMe male would fall through to ``unknown`` (issue #504).
     """
     if x_nonpar_typed < MIN_X_NONPAR_TYPED or y_total < MIN_Y_PROBES:
         return "unknown"
@@ -142,7 +166,7 @@ def _classify(
         if y_rate > _THRESHOLD_PAR_NOISE:
             return "manual_review"
         return "XX"
-    if x_nonpar_typed > 0 and x_nonpar_hom == x_nonpar_typed:
+    if x_nonpar_typed > 0 and (x_nonpar_hom + x_nonpar_hemizygous) == x_nonpar_typed:
         if y_rate > _THRESHOLD_XY_CONFIRM:
             return "XY"
         if y_rate > _THRESHOLD_PAR_NOISE:
@@ -156,12 +180,15 @@ class SexSignals:
     sex-aneuploidy screen, which reads the same counts).
 
     ``y_rate`` is the non-no-call rate over the typed chrY probes (or 0.0 when no
-    chrY probe exists).
+    chrY probe exists). ``x_nonpar_typed`` is the sum of the three zygosity
+    buckets — ``x_nonpar_het`` + ``x_nonpar_hom`` + ``x_nonpar_hemizygous``;
+    the last counts single-allele male calls (the 23andMe representation, #504).
     """
 
     x_nonpar_typed: int
     x_nonpar_het: int
     x_nonpar_hom: int
+    x_nonpar_hemizygous: int
     y_total: int
     y_typed: int
     y_rate: float
@@ -172,6 +199,7 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
     x_nonpar_typed = 0
     x_nonpar_het = 0
     x_nonpar_hom = 0
+    x_nonpar_hemizygous = 0
     y_total = 0
     y_typed = 0
 
@@ -192,6 +220,11 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
             elif _is_hom(genotype):
                 x_nonpar_hom += 1
                 x_nonpar_typed += 1
+            elif _is_hemizygous(genotype):
+                # Single-allele male call (23andMe non-PAR chrX) — typed,
+                # non-heterozygous evidence of a single X copy (issue #504).
+                x_nonpar_hemizygous += 1
+                x_nonpar_typed += 1
 
         y_rows = conn.execute(
             sa.select(raw_variants.c.genotype).where(raw_variants.c.chrom == "Y")
@@ -206,6 +239,7 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
         x_nonpar_typed=x_nonpar_typed,
         x_nonpar_het=x_nonpar_het,
         x_nonpar_hom=x_nonpar_hom,
+        x_nonpar_hemizygous=x_nonpar_hemizygous,
         y_total=y_total,
         y_typed=y_typed,
         y_rate=y_rate,
@@ -222,6 +256,7 @@ def infer_biological_sex(sample_engine: sa.Engine) -> Classification:
         x_nonpar_het=s.x_nonpar_het,
         x_nonpar_typed=s.x_nonpar_typed,
         x_nonpar_hom=s.x_nonpar_hom,
+        x_nonpar_hemizygous=s.x_nonpar_hemizygous,
         y_total=s.y_total,
         y_rate=s.y_rate,
     )
@@ -231,6 +266,7 @@ def infer_biological_sex(sample_engine: sa.Engine) -> Classification:
         classification=classification,
         x_nonpar_het=s.x_nonpar_het,
         x_nonpar_hom=s.x_nonpar_hom,
+        x_nonpar_hemizygous=s.x_nonpar_hemizygous,
         x_nonpar_typed=s.x_nonpar_typed,
         y_total=s.y_total,
         y_typed=s.y_typed,

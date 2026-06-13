@@ -28,6 +28,7 @@ from backend.services.sex_inference import (
     MIN_Y_PROBES,
     Classification,
     _classify,
+    compute_sex_signals,
     infer_biological_sex,
 )
 
@@ -56,9 +57,10 @@ def _seed(engine: sa.Engine, rows: list[dict]) -> None:
 
 
 def _x_rows(
-    *, het: int = 0, hom: int = 0, nocall: int = 0, base: int = _NONPAR_X_BASE
+    *, het: int = 0, hom: int = 0, hemi: int = 0, nocall: int = 0, base: int = _NONPAR_X_BASE
 ) -> list[dict]:
-    """Build non-PAR chrX rows: ``het`` ('AG') + ``hom`` ('GG') + ``nocall`` ('--')."""
+    """Build non-PAR chrX rows: ``het`` ('AG') + ``hom`` ('GG') + ``hemi`` ('A',
+    single-char hemizygous male call) + ``nocall`` ('--')."""
     rows: list[dict] = []
     i = 0
     for _ in range(het):
@@ -66,6 +68,9 @@ def _x_rows(
         i += 1
     for _ in range(hom):
         rows.append({"rsid": f"rs_x_hom_{i}", "chrom": "X", "pos": base + i, "genotype": "GG"})
+        i += 1
+    for _ in range(hemi):
+        rows.append({"rsid": f"rs_x_hemi_{i}", "chrom": "X", "pos": base + i, "genotype": "A"})
         i += 1
     for _ in range(nocall):
         rows.append({"rsid": f"rs_x_nc_{i}", "chrom": "X", "pos": base + i, "genotype": "--"})
@@ -384,6 +389,96 @@ class TestMinimumEvidenceGuard:
         )
 
 
+# ── Hemizygous single-char male X (23andMe representation, issue #504) ──
+
+
+class TestHemizygousMaleX:
+    """issue #504 — males are hemizygous on the non-PAR X (one X copy), so
+    23andMe reports their non-PAR chrX calls as single-character genotypes
+    (``"A"``), not the diploid homozygote (``"AA"``) AncestryDNA emits. Such
+    calls must count as typed, non-heterozygous evidence; otherwise
+    ``x_nonpar_typed`` stays 0 for every 23andMe male and the classifier
+    short-circuits to ``unknown`` — silently disabling Y-haplogroup assignment
+    and every sex-gated finding."""
+
+    def test_compute_signals_counts_hemizygous_as_typed_nonhet(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Single-char non-PAR chrX calls land in ``x_nonpar_hemizygous`` and
+        ``x_nonpar_typed`` — not dropped, and not miscounted as het/hom."""
+        _seed(sample_engine, _x_rows(hemi=_EVAL_X))
+        signals = compute_sex_signals(sample_engine)
+        assert signals.x_nonpar_typed == _EVAL_X
+        assert signals.x_nonpar_hemizygous == _EVAL_X
+        assert signals.x_nonpar_het == 0
+        assert signals.x_nonpar_hom == 0
+
+    def test_hemizygous_male_x_with_chry_confirms_xy(self, sample_engine: sa.Engine) -> None:
+        """The headline regression: hemizygous single-char non-PAR chrX over an
+        evaluable denominator + a confirm-grade chrY rate → ``XY`` (was
+        ``unknown`` before #504)."""
+        _seed(
+            sample_engine,
+            [*_x_rows(hemi=_EVAL_X), *_y_rows(typed=48, nocall=12)],  # 48/60 = 0.80
+        )
+        assert infer_biological_sex(sample_engine) == "XY"
+
+    def test_hemizygous_male_x_without_chry_is_unknown(self, sample_engine: sa.Engine) -> None:
+        """Evaluable hemizygous chrX but ZERO chrY probes → ``unknown``: the
+        candidate-XY pattern still needs chrY confirmation, and a vacuous
+        ``y_rate`` from no probes is not evidence chrY is absent (issue #363)."""
+        _seed(sample_engine, _x_rows(hemi=_EVAL_X))
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_hemizygous_below_x_floor_is_unknown(self, sample_engine: sa.Engine) -> None:
+        """Too few hemizygous non-PAR chrX probes (below ``MIN_X_NONPAR_TYPED``)
+        → ``unknown`` even with a confirm-grade chrY rate."""
+        _seed(
+            sample_engine,
+            [*_x_rows(hemi=MIN_X_NONPAR_TYPED - 1), *_y_rows(typed=48, nocall=12)],
+        )
+        assert infer_biological_sex(sample_engine) == "unknown"
+
+    def test_par_hemizygous_is_prefiltered(self, sample_engine: sa.Engine) -> None:
+        """A single-char call inside PAR1 carries no sex signal and must be
+        pre-filtered — it does not reach the hemizygous tally."""
+        _seed(
+            sample_engine,
+            [{"rsid": "rs_par_hemi", "chrom": "X", "pos": _PAR1_POS, "genotype": "A"}],
+        )
+        signals = compute_sex_signals(sample_engine)
+        assert signals.x_nonpar_typed == 0
+        assert signals.x_nonpar_hemizygous == 0
+
+    def test_classify_counts_hemizygous_toward_candidate_xy(self) -> None:
+        """Direct ``_classify``: hemizygous calls satisfy the candidate-XY
+        denominator (``hom + hemizygous == typed``) just as diploid homozygotes
+        do, so a pure-hemizygous male confirms ``XY``."""
+        assert (
+            _classify(
+                x_nonpar_het=0,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=0,
+                x_nonpar_hemizygous=MIN_X_NONPAR_TYPED,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.9,
+            )
+            == "XY"
+        )
+        # A het among hemizygous calls is the XX/discordant signal, not XY.
+        assert (
+            _classify(
+                x_nonpar_het=1,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=0,
+                x_nonpar_hemizygous=MIN_X_NONPAR_TYPED - 1,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.9,
+            )
+            == "manual_review"
+        )
+
+
 # ── Parametric assertion: returned type lands in the Literal alphabet ──
 
 
@@ -395,6 +490,8 @@ class TestMinimumEvidenceGuard:
         # the Literal alphabet on the return. Seeded at evaluable densities.
         ([*_x_rows(het=60, hom=60), *_y_rows(typed=0, nocall=_EVAL_Y)], "XX"),
         ([*_x_rows(hom=_EVAL_X), *_y_rows(typed=48, nocall=12)], "XY"),
+        # 23andMe male: hemizygous single-char non-PAR chrX + confirm-grade chrY.
+        ([*_x_rows(hemi=_EVAL_X), *_y_rows(typed=48, nocall=12)], "XY"),
         ([*_x_rows(hom=_EVAL_X), *_y_rows(typed=12, nocall=48)], "manual_review"),
         ([], "unknown"),
     ],

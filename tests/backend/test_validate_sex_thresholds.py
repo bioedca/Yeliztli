@@ -73,6 +73,9 @@ def test_xx_fixture_classifies_as_xx_with_unopposed_x_het() -> None:
     # Non-PAR chrX tabulation: 60 het + 60 hom + 1 no-call (evaluable: ≥100 typed).
     assert report.x_nonpar_het == 60
     assert report.x_nonpar_hom == 60
+    # AncestryDNA pads male X to a diploid homozygote, so a diploid export carries
+    # no single-char hemizygous calls (issue #504).
+    assert report.x_nonpar_hemizygous == 0
     assert report.x_nonpar_nocall == 1
     assert report.x_nonpar_typed == 120
     assert report.x_nonpar_het_rate == pytest.approx(0.5)
@@ -94,6 +97,7 @@ def test_xy_fixture_classifies_as_xy_with_chry_confirmation() -> None:
     assert report.classification == "XY"
     assert report.x_nonpar_het == 0
     assert report.x_nonpar_hom == 120
+    assert report.x_nonpar_hemizygous == 0  # AncestryDNA pads male X to diploid hom
     assert report.x_nonpar_typed == 120
 
     # One chr 25 PAR1 het exists and must be filtered (otherwise classification
@@ -112,12 +116,41 @@ def test_manual_review_fixture_classifies_as_manual_review() -> None:
     assert report.classification == "manual_review"
     assert report.x_nonpar_het == 0
     assert report.x_nonpar_hom == 120
+    assert report.x_nonpar_hemizygous == 0  # AncestryDNA pads male X to diploid hom
     assert report.x_nonpar_typed == 120
 
     # 12 typed chrY calls out of 60 → 0.20 (in the (0.10, 0.30] band).
     assert report.y_total == 60
     assert report.y_typed == 12
     assert report.y_rate == pytest.approx(0.2)
+
+
+def test_twentythreeandme_male_fixture_classifies_as_xy() -> None:
+    """issue #504 — a 23andMe MALE export reports non-PAR chrX as hemizygous
+    single-character calls (one X copy). build_report must count them toward
+    ``x_nonpar_hemizygous``/``x_nonpar_typed`` (not drop them as the old
+    ``len == 2`` guard did) so the sample reaches the candidate-XY path and a
+    confirm-grade chrY rate yields ``XY`` — the regression that left every
+    real 23andMe male as ``unknown``."""
+    report = build_report(FIXTURE_DIR / "twentythreeandme_xy_sample.txt")
+
+    assert report.vendor == "23andme"
+    assert report.classification == "XY"
+
+    # 120 hemizygous single-char non-PAR chrX calls — no het, no diploid hom.
+    assert report.x_nonpar_hemizygous == 120
+    assert report.x_nonpar_het == 0
+    assert report.x_nonpar_hom == 0
+    assert report.x_nonpar_typed == 120
+    assert report.x_nonpar_het_rate == pytest.approx(0.0)
+
+    # One diploid PAR1 het (males are diploid in the PAR) must be pre-filtered.
+    assert report.x_par_count == 1
+
+    # 48 typed chrY calls out of 60 → 0.80 > 0.30 confirm threshold.
+    assert report.y_total == 60
+    assert report.y_typed == 48
+    assert report.y_rate == pytest.approx(0.8)
 
 
 def test_manual_review_thresholds_round_trip_defaults() -> None:
@@ -245,19 +278,28 @@ def test_classifier_parity_grid() -> None:
 
     # Boundary-spanning values: x_nonpar_typed straddles MIN_X (100), y_total
     # straddles MIN_Y (50), y_rate straddles PAR_NOISE (0.10) and XY_CONFIRM (0.30).
+    # hemi_split divides the non-het typed pool between diploid homozygotes and
+    # hemizygous single-char male calls (0.0 = all hom, 1.0 = all hemizygous,
+    # 0.5 = mixed) so the grid exercises the hemizygous denominator too (#504).
     xs_typed = [0, 99, 100, 150]
     ys_total = [0, 49, 50, 100]
     hets = [0, 1, 3]
     y_rates = [0.0, 0.10, 0.101, 0.30, 0.301, 0.6]
+    hemi_splits = [0.0, 0.5, 1.0]
 
     mismatches: list[str] = []
     n = 0
-    for x_typed, y_tot, het, y_rate in itertools.product(xs_typed, ys_total, hets, y_rates):
+    for x_typed, y_tot, het, y_rate, hemi_split in itertools.product(
+        xs_typed, ys_total, hets, y_rates, hemi_splits
+    ):
         het_eff = min(het, x_typed)
+        non_het = x_typed - het_eff
+        hemi = int(round(non_het * hemi_split))
         point = dict(
             x_nonpar_het=het_eff,
             x_nonpar_typed=x_typed,
-            x_nonpar_hom=x_typed - het_eff,
+            x_nonpar_hom=non_het - hemi,
+            x_nonpar_hemizygous=hemi,
             y_total=y_tot,
             y_rate=y_rate,
         )
@@ -273,7 +315,7 @@ def test_classifier_parity_grid() -> None:
         if prod_call != script_call:
             mismatches.append(f"{point}: prod={prod_call} script={script_call}")
 
-    assert n == 288  # full grid actually exercised (guards against a no-op shrink)
+    assert n == 864  # full grid actually exercised (guards against a no-op shrink)
     assert not mismatches, (
         "production _classify and the validation script's classify() DIVERGED — the "
         f"§9.4 copies have drifted ({len(mismatches)}/{n} points):\n" + "\n".join(mismatches[:8])

@@ -40,6 +40,17 @@ def _x_probes(n_het: int, n_hom: int) -> list[dict]:
     return rows
 
 
+def _x_hemi_probes(n: int) -> list[dict]:
+    """Non-PAR chrX hemizygous single-char male calls (the 23andMe representation
+    of a single X copy — one allele, not a padded diploid homozygote)."""
+    rows = []
+    pos = 7_000_000
+    for i in range(n):
+        rows.append({"rsid": f"x_hemi{i}", "chrom": "X", "pos": pos, "genotype": "A"})
+        pos += 137
+    return rows
+
+
 def _y_probes(n_typed: int, n_nocall: int = 0) -> list[dict]:
     rows = []
     pos = 6_000_000
@@ -70,6 +81,18 @@ class TestScreen:
         _seed(sample_engine, _x_probes(0, 120) + _y_probes(60))
         r = screen_aneuploidy(sample_engine)
         assert r.outcome == NO_SIGNAL
+
+    def test_twentythreeandme_male_hemizygous_x_no_signal(self, sample_engine: sa.Engine) -> None:
+        """issue #504 — a 23andMe male reports non-PAR chrX as hemizygous
+        single-char calls. Once those are counted as typed, a normal male is
+        x-evaluable and screens as NO_SIGNAL; before the fix ``x_nonpar_typed``
+        was 0, so every 23andMe male fell through to INDETERMINATE and the screen
+        was silently suppressed."""
+        _seed(sample_engine, _x_hemi_probes(120) + _y_probes(60))
+        r = screen_aneuploidy(sample_engine)
+        assert r.outcome == NO_SIGNAL
+        assert r.x_evaluable and r.y_evaluable
+        assert r.x_nonpar_het == 0
 
     def test_single_stray_y_probe_is_indeterminate(self, sample_engine: sa.Engine) -> None:
         # The golden-fixture shape: XX-like X het + ONE Y probe → must NOT call XXY.

@@ -95,6 +95,7 @@ class Report:
     x_nonpar_nocall: int
     x_nonpar_het: int
     x_nonpar_hom: int
+    x_nonpar_hemizygous: int
     x_nonpar_het_rate: float
     y_total: int
     y_typed: int
@@ -125,6 +126,14 @@ def _is_hom(genotype: str) -> bool:
     return len(genotype) == 2 and genotype[0] == genotype[1] and not _is_no_call(genotype)
 
 
+def _is_hemizygous(genotype: str) -> bool:
+    # Single-allele non-PAR call — the 23andMe male representation (one X copy).
+    # Typed, non-heterozygous evidence; counts toward the candidate-XY
+    # denominator alongside diploid homozygotes (issue #504). Mirrors
+    # backend.services.sex_inference._is_hemizygous.
+    return len(genotype) == 1 and not _is_no_call(genotype)
+
+
 def classify(
     *,
     x_nonpar_het: int,
@@ -136,6 +145,7 @@ def classify(
     par_noise: float,
     min_x_nonpar_typed: int = DEFAULT_MIN_X_NONPAR_TYPED,
     min_y_probes: int = DEFAULT_MIN_Y_PROBES,
+    x_nonpar_hemizygous: int = 0,
 ) -> str:
     """Apply the Plan §9.4 algorithm to pre-tabulated counts.
 
@@ -150,9 +160,11 @@ def classify(
     1. ``≥1`` heterozygous non-PAR chrX call supports XX only when chrY
        evidence is at/below the PAR-noise floor. Above that floor, the
        X/Y signals are discordant and require manual review.
-    2. Otherwise, if at least one non-PAR chrX SNP was typed and every
-       typed call is homozygous, the sample is a *candidate* XY that needs
-       chrY confirmation.
+    2. Otherwise, if at least one non-PAR chrX SNP was typed and no typed
+       call is heterozygous — every call is a diploid homozygote
+       (``x_nonpar_hom``) or a hemizygous single-allele male call
+       (``x_nonpar_hemizygous``, the 23andMe representation) — the sample
+       is a *candidate* XY that needs chrY confirmation (issue #504).
     3. chrY non-no-call rate above ``xy_confirm`` confirms XY; above
        ``par_noise`` but at/below ``xy_confirm`` flags for manual review;
        at/below ``par_noise`` falls back to ``unknown`` rather than auto-
@@ -164,7 +176,7 @@ def classify(
         if y_rate > par_noise:
             return "manual_review"
         return "XX"
-    if x_nonpar_typed > 0 and x_nonpar_hom == x_nonpar_typed:
+    if x_nonpar_typed > 0 and (x_nonpar_hom + x_nonpar_hemizygous) == x_nonpar_typed:
         if y_rate > xy_confirm:
             return "XY"
         if y_rate > par_noise:
@@ -189,6 +201,7 @@ def build_report(
     x_nonpar_nocall = 0
     x_nonpar_het = 0
     x_nonpar_hom = 0
+    x_nonpar_hemizygous = 0
     y_total = 0
     y_typed = 0
 
@@ -205,6 +218,10 @@ def build_report(
                 x_nonpar_typed += 1
             elif _is_hom(variant.genotype):
                 x_nonpar_hom += 1
+                x_nonpar_typed += 1
+            elif _is_hemizygous(variant.genotype):
+                # Single-allele male call (23andMe non-PAR chrX) — issue #504.
+                x_nonpar_hemizygous += 1
                 x_nonpar_typed += 1
         elif variant.chrom == "Y":
             y_total += 1
@@ -226,6 +243,7 @@ def build_report(
         x_nonpar_nocall=x_nonpar_nocall,
         x_nonpar_het=x_nonpar_het,
         x_nonpar_hom=x_nonpar_hom,
+        x_nonpar_hemizygous=x_nonpar_hemizygous,
         x_nonpar_het_rate=x_nonpar_het_rate,
         y_total=y_total,
         y_typed=y_typed,
@@ -238,6 +256,7 @@ def build_report(
             x_nonpar_het=x_nonpar_het,
             x_nonpar_typed=x_nonpar_typed,
             x_nonpar_hom=x_nonpar_hom,
+            x_nonpar_hemizygous=x_nonpar_hemizygous,
             y_total=y_total,
             y_rate=y_rate,
             xy_confirm=xy_confirm,
@@ -260,6 +279,7 @@ def _format_text(report: Report) -> str:
             f"  non-PAR typed           : {report.x_nonpar_typed}",
             f"    heterozygous          : {report.x_nonpar_het}",
             f"    homozygous            : {report.x_nonpar_hom}",
+            f"    hemizygous (male X)   : {report.x_nonpar_hemizygous}",
             f"  non-PAR no-call         : {report.x_nonpar_nocall}",
             f"  non-PAR het rate        : {report.x_nonpar_het_rate:.3f}",
             "",
