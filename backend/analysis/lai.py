@@ -180,6 +180,19 @@ def _store_lai_results(
 ) -> None:
     """Store LAI results in both lai_results and findings tables."""
     with engine.begin() as conn:
+        # Clear any prior LAI rows FIRST so a rerun replaces rather than duplicates
+        # them (#494 / #348 store-clear class). lai_results is sample-scoped (one
+        # sample per DB), and "local_ancestry" is the LAI-only findings category, so a
+        # blanket delete here is safe and does not touch the Tier-1 ancestry findings
+        # (pca_projection / nnls_admixture / knn_admixture).
+        conn.execute(sa.delete(lai_results))
+        conn.execute(
+            sa.delete(findings).where(
+                findings.c.module == "ancestry",
+                findings.c.category == "local_ancestry",
+            )
+        )
+
         # Store full results in lai_results table
         conn.execute(
             lai_results.insert().values(

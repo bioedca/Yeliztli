@@ -415,6 +415,57 @@ class TestLAIResultsStorage:
             detail = json.loads(finding.detail_json)
             assert detail["top_population"] == "EUR"
 
+    def test_rerun_replaces_rather_than_duplicates(self, sample_engine):
+        # #494: _store_lai_results inserted without clearing prior rows, so every rerun
+        # duplicated the lai_results row AND the local_ancestry finding. After the fix a
+        # second store must leave exactly one of each (the latest), not two.
+        from backend.analysis.lai import _ensure_lai_tables, _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+
+        _ensure_lai_tables(sample_engine)
+
+        def _result(eur_frac: float) -> LAIRunnerResult:
+            afr_frac = round(1.0 - eur_frac, 3)
+            return LAIRunnerResult(
+                global_ancestry={
+                    "EUR": {
+                        "fraction": eur_frac,
+                        "percentage": round(eur_frac * 100, 1),
+                        "display_name": "European",
+                        "color": "#4477AA",
+                    },
+                    "AFR": {
+                        "fraction": afr_frac,
+                        "percentage": round(afr_frac * 100, 1),
+                        "display_name": "African",
+                        "color": "#E8A838",
+                    },
+                },
+                chromosome_painting={
+                    "chr1": [{"start": 0, "end": 1000, "hap0": "EUR", "hap1": "AFR"}],
+                },
+                metadata={"chromosomes_analyzed": 22, "runtime_seconds": 100.0},
+            )
+
+        _store_lai_results(sample_engine, _result(0.6))
+        _store_lai_results(sample_engine, _result(0.8))  # rerun with a different result
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(sa.select(lai_results)).fetchall()
+            assert len(rows) == 1, f"rerun duplicated lai_results: {len(rows)} rows"
+            # The surviving row is the latest (EUR 0.8), not a stale earlier one.
+            assert json.loads(rows[0].global_ancestry_json)["EUR"]["fraction"] == 0.8
+
+            local_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "ancestry",
+                    findings.c.category == "local_ancestry",
+                )
+            ).fetchall()
+            assert len(local_findings) == 1, (
+                f"rerun duplicated local_ancestry finding: {len(local_findings)} rows"
+            )
+
     def test_lai_results_json_schema(self, sample_engine):
         from backend.analysis.lai import _ensure_lai_tables, _store_lai_results
         from backend.analysis.lai_runner import LAIRunnerResult
