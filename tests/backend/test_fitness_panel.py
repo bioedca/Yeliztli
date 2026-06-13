@@ -236,12 +236,13 @@ class TestACTN3ThreeState:
         assert effect["category"] == "Moderate"
         assert "mixed" in effect["effect_summary"].lower()
 
-    def test_actn3_tt_elevated_endurance(self, panel_data: dict) -> None:
-        """XX genotype (TT) → Elevated category (endurance shift)."""
+    def test_actn3_tt_standard_context_only(self, panel_data: dict) -> None:
+        """XX genotype (TT) is context-only (Standard), not an Elevated endurance
+        call — the human XX endurance advantage is not established (gh #182)."""
         actn3 = self._get_actn3(panel_data)
         effect = actn3["genotype_effects"]["TT"]
-        assert effect["category"] == "Elevated"
-        assert "endurance" in effect["effect_summary"].lower()
+        assert effect["category"] == "Standard"
+        assert "not established" in effect["effect_summary"].lower()
 
     def test_actn3_evidence_level(self, panel_data: dict) -> None:
         actn3 = self._get_actn3(panel_data)
