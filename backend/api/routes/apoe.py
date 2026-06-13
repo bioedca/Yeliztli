@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.api.dependencies import require_fresh_sample
+from backend.api.gating import apoe_gate_status
 from backend.db.connection import get_registry
 from backend.db.tables import apoe_gate, findings, samples
 from backend.disclaimers import (
@@ -144,26 +145,15 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
 def _is_gate_acknowledged(sample_engine: sa.Engine) -> tuple[bool, str | None]:
     """Check whether the APOE gate has been acknowledged for this sample.
 
+    Delegates to the shared :func:`backend.api.gating.apoe_gate_status` helper
+    so the gate check has a single source of truth across every route that can
+    surface APOE findings (the dedicated APOE routes here and the generic
+    aggregator in ``routes/findings.py``, issue #222).
+
     Returns:
         Tuple of (acknowledged: bool, acknowledged_at: str | None).
     """
-    with sample_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(apoe_gate.c.acknowledged, apoe_gate.c.acknowledged_at).where(
-                apoe_gate.c.id == 1
-            )
-        ).fetchone()
-
-    if row is None or not row.acknowledged:
-        return False, None
-
-    ack_at = row.acknowledged_at
-    if ack_at is not None:
-        if isinstance(ack_at, datetime):
-            ack_at = ack_at.isoformat()
-        else:
-            ack_at = str(ack_at)
-    return True, ack_at
+    return apoe_gate_status(sample_engine)
 
 
 def _ensure_gate_acknowledged(sample_engine: sa.Engine) -> None:

@@ -274,3 +274,153 @@ class TestFindingSvg:
     def test_nonexistent_finding_returns_404(self, findings_client):
         resp = findings_client.get("/api/analysis/findings/999/svg?sample_id=1")
         assert resp.status_code == 404
+
+
+# ── APOE disclosure gate on the generic aggregator (issue #222) ──────
+
+
+@pytest.fixture
+def apoe_findings_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Test client with both APOE and non-APOE findings stored for one sample.
+
+    The APOE gate is NOT acknowledged by default (no apoe_gate row), so the
+    generic ``/api/analysis/findings`` aggregator must withhold the APOE rows.
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_path = settings.reference_db_path
+    ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Test Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="abc123",
+            )
+        )
+
+    seed_findings = [
+        # Non-APOE finding — must always be visible.
+        {
+            "module": "cancer",
+            "category": "monogenic_variant",
+            "evidence_level": 4,
+            "gene_symbol": "BRCA1",
+            "finding_text": "BRCA1 Pathogenic",
+        },
+        # APOE findings — the ε4 diplotype + Alzheimer's narrative the gate protects.
+        {
+            "module": "apoe",
+            "category": "genotype",
+            "gene_symbol": "APOE",
+            "finding_text": "APOE genotype determined",
+            "diplotype": "ε3/ε4",
+        },
+        {
+            "module": "apoe",
+            "category": "cardiovascular_risk",
+            "evidence_level": 4,
+            "gene_symbol": "APOE",
+            "finding_text": "APOE ε4 cardiovascular risk context",
+            "diplotype": "ε3/ε4",
+        },
+        {
+            "module": "apoe",
+            "category": "alzheimers_risk",
+            "evidence_level": 4,
+            "gene_symbol": "APOE",
+            "finding_text": "APOE ε3/ε4 — probabilistic Alzheimer's disease risk modifier",
+            "diplotype": "ε3/ε4",
+        },
+        {
+            "module": "apoe",
+            "category": "lipid_dietary",
+            "evidence_level": 3,
+            "gene_symbol": "APOE",
+            "finding_text": "APOE ε4 lipid/dietary context",
+            "diplotype": "ε3/ε4",
+        },
+    ]
+    with sample_engine.begin() as conn:
+        for f in seed_findings:
+            conn.execute(findings.insert().values(**f))
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+
+
+class TestAPOEGateOnGenericFindings:
+    """The generic findings aggregator must honor the APOE disclosure gate (#222)."""
+
+    def test_apoe_withheld_from_unfiltered_list_before_ack(self, apoe_findings_client):
+        resp = apoe_findings_client.get("/api/analysis/findings?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        modules = {f["module"] for f in data}
+        assert "apoe" not in modules
+        # Non-APOE findings still surface.
+        assert "cancer" in modules
+        # Neither the diplotype nor the Alzheimer's narrative leaks.
+        assert "ε3/ε4" not in resp.text
+        assert "alzheimer" not in resp.text.lower()
+
+    def test_apoe_withheld_from_explicit_module_filter_before_ack(self, apoe_findings_client):
+        resp = apoe_findings_client.get("/api/analysis/findings?sample_id=1&module=apoe")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_apoe_withheld_from_summary_before_ack(self, apoe_findings_client):
+        resp = apoe_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        modules = {m["module"] for m in data["modules"]}
+        assert "apoe" not in modules
+        # No APOE row leaks via top_finding_text or high_confidence_findings.
+        assert "ε3/ε4" not in resp.text
+        assert "alzheimer" not in resp.text.lower()
+        assert all(f["module"] != "apoe" for f in data["high_confidence_findings"])
+
+    def test_apoe_visible_in_list_after_ack(self, apoe_findings_client):
+        ack = apoe_findings_client.post(
+            "/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1}
+        )
+        assert ack.status_code == 200
+
+        resp = apoe_findings_client.get("/api/analysis/findings?sample_id=1&module=apoe")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 4
+        assert all(f["module"] == "apoe" for f in data)
+        assert all(f["diplotype"] == "ε3/ε4" for f in data)
+
+    def test_apoe_visible_in_summary_after_ack(self, apoe_findings_client):
+        apoe_findings_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+
+        resp = apoe_findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        apoe_mod = next((m for m in data["modules"] if m["module"] == "apoe"), None)
+        assert apoe_mod is not None
+        assert apoe_mod["count"] == 4

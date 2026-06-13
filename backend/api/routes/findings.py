@@ -23,6 +23,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from backend.api.dependencies import require_fresh_sample
+from backend.api.gating import is_apoe_gate_acknowledged
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -191,6 +192,16 @@ async def list_findings(
     if min_stars is not None:
         clauses.append(findings.c.evidence_level >= min_stars)
 
+    # APOE ε4 is the Alzheimer-risk disclosure the opt-in gate exists to protect.
+    # The dedicated APOE routes gate it; this module-agnostic aggregator must too,
+    # or it re-opens the disclosure via a side route — leaking the diplotype and
+    # the full clinical narrative (issue #222). Withhold module="apoe" findings
+    # until the gate is acknowledged. With an explicit module=apoe filter this
+    # yields an empty list pre-acknowledgment (not a 403, which would itself
+    # confirm APOE data exists).
+    if not is_apoe_gate_acknowledged(engine):
+        clauses.append(findings.c.module != "apoe")
+
     stmt = sa.select(findings)
     if clauses:
         stmt = stmt.where(sa.and_(*clauses))
@@ -215,6 +226,12 @@ async def findings_summary(
     """Per-module finding summary with counts and top findings."""
     engine = _get_sample_engine(sample_id)
 
+    # Mirror list_findings: the APOE disclosure gate also covers this summary,
+    # whose per-module counts, top_finding_text, and high_confidence_findings
+    # would otherwise surface the APOE diplotype/Alzheimer's narrative pre-gate
+    # (issue #222). Drop module="apoe" from every query until acknowledged.
+    apoe_visible = is_apoe_gate_acknowledged(engine)
+
     with engine.connect() as conn:
         # Per-module aggregation
         agg_stmt = (
@@ -226,15 +243,18 @@ async def findings_summary(
             .group_by(findings.c.module)
             .order_by(sa.desc("max_ev"))
         )
+        if not apoe_visible:
+            agg_stmt = agg_stmt.where(findings.c.module != "apoe")
         agg_rows = conn.execute(agg_stmt).fetchall()
 
         # All findings for top finding per module
-        all_rows = conn.execute(
-            sa.select(findings).order_by(
-                sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
-                findings.c.module,
-            )
-        ).fetchall()
+        all_stmt = sa.select(findings).order_by(
+            sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
+            findings.c.module,
+        )
+        if not apoe_visible:
+            all_stmt = all_stmt.where(findings.c.module != "apoe")
+        all_rows = conn.execute(all_stmt).fetchall()
 
     # Build per-module summary
     total = 0
