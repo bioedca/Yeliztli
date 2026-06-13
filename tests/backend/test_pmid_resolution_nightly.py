@@ -41,10 +41,11 @@ _FALLBACK_EMAIL = "ci@yeliztli.example"
 # issue #417. The resolution verifier fails on any *new* non-resolving PMID; this
 # quarantine must only ever shrink as #417 lands per-panel fixes — never grow.
 _KNOWN_UNRESOLVED: dict[str, str] = {
-    "11746697": "allergy_panel.json",
-    "12874175": "gene_health_panel.json",
-    "27457907": "gene_health_panel.json",
-    "19187342": "methylation_panel.json",
+    # 11746697 (allergy HNMT row) fixed in #417 — replaced with verified HNMT
+    # Thr105Ile evidence (9547362 Preuss 1998, 10803682 Yan 2000).
+    "12874175": "gene_health_panel.json",  # KCNJ11 — delegated to #326
+    "27457907": "gene_health_panel.json",  # ABCG2 — delegated to #326
+    "19187342": "methylation_panel.json",  # TCN2 — delegated to #314 (whole row's 3 cites bad)
 }
 
 

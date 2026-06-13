@@ -472,7 +472,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["11746697", "17490952", "23886886"],
+          "pmids": ["9547362", "10803682", "17490952"],
           "recommendation_text": "HNMT Thr105Ile affects intracellular histamine metabolism. The Ile105 variant has reduced enzyme stability. Combined with AOC1 variants, this may compound histamine clearance deficits. Evidence is at the candidate gene level. Symptomatic individuals may benefit from a low-histamine trial diet under medical supervision."
         }
       ]

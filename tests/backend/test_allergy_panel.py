@@ -218,6 +218,22 @@ class TestSNPFields:
         # The two wrong-gene PMIDs must not remain on the STAT6 row.
         assert not ({"14608356", "18403759"} & set(snp["pmids"]))
 
+    def test_hnmt_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # HNMT Thr105Ile (rs11558538) — histamine N-methyltransferase. Citations must
+        # be HNMT Thr105Ile evidence, not the dead UID 11746697 (non-resolving) or the
+        # stroke-neurorehabilitation RCT 23886886 attached in error (#417):
+        #   9547362  — Preuss 1998, Mol Pharmacol: C314T/Thr105Ile, Ile105 = reduced
+        #              HNMT activity (the functional landmark)
+        #   10803682 — Yan 2000, Pharmacogenetics: Thr105Ile (low-activity allele) → asthma
+        #   17490952 — Maintz & Novak 2007, Am J Clin Nutr: histamine & histamine
+        #              intolerance (HNMT/DAO catabolism context; kept)
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs11558538"
+        )
+        assert snp["pmids"] == ["9547362", "10803682", "17490952"], snp["pmids"]
+        # The dead and wrong-topic PMIDs must not remain on the HNMT row.
+        assert not ({"11746697", "23886886"} & set(snp["pmids"]))
+
     def test_hla_b1502_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-B*15:02 / carbamazepine is a Level-4 pharmacogenomic safety row; its
         # citations must be the verified SJS/TEN evidence trail, not the EMR
@@ -311,7 +327,18 @@ class TestSNPFields:
         #   22286173 (Japanese intracranial-aneurysm GWAS), 22177658 (prostate-cancer
         #     active surveillance), 26092464 (ectomycorrhizal fungi) — HLA-B*58:01
         #     allopurinol row + proxy entries (#232)
-        banned = {"18196153", "18192541", "22286173", "22177658", "26092464"}
+        #   11746697 (non-resolving / dead PubMed UID) — HNMT Thr105Ile row (#417)
+        # NB 23886886 (a stroke-neurorehabilitation RCT, unrelated to histamine) was
+        # removed from the HNMT row here but is NOT panel-wide-banned yet: the AOC1
+        # rs10156191 row still cites it (separate misattribution, follow-up issue).
+        banned = {
+            "18196153",
+            "18192541",
+            "22286173",
+            "22177658",
+            "26092464",
+            "11746697",
+        }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 offending = banned & set(snp["pmids"])
