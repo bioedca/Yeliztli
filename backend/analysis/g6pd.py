@@ -35,17 +35,50 @@ Biological sex is *inferred* from the array (:func:`infer_biological_sex`), not
 recorded; when it cannot be inferred we decline to assign a zygosity-dependent
 phenotype.
 
-**Array-typeable variants (forward/plus strand, Ensembl GRCh37).** G6PD is on the
-minus strand, so the gene's reference base is the complement of the forward base:
+**Typed deficiency variants (forward/plus strand, Ensembl GRCh37).** G6PD is on the
+minus strand, so each variant's forward/plus-strand base is the *complement* of the
+gene/cDNA base. 23andMe/AncestryDNA report plus-strand calls and dbSNP RefSNP alleles
+are plus-strand, so the alleles below are stored exactly as the array reports them.
+Every row was taken from the CPIC G6PD Allele Definition + Functionality tables
+(Gammal 2023, PMID 36049896) and cross-checked on Ensembl GRCh37 REST + NCBI dbSNP;
+population distributions are from He 2020 (PMID 33051526, Han Chinese) and the wider
+Southeast/South-Asian literature (Nuchprayoon 2002; Iwai 2001; Ainoon 1999):
 
-* **A− (rs1050828, c.202G>A / V68M)** — the common African deficiency marker
-  (Class III/B, ~12-30% activity), carried on the c.376G background. Forward C/T;
-  the deficiency allele is forward **T**.
+* **A− (rs1050828, c.202G>A / V68M)** — common African marker (Class III, ~10-30%
+  activity), on the c.376G background. Forward C/T; deficiency allele forward **T**.
+* **Mediterranean (rs5030868, c.563C>T / S188F)** — severe (Class II, <10%).
+  Forward G/A; deficiency allele forward **A**.
+* **Mahidol (rs137852314, c.487G>A / G163S)** — dominant in Myanmar/Thailand
+  (Class III). Forward C/T; deficiency forward **T**.
+* **Canton (rs72554665, c.1376G>T / R459L)** — a top East-Asian variant (Class II).
+  Forward C→**A**. This position is multiallelic; the C>G alt is the distinct
+  *Cosenza* (R459P) allele, which is not encoded here.
+* **Kaiping (rs72554664, c.1388G>A / R463H)** — most common Han-Chinese variant
+  (Class II). Forward C/T; deficiency forward **T**.
+* **Viangchan (rs137852327, c.871G>A / V291M)** — most common non-Chinese SE-Asian
+  variant (Class II). Forward C/T; deficiency forward **T**.
+* **Union (rs398123546, c.1360C>T / R454C)** — Pacific/East-Asian (Class II).
+  Forward G/A; deficiency forward **A**.
+* **Chinese-5 (rs137852342, c.1024C>T / L342F)** — East-Asian (Class III).
+  Forward G/A; deficiency forward **A**.
+* **Coimbra (rs137852330, c.592C>T / R198C)** — South/SE-Asian (Class II).
+  Forward G/A; deficiency forward **A**.
+* **Chatham (rs5030869, c.1003G>A / A335T)** — Middle-Eastern/South-Asian
+  (Class II). Forward C/T; deficiency forward **T**.
+* **Gaohe (rs137852340, c.95A>G / H32R)** — East-Asian (Class III). Forward T/C;
+  deficiency forward **C**.
 * **c.376A>G (rs1050829, N126D)** — defines the *non-deficient* A+ allele on its
   own; relevant only as the A− background. Forward T/C; the 376G allele is
   forward **C**. Context, never a deficiency call by itself.
-* **Mediterranean (rs5030868, c.563C>T / S188F)** — severe (Class II/B, <10%
-  activity). Forward G/A; the deficiency allele is forward **A**.
+
+**Which of these a consumer array actually types varies.** A− (rs1050828) and
+Mediterranean (rs5030868) are standard content on the Illumina GSA and therefore on
+23andMe v5 / AncestryDNA; the remaining (mostly East/Southeast-Asian) alleles are
+CPIC-defined deficiency variants whose presence depends on the specific chip/version,
+so they are included for sensitivity but their *absence* from a sample is reported as
+not-called, never as a false deficiency call (SNP chips type common variants reliably
+yet rarer ones inconsistently — Weedon 2021, PMID 33589468). Adding a locus can only
+*raise* sensitivity for ancestries whose deficiency is not driven by A−/Mediterranean.
 
 **Context only — not a diagnosis.** An array types only a handful of the 200+
 known G6PD variants; a non-deficient genotype does not exclude an untyped
@@ -64,8 +97,9 @@ from backend.analysis.zygosity import is_no_call
 from backend.disclaimers import G6PD_PGX_CONTEXT_ONLY
 from backend.services.sex_inference import infer_biological_sex
 
-# CPIC: expanded medication guideline (primary) + the rasburicase guideline.
-G6PD_PMID_CITATIONS = ["36049896", "24787449"]
+# CPIC: expanded medication guideline (primary) + the rasburicase guideline; He 2020
+# (Han-Chinese variant spectrum) backs the East/Southeast-Asian deficiency panel.
+G6PD_PMID_CITATIONS = ["36049896", "24787449", "33051526"]
 
 # A- deficiency marker — rs1050828 (c.202G>A). Forward-strand alleles.
 G6PD_A_MINUS_RSID = "rs1050828"
@@ -81,6 +115,29 @@ G6PD_376_G = "C"  # forward = gene "G" (the 376G / A+ background)
 G6PD_MED_RSID = "rs5030868"
 G6PD_MED_REF = "G"  # forward = gene "C" (normal)
 G6PD_MED_DEF = "A"  # forward = gene "T" (Mediterranean deficiency allele)
+
+# Array-typed deficiency loci. Each row is (name, rsid, cDNA, forward_ref, forward_def):
+# forward_ref is the plus-strand base of the gene-NORMAL allele, forward_def the
+# plus-strand base of the DEFICIENCY allele. G6PD is minus-strand, so these are the
+# complement of the cDNA base — and exactly what 23andMe/AncestryDNA and dbSNP report
+# (plus strand). Every row is from the CPIC G6PD Allele Definition Table (PMID 36049896)
+# and was cross-checked on Ensembl GRCh37 REST + NCBI dbSNP. A−/Mediterranean are
+# reliably array-typed; the remaining (mostly E/SE-Asian) CPIC deficiency alleles vary
+# by chip — a non-call never excludes them (see the module docstring). Note rs72554665
+# (Canton), rs5030869 (Chatham) are multiallelic; only the deficiency alt is encoded.
+G6PD_DEFICIENCY_VARIANTS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("A- (V68M)", G6PD_A_MINUS_RSID, "c.202G>A", G6PD_A_MINUS_REF, G6PD_A_MINUS_DEF),
+    ("Mediterranean (S188F)", G6PD_MED_RSID, "c.563C>T", G6PD_MED_REF, G6PD_MED_DEF),
+    ("Mahidol (G163S)", "rs137852314", "c.487G>A", "C", "T"),
+    ("Canton (R459L)", "rs72554665", "c.1376G>T", "C", "A"),
+    ("Kaiping (R463H)", "rs72554664", "c.1388G>A", "C", "T"),
+    ("Viangchan (V291M)", "rs137852327", "c.871G>A", "C", "T"),
+    ("Union (R454C)", "rs398123546", "c.1360C>T", "G", "A"),
+    ("Chinese-5 (L342F)", "rs137852342", "c.1024C>T", "G", "A"),
+    ("Coimbra (R198C)", "rs137852330", "c.592C>T", "G", "A"),
+    ("Chatham (A335T)", "rs5030869", "c.1003G>A", "C", "T"),
+    ("Gaohe (H32R)", "rs137852340", "c.95A>G", "T", "C"),
+)
 
 # Representative CPIC high-risk drugs to avoid in G6PD deficiency (not exhaustive).
 G6PD_HIGH_RISK_DRUGS = (
@@ -123,7 +180,7 @@ def g6pd_phenotype(
 
     ``sex`` is the :func:`infer_biological_sex` result (``"XX"`` / ``"XY"`` /
     ``"manual_review"`` / ``"unknown"``). ``total_deficiency`` sums deficiency
-    alleles across the callable deficiency loci (A− and Mediterranean);
+    alleles across all callable deficiency loci (:data:`G6PD_DEFICIENCY_VARIANTS`);
     ``max_locus_deficiency`` is the largest deficiency-allele count at any *single*
     locus, which distinguishes a phase-unambiguous homozygote (one locus == 2) from
     two unphased heterozygous loci that merely *sum* to 2.
@@ -229,27 +286,20 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
     finding — G6PD status is confirmed by an enzyme-activity assay.
     """
     sex = infer_biological_sex(sample_engine)
-    genotypes = _fetch_sample_genotypes(
-        [G6PD_A_MINUS_RSID, G6PD_376_RSID, G6PD_MED_RSID], sample_engine
-    )
+    rsids = [rsid for _, rsid, _, _, _ in G6PD_DEFICIENCY_VARIANTS]
+    genotypes = _fetch_sample_genotypes([*rsids, G6PD_376_RSID], sample_engine)
 
-    a_minus = _locus_call(
-        name="A- (V68M)",
-        rsid=G6PD_A_MINUS_RSID,
-        cdna="c.202G>A",
-        ref=G6PD_A_MINUS_REF,
-        deficiency_allele=G6PD_A_MINUS_DEF,
-        genotype=genotypes.get(G6PD_A_MINUS_RSID),
-    )
-    mediterranean = _locus_call(
-        name="Mediterranean (S188F)",
-        rsid=G6PD_MED_RSID,
-        cdna="c.563C>T",
-        ref=G6PD_MED_REF,
-        deficiency_allele=G6PD_MED_DEF,
-        genotype=genotypes.get(G6PD_MED_RSID),
-    )
-    deficiency_loci = [a_minus, mediterranean]
+    deficiency_loci = [
+        _locus_call(
+            name=name,
+            rsid=rsid,
+            cdna=cdna,
+            ref=ref,
+            deficiency_allele=deficiency_allele,
+            genotype=genotypes.get(rsid),
+        )
+        for name, rsid, cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
+    ]
 
     any_called = any(loc["called"] for loc in deficiency_loci)
     locus_deficiency_counts = [loc["deficiency_alleles"] or 0 for loc in deficiency_loci]
@@ -259,6 +309,7 @@ def assess_g6pd(sample_engine: sa.Engine) -> dict[str, Any]:
     max_locus_deficiency = max(locus_deficiency_counts, default=0)
 
     # rs1050829 distinguishes the non-deficient A+ allele from reference (context only).
+    a_minus = next(loc for loc in deficiency_loci if loc["rsid"] == G6PD_A_MINUS_RSID)
     g376 = _deficiency_alleles(genotypes.get(G6PD_376_RSID), G6PD_376_REF, G6PD_376_G)
     a_plus_present = bool(
         g376 and g376["deficiency"] >= 1 and a_minus["deficiency_alleles"] in (0, None)

@@ -12,11 +12,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.g6pd import (
     G6PD_376_RSID,
     G6PD_A_MINUS_RSID,
+    G6PD_DEFICIENCY_VARIANTS,
     G6PD_MED_RSID,
     G6PD_PMID_CITATIONS,
     _deficiency_alleles,
@@ -170,3 +172,91 @@ class TestAssessG6pd:
         assert r["context_only"] is True
         assert r["note"]
         assert set(G6PD_PMID_CITATIONS) <= set(r["pmid_citations"])
+
+
+class TestExpandedDeficiencyPanel:
+    """Issue #209: the panel now types the common East/Southeast-Asian and other
+    CPIC deficiency variants alongside A− and Mediterranean. Forward/plus-strand
+    REF/DEF (GRCh37, confirmed on Ensembl GRCh37 REST + NCBI dbSNP) is locked per
+    variant so a strand flip — which would turn a reference call into a false
+    "deficient" — fails CI.
+    """
+
+    def _assess(self, sex: str, genotypes: dict[str, str]) -> dict:
+        engine = _make_sample(genotypes)
+        with patch("backend.analysis.g6pd.infer_biological_sex", return_value=sex):
+            return assess_g6pd(engine)
+
+    def test_panel_covers_expected_variants(self) -> None:
+        # Exact lock: A−, Mediterranean, and the global deficiency variants added for
+        # #209. An accidental add/drop (or rsID swap) trips this.
+        by_rsid = {rsid: name for name, rsid, *_ in G6PD_DEFICIENCY_VARIANTS}
+        assert by_rsid == {
+            "rs1050828": "A- (V68M)",
+            "rs5030868": "Mediterranean (S188F)",
+            "rs137852314": "Mahidol (G163S)",
+            "rs72554665": "Canton (R459L)",
+            "rs72554664": "Kaiping (R463H)",
+            "rs137852327": "Viangchan (V291M)",
+            "rs398123546": "Union (R454C)",
+            "rs137852342": "Chinese-5 (L342F)",
+            "rs137852330": "Coimbra (R198C)",
+            "rs5030869": "Chatham (A335T)",
+            "rs137852340": "Gaohe (H32R)",
+        }
+
+    def test_table_rows_well_formed(self) -> None:
+        seen: set[str] = set()
+        for name, rsid, cdna, ref, deff in G6PD_DEFICIENCY_VARIANTS:
+            assert name and cdna.startswith("c.")
+            assert rsid.startswith("rs") and rsid not in seen
+            seen.add(rsid)
+            assert ref in {"A", "C", "G", "T"} and deff in {"A", "C", "G", "T"}
+            assert ref != deff
+
+    @pytest.mark.parametrize(
+        ("name", "rsid", "ref", "deff"),
+        [(n, rs, ref, deff) for n, rs, _, ref, deff in G6PD_DEFICIENCY_VARIANTS],
+    )
+    def test_each_variant_strand_direction(
+        self, name: str, rsid: str, ref: str, deff: str
+    ) -> None:
+        # Hemizygous male carrying the forward DEFICIENCY base → deficient + at-risk.
+        r = self._assess("XY", {rsid: deff})
+        assert r["phenotype"] == "deficient", name
+        assert r["at_risk"] is True, name
+        # The forward gene-NORMAL base → normal, no risk. A flipped REF/DEF would
+        # invert both assertions, so each variant's strand is locked here.
+        r = self._assess("XY", {rsid: ref})
+        assert r["phenotype"] == "normal", name
+        assert r["at_risk"] is False, name
+
+    def test_multiallelic_third_allele_is_not_called(self) -> None:
+        # Canton (rs72554665) is multiallelic C/A/G/T; we encode only C(ref)/A(Canton).
+        # A genotype carrying the Cosenza G allele falls outside {C,A} → conservatively
+        # not-called, never a false Canton call.
+        r = self._assess("XX", {"rs72554665": "CG"})
+        canton = next(v for v in r["variants"] if v["rsid"] == "rs72554665")
+        assert canton["called"] is False
+        assert canton["deficiency_alleles"] is None
+
+    def test_new_variant_female_heterozygous_is_variable(self) -> None:
+        r = self._assess("XX", {"rs72554664": "CT"})  # Kaiping het
+        assert r["phenotype"] == "variable"
+        assert r["at_risk"] is True
+
+    def test_new_variant_female_homozygous_is_deficient(self) -> None:
+        r = self._assess("XX", {"rs137852327": "TT"})  # Viangchan homozygous
+        assert r["phenotype"] == "deficient"
+
+    def test_compound_het_across_new_loci_is_phase_indeterminate(self) -> None:
+        # Canton het + Kaiping het: two different deficiency loci an array cannot phase
+        # → variable-or-deficient. Confirms the phase logic generalizes beyond
+        # A−/Mediterranean to the expanded panel.
+        r = self._assess("XX", {"rs72554665": "CA", "rs72554664": "CT"})
+        assert r["phenotype"] == "phase_indeterminate"
+        assert r["at_risk"] is True
+
+    def test_han_chinese_frequency_citation_present(self) -> None:
+        # He 2020 (PMID 33051526) backs the East/Southeast-Asian deficiency panel.
+        assert "33051526" in G6PD_PMID_CITATIONS
