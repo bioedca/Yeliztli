@@ -122,7 +122,8 @@ def test_nudt15_non_carrier_alerts_are_reference_only(reference_engine: sa.Engin
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     nudt15_alerts = [a for a in alerts if a.gene == "NUDT15"]
-    assert {a.drug for a in nudt15_alerts} == {"azathioprine", "mercaptopurine"}
+    # Thiopurine alerts now cover all three CPIC thiopurines incl. thioguanine (#224).
+    assert {a.drug for a in nudt15_alerts} == {"azathioprine", "mercaptopurine", "thioguanine"}
     for alert in nudt15_alerts:
         assert alert.diplotype == "*1/*1"
         assert alert.phenotype == "Normal Metabolizer"
@@ -159,6 +160,33 @@ def test_nudt15_hom_is_poor_with_thiopurine_alerts(reference_engine: sa.Engine) 
     alerts = generate_prescribing_alerts(results, reference_engine)
     drugs = {a.drug for a in alerts if a.gene == "NUDT15"}
     assert {"azathioprine", "mercaptopurine"} <= drugs
+
+
+def test_nudt15_poor_emits_thioguanine_alert(reference_engine: sa.Engine) -> None:
+    """A NUDT15 *3/*3 Poor Metabolizer surfaces a thioguanine alert (issue #224).
+
+    CPIC's thiopurine/NUDT15 guideline (Relling et al. Clin Pharmacol Ther 2019,
+    PMID 30447069) covers thioguanine alongside azathioprine and mercaptopurine.
+    Before #224 the shipped cpic_guidelines.csv had no NUDT15 thioguanine rows, so
+    a NUDT15-deficient patient prescribed thioguanine got no dose-reduction
+    warning. The alert must fire exactly once and carry its CPIC text verbatim.
+    """
+    sample = _make_sample(_nudt15_genotypes(**{_NUDT15_RS: "TT"}))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NUDT15"}))
+    nudt15 = next(r for r in results if r.gene == "NUDT15")
+    assert nudt15.diplotype == "*3/*3"
+    assert nudt15.phenotype == "Poor Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    thioguanine = [a for a in alerts if a.gene == "NUDT15" and a.drug == "thioguanine"]
+    assert len(thioguanine) == 1, "expected one NUDT15 thioguanine alert for *3/*3"
+    alert = thioguanine[0]
+    assert alert.diplotype == "*3/*3"
+    assert alert.phenotype == "Poor Metabolizer"
+    assert alert.recommendation == (
+        "Drastically reduce starting dose or select an alternative agent; "
+        "monitor for myelosuppression."
+    )
 
 
 def test_nudt15_star4_het_is_intermediate(reference_engine: sa.Engine) -> None:

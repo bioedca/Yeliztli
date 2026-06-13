@@ -109,10 +109,12 @@ def test_star1_star3b_is_intermediate_metabolizer(reference_engine: sa.Engine) -
 
 
 def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> None:
-    """A *1/*3B Intermediate Metabolizer gets azathioprine + mercaptopurine alerts.
+    """A *1/*3B Intermediate Metabolizer gets all three thiopurine alerts.
 
     This is the end-to-end patient-safety guard: the missing diplotype row
     previously caused ``generate_prescribing_alerts`` to skip this gene entirely.
+    Thioguanine (issue #224) is the third CPIC thiopurine alongside azathioprine
+    and mercaptopurine and must fire its own reduced-dose alert.
     """
     sample = _make_sample(_tpmt_genotypes(rs1800460="CT"))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
@@ -121,10 +123,65 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
     tpmt_alerts = [a for a in alerts if a.gene == "TPMT"]
     assert tpmt_alerts, "expected TPMT prescribing alerts for an Intermediate Metabolizer"
     drugs = {a.drug for a in tpmt_alerts}
-    assert {"azathioprine", "mercaptopurine"} <= drugs
+    assert {"azathioprine", "mercaptopurine", "thioguanine"} <= drugs
     for alert in tpmt_alerts:
         assert alert.diplotype == "*1/*3B"
         assert alert.phenotype == "Intermediate Metabolizer"
+    # Issue #224: the thioguanine alert exists and carries IM reduced-dose guidance.
+    thioguanine = [a for a in tpmt_alerts if a.drug == "thioguanine"]
+    assert len(thioguanine) == 1
+    assert thioguanine[0].recommendation == (
+        "Start with reduced doses (reduce by 30-50% of target) and titrate based on tolerance."
+    )
+
+
+@pytest.mark.parametrize(
+    "expected_diplotype,overrides,phenotype,recommendation",
+    [
+        (
+            "*1/*3B",
+            {"rs1800460": "CT"},
+            "Intermediate Metabolizer",
+            "Start with reduced doses (reduce by 30-50% of target) and titrate "
+            "based on tolerance.",
+        ),
+        (
+            "*3B/*3B",
+            {"rs1800460": "TT"},
+            "Poor Metabolizer",
+            "Start with drastically reduced doses (reduce by 50-75%) and titrate "
+            "based on myelosuppression; for nonmalignant conditions consider an "
+            "alternative agent.",
+        ),
+    ],
+)
+def test_actionable_tpmt_emits_thioguanine_alert(
+    reference_engine: sa.Engine,
+    expected_diplotype: str,
+    overrides: dict[str, str],
+    phenotype: str,
+    recommendation: str,
+) -> None:
+    """An actionable TPMT phenotype surfaces a thioguanine alert (issue #224).
+
+    CPIC's thiopurine/TPMT guideline (Relling et al. Clin Pharmacol Ther 2019,
+    PMID 30447069) covers thioguanine alongside azathioprine and mercaptopurine.
+    Before #224 the shipped cpic_guidelines.csv had no TPMT thioguanine rows, so
+    a TPMT-deficient patient prescribed thioguanine got no dose-reduction warning
+    at all — the same silent-drop defect this file guards for the other two
+    thiopurines. Each phenotype must emit exactly one thioguanine alert carrying
+    its CPIC recommendation verbatim.
+    """
+    sample = _make_sample(_tpmt_genotypes(**overrides))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    thioguanine = [a for a in alerts if a.gene == "TPMT" and a.drug == "thioguanine"]
+    assert len(thioguanine) == 1, f"expected one TPMT thioguanine alert for {expected_diplotype}"
+    alert = thioguanine[0]
+    assert alert.diplotype == expected_diplotype
+    assert alert.phenotype == phenotype
+    assert alert.recommendation == recommendation
 
 
 def test_star3a_double_het_is_phase_ambiguous(reference_engine: sa.Engine) -> None:

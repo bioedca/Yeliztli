@@ -45,6 +45,9 @@ TPMT,mercaptopurine,Poor Metabolizer,Reduce dose to 10% of standard. Consider al
 TPMT,azathioprine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 TPMT,azathioprine,Intermediate Metabolizer,Start at 30-70% of target dose. Titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 TPMT,azathioprine,Poor Metabolizer,Reduce dose to 10% of standard or use alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,thioguanine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,thioguanine,Intermediate Metabolizer,Start with reduced doses (reduce by 30-50% of target) and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,thioguanine,Poor Metabolizer,Start with drastically reduced doses (reduce by 50-75%) and titrate based on myelosuppression; for nonmalignant conditions consider an alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 SLCO1B1,simvastatin,Normal function,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
 SLCO1B1,simvastatin,Decreased function,Use lower dose or alternative statin. Avoid 80mg dose.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
 SLCO1B1,simvastatin,Poor function,Avoid simvastatin. Use alternative statin such as pravastatin or rosuvastatin.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
@@ -54,6 +57,9 @@ NUDT15,mercaptopurine,Poor Metabolizer,Drastically reduce starting dose or selec
 NUDT15,azathioprine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
 NUDT15,azathioprine,Intermediate Metabolizer,Start at 30-80% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
 NUDT15,azathioprine,Poor Metabolizer,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,thioguanine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,thioguanine,Intermediate Metabolizer,Start at 50% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,thioguanine,Poor Metabolizer,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
 UGT1A1,atazanavir,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
 UGT1A1,atazanavir,Intermediate Metabolizer,Use label-recommended dosing; low likelihood of bilirubin-related discontinuation.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
 UGT1A1,atazanavir,Poor Metabolizer,Consider an alternative agent; risk of jaundice/hyperbilirubinemia may reduce adherence.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
