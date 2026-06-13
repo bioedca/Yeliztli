@@ -152,26 +152,26 @@ def _hla_proxy_seed_entries() -> list[dict]:
         {
             "hla_allele": "HLA-B*58:01",
             "proxy_rsid": "rs9263726",
-            "r_squared": 0.91,
-            "ancestry_pop": "EUR",
+            "r_squared": 0.886,
+            "ancestry_pop": "Han Chinese",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "29392141",
+            "pmid": "30080910",
         },
         {
             "hla_allele": "HLA-B*58:01",
             "proxy_rsid": "rs9263726",
-            "r_squared": 0.87,
-            "ancestry_pop": "EAS",
+            "r_squared": 0.606,
+            "ancestry_pop": "Tibetan",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "29392141",
+            "pmid": "30080910",
         },
         {
             "hla_allele": "HLA-B*58:01",
             "proxy_rsid": "rs9263726",
-            "r_squared": 0.78,
-            "ancestry_pop": "AFR",
+            "r_squared": 0.622,
+            "ancestry_pop": "Hui",
             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-            "pmid": "29392141",
+            "pmid": "30080910",
         },
         {
             "hla_allele": "HLA-DQ2",
@@ -1192,7 +1192,10 @@ class TestFindingsStorage:
         assert "Low risk of allopurinol" not in rs926_detail["effect_summary"]
         assert "does not rule out HLA-B*58:01" in rs926_detail["effect_summary"]
         assert "does not exclude the HLA allele" in rs926_detail["hla_proxy_caveat"]
-        assert rs926_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == pytest.approx(0.78)
+        # Source-matched population-specific LD (Zhang 2018), not fabricated bins (#333).
+        by_pop = rs926_detail["hla_proxy_lookup"]["r_squared_by_pop"]
+        assert by_pop["Tibetan"] == pytest.approx(0.606)
+        assert "AFR" not in by_pop
 
     def test_rerun_clears_previous(
         self,

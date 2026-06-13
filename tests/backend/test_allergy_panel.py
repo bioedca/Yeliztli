@@ -278,17 +278,27 @@ class TestSNPFields:
         assert {"22286173", "22177658", "26092464"}.isdisjoint(snp["pmids"])
 
     def test_hla_b5801_proxy_lookup_cites_real_evidence(self) -> None:
-        # The HLA-B*58:01 entries in the proxy lookup carried the unrelated Japanese
-        # intracranial-aneurysm GWAS PMID (22286173, #232). They must cite the
-        # rs9263726-surrogate evidence (Saksit, 29392141) instead.
+        # The HLA-B*58:01 entries in the proxy lookup originally carried the unrelated
+        # Japanese intracranial-aneurysm GWAS PMID (22286173, #232), then fabricated
+        # continental EUR/EAS/AFR r2 cited to the Thai surrogate study (29392141, #333).
+        # They must now cite the source-matched population-specific LD values (Han
+        # Chinese 0.886 / Tibetan 0.606 / Hui 0.622) from Zhang 2018 (30080910), the
+        # one study that actually reports rs9263726-HLA-B*58:01 r2 by population.
         proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
         b5801 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*58:01"]
         assert b5801, "no HLA-B*58:01 entries in proxy lookup"
+        expected_r2 = {"Han Chinese": 0.886, "Tibetan": 0.606, "Hui": 0.622}
         for entry in b5801:
-            assert entry["pmid"] == "29392141", (
+            assert entry["pmid"] == "30080910", (
                 f"HLA-B*58:01/{entry['ancestry_pop']} cites unexpected PMID: {entry['pmid']}"
             )
             assert entry["pmid"] not in {"22286173", "22177658", "26092464"}
+            # The fabricated continental bins must not reappear; each population is a
+            # real Zhang-2018 group with its source-matched r2.
+            assert entry["ancestry_pop"] in expected_r2, (
+                f"unexpected ancestry label {entry['ancestry_pop']}"
+            )
+            assert entry["r_squared"] == expected_r2[entry["ancestry_pop"]]
 
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing citations that were attached in error and
@@ -384,7 +394,14 @@ class TestHLAProxyCalling:
             if snp["rsid"] in self.DRUG_PROXY_RSIDS:
                 if snp["rsid"] == "rs9263726":
                     assert snp["hla_proxy"]["clinical_grade"] is False
-                    assert snp["hla_proxy"]["r_squared_afr"] < 0.85
+                    # rs9263726-HLA-B*58:01 LD is population-specific; the lowest
+                    # source-matched value (Tibetan/Hui, Zhang 2018) is below the
+                    # 0.85 clinical-grade threshold (#333). No fabricated continental
+                    # EUR/EAS/AFR r2 may remain.
+                    by_pop = snp["hla_proxy"]["r_squared_by_population"]
+                    assert min(by_pop.values()) < 0.85
+                    assert "r_squared_eur" not in snp["hla_proxy"]
+                    assert "r_squared_afr" not in snp["hla_proxy"]
                     assert "clinical_grade_context" in snp["hla_proxy"]
                 else:
                     assert snp["hla_proxy"]["clinical_grade"] is True, (

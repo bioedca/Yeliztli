@@ -175,7 +175,10 @@ class TestHLAProxyQueries:
             ).fetchall()
         assert len(rows) >= 1
         pops = {r.ancestry_pop for r in rows}
-        assert "EUR" in pops
+        # rs9263726-HLA-B*58:01 LD is recorded with source-matched population labels
+        # (Zhang 2018, #333), not fabricated continental EUR/EAS/AFR bins.
+        assert "Han Chinese" in pops
+        assert {"EUR", "EAS", "AFR"}.isdisjoint(pops)
 
     def test_ancestry_specific_r_squared(self, reference_engine: sa.Engine) -> None:
         self._seed(reference_engine)

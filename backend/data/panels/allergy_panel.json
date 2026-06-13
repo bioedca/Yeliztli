@@ -250,16 +250,18 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-B*58:01",
-            "r_squared_eur": 0.91,
-            "r_squared_eas": 0.87,
-            "r_squared_afr": 0.78,
+            "r_squared_by_population": {
+              "Han Chinese": 0.886,
+              "Tibetan": 0.606,
+              "Hui": 0.622
+            },
             "clinical_grade": false,
-            "clinical_grade_context": "Not clinical-grade across all stored ancestry populations; hla_proxy_lookup records AFR r2=0.78, below the 0.85 threshold.",
+            "clinical_grade_context": "rs9263726-HLA-B*58:01 LD is population-specific: r2=0.886 in Han Chinese but only 0.606 (Tibetan) and 0.622 (Hui), below the 0.85 clinical-grade threshold (Zhang 2018, PMID 30080910, which concluded rs9263726 cannot replace HLA-B*58:01 in Tibetan/Hui groups). No source-matched EUR or AFR r2 is available.",
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
           "pmids": ["15743917", "29392141", "30080910", "33071783"],
-          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP with ancestry-dependent LD (EUR r2=0.91, EAS r2=0.87, AFR r2=0.78 in the lookup table), so a negative proxy result is not exclusionary. Confirmatory high-resolution HLA typing is required.",
+          "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP whose linkage to HLA-B*58:01 is population-specific: reported as near-absolute in Japanese cohorts but only r2=0.886 in Han Chinese and substantially lower in Tibetan (0.606) and Hui (0.622) groups (Zhang 2018), with no reliable linkage demonstrated in European/Australian-Caucasian cohorts and African populations unstudied. A negative proxy result is therefore not exclusionary. Confirmatory high-resolution HLA typing is required.",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Allopurinol/HLA-B*58:01 cross-links with PGx module for prescribing guidance."

@@ -53,26 +53,26 @@
     {
       "hla_allele": "HLA-B*58:01",
       "proxy_rsid": "rs9263726",
-      "r_squared": 0.91,
-      "ancestry_pop": "EUR",
+      "r_squared": 0.886,
+      "ancestry_pop": "Han Chinese",
       "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-      "pmid": "29392141"
+      "pmid": "30080910"
     },
     {
       "hla_allele": "HLA-B*58:01",
       "proxy_rsid": "rs9263726",
-      "r_squared": 0.87,
-      "ancestry_pop": "EAS",
+      "r_squared": 0.606,
+      "ancestry_pop": "Tibetan",
       "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-      "pmid": "29392141"
+      "pmid": "30080910"
     },
     {
       "hla_allele": "HLA-B*58:01",
       "proxy_rsid": "rs9263726",
-      "r_squared": 0.78,
-      "ancestry_pop": "AFR",
+      "r_squared": 0.622,
+      "ancestry_pop": "Hui",
       "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
-      "pmid": "29392141"
+      "pmid": "30080910"
     },
     {
       "hla_allele": "HLA-DQ2",

@@ -137,15 +137,21 @@ PATHWAY_SUMMARY_FINDINGS = [
                         "evidence_level": 4,
                         "hla_proxy": {
                             "hla_allele": "HLA-B*58:01",
-                            "r_squared_eur": 0.91,
-                            "r_squared_eas": 0.87,
-                            "r_squared_afr": 0.78,
+                            "r_squared_by_population": {
+                                "Han Chinese": 0.886,
+                                "Tibetan": 0.606,
+                                "Hui": 0.622,
+                            },
                             "clinical_grade": False,
                             "confirmatory_test_required": True,
                         },
                         "hla_proxy_lookup": {
                             "hla_allele": "HLA-B*58:01",
-                            "r_squared_by_pop": {"EUR": 0.91, "EAS": 0.87, "AFR": 0.78},
+                            "r_squared_by_pop": {
+                                "Han Chinese": 0.886,
+                                "Tibetan": 0.606,
+                                "Hui": 0.622,
+                            },
                             "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
                         },
                         "hla_proxy_caveat": HLA_B5801_NEGATIVE_PROXY_CAVEAT,
@@ -160,7 +166,11 @@ PATHWAY_SUMMARY_FINDINGS = [
                     },
                     "rs9263726": {
                         "hla_allele": "HLA-B*58:01",
-                        "r_squared_by_pop": {"EUR": 0.91, "EAS": 0.87, "AFR": 0.78},
+                        "r_squared_by_pop": {
+                            "Han Chinese": 0.886,
+                            "Tibetan": 0.606,
+                            "Hui": 0.622,
+                        },
                         "clinical_context": "Allopurinol hypersensitivity (SJS/TEN)",
                     },
                 },
@@ -458,7 +468,10 @@ class TestPathwayDetail:
         assert hla_b5701_detail["hla_proxy_caveat"] == "Confirmatory HLA typing required."
         hla_b5801_detail = next(d for d in data["snp_details"] if d["rsid"] == "rs9263726")
         assert hla_b5801_detail["hla_proxy_caveat"] == HLA_B5801_NEGATIVE_PROXY_CAVEAT
-        assert hla_b5801_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == 0.78
+        # Source-matched population-specific LD (Zhang 2018), not fabricated bins (#333).
+        by_pop = hla_b5801_detail["hla_proxy_lookup"]["r_squared_by_pop"]
+        assert by_pop["Tibetan"] == 0.606
+        assert "AFR" not in by_pop and "EUR" not in by_pop
 
     def test_missing_pathway_404(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathway/nonexistent?sample_id=1")
