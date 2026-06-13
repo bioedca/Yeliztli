@@ -589,6 +589,36 @@ class TestRecessiveInheritanceGating:
         assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_AFFECTED
 
 
+class TestStoreCancerFindingsClearsStale:
+    """Issue #252: store_cancer_findings() must not leave a stale hereditary-
+    cancer P/LP finding in place when a rerun has no current reportable
+    variants."""
+
+    def test_empty_rerun_clears_stale_cancer_findings(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        # First run: a homozygous MUTYH P/LP variant stores one cancer finding.
+        _, rows = _store_and_fetch(
+            panel, sample_engine, [_mutyh_variant("rs1", 45330000, "TT", "hom_alt")]
+        )
+        assert len(rows) == 1
+
+        # Simulate a replaced/rerun sample with no reportable cancer variants.
+        with sample_engine.begin() as conn:
+            conn.execute(sa.delete(annotated_variants))
+        empty = extract_cancer_variants(panel, sample_engine)
+        assert store_cancer_findings(empty, sample_engine) == 0
+
+        # The previously-stored cancer finding must be cleared, not left stale.
+        with sample_engine.connect() as conn:
+            remaining = (
+                conn.execute(sa.select(findings).where(findings.c.module == "cancer"))
+                .mappings()
+                .all()
+            )
+        assert remaining == []
+
+
 class TestMUTYHCitationProvenance:
     """Guard the MUTYH evidence links (issue #179).
 

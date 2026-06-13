@@ -467,13 +467,16 @@ def store_cancer_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_cancer_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
-        # Clear previous cancer findings
+        # Always clear previous cancer findings first, so a rerun or replaced
+        # sample with no current reportable P/LP variants does not leave a stale
+        # hereditary-cancer call in place (issue #252). Only insert when the
+        # current run actually produced findings.
         conn.execute(sa.delete(findings).where(findings.c.module == "cancer"))
+        if not rows:
+            logger.info("no_cancer_findings_to_store")
+            return 0
+
         conn.execute(sa.insert(findings), rows)
 
     logger.info("cancer_findings_stored", count=len(rows))
