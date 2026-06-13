@@ -2,11 +2,10 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-13",
-    "pmid_count": 355,
+    "pmid_count": 364,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
-      "11746697",
       "12874175",
       "19187342",
       "27457907"
@@ -33,11 +32,6 @@
       "journal": "Pharmacogenetics",
       "year": "1996"
     },
-    "9002654": {
-      "title": "Evidence for the requirement of autocrine growth factors for development of mouse preimplantation embryos in vitro.",
-      "journal": "Biol Reprod",
-      "year": "1997"
-    },
     "9139825": {
       "title": "Connexin 26 mutations in hereditary non-syndromic sensorineural deafness.",
       "journal": "Nature",
@@ -48,20 +42,30 @@
       "journal": "Hum Mol Genet",
       "year": "1997"
     },
+    "9398842": {
+      "title": "Pendred syndrome is caused by mutations in a putative sulphate transporter gene (PDS).",
+      "journal": "Nat Genet",
+      "year": "1997"
+    },
     "9399903": {
       "title": "Novel alleles of the chemokine-receptor gene CCR5.",
       "journal": "Am J Hum Genet",
       "year": "1997"
+    },
+    "9498276": {
+      "title": "Human glutathione S-transferase P1 polymorphisms: relationship to lung tissue enzyme activity and population frequency distribution.",
+      "journal": "Carcinogenesis",
+      "year": "1998"
     },
     "9545397": {
       "title": "Human meiotic recombination products revealed by sequencing a hotspot for homologous strand exchange in multiple HNPP deletion patients.",
       "journal": "Am J Hum Genet",
       "year": "1998"
     },
-    "10071056": {
-      "title": "The Thr124Met mutation in the peripheral myelin protein zero (MPZ) gene is associated with a clinically distinct Charcot-Marie-Tooth phenotype.",
-      "journal": "Brain",
-      "year": "1999"
+    "9547362": {
+      "title": "Human histamine N-methyltransferase pharmacogenetics: common genetic polymorphisms that alter activity.",
+      "journal": "Mol Pharmacol",
+      "year": "1998"
     },
     "10196380": {
       "title": "Analysis of myocilin mutations in 1703 glaucoma patients from five different populations.",
@@ -73,11 +77,6 @@
       "journal": "Genet Test",
       "year": "1997"
     },
-    "10508479": {
-      "title": "Antigens recognized by autologous antibody in patients with renal-cell carcinoma.",
-      "journal": "Int J Cancer",
-      "year": "1999"
-    },
     "10666248": {
       "title": "Characterization of human CD4(+) T-cell clones recognizing conserved and variable epitopes of the Lassa virus nucleoprotein.",
       "journal": "J Virol",
@@ -86,6 +85,11 @@
     "10699178": {
       "title": "Genetic variants of IL-13 signalling and human asthma and atopy.",
       "journal": "Hum Mol Genet",
+      "year": "2000"
+    },
+    "10803682": {
+      "title": "Histamine N-methyltransferase pharmacogenetics: association of a common functional polymorphism with asthma.",
+      "journal": "Pharmacogenetics",
       "year": "2000"
     },
     "10887320": {
@@ -188,11 +192,6 @@
       "journal": "Eur J Hum Genet",
       "year": "2003"
     },
-    "12563186": {
-      "title": "Anticoagulation therapy. Lifesaving medications with an edge.",
-      "journal": "Mayo Clin Womens Healthsource",
-      "year": "2003"
-    },
     "12598062": {
       "title": "Association of polymorphism in glutamate-cysteine ligase catalytic subunit gene with coronary vasomotor dysfunction and myocardial infarction.",
       "journal": "J Am Coll Cardiol",
@@ -201,11 +200,6 @@
     "12618592": {
       "title": "The Ala16Val genetic dimorphism modulates the import of human manganese superoxide dismutase into rat liver mitochondria.",
       "journal": "Pharmacogenetics",
-      "year": "2003"
-    },
-    "12657976": {
-      "title": "Abdominal compartment syndrome: clinical manifestations and predictive factors.",
-      "journal": "Curr Opin Crit Care",
       "year": "2003"
     },
     "12730697": {
@@ -321,6 +315,11 @@
     "15701835": {
       "title": "Mutations and deletions of the CBP gene in human lung cancer.",
       "journal": "Clin Cancer Res",
+      "year": "2005"
+    },
+    "15705733": {
+      "title": "PPARGC1A genotype (Gly482Ser) predicts exceptional endurance capacity in European men.",
+      "journal": "J Appl Physiol (1985)",
       "year": "2005"
     },
     "15711639": {
@@ -613,11 +612,6 @@
       "journal": "Nat Genet",
       "year": "2008"
     },
-    "18466508": {
-      "title": "Combining multiple family-based association studies.",
-      "journal": "BMC Proc",
-      "year": "2007"
-    },
     "18552285": {
       "title": "Mitogen-activated protein kinase Hog1 mediates adaptation to G1 checkpoint arrest during arsenite and hyperosmotic stress.",
       "journal": "Eukaryot Cell",
@@ -678,11 +672,6 @@
       "journal": "Nat Genet",
       "year": "2009"
     },
-    "19455179": {
-      "title": "SIRT1 and insulin resistance.",
-      "journal": "Nat Rev Endocrinol",
-      "year": "2009"
-    },
     "19479340": {
       "title": "Association of STAT4 polymorphism with rheumatoid arthritis and systemic lupus erythematosus: a meta-analysis.",
       "journal": "Mol Biol Rep",
@@ -721,6 +710,11 @@
     "19744961": {
       "title": "Genome-wide significant predictors of metabolites in the one-carbon metabolism pathway.",
       "journal": "Hum Mol Genet",
+      "year": "2009"
+    },
+    "19842992": {
+      "title": "Association of glutathione-S-transferase polymorphisms with atopic dermatitis risk in preschool age children.",
+      "journal": "Clin Chem Lab Med",
       "year": "2009"
     },
     "19915575": {
@@ -943,19 +937,9 @@
       "journal": "Int J Cancer",
       "year": "2011"
     },
-    "21203561": {
-      "title": "The receptor tyrosine kinase FGFR4 negatively regulates NF-kappaB signaling.",
-      "journal": "PLoS One",
-      "year": "2010"
-    },
     "21212450": {
       "title": "The prevalence of neurological disorders in Saudi children: a community-based study.",
       "journal": "J Child Neurol",
-      "year": "2011"
-    },
-    "21280143": {
-      "title": "Tiling resolution array-CGH shows that somatic mosaic deletion of the EXT gene is causative in EXT gene mutation negative multiple osteochondromas patients.",
-      "journal": "Hum Mutat",
       "year": "2011"
     },
     "21297633": {
@@ -976,6 +960,11 @@
     "21460841": {
       "title": "Common variants at MS4A4/MS4A6E, CD2AP, CD33 and EPHA1 are associated with late-onset Alzheimer's disease.",
       "journal": "Nat Genet",
+      "year": "2011"
+    },
+    "21488903": {
+      "title": "Association of single nucleotide polymorphisms in the diamine oxidase gene with diamine oxidase serum activities.",
+      "journal": "Allergy",
       "year": "2011"
     },
     "21532571": {
@@ -1003,11 +992,6 @@
       "journal": "PLoS Genet",
       "year": "2011"
     },
-    "21747786": {
-      "title": "Legionella Pneumophila Transcriptome during Intracellular Multiplication in Human Macrophages.",
-      "journal": "Front Microbiol",
-      "year": "2011"
-    },
     "21833088": {
       "title": "Genetic risk and a primary role for cell-mediated immune mechanisms in multiple sclerosis.",
       "journal": "Nature",
@@ -1026,6 +1010,11 @@
     "22012967": {
       "title": "Care for veterans with mental and substance use disorders: good performance, but room to improve on many measures.",
       "journal": "Health Aff (Millwood)",
+      "year": "2011"
+    },
+    "22069379": {
+      "title": "Physical activity attenuates the influence of FTO variants on obesity risk: a meta-analysis of 218,166 adults and 19,268 children.",
+      "journal": "PLoS Med",
       "year": "2011"
     },
     "22101970": {
@@ -1053,11 +1042,6 @@
       "journal": "Chem Asian J",
       "year": "2012"
     },
-    "22069379": {
-      "title": "Physical activity attenuates the influence of FTO variants on obesity risk: a meta-analysis of 218,166 adults and 19,268 children.",
-      "journal": "PLoS Med",
-      "year": "2011"
-    },
     "22884227": {
       "title": "Early gastric fistula after laparoscopic sleeve gastrectomy: surgical management.",
       "journal": "J Visc Surg",
@@ -1078,14 +1062,14 @@
       "journal": "PLoS One",
       "year": "2012"
     },
-    "23090862": {
-      "title": "Light-driven coordination-induced spin-state switching: rational design of photodissociable ligands.",
-      "journal": "Chemistry",
-      "year": "2012"
-    },
     "23151025": {
       "title": "Identification of SLC26A4 c.919-2A>G compound heterozygosity in hearing-impaired patients to improve genetic counseling.",
       "journal": "J Transl Med",
+      "year": "2012"
+    },
+    "23152756": {
+      "title": "The diamine oxidase gene is associated with hypersensitivity response to non-steroidal anti-inflammatory drugs.",
+      "journal": "PLoS One",
       "year": "2012"
     },
     "23201895": {
@@ -1103,14 +1087,14 @@
       "journal": "Nat Genet",
       "year": "2013"
     },
+    "23628675": {
+      "title": "A common polymorphism of the MCT1 gene and athletic performance.",
+      "journal": "Int J Sports Physiol Perform",
+      "year": "2014"
+    },
     "23644932": {
       "title": "Lutein + zeaxanthin and omega-3 fatty acids for age-related macular degeneration: the Age-Related Eye Disease Study 2 (AREDS2) randomized clinical trial.",
       "journal": "JAMA",
-      "year": "2013"
-    },
-    "23667795": {
-      "title": "Overtraining, Exercise, and Adrenal Insufficiency.",
-      "journal": "J Nov Physiother",
       "year": "2013"
     },
     "23793025": {
@@ -1218,11 +1202,6 @@
       "journal": "Hum Mol Genet",
       "year": "2014"
     },
-    "24898615": {
-      "title": "Sphingosine-1-phosphate promotes the differentiation of adipose-derived stem cells into endothelial nitric oxide synthase (eNOS) expressing endothelial-like cells.",
-      "journal": "J Biomed Sci",
-      "year": "2014"
-    },
     "24974817": {
       "title": "No clinically significant association between CFH and ARMS2 genotypes and response to nutritional supplements: AREDS report number 38.",
       "journal": "Ophthalmology",
@@ -1243,11 +1222,6 @@
       "journal": "PLoS Genet",
       "year": "2014"
     },
-    "25298029": {
-      "title": "Coordination-driven macrocyclization for locking of photo- and thermal cis→trans isomerization of azobenzene.",
-      "journal": "Chemistry",
-      "year": "2014"
-    },
     "25393378": {
       "title": "Association of sickle cell trait with chronic kidney disease and albuminuria in African Americans.",
       "journal": "JAMA",
@@ -1258,14 +1232,14 @@
       "journal": "Genetics",
       "year": "2015"
     },
-    "25589359": {
-      "title": "Longitudinal impact of sleep on overweight and obesity in children and adolescents: a systematic review and bias-adjusted meta-analysis.",
-      "journal": "Obes Rev",
-      "year": "2015"
-    },
     "25599395": {
       "title": "MMP-1 and -3 promoter variants are indicative of a common susceptibility for skin and lung aging: results from a cohort of elderly women (SALIA).",
       "journal": "J Invest Dermatol",
+      "year": "2015"
+    },
+    "25612138": {
+      "title": "Diamine oxidase rs10156191 and rs2052129 variants are associated with the risk for migraine.",
+      "journal": "Headache",
       "year": "2015"
     },
     "25635124": {
@@ -1286,6 +1260,11 @@
     "26014290": {
       "title": "Revisiting Li-Fraumeni Syndrome From TP53 Mutation Carriers.",
       "journal": "J Clin Oncol",
+      "year": "2015"
+    },
+    "26044055": {
+      "title": "Association of glutathione S-transferase pi (GSTP1) Ile105Val polymorphism with the risk of skin cancer: a meta-analysis.",
+      "journal": "Arch Dermatol Res",
       "year": "2015"
     },
     "26048407": {
@@ -1342,6 +1321,11 @@
       "title": "The Association of SNAP25 Gene Polymorphisms in Attention Deficit/Hyperactivity Disorder: a Systematic Review and Meta-Analysis.",
       "journal": "Mol Neurobiol",
       "year": "2017"
+    },
+    "27026015": {
+      "title": "Role of the monocarboxylate transporter MCT1 in the uptake of lactate during active recovery.",
+      "journal": "Eur J Appl Physiol",
+      "year": "2016"
     },
     "27041150": {
       "title": "KCNQ1 mutations associated with Jervell and Lange-Nielsen syndrome and autosomal recessive Romano-Ward syndrome in India-expanding the spectrum of long QT syndrome type 1.",
@@ -1448,6 +1432,16 @@
       "journal": "Hum Mutat",
       "year": "2018"
     },
+    "29632650": {
+      "title": "Association between polymorphism rs12722 in COL5A1 and musculoskeletal soft tissue injuries: a systematic review and meta-analysis.",
+      "journal": "Oncotarget",
+      "year": "2018"
+    },
+    "29762540": {
+      "title": "The Role of Peroxisome Proliferator-Activated Receptors and Their Transcriptional Coactivators Gene Variations in Human Trainability: A Systematic Review.",
+      "journal": "Int J Mol Sci",
+      "year": "2018"
+    },
     "29785011": {
       "title": "A genome-wide cross-trait analysis from UK Biobank highlights the shared genetic architecture of asthma and allergic diseases.",
       "journal": "Nat Genet",
@@ -1471,6 +1465,11 @@
     "29904014": {
       "title": "Is It Time to Change the Definition of Acute Exacerbation of Chronic Obstructive Pulmornary Disease? What Do We Need to Add?",
       "journal": "Med Sci (Basel)",
+      "year": "2018"
+    },
+    "29922378": {
+      "title": "Interactions between COL5A1 Gene and Risk of the Anterior Cruciate Ligament Rupture.",
+      "journal": "J Hum Kinet",
       "year": "2018"
     },
     "29942085": {
@@ -1527,6 +1526,11 @@
       "title": "Fracture Prevention with Zoledronate in Older Women with Osteopenia.",
       "journal": "N Engl J Med",
       "year": "2018"
+    },
+    "30625151": {
+      "title": "Association of PPARGC1A Gly428Ser (rs8192678) polymorphism with potential for athletic ability and sports performance: A meta-analysis.",
+      "journal": "PLoS One",
+      "year": "2019"
     },
     "30643258": {
       "title": "Genome-wide association analyses of risk tolerance and risky behaviors in over 1 million individuals identify hundreds of loci and shared genetic influences.",
@@ -1673,6 +1677,11 @@
       "journal": "N Engl J Med",
       "year": "2021"
     },
+    "33956903": {
+      "title": "Correction: Association of PPARGC1A Gly482Ser (rs8192678) polymorphism with potential for athletic ability and sports performance: A meta-analysis.",
+      "journal": "PLoS One",
+      "year": "2021"
+    },
     "34032273": {
       "title": "Clinical Pharmacogenetics Implementation Consortium Guideline for the Use of Aminoglycosides Based on MT-RNR1 Genotype.",
       "journal": "Clin Pharmacol Ther",
@@ -1683,6 +1692,11 @@
       "journal": "Hum Genet",
       "year": "2022"
     },
+    "34475628": {
+      "title": "The MCT1 gene Glu490Asp polymorphism (rs1049434) is associated with endurance athlete status, lower blood lactate accumulation and higher maximum oxygen uptake.",
+      "journal": "Biol Sport",
+      "year": "2021"
+    },
     "35361970": {
       "title": "Polygenic prediction of educational attainment within and between families from genome-wide association analyses in 3 million individuals.",
       "journal": "Nat Genet",
@@ -1691,6 +1705,11 @@
     "35626163": {
       "title": "Glutathione Peroxidase GPX1 and Its Dichotomous Roles in Cancer.",
       "journal": "Cancers (Basel)",
+      "year": "2022"
+    },
+    "36136322": {
+      "title": "Differences in Cancer Phenotypes Among Frequent CHEK2 Variants and Implications for Clinical Care-Checking CHEK2.",
+      "journal": "JAMA Oncol",
       "year": "2022"
     },
     "36196271": {
@@ -1718,6 +1737,11 @@
       "journal": "Genet Med",
       "year": "2023"
     },
+    "37359379": {
+      "title": "Cumulative effect of AOC1 gene variants on symptoms and pathological conditions in adult women with fibromyalgia: a pilot study.",
+      "journal": "Front Genet",
+      "year": "2023"
+    },
     "37490054": {
       "title": "Management of individuals with germline pathogenic/likely pathogenic variants in CHEK2: A clinical practice resource of the American College of Medical Genetics and Genomics (ACMG).",
       "journal": "Genet Med",
@@ -1736,6 +1760,11 @@
     "38498041": {
       "title": "Thrombosis risk in single- and double-heterozygous carriers of factor V Leiden and prothrombin G20210A in FinnGen and the UK Biobank.",
       "journal": "Blood",
+      "year": "2024"
+    },
+    "38674832": {
+      "title": "Pilot Study on the Prevalence of Diamine Oxidase Gene Variants in Patients with Symptoms of Histamine Intolerance.",
+      "journal": "Nutrients",
       "year": "2024"
     },
     "38760851": {
@@ -1763,6 +1792,16 @@
       "journal": "Ann Hematol",
       "year": "2024"
     },
+    "39209703": {
+      "title": "Protein-truncating and rare missense variants in ATM and CHEK2 and associations with cancer in UK Biobank whole-exome sequence data.",
+      "journal": "J Med Genet",
+      "year": "2024"
+    },
+    "39465900": {
+      "title": "APOL1 Bi- and Monoallelic Variants and Chronic Kidney Disease in West Africans.",
+      "journal": "N Engl J Med",
+      "year": "2025"
+    },
     "39595706": {
       "title": "Role of the ACE I/D Polymorphism in Selected Public Health-Associated Sporting Modalities: An Updated Systematic Review and Meta-Analysis.",
       "journal": "Int J Environ Res Public Health",
@@ -1781,6 +1820,11 @@
     "40926580": {
       "title": "Genetic Modifiers of Parkinson's Disease: A Case-Control Study.",
       "journal": "Ann Clin Transl Neurol",
+      "year": "2025"
+    },
+    "41396600": {
+      "title": "Genomic Ascertainment of CHEK2-Related Cancer Predisposition.",
+      "journal": "JAMA Netw Open",
       "year": "2025"
     },
     "41992662": {
