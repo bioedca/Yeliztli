@@ -642,13 +642,12 @@ def store_nutrigenomics_findings(
                 }
             )
 
-    if not rows:
-        logger.info("no_nutrigenomics_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous nutrigenomics findings
         conn.execute(sa.delete(findings).where(findings.c.module == "nutrigenomics"))
+        if not rows:
+            logger.info("no_nutrigenomics_findings_to_store")
+            return 0
         conn.execute(sa.insert(findings), rows)
 
     logger.info("nutrigenomics_findings_stored", count=len(rows))

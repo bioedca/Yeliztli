@@ -577,13 +577,12 @@ def store_carrier_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_carrier_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous carrier findings before inserting fresh
         conn.execute(sa.delete(findings).where(findings.c.module == "carrier"))
+        if not rows:
+            logger.info("no_carrier_findings_to_store")
+            return 0
         conn.execute(sa.insert(findings), rows)
 
     logger.info("carrier_findings_stored", count=len(rows))

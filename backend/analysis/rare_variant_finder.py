@@ -545,13 +545,12 @@ def store_rare_variant_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_rare_variant_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous rare_variants findings
         conn.execute(sa.delete(findings).where(findings.c.module == "rare_variants"))
+        if not rows:
+            logger.info("no_rare_variant_findings_to_store")
+            return 0
         conn.execute(sa.insert(findings), rows)
 
     logger.info("rare_variant_findings_stored", count=len(rows))

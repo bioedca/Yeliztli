@@ -778,13 +778,12 @@ def store_fitness_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_fitness_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous fitness findings
         conn.execute(sa.delete(findings).where(findings.c.module == MODULE_NAME))
+        if not rows:
+            logger.info("no_fitness_findings_to_store")
+            return 0
         conn.execute(sa.insert(findings), rows)
 
     logger.info("fitness_findings_stored", count=len(rows))

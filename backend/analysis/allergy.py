@@ -1134,13 +1134,12 @@ def store_allergy_findings(
             }
         )
 
-    if not rows:
-        logger.info("no_allergy_findings_to_store")
-        return 0
-
     with sample_engine.begin() as conn:
         # Clear previous allergy findings
         conn.execute(sa.delete(findings).where(findings.c.module == MODULE_NAME))
+        if not rows:
+            logger.info("no_allergy_findings_to_store")
+            return 0
         conn.execute(sa.insert(findings), rows)
 
         # Store panel coverage tracking
