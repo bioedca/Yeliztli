@@ -377,6 +377,90 @@ class TestSetPassword:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Remove password (disable auth) — issue #530
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRemovePassword:
+    """`POST /api/auth/remove-password` verifies the current password and then
+    disables all authentication. Mirrors the `set-password` verify-current gate
+    (`test_change_password_requires_current`), which was previously the only
+    half of the security-twin pair under test.
+
+    Note: in these fixtures `get_settings` is patched to a fixed object, so the
+    handler's `_persist_auth_settings` write does not change the *runtime* auth
+    state (a later `/auth/status` would still read the patched `auth_enabled`).
+    These tests therefore assert the real, observable side effects — the
+    persisted `config.toml` and the in-memory session store — rather than a
+    settings re-read.
+    """
+
+    def test_remove_password_when_none_set_returns_400(self, noauth_client: TestClient) -> None:
+        # No password configured (auth disabled) → middleware passes through and
+        # the handler's "nothing to remove" branch returns 400.
+        resp = noauth_client.post("/api/auth/remove-password", json={"password": "anything"})
+        assert resp.status_code == 400
+
+    def test_remove_password_requires_session_when_password_set(
+        self, auth_client: TestClient
+    ) -> None:
+        """Without a valid session the middleware blocks the request (401) —
+        remove-password is NOT in the auth-exempt set, so it can never disable
+        auth anonymously."""
+        resp = auth_client.post("/api/auth/remove-password", json={"password": "testpin"})
+        assert resp.status_code == 401
+
+    def test_remove_password_wrong_password_returns_401_and_keeps_auth(
+        self, auth_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """With a valid session but the WRONG current password, the handler's
+        verify gate rejects (401) and auth is left untouched — no config is
+        persisted to disable it and the live session is not cleared."""
+        from backend.auth import _get_session_count
+
+        login = auth_client.post("/api/auth/login", json={"password": "testpin"})
+        cookies = {"gi_session": login.cookies.get("gi_session")}
+        assert _get_session_count() == 1
+
+        resp = auth_client.post(
+            "/api/auth/remove-password", json={"password": "wrongpin"}, cookies=cookies
+        )
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Password is incorrect."
+        # The auth-disabling side effects must NOT have run: the handler raised
+        # before `_persist_auth_settings`/`clear_all_sessions`.
+        assert not (tmp_data_dir / "config.toml").exists()
+        assert _get_session_count() == 1
+
+    def test_remove_password_correct_disables_auth_and_clears_sessions(
+        self, auth_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """With a valid session and the correct current password: 200, all
+        sessions cleared, and `config.toml` persisted with auth disabled and
+        the password hash blanked."""
+        import tomllib
+
+        from backend.auth import _get_session_count
+
+        login = auth_client.post("/api/auth/login", json={"password": "testpin"})
+        cookies = {"gi_session": login.cookies.get("gi_session")}
+        assert _get_session_count() == 1
+
+        resp = auth_client.post(
+            "/api/auth/remove-password", json={"password": "testpin"}, cookies=cookies
+        )
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+        # All sessions invalidated (clear_all_sessions on the success path).
+        assert _get_session_count() == 0
+        # Persisted: auth disabled + hash blanked in the [yeliztli] table.
+        cfg = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        assert cfg["yeliztli"]["auth_enabled"] is False
+        assert cfg["yeliztli"]["auth_password_hash"] == ""
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Rate limiting
 # ═══════════════════════════════════════════════════════════════════════
 

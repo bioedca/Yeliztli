@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pyliftover.liftover
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.ingestion import liftover as liftover_module
 from backend.ingestion.liftover import batch_convert, convert_coordinate, reset_liftover
@@ -174,3 +175,42 @@ class TestVendoredChainOffline:
         finally:
             # Drop the instance loaded under the patch so later tests reinit cleanly.
             reset_liftover()
+
+
+# ── Route-level: GET /api/liftover/convert (issue #530) ────────────────
+
+
+class TestConvertRoute:
+    """`GET /api/liftover/convert` — the single-coordinate HTTP endpoint had no
+    route-level test (only `convert_coordinate` was covered directly). It is
+    build-conversion-correctness-sensitive (cf. #480), so lock the route here.
+    """
+
+    def test_convert_success(self, test_client: TestClient) -> None:
+        """A liftable GRCh37 coordinate returns the GRCh38 mapping + success."""
+        resp = test_client.get("/api/liftover/convert", params={"chrom": "1", "pos": 11856378})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["success"] is True
+        assert body["chrom_grch37"] == "1"
+        assert body["pos_grch37"] == 11856378
+        assert body["chrom_grch38"] == "1"
+        assert body["pos_grch38"] == 11796321  # matches TestConvertCoordinate
+
+    def test_convert_mt_returns_success_false(self, test_client: TestClient) -> None:
+        """MT is deliberately not lifted (F34: hg19 chrM is Yoruba, not rCRS) —
+        the route reports `success=False` rather than a wrong coordinate."""
+        resp = test_client.get("/api/liftover/convert", params={"chrom": "MT", "pos": 263})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["success"] is False
+        assert body.get("pos_grch38") is None
+
+    def test_convert_nonpositive_pos_returns_422(self, test_client: TestClient) -> None:
+        """`pos` is constrained to > 0 (1-based), so 0 is rejected by validation."""
+        resp = test_client.get("/api/liftover/convert", params={"chrom": "1", "pos": 0})
+        assert resp.status_code == 422
+
+    def test_convert_missing_params_returns_422(self, test_client: TestClient) -> None:
+        """Both `chrom` and `pos` are required query params."""
+        assert test_client.get("/api/liftover/convert").status_code == 422
