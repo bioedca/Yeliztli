@@ -33,18 +33,15 @@ logger = structlog.get_logger(__name__)
 # ── LOINC / system constants ─────────────────────────────────────────
 
 LOINC_SYSTEM = "http://loinc.org"
-SNOMED_SYSTEM = "http://snomed.info/sct"
 HGNC_SYSTEM = "http://www.genenames.org/geneId"
 DBSNP_SYSTEM = "http://www.ncbi.nlm.nih.gov/snp"
 CLINVAR_SYSTEM = "http://www.ncbi.nlm.nih.gov/clinvar"
 SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
-FHIR_GENOMICS_SYSTEM = "http://hl7.org/fhir/uv/genomics-reporting"
 
 # LOINC codes for genomics reporting
 LOINC_MASTER_PANEL = "81247-9"  # Master HL7 genetic variant reporting panel
 LOINC_VARIANT_ASSESSMENT = "69548-6"  # Genetic variant assessment
 LOINC_GENE_STUDIED = "48018-6"  # Gene studied [ID]
-LOINC_GENOMIC_REF_SEQ = "48013-7"  # Genomic reference sequence [ID]
 LOINC_ALLELIC_STATE = "53034-5"  # Allelic state
 LOINC_GENOMIC_COORD_SYSTEM = "92822-6"  # Genomic coordinate system
 LOINC_VARIANT_EXACT_START = "81254-5"  # Genomic structural variant start
