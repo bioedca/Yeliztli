@@ -159,6 +159,112 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "reproductive-ethics review (andrology)",
         "caught_in": "skin (MMP1, #345)",
     },
+    # ── Registered from the #314 / #326 citation cleanups via #277 ──────────
+    "16207938": {
+        "title": "Acrylamide inhibits dopamine uptake in rat striatal synaptic vesicles.",
+        "field": "neurotoxicology (acrylamide, rat striatum)",
+        "caught_in": "methylation (#314)",
+    },
+    "10666248": {
+        "title": "Human CD4+ T-cell clones recognizing Lassa-virus epitopes.",
+        "field": "virology/immunology (Lassa-virus epitopes)",
+        "caught_in": "methylation (#314)",
+    },
+    "20860029": {
+        "title": "Phytochemistry and free-radical-scavenging of Melaleuca essential oil.",
+        "field": "plant phytochemistry (essential oil)",
+        "caught_in": "methylation (#314)",
+    },
+    "16962000": {
+        "title": "The discoloration illusion.",
+        "field": "visual perception (a colour-illusion paper)",
+        "caught_in": "methylation (#314)",
+    },
+    "21680034": {
+        "title": "The expanding scope of antimicrobial peptide structures.",
+        "field": "microbiology (antimicrobial peptides)",
+        "caught_in": "methylation (#314)",
+    },
+    "16234067": {
+        "title": "Tracing the evolution of hepatitis C virus in the US, Japan, and Egypt.",
+        "field": "virology (HCV molecular evolution)",
+        "caught_in": "methylation (#314)",
+    },
+    "18404103": {
+        "title": "Lumbar intervertebral disc puncture changes spontaneous pain behavior (rat).",
+        "field": "rat pain model (disc puncture)",
+        "caught_in": "methylation (#314)",
+    },
+    "18175331": {
+        "title": "No transcriptional changes in mouse brain exposed to 1800 MHz GSM signal.",
+        "field": "mouse RF-radiation study",
+        "caught_in": "methylation (#314)",
+    },
+    "17522615": {
+        "title": "Cereal-fibre content of the evening meal and next-day glucose tolerance.",
+        "field": "nutrition/dietetics (cereal fibre)",
+        "caught_in": "methylation (#314)",
+    },
+    "17445041": {
+        "title": "Lipid profile in children with acute viral hepatitis A.",
+        "field": "paediatric clinical chemistry",
+        "caught_in": "methylation (#314)",
+    },
+    "16159893": {
+        "title": "Hypotension in NKCC1 null mice: role of the kidneys.",
+        "field": "mouse renal physiology (NKCC1-null)",
+        "caught_in": "methylation (#314)",
+    },
+    "22012967": {
+        "title": "Care for veterans with mental and substance use disorders.",
+        "field": "health-services research",
+        "caught_in": "methylation (#314)",
+    },
+    "22884227": {
+        "title": "Early gastric fistula after laparoscopic sleeve gastrectomy.",
+        "field": "bariatric surgery (gastric fistula)",
+        "caught_in": "gene_health (#326)",
+    },
+    "24076671": {
+        "title": "Anatomical study of the medial crura and nasal tip projection in rhinoplasty.",
+        "field": "plastic surgery (rhinoplasty)",
+        "caught_in": "gene_health (#326)",
+    },
+    "18552285": {
+        "title": "MAP kinase Hog1 mediates adaptation to G1 checkpoint arrest (yeast).",
+        "field": "yeast cell biology (Hog1 MAPK)",
+        "caught_in": "gene_health (#326)",
+    },
+    "17170444": {
+        "title": "Epidemic dynamics of two coexisting hepatitis C virus subtypes.",
+        "field": "virology epidemiology (HCV)",
+        "caught_in": "gene_health (#326)",
+    },
+    "18191106": {
+        "title": "Quinolones as enhancers of camptothecin anti-topoisomerase-I effects.",
+        "field": "pharmacology/chemistry (topoisomerase)",
+        "caught_in": "gene_health (#326)",
+    },
+    "26752085": {
+        "title": "3D macroassembly of porous carbon/graphene nanosheets.",
+        "field": "materials science (carbon aerogels)",
+        "caught_in": "gene_health (#326)",
+    },
+    "22977957": {
+        "title": "Culpability and the problem of the human genome (bioethics essay).",
+        "field": "bioethics essay",
+        "caught_in": "gene_health (#326)",
+    },
+    "27184023": {
+        "title": "Lack of specific LGBTQ health-care education in medical school.",
+        "field": "medical-education survey",
+        "caught_in": "gene_health (#326)",
+    },
+    "25533199": {
+        "title": "Mitotic accumulation of dimethylated H3K79 maintains genome integrity.",
+        "field": "cell biology (histone H3K79)",
+        "caught_in": "gene_health (#326)",
+    },
 }
 
 # PMIDs that WERE caught misattributed but are biomedical/genomics-ADJACENT (they
@@ -176,6 +282,11 @@ _GENE_SCOPED_NOT_REPO_BANNED: frozenset[str] = frozenset(
         "21149639",  # GPER1/GPR30 human GPCR cell biology
         "23430975",  # arginine butyrate for Duchenne MD — names the DMD gene/disease
         "27914672",  # superficial basal cell carcinoma — skin-cancer clinical (skin panel)
+        # same-field wrong-gene catches from #314/#326 (real human gene/syndrome papers):
+        "15701835",  # CREBBP/CBP mutations in human lung cancer (#314, DNMT3B row)
+        "11745004",  # BAT-26/BAT-40 microsatellite variation (#314, SLC19A1 row)
+        "12161596",  # PTPN11 mutations in LEOPARD syndrome (#314, TCN2 row)
+        "15637710",  # Crisponi syndrome / CRLF1 human genetics (#314, MTR/CBS rows)
     }
 )
 
@@ -320,3 +431,21 @@ def test_iter_pmids_collects_all_key_shapes() -> None:
         "ignored": {"note": "999", "gene_symbol": "888"},  # non-citation keys skipped
     }
     assert set(_iter_pmids(doc)) == {"111", "222", "333", "444", "555"}
+
+
+def test_every_curated_panel_is_covered_by_the_shared_collector() -> None:
+    """#277: the repo-wide guard auto-discovers EVERY curated panel.
+
+    ``all_panel_pmids`` globs ``backend/data/panels/*.json`` (minus the proxy
+    lookup, scanned separately), so a panel cannot be added without its PMIDs
+    flowing into the offline denylist, the per-key coverage check, the
+    topic-consistency snapshot guard, and the nightly resolution verifier — the
+    generalization #277 asked for. This pins that no panel is silently excluded.
+    """
+    on_disk = {p.name for p in _PANELS_DIR.glob("*.json")} - {"hla_proxy_lookup.json"}
+    covered = set(all_panel_pmids())
+    assert on_disk, "no curated panels found on disk"
+    assert covered == on_disk, (
+        f"panel(s) not covered by all_panel_pmids(): {sorted(on_disk - covered)}"
+    )
+    assert len(covered) >= 8, f"suspiciously few panels covered ({len(covered)})"
