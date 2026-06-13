@@ -1227,7 +1227,7 @@
             }
           },
           "evidence_level": 4,
-          "pmids": ["9002654", "12657976", "21280143", "34345941", "22116369", "23151025"],
+          "pmids": ["9398842", "22116369", "23151025", "34345941"],
           "recommendation_text": "SLC26A4 biallelic coding/splice variants cause Pendred syndrome (autosomal recessive hearing loss with goiter) and DFNB4 (non-syndromic hearing loss with enlarged vestibular aqueduct). A single heterozygous c.919-2A>G call should be treated as carrier information in an unphenotyped report; if hearing loss or EVA is present, pursue clinical SLC26A4 sequencing/CNV/regulatory follow-up for a second allele. Thyroid function monitoring is recommended for affected individuals."
         },
         {

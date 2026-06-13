@@ -345,6 +345,25 @@ class TestPanelLoading:
         assert gjb2["pmids"] == ["9285800", "9139825"]
         assert {"9462742", "10090481", "21280143"}.isdisjoint(gjb2["pmids"])
 
+    def test_slc26a4_cites_curated_pmids(self) -> None:
+        """#406: the SLC26A4 (rs111033313) Pendred/DFNB4 hearing-loss row must cite
+        SLC26A4 evidence, not the three papers attached in error (NCBI-verified):
+        9002654 (mouse preimplantation-embryo growth factors), 12657976 (abdominal
+        compartment syndrome), and 21280143 (EXT/exostoses array-CGH — the same
+        misattribution scrubbed from the GJB2 row in #350)."""
+        gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        slc26a4 = next(
+            snp
+            for pathway in gene_health["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] == "rs111033313"
+        )
+        # 9398842 Everett 1997 (Nat Genet, PDS/SLC26A4 cloning — Pendred syndrome);
+        # 22116369 SLC26A4 EVA genotype-phenotype; 23151025 SLC26A4 c.919-2A>G
+        # compound heterozygosity; 34345941 SLC26A4 genetic architecture/landscape.
+        assert slc26a4["pmids"] == ["9398842", "22116369", "23151025", "34345941"]
+        assert {"9002654", "12657976", "21280143"}.isdisjoint(slc26a4["pmids"])
+
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
             load_gene_health_panel(Path("/nonexistent/panel.json"))
