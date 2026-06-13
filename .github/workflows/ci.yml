@@ -32,6 +32,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
+      docs: ${{ steps.filter.outputs.docs }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v6
@@ -58,6 +59,10 @@ jobs:
               - 'Dockerfile'
               - 'docker-compose*.yml'
               - '.dockerignore'
+            docs:
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - 'pyproject.toml'
             workflows:
               - '.github/workflows/**'
 
@@ -401,6 +406,30 @@ jobs:
           reporter: local
           filter_mode: nofilter
 
+  # ── Docs build (strict) — Tier 1, runs when docs inputs change ──────────
+  # mkdocs --strict fails on broken internal links and on any page missing from
+  # the nav, so this is the documentation link-checker. Path-filtered like the
+  # other Tier-1 jobs; on push/merge_group it runs unconditionally.
+  docs-build:
+    name: Docs Build (strict)
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install docs dependencies
+        run: pip install -e ".[docs]"
+
+      - name: Build site (strict)
+        run: mkdocs build --strict
+
   # ── Single required status check ────────────────────────────────────────
   # Aggregates every job so branch protection needs only `ci-required` (+ `lint`):
   # path-filtered/Tier-2 jobs that are `skipped` count as pass; a `failure` or
@@ -420,6 +449,7 @@ jobs:
       - smoke-install
       - smoke-install-cross-os
       - docker-build
+      - docs-build
       - test-e2e
       - actionlint
     runs-on: ubuntu-latest

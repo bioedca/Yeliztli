@@ -69,6 +69,9 @@ test-results/
 playwright-report/
 blob-report/
 
+# Documentation site (MkDocs build output — published via CI, never committed)
+/site/
+
 # AI
 .claude/
 .codex/

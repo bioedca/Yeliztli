@@ -1,0 +1,89 @@
+site_name: Yeliztli
+site_description: Privacy-first personal-genomics analysis platform — run it on your own machine.
+site_url: https://bioedca.github.io/Yeliztli/
+repo_url: https://github.com/bioedca/Yeliztli
+repo_name: bioedca/Yeliztli
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+# Fail the build on any broken internal link or page missing from the nav. This is
+# the CI link-checker — it is also why pages are migrated into the nav in dependency
+# order (a link can only be added once its target page exists).
+strict: true
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - abbr
+  - admonition          # disclaimer / warning callouts
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - footnotes
+  - pymdownx.details    # collapsible callouts
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      # Single-source reusable fragments (e.g. the shared health disclaimer) live
+      # under docs/_includes and are pulled in with `--8<--`.
+      base_path: ["docs/_includes"]
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+# Legacy guides and internal/maintainer material that has not yet been migrated into
+# the nav. They are excluded from the build so `--strict` stays green; entries are
+# removed as each is folded into a site page (later PRs).
+exclude_docs: |
+  _includes/
+  setup-guide.md
+  usage-guide.md
+  expansion-second-wave-REMAINING.md
+  sex_inference_threshold_validation.md
+  lai-bundle-release-runbook.md
+  lai-bundle-release-runbook-env.lock.yaml
+  release-notes/
+  internal/
+
+nav:
+  - Home: index.md
+  - Intended use & disclaimers: intended-use.md
+  - Privacy: privacy.md

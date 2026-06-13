@@ -51,6 +51,12 @@ dev = [
     "pyyaml",
     "pandas",
 ]
+# Documentation site (MkDocs Material). Install with `pip install -e ".[docs]"`
+# — used locally, by the `docs-build` CI job, and by the Pages deploy workflow.
+docs = [
+    "mkdocs-material",
+    "pymdown-extensions",
+]
 
 [project.scripts]
 yeliztli-setup = "backend.installer:main"
