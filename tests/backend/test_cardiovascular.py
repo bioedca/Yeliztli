@@ -465,6 +465,30 @@ class TestPMIDs:
         assert cited.isdisjoint(unrelated), f"LPA cites unrelated PMIDs {cited & unrelated}"
         assert cited == {"20032323", "32681934"}, f"unexpected LPA PMIDs: {cited}"
 
+    def test_fh_entries_cite_verified_fh_sources(self, panel: CardiovascularPanel) -> None:
+        """#177 — LDLR/PCSK9/APOB must cite FH-specific literature.
+
+        Locks the verified citation sets so the previously-transposed unrelated
+        PMIDs cannot return. The originals all resolved (NCBI eutils) to
+        non-FH topics: 20301462 = retired Charcot-Marie-Tooth GeneReviews,
+        27914672 = "Superficial basal cell carcinoma", 26547463 = a generic
+        JAMA editorial, and 29581339 = a non-existent PMID (HTTP 404). Verified
+        replacements:
+          - 32479201 = Khera & Hegele 2020, Circulation — FH overview
+          - 23956253 = EAS Consensus 2013, Eur Heart J — FH genetics/diagnosis
+          - 12730697 = Abifadel 2003, Nat Genet — PCSK9 causes ADH
+        """
+        assert panel.get_gene("LDLR").pmids == ["32479201", "23956253"]
+        assert panel.get_gene("PCSK9").pmids == ["32479201", "12730697"]
+        assert panel.get_gene("APOB").pmids == ["32479201", "23956253"]
+
+    def test_no_unrelated_transposed_pmids(self, panel: CardiovascularPanel) -> None:
+        """None of the verified-unrelated PMIDs may appear in any panel entry."""
+        unrelated = {"20301462", "29581339", "26547463", "27914672"}
+        for gene in panel.genes:
+            stray = unrelated.intersection(gene.pmids)
+            assert not stray, f"{gene.gene_symbol} cites unrelated PMID(s): {stray}"
+
 
 # ── Gene metadata ────────────────────────────────────────────────────────
 

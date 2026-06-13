@@ -24,7 +24,7 @@
         "rs121908030",
         "rs121908031"
       ],
-      "pmids": ["20301462", "29581339"],
+      "pmids": ["32479201", "23956253"],
       "notes": "Most common cause of familial hypercholesterolemia. Over 2000 known variants. Autosomal dominant with high penetrance."
     },
     {
@@ -44,7 +44,7 @@
         "rs67608943",
         "rs28362261"
       ],
-      "pmids": ["20301462", "26547463"],
+      "pmids": ["32479201", "12730697"],
       "notes": "Gain-of-function variants cause hypercholesterolemia. Loss-of-function variants are cardioprotective. PCSK9 inhibitors are a major therapeutic class."
     },
     {
@@ -64,7 +64,7 @@
         "rs1801696",
         "rs1801695"
       ],
-      "pmids": ["20301462", "27914672"],
+      "pmids": ["32479201", "23956253"],
       "notes": "APOB p.Arg3527Gln (rs5742904) is the most common FDB mutation. Third most common cause of FH after LDLR and PCSK9."
     },
     {
