@@ -22,6 +22,7 @@ from backend.analysis.metabolic_prs import (
     ANCHOR_UNRESOLVED,
     ANCHOR_UNTYPED,
     AnchorResult,
+    MetabolicResult,
     run_metabolic_prs,
     score_anchor_snps,
     store_metabolic_findings,
@@ -370,6 +371,32 @@ class TestStoreMetabolic:
         assert all("coverage too low" in r.finding_text for r in prs)
         # 2 anchors typed (TCF7L2, FTO); MC4R untyped → not stored.
         assert {r.gene_symbol for r in anchors} == {"TCF7L2", "FTO"}
+
+    def test_empty_prs_clears_stale_prs_finding(self, sample_engine: sa.Engine) -> None:
+        """An empty PRS pass (score DB unavailable) must clear stale metabolic/prs
+        rows so a previously computed percentile is not surfaced with broken
+        provenance (#245). store_metabolic_findings calls store_prs_findings
+        unconditionally, which clears even on an empty result list."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "metabolic",
+                        "category": "prs",
+                        "evidence_level": 2,
+                        "finding_text": "Stale T2D PRS: 80th percentile",
+                    }
+                ],
+            )
+        store_metabolic_findings(MetabolicResult(prs_results=[], anchors=[]), sample_engine)
+        with sample_engine.connect() as conn:
+            stale = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == "metabolic", findings.c.category == "prs")
+            ).scalar()
+        assert stale == 0
 
     def test_rerun_replaces_anchors(self, sample_engine: sa.Engine) -> None:
         _seed_sample(sample_engine)

@@ -828,10 +828,13 @@ def store_traits_findings(
             conn.execute(sa.insert(findings), rows)
         snp_count = len(rows)
 
-    # Store PRS findings via the generic PRS engine
-    prs_count = 0
-    if result.prs_results:
-        prs_count = store_prs_findings(result.prs_results, sample_engine, module=MODULE_NAME)
+    # Store PRS findings via the generic PRS engine. Call unconditionally: when
+    # result.prs_results is empty (e.g. the PGS score DB became unavailable),
+    # store_prs_findings still clears stale traits/prs rows so a previously
+    # computed percentile is not surfaced with broken provenance (#245). The
+    # non-PRS clear above deletes only category != "prs", so skipping this call
+    # on an empty pass would leave the stale traits/prs finding behind.
+    prs_count = store_prs_findings(result.prs_results, sample_engine, module=MODULE_NAME)
 
     total = snp_count + prs_count
     logger.info(

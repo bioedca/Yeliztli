@@ -629,6 +629,33 @@ class TestStoreFindingsIntegration:
 
         assert len(rows) == count
 
+    def test_empty_prs_clears_stale_prs_finding(self, sample_engine: sa.Engine) -> None:
+        """When traits PRS cannot be recomputed (empty prs_results, e.g. the PGS
+        score DB became unavailable), store_traits_findings must clear the stale
+        traits/prs row rather than skip the clear and surface a percentile with
+        broken provenance (#245). The adjacent non-PRS clear deletes only
+        category != 'prs', so store_prs_findings must be called unconditionally."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": MODULE_NAME,
+                        "category": "prs",
+                        "evidence_level": 2,
+                        "finding_text": "Stale traits PRS: 70th percentile",
+                    }
+                ],
+            )
+        store_traits_findings(TraitsResult(prs_results=[]), sample_engine)
+        with sample_engine.connect() as conn:
+            stale = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == MODULE_NAME, findings.c.category == "prs")
+            ).scalar()
+        assert stale == 0
+
     def test_pathway_summaries_created(
         self,
         panel: TraitsPanel,

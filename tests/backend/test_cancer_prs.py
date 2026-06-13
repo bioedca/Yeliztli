@@ -651,6 +651,31 @@ class TestStoreCancerPRSFindings:
             ).scalar()
         assert monogenic == 1
 
+    def test_empty_results_clear_stale_prs_finding(self, sample_engine: sa.Engine) -> None:
+        """When the score DB is unavailable, run_cancer_prs yields empty results;
+        store_cancer_prs_findings must then clear a stale cancer/prs finding rather
+        than surface a previously computed percentile with broken provenance (#245)."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 2,
+                        "finding_text": "Stale breast cancer PRS: 90th percentile",
+                    }
+                ],
+            )
+        store_cancer_prs_findings(CancerPRSResult(results=[]), sample_engine)
+        with sample_engine.connect() as conn:
+            stale = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == "cancer", findings.c.category == "prs")
+            ).scalar()
+        assert stale == 0
+
     def test_clears_previous_prs_on_rerun(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
