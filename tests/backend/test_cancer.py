@@ -828,3 +828,44 @@ class TestRAD51CCitationProvenance:
             assert "20301399" not in gene.pmids, (
                 f"{gene.gene_symbol} cites the unrelated Tuberous-Sclerosis PMID 20301399"
             )
+
+
+class TestHereditaryCancerSyndromeCitationProvenance:
+    """Guard the TP53 / ATM / APC / VHL evidence links (issue #441).
+
+    Each row previously cited a globally off-topic paper (verified via NCBI
+    esummary): TP53 -> 31170274 (Botswana oncology disparities); ATM -> 31785142
+    (non-Hodgkin lymphoma of the knee); APC -> 30844766 (platelet-lysate hydrogel
+    sutures); VHL -> 31280893 (a meta-analysis commentary). The ATM row *also*
+    carried 20301670, which resolves to the **MECP2 Disorders** GeneReviews
+    chapter (Rett syndrome) — wrong gene — so both ATM PMIDs were replaced. Pin
+    each row to verified gene/syndrome references (NCBI + Consensus).
+    """
+
+    # Verified per-gene citation sets: the correct GeneReviews/cancer-predisposition
+    # framework + a syndrome-specific guideline/penetrance source.
+    _VERIFIED: dict[str, frozenset[str]] = {
+        # Li-Fraumeni GeneReviews + Frébourg 2020 TP53 guidelines
+        "TP53": frozenset({"20301488", "32457520"}),
+        # ATM-Related Cancer Predisposition GeneReviews + Marabelli 2016 BC penetrance
+        "ATM": frozenset({"42258614", "27112364"}),
+        # APC Polyposis GeneReviews + Zaffaroni 2024 FAP guidelines
+        "APC": frozenset({"20301519", "38722804"}),
+        # VHL GeneReviews + Binderup 2022 VHL diagnosis/surveillance
+        "VHL": frozenset({"20301636", "35709961"}),
+    }
+    # Off-topic PMIDs removed; each was exclusive to its row and is off-topic for
+    # the whole cancer panel (oncology-disparities / NHL-knee / hydrogel-sutures /
+    # meta-commentary / MECP2-neuro GeneReviews) → asserted absent panel-wide.
+    _BANNED = frozenset({"31170274", "31785142", "30844766", "31280893", "20301670"})
+
+    def test_genes_cite_verified_references(self, panel: CancerPanel) -> None:
+        for symbol, expected in self._VERIFIED.items():
+            gene = panel.get_gene(symbol)
+            assert gene is not None, symbol
+            assert set(gene.pmids) == expected, (symbol, gene.pmids)
+
+    def test_unrelated_pmids_absent_from_panel(self, panel: CancerPanel) -> None:
+        for gene in panel.genes:
+            leaked = self._BANNED & set(gene.pmids)
+            assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
