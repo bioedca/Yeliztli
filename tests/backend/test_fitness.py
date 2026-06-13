@@ -1110,10 +1110,10 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Elevated
+                ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Standard (context-only, #182)
                 ("rs8192678", "4", 23814519, "AA"),  # PPARGC1A → Moderate (capped)
                 ("rs17602729", "1", 114677654, "TT"),  # AMPD1 → Moderate (capped)
-                ("rs4341", "17", 63488529, "GG"),  # ACE DD → Elevated
+                ("rs4341", "17", 63488529, "GG"),  # ACE DD → Moderate (#352)
                 ("rs1049434", "1", 113545811, "AA"),  # MCT1 → Moderate (capped)
                 ("rs12722", "9", 137048876, "TT"),  # COL5A1 → Moderate (capped)
                 ("rs1800012", "17", 50201587, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
