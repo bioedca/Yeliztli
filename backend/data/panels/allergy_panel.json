@@ -258,7 +258,7 @@
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
-          "pmids": ["22286173", "22177658", "26092464", "30080910", "33071783"],
+          "pmids": ["15743917", "29392141", "30080910", "33071783"],
           "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP with ancestry-dependent LD (EUR r2=0.91, EAS r2=0.87, AFR r2=0.78 in the lookup table), so a negative proxy result is not exclusionary. Confirmatory high-resolution HLA typing is required.",
           "cross_module": {
             "module": "pharmacogenomics",

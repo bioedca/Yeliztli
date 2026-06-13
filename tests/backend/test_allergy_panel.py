@@ -258,14 +258,48 @@ class TestSNPFields:
         # The two wrong-topic GWAS PMIDs must not remain on the HLA-A*31:01 row.
         assert not ({"24025145", "26808113"} & set(snp["pmids"]))
 
+    def test_hla_b5801_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # HLA-B*58:01 / allopurinol (rs9263726 proxy) is a Level-4 pharmacogenomic
+        # safety row; its citations must support HLA-B*58:01/allopurinol SCAR and the
+        # rs9263726 proxy, not the intracranial-aneurysm GWAS (22286173), the prostate-
+        # cancer active-surveillance paper (22177658), or the ectomycorrhizal-fungi
+        # paper (26092464) attached in error (#232):
+        #   15743917 — Hung 2005, PNAS: HLA-B*5801 marker for allopurinol SCAR
+        #   29392141 — Saksit, J Immunol Res: rs9263726 & chr6 SNPs as HLA-B*58:01
+        #               surrogates for allopurinol-induced SCAR
+        #   30080910 — Genet Mol Biol: clinical evaluation of an HLA-B*58:01 substitute
+        #               across Chinese ethnic groups (proxy)
+        #   33071783 — Manson 2020, Front Pharmacol: actionable HLA recommendations (CPIC/DPWG)
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs9263726"
+        )
+        assert snp["pmids"] == ["15743917", "29392141", "30080910", "33071783"], snp["pmids"]
+        # The three wrong-topic PMIDs must not remain on the HLA-B*58:01 row.
+        assert {"22286173", "22177658", "26092464"}.isdisjoint(snp["pmids"])
+
+    def test_hla_b5801_proxy_lookup_cites_real_evidence(self) -> None:
+        # The HLA-B*58:01 entries in the proxy lookup carried the unrelated Japanese
+        # intracranial-aneurysm GWAS PMID (22286173, #232). They must cite the
+        # rs9263726-surrogate evidence (Saksit, 29392141) instead.
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        b5801 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*58:01"]
+        assert b5801, "no HLA-B*58:01 entries in proxy lookup"
+        for entry in b5801:
+            assert entry["pmid"] == "29392141", (
+                f"HLA-B*58:01/{entry['ancestry_pop']} cites unexpected PMID: {entry['pmid']}"
+            )
+            assert entry["pmid"] not in {"22286173", "22177658", "26092464"}
+
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
-        # Guard against re-introducing the two unrelated citations that were on
-        # the abacavir row (#176): 18196153 is a 1983 X-ray optics paper and
-        # 18192541 is an adiponectin/diabetes paper — neither concerns HLA-B or
-        # abacavir. They must not reappear on any row, in the panel OR in the
-        # sibling HLA proxy lookup table (which carried 18196153 on the
-        # HLA-B*57:01/abacavir entries).
-        banned = {"18196153", "18192541"}
+        # Guard against re-introducing citations that were attached in error and
+        # resolve to unrelated papers. They must not reappear on any row, in the
+        # panel OR in the sibling HLA proxy lookup table.
+        #   18196153 (1983 X-ray optics), 18192541 (adiponectin/diabetes) — abacavir
+        #     row + HLA-B*57:01 proxy entries (#176)
+        #   22286173 (Japanese intracranial-aneurysm GWAS), 22177658 (prostate-cancer
+        #     active surveillance), 26092464 (ectomycorrhizal fungi) — HLA-B*58:01
+        #     allopurinol row + proxy entries (#232)
+        banned = {"18196153", "18192541", "22286173", "22177658", "26092464"}
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 offending = banned & set(snp["pmids"])
