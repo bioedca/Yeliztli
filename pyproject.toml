@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "yeliztli"
 version = "0.2.0"
-description = "Personal genomics analysis platform for 23andMe raw data"
+description = "Personal genomics analysis platform for 23andMe and AncestryDNA raw data"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

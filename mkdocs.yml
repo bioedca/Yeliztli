@@ -69,13 +69,11 @@ markdown_extensions:
 plugins:
   - search
 
-# Legacy guides and internal/maintainer material that has not yet been migrated into
-# the nav. They are excluded from the build so `--strict` stays green; entries are
-# removed as each is folded into a site page (later PRs).
+# Internal/maintainer material that is not part of the published nav. Excluded from
+# the build so `--strict` stays green; the published runbook content links to these
+# in-repo files on GitHub instead.
 exclude_docs: |
   _includes/
-  setup-guide.md
-  usage-guide.md
   expansion-second-wave-REMAINING.md
   sex_inference_threshold_validation.md
   lai-bundle-release-runbook.md
