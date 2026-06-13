@@ -192,6 +192,18 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 
 # ClinVar significance values considered pathogenic
 _PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
+
+# Genes whose array-derived calls are too unreliable to report as carrier
+# findings because a highly homologous pseudogene confounds genotyping. GBA1's
+# pseudogene GBAP1 is ~96% homologous in the coding region (rising to ~98% across
+# exons 8–11, where the carrier-panel variants N370S/rs76763715 and
+# L444P/rs421016 both sit), so array-based GBA1 genotyping mis-calls these
+# positions (Pachchek et al. 2023, npj Park Dis, PMID 37996455; Filocamo et al.
+# 2001, J Med Genet — both N370S and L444P mis-genotyped). The Parkinson's module
+# already suppresses GBA1 on these grounds (see parkinsons.py / disclaimers.py);
+# carrier status — a reproductive-risk finding — applies the same policy rather
+# than turning a questionable array call into a carrier result (#221).
+_PSEUDOGENE_UNRELIABLE_GENES = frozenset({"GBA"})
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
 _DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
 _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str]] = {
@@ -237,6 +249,9 @@ class CarrierAnalysisResult:
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
     homozygous_plp_skipped: int = 0
+    # P/LP rows dropped because the gene is pseudogene-confounded from array data
+    # (GBA1/GBAP1) and not reportable as a carrier finding (#221).
+    pseudogene_suppressed: int = 0
 
     @property
     def carrier_count(self) -> int:
@@ -416,10 +431,18 @@ def extract_carrier_variants(
 
     variants: list[CarrierVariantResult] = []
     hom_skipped = 0
+    pseudogene_suppressed = 0
 
     for row in rows:
         gene_info = gene_map.get((row.gene_symbol or "").upper())
         if gene_info is None:
+            continue
+
+        # Pseudogene-confounded genes (GBA1/GBAP1) are unreliable from array data,
+        # so they are not reported as carrier findings — same policy the Parkinson's
+        # module applies to GBA1 (#221). Confirm with a GBA1-specific clinical assay.
+        if (row.gene_symbol or "").upper() in _PSEUDOGENE_UNRELIABLE_GENES:
+            pseudogene_suppressed += 1
             continue
 
         # P3-36: Heterozygous only — homozygous P/LP = affected, not carrier
@@ -459,6 +482,7 @@ def extract_carrier_variants(
         variants_in_panel_genes=total_in_panel,
         carrier_variants=len(variants),
         homozygous_plp_skipped=hom_skipped,
+        pseudogene_suppressed=pseudogene_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
@@ -467,6 +491,7 @@ def extract_carrier_variants(
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         homozygous_plp_skipped=hom_skipped,
+        pseudogene_suppressed=pseudogene_suppressed,
     )
 
 

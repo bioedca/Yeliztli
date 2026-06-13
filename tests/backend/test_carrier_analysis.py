@@ -229,9 +229,14 @@ class TestExtractCarrierVariants:
     def test_extracts_het_plp_variants(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:
-        """Should find 5 het P/LP variants (CFTR, HBB, BRCA1, BRCA2, GBA)."""
+        """Should find 4 het P/LP carrier variants (CFTR, HBB, BRCA1, BRCA2).
+
+        The seeded GBA het P/LP is suppressed as a pseudogene-confounded
+        (GBA1/GBAP1) array call, not reported as a carrier finding (#221).
+        """
         result = extract_carrier_variants(panel, sample_with_carrier_variants)
-        assert result.carrier_count == 5
+        assert result.carrier_count == 4
+        assert result.pseudogene_suppressed == 1
 
     def test_t3_36_cftr_het_produces_carrier_finding(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
@@ -431,7 +436,8 @@ class TestExtractCarrierVariants:
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:
         result = extract_carrier_variants(panel, sample_with_carrier_variants)
-        assert sorted(result.genes_with_findings) == ["BRCA1", "BRCA2", "CFTR", "GBA", "HBB"]
+        # GBA is suppressed (pseudogene-confounded array call, #221).
+        assert sorted(result.genes_with_findings) == ["BRCA1", "BRCA2", "CFTR", "HBB"]
 
     def test_panel_genes_checked_count(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
@@ -439,14 +445,19 @@ class TestExtractCarrierVariants:
         result = extract_carrier_variants(panel, sample_with_carrier_variants)
         assert result.panel_genes_checked == 7
 
-    def test_gba_evidence_level_3(
+    def test_gba_suppressed_as_pseudogene_confounded(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:
-        """GBA Likely pathogenic with 1-star → evidence level 3."""
+        """GBA het P/LP must NOT be reported as a carrier finding (#221).
+
+        GBA1's GBAP1 pseudogene makes array-based GBA1 genotyping unreliable, so
+        the carrier module suppresses it — the same policy the Parkinson's module
+        applies — rather than turning a questionable array call into a
+        reproductive-risk carrier result.
+        """
         result = extract_carrier_variants(panel, sample_with_carrier_variants)
-        gba = [v for v in result.variants if v.gene_symbol == "GBA"]
-        assert len(gba) == 1
-        assert gba[0].evidence_level == 3
+        assert [v for v in result.variants if v.gene_symbol == "GBA"] == []
+        assert result.pseudogene_suppressed >= 1
 
     def test_brca2_0_star_capped(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
@@ -501,7 +512,7 @@ class TestStoreCarrierFindings:
     ) -> None:
         result = extract_carrier_variants(panel, sample_with_carrier_variants)
         count = store_carrier_findings(result, sample_with_carrier_variants)
-        assert count == 5
+        assert count == 4  # GBA suppressed (pseudogene-confounded array call, #221)
 
     def test_findings_have_module_carrier(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
@@ -513,7 +524,7 @@ class TestStoreCarrierFindings:
             rows = conn.execute(
                 sa.select(findings).where(findings.c.module == "carrier")
             ).fetchall()
-        assert len(rows) == 5
+        assert len(rows) == 4  # GBA suppressed (#221)
         for row in rows:
             assert row.module == "carrier"
             if row.gene_symbol in {"BRCA1", "BRCA2"}:
@@ -736,7 +747,7 @@ class TestStoreCarrierFindings:
                 .select_from(findings)
                 .where(findings.c.module == "carrier")
             ).scalar()
-        assert count == 5  # Not 10 — previous cleared
+        assert count == 4  # Not 8 — previous cleared (GBA suppressed, #221)
 
     def test_empty_result_stores_nothing(
         self, panel: CarrierPanel, empty_sample: sa.Engine
@@ -762,7 +773,7 @@ class TestStoreCarrierFindings:
         assert evidence_map["rs113993960"] == 4  # CFTR Pathogenic 3-star
         assert evidence_map["rs334"] == 4  # HBB LP 2-star
         assert evidence_map["rs80357906"] == 4  # BRCA1 Pathogenic 3-star
-        assert evidence_map["rs76763715"] == 3  # GBA LP 1-star
+        assert "rs76763715" not in evidence_map  # GBA suppressed (pseudogene, #221)
         assert evidence_map["rs80359550"] == 2  # BRCA2 Pathogenic 0-star
 
     def test_does_not_interfere_with_cancer_findings(
@@ -800,7 +811,7 @@ class TestStoreCarrierFindings:
                 .where(findings.c.module == "carrier")
             ).scalar()
         assert cancer_count == 1  # Cancer finding preserved
-        assert carrier_count == 5  # Carrier findings stored independently
+        assert carrier_count == 4  # Carrier findings stored independently (GBA suppressed)
 
 
 # ── Result dataclass tests ───────────────────────────────────────────────
