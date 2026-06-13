@@ -702,3 +702,49 @@ class TestCHEK2CitationProvenance:
         gene = panel.get_gene("PTEN")
         assert gene is not None
         assert "20301661" in gene.pmids
+
+
+class TestRAD51CCitationProvenance:
+    """Guard the RAD51C evidence links (issue #284).
+
+    The RAD51C row previously cited two unrelated papers — PMID 20301399 (the
+    Tuberous Sclerosis Complex GeneReviews chapter, no TSC gene exists in this
+    panel) and 25583358 (Siolek et al., "CHEK2 mutations and the risk of
+    papillary thyroid cancer"). This pins the row to verified RAD51C
+    hereditary breast/ovarian-cancer references so those off-topic PMIDs cannot
+    silently reappear.
+    """
+
+    # RAD51C hereditary breast/ovarian-cancer references verified on PubMed
+    # (esummary/efetch) and cross-checked against the literature (Consensus).
+    _RAD51C_PMIDS = frozenset(
+        {
+            "32107557",  # Yang 2020, JNCI — RAD51C/RAD51D tubo-ovarian & breast cancer risks
+            "32359370",  # Suszynska 2020, J Ovarian Res — RAD51C ovarian-cancer meta-analysis
+        }
+    )
+    # Unrelated PMIDs wrongly cited by the RAD51C row before the fix. NOTE:
+    # 25583358 (a CHEK2/thyroid paper) is ALSO wrongly cited by a Lynch (MMR)
+    # row tracked separately in #283, so it is banned from RAD51C ONLY, not
+    # panel-wide.
+    _BANNED_FROM_RAD51C = frozenset({"20301399", "25583358"})
+
+    def test_rad51c_cites_verified_references(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("RAD51C")
+        assert gene is not None
+        assert set(gene.pmids) == self._RAD51C_PMIDS
+
+    def test_rad51c_drops_unrelated_pmids(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("RAD51C")
+        assert gene is not None
+        leaked = self._BANNED_FROM_RAD51C & set(gene.pmids)
+        assert not leaked, f"RAD51C still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_tuberous_sclerosis_genereviews_absent_from_panel(self, panel: CancerPanel) -> None:
+        # 20301399 is the Tuberous Sclerosis Complex GeneReviews chapter; no TSC
+        # gene exists in the cancer panel, so this off-topic PMID (unique to the
+        # old RAD51C row) must appear nowhere.
+        for gene in panel.genes:
+            assert "20301399" not in gene.pmids, (
+                f"{gene.gene_symbol} cites the unrelated Tuberous-Sclerosis PMID 20301399"
+            )
