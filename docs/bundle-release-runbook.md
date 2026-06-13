@@ -48,10 +48,11 @@ stat -c %s vep_bundle.db  # → manifest size_bytes
 Edit the `vep_bundle` entry in `bundles/manifest.json` with the new `version`, `build_date`,
 `url` (release-tag pattern above), `sha256`, `size_bytes`, and `min_app_version`.
 
-!!! note "Version can intentionally lead the asset tag"
-    The manifest `version` may be bumped ahead of the asset tag to force samples to re-annotate
-    against an unchanged catalog (this emits an expected advisory metadata-version mismatch).
-    Keep the manifest comment explaining any such case.
+!!! warning "Keep the version contract consistent"
+    The manifest `version`, the release **tag** (`bundle-v<version>`), and the `bundle_version`
+    **embedded** in the database must all match — the verification workflow (step 7) rejects
+    a release where they don't. Build the bundle with the same `--bundle-version` you put in
+    the manifest, and tag the release to match.
 
 ## 6. Draft the GitHub release
 
