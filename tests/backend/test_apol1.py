@@ -116,6 +116,23 @@ class TestHighRiskAFR:
         assert "rs71785313" in call.detail["untyped_loci"]
         assert "not a low-risk result" in call.finding_text.lower()
 
+    def test_partial_finding_carries_monoallelic_pmid(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # The partial disclosure's finding_text makes a distinct monoallelic-risk
+        # claim (Gbadegesin, NEJM 2025), so its persisted citations must carry
+        # that PMID (39465900) alongside the original APOL1 framework citation
+        # (Genovese 2010, 20647424) — otherwise the user-visible evidence trail
+        # is incomplete (#424). Fails before the partial_disclosure.pmids merge.
+        _seed_ancestry(sample_engine, "AFR")
+        _seed(sample_engine, [_g1("AG")])  # G2 (rs71785313) off-chip -> partial
+        a = assess_apol1(panel, sample_engine)
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert "Gbadegesin" in call.finding_text  # the monoallelic claim is present
+        assert "20647424" in call.pmids  # APOL1 framework (Genovese 2010, Science)
+        assert "39465900" in call.pmids  # monoallelic West-African risk (Gbadegesin 2025, NEJM)
+
     def test_indeterminate_suppressed_for_non_african_ancestry(
         self, panel, sample_engine: sa.Engine
     ) -> None:

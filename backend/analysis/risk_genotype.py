@@ -957,7 +957,13 @@ def _render_partial(
         finding_text=finding_text,
         zygosity=None,
         detail=detail,
-        pmids=model.pmids,
+        # The partial disclosure may carry its own evidence for the distinct
+        # monoallelic-risk claim its finding_text makes (e.g. APOL1 Gbadegesin
+        # 2025), beyond the model's two-risk-allele framework citations. Merge
+        # both so the persisted provenance backs the partial finding's text
+        # (#424). Mirrors `_apply_modifier`; falls back to the model's pmids
+        # when the partial disclosure declares none.
+        pmids=[*model.pmids, *pd.get("pmids", [])],
     )
 
 
