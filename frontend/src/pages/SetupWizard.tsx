@@ -30,6 +30,10 @@ const WIZARD_STEPS: WizardStep[] = [
   { id: 'upload', label: 'Upload' },
 ]
 
+/** Index of the Databases step — the recovery destination when the dashboard is
+ *  blocked because a required, downloadable database is not integrity-ready. */
+const DATABASES_STEP_INDEX = WIZARD_STEPS.findIndex((s) => s.id === 'databases')
+
 export default function SetupWizard() {
   const navigate = useNavigate()
   const { data: status, isLoading } = useSetupStatus()
@@ -62,9 +66,18 @@ export default function SetupWizard() {
     setCurrentStep((prev) => Math.max(0, prev - 1))
   }, [])
 
-  const handleSkipToEnd = useCallback(() => {
-    navigate('/', { replace: true })
-  }, [navigate])
+  // Dashboard hand-off used by the Import "Go to Dashboard" and the Upload
+  // step. Never lands on a broken dashboard: only navigates to / when every
+  // required, downloadable DB is integrity-ready (the same backend gate that
+  // drives needs_setup); otherwise it routes the user to the Databases
+  // recovery step instead of silently going to a non-functional dashboard.
+  const goToDashboardOrRecover = useCallback(() => {
+    if (status?.required_dbs_ready) {
+      navigate('/', { replace: true })
+    } else {
+      setCurrentStep(DATABASES_STEP_INDEX)
+    }
+  }, [status?.required_dbs_ready, navigate])
 
   if (isLoading) {
     return (
@@ -109,7 +122,7 @@ export default function SetupWizard() {
           <ImportBackupStep
             onNext={handleNext}
             onBack={handleBack}
-            onSkipToEnd={handleSkipToEnd}
+            onSkipToEnd={goToDashboardOrRecover}
           />
         )}
 
@@ -126,7 +139,7 @@ export default function SetupWizard() {
         )}
 
         {currentStep === 5 && (
-          <UploadStep onBack={handleBack} />
+          <UploadStep onBack={handleBack} onComplete={goToDashboardOrRecover} />
         )}
       </main>
     </div>

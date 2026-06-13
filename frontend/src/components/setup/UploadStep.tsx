@@ -25,6 +25,13 @@ import {
 
 interface UploadStepProps {
   onBack: () => void
+  /**
+   * Finish the wizard. When provided (by SetupWizard), this performs the
+   * readiness-gated hand-off — navigating to the dashboard only when required
+   * databases are integrity-ready, otherwise routing to the Databases recovery
+   * step. When omitted, falls back to navigating to the dashboard directly.
+   */
+  onComplete?: () => void
 }
 
 /** Accepted file extensions for 23andMe or AncestryDNA raw data. */
@@ -47,7 +54,7 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-export default function UploadStep({ onBack }: UploadStepProps) {
+export default function UploadStep({ onBack, onComplete }: UploadStepProps) {
   const navigate = useNavigate()
   const ingestMutation = useIngestFile()
   const triggerUpdate = useTriggerUpdate()
@@ -126,7 +133,14 @@ export default function UploadStep({ onBack }: UploadStepProps) {
   }
 
   function handleGoToDashboard() {
-    navigate('/', { replace: true })
+    // Delegate to the wizard's readiness-gated hand-off when present, so an
+    // unhealthy install never lands on a broken dashboard; fall back to a
+    // direct navigation when rendered standalone.
+    if (onComplete) {
+      onComplete()
+    } else {
+      navigate('/', { replace: true })
+    }
   }
 
   // ── Success state ──────────────────────────────────────────

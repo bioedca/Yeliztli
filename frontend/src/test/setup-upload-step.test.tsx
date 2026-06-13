@@ -361,3 +361,17 @@ describe('UploadStep — Step 45 / ADNA-12 (AncestryDNA accept)', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('UploadStep — readiness-gated dashboard hand-off', () => {
+  it('delegates "Skip — Go to Dashboard" to onComplete instead of navigating directly', () => {
+    mockFetch.mockImplementation(() => jsonResponse(200, {}))
+    const onComplete = vi.fn()
+    render(<UploadStep onBack={vi.fn()} onComplete={onComplete} />)
+
+    // The wizard owns the readiness decision (navigate to / only when required
+    // DBs are ready, else route to the Databases recovery step), so UploadStep
+    // must delegate rather than navigate to a possibly-broken dashboard itself.
+    fireEvent.click(screen.getByRole('button', { name: /skip — go to dashboard/i }))
+    expect(onComplete).toHaveBeenCalledOnce()
+  })
+})
