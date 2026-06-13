@@ -74,51 +74,6 @@ VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 # dbNSFP annotation bitmask bit (bit 3, value 8)
 DBNSFP_BITMASK = 0b001000
 
-# dbNSFP TSV column mappings: dbNSFP column name → our column name
-_TSV_COLUMN_MAP = {
-    "rs_dbSNP": "rsid",
-    "#chr": "chrom",
-    "pos(1-based)": "pos",
-    "ref": "ref",
-    "alt": "alt",
-    "CADD_phred": "cadd_phred",
-    "SIFT4G_score": "sift_score",
-    "SIFT4G_pred": "sift_pred",
-    "Polyphen2_HVAR_score": "polyphen2_hsvar_score",
-    "Polyphen2_HVAR_pred": "polyphen2_hsvar_pred",
-    "REVEL_score": "revel",
-    "MutPred2_score": "mutpred2",
-    "VEST4_score": "vest4",
-    "MetaSVM_score": "metasvm",
-    "MetaLR_score": "metalr",
-    "GERP++_RS": "gerp_rs",
-    "phyloP100way_vertebrate": "phylop",
-    "MPC_score": "mpc",
-    "PrimateAI_score": "primateai",
-}
-
-# Score columns (float values)
-_SCORE_COLUMNS = [
-    "cadd_phred",
-    "sift_score",
-    "polyphen2_hsvar_score",
-    "revel",
-    "mutpred2",
-    "vest4",
-    "metasvm",
-    "metalr",
-    "gerp_rs",
-    "phylop",
-    "mpc",
-    "primateai",
-]
-
-# Prediction columns (text values)
-_PRED_COLUMNS = [
-    "sift_pred",
-    "polyphen2_hsvar_pred",
-]
-
 # All dbNSFP score field names (for lookup results)
 DBNSFP_FIELDS = (
     "cadd_phred",
