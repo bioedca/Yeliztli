@@ -39,9 +39,19 @@ function routeDatabasesFetch(opts: {
   download?: { ok?: boolean; status?: number; body?: unknown }
   resume?: { ok?: boolean; status?: number; body?: unknown }
   health?: unknown
+  setup?: Record<string, unknown>
 }) {
   mockFetch.mockImplementation((url: string) => {
     const u = typeof url === 'string' ? url : String(url)
+    if (u.includes('/api/setup/status')) {
+      // DatabasesStep now reads the backend's health-verified gate
+      // (required_dbs_ready) to enable Continue. Default to not-ready so
+      // unrelated download/resume tests keep Continue disabled.
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(opts.setup ?? { required_dbs_ready: false }),
+      })
+    }
     if (u.includes('/api/databases/health')) {
       return Promise.resolve({
         ok: true,
@@ -1032,11 +1042,9 @@ describe('DatabasesStep', () => {
     })
   })
 
-  it('disables Continue when required databases are not downloaded', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockDatabaseList()),
-    })
+  it('disables Continue when required databases are not ready', async () => {
+    // Backend reports the health gate is not satisfied.
+    routeDatabasesFetch({ list: mockDatabaseList(), setup: { required_dbs_ready: false } })
 
     render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
 
@@ -1045,11 +1053,28 @@ describe('DatabasesStep', () => {
     })
 
     const continueBtn = screen.getByRole('button', { name: /continue/i })
-    expect(continueBtn).toBeDisabled()
+    await waitFor(() => expect(continueBtn).toBeDisabled())
   })
 
-  it('enables Continue when all required databases are downloaded', async () => {
-    const allDownloaded = mockDatabaseList({
+  it('enables Continue only when the backend reports required_dbs_ready', async () => {
+    // Continue keys on the backend's health-verified gate, NOT on db.downloaded.
+    routeDatabasesFetch({ list: mockDatabaseList(), setup: { required_dbs_ready: true } })
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Reference Databases')).toBeInTheDocument()
+    })
+
+    const continueBtn = screen.getByRole('button', { name: /continue/i })
+    await waitFor(() => expect(continueBtn).not.toBeDisabled())
+  })
+
+  it('keeps Continue disabled when a required DB is downloaded but not healthy', async () => {
+    // Regression: the old gate enabled Continue on db.downloaded=true. A DB that
+    // downloaded but is empty/partial/corrupt leaves required_dbs_ready=false,
+    // so Continue must stay disabled (no silent path to a broken dashboard).
+    const downloadedButUnhealthy = mockDatabaseList({
       databases: [
         {
           name: 'clinvar',
@@ -1062,35 +1087,14 @@ describe('DatabasesStep', () => {
           downloaded: true,
           file_size_bytes: 248_000_000,
         },
-        {
-          name: 'vep_bundle',
-          display_name: 'VEP Bundle',
-          description: 'Pre-computed variant effect predictions',
-          filename: 'vep_bundle.db',
-          expected_size_bytes: 500_000_000,
-          required: true,
-          phase: 2,
-          downloaded: true,
-          file_size_bytes: 495_000_000,
-        },
-        {
-          name: 'ancestry_pca',
-          display_name: 'Ancestry PCA Bundle',
-          description: 'PCA loadings',
-          filename: 'ancestry_pca.db',
-          expected_size_bytes: 50_000_000,
-          required: false,
-          phase: 3,
-          downloaded: false,
-          file_size_bytes: null,
-        },
       ],
-      downloaded_count: 2,
+      downloaded_count: 1,
+      total_count: 1,
     })
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(allDownloaded),
+    routeDatabasesFetch({
+      list: downloadedButUnhealthy,
+      setup: { required_dbs_ready: false },
+      health: { databases: [{ name: 'clinvar', state: 'corrupt', resumable: false }] },
     })
 
     render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
@@ -1100,7 +1104,7 @@ describe('DatabasesStep', () => {
     })
 
     const continueBtn = screen.getByRole('button', { name: /continue/i })
-    expect(continueBtn).not.toBeDisabled()
+    await waitFor(() => expect(continueBtn).toBeDisabled())
   })
 
   it('shows Downloaded status for completed databases', async () => {
@@ -1711,9 +1715,9 @@ describe('DatabasesStep', () => {
   }
 
   it('shows a Sonner toast naming the skipped optional DBs when Continue is clicked', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockDatabaseListReadyToContinue()),
+    routeDatabasesFetch({
+      list: mockDatabaseListReadyToContinue(),
+      setup: { required_dbs_ready: true },
     })
 
     const onNext = vi.fn()
@@ -1739,9 +1743,9 @@ describe('DatabasesStep', () => {
   })
 
   it('shows a toast that lists only the unchecked optional DBs', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockDatabaseListReadyToContinue()),
+    routeDatabasesFetch({
+      list: mockDatabaseListReadyToContinue(),
+      setup: { required_dbs_ready: true },
     })
 
     const onNext = vi.fn()
@@ -1763,9 +1767,9 @@ describe('DatabasesStep', () => {
   })
 
   it('does not show a toast when every optional DB is selected', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockDatabaseListReadyToContinue()),
+    routeDatabasesFetch({
+      list: mockDatabaseListReadyToContinue(),
+      setup: { required_dbs_ready: true },
     })
 
     const onNext = vi.fn()

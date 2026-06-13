@@ -12,6 +12,7 @@ import {
   DATABASE_LIST_KEY,
   SETUP_STATUS_KEY,
   useDatabaseList,
+  useSetupStatus,
   useTriggerDownload,
 } from '@/api/setup'
 import {
@@ -62,6 +63,7 @@ function formatBytes(bytes: number): string {
 export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
   const queryClient = useQueryClient()
   const { data: dbList, isLoading, isError, error } = useDatabaseList()
+  const { data: setupStatus } = useSetupStatus()
   const { data: health } = useDatabaseHealth()
   const triggerDownload = useTriggerDownload()
   const resumeDownload = useResumeDownload()
@@ -242,20 +244,15 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
     handleStartDownload()
   }, [handleStartDownload])
 
-  // Determine if we can proceed:
-  // - All required DBs (excluding manual) must be downloaded
-  // - Bundled DBs always count as complete
-  const allRequiredDownloaded = dbList
-    ? dbList.databases
-        .filter((db) => db.required)
-        .every((db) => {
-          if (db.build_mode === 'bundled') return true
-          if (db.build_mode === 'manual') return true // manual is optional for proceed
-          const progress = dbProgress[db.name]
-          if (progress) return progress.status === 'complete'
-          return db.downloaded
-        })
-    : false
+  // Whether the user may proceed past the Databases step. This is the SAME
+  // health-verified gate the backend uses for needs_setup (required_dbs_ready):
+  // every required, downloadable DB must be integrity-`ready`, with bundled and
+  // manual modes exempt. Using the backend truth — instead of the old
+  // presence/SSE-`complete` heuristic — means Continue can never enable on a DB
+  // that merely downloaded but is empty/partial/corrupt, and the wizard cannot
+  // disagree with AuthGuard. SETUP_STATUS_KEY is invalidated when a download
+  // batch finishes (see refreshCaches), so this re-evaluates promptly.
+  const allRequiredReady = setupStatus?.required_dbs_ready ?? false
 
   const needsDownload = selectedDbs.size > 0
 
@@ -624,7 +621,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
           <button
             type="button"
             onClick={handleContinue}
-            disabled={!allRequiredDownloaded || isDownloading}
+            disabled={!allRequiredReady || isDownloading}
             className={cn(
               'rounded-lg px-5 py-2.5 text-sm font-medium transition-colors',
               'bg-primary text-primary-foreground hover:bg-primary/90',
