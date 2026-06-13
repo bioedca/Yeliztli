@@ -683,7 +683,14 @@ class TestHistamineCombined:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Both ref → standard text."""
+        """Both ref → neutral coverage text, NOT a 'standard catabolism' reassurance.
+
+        Absence of the two tagged AOC1/HNMT risk genotypes must not be framed as
+        normal/expected histamine catabolism: this 2-SNP panel covers only one of
+        the four main AOC1 DAO-deficiency variants and DAO genotypes alone do not
+        establish or exclude histamine intolerance (Maintz 2011, PMID 21488903;
+        van Odijk 2023, PMID 37447214). See #307.
+        """
         _seed_variants(
             sample_engine,
             [
@@ -694,7 +701,11 @@ class TestHistamineCombined:
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         assert result.histamine_combined is not None
-        assert "No histamine" in result.histamine_combined.combined_text
+        text = result.histamine_combined.combined_text
+        assert "does not rule out" in text
+        # The overstated reassurance phrasings must be gone.
+        assert "Standard histamine catabolism expected" not in text
+        assert "No histamine metabolism variants detected" not in text
 
 
 # ── HLA proxy lookup tests ──────────────────────────────────────────────

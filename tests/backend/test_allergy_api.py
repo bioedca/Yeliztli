@@ -256,7 +256,12 @@ HISTAMINE_COMBINED_FINDING = {
     "evidence_level": 1,
     "gene_symbol": None,
     "rsid": None,
-    "finding_text": "Histamine Metabolism — No histamine metabolism variants detected.",
+    "finding_text": (
+        "Histamine Metabolism — No panel-tracked AOC1/HNMT risk genotypes "
+        "detected. This limited candidate-gene panel does not rule out reduced "
+        "DAO activity or histamine intolerance, which depend on additional "
+        "variants and non-genetic factors (diet, medications, clinical phenotype)."
+    ),
     "pathway": "Histamine Metabolism",
     "pathway_level": None,
     "pmid_citations": json.dumps(["15046637"]),

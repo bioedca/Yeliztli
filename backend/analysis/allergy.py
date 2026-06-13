@@ -585,7 +585,10 @@ def _compute_histamine_combined(
         )
     else:
         combined_text = (
-            "No histamine metabolism variants detected. Standard histamine catabolism expected."
+            "No panel-tracked AOC1/HNMT risk genotypes detected. This limited "
+            "candidate-gene panel does not rule out reduced DAO activity or "
+            "histamine intolerance, which depend on additional variants and "
+            "non-genetic factors (diet, medications, clinical phenotype)."
         )
 
     return HistamineCombinedResult(

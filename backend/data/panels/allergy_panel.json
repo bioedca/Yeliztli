@@ -367,7 +367,7 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "Normal diamine oxidase (DAO) activity. Standard histamine catabolism in the gut."
+              "effect_summary": "No rs10156191 (Thr16Met) risk allele detected at this marker. This single AOC1 SNP does not establish normal DAO activity or rule out reduced histamine catabolism, which depend on additional variants and non-genetic factors."
             },
             "CT": {
               "category": "Moderate",
