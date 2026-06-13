@@ -43,7 +43,23 @@
       "ref_allele": "I",
       "canonical_strand": "plus",
       "off_chip_risk": "high",
-      "allele_type": "indel"
+      "allele_type": "indel",
+      "indel_polarity": {
+        "variant_class": "deletion",
+        "variant_allele_token": "D",
+        "reference_allele_token": "I",
+        "d_token_meaning": "deletion (G2 / p.Asn388_Tyr389del risk allele)",
+        "i_token_meaning": "insertion / reference (the 6 bp are present)",
+        "hgvs": "NM_003661.4:p.Asn388_Tyr389del (6-bp deletion)",
+        "dbsnp": "rs71785313",
+        "vendor_id_convention": "23andMe / AncestryDNA encode indel markers with literal I/D tokens where D = the deletion (shorter) allele and I = the insertion/reference (longer) allele; the ingested-array parsers (parser_23andme.py / parser_ancestrydna.py _canonical_genotype) pass these tokens through unchanged, so the D token resolves to the G2 6-bp deletion (risk_allele 'D') and I to the reference (ref_allele 'I').",
+        "pmids": ["20647424"],
+        "sources": [
+          "dbSNP rs71785313 — 6-bp deletion (p.Asn388_Tyr389del), variant class = deletion",
+          "Genovese et al. 2010, Science (PMID 20647424) — APOL1 G2 is a 6-bp deletion kidney-risk allele"
+        ],
+        "accessed": "2026-06-13"
+      }
     },
     {
       "rsid": "rs73885316",

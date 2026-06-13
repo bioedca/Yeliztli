@@ -1200,6 +1200,22 @@
             "ID": "G/delG",
             "II": "GG"
           },
+          "indel_polarity": {
+            "variant_class": "deletion",
+            "variant_allele_token": "D",
+            "reference_allele_token": "I",
+            "d_token_meaning": "deletion (35delG variant allele)",
+            "i_token_meaning": "insertion / reference (the G is present)",
+            "hgvs": "NM_004004.6:c.35delG",
+            "dbsnp": "rs80338939",
+            "vendor_id_convention": "23andMe / AncestryDNA encode indel markers with literal I/D tokens where D = the deletion (shorter) allele and I = the insertion/reference (longer) allele; the ingested-array parsers (parser_23andme.py / parser_ancestrydna.py _canonical_genotype) pass these tokens through unchanged, so D resolves to the c.35delG variant and I to the reference G.",
+            "pmids": ["9285800"],
+            "sources": [
+              "dbSNP rs80338939 — single-base deletion (c.35delG), variant class = deletion",
+              "Zelante et al. 1997, Hum Mol Genet (PMID 9285800) — 35delG is the most common DFNB1 connexin-26 deletion allele"
+            ],
+            "accessed": "2026-06-13"
+          },
           "genotype_effects": {
             "GG": {
               "category": "Standard",

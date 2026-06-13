@@ -206,10 +206,35 @@ _PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likel
 _PSEUDOGENE_UNRELIABLE_GENES = frozenset({"GBA"})
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
 _DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
+# Re-verifiable provenance for the I/D indel polarity used below (#256). The
+# vendor I/D token convention is the same one applied to GJB2 35delG
+# (gene_health_panel.json) and APOL1 G2 (apol1_panel.json) — kept here as a
+# traceable datum so a future manifest/code change can't silently invert a
+# clinical carrier call. Locked by tests/backend/test_indel_polarity_provenance.py.
+_CFTR_F508DEL_INDEL_POLARITY: dict[str, str] = {
+    "variant_class": "deletion",
+    "variant_allele_token": "D",
+    "reference_allele_token": "I",
+    "d_token_meaning": "deletion (F508del / c.1521_1523delCTT variant allele)",
+    "i_token_meaning": "insertion / reference (the CTT codon is present)",
+    "hgvs": "NM_000492.4:c.1521_1523delCTT (p.Phe508del)",
+    "dbsnp": "rs113993960",
+    "vcf_form": "ATCT>A",
+    "vendor_id_convention": (
+        "23andMe / AncestryDNA encode indel markers with literal I/D tokens where "
+        "D = the deletion (shorter) allele and I = the insertion/reference (longer) "
+        "allele; the ingested-array parsers pass these tokens through unchanged, so "
+        "DD resolves to hom_alt (F508del/F508del), II to hom_ref, and DI/ID to het."
+    ),
+    "pmids": "2570460",  # Kerem et al. 1989, Science — CFTR gene + F508del deletion
+    "accessed": "2026-06-13",
+}
+
 _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str]] = {
     # CFTR F508del / p.Phe508del, represented in ClinVar/VCF form as ATCT>A.
     # Consumer-array exports can represent this marker either as a probe-level
-    # A/T carrier call or as literal D/I indel tokens.
+    # A/T carrier call or as literal D/I indel tokens. The D=deletion (variant) /
+    # I=reference polarity is documented in _CFTR_F508DEL_INDEL_POLARITY (#256).
     ("CFTR", "rs113993960", "ATCT", "A"): {
         "AT": "het",
         "TA": "het",
