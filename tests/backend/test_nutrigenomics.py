@@ -434,7 +434,8 @@ class TestLactaseAncestryCaveat:
         assert cfg is not None
         assert cfg["confident_ancestries"] == ["EUR", "SAS"]
         assert cfg["applies_to_categories"] == ["Elevated"]
-        assert "does not assay" in cfg["caveat_text"]
+        assert "not assayed" in cfg["caveat_text"]
+        assert "rs41380347" in cfg["caveat_text"] and "rs41525747" in cfg["caveat_text"]
 
     def test_european_call_not_caveated(self, panel: NutrigenomicsPanel) -> None:
         result = _score_snp(self._lct(panel), "GG", "EUR")
@@ -453,7 +454,7 @@ class TestLactaseAncestryCaveat:
         # Original call text preserved, with the ancestry/coverage caveat appended.
         assert "lactase non-persistent" in result.effect_summary.lower()
         assert "Ancestry note" in result.effect_summary
-        assert "does not assay" in result.effect_summary
+        assert "not assayed" in result.effect_summary
 
     def test_unknown_ancestry_is_caveated(self, panel: NutrigenomicsPanel) -> None:
         # No inferred ancestry → can't confirm the European marker model → caveat.
@@ -1269,3 +1270,59 @@ class TestHFECitationProvenance:
                 f"{snp.rsid} ({snp.gene}) cites non-allowlisted PMID(s) {sorted(unknown)}; "
                 f"verify they are genuine HFE/hemochromatosis references before adding"
             )
+
+
+class TestNonEuropeanLCTVariants:
+    """#291: the GSA-typeable non-European LCT lactase-persistence variants.
+
+    The Illumina GSA-24v3 backbone (23andMe v5 / AncestryDNA) types -13915*G
+    (rs41380347, Arab/Middle-Eastern) and -13907*G (rs41525747, East African) but
+    NOT -14010*C (rs145946881) or -14009*G (rs869051967), so only the two typeable
+    variants are added; the other two are withheld (no placeholder loci). Alleles
+    are plus-strand (Consensus/Ensembl-verified): -13915*G -> plus C (A/C, clean);
+    -13907*G -> plus C (G/C, PALINDROMIC, so only the heterozygote is scored).
+    """
+
+    def _snp(self, panel, rsid):
+        for pw in panel.pathways:
+            for s in pw.snps:
+                if s.rsid == rsid:
+                    return s
+        raise AssertionError(f"{rsid} not in panel")
+
+    def test_typeable_variants_added_absentees_withheld(self, panel):
+        lactose = next(pw for pw in panel.pathways if pw.id == "lactose")
+        rsids = {s.rsid for s in lactose.snps}
+        assert {"rs41380347", "rs41525747"} <= rsids
+        assert "rs145946881" not in rsids and "rs869051967" not in rsids
+
+    def test_rs41380347_persistence_calls(self, panel):
+        snp = self._snp(panel, "rs41380347")
+        for gt in ("CC", "AC", "CA"):
+            r = _score_snp(snp, gt)
+            assert r.category == STANDARD
+            assert "persistent" in r.effect_summary.lower()
+        aa = _score_snp(snp, "AA")
+        assert aa.category == STANDARD
+        assert "does not establish" in aa.effect_summary.lower()
+
+    def test_rs41525747_palindromic_het_scored_homozygote_strand_safe(self, panel):
+        snp = self._snp(panel, "rs41525747")
+        for gt in ("CG", "GC"):
+            r = _score_snp(snp, gt)
+            assert r.category == STANDARD
+            assert "persistent" in r.effect_summary.lower()
+        cc = _score_snp(snp, "CC").effect_summary
+        gg = _score_snp(snp, "GG").effect_summary
+        assert "palindromic" in cc.lower() and "indeterminate" in cc.lower()
+        assert cc == gg, "C/G homozygote effects must be identical (strand-flip safe)"
+
+    def test_verified_citations(self, panel):
+        assert set(self._snp(panel, "rs41380347").pmids) == {"18179885", "29063188", "17159977"}
+        assert set(self._snp(panel, "rs41525747").pmids) == {"17159977", "19937006", "29063188"}
+
+    def test_rs4988235_caveat_references_assayed_and_withheld(self, panel):
+        cav = self._snp(panel, "rs4988235").ancestry_caveat["caveat_text"]
+        assert "rs41380347" in cav and "rs41525747" in cav
+        assert "rs145946881" in cav and "rs869051967" in cav
+        assert "not on the supported consumer arrays" in cav

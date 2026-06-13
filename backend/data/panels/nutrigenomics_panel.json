@@ -451,7 +451,7 @@
           "ancestry_caveat": {
             "confident_ancestries": ["EUR", "SAS"],
             "applies_to_categories": ["Elevated"],
-            "caveat_text": "Ancestry note: this non-persistence call relies on the European/South-Asian lactase marker (LCT -13910C>T, rs4988235). Lactase persistence in African and Middle Eastern populations is driven by other LCT enhancer variants (e.g. -13915*G, -14010*C, -13907*G, -14009*G) that this panel does not assay, so reduced lactase digestion cannot be confidently concluded for non-European/South-Asian ancestry (PMID 15106124, 19575818, 29063188)."
+            "caveat_text": "Ancestry note: this non-persistence call relies on the European/South-Asian lactase marker (LCT -13910C>T, rs4988235). Lactase persistence in African and Middle Eastern populations is driven by other LCT enhancer variants: this panel now assays -13915*G (rs41380347, Arab/Middle-Eastern) and -13907*G (rs41525747, East African) — if a persistence allele is detected at either, you are likely lactase-persistent despite this result. The -14010*C (rs145946881) and -14009*G (rs869051967) alleles are not on the supported consumer arrays and are not assayed, so reduced lactase digestion cannot be confidently concluded for non-European/South-Asian ancestry (PMID 15106124, 19575818, 29063188, 17159977)."
           }
         },
         {
@@ -487,6 +487,64 @@
             "applies_to_categories": ["Elevated"],
             "caveat_text": "Ancestry note: LCT -22018 (rs182549) is a secondary marker in tight linkage with the European/South-Asian -13910 lactase haplotype (Enattah 2002), not an independent functional variant, so a non-persistence-supporting result here carries the same ancestry limitation as the rs4988235 -13910 call. African and Middle Eastern lactase persistence is driven by independent LCT enhancer variants (e.g. -14010*C, -13915*G, -13907*G) on different haplotype backgrounds that this panel does not assay, so reduced lactase digestion cannot be confidently concluded for non-European/South-Asian ancestry (PMID 11788828, 17159977, 29063188)."
           }
+        },
+        {
+          "rsid": "rs41380347",
+          "gene": "MCM6/LCT",
+          "variant_name": "LCT -13915T>G (Arab/Middle-Eastern LP)",
+          "hgvs_protein": null,
+          "risk_allele": "A",
+          "ref_allele": "C",
+          "genotype_effects": {
+            "CC": {
+              "category": "Standard",
+              "effect_summary": "Two copies of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood. This Arab/Middle-Eastern persistence variant acts independently of the European -13910 marker."
+            },
+            "AC": {
+              "category": "Standard",
+              "effect_summary": "One copy of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood (Arab/Middle-Eastern persistence variant, independent of the European -13910 marker)."
+            },
+            "CA": {
+              "category": "Standard",
+              "effect_summary": "One copy of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood (Arab/Middle-Eastern persistence variant, independent of the European -13910 marker)."
+            },
+            "AA": {
+              "category": "Standard",
+              "effect_summary": "No LCT -13915*G persistence allele at this Arab/Middle-Eastern marker. This does not establish lactose non-persistence on its own — persistence can arise from the European -13910*T or other LCT enhancer variants (some not assayed here)."
+            }
+          },
+          "evidence_level": 3,
+          "pmids": ["18179885", "29063188", "17159977"],
+          "recommendation_text": "A lactase-persistence enhancer allele here positively indicates lactose tolerance and qualifies any non-persistence call from the European -13910 marker (rs4988235)."
+        },
+        {
+          "rsid": "rs41525747",
+          "gene": "MCM6/LCT",
+          "variant_name": "LCT -13907C>G (East African LP)",
+          "hgvs_protein": null,
+          "risk_allele": "G",
+          "ref_allele": "C",
+          "genotype_effects": {
+            "CG": {
+              "category": "Standard",
+              "effect_summary": "One copy of the LCT -13907*G lactase-persistence allele (rs41525747). Lactase persistent — likely able to digest lactose in adulthood (East African persistence variant, independent of the European -13910 marker). The heterozygous C/G call is strand-invariant."
+            },
+            "GC": {
+              "category": "Standard",
+              "effect_summary": "One copy of the LCT -13907*G lactase-persistence allele (rs41525747). Lactase persistent — likely able to digest lactose in adulthood (East African persistence variant, independent of the European -13910 marker). The heterozygous C/G call is strand-invariant."
+            },
+            "CC": {
+              "category": "Standard",
+              "effect_summary": "Homozygous at the rs41525747 -13907 marker. Because this is a palindromic (C/G) SNP, the array strand cannot be resolved, so whether this is the -13907*G persistence allele or the ancestral allele is indeterminate; confirm by sequencing. Only the strand-invariant heterozygous call is scored here."
+            },
+            "GG": {
+              "category": "Standard",
+              "effect_summary": "Homozygous at the rs41525747 -13907 marker. Because this is a palindromic (C/G) SNP, the array strand cannot be resolved, so whether this is the -13907*G persistence allele or the ancestral allele is indeterminate; confirm by sequencing. Only the strand-invariant heterozygous call is scored here."
+            }
+          },
+          "evidence_level": 3,
+          "pmids": ["17159977", "19937006", "29063188"],
+          "recommendation_text": "A lactase-persistence enhancer allele here positively indicates lactose tolerance and qualifies any non-persistence call from the European -13910 marker (rs4988235)."
         }
       ]
     }
