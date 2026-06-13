@@ -739,8 +739,11 @@ class TestHistamineCombined:
         assert snp.gene == "AOC1"
         assert (snp.risk_allele, snp.ref_allele) == ("G", "C")
         assert snp.evidence_level == 1
-        # García-Martín 2009 highlights rs1049793 His664Asp for its functional effect.
-        assert "19450133" in snp.pmids
+        # Pin the curated, NCBI+Consensus-verified DAO-deficiency citation set:
+        # 19450133 García-Martín 2009 (highlights rs1049793 His664Asp for its
+        # functional effect), 37359379 Okutan 2023 (4-SNP cumulative load), 40004469
+        # Fortes Marin 2025 (4-SNP newborn prevalence).
+        assert snp.pmids == ["19450133", "37359379", "40004469"]
 
     def test_rs1049793_homozygotes_are_strand_indeterminate(self, panel: AllergyPanel) -> None:
         """#436: rs1049793 is a C/G palindromic SNP, so BOTH homozygotes (CC and GG)
