@@ -75,10 +75,10 @@ a raw score or an absolute risk. Read these carefully:
   your array covers too few of its variants, Yeliztli **withholds** the percentile and shows
   coverage instead — rather than report a misleading number.
 - **Ancestry matters — a lot.** Scores are mostly derived in European-ancestry cohorts and
-  **transfer poorly** to other ancestries, which can worsen health disparities if misused [1].
+  **transfer poorly** to other ancestries, which can worsen health disparities if misused [^1].
   Accuracy in fact decays continuously with genetic distance from the training data — even
-  *within* a single labelled ancestry group [2] — and varies with non-genetic factors such as
-  age, sex, and socio-economic status [3][4]. Yeliztli shows an ancestry-mismatch warning when
+  *within* a single labelled ancestry group [^2] — and varies with non-genetic factors such as
+  age, sex, and socio-economic status [^3][^4]. Yeliztli shows an ancestry-mismatch warning when
   relevant.
 
 ### Risk-genotype findings (common variants)
@@ -119,11 +119,7 @@ limitations.
 | Mitochondrial / pharmacogenomic risk | LHON, MT-RNR1, G6PD, BChE |
 | Ancestry & haplogroups | Ancestry |
 
----
-
-## References
-
-1. [Principles and methods for transferring polygenic risk scores across global populations](https://consensus.app/papers/details/186416618e965ebf97cb3e095a9a217d/) (Kachuri et al., 2023, *Nature Reviews Genetics*).
-2. [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).
-3. [Variable prediction accuracy of polygenic scores within an ancestry group](https://consensus.app/papers/details/dcbc46184d195a21965cf4614828d104/) (Mostafavi et al., 2019, *eLife*).
-4. [Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort](https://consensus.app/papers/details/41027bd6083a52a7adc632d041a4a299/) (Privé et al., 2022, *Am. J. Hum. Genet.*).
+[^1]: [Principles and methods for transferring polygenic risk scores across global populations](https://consensus.app/papers/details/186416618e965ebf97cb3e095a9a217d/) (Kachuri et al., 2023, *Nature Reviews Genetics*).
+[^2]: [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).
+[^3]: [Variable prediction accuracy of polygenic scores within an ancestry group](https://consensus.app/papers/details/dcbc46184d195a21965cf4614828d104/) (Mostafavi et al., 2019, *eLife*).
+[^4]: [Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort](https://consensus.app/papers/details/41027bd6083a52a7adc632d041a4a299/) (Privé et al., 2022, *Am. J. Hum. Genet.*).

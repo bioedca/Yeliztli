@@ -26,17 +26,17 @@ DNA sequence. This matters, and it is well documented in the peer-reviewed liter
 
 - When variants flagged in consumer **raw data** were sent to an accredited clinical lab for
   confirmation, **about 40% were false positives** — i.e. the variant reported in the raw
-  data was not actually present [1]. Some variants labelled "increased risk" were in fact
-  common, benign population variants [1].
+  data was not actually present [^1]. Some variants labelled "increased risk" were in fact
+  common, benign population variants [^1].
 - Genotyping arrays are **accurate for common variants but unreliable for the rare,
   clinically important variants** that matter most for hereditary disease. In a study of
   ~50,000 UK Biobank participants, the positive predictive value of the array for rare
   pathogenic *BRCA1*/*BRCA2* variants was only **~4%**, and for very rare variants only
-  ~16% of positive calls were confirmed by sequencing [2]. The authors conclude such calls
-  "should not be used to guide health decisions without validation" [2].
+  ~16% of positive calls were confirmed by sequencing [^2]. The authors conclude such calls
+  "should not be used to guide health decisions without validation" [^2].
 - A systematic review of direct-to-consumer genetic health information likewise found that
   raw-data interpretation can surface false-positive or misinterpreted rare variants and
-  presents real challenges for consumers and health services [3].
+  presents real challenges for consumers and health services [^3].
 
 This is **not** a flaw specific to any one company or to Yeliztli — it is an inherent
 property of array genotyping applied to rare variants. Yeliztli surfaces these variants for
@@ -69,10 +69,6 @@ Yeliztli is provided under the MIT license, **"as is", without warranty of any k
 authors accept no liability for decisions made on the basis of its output. See the
 [LICENSE](https://github.com/bioedca/Yeliztli/blob/main/LICENSE) for the full terms.
 
----
-
-## References
-
-1. [False-positive results released by direct-to-consumer genetic tests highlight the importance of clinical confirmation testing for appropriate patient care](https://consensus.app/papers/details/b8e5bd6dcb245ff99c33b4aa9cd74e40/) (Tandy-Connor et al., 2018, *Genetics in Medicine*).
-2. [Use of SNP chips to detect rare pathogenic variants: retrospective, population based diagnostic evaluation](https://consensus.app/papers/details/45d2e8ad458e5ad3ab524d8e50cdc084/) (Weedon et al., 2021, *The BMJ*).
-3. [Direct-to-consumer genetic tests providing health risk information: A systematic review of consequences for consumers and health services](https://consensus.app/papers/details/43b67c16cbf150dd8a595d1283899ffc/) (Nolan et al., 2023, *Clinical Genetics*).
+[^1]: [False-positive results released by direct-to-consumer genetic tests highlight the importance of clinical confirmation testing for appropriate patient care](https://consensus.app/papers/details/b8e5bd6dcb245ff99c33b4aa9cd74e40/) (Tandy-Connor et al., 2018, *Genetics in Medicine*).
+[^2]: [Use of SNP chips to detect rare pathogenic variants: retrospective, population based diagnostic evaluation](https://consensus.app/papers/details/45d2e8ad458e5ad3ab524d8e50cdc084/) (Weedon et al., 2021, *The BMJ*).
+[^3]: [Direct-to-consumer genetic tests providing health risk information: A systematic review of consequences for consumers and health services](https://consensus.app/papers/details/43b67c16cbf150dd8a595d1283899ffc/) (Nolan et al., 2023, *Clinical Genetics*).
