@@ -627,3 +627,48 @@ class TestMUTYHCitationProvenance:
             assert "20301569" not in gene.pmids, (
                 f"{gene.gene_symbol} cites the unrelated neuralgic-amyotrophy PMID 20301569"
             )
+
+
+class TestCHEK2CitationProvenance:
+    """Guard the CHEK2 evidence links (issue #212).
+
+    The CHEK2 row previously cited two unrelated papers — PMID 20301661 (the
+    PTEN Hamartoma Tumor Syndrome GeneReviews chapter) and 29848605 (a Cancer
+    Discovery trial of the FGFR1-3 inhibitor BGJ398 in advanced urothelial
+    carcinoma). This pins the row to verified CHEK2 hereditary-cancer
+    references so those off-topic PMIDs cannot silently reappear.
+    """
+
+    # CHEK2 hereditary-cancer references verified on PubMed (esummary/efetch)
+    # and cross-checked against the literature (Consensus).
+    _CHEK2_PMIDS = frozenset(
+        {
+            "37490054",  # Hanson 2023, Genet Med — ACMG CHEK2 management practice resource
+            "27269948",  # Schmidt 2016, JCO — age/subtype-specific risk for CHEK2*1100delC
+            "15492928",  # Cybulski 2004, AJHG — "CHEK2 is a multiorgan cancer susceptibility gene"
+        }
+    )
+    # Unrelated PMIDs wrongly cited by the CHEK2 row before the fix. NOTE:
+    # 20301661 (PTEN Hamartoma Tumor Syndrome GeneReviews) is legitimately
+    # cited by the PTEN row, so it is banned from CHEK2 ONLY, not panel-wide
+    # (see test_pten_still_cites_genereviews_pmid).
+    _BANNED_FROM_CHEK2 = frozenset({"20301661", "29848605"})
+
+    def test_chek2_cites_verified_references(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("CHEK2")
+        assert gene is not None
+        assert set(gene.pmids) == self._CHEK2_PMIDS
+
+    def test_chek2_drops_unrelated_pmids(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("CHEK2")
+        assert gene is not None
+        leaked = self._BANNED_FROM_CHEK2 & set(gene.pmids)
+        assert not leaked, f"CHEK2 still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_pten_still_cites_genereviews_pmid(self, panel: CancerPanel) -> None:
+        # 20301661 (PTEN Hamartoma Tumor Syndrome GeneReviews) is the correct
+        # reference for PTEN; removing it from the CHEK2 row must not disturb
+        # the legitimate PTEN citation.
+        gene = panel.get_gene("PTEN")
+        assert gene is not None
+        assert "20301661" in gene.pmids
