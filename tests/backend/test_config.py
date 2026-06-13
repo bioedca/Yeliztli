@@ -36,8 +36,16 @@ def test_default_settings():
     assert settings.update_check_interval == "daily"
 
 
-def test_data_dir_default():
-    """Default data_dir should be ~/.yeliztli."""
+def test_data_dir_default(tmp_path, monkeypatch):
+    """Default data_dir should be ~/.yeliztli (no pointer/env override).
+
+    Point the pointer source at an empty temp dir so this stays hermetic: with
+    no .data_dir_pointer present, data_dir falls back to the field default
+    (~/.yeliztli). Without this, the new _DataDirPointerSource would read the
+    developer's real ~/.yeliztli/.data_dir_pointer (written by the storage
+    wizard) and the test would fail on any machine that has used the feature.
+    """
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
     settings = get_settings()
     assert settings.data_dir == Path.home() / ".yeliztli"
 
