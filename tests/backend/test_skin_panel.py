@@ -227,6 +227,27 @@ class TestMC1RMultiAllele:
         mc1r_rsids = {s["rsid"] for s in self._get_mc1r_snps(panel_data)}
         assert mc1r_rsids == self.MC1R_RSIDS
 
+    def test_mc1r_rows_cite_verified_melanoma_pmids(self, panel_data: dict) -> None:
+        # Every MC1R pigmentation/melanoma row (R151C, R160W, D294H, R163Q) must
+        # cite MC1R-specific evidence (#359):
+        #   18366057 — Raimondi 2008, Int J Cancer — meta-analysis of MC1R variants
+        #              (incl. R151C/R160W/R163Q/D294H), melanoma + red-hair phenotype
+        #   21128237 — Williams 2011, Int J Cancer — MC1R + cutaneous-melanoma
+        #              meta-analysis (population burden)
+        # This replaces four globally off-topic PMIDs (IL-1β pain / European
+        # population substructure / mouse colonic epigenetics / FBN1 dysplasia) and
+        # an ASIP/TYR — not MC1R — pigmentation paper (18488027).
+        verified = {"18366057", "21128237"}
+        misattributed = {"11260714", "17044734", "20197410", "21683322", "18488027"}
+        for snp in self._get_mc1r_snps(panel_data):
+            pmids = set(snp["pmids"])
+            assert pmids == verified, (
+                f"{snp['rsid']} MC1R pmids {sorted(pmids)} != {sorted(verified)}"
+            )
+            assert not (pmids & misattributed), (
+                f"{snp['rsid']} still cites misattributed PMID(s): {sorted(pmids & misattributed)}"
+            )
+
     def test_d294h_uses_c_allele_consistent_with_melanoma_prs(
         self,
         panel_data: dict,
@@ -387,10 +408,21 @@ class TestFLGLimitedCoverage:
         assert flg["pmids"] == ["16550169", "16444271", "16815158"], flg["pmids"]
 
     def test_no_unrelated_pmids_in_panel(self, panel_data: dict) -> None:
-        # Guard against the misattributed citations from the FLG row (#189):
-        # 17597076 is a protein-Neddylation paper and 21714652 a myelodysplastic-
-        # syndrome review — neither concerns FLG/skin. They must not reappear.
-        banned = {"17597076", "21714652"}
+        # Guard against misattributed citations that must not reappear anywhere
+        # in the skin panel. From the FLG row (#189): 17597076 (protein-Neddylation)
+        # and 21714652 (myelodysplastic-syndrome review). From the MC1R rows (#359),
+        # four globally off-topic PMIDs: 11260714 (IL-1β/Cox-2 inflammatory pain),
+        # 17044734 (European population substructure), 20197410 (mouse colonic
+        # epigenetics), 21683322 (FBN1 acromicric/geleophysic dysplasia). None
+        # concerns skin/MC1R biology.
+        banned = {
+            "17597076",
+            "21714652",
+            "11260714",
+            "17044734",
+            "20197410",
+            "21683322",
+        }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 offending = banned & set(snp["pmids"])

@@ -35,7 +35,7 @@
           },
           "mc1r_allele_class": "R",
           "evidence_level": 3,
-          "pmids": ["11260714", "17044734", "18488027"],
+          "pmids": ["18366057", "21128237"],
           "recommendation_text": "MC1R R151C is a well-established 'R' (strong loss-of-function) allele. Carriers should practice rigorous sun protection including SPF 30+ sunscreen, protective clothing, and avoidance of peak UV hours. Discuss melanoma screening with a dermatologist.",
           "cross_module": {
             "module": "cancer",
@@ -69,7 +69,7 @@
           },
           "mc1r_allele_class": "R",
           "evidence_level": 3,
-          "pmids": ["11260714", "17044734", "18488027"],
+          "pmids": ["18366057", "21128237"],
           "recommendation_text": "MC1R R160W is a strong loss-of-function ('R') allele. Sun protection is essential for carriers. Discuss skin cancer screening with a healthcare provider.",
           "cross_module": {
             "module": "cancer",
@@ -103,7 +103,7 @@
           },
           "mc1r_allele_class": "R",
           "evidence_level": 3,
-          "pmids": ["11260714", "17044734", "20197410"],
+          "pmids": ["18366057", "21128237"],
           "recommendation_text": "MC1R D294H is classified as a strong 'R' allele. Carriers have elevated melanoma risk and should follow dermatologist-recommended screening schedules.",
           "cross_module": {
             "module": "cancer",
@@ -137,7 +137,7 @@
           },
           "mc1r_allele_class": "r",
           "evidence_level": 2,
-          "pmids": ["11260714", "18488027", "21683322"],
+          "pmids": ["18366057", "21128237"],
           "recommendation_text": "MC1R R163Q is classified as a mild 'r' allele with weaker effect than R151C, R160W, or D294H. Its impact is most significant in combination with other MC1R variants. Standard sun protection is recommended."
         }
       ]

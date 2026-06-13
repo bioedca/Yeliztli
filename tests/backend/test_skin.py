@@ -1140,7 +1140,9 @@ class TestStoreFindingsIntegration:
 
         assert row is not None
         pmids = json.loads(row.pmid_citations)
-        assert "11260714" in pmids
+        # rs1805007 (MC1R R151C) now cites the verified MC1R melanoma meta-analysis
+        # (Raimondi 2008) instead of the previously misattributed PMIDs (#359).
+        assert "18366057" in pmids
 
 
 # ── PathwayResult properties ────────────────────────────────────────────
