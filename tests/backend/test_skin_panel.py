@@ -417,6 +417,9 @@ class TestFLGLimitedCoverage:
         # concerns skin/MC1R biology. From the SOD2 row (#390): 10071056 (MPZ /
         # Charcot-Marie-Tooth), 18466508 (family-based association methods),
         # 23090862 (photodissociable-ligand chemistry) — none concerns SOD2/MnSOD.
+        # From the VDR FokI/BsmI rows (#437): 12773612 (veterans compensation care),
+        # 21575918 (SIRT1/body-fat/BP), 26199118 (anti-tubercular nitroimidazooxazines),
+        # 23796876 (Withania somnifera / seminal plasma) — none concerns VDR/psoriasis.
         banned = {
             "17597076",
             "21714652",
@@ -427,6 +430,10 @@ class TestFLGLimitedCoverage:
             "10071056",
             "18466508",
             "23090862",
+            "12773612",
+            "21575918",
+            "26199118",
+            "23796876",
         }
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
@@ -441,6 +448,30 @@ class TestFLGLimitedCoverage:
         sod2 = next(s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs4880")
         assert sod2["gene"] == "SOD2"
         assert sod2["pmids"] == ["15864132", "12618592", "23952573"], sod2["pmids"]
+
+    def test_vdr_rows_verified_and_not_overstated(self, panel_data: dict) -> None:
+        # VDR FokI (rs2228570) / BsmI (rs1544410): the cited PMIDs must be VDR/psoriasis
+        # (or functional-VDR) evidence, and the AA "Elevated psoriasis" call is
+        # overstated — VDR FokI/BsmI psoriasis associations are mixed/null (Lee 2018
+        # PMID 30474246 = no FokI/BsmI association; Lee 2012 PMID 22290287 = mixed).
+        # So AA is downgraded Elevated→Moderate and the row asserts no firm psoriasis
+        # risk (#437).
+        expected = {
+            "rs2228570": ["9169350", "30474246", "22290287"],  # Arai functional + Lee 2018/2012
+            "rs1544410": ["30474246", "22290287"],  # Lee 2018/2012 psoriasis meta-analyses
+        }
+        vdr = {
+            s["rsid"]: s for p in panel_data["pathways"] for s in p["snps"] if s["gene"] == "VDR"
+        }
+        for rsid, pmids in expected.items():
+            row = vdr[rsid]
+            assert row["pmids"] == pmids, f"{rsid} pmids {row['pmids']} != {pmids}"
+            cats = {e["category"] for e in row["genotype_effects"].values()}
+            assert "Elevated" not in cats, f"{rsid} still has an Elevated genotype (overstated)"
+            aa = row["genotype_effects"]["AA"]["effect_summary"].lower()
+            assert "no confident skin-risk call" in aa, f"{rsid} AA must hedge psoriasis"
+            assert "increased susceptibility to psoriasis" not in aa
+            assert "increased psoriasis susceptibility" not in aa
 
 
 # ── VDR cross-module tests ─────────────────────────────────────────────

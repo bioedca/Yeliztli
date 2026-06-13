@@ -129,6 +129,12 @@ _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     # ("manganese superoxide dismutase" / "MnSOD") and the variant ("Ala16Val"),
     # not the "SOD2" gene token — so it's condition-locked (#390).
     "skin_panel.json::rs4880": frozenset({"superoxide", "dismutase", "mnsod", "ala16val"}),
+    # VDR FokI rs2228570 / BsmI rs1544410: the literature names the receptor
+    # ("vitamin D receptor") + the variant/condition (foki/bsmi/psoriasis), not the
+    # "VDR" gene token — condition-locked (#437). Cited refs are the psoriasis
+    # meta-analyses (+ a functional FokI paper).
+    "skin_panel.json::rs2228570": frozenset({"vitamin", "receptor", "psoriasis", "foki"}),
+    "skin_panel.json::rs1544410": frozenset({"vitamin", "receptor", "psoriasis", "bsmi"}),
 }
 
 

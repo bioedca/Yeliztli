@@ -290,24 +290,24 @@
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "VDR FokI FF genotype. Shorter, more active vitamin D receptor protein. Efficient vitamin D signaling for skin immune function and keratinocyte differentiation."
+              "effect_summary": "VDR FokI FF genotype (rs2228570). Shorter, more transcriptionally active vitamin D receptor isoform."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "VDR FokI Ff heterozygous. Intermediate vitamin D receptor activity. Mildly reduced vitamin D-mediated skin immune modulation."
+              "effect_summary": "VDR FokI Ff heterozygous. Intermediate vitamin D receptor activity."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "VDR FokI Ff heterozygous. Intermediate vitamin D receptor activity. Mildly reduced vitamin D-mediated skin immune modulation."
+              "effect_summary": "VDR FokI Ff heterozygous. Intermediate vitamin D receptor activity."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "VDR FokI ff genotype. Longer, less active vitamin D receptor. Reduced vitamin D signaling in skin. Associated with increased susceptibility to psoriasis and reduced skin immune defense."
+              "category": "Moderate",
+              "effect_summary": "VDR FokI ff genotype. Longer, modestly less transcriptionally active vitamin D receptor isoform (start-codon variant). Its association with psoriasis/skin disease is population-specific and inconsistent — the most recent meta-analysis found no FokI-psoriasis association — so no confident skin-risk call is made."
             }
           },
           "evidence_level": 1,
-          "pmids": ["12773612", "21575918", "26199118"],
-          "recommendation_text": "VDR FokI affects vitamin D receptor activity in skin. Adequate vitamin D status is important for all genotypes but particularly for ff carriers. Discuss vitamin D supplementation with a healthcare provider.",
+          "pmids": ["9169350", "30474246", "22290287"],
+          "recommendation_text": "VDR FokI (rs2228570) is a vitamin D receptor start-codon variant; the ff genotype yields a modestly less active receptor isoform. Its link to psoriasis/skin disease is inconsistent across populations (no association in the most recent meta-analysis), so this is research-grade context, not a deterministic skin-risk call. Adequate vitamin D status supports skin health across genotypes; discuss supplementation with a clinician.",
           "cross_module": {
             "module": "nutrigenomics",
             "note": "VDR FokI is shared with the Nutrigenomics vitamin D pathway. See Nutrigenomics module for dietary vitamin D considerations."
@@ -323,24 +323,24 @@
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "VDR BsmI BB genotype. Standard vitamin D receptor expression level. Normal vitamin D-mediated skin processes."
+              "effect_summary": "VDR BsmI BB genotype (rs1544410), a 3' tagging variant. Reference vitamin D receptor genotype."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "VDR BsmI Bb heterozygous. Mildly altered VDR expression. Subtle effects on vitamin D-related skin health."
+              "effect_summary": "VDR BsmI Bb heterozygous. A 3' tagging variant with subtle, inconsistent effects on vitamin D-related skin outcomes."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "VDR BsmI Bb heterozygous. Mildly altered VDR expression. Subtle effects on vitamin D-related skin health."
+              "effect_summary": "VDR BsmI Bb heterozygous. A 3' tagging variant with subtle, inconsistent effects on vitamin D-related skin outcomes."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "VDR BsmI bb genotype. Reduced VDR expression levels. Associated with lower vitamin D responsiveness in skin and modestly increased psoriasis susceptibility."
+              "category": "Moderate",
+              "effect_summary": "VDR BsmI bb genotype. A 3' tagging variant (in LD with VDR 3'-UTR variants). Its association with psoriasis/skin disease is population-specific and inconsistent — the most recent meta-analysis found no BsmI-psoriasis association — so no confident skin-risk call is made."
             }
           },
           "evidence_level": 1,
-          "pmids": ["12773612", "21575918", "23796876"],
-          "recommendation_text": "VDR BsmI influences vitamin D receptor expression. Maintaining adequate vitamin D levels through diet or supplementation supports skin health across all genotypes.",
+          "pmids": ["30474246", "22290287"],
+          "recommendation_text": "VDR BsmI (rs1544410) is a 3' tagging variant; its association with psoriasis/skin outcomes is population-specific and inconsistent (no association in the most recent meta-analysis), so this is research-grade context. Adequate vitamin D status supports skin health across genotypes.",
           "cross_module": {
             "module": "nutrigenomics",
             "note": "VDR BsmI is relevant to the Nutrigenomics vitamin D pathway."
