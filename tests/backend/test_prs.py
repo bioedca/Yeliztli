@@ -1265,7 +1265,10 @@ class TestStrandHarmonization:
         assert c.match_status == "matched_flip"
         assert c.strand == "flip"
 
-    def test_palindrome_near_half_dropped_and_disclosed(self, sample_engine: sa.Engine) -> None:
+    def test_palindrome_het_near_half_scored_recoverable(self, sample_engine: sa.Engine) -> None:
+        # #353: a palindromic HETEROZYGOTE is strand-invariant at ANY MAF, so near
+        # 0.5 it now resolves to one effect copy and is scored (recoverable coverage)
+        # rather than dropped. Only homozygotes remain strand-ambiguous near 0.5.
         with sample_engine.begin() as conn:
             conn.execute(
                 sa.insert(annotated_variants),
@@ -1285,10 +1288,10 @@ class TestStrandHarmonization:
         )
         result = compute_prs(ws, sample_engine)
 
-        assert result.raw_score == 0.0  # excluded from the score
-        assert result.snps_ambiguous_dropped == 1
-        assert result.snps_used == 0  # not counted as covered
-        assert result.contributions[0].match_status == "ambiguous_dropped"
+        assert result.raw_score == pytest.approx(0.9)  # one effect copy * weight
+        assert result.snps_ambiguous_dropped == 0
+        assert result.snps_used == 1  # counted as covered
+        assert result.contributions[0].match_status == "matched_ref"
 
     def test_palindrome_homozygote_away_from_half_dropped(self, sample_engine: sa.Engine) -> None:
         # #247: a palindromic HOMOZYGOTE is strand-ambiguous for a single sample
@@ -1389,7 +1392,10 @@ class TestStrandHarmonization:
                         "rsid": "rsPAL",
                         "chrom": "1",
                         "pos": 2,
-                        "genotype": "AT",
+                        # Palindromic HOMOZYGOTE: still strand-ambiguous for a single
+                        # sample, so still dropped — exercises the ambiguous_dropped
+                        # disclosure counter (a het near 0.5 now resolves, #353).
+                        "genotype": "AA",
                         "gnomad_af_global": 0.5,
                         "annotation_coverage": 4,
                     },
