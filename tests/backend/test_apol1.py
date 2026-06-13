@@ -13,6 +13,7 @@ write clinvar_significance=NULL.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
@@ -423,9 +424,26 @@ class TestMonoallelicWording:
         assert "not zero risk" in caveat
         assert "high-risk genotype" in caveat
 
-    def test_partial_disclosure_not_called_low_risk(self, panel) -> None:
+    def test_partial_disclosure_not_called_low_risk(self) -> None:
         # The partial (one-typed-allele, second-untyped) disclosure must not call a
-        # single-risk-allele genotype "low-risk", and must carry the monoallelic caveat.
-        blob = json.dumps(panel.__dict__, default=str).lower()
-        assert "low-risk if you do not" not in blob
-        assert "gbadegesin" in blob
+        # single-risk-allele genotype "low-risk", and must carry the monoallelic
+        # caveat. Read the curated panel JSON and assert on the specific
+        # partial_disclosure finding_text field(s) rather than a serialized blob.
+        panel_path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "backend"
+            / "data"
+            / "panels"
+            / "apol1_panel.json"
+        )
+        data = json.loads(panel_path.read_text(encoding="utf-8"))
+        texts = [
+            gm["partial_disclosure"]["finding_text"]
+            for gm in data["genotype_models"]
+            if "partial_disclosure" in gm
+        ]
+        assert texts, "no partial_disclosure finding_text found in apol1_panel.json"
+        for text in texts:
+            lowered = text.lower()
+            assert "low-risk if you do not" not in lowered
+            assert "gbadegesin" in lowered
