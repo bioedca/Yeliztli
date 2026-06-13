@@ -242,6 +242,22 @@ class TestSNPFields:
             )
             assert entry["pmid"] not in {"21248726", "22286173"}
 
+    def test_hla_a3101_row_cites_curated_pmids(self, panel_data: dict) -> None:
+        # HLA-A*31:01 / carbamazepine (rs1061235 proxy) is a pharmacogenomic safety
+        # row; its citations must support HLA-A*31:01/carbamazepine hypersensitivity,
+        # not the chemotherapy-alopecia GWAS (24025145) or the Asian-ancestry SLE GWAS
+        # (26808113) attached in error (#198):
+        #   21428769 — McCormack 2011, NEJM: HLA-A*3101 & carbamazepine HSR in Europeans
+        #   24322785 — Genin 2014, Pharmacogenomics J: HLA-A*31:01 & carbamazepine SCAR
+        #               (international study + meta-analysis)
+        #   29392710 — Phillips 2018, CPIC guideline: HLA genotype & carbamazepine/oxcarbazepine
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs1061235"
+        )
+        assert snp["pmids"] == ["21428769", "24322785", "29392710"], snp["pmids"]
+        # The two wrong-topic GWAS PMIDs must not remain on the HLA-A*31:01 row.
+        assert not ({"24025145", "26808113"} & set(snp["pmids"]))
+
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing the two unrelated citations that were on
         # the abacavir row (#176): 18196153 is a 1983 X-ray optics paper and

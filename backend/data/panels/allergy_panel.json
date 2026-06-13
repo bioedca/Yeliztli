@@ -216,7 +216,7 @@
             "confirmatory_test_required": true
           },
           "evidence_level": 3,
-          "pmids": ["21428769", "24025145", "26808113"],
+          "pmids": ["21428769", "24322785", "29392710"],
           "recommendation_text": "HLA-A*31:01 is associated with carbamazepine hypersensitivity (DRESS and maculopapular exanthema) across multiple populations. Proxy r²=0.88 in EUR. CPIC recommends HLA-A*31:01 testing before carbamazepine initiation. Confirmatory HLA typing required.",
           "cross_module": {
             "module": "pharmacogenomics",
