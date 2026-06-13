@@ -559,3 +559,43 @@ class TestRecessiveInheritanceGating:
         assert " — Pathogenic for " in text
         assert "carrier" not in text.lower()
         assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_AFFECTED
+
+
+class TestMUTYHCitationProvenance:
+    """Guard the MUTYH evidence links (issue #179).
+
+    The MUTYH row previously cited two unrelated papers — PMID 20301569 (a
+    retired Hereditary Neuralgic Amyotrophy GeneReviews chapter) and 28774630
+    (a benzophenone-4 chlorination chemistry paper). This pins the row to
+    verified MUTYH-Associated-Polyposis / colorectal-cancer references so those
+    off-topic PMIDs cannot silently reappear.
+    """
+
+    # MUTYH/MAP colorectal-cancer references verified on PubMed + Consensus.
+    _MUTYH_PMIDS = frozenset(
+        {
+            "21063410",  # Theodoratou 2010, BJC — MUTYH CRC risk meta-analysis
+            "19620482",  # Lubbe 2009, JCO — biallelic MUTYH CRC risk
+        }
+    )
+    # Unrelated PMIDs wrongly cited by the MUTYH row before the fix.
+    _BANNED_FROM_MUTYH = frozenset({"20301569", "28774630"})
+
+    def test_mutyh_cites_verified_map_references(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("MUTYH")
+        assert gene is not None
+        assert set(gene.pmids) == self._MUTYH_PMIDS
+
+    def test_mutyh_drops_unrelated_pmids(self, panel: CancerPanel) -> None:
+        gene = panel.get_gene("MUTYH")
+        assert gene is not None
+        leaked = self._BANNED_FROM_MUTYH & set(gene.pmids)
+        assert not leaked, f"MUTYH still cites unrelated PMID(s) {sorted(leaked)}"
+
+    def test_retired_neuralgic_amyotrophy_pmid_absent_from_panel(self, panel: CancerPanel) -> None:
+        # 20301569 is the retired HNA GeneReviews chapter — not a cancer
+        # reference and unique to the old MUTYH row, so it must appear nowhere.
+        for gene in panel.genes:
+            assert "20301569" not in gene.pmids, (
+                f"{gene.gene_symbol} cites the unrelated neuralgic-amyotrophy PMID 20301569"
+            )
