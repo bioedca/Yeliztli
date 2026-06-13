@@ -431,3 +431,59 @@ class TestPathwayAllocation:
         pw = self._get_pathway(panel_data, "training_response")
         rsids = {s["rsid"] for s in pw["snps"]}
         assert "rs9939609" in rsids  # FTO
+
+
+# ── Endurance reduced-capacity category direction (issue #293) ────────────
+
+
+class TestEnduranceReducedCapacityDirection:
+    """Reduced-capacity Endurance genotypes must not map to the highest
+    (Elevated) endurance category.
+
+    PPARGC1A rs8192678 AA (Ser/Ser) and AMPD1 rs17602729 TT (homozygous
+    deficiency) were mislabeled `Elevated` in the Endurance pathway even though
+    their effect summaries describe REDUCED capacity (lower VO2max / aerobic
+    capacity; exercise myalgia + premature fatigue). In an Endurance pathway
+    `Elevated` reads as an elevated-endurance signal, so a reduced-capacity
+    genotype inverted the biology (same class as the ACTN3 #182 fix). They are
+    downgraded to `Moderate`, consistent with the already-Moderate, reduced-
+    framing heterozygotes (GA/AG, CT/TC) in the same rows and the evidence_level
+    1 star_1 cap. Direction verified via the Consensus connector: the PPARGC1A
+    Ser482 allele is associated with reduced aerobic capacity / aerobic-training
+    non-response, and AMPD1 deficiency (T allele) is unfavorable-to-neutral for
+    endurance (under-represented in elite endurance athletes).
+    """
+
+    def _get_snp(self, panel_data: dict, rsid: str) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found in panel")
+
+    def test_ppargc1a_aa_not_elevated(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs8192678")
+        effect = snp["genotype_effects"]["AA"]
+        assert effect["category"] == "Moderate"
+        assert effect["category"] != "Elevated"
+        summary = effect["effect_summary"].lower()
+        assert "reduced" in summary or "lower" in summary
+
+    def test_ampd1_tt_not_elevated(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs17602729")
+        effect = snp["genotype_effects"]["TT"]
+        assert effect["category"] == "Moderate"
+        assert effect["category"] != "Elevated"
+        summary = effect["effect_summary"].lower()
+        assert "deficiency" in summary or "fatigue" in summary
+
+    def test_reduced_capacity_rows_have_no_elevated_genotype(self, panel_data: dict) -> None:
+        # Neither row has any positive endurance signal, so no genotype in either
+        # reduced-capacity SNP should map to the highest (Elevated) category.
+        for rsid in ("rs8192678", "rs17602729"):
+            categories = {
+                e["category"] for e in self._get_snp(panel_data, rsid)["genotype_effects"].values()
+            }
+            assert "Elevated" not in categories, (
+                f"{rsid} (a reduced-capacity endurance SNP) still has an Elevated genotype"
+            )

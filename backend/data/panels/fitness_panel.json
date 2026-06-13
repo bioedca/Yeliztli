@@ -64,7 +64,7 @@
               "effect_summary": "One copy of Ser482 variant. Mildly reduced PGC-1α activity. May have modestly lower baseline VO2max."
             },
             "AA": {
-              "category": "Elevated",
+              "category": "Moderate",
               "effect_summary": "Homozygous Ser482. Reduced PGC-1α activity. Associated with lower baseline aerobic capacity and VO2max, though endurance training can still improve fitness."
             }
           },
@@ -93,7 +93,7 @@
               "effect_summary": "Carrier of AMPD1 deficiency allele. Mildly reduced AMP deaminase activity. Some individuals report earlier muscle fatigue during intense exercise."
             },
             "TT": {
-              "category": "Elevated",
+              "category": "Moderate",
               "effect_summary": "Homozygous AMPD1 deficiency. Absent AMP deaminase in skeletal muscle. May experience exercise-induced myalgia and premature fatigue."
             }
           },
