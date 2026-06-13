@@ -250,6 +250,8 @@ def build_weight_set_from_pgs(
         trait=trait,
         module=spec.module,
         source_ancestry=_resolve_source_ancestry(spec, inferred_ancestry),
+        multi_ancestry=spec.multi_ancestry,
+        development_ancestries=list(spec.ancestries),
         source_study=spec.source_study,
         source_pmid=spec.source_pmid,
         sample_size=spec.sample_size,
