@@ -283,6 +283,7 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             analysis_results = run_all_analyses(
                 sample_engine,
                 registry,
+                sample_id=sample_id,
                 progress_callback=analysis_progress,
             )
             errors = [k for k, v in analysis_results.items() if v == "error"]

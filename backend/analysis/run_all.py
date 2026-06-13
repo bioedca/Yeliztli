@@ -25,6 +25,7 @@ def run_all_analyses(
     sample_engine: Engine,
     registry: DBRegistry,
     *,
+    sample_id: int | None = None,
     progress_callback: Callable[[str, int, int], None] | None = None,
 ) -> dict[str, int | str]:
     """Run every analysis module and store findings.
@@ -32,6 +33,9 @@ def run_all_analyses(
     Args:
         sample_engine: Per-sample SQLite engine with annotated_variants.
         registry: DB registry (provides reference_engine and settings).
+        sample_id: Reference-DB sample id; lets sex-stratified modules consult the
+            user-recorded ``individuals.biological_sex`` (hemochromatosis #399). When
+            ``None`` those modules fall back to array inference.
         progress_callback: Optional ``(module_name, index, total)`` callback.
 
     Returns:
@@ -44,7 +48,12 @@ def run_all_analyses(
         if progress_callback:
             progress_callback(name, i, len(modules))
         try:
-            count = runner(sample_engine, registry)
+            # Hemochromatosis is sex-stratified and prefers recorded over inferred
+            # sex (#399), so it needs sample_id; the other runners take (engine, registry).
+            if name == "hemochromatosis":
+                count = _run_hemochromatosis(sample_engine, registry, sample_id=sample_id)
+            else:
+                count = runner(sample_engine, registry)
             results[name] = count
             logger.info(
                 "analysis_module_complete",
@@ -192,7 +201,9 @@ def _run_traits(sample_engine: Engine, registry: DBRegistry) -> int:
     return store_traits_findings(result, sample_engine)
 
 
-def _run_hemochromatosis(sample_engine: Engine, registry: DBRegistry) -> int:
+def _run_hemochromatosis(
+    sample_engine: Engine, registry: DBRegistry, sample_id: int | None = None
+) -> int:
     from backend.analysis.hemochromatosis import (
         assess_hemochromatosis,
         load_hemochromatosis_panel,
@@ -200,7 +211,14 @@ def _run_hemochromatosis(sample_engine: Engine, registry: DBRegistry) -> int:
     )
 
     panel = load_hemochromatosis_panel()
-    assessment = assess_hemochromatosis(panel, sample_engine)
+    # Recorded biological sex (when sample_id is known) overrides array inference for
+    # the sex-stratified C282Y penetrance (#399).
+    assessment = assess_hemochromatosis(
+        panel,
+        sample_engine,
+        reference_engine=registry.reference_engine,
+        sample_id=sample_id,
+    )
     return store_hemochromatosis_findings(assessment, sample_engine)
 
 

@@ -17,7 +17,7 @@ from backend.analysis.hemochromatosis import (
     load_hemochromatosis_panel,
     store_hemochromatosis_findings,
 )
-from backend.db.tables import findings, raw_variants
+from backend.db.tables import findings, individuals, raw_variants, reference_metadata, samples
 
 
 @pytest.fixture()
@@ -259,3 +259,81 @@ class TestCitationProvenance:
         by_id = {m.id: m for m in panel.genotype_models}
         for model_id in ("compound_heterozygous", "h63d_homozygous", "h63d_heterozygous"):
             assert by_id[model_id].pmids, f"{model_id} lost its evidence citations"
+
+
+class TestRecordedSexPrecedence:
+    """#399 — a user-recorded ``individuals.biological_sex`` is authoritative over
+    array inference for the sex-stratified C282Y-homozygote penetrance (male 56.4%
+    vs female 40.5% cumulative diagnosis by age 80; Lucas 2024, PMID 38479735),
+    mirroring resolve_biological_sex / the breast absolute-risk overlay.
+    """
+
+    def _ref_engine_with_recorded_sex(self, biological_sex: str) -> sa.Engine:
+        eng = sa.create_engine("sqlite://")
+        reference_metadata.create_all(eng)
+        with eng.begin() as conn:
+            conn.execute(
+                sa.insert(individuals).values(
+                    id=1, display_name="P", biological_sex=biological_sex
+                )
+            )
+            conn.execute(
+                sa.insert(samples).values(id=1, name="s", db_path="samples/s.db", individual_id=1)
+            )
+        return eng
+
+    def test_recorded_xx_resolves_unavailable_inference(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # Only the HFE SNP seeded → no chrX/chrY → inference is indeterminate; a
+        # recorded XX must resolve the female-specific penetrance (not show both).
+        _seed(
+            sample_engine, [{"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "genotype": "AA"}]
+        )
+        ref = self._ref_engine_with_recorded_sex("XX")
+        a = assess_hemochromatosis(panel, sample_engine, reference_engine=ref, sample_id=1)
+
+        assert a.sex_used == "XX"
+        call = a.calls[0]
+        assert call.detail["sex_used"] == "XX"
+        assert call.detail["sex_source"] == "recorded"
+        assert call.detail["sex_conflict"] is False
+        assert "In women" in call.finding_text and "40.5%" in call.finding_text
+        assert "In men" not in call.finding_text and "56.4%" not in call.finding_text
+
+    def test_recorded_xx_overrides_discordant_inferred_xy(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # The array infers XY, but a recorded XX wins and flags the discordance.
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "genotype": "AA"},
+                *_xy_chr_rows(),
+            ],
+        )
+        ref = self._ref_engine_with_recorded_sex("XX")
+        a = assess_hemochromatosis(panel, sample_engine, reference_engine=ref, sample_id=1)
+
+        assert a.sex_used == "XX"  # recorded beats a confident inference
+        call = a.calls[0]
+        assert call.detail["sex_source"] == "recorded"
+        assert call.detail["sex_conflict"] is True
+        assert "In women" in call.finding_text
+
+    def test_falls_back_to_inference_without_recorded(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # No reference_engine/sample_id → prior behaviour: inferred sex drives it.
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "genotype": "AA"},
+                *_xy_chr_rows(),
+            ],
+        )
+        a = assess_hemochromatosis(panel, sample_engine)
+
+        assert a.sex_used == "XY"
+        assert a.calls[0].detail["sex_source"] == "inferred"
+        assert a.calls[0].detail["sex_conflict"] is False

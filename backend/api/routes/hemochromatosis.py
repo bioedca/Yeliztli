@@ -166,7 +166,14 @@ def run_hemochromatosis_analysis(
 
     sample_engine = _get_sample_engine(sample_id)
     panel = load_hemochromatosis_panel()
-    assessment = assess_hemochromatosis(panel, sample_engine)
+    # Recorded biological sex (if the user set one) is authoritative over array
+    # inference for the sex-stratified C282Y penetrance (#399).
+    assessment = assess_hemochromatosis(
+        panel,
+        sample_engine,
+        reference_engine=get_registry().reference_engine,
+        sample_id=sample_id,
+    )
     count = store_hemochromatosis_findings(assessment, sample_engine)
     return HemochromatosisRunResponse(
         findings_count=count,

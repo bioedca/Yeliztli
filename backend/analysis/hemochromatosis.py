@@ -21,7 +21,11 @@ from backend.analysis.risk_genotype import (
     read_genotypes,
     store_risk_findings,
 )
-from backend.services.sex_inference import infer_biological_sex
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 _PANEL_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "panels" / "hemochromatosis_panel.json"
@@ -38,12 +42,42 @@ def load_hemochromatosis_panel(panel_path: Path | None = None) -> RiskPanel:
 def assess_hemochromatosis(
     panel: RiskPanel,
     sample_engine: sa.Engine,
+    *,
+    reference_engine: sa.Engine | None = None,
+    sample_id: int | None = None,
 ) -> RiskAssessment:
-    """Read HFE genotypes and classify, injecting inferred biological sex."""
+    """Read HFE genotypes and classify, using recorded biological sex when available.
+
+    C282Y-homozygote penetrance is sex-stratified (cumulative haemochromatosis
+    diagnosis by age 80: ~56.4% male vs ~40.5% female; Lucas 2024, PMID 38479735), so
+    the *wrong* sex shows the wrong figure. A user-recorded ``individuals.biological_sex``
+    is authoritative over the noisy array inference (issue #399) — mirroring
+    :func:`~backend.services.sex_inference.resolve_biological_sex` and the breast
+    absolute-risk overlay — so a recorded value picks the correct single-sex penetrance
+    even when inference is missing or discordant. ``reference_engine`` + ``sample_id``
+    supply the recorded value; without them (legacy callers) the path falls back to
+    inference, preserving prior behaviour.
+    """
     readouts = read_genotypes(panel, sample_engine)
     dosages = compute_dosages(panel, readouts)
-    sex = infer_biological_sex(sample_engine) if panel.sex_stratified else None
-    return classify(panel, dosages, readouts, sex=sex)
+    if not panel.sex_stratified:
+        return classify(panel, dosages, readouts, sex=None)
+
+    inferred = infer_biological_sex(sample_engine)
+    recorded = (
+        get_recorded_biological_sex(reference_engine, sample_id)
+        if reference_engine is not None and sample_id is not None
+        else None
+    )
+    resolved = resolve_biological_sex(recorded_sex=recorded, inferred_sex=inferred)
+    assessment = classify(panel, dosages, readouts, sex=resolved.sex)
+    # Persist sex provenance alongside the existing detail["sex_used"] so the
+    # interpretation is auditable: which source drove the penetrance, and whether a
+    # recorded value overrode a discordant inference.
+    for call in assessment.calls:
+        call.detail["sex_source"] = resolved.source
+        call.detail["sex_conflict"] = resolved.conflict
+    return assessment
 
 
 def store_hemochromatosis_findings(
