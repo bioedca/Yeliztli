@@ -1,12 +1,15 @@
 /** Setup wizard types. */
 
+/** How a database is provisioned (matches backend DatabaseInfo.build_mode). */
+export type BuildMode = 'pipeline' | 'download' | 'manual' | 'bundled'
+
 /** Health/readiness of one database that gates the dashboard. */
 export interface DbReadiness {
   name: string
   /** Mirrors backend DatabaseHealth.state (ready | partial | corrupt | …). */
   state: string
   ready: boolean
-  build_mode: string
+  build_mode: BuildMode
 }
 
 export interface SetupStatus {
@@ -94,7 +97,7 @@ export interface DatabaseStatus {
   phase: number
   downloaded: boolean
   file_size_bytes: number | null
-  build_mode: 'pipeline' | 'download' | 'manual' | 'bundled'
+  build_mode: BuildMode
 }
 
 export interface DatabaseListResult {
