@@ -39,7 +39,7 @@
             "note": "CYP1A2 is also a pharmacogene relevant to drug metabolism (e.g., clozapine, theophylline). See Pharmacogenomics module for full drug interaction profile and star-allele interpretation."
           },
           "evidence_level": 2,
-          "pmids": ["16522833", "26378246", "18391200", "29282363", "41992662"],
+          "pmids": ["16522833", "26378246", "37029915", "29282363", "41992662"],
           "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. This variant also has pharmacogenomic relevance — see the Pharmacogenomics module."
         },
         {

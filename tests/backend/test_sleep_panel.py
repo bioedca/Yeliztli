@@ -176,6 +176,25 @@ class TestSNPFields:
         assert cited.isdisjoint(unrelated), f"ADORA2A cites unrelated PMIDs {cited & unrelated}"
         assert cited == {"17329997", "18305461", "31817803"}, f"unexpected ADORA2A PMIDs: {cited}"
 
+    def test_cyp1a2_cites_caffeine_metabolism_evidence(self, panel_data: dict) -> None:
+        """CYP1A2 rs762551 must cite real CYP1A2/caffeine/sleep evidence, not the
+        unrelated p53 structural-biology paper (18391200) attached in error (gh
+        #190). Locked to the verified set:
+          - 16522833  Cornelis 2006, JAMA (coffee, CYP1A2 genotype)
+          - 26378246  Burke 2015, Sci Transl Med (caffeine & the human circadian clock)
+          - 37029915  Kapellou 2023, Nutr Rev (caffeine genetics & brain outcomes incl. sleep)
+          - 29282363  Koonrungsesomboon 2018, Pharmacogenomics J (CYP1A2 activity meta-analysis)
+          - 41992662  Monostory 2026, Clin Pharmacol Ther (PharmVar CYP1A2 GeneFocus)
+        """
+        cyp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs762551"
+        )
+        cited = set(cyp["pmids"])
+        assert "18391200" not in cited, "CYP1A2 still cites the unrelated p53 PMID 18391200"
+        assert cited == {"16522833", "26378246", "37029915", "29282363", "41992662"}, (
+            f"unexpected CYP1A2 PMIDs: {cited}"
+        )
+
 
 # ── Genotype effects validation ─────────────────────────────────────────
 
