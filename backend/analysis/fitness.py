@@ -151,6 +151,17 @@ class PathwayResult:
         """SNPs that were not present in the sample."""
         return [s for s in self.snp_results if not s.present_in_sample]
 
+    @property
+    def indeterminate_snps(self) -> list[SNPResult]:
+        """Called SNPs whose strand — and therefore category — is unresolved.
+
+        These are palindromic (A/T or C/G) homozygotes that the panel scored
+        ``INDETERMINATE`` (#170). They neither raise nor lower the pathway level,
+        but their presence means the pathway is not a confident "no variants of
+        concern" result (#270).
+        """
+        return [s for s in self.snp_results if s.present_in_sample and s.category == INDETERMINATE]
+
 
 @dataclass
 class CrossContextFinding:
@@ -645,16 +656,28 @@ def store_fitness_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
-        finding_text = (
-            f"{pr.pathway_name} — {pr.level} consideration"
-            if pr.level != STANDARD
-            else f"{pr.pathway_name} — Standard (no variants of concern)"
-        )
+        indeterminate = pr.indeterminate_snps
+        if pr.level != STANDARD:
+            finding_text = f"{pr.pathway_name} — {pr.level} consideration"
+        elif indeterminate:
+            # A Standard *level* with strand-unresolved calls is NOT "no variants
+            # of concern": the locus was observed but its strand (and therefore
+            # category) could not be resolved. Say so instead of implying a
+            # confident negative (#270).
+            n = len(indeterminate)
+            noun = "variant" if n == 1 else "variants"
+            finding_text = (
+                f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
+                f"observed but strand-unresolved (indeterminate) — see SNP details"
+            )
+        else:
+            finding_text = f"{pr.pathway_name} — Standard (no variants of concern)"
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
+            "indeterminate_snps": [s.rsid for s in indeterminate],
             "missing_snps": [s.rsid for s in pr.missing_snps],
             "snp_details": [
                 {

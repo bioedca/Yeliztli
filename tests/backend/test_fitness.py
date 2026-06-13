@@ -868,6 +868,76 @@ class TestStoreFindingsIntegration:
         pathway_summaries = [r for r in rows if r.category == "pathway_summary"]
         assert len(pathway_summaries) == 4
 
+    def test_indeterminate_only_pathway_not_summarized_no_concern(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A pathway whose only called SNP is a strand-indeterminate palindromic
+        homozygote must NOT be summarized as 'no variants of concern' (#270).
+
+        FTO rs9939609 (A/T) is the sole SNP in the training_response pathway, so
+        an indeterminate AA homozygote leaves no scoreable SNP — pre-fix the
+        Standard-level summary read 'no variants of concern', falsely implying
+        the locus was confidently interpreted.
+        """
+        _seed_variants(sample_engine, [("rs9939609", "16", 53820527, "AA")])
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+
+        training = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "training_response"
+        )
+        fto = next(s for s in training.snp_results if s.rsid == "rs9939609")
+        assert fto.category == INDETERMINATE
+        assert training.level == STANDARD  # indeterminate doesn't raise/lower the tier
+        assert [s.rsid for s in training.indeterminate_snps] == ["rs9939609"]
+
+        store_fitness_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == training.pathway_name,
+                )
+            ).fetchone()
+        assert row is not None
+        assert "no variants of concern" not in row.finding_text
+        assert "strand-unresolved" in row.finding_text
+        assert "indeterminate" in row.finding_text.lower()
+        detail = json.loads(row.detail_json)
+        assert detail["indeterminate_snps"] == ["rs9939609"]
+
+    def test_standard_pathway_without_indeterminate_still_no_concern(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A genuinely Standard pathway (no indeterminate calls) keeps the
+        'no variants of concern' wording (#270 — don't over-trigger)."""
+        # MCT1 rs1049434 TT is the non-palindromic, scoreable Standard call for
+        # the power pathway's MCT1 entry; pair with ACE II-proxy → Standard.
+        _seed_variants(
+            sample_engine, [("rs4341", "17", 63488529, "AA")]
+        )  # ACE II proxy → Standard
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
+        assert power.level == STANDARD
+        assert power.indeterminate_snps == []
+        store_fitness_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == power.pathway_name,
+                )
+            ).fetchone()
+        assert row is not None
+        assert "Standard (no variants of concern)" in row.finding_text
+
     def test_actn3_finding_includes_three_state_detail(
         self,
         panel: FitnessPanel,
