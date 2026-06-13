@@ -7,8 +7,10 @@ using ``ThreadPoolExecutor``, merges results in Python, computes the
 ``annotation_coverage`` bitmask, and bulk-upserts into the single wide
 ``annotated_variants`` table.
 
-WAL checkpoint runs after completion.  Crash recovery is full restart:
-delete partial results, re-run from scratch.
+WAL checkpoint runs after completion.  Crash recovery uses an atomic
+staging-swap (F28): annotate into a staging clone, then swap into
+``annotated_variants`` in a single transaction so a crash before the
+swap leaves the prior annotation untouched.
 
 Usage::
 
@@ -169,16 +171,6 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     with engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
-
-
-def _delete_all_annotations(sample_engine: sa.Engine) -> None:
-    """Delete all rows in annotated_variants for crash recovery.
-
-    Called at the start of each run so partial results from a previous
-    crashed run are cleaned up before re-annotating.
-    """
-    with sample_engine.begin() as conn:
-        conn.execute(annotated_variants.delete())
 
 
 # ── Source lookup adapters ────────────────────────────────────────────────

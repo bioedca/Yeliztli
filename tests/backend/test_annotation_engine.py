@@ -10,7 +10,7 @@ Covers:
 - P2-15: Gene-phenotype annotation via MONDO/HPO lookup, joined by gene symbol
 - Concurrent lookup orchestration across VEP, ClinVar, gnomAD, dbNSFP
 - Bitmask computation (annotation_coverage)
-- Crash recovery (delete partial, re-run)
+- Crash recovery via F28 atomic staging-swap (annotate into staging clone, swap at end)
 - Graceful degradation when sources are unavailable
 - Progress callback
 - Merge logic across sources
@@ -42,9 +42,6 @@ from backend.annotation.engine import (
     VEP_BIT,
     AnnotationEngineResult,
     _annot_to_dict,
-    _bulk_upsert,
-    _dbnsfp_annot_to_dict,
-    _delete_all_annotations,
     _lookup_alphamissense,
     _lookup_clinvar,
     _lookup_dbnsfp,
@@ -556,28 +553,6 @@ class TestMergeAnnotations:
         assert merged[0]["alphamissense_class"] == "likely_pathogenic"
         assert merged[0]["annotation_coverage"] == ALPHAMISSENSE_BIT
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# Crash recovery
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestCrashRecovery:
-    def test_delete_all_annotations(self, sample_with_variants: sa.Engine) -> None:
-        """Deleting annotations clears the table."""
-        # Insert some annotations
-        with sample_with_variants.begin() as conn:
-            conn.execute(
-                annotated_variants.insert().values(
-                    rsid="rs429358", chrom="19", pos=44908684, genotype="TC"
-                )
-            )
-        _delete_all_annotations(sample_with_variants)
-        with sample_with_variants.connect() as conn:
-            count = conn.execute(
-                sa.select(sa.func.count()).select_from(annotated_variants)
-            ).scalar()
-        assert count == 0
 
 
 # ═══════════════════════════════════════════════════════════════════════
