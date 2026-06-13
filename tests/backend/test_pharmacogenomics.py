@@ -545,6 +545,26 @@ class TestCountAltAlleles:
     def test_ii_genotype(self):
         assert _count_alt_alleles("II", "C", "T") is None
 
+    # CYP2D6*6 (rs5030655) is the 1707delT frameshift deletion — GRCh37 plus-strand
+    # CA>C — not a T>C SNV (#184). It must be counted only from I/D indel tokens,
+    # never from base-coded genotypes.
+    def test_cyp2d6_star6_deletion_hom_alt(self):
+        assert _count_alt_alleles("DD", "CA", "C") == 2  # *6/*6
+
+    def test_cyp2d6_star6_deletion_het(self):
+        assert _count_alt_alleles("DI", "CA", "C") == 1  # one *6 copy
+        assert _count_alt_alleles("ID", "CA", "C") == 1
+
+    def test_cyp2d6_star6_deletion_hom_ref(self):
+        assert _count_alt_alleles("II", "CA", "C") == 0  # no *6
+
+    def test_cyp2d6_star6_base_coded_genotype_is_uncallable(self):
+        # The previous placeholder T>C SNV encoding let base-coded TC/CC be
+        # mis-called as *6 carriers. The deletion encoding rejects them.
+        assert _count_alt_alleles("CC", "CA", "C") is None
+        assert _count_alt_alleles("TC", "CA", "C") is None
+        assert _count_alt_alleles("CT", "CA", "C") is None
+
     def test_di_genotype(self):
         assert _count_alt_alleles("DI", "C", "T") is None
 

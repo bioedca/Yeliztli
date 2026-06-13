@@ -6,7 +6,7 @@ CYP2D6,*10,"[{""rsid"":""rs1065852"",""ref"":""G"",""alt"":""A""}]",Decreased fu
 CYP2C19,*1,"[]",Normal function,1.0
 CYP2D6,*3,"[{""rsid"":""rs35742686"",""ref"":""TC"",""alt"":""T""}]",No function,0.0
 CYP2D6,*5,"[]",No function,0.0
-CYP2D6,*6,"[{""rsid"":""rs5030655"",""ref"":""T"",""alt"":""C""}]",No function,0.0
+CYP2D6,*6,"[{""rsid"":""rs5030655"",""ref"":""CA"",""alt"":""C""}]",No function,0.0
 CYP2D6,*9,"[{""rsid"":""rs5030656"",""ref"":""AAAG"",""alt"":""A""}]",Decreased function,0.5
 CYP2D6,*17,"[{""rsid"":""rs28371706"",""ref"":""G"",""alt"":""A""}]",Decreased function,0.5
 CYP2D6,*29,"[{""rsid"":""rs59421388"",""ref"":""C"",""alt"":""T""}]",Decreased function,0.5

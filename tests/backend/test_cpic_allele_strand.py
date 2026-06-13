@@ -105,11 +105,12 @@ EXPECTED_PLUS_STRAND: dict[str, tuple[str, str]] = {
     "rs28399499": ("T", "C"),  # *18 983T>C (p.Ile328Thr)
 }
 
-# Single-base rows that are NOT verifiable plus-strand SNVs and are intentionally
-# excluded (documented known limitation, deferred — see PR). rs5030655 (CYP2D6*6)
-# is biologically a 1-bp deletion (1707delT) but is stored as a placeholder SNV;
-# it is already non-callable from array data and is not a fatal-toxicity gene.
-KNOWN_NON_SNV: frozenset[str] = frozenset({"rs5030655"})
+# Single-base rows that are NOT verifiable plus-strand SNVs would be excluded here
+# from the SNV strand check. rs5030655 (CYP2D6*6) was previously a placeholder T>C
+# SNV in this set; it is now stored as its true 1-bp frameshift deletion
+# (1707delT = GRCh37 plus-strand CA>C), so it is a proper indel (len(ref) > 1),
+# falls outside _snv_defining_variants(), and needs no exclusion (#184).
+KNOWN_NON_SNV: frozenset[str] = frozenset()
 
 
 def _iter_defining_variants() -> list[tuple[str, str, str, str, str]]:
