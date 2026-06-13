@@ -36,7 +36,7 @@ chrX/chrY evidence:
 Thresholds were validated by the bio-validator subagent against the local
 real AncestryDNA V2.0 export and the three synthetic fixtures committed
 under ``tests/fixtures/sex_inference_synthetic/``; the attestation lives
-at ``docs/sex_inference_threshold_validation.md`` (Step 53). No tuning
+at ``docs/internal/sex_inference_threshold_validation.md`` (Step 53). No tuning
 was required — the literature-default values land here verbatim.
 
 This service is the single source of truth for sex inference across the
@@ -59,7 +59,7 @@ logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Validated constants
-# (docs/sex_inference_threshold_validation.md, 2026-05-21)
+# (docs/internal/sex_inference_threshold_validation.md, 2026-05-21)
 # Mirrored in scripts/validate_sex_thresholds.py — keep both sides in sync.
 # ---------------------------------------------------------------------------
 

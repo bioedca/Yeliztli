@@ -219,7 +219,7 @@ def test_classify_branches(params: dict, expected: str) -> None:
 # its four threshold constants instead of importing them. Each copy is tested only
 # against itself, so a one-sided recalibration (e.g. bumping production
 # MIN_Y_PROBES 50->60 while the script's DEFAULT_MIN_Y_PROBES stays 50) would leave
-# both suites green while the attestation in docs/sex_inference_threshold_validation.md
+# both suites green while the attestation in docs/internal/sex_inference_threshold_validation.md
 # certifies a threshold production no longer uses. These tests cross-check the two.
 # ---------------------------------------------------------------------------
 

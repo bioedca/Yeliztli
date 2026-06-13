@@ -74,12 +74,10 @@ plugins:
 # in-repo files on GitHub instead.
 exclude_docs: |
   _includes/
-  expansion-second-wave-REMAINING.md
-  sex_inference_threshold_validation.md
+  internal/
   lai-bundle-release-runbook.md
   lai-bundle-release-runbook-env.lock.yaml
   release-notes/
-  internal/
 
 nav:
   - Home: index.md

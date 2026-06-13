@@ -14,7 +14,7 @@ input — no vendor-specific code path here.
 
 The output is aggregate counts and rates only — no genotype rows are
 emitted — so its stdout is safe to paste into the bio-validator's
-attestation (`docs/sex_inference_threshold_validation.md`, Step 53).
+attestation (`docs/internal/sex_inference_threshold_validation.md`, Step 53).
 
 Plan §9.4 thresholds:
 

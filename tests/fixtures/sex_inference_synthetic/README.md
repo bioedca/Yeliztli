@@ -6,7 +6,7 @@ real export).
 
 **No real genotypes.** Every row in every file here was hand-fabricated to
 exercise a specific branch of the Plan §9.4 algorithm. The bio-validator's
-real-export attestation lives in `docs/sex_inference_threshold_validation.md`
+real-export attestation lives in `docs/internal/sex_inference_threshold_validation.md`
 (Step 53) and reports aggregate counts only.
 
 **Evaluable densities (issue #363).** A confident `XX`/`XY`/`manual_review`
