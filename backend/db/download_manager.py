@@ -274,6 +274,13 @@ class DownloadManager:
             # resumable=True: keep the partial across calls so a previously
             # interrupted download (tracked in the downloads table) resumes from
             # its checkpointed bytes instead of restarting from zero.
+            #
+            # Seed the If-Range validator from the row so THIS (possibly
+            # cross-process) resume's first Range request is guarded against an
+            # upstream that rotated since the partial was written — without it the
+            # server could splice new bytes onto a stale partial. on_validator
+            # persists the validator the moment it is captured, so even a download
+            # that dies mid-transfer leaves one behind for the next resume.
             outcome = stream_download(
                 url,
                 tmp_path,
@@ -282,6 +289,8 @@ class DownloadManager:
                 connect_timeout=connect_timeout,
                 chunk_size=CHUNK_SIZE,
                 resumable=True,
+                validator=self._get_validator(download_id),
+                on_validator=lambda v: self._update_validator(download_id, v),
                 sleep=self._sleep,
             )
         except Exception as exc:
@@ -445,6 +454,28 @@ class DownloadManager:
                 downloads.update()
                 .where(downloads.c.id == download_id)
                 .values(downloaded_bytes=offset, updated_at=datetime.now(UTC))
+            )
+
+    def _get_validator(self, download_id: int) -> str | None:
+        """Return the persisted If-Range validator for a download, if any."""
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                sa.select(downloads.c.validator).where(downloads.c.id == download_id)
+            ).fetchone()
+        return row.validator if row else None
+
+    def _update_validator(self, download_id: int, validator: str) -> None:
+        """Persist the If-Range validator captured during the transfer.
+
+        Called by ``stream_download`` the moment a validator is (re)captured, so
+        a download interrupted mid-stream still leaves a validator for the next
+        cross-process resume to send as ``If-Range``.
+        """
+        with self._engine.begin() as conn:
+            conn.execute(
+                downloads.update()
+                .where(downloads.c.id == download_id)
+                .values(validator=validator, updated_at=datetime.now(UTC))
             )
 
     def _create_job(self, job_id: str, download_id: int) -> None:

@@ -143,6 +143,12 @@ downloads = sa.Table(
     sa.Column("downloaded_bytes", sa.Integer, server_default="0"),
     sa.Column("checksum_sha256", sa.Text),
     sa.Column(
+        "validator",
+        sa.Text,
+        comment="ETag/Last-Modified captured on first response; seeds If-Range on a "
+        "cross-process resume so a rotated upstream forces a clean restart.",
+    ),
+    sa.Column(
         "status",
         sa.Text,
         server_default="pending",

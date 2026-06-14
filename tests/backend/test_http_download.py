@@ -584,3 +584,134 @@ def test_206_unknown_total_completes_without_false_incomplete(tmp_path: Path) ->
     )
     assert outcome.expected_total is None
     assert outcome.total_bytes == 100
+
+
+# ── Durable If-Range validator (PR-15) ───────────────────────────────
+
+
+def test_on_validator_fires_on_fresh_download(tmp_path: Path) -> None:
+    """A fresh download captures the server's ETag and reports it both via the
+    on_validator callback (for mid-transfer persistence) and on the outcome."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("ETag", '"v2"')
+            self.send_header("Content-Length", str(len(TEST_DATA)))
+            self.end_headers()
+            self.wfile.write(TEST_DATA)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        captured: list[str] = []
+        outcome = stream_download(
+            url, tmp_path / "out.tmp", on_validator=captured.append, sleep=NOOP_SLEEP
+        )
+        assert outcome.validator == '"v2"'
+        assert captured == ['"v2"']
+    finally:
+        server.shutdown()
+
+
+def test_seeded_validator_resumes_via_range_when_unchanged(tmp_path: Path) -> None:
+    """A seeded validator matching the live resource lets the first Range request
+    resume the existing partial (206) instead of restarting."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            if_range = self.headers.get("If-Range")
+            # Unchanged resource: honor the conditional Range.
+            if range_header and if_range == '"v1"':
+                start = _parse_range_start(range_header)
+                self.send_response(206)
+                self.send_header("ETag", '"v1"')
+                self.send_header(
+                    "Content-Range", f"bytes {start}-{len(TEST_DATA) - 1}/{len(TEST_DATA)}"
+                )
+                self.send_header("Content-Length", str(len(TEST_DATA) - start))
+                self.end_headers()
+                self.wfile.write(TEST_DATA[start:])
+                return
+            self.send_response(200)
+            self.send_header("ETag", '"v1"')
+            self.send_header("Content-Length", str(len(TEST_DATA)))
+            self.end_headers()
+            self.wfile.write(TEST_DATA)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        tmp = tmp_path / "out.tmp"
+        tmp.write_bytes(TEST_DATA[:50_000])  # a genuine prefix of the live body
+        outcome = stream_download(url, tmp, resumable=True, validator='"v1"', sleep=NOOP_SLEEP)
+        assert tmp.read_bytes() == TEST_DATA
+        assert outcome.resumed is True
+    finally:
+        server.shutdown()
+
+
+def test_seeded_validator_forces_clean_restart_on_rotation(tmp_path: Path) -> None:
+    """The core guard: a STALE seeded validator makes the server reject the
+    conditional Range (If-Range mismatch → full 200), so the rotated body fully
+    replaces the stale partial instead of being spliced onto it."""
+
+    new_body = bytes(((i + 7) % 256) for i in range(120_000))
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            if_range = self.headers.get("If-Range")
+            # Resource has rotated to ETag "v2"; a stale If-Range ("v1") must NOT
+            # be honored — return the full current body.
+            if range_header and if_range == '"v2"':
+                start = _parse_range_start(range_header)
+                self.send_response(206)
+                self.send_header("ETag", '"v2"')
+                self.send_header(
+                    "Content-Range", f"bytes {start}-{len(new_body) - 1}/{len(new_body)}"
+                )
+                self.send_header("Content-Length", str(len(new_body) - start))
+                self.end_headers()
+                self.wfile.write(new_body[start:])
+                return
+            self.send_response(200)
+            self.send_header("ETag", '"v2"')
+            self.send_header("Content-Length", str(len(new_body)))
+            self.end_headers()
+            self.wfile.write(new_body)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        tmp = tmp_path / "out.tmp"
+        tmp.write_bytes(b"STALE-PARTIAL-FROM-OLD-RESOURCE" * 100)  # not a prefix of new_body
+        captured: list[str] = []
+        outcome = stream_download(
+            url,
+            tmp,
+            resumable=True,
+            validator='"v1"',  # stale — server will reject the conditional Range
+            on_validator=captured.append,
+            sleep=NOOP_SLEEP,
+        )
+        # Clean replacement, byte-for-byte — no splice corruption.
+        assert tmp.read_bytes() == new_body
+        # The new resource's validator is re-captured + surfaced for persistence.
+        assert outcome.validator == '"v2"'
+        assert captured == ['"v2"']
+    finally:
+        server.shutdown()

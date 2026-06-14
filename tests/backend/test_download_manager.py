@@ -558,3 +558,48 @@ def test_job_type_is_download(
         ).fetchone()
     assert job is not None
     assert job.job_type == "download"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Tests: durable If-Range validator persistence (PR-15)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class _EtagHTTPHandler(BaseHTTPRequestHandler):
+    """Serves the body with a fixed ETag (for validator-persistence tests)."""
+
+    data = TEST_DATA
+    etag = '"etag-xyz"'
+
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("ETag", self.etag)
+        self.send_header("Content-Length", str(len(self.data)))
+        self.end_headers()
+        self.wfile.write(self.data)
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+        pass
+
+
+def test_validator_persisted_on_download(
+    manager: DownloadManager,
+    ref_engine: sa.Engine,
+) -> None:
+    """The captured ETag lands on the downloads row, so a later cross-process
+    resume can seed it as If-Range."""
+    server = HTTPServer(("127.0.0.1", 0), _EtagHTTPHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        url = f"http://{host}:{port}/etagfile.db"
+        result = manager.start(url, "etagfile.db")
+        assert result.error is None
+        with ref_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(downloads.c.validator).where(downloads.c.id == result.download_id)
+            ).fetchone()
+        assert row.validator == '"etag-xyz"'
+    finally:
+        server.shutdown()

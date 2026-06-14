@@ -121,6 +121,10 @@ class DownloadOutcome:
     """Number of HTTP attempts made (>1 means at least one resume happened)."""
     resumed: bool = False
     """Whether any ``Range`` resume / restart occurred."""
+    validator: str | None = None
+    """The ETag / Last-Modified the transfer settled on (for a durable ``If-Range``
+    on a later cross-process resume). On a 200 restart this is the *new* resource's
+    validator, so persisting it keeps subsequent resumes honest about rotations."""
 
 
 def compute_backoff(
@@ -173,6 +177,8 @@ def stream_download(
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     extra_headers: Mapping[str, str] | None = None,
     resumable: bool = False,
+    validator: str | None = None,
+    on_validator: Callable[[str], None] | None = None,
     client_factory: Callable[[], httpx.Client] | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> DownloadOutcome:
@@ -209,6 +215,14 @@ def stream_download(
         max_attempts: Absolute attempt ceiling regardless of progress.
         extra_headers: Extra request headers (merged; ``Range`` / ``If-Range`` /
             ``Accept-Encoding`` are managed internally).
+        validator: A previously-captured ``If-Range`` validator (ETag /
+            Last-Modified) to seed a cross-process resume, so the first ``Range``
+            request is guarded against an upstream that rotated since the partial
+            was written. Returned (possibly re-captured) on the outcome.
+        on_validator: Called with the validator the moment it is first captured
+            (or re-captured after a 200 restart), so the caller can persist it
+            mid-transfer — an interrupted download that never returns is exactly
+            the case a later cross-process resume needs the validator for.
         client_factory: Optional factory returning an ``httpx.Client`` (for
             tests / custom transports).  Defaults to a sensible client.
         sleep: Injectable sleep (tests pass a no-op to avoid real backoff waits).
@@ -236,7 +250,11 @@ def stream_download(
 
     expected_total: int | None = None
     first_headers: Mapping[str, str] | None = None
-    validator: str | None = None  # ETag / Last-Modified for If-Range
+    # ``validator`` is seeded from the param: on a cross-process resume the caller
+    # passes the ETag/Last-Modified it persisted, so the FIRST Range request can
+    # carry ``If-Range`` and the server forces a clean 200 restart if the upstream
+    # rotated (instead of splicing new bytes onto a stale partial). A 200 below
+    # re-captures the current validator; a 206 only learns one if still unset.
     no_progress_failures = 0
     attempt = 0
     resumed = False
@@ -280,6 +298,7 @@ def stream_download(
                                 headers=first_headers,
                                 attempts=attempt,
                                 resumed=True,
+                                validator=validator,
                             )
                         # Bogus/oversized partial — truncate, restart next attempt.
                         tmp_path.unlink(missing_ok=True)
@@ -301,6 +320,8 @@ def stream_download(
                             first_headers = response.headers
                         if validator is None:
                             validator = _validator(response)
+                            if on_validator is not None and validator is not None:
+                                on_validator(validator)
                     elif status == 200:
                         # Fresh body, or server ignored Range (resource changed /
                         # no Range support) — restart from scratch.
@@ -317,7 +338,14 @@ def stream_download(
                         # we must adopt the new version's validator or every later
                         # resume would mismatch and force yet another full restart.
                         first_headers = response.headers
-                        validator = _validator(response)
+                        new_validator = _validator(response)
+                        if (
+                            on_validator is not None
+                            and new_validator is not None
+                            and new_validator != validator
+                        ):
+                            on_validator(new_validator)
+                        validator = new_validator
                     elif status in RETRYABLE_STATUS_CODES:
                         raise _RetryableStatusError(status)
                     else:
@@ -350,6 +378,7 @@ def stream_download(
                     headers=first_headers,
                     attempts=attempt,
                     resumed=resumed or attempt > 1,
+                    validator=validator,
                 )
 
             except _RETRY_TRIGGERS as exc:
