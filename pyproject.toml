@@ -104,6 +104,12 @@ ignore_decorators = [
     "@field_validator",
     "@model_validator",
     "@app.exception_handler",
+    # pytest fixtures/marks are invoked by the framework, not called directly, so
+    # vulture sees them as unused (e.g. an `@pytest.fixture(autouse=True)` helper).
+    # Without this, a newly-added fixture reddens the blocking vulture check on
+    # main for the whole fleet (#684 omitted it). The glob covers @pytest.fixture
+    # and parameterized marks (vulture simplifies @pytest.mark.x(...) → @pytest.mark).
+    "@pytest.*",
 ]
 sort_by_size = true
 
