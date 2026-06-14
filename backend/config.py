@@ -145,6 +145,15 @@ class Settings(BaseSettings):
         default=DEFAULT_DATA_DIR,
         description="Root directory for all Yeliztli data (DBs, samples, logs).",
     )
+    download_staging_dir: Path | None = Field(
+        default=None,
+        description=(
+            "Override directory for transient download staging (large source "
+            "archives). Defaults to data_dir / 'downloads'. Lets a big archive "
+            "(e.g. dbNSFP's ~47 GB zip) stage on a roomy/disposable volume while "
+            "the built databases stay on data_dir. Env: YELIZTLI_DOWNLOAD_STAGING_DIR."
+        ),
+    )
 
     # --- Server ---
     host: str = "127.0.0.1"
@@ -196,7 +205,12 @@ class Settings(BaseSettings):
 
     @property
     def downloads_dir(self) -> Path:
-        return self.data_dir / "downloads"
+        # Transient download staging. Defaults under data_dir, but an operator can
+        # point it at a roomy/disposable volume via ``download_staging_dir`` without
+        # moving the persistent databases. When unset, behaviour is identical to
+        # ``data_dir / "downloads"``. The directory is created lazily on first use
+        # (DownloadManager.__init__ / each downloader's dest_dir.mkdir).
+        return self.download_staging_dir or (self.data_dir / "downloads")
 
     @property
     def resolved_log_dir(self) -> Path:

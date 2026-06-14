@@ -1107,6 +1107,10 @@ def _execute_download(
             )
             db_info.post_download(result.dest_path, final_dest)
         elif result.dest_path != final_dest:
+            # Staging (downloads_dir) may live on a different filesystem than
+            # data_dir (download_staging_dir override), so this must stay
+            # shutil.move (copy+delete fallback) — never os.replace/Path.replace,
+            # which raise EXDEV across filesystems.
             shutil.move(str(result.dest_path), str(final_dest))
 
         _update_job(
