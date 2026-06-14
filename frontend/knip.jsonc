@@ -2,9 +2,11 @@
   // Knip — dead-export / dead-file / unused-dependency detector for the
   // frontend (issue #555). Run via `npm run knip`. In CI it runs as a
   // NON-BLOCKING advisory step (continue-on-error) inside the Lint job, so the
-  // existing baseline it surfaces — the known frontend dead-code backlog
-  // (#542 LoadingEmpty + the unused exports/types it lists) — is reported on
-  // every PR without reddening `main`. Promotion to a blocking gate follows
+  // existing baseline it surfaces — the known frontend dead-code backlog (an
+  // unused src/components/PlaceholderPage.tsx file, an unused + a phantom
+  // dependency, and dozens of unused exports/types) — is reported on every PR
+  // without reddening `main`. This is the class behind the recurring dead-code
+  // issues #555 cites (e.g. #510, #542). Promotion to a blocking gate follows
   // once that backlog is cleared (see the per-symbol dead-code issues).
   //
   // Entry points (Vite app entry via index.html → src/main.tsx, the Vitest
