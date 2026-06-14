@@ -78,27 +78,6 @@ PATHOGENIC_SIGNIFICANCE = frozenset(
     }
 )
 
-# All recognized ClinVar significance values for filtering
-ALL_CLINVAR_SIGNIFICANCE = frozenset(
-    {
-        "Pathogenic",
-        "Likely pathogenic",
-        "Pathogenic/Likely pathogenic",
-        "Uncertain_significance",
-        "Likely benign",
-        "Benign",
-        "Benign/Likely benign",
-        "Conflicting_interpretations_of_pathogenicity",
-        "risk_factor",
-        "drug_response",
-        "association",
-        "protective",
-        "affects",
-        "other",
-        "not_provided",
-    }
-)
-
 
 # ── Data classes ──────────────────────────────────────────────────────────
 
