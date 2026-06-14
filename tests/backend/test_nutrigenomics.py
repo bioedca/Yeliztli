@@ -124,17 +124,50 @@ class TestPanelLoading:
         assert panel.module == "nutrigenomics"
         assert panel.version == "1.0.0"
 
-    def test_panel_has_six_pathways(self, panel: NutrigenomicsPanel) -> None:
-        assert len(panel.pathways) == 6
+    def test_panel_has_seven_pathways(self, panel: NutrigenomicsPanel) -> None:
+        assert len(panel.pathways) == 7
         pathway_ids = {p.id for p in panel.pathways}
         assert pathway_ids == {
             "folate_metabolism",
             "vitamin_d",
             "vitamin_b12",
+            "vitamin_b6",
             "omega_3",
             "iron",
             "lactose",
         }
+
+    def test_b6_snp_not_in_b12_pathway(self, panel: NutrigenomicsPanel) -> None:
+        """#595: rs4654748 (ALPL) is a vitamin B6 locus, not B12.
+
+        The panel-cited GWAS (Tanaka 2009, PMID 19744961) reports ALPL rs4654748
+        with vitamin B6 and FUT2 rs602662 with vitamin B12. Because the pathway
+        level is the max category across its SNPs, a low-B6 rs4654748 genotype
+        used to raise the "Vitamin B12" pathway. rs4654748 now lives in its own
+        "Vitamin B6" pathway, so a B6 genotype can no longer drive a false B12
+        signal.
+        """
+        by_id = {p.id: p for p in panel.pathways}
+
+        # rs4654748 moved out of B12, into a dedicated B6 pathway.
+        b12_rsids = {snp.rsid for snp in by_id["vitamin_b12"].snps}
+        assert b12_rsids == {"rs602662"}
+        assert "rs4654748" not in b12_rsids
+
+        b6 = by_id["vitamin_b6"]
+        assert b6.name == "Vitamin B6"
+        assert {snp.rsid for snp in b6.snps} == {"rs4654748"}
+
+        # No SNP in the B12 pathway carries vitamin-B6 effect text.
+        for snp in by_id["vitamin_b12"].snps:
+            for effect in snp.genotype_effects.values():
+                assert "vitamin b6" not in effect["effect_summary"].lower()
+
+        # The B6 risk genotype scores in the B6 pathway, never lifting B12.
+        b6_snp = next(snp for snp in b6.snps if snp.rsid == "rs4654748")
+        assert _determine_pathway_level([_score_snp(b6_snp, "TT")]) == MODERATE
+        fut2 = next(snp for snp in by_id["vitamin_b12"].snps if snp.rsid == "rs602662")
+        assert _determine_pathway_level([_score_snp(fut2, "AA")]) == STANDARD
 
     def test_panel_all_rsids(self, panel: NutrigenomicsPanel) -> None:
         rsids = panel.all_rsids()
@@ -807,7 +840,7 @@ class TestStoreFindingsIntegration:
 
         # Check pathway summary findings exist
         pathway_summaries = [r for r in rows if r.category == "pathway_summary"]
-        assert len(pathway_summaries) == 6  # One per pathway
+        assert len(pathway_summaries) == 7  # One per pathway
 
         # Check SNP findings for MTHFR
         snp_findings = [r for r in rows if r.category == "snp_finding" and r.rsid == "rs1801133"]
@@ -892,7 +925,7 @@ class TestStoreFindingsIntegration:
 
         assert len(snp_findings) == 0
         # But pathway summaries should exist
-        assert count == 6  # 6 pathway summaries, all Standard
+        assert count == 7  # 7 pathway summaries, all Standard
 
     @staticmethod
     def _seed_ancestry(engine: sa.Engine, top_population: str) -> None:

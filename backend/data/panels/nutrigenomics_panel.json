@@ -253,7 +253,14 @@
           "evidence_level": 2,
           "pmids": ["19303062", "19744961", "23201895"],
           "recommendation_text": "People with the rs602662 GG genotype may benefit from monitoring B12 levels, particularly on plant-based diets."
-        },
+        }
+      ]
+    },
+    {
+      "id": "vitamin_b6",
+      "name": "Vitamin B6",
+      "description": "Variants affecting vitamin B6 (pyridoxal 5'-phosphate) catabolism and circulating levels.",
+      "snps": [
         {
           "rsid": "rs4654748",
           "gene": "NBPF3/ALPL",
