@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.db.build_guard import is_cross_process_build_claimed
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
 from backend.db.update_manager import (
@@ -225,6 +226,14 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
         raise HTTPException(
             status_code=409,
             detail=f"Outside bandwidth window ({settings.update_download_window}).",
+        )
+
+    # Don't queue an update that would immediately no-op: another process (the
+    # wizard or a concurrent update) is already building this DB's file.
+    if is_cross_process_build_claimed(req.db_name, settings.data_dir):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A build/update for '{req.db_name}' is already in progress.",
         )
 
     job_id = create_database_update_job(req.db_name)

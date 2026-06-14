@@ -394,3 +394,44 @@ class TestPeriodicUpdateCheck:
 
         mk_job.assert_called_once()
         run_task.assert_called_once_with("job-daily")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# run_database_update_task() — cross-process claim guard (PR-13b)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRunDatabaseUpdateTaskClaim:
+    """The Huey update task must skip (not race) when another process already
+    holds the cross-process build claim for the same DB."""
+
+    def test_skips_and_fails_job_when_claimed(self, huey_env: dict) -> None:
+        from backend.db.build_guard import cross_process_build_claim
+        from backend.tasks.huey_tasks import run_database_update_task
+
+        settings = huey_env["settings"]
+        job_id = "dbup-clinvar-claimed"
+        _make_job(job_id, "database_update")
+
+        # Hold the claim (stands in for the wizard building clinvar in the API
+        # process). The task must not reach the build path.
+        with cross_process_build_claim("clinvar", settings.data_dir):
+            with patch("backend.tasks.huey_tasks._execute_database_update") as exec_mock:
+                run_database_update_task.call_local(job_id, "clinvar")
+
+        exec_mock.assert_not_called()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "another process" in (row.error or "").lower()
+
+    def test_runs_build_when_not_claimed(self, huey_env: dict) -> None:
+        from backend.tasks.huey_tasks import run_database_update_task
+
+        job_id = "dbup-clinvar-free"
+        _make_job(job_id, "database_update")
+
+        # Claim free → the wrapper delegates to the (stubbed) build path.
+        with patch("backend.tasks.huey_tasks._execute_database_update") as exec_mock:
+            run_database_update_task.call_local(job_id, "clinvar")
+
+        exec_mock.assert_called_once_with(job_id, "clinvar")

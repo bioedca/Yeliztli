@@ -1676,8 +1676,19 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     """
     settings = registry.settings
 
+    # Serialize the synchronous auto-update paths (ClinVar + bundles) against a
+    # concurrent wizard install/build of the same file in the API process — the
+    # in-process build_lock cannot span the two processes. The pipeline branch
+    # below delegates to run_database_update_task, which already takes the claim
+    # itself, so it is not wrapped here (claim is reentrant per thread anyway).
+    from backend.db.build_guard import build_claim
+
     if db_name == "clinvar":
-        run_clinvar_update(registry)
+        with build_claim(db_name, settings.data_dir) as acquired:
+            if not acquired:
+                logger.info("auto_update_skipped_claimed", db_name=db_name)
+                return
+            run_clinvar_update(registry)
         return
 
     if db_name in _BUNDLE_DBS:
@@ -1689,9 +1700,13 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
             "gnomad": "run_gnomad_bundle_update",
         }[db_name]
         runner = globals()[runner_name]
-        result = runner(settings)
-        if result is None:
-            raise RuntimeError(f"{db_name} auto-update failed")
+        with build_claim(db_name, settings.data_dir) as acquired:
+            if not acquired:
+                logger.info("auto_update_skipped_claimed", db_name=db_name)
+                return
+            result = runner(settings)
+            if result is None:
+                raise RuntimeError(f"{db_name} auto-update failed")
         return
 
     from backend.db.database_registry import get_build_fn

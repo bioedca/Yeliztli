@@ -36,7 +36,12 @@ from starlette.responses import StreamingResponse
 
 from backend.api.sse import _format_sse, get_job_progress
 from backend.config import Settings, get_settings
-from backend.db.build_guard import build_lock, try_acquire_build_lock
+from backend.db.build_guard import (
+    build_claim,
+    cross_process_build_claim,
+    is_cross_process_build_claimed,
+    try_acquire_build_lock,
+)
 from backend.db.connection import get_registry
 from backend.db.database_registry import (
     DATABASES,
@@ -254,8 +259,14 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
     # Deduplicate requested names (preserving order)
     db_names = list(dict.fromkeys(db_names))
 
-    # Skip already-completed, non-buildable, and in-flight databases
+    # Skip already-completed, non-buildable, and in-flight databases. A DB
+    # claimed by another process (a Huey update of the same file) counts as
+    # in-flight too, so the wizard never launches a competing build/download
+    # across processes (the in-process build_lock cannot see it).
     in_flight = _get_in_flight_db_names(engine)
+    in_flight |= {
+        name for name in db_names if is_cross_process_build_claimed(name, settings.data_dir)
+    }
     to_download: list[str] = []
     for name in db_names:
         db_info = get_database(name)
@@ -655,7 +666,26 @@ def _run_build(
     still build in parallel); once we hold the lock we re-check whether a
     concurrent build already finished this DB to avoid a redundant rebuild.
     """
-    with build_lock(db_info.name):
+    with build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            # A Huey update is already building this DB in another process; don't
+            # race it. Surface a retryable failure so the wizard's readiness gate
+            # keeps the user on the Databases step until the DB becomes ready.
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "database_build_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
         if get_database_status(db_info, settings)["downloaded"]:
             _update_job(
                 engine,
@@ -867,6 +897,44 @@ def _run_download(
     engine: sa.Engine,
     settings: Settings,
 ) -> None:
+    """Download a single database under the cross-process file claim.
+
+    Thin wrapper around :func:`_execute_download` so a wizard download cannot
+    race a Huey update of the same file across processes. Uses the per-DB
+    ``flock`` directly (not :func:`build_claim`): a download holds the claim for
+    its whole network phase, and the ``flock`` is keyed to this ``data_dir`` —
+    unlike the process-global, db-name-keyed ``build_lock``, which would let a
+    slow/failing download of one DB stall an unrelated install elsewhere. Skips
+    with a retryable job failure if another process already holds the claim.
+    """
+    with cross_process_build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "database_download_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
+        _execute_download(dm=dm, db_info=db_info, job_id=job_id, engine=engine, settings=settings)
+
+
+def _execute_download(
+    *,
+    dm: DownloadManager,
+    db_info: DatabaseInfo,
+    job_id: str,
+    engine: sa.Engine,
+    settings: Settings,
+) -> None:
     """Execute a single database download in a background thread.
 
     Uses the DownloadManager for resumable HTTP downloads. On success,
@@ -969,6 +1037,43 @@ def _bundle_install_needed(db_info: DatabaseInfo, engine: sa.Engine) -> bool:
 
 
 def _run_bundle_install(
+    *,
+    db_info: DatabaseInfo,
+    job_id: str,
+    engine: sa.Engine,
+    settings: Settings,
+) -> None:
+    """Install a pre-built bundle under the cross-process file claim.
+
+    Thin wrapper around :func:`_execute_bundle_install` so a wizard install
+    cannot race a Huey bundle update of the same artifact across processes. Uses
+    the per-DB ``flock`` directly (not :func:`build_claim`) for the same reason
+    as :func:`_run_download` — the claim is held across a network phase, and the
+    ``flock`` is keyed to this ``data_dir`` rather than the process-global
+    ``build_lock``. Skips with a retryable job failure if another process holds
+    the claim.
+    """
+    with cross_process_build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "bundle_install_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
+        _execute_bundle_install(db_info=db_info, job_id=job_id, engine=engine, settings=settings)
+
+
+def _execute_bundle_install(
     *,
     db_info: DatabaseInfo,
     job_id: str,
@@ -1130,7 +1235,9 @@ async def resume_download(body: ResumeRequest) -> DownloadResponse:
             detail=f"No resumable partial download for '{body.db_name}'.",
         )
 
-    if body.db_name in _get_in_flight_db_names(engine):
+    if body.db_name in _get_in_flight_db_names(engine) or is_cross_process_build_claimed(
+        body.db_name, settings.data_dir
+    ):
         raise HTTPException(
             status_code=409,
             detail=f"A download/build for '{body.db_name}' is already in progress.",

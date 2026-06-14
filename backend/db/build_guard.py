@@ -194,3 +194,50 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
         return False
     finally:
         os.close(fd)
+
+
+# Per-thread set of db_names whose cross-process claim this thread already
+# holds. ``cross_process_build_claim`` opens a fresh fd per call, and flock
+# conflicts across fds *even within one thread* — so a nested (reentrant)
+# build_claim would self-deny. Tracking holds per-thread lets nested calls
+# reuse the outermost hold instead of re-flocking.
+_held_claims = threading.local()
+
+
+@contextmanager
+def build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
+    """Acquire both the in-process build slot and the cross-process claim.
+
+    The single guard to wrap a build/download with. It is reentrant within a
+    thread — mirroring :func:`build_lock`'s ``RLock`` — so it is safe to wrap an
+    orchestrator (e.g. ``run_database_update_task``) *and* a leaf it calls
+    synchronously; only the outermost acquisition takes the cross-process
+    ``flock``, nested calls reuse it.
+
+    Yields ``True`` if the work should proceed, or ``False`` if **another
+    process** already owns the claim — the caller should then skip, because that
+    process is provisioning this database. Acquiring :func:`build_lock` first
+    means same-process builds of one DB are still serialized by the reentrant
+    lock (only the holding thread ever reaches the ``flock``), so the
+    ``flock`` arbitrates purely cross-process contention.
+    """
+    held = getattr(_held_claims, "names", None)
+    if held is None:
+        held = set()
+        _held_claims.names = held
+
+    with build_lock(db_name):
+        if db_name in held:
+            # This thread already holds the cross-process claim further up the
+            # call stack; reuse it rather than re-flock a fresh fd (self-deny).
+            yield True
+            return
+        with cross_process_build_claim(db_name, data_dir) as acquired:
+            if not acquired:
+                yield False
+                return
+            held.add(db_name)
+            try:
+                yield True
+            finally:
+                held.discard(db_name)

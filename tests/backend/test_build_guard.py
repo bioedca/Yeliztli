@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from backend.db.build_guard import (
+    build_claim,
     build_lock,
     claims_dir,
     cross_process_build_claim,
@@ -191,3 +192,55 @@ class TestCrossProcessBuildClaim:
         # the kernel must have released the flock on process death.
         with cross_process_build_claim("clinvar", tmp_path) as got:
             assert got is True
+
+
+class TestBuildClaim:
+    """The reentrant combinator wrapping build_lock + the cross-process flock.
+
+    Reentrancy (mirroring build_lock's RLock) is what makes it safe to wrap an
+    orchestrator *and* a leaf it calls synchronously: only the outermost
+    per-thread acquisition takes the flock, nested calls reuse it instead of
+    self-denying on a fresh fd.
+    """
+
+    def test_acquires_then_frees_for_other_holders(self, tmp_path: Path) -> None:
+        with build_claim("clinvar", tmp_path) as got:
+            assert got is True
+        # Released on exit → the raw flock is free again.
+        with cross_process_build_claim("clinvar", tmp_path) as raw:
+            assert raw is True
+
+    def test_reentrant_same_thread(self, tmp_path: Path) -> None:
+        with build_claim("clinvar", tmp_path) as outer:
+            assert outer is True
+            # A nested claim of the SAME db on the SAME thread reuses the hold
+            # rather than self-denying on a new fd.
+            with build_claim("clinvar", tmp_path) as inner:
+                assert inner is True
+
+    def test_blocked_when_flock_held_elsewhere(self, tmp_path: Path) -> None:
+        # A raw flock held on another description (stands in for another
+        # process) denies build_claim, which surfaces as a False yield.
+        with cross_process_build_claim("clinvar", tmp_path):
+            with build_claim("clinvar", tmp_path) as got:
+                assert got is False
+
+    def test_different_dbs_independent(self, tmp_path: Path) -> None:
+        with build_claim("clinvar", tmp_path) as a:
+            with build_claim("cpic", tmp_path) as b:
+                assert a is True
+                assert b is True
+
+    def test_download_claim_independent_of_global_build_lock(self, tmp_path: Path) -> None:
+        """The download path's per-data_dir flock must not depend on the
+        process-global, db-name-keyed build_lock.
+
+        Regression guard: a held build_lock for a DB (e.g. a slow/failing
+        build of it elsewhere) must NOT block a download claim for the same DB
+        in a different data_dir. ``_run_download``/``_run_bundle_install`` use
+        ``cross_process_build_claim`` (this flock) precisely so a stalled build
+        can't wedge an unrelated download.
+        """
+        with build_lock("clinvar"):
+            with cross_process_build_claim("clinvar", tmp_path) as got:
+                assert got is True
