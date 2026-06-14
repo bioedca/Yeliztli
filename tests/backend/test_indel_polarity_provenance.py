@@ -34,6 +34,7 @@ invert and no ``indel_polarity`` record is required.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import backend.analysis.carrier_status as carrier_mod
@@ -42,6 +43,10 @@ from backend.analysis.apol1 import load_apol1_panel
 from backend.analysis.gene_health import load_gene_health_panel
 
 _PANELS = Path(gene_health_mod.__file__).resolve().parent.parent / "data" / "panels"
+
+# A PMID is a bare digit string; the citation tooling iterates these, so the
+# convention is a list of such strings (a bare string would iterate as chars).
+_PMID_RE = re.compile(r"^\d+$")
 
 
 def _assert_canonical_polarity(prov: dict, *, where: str) -> None:
@@ -55,7 +60,27 @@ def _assert_canonical_polarity(prov: dict, *, where: str) -> None:
     assert "reference" in prov["i_token_meaning"].lower(), where
     assert prov.get("dbsnp", "").startswith("rs"), where
     assert prov.get("accessed"), where
-    assert prov.get("sources") or prov.get("pmids"), where
+    # At least one citation, AND a consistent shape across every record (#570).
+    # Before this was truthiness-only, so CFTR's bare string "2570460" slipped
+    # through and would have iterated as the characters '2','5','7',… for any
+    # consumer walking the PMIDs.
+    pmids = prov.get("pmids")
+    sources = prov.get("sources")
+    assert pmids or sources, f"{where}: must cite at least one of pmids/sources"
+    if pmids is not None:
+        assert isinstance(pmids, list) and pmids, (
+            f"{where}: pmids must be a non-empty list[str], got {pmids!r}"
+        )
+        assert all(isinstance(p, str) and _PMID_RE.match(p) for p in pmids), (
+            f"{where}: every pmid must be a numeric PMID string, got {pmids!r}"
+        )
+    if sources is not None:
+        assert isinstance(sources, list) and sources, (
+            f"{where}: sources must be a non-empty list[str], got {sources!r}"
+        )
+        assert all(isinstance(s, str) and s for s in sources), (
+            f"{where}: every source must be a non-empty string, got {sources!r}"
+        )
 
 
 def _raw_panel(name: str) -> dict:
