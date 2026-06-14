@@ -1069,17 +1069,17 @@
           "variant_name": "CAV1-CAV2 intergenic",
           "hgvs_protein": null,
           "risk_allele": "A",
-          "ref_allele": "C",
+          "ref_allele": "G",
           "genotype_effects": {
-            "CC": {
+            "GG": {
               "category": "Standard",
               "effect_summary": "No risk allele at CAV1/CAV2 locus. Standard caveolin-1 and caveolin-2 expression in the trabecular meshwork."
             },
-            "CA": {
+            "GA": {
               "category": "Moderate",
               "effect_summary": "One copy of CAV1/CAV2 risk allele. Caveolins regulate aqueous humor outflow through the trabecular meshwork. Associated with modestly increased primary open-angle glaucoma risk."
             },
-            "AC": {
+            "AG": {
               "category": "Moderate",
               "effect_summary": "One copy of CAV1/CAV2 risk allele. Caveolins regulate aqueous humor outflow through the trabecular meshwork. Associated with modestly increased primary open-angle glaucoma risk."
             },

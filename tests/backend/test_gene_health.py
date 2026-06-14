@@ -168,7 +168,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs10490924", "10", 122454932, "GT"),  # ARMS2 A69S het -> Moderate
     ("rs2230199", "19", 6669387, "CG"),  # C3 R102G het -> Moderate
     ("rs74315329", "1", 171605519, "GA"),  # MYOC Q368X het -> Elevated
-    ("rs4236601", "7", 116165018, "CA"),  # CAV1/CAV2 het -> Moderate
+    ("rs4236601", "7", 116162729, "AG"),  # CAV1/CAV2 het (real G/A) -> Moderate (#538)
     ("rs2157719", "9", 22033366, "CT"),  # CDKN2B-AS1 het (protective C minor allele) -> Standard
     ("rs80338939", "13", 20763612, "GG"),  # GJB2 35delG ref -> Standard (special)
     ("rs111033313", "7", 107683453, "GA"),  # SLC26A4 het -> Standard carrier context

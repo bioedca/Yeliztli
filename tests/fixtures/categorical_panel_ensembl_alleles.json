@@ -1,0 +1,16 @@
+{
+  "_provenance": {
+    "source": "Ensembl GRCh37 REST: https://grch37.rest.ensembl.org/variation/human/{rsid}",
+    "assembly": "GRCh37",
+    "strand": "+1 (plus). allele_string is taken from the primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT, not an MHC/haplotype contig).",
+    "accessed": "2026-06-13",
+    "purpose": "Reference plus-strand alleles for the categorical-panel strand guard (tests/backend/test_categorical_panel_strand.py). Each categorical-panel locus's curated {risk_allele, ref_allele} must be strand-consistent with these real alleles: both plus-strand or both Watson-Crick complements, never mixed. A mixed pair (e.g. rs4236601 risk=A plus + ref=C=complement-of-G) drops real heterozygous carriers in lookup_by_genotype. See issues #538 / #491.",
+    "coverage_note": "Seeded with the loci verified for #538. Bi-allelic-in-Ensembl loci additionally get a real-het-resolves check. Extend this map (one Ensembl GRCh37 lookup per rsid) to cover every categorical-panel locus; the follow-up to #538 tracks full coverage plus the multi-allelic loci (rs9273363, rs4341, rs1677693) and the inert mis-stranded rs2858884."
+  },
+  "rs4236601": {"allele_string": "G/A", "location": "7:116162729"},
+  "rs1801133": {"allele_string": "G/A/C", "location": "1:11856378"},
+  "rs7903146": {"allele_string": "C/G/T", "location": "10:114758349"},
+  "rs1061170": {"allele_string": "C/A/G/T", "location": "1:196659237"},
+  "rs4341": {"allele_string": "G/A/C/T", "location": "17:61565990"},
+  "rs1677693": {"allele_string": "G/A/T", "location": "5:79936318"}
+}
