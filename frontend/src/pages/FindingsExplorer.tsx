@@ -20,6 +20,17 @@ import {
   Baby,
   Globe,
   SearchCheck,
+  Dumbbell,
+  Moon,
+  FlaskConical,
+  Sun,
+  Flower2,
+  Fingerprint,
+  Activity,
+  Droplet,
+  Heart,
+  Bone,
+  Eye,
   type LucideIcon,
 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -35,10 +46,19 @@ import type { Finding, FindingSummaryItem } from "@/types/findings"
 interface ModuleMeta {
   label: string
   icon: LucideIcon
-  route: string
+  // The module's dedicated page route, or null when the module has no page of
+  // its own (panel-only risk modules, or any module not yet mapped). A null
+  // route renders a non-navigable label instead of a link, so a finding can
+  // never silently send the user to the Dashboard (issue #544).
+  route: string | null
   color: string
 }
 
+// One entry per module that persists findings into the unified `findings`
+// table. Page-backed modules carry their real route (verified against the
+// router in App.tsx and the sidebar nav); panel-only risk modules (no
+// dedicated page) carry route: null. Acronym labels are spelled correctly
+// (FH, eBMD, AMD, LHON, ROH) rather than auto-title-cased. (Issue #544.)
 const MODULE_META: Record<string, ModuleMeta> = {
   pharmacogenomics: {
     label: "Pharmacogenomics",
@@ -64,6 +84,24 @@ const MODULE_META: Record<string, ModuleMeta> = {
     route: "/cardiovascular",
     color: "text-rose-600 dark:text-rose-400",
   },
+  metabolic: {
+    label: "Metabolic",
+    icon: Droplet,
+    route: "/metabolic",
+    color: "text-cyan-600 dark:text-cyan-400",
+  },
+  fh: {
+    label: "FH",
+    icon: Heart,
+    route: "/fh",
+    color: "text-rose-600 dark:text-rose-400",
+  },
+  ebmd: {
+    label: "eBMD",
+    icon: Bone,
+    route: "/ebmd",
+    color: "text-stone-600 dark:text-stone-400",
+  },
   apoe: {
     label: "APOE",
     icon: Brain,
@@ -75,6 +113,48 @@ const MODULE_META: Record<string, ModuleMeta> = {
     icon: Baby,
     route: "/carrier-status",
     color: "text-pink-600 dark:text-pink-400",
+  },
+  fitness: {
+    label: "Fitness",
+    icon: Dumbbell,
+    route: "/fitness",
+    color: "text-lime-600 dark:text-lime-400",
+  },
+  sleep: {
+    label: "Sleep",
+    icon: Moon,
+    route: "/sleep",
+    color: "text-indigo-600 dark:text-indigo-400",
+  },
+  methylation: {
+    label: "Methylation",
+    icon: FlaskConical,
+    route: "/methylation",
+    color: "text-teal-600 dark:text-teal-400",
+  },
+  skin: {
+    label: "Skin",
+    icon: Sun,
+    route: "/skin",
+    color: "text-orange-600 dark:text-orange-400",
+  },
+  allergy: {
+    label: "Allergy",
+    icon: Flower2,
+    route: "/allergy",
+    color: "text-fuchsia-600 dark:text-fuchsia-400",
+  },
+  traits: {
+    label: "Traits",
+    icon: Fingerprint,
+    route: "/traits",
+    color: "text-purple-600 dark:text-purple-400",
+  },
+  gene_health: {
+    label: "Gene Health",
+    icon: Activity,
+    route: "/gene-health",
+    color: "text-emerald-600 dark:text-emerald-400",
   },
   ancestry: {
     label: "Ancestry",
@@ -88,6 +168,49 @@ const MODULE_META: Record<string, ModuleMeta> = {
     route: "/rare-variants",
     color: "text-orange-600 dark:text-orange-400",
   },
+  // Panel-only risk modules — no dedicated page, so non-navigable (route: null).
+  amd: {
+    label: "AMD",
+    icon: Eye,
+    route: null,
+    color: "text-yellow-600 dark:text-yellow-400",
+  },
+  lhon: {
+    label: "LHON",
+    icon: Eye,
+    route: null,
+    color: "text-amber-600 dark:text-amber-400",
+  },
+  parkinsons: {
+    label: "Parkinson's",
+    icon: Brain,
+    route: null,
+    color: "text-slate-600 dark:text-slate-400",
+  },
+  gout: {
+    label: "Gout",
+    icon: Droplet,
+    route: null,
+    color: "text-red-600 dark:text-red-400",
+  },
+  hemochromatosis: {
+    label: "Hemochromatosis",
+    icon: Droplet,
+    route: null,
+    color: "text-amber-700 dark:text-amber-500",
+  },
+  thrombophilia: {
+    label: "Thrombophilia",
+    icon: Droplet,
+    route: null,
+    color: "text-rose-600 dark:text-rose-400",
+  },
+  roh: {
+    label: "ROH",
+    icon: Globe,
+    route: null,
+    color: "text-blue-600 dark:text-blue-400",
+  },
 }
 
 function getModuleMeta(module: string): ModuleMeta {
@@ -95,7 +218,9 @@ function getModuleMeta(module: string): ModuleMeta {
     MODULE_META[module] ?? {
       label: module.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
       icon: ClipboardList,
-      route: "/",
+      // Unknown module → no known page; render a non-navigable label rather
+      // than a link that silently lands on the Dashboard ("/").
+      route: null,
       color: "text-muted-foreground",
     }
   )
@@ -159,9 +284,11 @@ function FindingRow({ finding }: { finding: Finding }) {
   const Icon = meta.icon
   const [searchParams] = useSearchParams()
   const sampleParam = searchParams.get("sample_id")
-  const moduleLink = sampleParam
-    ? `${meta.route}?sample_id=${sampleParam}`
-    : meta.route
+  const moduleLink = meta.route
+    ? sampleParam
+      ? `${meta.route}?sample_id=${sampleParam}`
+      : meta.route
+    : null
 
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -189,13 +316,25 @@ function FindingRow({ finding }: { finding: Finding }) {
           <span className="text-xs text-muted-foreground">
             {evidenceLabel(finding.evidence_level)}
           </span>
-          <Link
-            to={moduleLink}
-            className={`flex items-center gap-1 text-xs font-medium ${meta.color} hover:underline`}
-          >
-            <Icon className="h-3 w-3" />
-            {meta.label}
-          </Link>
+          {moduleLink ? (
+            <Link
+              to={moduleLink}
+              aria-label={`View ${meta.label} module`}
+              className={`flex items-center gap-1 text-xs font-medium ${meta.color} hover:underline`}
+            >
+              <Icon className="h-3 w-3" />
+              {meta.label}
+            </Link>
+          ) : (
+            // No dedicated page for this module — show the label without a link
+            // rather than navigate to the Dashboard (issue #544).
+            <span
+              className={`flex items-center gap-1 text-xs font-medium ${meta.color}`}
+            >
+              <Icon className="h-3 w-3" />
+              {meta.label}
+            </span>
+          )}
         </div>
 
         <p className="mt-1 text-sm font-medium text-foreground leading-snug">
