@@ -35,7 +35,6 @@ class LAIResult:
     global_ancestry: dict[str, dict]
     chromosome_painting: dict[str, list[dict]]
     metadata: dict
-    is_available: bool = True
 
 
 def is_lai_available() -> bool:
