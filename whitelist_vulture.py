@@ -18,7 +18,7 @@
 # `download_constraint` in backend/annotation/gnomad_constraint.py (the
 # pre-bundle TSV ingest path, no callers). Auditing this baseline down — removing
 # the real dead code, keeping only framework false positives — and then flipping
-# the CI step from advisory to blocking is deferred follow-up work.
+# the CI step from advisory to blocking is deferred follow-up work (see #691).
 
 ref_freq  # unused variable (backend/analysis/ancestry.py:167)
 EBMD_PMIDS  # unused variable (backend/analysis/ebmd_prs.py:33)
