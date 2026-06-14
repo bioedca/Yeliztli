@@ -32,6 +32,9 @@ export default function VariantDetailPanel({
   const isHBBSickleTrait =
     variant.gene_symbol.toUpperCase() === "HBB" && variant.rsid.trim().toLowerCase() === "rs334"
   const usesPersonalRiskStyle = shouldMentionCancerModule || isADOnly || isHBBSickleTrait
+  // Keep the panel's accessible name inheritance-aware too: a dominant-risk gene
+  // (BRCA1/2) is not announced as a "carrier" — consistent with VariantCard. (#540)
+  const isDominant = variant.inheritance === "AD"
 
   return (
     <aside
@@ -40,7 +43,7 @@ export default function VariantDetailPanel({
         "overflow-y-auto border-l bg-background shadow-xl",
         "animate-in slide-in-from-right duration-200",
       )}
-      aria-label={`${variant.gene_symbol} carrier variant detail`}
+      aria-label={`${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`}
       data-testid="carrier-detail-panel"
     >
       <div className="p-6">

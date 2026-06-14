@@ -117,5 +117,14 @@ test.describe('Carrier Status does not apply recessive-carrier framing to AD gen
     const brca2Label = await brca2Card.getAttribute('aria-label')
     expect(brca2Label).not.toMatch(/carrier/i)
     expect(brca2Label).toMatch(/heterozygous variant/i)
+
+    // Clicking the AD card opens the slide-in detail panel — its accessible name
+    // must also avoid "carrier" framing for a dominant-risk gene.
+    await brca2Card.click()
+    const detailPanel = page.getByTestId('carrier-detail-panel')
+    await expect(detailPanel).toBeVisible()
+    const detailLabel = await detailPanel.getAttribute('aria-label')
+    expect(detailLabel).not.toMatch(/carrier/i)
+    expect(detailLabel).toMatch(/BRCA2 variant detail/i)
   })
 })

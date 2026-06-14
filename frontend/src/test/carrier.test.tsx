@@ -158,6 +158,23 @@ describe("Carrier VariantDetailPanel", () => {
     expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
     expect(screen.getByText(/sickle-cell trait/i)).toBeInTheDocument()
   })
+
+  it("keeps 'carrier variant detail' accessible name for AR genes (CFTR)", () => {
+    render(
+      <VariantDetailPanel variant={CFTR_VARIANT} sampleId={1} geneNote={undefined} onClose={vi.fn()} />,
+    )
+    const panel = screen.getByTestId("carrier-detail-panel")
+    expect(panel.getAttribute("aria-label")).toMatch(/CFTR carrier variant detail/i)
+  })
+
+  it("drops 'carrier' from the accessible name for AD genes (BRCA1)", () => {
+    render(
+      <VariantDetailPanel variant={BRCA1_VARIANT} sampleId={1} geneNote={undefined} onClose={vi.fn()} />,
+    )
+    const panel = screen.getByTestId("carrier-detail-panel")
+    expect(panel.getAttribute("aria-label")).not.toMatch(/carrier/i)
+    expect(panel.getAttribute("aria-label")).toMatch(/BRCA1 variant detail/i)
+  })
 })
 
 describe("Carrier VariantCard genotype-line label (#540)", () => {
