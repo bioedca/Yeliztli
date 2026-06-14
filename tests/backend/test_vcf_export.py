@@ -15,7 +15,7 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from backend.ingestion.vcf_export import (
-    _genotype_to_vcf_fields,
+    _resolve_vcf_fields,
     export_vcf_from_engine,
     export_vcf_from_rows,
 )
@@ -78,7 +78,9 @@ class TestVCFHeaders:
     def test_ref_alt_limitation_note(self) -> None:
         vcf = export_vcf_from_rows([], file_date=FIXED_DATE)
         assert "##Yeliztli_note=" in vcf
-        assert "inferred from genotype" in vcf
+        # The note documents reference-alignment and the honest REF=N fallback.
+        assert "reference-aligned" in vcf
+        assert "REF=N" in vcf
 
     def test_contig_lines_present(self) -> None:
         vcf = export_vcf_from_rows([], file_date=FIXED_DATE)
@@ -123,7 +125,9 @@ class TestVCFHeaders:
 class TestVCFDataLines:
     """T1-09: VCF export produces valid VCF 4.2 data lines."""
 
-    def test_homozygous_call(self) -> None:
+    def test_homozygous_call_without_reference_uses_honest_fallback(self) -> None:
+        """With no annotation-resolved ref/alt, a homozygous observed call must
+        NOT claim reference-genome 0/0; emit REF=N, observed base as ALT, GT=1/1."""
         rows = [("rs100", "1", 1000, "AA")]
         vcf = export_vcf_from_rows(rows, file_date=FIXED_DATE)
         data = _get_data_lines(vcf)
@@ -132,32 +136,32 @@ class TestVCFDataLines:
         assert fields[0] == "1"  # CHROM
         assert fields[1] == "1000"  # POS
         assert fields[2] == "rs100"  # ID
-        assert fields[3] == "A"  # REF
-        assert fields[4] == "."  # ALT (hom → no alt)
+        assert fields[3] == "N"  # REF unknown — never a fabricated reference base
+        assert fields[4] == "A"  # ALT = observed base
         assert fields[5] == "."  # QUAL
         assert fields[6] == "PASS"  # FILTER
         assert fields[7] == "."  # INFO
         assert fields[8] == "GT"  # FORMAT
-        assert fields[9] == "0/0"  # GT value
+        assert fields[9] == "1/1"  # homozygous observed vs unknown reference
 
-    def test_heterozygous_call(self) -> None:
+    def test_heterozygous_call_without_reference_uses_honest_fallback(self) -> None:
         rows = [("rs200", "2", 2000, "AG")]
         vcf = export_vcf_from_rows(rows, file_date=FIXED_DATE)
         data = _get_data_lines(vcf)
         fields = data[0].split("\t")
-        assert fields[3] == "A"  # REF = first allele
-        assert fields[4] == "G"  # ALT = second allele
-        assert fields[9] == "0/1"  # het GT
+        assert fields[3] == "N"  # REF unknown
+        assert fields[4] == "A,G"  # both observed bases as distinct ALTs
+        assert fields[9] == "1/2"  # heterozygous observed, neither asserted as REF
 
-    def test_haploid_call(self) -> None:
+    def test_haploid_call_without_reference_uses_honest_fallback(self) -> None:
         """Y/MT chromosomes may have single-character genotypes."""
         rows = [("rs300", "Y", 5000, "T")]
         vcf = export_vcf_from_rows(rows, file_date=FIXED_DATE)
         data = _get_data_lines(vcf)
         fields = data[0].split("\t")
-        assert fields[3] == "T"  # REF
-        assert fields[4] == "."  # ALT
-        assert fields[9] == "0"  # haploid GT
+        assert fields[3] == "N"  # REF unknown
+        assert fields[4] == "T"  # ALT = observed base
+        assert fields[9] == "1"  # haploid GT
 
     def test_nocalls_skipped_by_default(self) -> None:
         rows = [
@@ -215,38 +219,79 @@ class TestVCFDataLines:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Genotype conversion unit tests
+# #560: reference-aligned REF/ALT/GT when annotation resolved the locus
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestReferenceAlignedFields:
+    """#560 (same class as #471): VCF GT is allele-indexed against REF/ALT, so a
+    SNP-array call must be placed against the reference. When the export route
+    supplies the annotation-resolved ref/alt + zygosity, the record is emitted
+    reference-aligned — a true homozygous-alternate call must be GT=1/1, never the
+    false 0/0 the old genotype-inference produced.
+    """
+
+    def test_hom_alt_is_not_written_as_hom_ref(self) -> None:
+        """The core bug: a true hom-alt call must be 1/1, not 0/0."""
+        assert _resolve_vcf_fields("TT", "C", "T", "hom_alt") == ("C", "T", "1/1")
+
+    def test_hom_ref_is_zero_zero(self) -> None:
+        assert _resolve_vcf_fields("CC", "C", "T", "hom_ref") == ("C", "T", "0/0")
+
+    def test_het_uses_reference_ref_alt_not_string_order(self) -> None:
+        """REF/ALT follow the annotation (C/T), not the observed allele-string
+        order, and GT is 0/1."""
+        assert _resolve_vcf_fields("TC", "C", "T", "het") == ("C", "T", "0/1")
+
+    def test_haploid_hom_alt_is_one(self) -> None:
+        assert _resolve_vcf_fields("T", "C", "T", "hom_alt") == ("C", "T", "1")
+
+    def test_end_to_end_hom_alt_row_reference_aligned(self) -> None:
+        """A 7-element row (rsid, chrom, pos, gt, ref, alt, zygosity) is emitted
+        reference-aligned through export_vcf_from_rows."""
+        rows = [("rs1", "1", 100, "TT", "C", "T", "hom_alt")]
+        vcf = export_vcf_from_rows(rows, file_date=FIXED_DATE)
+        fields = _get_data_lines(vcf)[0].split("\t")
+        assert (fields[3], fields[4], fields[9]) == ("C", "T", "1/1")
+
+    def test_unresolved_zygosity_falls_back_to_ref_n(self) -> None:
+        """ref/alt present but zygosity unresolved → honest REF=N fallback, not 0/0."""
+        assert _resolve_vcf_fields("CC", "C", "T", None) == ("N", "C", "1/1")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Genotype conversion unit tests (honest REF=N fallback, no reference)
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestGenotypeConversion:
     def test_nocall_returns_none(self) -> None:
-        assert _genotype_to_vcf_fields("--") is None
+        assert _resolve_vcf_fields("--") is None
 
     def test_empty_returns_none(self) -> None:
-        assert _genotype_to_vcf_fields("") is None
+        assert _resolve_vcf_fields("") is None
 
-    def test_homozygous(self) -> None:
-        assert _genotype_to_vcf_fields("CC") == ("C", ".", "0/0")
+    def test_homozygous_fallback(self) -> None:
+        assert _resolve_vcf_fields("CC") == ("N", "C", "1/1")
 
-    def test_heterozygous(self) -> None:
-        assert _genotype_to_vcf_fields("CT") == ("C", "T", "0/1")
+    def test_heterozygous_fallback(self) -> None:
+        assert _resolve_vcf_fields("CT") == ("N", "C,T", "1/2")
 
-    def test_haploid(self) -> None:
-        assert _genotype_to_vcf_fields("A") == ("A", ".", "0")
+    def test_haploid_fallback(self) -> None:
+        assert _resolve_vcf_fields("A") == ("N", "A", "1")
 
     def test_indel_di_returns_none(self) -> None:
         """23andMe v3 D/I indel codes are not valid nucleotides."""
-        assert _genotype_to_vcf_fields("DI") is None
+        assert _resolve_vcf_fields("DI") is None
 
     def test_indel_dd_returns_none(self) -> None:
-        assert _genotype_to_vcf_fields("DD") is None
+        assert _resolve_vcf_fields("DD") is None
 
     def test_indel_ii_returns_none(self) -> None:
-        assert _genotype_to_vcf_fields("II") is None
+        assert _resolve_vcf_fields("II") is None
 
     def test_single_d_returns_none(self) -> None:
-        assert _genotype_to_vcf_fields("D") is None
+        assert _resolve_vcf_fields("D") is None
 
     def test_indel_rows_skipped_in_export(self) -> None:
         """D/I genotype rows should be skipped like no-calls."""

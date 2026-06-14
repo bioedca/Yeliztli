@@ -282,27 +282,26 @@ class TestExportQueryVCF:
             cols = ln.split("\t")
             assert len(cols) == 10, f"VCF data line is not 10 columns: {ln!r}"
             chrom, pos, vid, ref, alt, _qual, _filt, _info, fmt, gt = cols
-            # FORMAT declares GT; the sample column carries a GT encoding.
+            # FORMAT declares GT; the sample column carries a valid GT encoding.
             assert fmt == "GT", f"FORMAT column must be GT: {ln!r}"
-            assert gt in {"0/0", "0/1", "0"}, f"unexpected GT encoding: {gt!r}"
-            # REF is always a concrete base; ALT is '.' only for hom/haploid calls.
-            assert ref in {"A", "C", "G", "T"}, f"REF not a base: {ref!r}"
-            if gt == "0/1":
-                assert alt in {"A", "C", "G", "T"}, f"het ALT not a base: {alt!r}"
-                assert ref != alt, f"het REF == ALT: {ln!r}"
-            else:
-                assert alt == ".", f"non-het ALT must be '.': {ln!r}"
+            assert gt in {"0/0", "0/1", "1/1", "0", "1", "1/2", "./."}, (
+                f"unexpected GT encoding: {gt!r}"
+            )
             rows[vid] = (chrom, pos, ref, alt, gt)
 
         # No variant silently dropped.
         assert set(rows) == {"rs429358", "rs80357906", "rs1801133"}
-        # REF/ALT/GT are inferred from the genotype call (per the VCF note), so a
-        # swapped REF↔ALT or mis-encoded GT is caught here.
-        assert rows["rs429358"][2:] == ("T", "C", "0/1")  # genotype "TC"
-        assert rows["rs1801133"][2:] == ("A", "G", "0/1")  # genotype "AG"
-        # rs80357906's genotype is "TC" → alleles come from the CALL (T/C), not
-        # the annotated indel ref/alt (CTC/C); lock that documented behavior.
-        assert rows["rs80357906"][2:] == ("T", "C", "0/1")
+        # #560: REF/ALT/GT are REFERENCE-ALIGNED from the annotation-resolved
+        # ref/alt + zygosity, NOT inferred from the raw genotype call. GT is
+        # allele-indexed against REF (0=REF), so a swapped REF↔ALT or mis-encoded
+        # GT is caught here.
+        assert rows["rs429358"][2:] == ("T", "C", "0/1")  # ref=T alt=C, het
+        # rs1801133: annotation ref=G alt=A — REF/ALT follow the reference, NOT
+        # the raw call's "AG" string order (which previously gave a wrong A/G).
+        assert rows["rs1801133"][2:] == ("G", "A", "0/1")
+        # rs80357906: a frameshift indel — emit the annotated indel ref/alt
+        # (CTC/C), not the call-inferred single bases (the old T/C bug).
+        assert rows["rs80357906"][2:] == ("CTC", "C", "0/1")
         # CHROM/POS round-trip for one variant.
         assert rows["rs429358"][:2] == ("19", "44908684")
 

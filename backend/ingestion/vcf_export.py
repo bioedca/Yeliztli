@@ -1,10 +1,19 @@
-"""VCF 4.2 export from raw_variants table.
+"""VCF 4.2 export.
 
-Converts 23andMe-format genotype data into a valid VCF 4.2 file.
-Since 23andMe raw data does not include REF/ALT alleles, homozygous
-calls use the observed allele as REF with ALT='.', and heterozygous
-calls assign the first allele as REF and the second as ALT.
-No-call genotypes ('--') are skipped by default.
+VCF genotype (``GT``) fields are allele-indexed against ``REF``/``ALT`` (``0`` =
+REF), so a SNP-array call can only be represented correctly once its observed
+alleles are placed against the genome reference. When a caller supplies the
+annotation-resolved ``ref``/``alt`` and a strand-aware ``zygosity``
+(``hom_ref``/``het``/``hom_alt`` from :func:`backend.analysis.zygosity.classify_zygosity`),
+each record is emitted reference-aligned, so a true homozygous-alternate call
+shows ``GT=1/1`` (never a false ``0/0``) and the heterozygous ``REF``/``ALT``
+follow biology rather than raw allele-string order.
+
+When the reference allele is unresolved (no annotation, or no source-supplied
+allele identity), the export does **not** fabricate a reference-genome ``0/0``:
+``REF`` is set to ``N`` and the observed bases are emitted as ``ALT``, so
+alternate-allele carriage is never hidden. No-call genotypes ('--') are skipped
+by default.
 
 Reference: VCF 4.2 specification
   https://samtools.github.io/hts-specs/VCFv4.2.pdf
@@ -13,13 +22,14 @@ Reference: VCF 4.2 specification
 from __future__ import annotations
 
 import io
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date
 from pathlib import Path
 from typing import TextIO
 
 import sqlalchemy as sa
 
+from backend.analysis.zygosity import ZYG_HET, ZYG_HOM_ALT, ZYG_HOM_REF
 from backend.db.tables import raw_variants
 from backend.ingestion.chrom_order import CHROM_ORDER as _CHROM_ORDER
 
@@ -59,37 +69,62 @@ def _chrom_sort_key(chrom: str) -> int:
     return _CHROM_ORDER.get(chrom, 99)
 
 
-def _genotype_to_vcf_fields(
-    genotype: str,
+def _resolve_vcf_fields(
+    genotype: str | None,
+    ref: str | None = None,
+    alt: str | None = None,
+    zygosity: str | None = None,
 ) -> tuple[str, str, str] | None:
-    """Convert a 23andMe genotype string to (REF, ALT, GT).
+    """Resolve VCF ``(REF, ALT, GT)`` for one variant.
 
-    Returns ``None`` for no-call genotypes ('--'), empty strings, and
-    genotypes containing non-nucleotide characters (D/I indel codes from
-    23andMe v3).
+    Returns ``None`` for no-call genotypes ('--'), empty strings, and genotypes
+    with no nucleotide bases (e.g. D/I indel codes from 23andMe v3), so the
+    caller can skip them.
 
-    For single-character genotypes (haploid, e.g. Y/MT), the GT field
-    uses haploid notation (e.g. '0').
+    Reference-aligned path — when ``ref``/``alt`` are present and ``zygosity`` is
+    one of ``hom_ref``/``het``/``hom_alt`` (resolved by ``classify_zygosity``
+    against the plus-strand reference) — emit a standard reference-aligned record
+    so a homozygous-alternate call is ``GT=1/1`` (never a false ``0/0``) and the
+    heterozygous ``REF``/``ALT`` follow biology, not raw allele-string order.
+
+    Honest fallback — when the reference allele is unresolved — set ``REF=N`` and
+    emit every distinct observed base as an ``ALT``, never claiming an observed
+    allele is the reference. Haploid calls (Y/MT) use haploid ``GT`` notation.
     """
     if not genotype or genotype == "--":
         return None
-
-    # Reject non-nucleotide characters (e.g. D/I indel codes).
-    if not all(c in _VALID_BASES for c in genotype):
+    gt = genotype.strip().upper()
+    if not gt:
         return None
+    haploid = len(gt) == 1
 
-    if len(genotype) == 1:
-        # Haploid call (Y chromosome, MT).
-        return genotype, ".", "0"
+    # Reference-aligned path: trust the annotation-resolved ref/alt + zygosity.
+    if ref and alt and zygosity in (ZYG_HOM_REF, ZYG_HET, ZYG_HOM_ALT):
+        if zygosity == ZYG_HOM_REF:
+            gt_field = "0" if haploid else "0/0"
+        elif zygosity == ZYG_HOM_ALT:
+            gt_field = "1" if haploid else "1/1"
+        else:  # het — always diploid (one ref, one alt)
+            gt_field = "0/1"
+        return ref, alt, gt_field
 
-    allele1, allele2 = genotype[0], genotype[1]
-
-    if allele1 == allele2:
-        # Homozygous — observed allele is REF, no ALT.
-        return allele1, ".", "0/0"
-
-    # Heterozygous — first allele as REF, second as ALT.
-    return allele1, allele2, "0/1"
+    # Honest fallback: reference base unknown. Emit observed bases as ALT against
+    # REF=N; never claim a reference-genome 0/0. Non-nucleotide calls (indel
+    # codes) have no observed bases → skipped.
+    observed: list[str] = []
+    for base in gt:
+        if base in _VALID_BASES and base not in observed:
+            observed.append(base)
+    if not observed:
+        return None
+    alt_field = ",".join(observed)
+    if haploid:
+        gt_field = "1"
+    elif len(observed) == 1:
+        gt_field = "1/1"  # homozygous observed (e.g. CC) vs unknown reference
+    else:
+        gt_field = "1/2"  # heterozygous observed (e.g. AG) — two distinct ALTs
+    return "N", alt_field, gt_field
 
 
 def _build_header_lines(
@@ -111,9 +146,10 @@ def _build_header_lines(
         f"##source={_SOURCE}",
         f"##reference={_REFERENCE}",
         (
-            "##Yeliztli_note=REF/ALT alleles are inferred from genotype "
-            "calls, not from a reference genome. Heterozygous REF/ALT "
-            "assignment may not match the true reference allele."
+            "##Yeliztli_note=REF/ALT/GT are reference-aligned (GT indexed against "
+            "the annotation-resolved reference allele) when annotation resolved "
+            "the locus. Where the reference allele is unresolved, REF=N and the "
+            "observed bases are emitted as ALT — never a fabricated reference 0/0."
         ),
         '##FILTER=<ID=PASS,Description="All filters passed">',
         '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
@@ -137,15 +173,33 @@ def _build_header_lines(
 
 
 class _VariantRow:
-    """Lightweight container for a variant to be exported."""
+    """Lightweight container for a variant to be exported.
 
-    __slots__ = ("rsid", "chrom", "pos", "genotype")
+    ``ref``/``alt``/``zygosity`` are the annotation-resolved, reference-aligned
+    fields (from ``annotated_variants``); they are ``None`` when the caller only
+    has the raw genotype, in which case the export uses the honest ``REF=N``
+    fallback rather than inferring REF/ALT from the genotype string.
+    """
 
-    def __init__(self, rsid: str, chrom: str, pos: int, genotype: str) -> None:
+    __slots__ = ("rsid", "chrom", "pos", "genotype", "ref", "alt", "zygosity")
+
+    def __init__(
+        self,
+        rsid: str,
+        chrom: str,
+        pos: int,
+        genotype: str,
+        ref: str | None = None,
+        alt: str | None = None,
+        zygosity: str | None = None,
+    ) -> None:
         self.rsid = rsid
         self.chrom = chrom
         self.pos = pos
         self.genotype = genotype
+        self.ref = ref
+        self.alt = alt
+        self.zygosity = zygosity
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +208,7 @@ class _VariantRow:
 
 
 def export_vcf_from_rows(
-    variants: Iterable[tuple[str, str, int, str]],
+    variants: Iterable[Sequence],
     dest: str | Path | TextIO | None = None,
     *,
     sample_name: str = "SAMPLE",
@@ -166,9 +220,13 @@ def export_vcf_from_rows(
     Parameters
     ----------
     variants:
-        Iterable of ``(rsid, chrom, pos, genotype)`` tuples. Must already
-        be sorted by (chrom, pos) in canonical order, or will be sorted
-        internally.
+        Iterable of per-variant sequences. The first four elements are
+        ``(rsid, chrom, pos, genotype)``. Optional trailing elements supply the
+        annotation-resolved, reference-aligned fields ``(ref, alt, zygosity)``;
+        when present, the record is emitted reference-aligned (``GT`` indexed
+        against ``ref``). When absent (a 4-element row), the export uses the
+        honest ``REF=N`` fallback rather than inferring REF/ALT from the genotype
+        string. Rows are sorted by (chrom, pos) in canonical order internally.
     dest:
         Destination — a file path (str/Path), a writable text stream, or
         ``None`` to return the VCF content as a string.
@@ -185,8 +243,20 @@ def export_vcf_from_rows(
         The VCF content as a string. If *dest* is a file path, the string
         is also written to that file.
     """
-    # Materialise and sort.
-    rows = [_VariantRow(rsid, chrom, pos, gt) for rsid, chrom, pos, gt in variants]
+    # Materialise and sort. Rows are length-4 (rsid, chrom, pos, genotype) or
+    # length-7 with trailing (ref, alt, zygosity).
+    rows = [
+        _VariantRow(
+            v[0],
+            v[1],
+            v[2],
+            v[3],
+            v[4] if len(v) > 4 else None,
+            v[5] if len(v) > 5 else None,
+            v[6] if len(v) > 6 else None,
+        )
+        for v in variants
+    ]
     rows.sort(key=lambda r: (_chrom_sort_key(r.chrom), r.pos))
 
     header_lines = _build_header_lines(sample_name=sample_name, file_date=file_date)
@@ -197,7 +267,7 @@ def export_vcf_from_rows(
         buf.write("\n")
 
     for row in rows:
-        fields = _genotype_to_vcf_fields(row.genotype)
+        fields = _resolve_vcf_fields(row.genotype, row.ref, row.alt, row.zygosity)
         if fields is None:
             if skip_nocalls:
                 continue
