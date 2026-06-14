@@ -637,10 +637,18 @@ class TestHLAProxy:
         assert "protective" in note
 
     def test_hla_all_genotypes_standard(self, panel_data: dict) -> None:
-        """No genotype yields a narcolepsy risk call — all map to Standard."""
+        """No genotype yields a narcolepsy risk call — all map to Standard.
+
+        Keyed on the real Ensembl GRCh37 plus-strand A/C alleles; #608 re-keyed this
+        from the mis-stranded C/T frame (``T`` is not a real allele here, it was the
+        complement of the real ``A``).
+        """
         hla = self._get_hla(panel_data)
-        for genotype in ("CC", "CT", "TC", "TT"):
-            assert hla["genotype_effects"][genotype]["category"] == "Standard"
+        effects = hla["genotype_effects"]
+        # Real plus-strand frame is A/C — there must be no T-bearing keys.
+        assert set(effects) == {"CC", "CA", "AC", "AA"}
+        for genotype in effects:
+            assert effects[genotype]["category"] == "Standard"
 
     def test_hla_no_risk_allele(self, panel_data: dict) -> None:
         """No risk allele is asserted for this informational marker."""
