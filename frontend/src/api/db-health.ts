@@ -120,6 +120,26 @@ const ACTIVE_STATES: ReadonlySet<DatabaseHealthState> = new Set([
 ])
 
 /**
+ * Whether a database is mid-flight (downloading/building, or with an active
+ * job linked) — i.e. some process is already provisioning it. The Update
+ * Manager uses this as the single source of truth to keep the "Update now"
+ * control from racing an in-progress download/build (a wizard download, an
+ * auto-update, or a manual update already running).
+ */
+export function isDatabaseBusy(health: DatabaseHealth | undefined): boolean {
+  return (
+    !!health && (ACTIVE_STATES.has(health.state) || health.active_job_id != null)
+  )
+}
+
+/** A short human label for an active database state (for a disabled control). */
+export function busyLabel(health: DatabaseHealth | undefined): string {
+  if (health?.state === 'downloading') return 'Downloading…'
+  if (health?.state === 'building') return 'Building…'
+  return 'In progress…'
+}
+
+/**
  * Fetch fused health for all reference databases. Polls every 3s while any
  * database is actively downloading/building so progress stays live, then
  * settles to on-demand once everything reaches a terminal state.

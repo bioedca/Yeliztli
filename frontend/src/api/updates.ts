@@ -283,12 +283,18 @@ async function fetchAppUpdate(): Promise<AppUpdateInfo> {
 
 // ── Hooks ────────────────────────────────────────────────────────────
 
-/** Fetch per-DB version stamps and auto-update status. staleTime=1h. */
+/** Fetch per-DB version stamps and auto-update status.
+ *
+ * staleTime is short (30s): the previous 1-hour cache let the Update Manager
+ * keep showing a stale version/"update available" long after a download/build
+ * changed it. The Update Manager also invalidates DB_STATUS_KEY when a DB's
+ * health transitions out of an active state, so the stamp refreshes promptly
+ * once a build/download finishes. */
 export function useDatabaseStatuses() {
   return useQuery({
     queryKey: DB_STATUS_KEY,
     queryFn: fetchDatabaseStatuses,
-    staleTime: 60 * 60 * 1000, // 1 hour
+    staleTime: 30 * 1000, // 30 seconds
   })
 }
 
