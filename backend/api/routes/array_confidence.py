@@ -63,6 +63,12 @@ def list_array_confidence(
     is always ``False`` and reliability is one of ``high`` / ``moderate`` /
     ``low`` / ``unknown`` (never ``very_low``), or ``locus_low`` for a finding at
     a locus-specific array weak spot (#636) regardless of its frequency.
+
+    For a ``locus_low`` finding, ``locus_low_reliability`` is ``True`` and
+    ``frequency_band`` records the band the variant's allele frequency alone would
+    have produced (e.g. ``high`` for the common APOE ε-SNPs), so the override is
+    transparent; for every other finding ``locus_low_reliability`` is ``False``
+    and ``frequency_band`` is ``null``.
     """
     engine = resolve_sample_engine(sample_id)
     return [ArrayConfidenceResponse(**item) for item in assess_pathogenic_findings(engine)]
