@@ -132,13 +132,6 @@ class TraitsPanel:
         """Return all individual SNP rsids in the panel."""
         return [snp.rsid for pathway in self.pathways for snp in pathway.snps]
 
-    def all_prs_rsids(self) -> list[str]:
-        """Return all PRS weight set rsids."""
-        rsids: list[str] = []
-        for ws in self.prs_weight_sets:
-            for w in ws.get("weights", []):
-                rsids.append(w["rsid"])
-        return rsids
 
 
 @dataclass
@@ -166,7 +159,6 @@ class PathwayResult:
 
     pathway_id: str
     pathway_name: str
-    pathway_description: str
     level: str  # Elevated / Moderate / Standard
     prs_primary: bool = False
     snp_results: list[SNPResult] = field(default_factory=list)
@@ -638,7 +630,6 @@ def score_traits_pathways(
             PathwayResult(
                 pathway_id=pathway.id,
                 pathway_name=pathway.name,
-                pathway_description=pathway.description,
                 level=level,
                 prs_primary=pathway.prs_primary,
                 snp_results=snp_results,
