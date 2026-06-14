@@ -184,3 +184,31 @@ class TestBadge:
         assert payload["alphamissense_badge"]["predictor"] == "AlphaMissense"
         assert payload["alphamissense_badge"]["context_only"] is True
         assert payload["alphamissense_badge"]["acmg_vote"] is False
+
+
+class TestDownloadAlphaMissenseResume:
+    """download_alphamissense wires cross-run resume + validator sidecar (#756)."""
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dl_dir = tmp_path / "dl"
+        dl_dir.mkdir()
+        tmp_file = dl_dir / "AlphaMissense_hg19.tsv.gz.tmp"
+        sidecar = dl_dir / "AlphaMissense_hg19.tsv.gz.tmp.validator"
+        tmp_file.write_bytes(b"partial")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+        captured: dict = {}
+
+        def fake(url, tmp_path_arg, **kwargs):
+            captured.update(kwargs)
+            tmp_path_arg.write_bytes(b"done")
+
+        monkeypatch.setattr("backend.annotation.alphamissense.stream_download", fake)
+        dest = am.download_alphamissense(dl_dir)
+
+        assert dest.read_bytes() == b"done"
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        assert not sidecar.exists()  # cleared on success

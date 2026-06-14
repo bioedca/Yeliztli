@@ -32,7 +32,12 @@ import sqlalchemy as sa
 import structlog
 
 from backend.annotation.bulk_load import bulk_write_connection, execute_write, insert_batch
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -252,10 +257,19 @@ def download_alphamissense(
     dest_path = dest_dir / "AlphaMissense_hg19.tsv.gz"
     tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
     logger.info("alphamissense_download_start", url=url)
+    # Already resumable; add validator-sidecar persistence so a cross-run resume
+    # validates the partial (If-Range) instead of risking a stale splice.
     stream_download(
-        url, tmp_path, progress_callback=progress_callback, timeout=timeout, resumable=True
+        url,
+        tmp_path,
+        progress_callback=progress_callback,
+        timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
     tmp_path.rename(dest_path)
+    clear_validator_sidecar(tmp_path)
     return dest_path
 
 

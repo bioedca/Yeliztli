@@ -903,8 +903,10 @@ class TestDownloadGwasCatalog:
         # ZIP should be cleaned up
         assert not (tmp_path / "gwas_catalog_associations.zip").exists()
 
-    def test_download_cleanup_on_failure(self, tmp_path: Path):
-        """A download error propagates and leaves no partial .tmp."""
+    def test_download_preserves_partial_for_resume(self, tmp_path: Path):
+        """A failed download preserves the partial ZIP for cross-run resume (#756)."""
+        partial = tmp_path / "gwas_catalog_associations.zip.tmp"
+        partial.write_bytes(b"partial-from-prior-run")
         err = httpx.HTTPStatusError("404", request=MagicMock(), response=MagicMock())
         with (
             patch("backend.annotation.gwas.stream_download", _fake_stream_download(exc=err)),
@@ -912,8 +914,36 @@ class TestDownloadGwasCatalog:
         ):
             download_gwas_catalog(tmp_path, url="http://test/gwas.zip")
 
-        # Temp file should not exist
-        assert not (tmp_path / "gwas_catalog_associations.zip.tmp").exists()
+        assert partial.exists()  # preserve-for-resume, not deleted on failure
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """download_gwas_catalog opts into cross-run resume + validator sidecar (#756)."""
+        from types import SimpleNamespace
+
+        zip_tmp = tmp_path / "gwas_catalog_associations.zip.tmp"
+        sidecar = tmp_path / "gwas_catalog_associations.zip.tmp.validator"
+        zip_tmp.write_bytes(b"partial")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+        captured: dict = {}
+
+        def fake(url, tmp_path_arg, **kwargs):
+            captured.update(kwargs)
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as zf:
+                zf.writestr("assoc.tsv", b"SNPS\ttrait\nrs1\tx\n")
+            tmp_path_arg.write_bytes(buf.getvalue())
+            return SimpleNamespace(headers={})
+
+        monkeypatch.setattr("backend.annotation.gwas.stream_download", fake)
+        result = download_gwas_catalog(tmp_path, url="http://test/gwas.zip")
+
+        assert result.name == "gwas_catalog_associations.tsv"
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        assert not sidecar.exists()  # cleared on success
 
     def test_progress_callback(self, tmp_path: Path):
         """Progress callback should be called with byte counts."""

@@ -37,7 +37,12 @@ import httpx
 import sqlalchemy as sa
 import structlog
 
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 from backend.db.tables import gwas_associations
 
 if TYPE_CHECKING:
@@ -885,11 +890,17 @@ def download_gwas_catalog(
 
     logger.info("gwas_download_start", url=url)
 
+    # Resumable so a partial ZIP survives a failed/restarted build and the next run
+    # continues via HTTP Range; the validator sidecar persists the If-Range token
+    # across runs so a rotated upstream restarts clean instead of splicing.
     outcome = stream_download(
         url,
         zip_tmp,
         progress_callback=progress_callback,
         timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(zip_tmp),
+        on_validator=lambda v: write_validator_sidecar(zip_tmp, v),
     )
 
     if meta is not None:
@@ -897,8 +908,9 @@ def download_gwas_catalog(
         if remote_version:
             meta["version"] = remote_version
 
-    # Atomic rename on success (stream_download cleans up the .tmp on failure).
+    # Atomic rename on success; drop the now-stale validator sidecar.
     zip_tmp.replace(zip_path)
+    clear_validator_sidecar(zip_tmp)
 
     # Extract the TSV from the ZIP. Write to a temp file and atomically rename so
     # a failure mid-extraction (corrupt ZIP, disk full) never leaves a truncated
