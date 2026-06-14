@@ -386,6 +386,65 @@ class TestCOL1A1Injury:
         assert "38787354" in snp.pmids  # Guo 2024 soft-tissue meta-analysis
 
 
+# ── COL5A1 rs12722 range-of-motion direction tests (issue #622) ────────────
+
+
+class TestCOL5A1RangeOfMotion:
+    """COL5A1 rs12722 in the Recovery & Injury (soft-tissue) pathway.
+
+    The literature is consistent that the CC genotype confers the GREATEST
+    musculotendinous flexibility / range of motion and the LOWEST soft-tissue
+    injury risk, while the T allele is associated with REDUCED flexibility
+    (lower ROM) and HIGHER tendon/ligament injury susceptibility (Collins &
+    Posthumus 2011; Brown 2011; September 2009). The effect text must tie lower
+    ROM — not higher — to the T allele; the inverted framing is the bug.
+    """
+
+    def _get_col5a1(self, panel: FitnessPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs12722":
+                    return snp
+        pytest.fail("COL5A1 rs12722 not found")
+
+    def test_cc_is_higher_rom_protective(self, panel: FitnessPanel) -> None:
+        """CC is the high-flexibility / high-ROM, lower-injury genotype → Standard."""
+        snp = self._get_col5a1(panel)
+        result = _score_snp(snp, "CC")
+        assert result.category == STANDARD
+        text = result.effect_summary.lower()
+        assert "higher range of motion" in text or "greater" in text
+        assert "flexibility" in text
+        # CC must never be framed as the reduced-flexibility / lower-ROM genotype.
+        assert "reduced flexibility" not in text
+        assert "lower range of motion" not in text
+
+    def test_t_allele_ties_to_lower_rom_not_higher(self, panel: FitnessPanel) -> None:
+        """Every T-allele genotype must tie LOWER ROM / reduced flexibility to T."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            text = _score_snp(snp, gt).effect_summary.lower()
+            assert "reduced flexibility" in text or "lower range of motion" in text, gt
+            # The inverted framing (T → more flexible) must be gone.
+            assert "higher range of motion" not in text, gt
+            assert "increased range of motion" not in text, gt
+            assert "greater flexibility" not in text, gt
+
+    def test_t_allele_is_the_higher_injury_genotype(self, panel: FitnessPanel) -> None:
+        """T-allele genotypes carry the higher soft-tissue injury susceptibility."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            text = _score_snp(snp, gt).effect_summary.lower()
+            assert "injury" in text or "injuries" in text, gt
+            assert "increased" in text or "higher" in text, gt
+
+    def test_t_allele_not_standard(self, panel: FitnessPanel) -> None:
+        """Carrying the T (reduced-flexibility) allele is never the baseline genotype."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            assert _score_snp(snp, gt).category != STANDARD, gt
+
+
 # ── SNP scoring tests ────────────────────────────────────────────────────
 
 
