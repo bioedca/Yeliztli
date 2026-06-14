@@ -183,6 +183,26 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
             </div>
           </div>
 
+          {/* Volatile-filesystem warning (independent of disk space; non-blocking) */}
+          {storageInfo.volatile && (
+            <div
+              role="alert"
+              className="rounded-lg border border-amber-500/50 bg-amber-50 p-4 dark:bg-amber-950/20"
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-500" />
+                <div className="space-y-1">
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Volatile storage location
+                  </span>
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    {storageInfo.volatile_message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Disk space info */}
           <div
             className={cn(

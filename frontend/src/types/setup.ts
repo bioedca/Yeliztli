@@ -62,6 +62,10 @@ export interface StorageInfoResult {
   message: string
   path_exists: boolean
   path_writable: boolean
+  // Independent of disk-space `status`: true when the path is on a volatile
+  // filesystem (e.g. /tmp) that may be erased on reboot.
+  volatile: boolean
+  volatile_message: string | null
 }
 
 export interface SetStoragePathResult {

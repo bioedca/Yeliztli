@@ -1060,6 +1060,65 @@ class TestStorageInfo:
         assert data["status"] == "ok"
         assert "sufficient" in data["message"].lower()
 
+    def test_includes_volatile_fields(self, setup_client: TestClient) -> None:
+        """Response always carries the volatile signal (bool + optional message)."""
+        data = setup_client.get("/api/setup/storage-info").json()
+        assert isinstance(data["volatile"], bool)
+        assert data["volatile_message"] is None or isinstance(data["volatile_message"], str)
+
+    def test_warns_on_volatile_path(self, setup_client: TestClient) -> None:
+        """A volatile data_dir surfaces volatile=True + a reboot-loss message."""
+        with patch("backend.api.routes.setup._is_volatile_path", return_value=True):
+            data = setup_client.get("/api/setup/storage-info").json()
+        assert data["volatile"] is True
+        assert data["volatile_message"]
+        assert "restart" in data["volatile_message"].lower()
+
+    def test_no_volatile_warning_on_persistent_path(self, setup_client: TestClient) -> None:
+        """A persistent data_dir reports volatile=False with no message."""
+        with patch("backend.api.routes.setup._is_volatile_path", return_value=False):
+            data = setup_client.get("/api/setup/storage-info").json()
+        assert data["volatile"] is False
+        assert data["volatile_message"] is None
+
+
+class TestIsVolatilePath:
+    """Volatile-filesystem detection for the storage-path warning (#754)."""
+
+    def test_tmp_roots_are_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        assert _is_volatile_path(Path("/tmp")) is True
+        assert _is_volatile_path(Path("/tmp/yeliztli")) is True
+        assert _is_volatile_path(Path("/var/tmp/foo")) is True
+        assert _is_volatile_path(Path("/dev/shm/foo")) is True
+
+    def test_similarly_named_sibling_is_not_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        # Component-wise match, not string prefix: /tmpfoo is NOT under /tmp.
+        assert _is_volatile_path(Path("/tmpfoo/data")) is False
+
+    def test_persistent_path_is_not_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        assert _is_volatile_path(Path("/opt/yeliztli/data")) is False
+
+    def test_tmpfs_mount_detected_via_proc_mounts(self, monkeypatch) -> None:
+        from backend.api.routes import setup as setup_module
+
+        fake_mounts = "/dev/sda1 / ext4 rw 0 0\ntmpfs /mnt/ram tmpfs rw 0 0\n"
+        real_read_text = Path.read_text
+
+        def fake_read_text(self, *args, **kwargs):
+            if str(self) == "/proc/mounts":
+                return fake_mounts
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", fake_read_text)
+        assert setup_module._is_volatile_path(Path("/mnt/ram/yeliztli")) is True
+        assert setup_module._is_volatile_path(Path("/mnt/other/yeliztli")) is False
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # P1-19c: POST /api/setup/set-storage-path

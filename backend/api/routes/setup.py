@@ -123,6 +123,10 @@ class StorageInfoResponse(BaseModel):
     message: str
     path_exists: bool
     path_writable: bool
+    # Independent of disk-space ``status``: a path can have ample free space yet
+    # be on a volatile filesystem (e.g. /tmp) that is wiped on reboot.
+    volatile: bool = False
+    volatile_message: str | None = None
 
 
 class SetStoragePathRequest(BaseModel):
@@ -820,6 +824,60 @@ def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "block
     return "ok", f"{free_gb:.1f} GB free — sufficient for Yeliztli."
 
 
+# Roots whose contents are conventionally wiped on reboot. A data dir here (or
+# below it) loses downloaded databases on restart.
+_VOLATILE_PATH_ROOTS = ("/tmp", "/var/tmp", "/dev/shm")
+# Filesystem types that do not survive a reboot (RAM-backed).
+_VOLATILE_FS_TYPES = frozenset({"tmpfs", "ramfs"})
+_VOLATILE_PATH_MESSAGE = (
+    "This location is on a volatile filesystem (e.g. /tmp) that is typically "
+    "erased when the machine restarts. Downloaded databases could be lost, "
+    "forcing a full re-download. Choose a persistent location (such as your "
+    "home directory) for a permanent install."
+)
+
+
+def _is_volatile_path(path: Path) -> bool:
+    """Whether ``path`` lives on a filesystem that is wiped on reboot.
+
+    Catches the well-known volatile roots (``/tmp``, ``/var/tmp``, ``/dev/shm``)
+    by path component, and — on Linux — any ``tmpfs``/``ramfs`` mount via the
+    longest matching ``/proc/mounts`` entry. Best-effort and side-effect free: an
+    unreadable ``/proc/mounts`` (non-Linux, restricted) degrades to the
+    root-prefix check, and a path resolution error never raises.
+    """
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+
+    parents = set(resolved.parents)
+    for root in _VOLATILE_PATH_ROOTS:
+        r = Path(root)
+        if resolved == r or r in parents:
+            return True
+
+    try:
+        mounts = Path("/proc/mounts").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    best_mount_len = -1
+    best_fstype = ""
+    for line in mounts.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        # /proc/mounts octal-escapes spaces in mount points (e.g. "\040").
+        mount_point = parts[1].replace("\\040", " ")
+        fstype = parts[2]
+        mp = Path(mount_point)
+        if (resolved == mp or mp in parents) and len(mount_point) > best_mount_len:
+            best_mount_len = len(mount_point)
+            best_fstype = fstype
+    return best_fstype in _VOLATILE_FS_TYPES
+
+
 def _resolve_storage_path(raw_path: str) -> Path:
     """Resolve a user-provided storage path, expanding ~ and env vars."""
     return Path(raw_path).expanduser().resolve()
@@ -839,6 +897,7 @@ async def storage_info() -> StorageInfoResponse:
     free_gb = free_bytes / (1024**3)
     total_gb = total_bytes / (1024**3)
     status, message = _assess_disk_space(free_bytes)
+    volatile = _is_volatile_path(data_dir)
 
     path_exists = data_dir.exists()
     path_writable = False
@@ -861,6 +920,8 @@ async def storage_info() -> StorageInfoResponse:
         message=message,
         path_exists=path_exists,
         path_writable=path_writable,
+        volatile=volatile,
+        volatile_message=_VOLATILE_PATH_MESSAGE if volatile else None,
     )
 
 

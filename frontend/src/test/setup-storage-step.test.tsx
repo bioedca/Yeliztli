@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mockStorageInfo() {
+function mockStorageInfo(overrides: Record<string, unknown> = {}) {
   return {
     data_dir: '/home/test/.yeliztli',
     free_space_bytes: 50 * 1024 * 1024 * 1024,
@@ -34,6 +34,9 @@ function mockStorageInfo() {
     message: '50.0 GB free — sufficient for Yeliztli.',
     path_exists: true,
     path_writable: true,
+    volatile: false,
+    volatile_message: null,
+    ...overrides,
   }
 }
 
@@ -53,6 +56,45 @@ describe('StorageStep — Step 15 disk-space pre-check', () => {
     expect(
       screen.getByText(/approximately 4 GB of disk space/i),
     ).toBeInTheDocument()
+  })
+
+  it('warns when the storage path is on a volatile filesystem', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve(
+          mockStorageInfo({
+            data_dir: '/tmp/yeliztli',
+            volatile: true,
+            volatile_message:
+              'This location is on a volatile filesystem (e.g. /tmp) that is ' +
+              'typically erased when the machine restarts.',
+          }),
+        ),
+    })
+
+    render(<StorageStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    expect(
+      await screen.findByText('Volatile storage location'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/erased when the machine restarts/i),
+    ).toBeInTheDocument()
+  })
+
+  it('omits the volatile warning for a persistent path', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockStorageInfo()),
+    })
+
+    render(<StorageStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await screen.findByText(/Disk Space OK/i)
+    expect(
+      screen.queryByText('Volatile storage location'),
+    ).not.toBeInTheDocument()
   })
 
   it('renders the per-DB size breakdown panel', async () => {
