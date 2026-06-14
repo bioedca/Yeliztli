@@ -1969,8 +1969,8 @@ describe('DatabasesStep', () => {
     // The cleaned DB's list entry still reads downloaded:true, so the re-download
     // must target it EXPLICITLY rather than re-deriving from the selected set.
     await waitFor(() => {
-      const dl = mockFetch.mock.calls.find(([u]: [unknown]) =>
-        String(u).includes('/api/databases/download'),
+      const dl = mockFetch.mock.calls.find((call: unknown[]) =>
+        String(call[0]).includes('/api/databases/download'),
       )
       expect(dl).toBeTruthy()
       expect(JSON.parse((dl![1] as { body: string }).body)).toEqual({
