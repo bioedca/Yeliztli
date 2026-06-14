@@ -56,7 +56,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.evidence import assign_cpic_evidence_level
-from backend.analysis.zygosity import is_no_call
+from backend.analysis.zygosity import _NO_CALL_SENTINELS, is_no_call
 from backend.annotation.cpic import CPIC_GENES
 from backend.annotation.engine import CPIC_BIT
 from backend.db.tables import (
@@ -72,7 +72,16 @@ from backend.disclaimers import CYP2D6_CNV_CAVEAT, DPYD_FLUOROPYRIMIDINE_CAVEAT
 logger = structlog.get_logger(__name__)
 
 _STAR_ALLELE_RE = re.compile(r"^\*?(\d+)(.*)")
-_TRUE_NO_CALLS: frozenset[str] = frozenset({"", "--", "??", "-", "0", "00"})
+
+# The two-char indel codes are genuine no-calls for SNV scoring, but the indel
+# star-allele counter (_count_indel_alt_alleles) must *score* I/D tokens at
+# simple-indel loci rather than discard them. So the indel no-call set is the
+# shared sentinel set MINUS those indel codes — derived from the single source
+# of truth (zygosity._NO_CALL_SENTINELS) so it cannot silently drift, mirroring
+# risk_genotype._TRUE_NO_CALLS (#525/#582). The derived frozenset is
+# byte-identical to the prior literal {"", "--", "??", "-", "0", "00"}.
+_INDEL_NO_CALL_CODES: frozenset[str] = frozenset({"DD", "II", "DI", "ID"})
+_TRUE_NO_CALLS: frozenset[str] = _NO_CALL_SENTINELS - _INDEL_NO_CALL_CODES
 
 # Genes with known structural variant complexity (copy number variation,
 # gene conversion, hybrid alleles) that array genotyping cannot resolve.
