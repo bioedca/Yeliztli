@@ -362,25 +362,28 @@ function SchemaTableItem({
 
   return (
     <div className="mb-1">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
-        data-testid="schema-table-toggle"
-      >
-        {expanded ? (
-          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-        )}
-        <Table2 className="h-3 w-3 shrink-0 text-primary" />
+      {/* Sibling interactive controls — never nest a <button> inside a <button>
+          (invalid HTML; serious axe `nested-interactive` violation, #607). */}
+      <div className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-xs hover:bg-muted/50 transition-colors">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-label={`Toggle ${table.name} columns`}
+          className="flex items-center gap-1.5 shrink-0 rounded hover:text-primary transition-colors"
+          data-testid="schema-table-toggle"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+          )}
+          <Table2 className="h-3 w-3 shrink-0 text-primary" />
+        </button>
         <button
           type="button"
           className="font-mono font-medium truncate cursor-pointer hover:text-primary bg-transparent border-none p-0 text-left text-inherit text-xs"
-          onClick={(e) => {
-            e.stopPropagation()
-            onInsertTable(table.name)
-          }}
+          onClick={() => onInsertTable(table.name)}
           title={`Click to insert "${table.name}" into editor`}
         >
           {table.name}
@@ -388,7 +391,7 @@ function SchemaTableItem({
         <span className="text-muted-foreground ml-auto shrink-0">
           {table.columns.length}
         </span>
-      </button>
+      </div>
 
       {expanded && (
         <div className="ml-5 pl-2 border-l border-border/50">
