@@ -37,7 +37,7 @@ const COLUMN_LABELS: Record<string, string> = {
   polyphen2_hsvar_score: "PolyPhen2",
   polyphen2_hsvar_pred: "PP2 Pred",
   revel: "REVEL",
-  annotation_coverage: "Coverage",
+  annotation_coverage: "Annotations",
   ensemble_pathogenic: "Ensemble",
 }
 

@@ -10,6 +10,7 @@ import {
   type SourceTag,
   type VariantRow,
 } from "@/types/variants"
+import { coverageTooltip, decodeCoverageSources } from "./annotation-coverage"
 
 const col = createColumnHelper<VariantRow>()
 
@@ -176,13 +177,21 @@ export const allColumns = [
     cell: (info) => info.getValue()?.toFixed(3) ?? "",
   }),
   col.accessor("annotation_coverage", {
-    header: "Coverage",
-    size: 80,
+    // "Annotations" (count of annotation sources), not "Coverage" — the latter
+    // reads as sequencing depth-of-coverage and clashes with the merge Source
+    // column. The raw value is a bitmask; decode it to a readable count + the
+    // per-source list in a tooltip rather than showing raw binary (#580).
+    header: "Annotations",
+    size: 90,
     cell: (info) => {
       const val = info.getValue()
       if (val == null) return ""
-      // 6-bit bitmask — show as binary for now
-      return val.toString(2).padStart(6, "0")
+      const sources = decodeCoverageSources(val)
+      return createElement(
+        "span",
+        { title: coverageTooltip(val), className: "tabular-nums" },
+        String(sources.length),
+      )
     },
   }),
   col.accessor("ensemble_pathogenic", {
