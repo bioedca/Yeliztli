@@ -319,12 +319,22 @@ class TestPathwaySummaryDiff:
         assert diff["added"][0]["pathway"] == "Choline & Betaine"
         assert diff["removed"][0]["pathway"] == "Folate & MTHFR"
 
-    def test_pathway_distinguishes_only_within_same_module(self) -> None:
-        # Two modules' same-named/NULL-pathway summaries don't cross-match.
+    def test_same_pathway_same_module_is_unchanged(self) -> None:
+        # Control: an unchanged pathway summary stays unchanged.
         prior = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
         current = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
         diff = compute_finding_diff(prior, current, after_releases={})
         assert diff["counts"] == {"changed": 0, "added": 0, "removed": 0}
+
+    def test_same_pathway_different_modules_do_not_match(self) -> None:
+        # ``module`` is part of the identity key, so the same pathway name + level
+        # in different modules must not cross-match — it is a removal + an addition.
+        prior = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
+        current = [_pw("Folate & MTHFR", "Moderate", module="nutrigenomics")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 1, "removed": 1}
+        assert diff["added"][0]["module"] == "nutrigenomics"
+        assert diff["removed"][0]["module"] == "methylation"
 
 
 class TestHasChanges:
