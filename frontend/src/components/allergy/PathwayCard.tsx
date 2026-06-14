@@ -6,7 +6,8 @@
  */
 
 import { cn } from "@/lib/utils"
-import type { PathwaySummary, PathwayLevel } from "@/types/allergy"
+import type { PathwaySummary } from "@/types/allergy"
+import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { ChevronRight } from "lucide-react"
 
@@ -14,33 +15,6 @@ interface PathwayCardProps {
   pathway: PathwaySummary
   onClick: () => void
   selected?: boolean
-}
-
-const LEVEL_CONFIG: Record<
-  PathwayLevel,
-  { label: string; color: string; bg: string; border: string; badge: string }
-> = {
-  Elevated: {
-    label: "Elevated",
-    color: "text-amber-700 dark:text-amber-400",
-    bg: "bg-amber-50 dark:bg-amber-950/30",
-    border: "border-amber-200 dark:border-amber-800",
-    badge: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
-  },
-  Moderate: {
-    label: "Moderate",
-    color: "text-blue-700 dark:text-blue-400",
-    bg: "bg-blue-50 dark:bg-blue-950/30",
-    border: "border-blue-200 dark:border-blue-800",
-    badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
-  },
-  Standard: {
-    label: "Standard",
-    color: "text-emerald-700 dark:text-emerald-400",
-    bg: "bg-emerald-50 dark:bg-emerald-950/30",
-    border: "border-emerald-200 dark:border-emerald-800",
-    badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300",
-  },
 }
 
 const PATHWAY_DESCRIPTIONS: Record<string, string> = {

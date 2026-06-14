@@ -35,7 +35,9 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { pathwayLevelBadge } from "@/lib/pathwayLevel"
 import { useFindings, useFindingsSummary } from "@/api/findings"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
@@ -401,13 +403,11 @@ function FindingRow({ finding }: { finding: Finding }) {
           )}
           {finding.pathway_level && (
             <span
-              className={`rounded px-1.5 py-0.5 font-medium ${
-                finding.pathway_level === "Elevated"
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  : finding.pathway_level === "Moderate"
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              }`}
+              data-testid="finding-pathway-level"
+              className={cn(
+                "rounded px-1.5 py-0.5 font-medium",
+                pathwayLevelBadge(finding.pathway_level),
+              )}
             >
               {finding.pathway_level}
             </span>
