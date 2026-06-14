@@ -53,6 +53,8 @@ from scripts.validate_sex_thresholds import (  # noqa: E402 — sys.path tweak a
     DEFAULT_MIN_X_NONPAR_TYPED,
     DEFAULT_MIN_Y_PROBES,
     DEFAULT_PAR_NOISE,
+    DEFAULT_X_HET_DIPLOID,
+    DEFAULT_X_HET_HEMIZYGOUS,
     DEFAULT_XY_CONFIRM,
     build_report,
     classify,
@@ -102,6 +104,27 @@ def test_xy_fixture_classifies_as_xy_with_chry_confirmation() -> None:
 
     # One chr 25 PAR1 het exists and must be filtered (otherwise classification
     # would flip to XX dispositively).
+    assert report.x_par_count == 1
+
+    # 48 typed chrY calls out of 60 → 0.80 > 0.30 confirm threshold.
+    assert report.y_total == 60
+    assert report.y_typed == 48
+    assert report.y_rate == pytest.approx(0.8)
+
+
+def test_xy_xhet_noise_fixture_classifies_as_xy() -> None:
+    """issue #519 — a male carrying non-PAR chrX het *noise* (3/120 = 2.5%, below
+    the 0.05 hemizygous cutoff) + a confirming chrY rate classifies as XY, not
+    the old binary-``>=1`` manual_review."""
+    report = build_report(FIXTURE_DIR / "xy_xhet_noise_sample.txt")
+
+    assert report.classification == "XY"
+    assert report.x_nonpar_het == 3
+    assert report.x_nonpar_hom == 117
+    assert report.x_nonpar_typed == 120
+    assert report.x_nonpar_het_rate == pytest.approx(0.025)
+
+    # One chr 25 PAR1 het exists and must be filtered.
     assert report.x_par_count == 1
 
     # 48 typed chrY calls out of 60 → 0.80 > 0.30 confirm threshold.
@@ -175,13 +198,29 @@ def test_manual_review_thresholds_round_trip_defaults() -> None:
             dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=60, y_rate=0.10),
             "XX",
         ),
-        # Non-PAR chrX het + chrY above the noise floor is discordant.
+        # Diploid-X het rate + chrY above the noise floor is discordant (XXY, #122).
+        # (issue #519: a *diploid* het rate, not a single noise call, is what
+        # makes X/Y discordant — a lone het over a hemizygous denominator is a
+        # candidate XY that a high chrY confirms.)
         (
-            dict(x_nonpar_het=1, x_nonpar_typed=120, x_nonpar_hom=119, y_total=60, y_rate=0.11),
+            dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=60, y_rate=0.11),
             "manual_review",
         ),
         (
+            dict(x_nonpar_het=60, x_nonpar_typed=120, x_nonpar_hom=60, y_total=60, y_rate=0.9),
+            "manual_review",
+        ),
+        # issue #519: a non-PAR chrX het *rate* at male-noise level (1/120 ≈ 0.8%)
+        # over an evaluable denominator + a confirming chrY is XY, not the old
+        # "any het → not XY" manual_review.
+        (
             dict(x_nonpar_het=1, x_nonpar_typed=120, x_nonpar_hom=119, y_total=60, y_rate=0.9),
+            "XY",
+        ),
+        # issue #519: an ambiguous X-het rate (12/120 = 0.10, between the cutoffs)
+        # is manual_review regardless of chrY.
+        (
+            dict(x_nonpar_het=12, x_nonpar_typed=120, x_nonpar_hom=108, y_total=60, y_rate=0.9),
             "manual_review",
         ),
         # Candidate XY — chrY rate above XY-confirm → XY.
@@ -261,6 +300,8 @@ def test_threshold_constants_match_production() -> None:
     """Every script DEFAULT_* must equal the production constant it duplicates."""
     assert DEFAULT_XY_CONFIRM == _prod._THRESHOLD_XY_CONFIRM
     assert DEFAULT_PAR_NOISE == _prod._THRESHOLD_PAR_NOISE
+    assert DEFAULT_X_HET_HEMIZYGOUS == _prod._THRESHOLD_X_HET_HEMIZYGOUS
+    assert DEFAULT_X_HET_DIPLOID == _prod._THRESHOLD_X_HET_DIPLOID
     assert DEFAULT_MIN_X_NONPAR_TYPED == _prod.MIN_X_NONPAR_TYPED
     assert DEFAULT_MIN_Y_PROBES == _prod.MIN_Y_PROBES
 
@@ -278,12 +319,15 @@ def test_classifier_parity_grid() -> None:
 
     # Boundary-spanning values: x_nonpar_typed straddles MIN_X (100), y_total
     # straddles MIN_Y (50), y_rate straddles PAR_NOISE (0.10) and XY_CONFIRM (0.30).
+    # het counts span all three X-dosage zones once divided by x_typed (#519):
+    # 0/1/3 → hemizygous (≤0.05), 20 → ambiguous/diploid, 40 → diploid (≥0.15).
     # hemi_split divides the non-het typed pool between diploid homozygotes and
     # hemizygous single-char male calls (0.0 = all hom, 1.0 = all hemizygous,
-    # 0.5 = mixed) so the grid exercises the hemizygous denominator too (#504).
+    # 0.5 = mixed) so the grid exercises the hemizygous denominator too (#504) —
+    # and proves the rate decision is invariant to that split.
     xs_typed = [0, 99, 100, 150]
     ys_total = [0, 49, 50, 100]
-    hets = [0, 1, 3]
+    hets = [0, 1, 3, 20, 40]
     y_rates = [0.0, 0.10, 0.101, 0.30, 0.301, 0.6]
     hemi_splits = [0.0, 0.5, 1.0]
 
@@ -315,7 +359,7 @@ def test_classifier_parity_grid() -> None:
         if prod_call != script_call:
             mismatches.append(f"{point}: prod={prod_call} script={script_call}")
 
-    assert n == 864  # full grid actually exercised (guards against a no-op shrink)
+    assert n == 1440  # full grid actually exercised (guards against a no-op shrink)
     assert not mismatches, (
         "production _classify and the validation script's classify() DIVERGED — the "
         f"§9.4 copies have drifted ({len(mismatches)}/{n} points):\n" + "\n".join(mismatches[:8])

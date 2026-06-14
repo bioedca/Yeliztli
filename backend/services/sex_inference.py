@@ -19,24 +19,29 @@ chrX/chrY evidence:
    carry no sex signal. Both vendor parsers collapse PAR rows to chrX,
    so a PAR locus arrives here as a chrX position in one of the two
    intervals.
-2. **XX evidence.** A heterozygous non-PAR chrX call supports XX only
-   when chrY evidence is at or below the PAR-noise floor. If chrY rises
-   above the manual-review threshold, the sample is discordant and must
-   not be silently treated as ordinary XX.
-3. **Candidate XY.** If at least one non-PAR chrX SNP was typed and no
-   typed call is heterozygous — i.e. every call is a diploid homozygote
-   *or* a hemizygous single-allele male call — the sample is a
-   *candidate* XY that needs chrY confirmation. Males are hemizygous on
-   the non-PAR X (one X copy), so 23andMe reports their non-PAR chrX
-   calls as single-character genotypes (``"A"``), whereas AncestryDNA
-   pads them to a diploid homozygote (``"AA"``); both are
-   non-heterozygous evidence of a single X and count toward the
-   candidate-XY denominator (issue #504).
-4. **chrY confirmation.** Non-no-call rate strictly above
-   ``_THRESHOLD_XY_CONFIRM`` (default 0.30) confirms XY. Above
-   ``_THRESHOLD_PAR_NOISE`` (default 0.10) but not above the confirm
-   threshold flags the sample for manual review. Anything at or below
-   the PAR-noise floor falls back to ``unknown`` rather than auto-
+2. **X dosage by het rate (issue #519).** Classify the *non-PAR chrX
+   heterozygosity rate* (``x_nonpar_het / x_nonpar_typed``), not a binary
+   "any het" count. A normal 46,XY male's non-PAR X is hemizygous, so his
+   observed X-het rate is ≈0 — only genotyping noise (a lone non-PAR chrX
+   het occurs even in males, Chen et al. PMID 38073250). A diploid-X
+   individual is heterozygous at a large fraction of markers (female-level,
+   tens of percent). So a rate at/below ``_THRESHOLD_X_HET_HEMIZYGOUS``
+   (default 0.05) is a *candidate* XY; a rate at/above
+   ``_THRESHOLD_X_HET_DIPLOID`` (default 0.15) is diploid-X; a rate in
+   between is ambiguous X dosage → ``manual_review``. The denominator
+   ``x_nonpar_typed`` counts every typed call — diploid homozygotes plus
+   hemizygous single-allele male calls (``"A"``, the 23andMe non-PAR X
+   representation; AncestryDNA pads to ``"AA"``) — so a male's near-zero het
+   rate lands on the candidate-XY branch for **both** vendors (issue #504).
+3. **Diploid-X disambiguation.** A diploid-X rate with chrY at/below the
+   PAR-noise floor is ``XX``; with chrY above it the X and Y signals are
+   discordant (the XXY pattern, issue #122) and must not be silently
+   treated as ordinary XX → ``manual_review``.
+4. **chrY confirmation (candidate XY).** On the hemizygous branch, a chrY
+   non-no-call rate strictly above ``_THRESHOLD_XY_CONFIRM`` (default 0.30)
+   confirms XY. Above ``_THRESHOLD_PAR_NOISE`` (default 0.10) but not above
+   the confirm threshold flags the sample for manual review. Anything at or
+   below the PAR-noise floor falls back to ``unknown`` rather than auto-
    assigning a sex.
 
 Thresholds were validated by the bio-validator subagent against the local
@@ -73,6 +78,23 @@ _PAR1: tuple[int, int] = (60001, 2_699_520)
 _PAR2: tuple[int, int] = (154_931_044, 155_260_560)
 _THRESHOLD_XY_CONFIRM: float = 0.30
 _THRESHOLD_PAR_NOISE: float = 0.10
+
+# Non-PAR chrX heterozygosity *rate* thresholds (issue #519). A normal 46,XY
+# male's non-PAR X is hemizygous, so his observed X-het rate is ≈0 — only
+# genotyping/mapping noise (a few tenths of a percent; a lone non-PAR chrX het
+# occurs even in males, Chen et al. PMID 38073250). A diploid-X individual (XX,
+# or 47,XXY) is heterozygous at a large fraction of non-PAR chrX markers —
+# female-level X-heterozygosity, tens of percent (47,XXY males carry two X's and
+# are heterozygous at X markers). Validated genotype-array sex inference therefore
+# thresholds on
+# the X-het *rate*, not a binary "any het" count (seXY, PMID 28035028;
+# Carracelas et al. 2025). The two clusters (≈0.3% vs ≈25–40%) are far apart, so
+# a wide ambiguous band between these cutoffs is safe:
+#   • rate ≤ _THRESHOLD_X_HET_HEMIZYGOUS → one X (male-consistent; tolerates noise)
+#   • rate ≥ _THRESHOLD_X_HET_DIPLOID    → two X (XX / XXY-consistent)
+#   • in between                          → ambiguous X dosage → manual_review
+_THRESHOLD_X_HET_HEMIZYGOUS: float = 0.05
+_THRESHOLD_X_HET_DIPLOID: float = 0.15
 
 # Minimum evaluable sex-chromosome evidence required before a *confident*
 # (XX / XY / manual_review) verdict; below either floor the sample is too thin
@@ -151,27 +173,46 @@ def _classify(
       (#363). A zero ``y_total`` also makes ``y_rate`` a vacuous 0.0, so the
       Y floor additionally guards against treating "no chrY probes" as
       "chrY absent".
-    - non-PAR chrX heterozygosity is XX evidence only while chrY is at/below
-      the PAR-noise floor; stronger chrY evidence makes the X/Y signals
-      discordant and returns ``manual_review``.
-    - the candidate-XY denominator is every non-heterozygous typed call:
-      diploid homozygotes (``x_nonpar_hom``) plus hemizygous single-allele
-      male calls (``x_nonpar_hemizygous``). The 23andMe male representation is
-      hemizygous, so without counting it ``x_nonpar_hom != x_nonpar_typed`` and
-      every 23andMe male would fall through to ``unknown`` (issue #504).
+    - **X dosage by het *rate*, not a binary count (#519).** The non-PAR chrX
+      heterozygosity rate separates one X (≈0, genotyping noise only) from two X
+      (female-level, tens of percent). A *rate* at/below
+      ``_THRESHOLD_X_HET_HEMIZYGOUS`` is male-consistent and tolerates the noise
+      every real male array carries; a rate at/above ``_THRESHOLD_X_HET_DIPLOID``
+      is diploid-X (XX or, with chrY present, the discordant XXY case #122); a
+      rate in between is ambiguous X dosage → ``manual_review``.
+    - On the hemizygous (candidate-XY) branch, chrY confirms: a non-no-call rate
+      above ``_THRESHOLD_XY_CONFIRM`` → ``XY``; above ``_THRESHOLD_PAR_NOISE``
+      but not confirmed → ``manual_review``; at/below the PAR-noise floor →
+      ``unknown`` (no chrY signal to assign on). On the diploid branch a chrY
+      rate above the PAR-noise floor is discordant (``manual_review``);
+      otherwise ``XX``.
+    - The rate is ``x_nonpar_het / x_nonpar_typed``, and ``x_nonpar_typed``
+      includes hemizygous single-allele male calls (the 23andMe representation,
+      #504) alongside diploid homozygotes — so a 23andMe male's near-zero het
+      rate lands on the hemizygous branch and an AncestryDNA male's lands there
+      too, without needing the hom/hemizygous split. ``x_nonpar_hom`` /
+      ``x_nonpar_hemizygous`` are retained for telemetry and caller compatibility
+      but do not independently drive the dosage decision.
     """
     if x_nonpar_typed < MIN_X_NONPAR_TYPED or y_total < MIN_Y_PROBES:
         return "unknown"
-    if x_nonpar_het >= 1:
-        if y_rate > _THRESHOLD_PAR_NOISE:
-            return "manual_review"
-        return "XX"
-    if x_nonpar_typed > 0 and (x_nonpar_hom + x_nonpar_hemizygous) == x_nonpar_typed:
+    # x_nonpar_typed >= MIN_X_NONPAR_TYPED (>0) here, so the rate is well-defined.
+    x_het_rate = x_nonpar_het / x_nonpar_typed
+    if x_het_rate <= _THRESHOLD_X_HET_HEMIZYGOUS:
+        # One X (male-consistent: hemizygous and/or homozygous calls + noise) —
+        # confirm against chrY.
         if y_rate > _THRESHOLD_XY_CONFIRM:
             return "XY"
         if y_rate > _THRESHOLD_PAR_NOISE:
             return "manual_review"
-    return "unknown"
+        return "unknown"
+    if x_het_rate >= _THRESHOLD_X_HET_DIPLOID:
+        # Two X — discordant when chrY is also present (XXY case #122), else XX.
+        if y_rate > _THRESHOLD_PAR_NOISE:
+            return "manual_review"
+        return "XX"
+    # Ambiguous X dosage (between the hemizygous and diploid rates).
+    return "manual_review"
 
 
 @dataclass(frozen=True)

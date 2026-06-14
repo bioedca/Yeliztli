@@ -23,6 +23,8 @@ from backend.services.sex_inference import (
     _PAR1,
     _PAR2,
     _THRESHOLD_PAR_NOISE,
+    _THRESHOLD_X_HET_DIPLOID,
+    _THRESHOLD_X_HET_HEMIZYGOUS,
     _THRESHOLD_XY_CONFIRM,
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
@@ -125,6 +127,16 @@ class TestValidatedConstants:
     def test_par_noise_below_confirm(self) -> None:
         # Defensive: the manual-review band must be non-empty.
         assert _THRESHOLD_PAR_NOISE < _THRESHOLD_XY_CONFIRM
+
+    def test_x_het_rate_thresholds(self) -> None:
+        # issue #519 — X dosage is decided on the non-PAR chrX het *rate*.
+        assert _THRESHOLD_X_HET_HEMIZYGOUS == 0.05
+        assert _THRESHOLD_X_HET_DIPLOID == 0.15
+
+    def test_x_het_hemizygous_below_diploid(self) -> None:
+        # Defensive: the ambiguous X-dosage band must be non-empty, and the
+        # hemizygous (one-X) cutoff must sit below the diploid (two-X) cutoff.
+        assert _THRESHOLD_X_HET_HEMIZYGOUS < _THRESHOLD_X_HET_DIPLOID
 
     def test_minimum_evidence_floors(self) -> None:
         # issue #363 — shared with the sex-aneuploidy screen; calibrated to real
@@ -282,18 +294,106 @@ class TestXHetWithChrYSignal:
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
 
-    def test_multiple_x_hets_plus_confirm_grade_chry_flags_manual_review(
+    def test_diploid_x_het_rate_plus_confirm_grade_chry_flags_manual_review(
         self, sample_engine: sa.Engine
     ) -> None:
-        """Regression for issue #122: an XXY-like array signal is not ordinary XX."""
+        """Regression for issue #122: a true XXY array signal is not ordinary XX.
+
+        A real XXY shows *female-level* non-PAR chrX heterozygosity (tens of
+        percent), not a couple of noise calls — so this uses a diploid-X het
+        rate (40/120 ≈ 0.33, above the 0.15 diploid cutoff). With a present
+        chrY this is discordant → ``manual_review``. (Issue #519 corrected the
+        original fixture, which used 2 het calls = male noise, not XXY.)
+        """
         _seed(
             sample_engine,
             [
-                *_x_rows(het=2, hom=118),
+                *_x_rows(het=40, hom=80),  # 40/120 ≈ 0.33 — diploid-X het rate
                 *_y_rows(typed=48, nocall=12),  # 0.80
             ],
         )
         assert infer_biological_sex(sample_engine) == "manual_review"
+
+
+# ── X-het RATE threshold (issue #519) ───────────────────────────────────
+
+
+class TestXHetRateThreshold:
+    """issue #519 — X dosage is decided on the non-PAR chrX heterozygosity
+    *rate*, not a binary ``x_nonpar_het >= 1`` count. A normal 46,XY male's
+    array always carries a small fraction of non-PAR chrX het *noise*; the old
+    rule flagged every such male ``manual_review``. The rate-based rule tolerates
+    the noise (≤ 0.05 → candidate XY) while still catching diploid-X (≥ 0.15)."""
+
+    def test_real_male_with_x_het_noise_classifies_xy(self) -> None:
+        """The exact repro from #519: an AncestryDNA male with 91/27411 ≈ 0.33%
+        non-PAR chrX het noise + chrY rate 0.998. Old rule → ``manual_review``;
+        rate-based rule → ``XY``."""
+        assert (
+            _classify(
+                x_nonpar_het=91,
+                x_nonpar_typed=27411,
+                x_nonpar_hom=27320,
+                y_total=1729,
+                y_rate=0.998,
+            )
+            == "XY"
+        )
+
+    def test_real_male_with_x_het_noise_end_to_end_xy(self, sample_engine: sa.Engine) -> None:
+        """End-to-end through ``infer_biological_sex``: a diploid-X-male export —
+        mostly homozygous non-PAR chrX with a few het noise calls (3/403 ≈ 0.7%,
+        below the 0.05 hemizygous cutoff) + a high chrY rate — is ``XY``."""
+        _seed(
+            sample_engine,
+            [*_x_rows(het=3, hom=400), *_y_rows(typed=400, nocall=2)],  # chrY rate ≈ 0.995
+        )
+        assert infer_biological_sex(sample_engine) == "XY"
+
+    def test_x_het_rate_at_hemizygous_cutoff_is_candidate_xy(self) -> None:
+        """A het rate exactly at ``_THRESHOLD_X_HET_HEMIZYGOUS`` (0.05) is still
+        male-consistent (``<=``), so a confirming chrY yields ``XY``."""
+        assert (
+            _classify(
+                x_nonpar_het=6,
+                x_nonpar_typed=120,  # 6/120 = 0.05 exactly
+                x_nonpar_hom=114,
+                y_total=_EVAL_Y,
+                y_rate=0.9,
+            )
+            == "XY"
+        )
+
+    def test_ambiguous_x_het_rate_yields_manual_review(self) -> None:
+        """A het rate between the hemizygous and diploid cutoffs (12/120 = 0.10,
+        in (0.05, 0.15)) is ambiguous X dosage → ``manual_review`` regardless of
+        the chrY rate."""
+        for y_rate in (0.0, 0.20, 0.998):
+            assert (
+                _classify(
+                    x_nonpar_het=12,
+                    x_nonpar_typed=120,  # 0.10 — ambiguous band
+                    x_nonpar_hom=108,
+                    y_total=_EVAL_Y,
+                    y_rate=y_rate,
+                )
+                == "manual_review"
+            ), f"ambiguous X-het rate should be manual_review at y_rate={y_rate}"
+
+    def test_hemizygous_x_without_chry_is_unknown(self) -> None:
+        """Hemizygous X (male-consistent het rate) with no chrY signal is
+        ``unknown`` — one X and no Y cannot be confidently assigned (e.g. 45,X
+        vs. a male with chrY probe dropout); deferred, not auto-called."""
+        assert (
+            _classify(
+                x_nonpar_het=1,
+                x_nonpar_typed=120,  # 0.008 hemizygous
+                x_nonpar_hom=119,
+                y_total=_EVAL_Y,
+                y_rate=0.0,
+            )
+            == "unknown"
+        )
 
 
 # ── Minimum-evidence guard (issue #363) ─────────────────────────────────
@@ -352,12 +452,12 @@ class TestMinimumEvidenceGuard:
             )
             == "XY"
         )
-        # An XX het at the floors resolves too.
+        # A diploid-X het rate at the floors resolves to XX too.
         assert (
             _classify(
-                x_nonpar_het=1,
+                x_nonpar_het=MIN_X_NONPAR_TYPED // 2,  # 50% het → diploid-X rate
                 x_nonpar_typed=MIN_X_NONPAR_TYPED,
-                x_nonpar_hom=MIN_X_NONPAR_TYPED - 1,
+                x_nonpar_hom=MIN_X_NONPAR_TYPED - MIN_X_NONPAR_TYPED // 2,
                 y_total=MIN_Y_PROBES,
                 y_rate=0.0,
             )
@@ -465,13 +565,28 @@ class TestHemizygousMaleX:
             )
             == "XY"
         )
-        # A het among hemizygous calls is the XX/discordant signal, not XY.
+        # A lone noise het among hemizygous calls (1/100 = 0.01, below the
+        # hemizygous cutoff) is tolerated — still XY, not flipped by noise (#519).
         assert (
             _classify(
                 x_nonpar_het=1,
                 x_nonpar_typed=MIN_X_NONPAR_TYPED,
                 x_nonpar_hom=0,
                 x_nonpar_hemizygous=MIN_X_NONPAR_TYPED - 1,
+                y_total=MIN_Y_PROBES,
+                y_rate=0.9,
+            )
+            == "XY"
+        )
+        # A *diploid-X* het rate (50/100 = 0.50) with chrY present is the
+        # discordant XXY signal → manual_review, not XY (issue #519: only a
+        # diploid het rate flips a candidate male, not noise).
+        assert (
+            _classify(
+                x_nonpar_het=MIN_X_NONPAR_TYPED // 2,
+                x_nonpar_typed=MIN_X_NONPAR_TYPED,
+                x_nonpar_hom=0,
+                x_nonpar_hemizygous=MIN_X_NONPAR_TYPED - MIN_X_NONPAR_TYPED // 2,
                 y_total=MIN_Y_PROBES,
                 y_rate=0.9,
             )
@@ -636,12 +751,15 @@ class TestIND09bEdgeCases:
 
     # ── (iii-bis) discordant chrX het + chrY signal ────────────────────
 
-    def test_iii_bis_nonpar_het_plus_chrY_just_above_floor_yields_manual_review(
+    def test_iii_bis_hemizygous_x_plus_chrY_just_above_floor_yields_manual_review(
         self, sample_engine: sa.Engine
     ) -> None:
-        """Non-PAR het + chrY rate **just above** ``_THRESHOLD_PAR_NOISE``
-        (7/60 ≈ 0.117) → ``manual_review``. This pins the floor-adjacent
-        boundary for discordant X/Y evidence."""
+        """Hemizygous non-PAR chrX (1/120 ≈ 0.008 het rate, below the 0.05
+        cutoff — male-consistent) + chrY rate **just above**
+        ``_THRESHOLD_PAR_NOISE`` (7/60 ≈ 0.117, below the 0.30 confirm) →
+        ``manual_review``. Pins the candidate-XY chrY band boundary: a male's
+        X-het noise plus an unconfirmed chrY rate is reviewed, not auto-called
+        (issue #519)."""
         _seed(
             sample_engine,
             [*_x_rows(het=1, hom=119), *_y_rows(typed=7, nocall=53)],
@@ -651,12 +769,13 @@ class TestIND09bEdgeCases:
     def test_iii_bis_classify_helper_escalates_discordant_x_het_and_y_signal(
         self,
     ) -> None:
-        """Direct ``_classify`` assertion of the X-het / chrY boundary.
+        """Direct ``_classify`` assertion of the diploid-X / chrY boundary.
 
-        With ``x_nonpar_het >= 1`` over an evaluable denominator the classifier
-        returns ``"XX"`` only while chrY remains at/below the PAR-noise floor.
-        Anything above that floor returns ``manual_review`` instead of silently
-        reporting ordinary XX."""
+        With a *diploid-X* non-PAR chrX het rate (here 60/120 = 0.50, above the
+        0.15 diploid cutoff — issue #519) the classifier returns ``"XX"`` only
+        while chrY remains at/below the PAR-noise floor. Anything above that
+        floor returns ``manual_review`` (the discordant two-X + chrY / XXY
+        pattern) instead of silently reporting ordinary XX."""
         for y_rate, expected in (
             (0.0, "XX"),
             (_THRESHOLD_PAR_NOISE, "XX"),
@@ -669,9 +788,9 @@ class TestIND09bEdgeCases:
         ):
             assert (
                 _classify(
-                    x_nonpar_het=1,
+                    x_nonpar_het=60,  # 60/120 = 0.50 — diploid-X het rate
                     x_nonpar_typed=_EVAL_X,
-                    x_nonpar_hom=_EVAL_X - 1,
+                    x_nonpar_hom=_EVAL_X - 60,
                     y_total=_EVAL_Y,
                     y_rate=y_rate,
                 )
@@ -694,6 +813,9 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     # The doc documents the live constant values, so it cannot drift from code.
     assert "0.30" in text and str(_THRESHOLD_XY_CONFIRM) in text
     assert "0.10" in text and str(_THRESHOLD_PAR_NOISE) in text
+    # issue #519 — X-het rate cutoffs must be documented too.
+    assert "0.05" in text and str(_THRESHOLD_X_HET_HEMIZYGOUS) in text
+    assert "0.15" in text and str(_THRESHOLD_X_HET_DIPLOID) in text
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command

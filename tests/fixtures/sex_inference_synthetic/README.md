@@ -44,12 +44,25 @@ of both PAR intervals.
 
 ### `xx_sample.txt` → classification **`XX`**
 
-XX-supporting: heterozygous non-PAR chrX (het rate 0.5) with chrY at/below the
-noise floor, both chromosomes evaluable.
+XX-supporting: a diploid-level non-PAR chrX het **rate** (0.5, above the 0.15
+diploid cutoff — issue #519) with chrY at/below the noise floor, both
+chromosomes evaluable.
 
-- chr 23 (non-PAR X): 60 het, 60 hom, 1 no-call → `x_nonpar_typed = 120`, `x_nonpar_het = 60`
+- chr 23 (non-PAR X): 60 het, 60 hom, 1 no-call → `x_nonpar_typed = 120`, `x_nonpar_het = 60` (rate 0.50)
 - chr 25 (PAR X): 2 het rows in PAR1 — pre-filtered out
 - chr 24 (Y): 60 no-call rows → `y_total = 60`, `y_rate = 0.0`
+
+### `xy_xhet_noise_sample.txt` → classification **`XY`**
+
+A real-shaped 46,XY male: candidate XY on chrX carrying a small fraction of
+non-PAR chrX **heterozygous genotyping noise** (issue #519). The X-het *rate*
+(3/120 = 0.025, below the 0.05 hemizygous cutoff) plus a confirming chrY rate
+must classify as `XY`. Under the old binary `x_nonpar_het >= 1` rule this male
+landed on `manual_review`; the rate-based rule correctly tolerates the noise.
+
+- chr 23 (non-PAR X): 3 het (noise), 117 hom → `x_nonpar_typed = 120`, `x_nonpar_het = 3` (rate 0.025)
+- chr 25 (PAR X): 1 het row in PAR1 — pre-filtered out
+- chr 24 (Y): 60 rows, 48 typed, 12 no-call → `y_rate = 0.800`
 
 ### `xy_sample.txt` → classification **`XY`** (confirmed)
 

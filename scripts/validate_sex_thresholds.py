@@ -67,6 +67,12 @@ PAR1: tuple[int, int] = (60001, 2_699_520)
 PAR2: tuple[int, int] = (154_931_044, 155_260_560)
 DEFAULT_XY_CONFIRM: float = 0.30
 DEFAULT_PAR_NOISE: float = 0.10
+# Non-PAR chrX heterozygosity *rate* cutoffs (issue #519): a rate at/below
+# DEFAULT_X_HET_HEMIZYGOUS is one X (male-consistent, tolerates noise); at/above
+# DEFAULT_X_HET_DIPLOID is two X (XX / XXY); in between is ambiguous. Mirrors
+# ``backend.services.sex_inference._THRESHOLD_X_HET_HEMIZYGOUS`` / ``_DIPLOID``.
+DEFAULT_X_HET_HEMIZYGOUS: float = 0.05
+DEFAULT_X_HET_DIPLOID: float = 0.15
 # Minimum evaluable evidence on each sex chromosome before a confident verdict;
 # below either floor the sample is too thin and ``classify`` returns
 # ``unknown`` (issue #363). Mirrors
@@ -146,8 +152,13 @@ def classify(
     min_x_nonpar_typed: int = DEFAULT_MIN_X_NONPAR_TYPED,
     min_y_probes: int = DEFAULT_MIN_Y_PROBES,
     x_nonpar_hemizygous: int = 0,
+    x_het_hemizygous: float = DEFAULT_X_HET_HEMIZYGOUS,
+    x_het_diploid: float = DEFAULT_X_HET_DIPLOID,
 ) -> str:
     """Apply the Plan §9.4 algorithm to pre-tabulated counts.
+
+    Mirror of ``backend.services.sex_inference._classify`` (the two copies are
+    cross-checked by ``test_classifier_parity_grid`` — keep them identical).
 
     Order is load-bearing:
 
@@ -157,31 +168,37 @@ def classify(
        resolve sex (a lone non-PAR chrX het is not evidence of two X
        chromosomes — it occurs even in males, Chen et al. PMID 38073250), so
        return ``unknown`` rather than a confident call (issue #363).
-    1. ``≥1`` heterozygous non-PAR chrX call supports XX only when chrY
-       evidence is at/below the PAR-noise floor. Above that floor, the
-       X/Y signals are discordant and require manual review.
-    2. Otherwise, if at least one non-PAR chrX SNP was typed and no typed
-       call is heterozygous — every call is a diploid homozygote
-       (``x_nonpar_hom``) or a hemizygous single-allele male call
-       (``x_nonpar_hemizygous``, the 23andMe representation) — the sample
-       is a *candidate* XY that needs chrY confirmation (issue #504).
-    3. chrY non-no-call rate above ``xy_confirm`` confirms XY; above
-       ``par_noise`` but at/below ``xy_confirm`` flags for manual review;
+    1. X dosage by the non-PAR chrX heterozygosity *rate*, not a binary count
+       (issue #519): rate at/below ``x_het_hemizygous`` → one X (candidate XY,
+       tolerates male noise); rate at/above ``x_het_diploid`` → two X; a rate in
+       between is ambiguous X dosage → ``manual_review``. ``x_nonpar_typed``
+       counts hemizygous single-allele male calls (the 23andMe representation,
+       ``x_nonpar_hemizygous``, #504) alongside diploid homozygotes, so a male's
+       near-zero het rate lands on the candidate-XY branch for both vendors.
+       ``x_nonpar_hom`` / ``x_nonpar_hemizygous`` are retained for telemetry and
+       parity with production but do not independently drive the dosage decision.
+    2. Diploid-X with chrY at/below ``par_noise`` is ``XX``; with chrY above it
+       the X/Y signals are discordant (XXY, issue #122) → ``manual_review``.
+    3. Candidate XY: chrY non-no-call rate above ``xy_confirm`` confirms XY;
+       above ``par_noise`` but at/below ``xy_confirm`` flags for manual review;
        at/below ``par_noise`` falls back to ``unknown`` rather than auto-
        assigning.
     """
     if x_nonpar_typed < min_x_nonpar_typed or y_total < min_y_probes:
         return "unknown"
-    if x_nonpar_het >= 1:
-        if y_rate > par_noise:
-            return "manual_review"
-        return "XX"
-    if x_nonpar_typed > 0 and (x_nonpar_hom + x_nonpar_hemizygous) == x_nonpar_typed:
+    # x_nonpar_typed >= min_x_nonpar_typed (>0) here, so the rate is well-defined.
+    x_het_rate = x_nonpar_het / x_nonpar_typed
+    if x_het_rate <= x_het_hemizygous:
         if y_rate > xy_confirm:
             return "XY"
         if y_rate > par_noise:
             return "manual_review"
-    return "unknown"
+        return "unknown"
+    if x_het_rate >= x_het_diploid:
+        if y_rate > par_noise:
+            return "manual_review"
+        return "XX"
+    return "manual_review"
 
 
 def build_report(

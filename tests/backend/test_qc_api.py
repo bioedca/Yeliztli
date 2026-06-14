@@ -53,14 +53,21 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
                 {"rsid": "r1", "chrom": "1", "pos": 1000, "genotype": "AG"},
                 {"rsid": "r2", "chrom": "2", "pos": 2000, "genotype": "AA"},
                 {"rsid": "r3", "chrom": "3", "pos": 3000, "genotype": "CT"},
-                # A heterozygous non-PAR chrX call → genetic XX, but sex inference
-                # now needs an aggregate denominator on both sex chromosomes
-                # (issue #363), so add non-PAR chrX homozygous filler (≥
-                # MIN_X_NONPAR_TYPED total) + an all-no-call chrY denominator
-                # (≥ MIN_Y_PROBES, rate 0.0). 1 het + 99 hom = 100 typed chrX.
+                # Genetic XX needs (a) an aggregate denominator on both sex
+                # chromosomes (issue #363) and (b) a *diploid-X* non-PAR chrX
+                # het rate, not a lone het (issue #519): sex inference decides X
+                # dosage on the het rate, and a real female is heterozygous at a
+                # large fraction of markers. 50 het + 50 hom = 100 typed chrX
+                # (rate 0.50, above the 0.15 diploid cutoff) + an all-no-call
+                # chrY denominator (≥ MIN_Y_PROBES, rate 0.0) → XX.
                 {"rsid": "rx", "chrom": "X", "pos": 5_000_000, "genotype": "AG"},
                 *(
-                    {"rsid": f"rx_fill_{i}", "chrom": "X", "pos": 5_000_001 + i, "genotype": "GG"}
+                    {
+                        "rsid": f"rx_fill_{i}",
+                        "chrom": "X",
+                        "pos": 5_000_001 + i,
+                        "genotype": "AG" if i < 49 else "GG",
+                    }
                     for i in range(99)
                 ),
                 *(

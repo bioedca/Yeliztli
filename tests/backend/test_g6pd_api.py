@@ -20,17 +20,26 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, reference_metadata, samples
 
 # Evaluable sex-chromosome filler so ``infer_biological_sex`` clears the
-# minimum-evidence floors (issue #363) and resolves XX from the heterozygous
-# non-PAR chrX call below — without it a couple of probes classify as ``unknown``.
-# Non-PAR chrX homozygous filler (positions clear of PAR1/PAR2 and the G6PD
-# locus at 153,764,217) + a chrY no-call denominator (rate 0.0).
-_EVAL_SEX_FILLER: list[dict] = [
-    {"rsid": f"rs_g6pd_xfill_{i}", "chrom": "X", "pos": 50_000_000 + i, "genotype": "GG"}
-    for i in range(120)
-] + [
-    {"rsid": f"rs_g6pd_yfill_{i}", "chrom": "Y", "pos": 2_800_000 + i, "genotype": "--"}
-    for i in range(60)
-]
+# minimum-evidence floors (issue #363) and resolves XX for the female samples
+# below. Sex inference decides X dosage on the non-PAR chrX heterozygosity *rate*
+# (issue #519), so a real female needs a *diploid-X* het rate, not a lone het:
+# 60 het + 60 hom = 0.50 (well above the 0.15 diploid cutoff). Positions clear
+# PAR1/PAR2 and the G6PD locus at 153,764,217; the chrY denominator is all
+# no-call (rate 0.0).
+_EVAL_SEX_FILLER: list[dict] = (
+    [
+        {"rsid": f"rs_g6pd_xhet_{i}", "chrom": "X", "pos": 50_000_000 + i, "genotype": "AG"}
+        for i in range(60)
+    ]
+    + [
+        {"rsid": f"rs_g6pd_xhom_{i}", "chrom": "X", "pos": 60_000_000 + i, "genotype": "GG"}
+        for i in range(60)
+    ]
+    + [
+        {"rsid": f"rs_g6pd_yfill_{i}", "chrom": "Y", "pos": 2_800_000 + i, "genotype": "--"}
+        for i in range(60)
+    ]
+)
 
 
 @pytest.fixture
@@ -52,8 +61,8 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
     create_sample_tables(sample_engine)
 
-    # A second sample (non-carrier female negative control): a dummy non-PAR chrX
-    # het with no chrY evidence makes her XX, with a reference G6PD allele → "normal".
+    # A second sample (non-carrier female negative control): the diploid-X het
+    # filler with no chrY evidence makes her XX, with a reference G6PD allele → "normal".
     noncarrier_db_path = tmp_data_dir / "samples" / "sample_2.db"
     noncarrier_engine = sa.create_engine(f"sqlite:///{noncarrier_db_path}")
     create_sample_tables(noncarrier_engine)
@@ -77,8 +86,8 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 file_hash="def456",
             )
         )
-    # A heterozygous non-PAR chrX call with no chrY evidence is XX; a het A- allele then
-    # yields the safety-critical "variable" phenotype (X-inactivation).
+    # The diploid-X het filler with no chrY evidence makes her XX; a het A- allele
+    # then yields the safety-critical "variable" phenotype (X-inactivation).
     with sample_engine.begin() as conn:
         conn.execute(
             raw_variants.insert(),
@@ -91,7 +100,7 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         conn.execute(
             raw_variants.insert(),
             [
-                # Dummy non-PAR chrX het + evaluable filler with no chrY signal → XX.
+                # Diploid-X het filler (below) with no chrY signal → XX.
                 {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
                 # Reference G6PD A- allele → no deficiency.
                 {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CC"},

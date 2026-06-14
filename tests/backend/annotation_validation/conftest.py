@@ -512,24 +512,34 @@ def clinvar_row(
 
 # ── Reusable genotype scaffolding ─────────────────────────────────────────
 
-# An evaluable non-PAR chrX pool (one heterozygous call + homozygous filler) plus
-# a chrY no-call denominator. Sex inference now requires an aggregate denominator
-# on both sex chromosomes before a confident call (issue #363:
-# ``MIN_X_NONPAR_TYPED`` typed non-PAR chrX, ``MIN_Y_PROBES`` chrY probes), so the
-# scaffold clears both floors. With the chrY denominator all no-call (rate 0.0,
-# at/below the noise floor) and a heterozygous non-PAR chrX call,
-# ``infer_biological_sex`` resolves XX — prepending it to a variant list yields an
-# XX sample without a full chip's worth of rows.
+# An evaluable non-PAR chrX pool (a diploid-X heterozygosity rate + homozygous
+# filler) plus a chrY no-call denominator. Sex inference requires an aggregate
+# denominator on both sex chromosomes before a confident call (issue #363:
+# ``MIN_X_NONPAR_TYPED`` typed non-PAR chrX, ``MIN_Y_PROBES`` chrY probes) AND
+# decides X dosage on the non-PAR chrX heterozygosity *rate* (issue #519): a real
+# female is heterozygous at a large fraction of markers, so the scaffold carries a
+# diploid-X het rate (60 het + 60 hom = 0.50, above the 0.15 diploid cutoff), not
+# a lone noise het. With the chrY denominator all no-call (rate 0.0, at/below the
+# noise floor), ``infer_biological_sex`` resolves XX — prepending it to a variant
+# list yields an XX sample without a full chip's worth of rows.
 XX_SCAFFOLD: tuple[dict, ...] = (
-    {"rsid": "rs_xx_scaffold_het", "chrom": "X", "pos": 50_000_000, "genotype": "AG"},
+    *(
+        {
+            "rsid": f"rs_xx_scaffold_het_{i}",
+            "chrom": "X",
+            "pos": 50_000_000 + i,
+            "genotype": "AG",
+        }
+        for i in range(60)
+    ),
     *(
         {
             "rsid": f"rs_xx_scaffold_hom_{i}",
             "chrom": "X",
-            "pos": 50_000_001 + i,
+            "pos": 50_100_000 + i,
             "genotype": "GG",
         }
-        for i in range(119)
+        for i in range(60)
     ),
 )
 
