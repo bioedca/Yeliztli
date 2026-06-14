@@ -50,6 +50,11 @@ dev = [
     "mypy",
     "pyyaml",
     "pandas",
+    # Python dead-code detector (#579). ruff (E/F/I/UP) flags unused locals and
+    # imports but NOT unused module-level constants/functions/methods; vulture
+    # closes that blind spot. Config + baseline live in [tool.vulture] +
+    # vulture_whitelist.py.
+    "vulture",
 ]
 # Documentation site (MkDocs Material). Install with `pip install -e ".[docs]"`
 # — used locally, by the `docs-build` CI job, and by the Pages deploy workflow.
@@ -74,6 +79,33 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+# Python dead-code detector (#579) — the backend counterpart to the frontend
+# knip gate (#555). ruff cannot see unused module-level constants/functions, so
+# they ship CI-invisible (the #527/#535/#553/#561 cluster). vulture closes that
+# gap. ``tests``/``scripts`` are analysed alongside ``backend`` so a backend
+# symbol referenced only by a test counts as used (not a false positive).
+# ``vulture_whitelist.py`` is a reviewed baseline that suppresses framework
+# dynamic references (FastAPI/Huey/Pydantic/SQLAlchemy/dataclasses) AND the
+# current per-symbol dead-code backlog; trim its entries as those issues close.
+# Run locally with: ``vulture`` (reads this config) or regenerate the baseline
+# with ``scripts/make_vulture_whitelist.sh``.
+[tool.vulture]
+paths = ["backend", "tests", "scripts", "vulture_whitelist.py"]
+min_confidence = 60
+ignore_decorators = [
+    "@router.get",
+    "@router.post",
+    "@router.put",
+    "@router.delete",
+    "@router.patch",
+    "@huey.task",
+    "@huey.periodic_task",
+    "@field_validator",
+    "@model_validator",
+    "@app.exception_handler",
+]
+sort_by_size = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
