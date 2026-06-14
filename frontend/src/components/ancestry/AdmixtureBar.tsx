@@ -17,6 +17,15 @@ interface AdmixtureBarProps {
   ci_high?: Record<string, number>
 }
 
+// Narrow stacked segments can't hold an in-bar label: Plotly rotates/clips it to
+// illegible vertical text (and an outside label on a 1–4% sliver overlaps its
+// neighbours). Admixed samples routinely have several small components, so this
+// is the common case. Suppress the in-bar label below MIN_LABEL_PCT and append
+// the wider "±CI%" suffix only at/above MIN_CI_LABEL_PCT; the hover tooltip and
+// legend still convey every population, so no information is lost.
+const MIN_LABEL_PCT = 5
+const MIN_CI_LABEL_PCT = 10
+
 export default function AdmixtureBar({ admixture_fractions, ci_low, ci_high }: AdmixtureBarProps) {
   const { isDark } = useThemeContext()
   const pt = getPlotlyTheme(isDark)
@@ -36,12 +45,23 @@ export default function AdmixtureBar({ admixture_fractions, ci_low, ci_high }: A
   const hasCi = ci_low && ci_high
 
   const traces = sorted.map(([pop, frac]) => {
+    const pct = frac * 100
     const halfWidth = hasCi
       ? ((ci_high[pop] ?? frac) - (ci_low[pop] ?? frac)) / 2 * 100
       : null
 
+    // Only label segments wide enough to render legibly; attach the \u00B1CI suffix
+    // only on the widest ones. Narrow segments get no in-bar text (hover/legend
+    // cover them) so Plotly never has to rotate/clip a label into a sliver.
+    let label = ""
+    if (pct >= MIN_CI_LABEL_PCT && halfWidth != null && halfWidth > 0.05) {
+      label = `${pct.toFixed(1)}% \u00B1${halfWidth.toFixed(1)}%`
+    } else if (pct >= MIN_LABEL_PCT) {
+      label = `${pct.toFixed(1)}%`
+    }
+
     return {
-      x: [frac * 100],
+      x: [pct],
       y: ["Ancestry"],
       name: POPULATION_LABELS[pop] ?? pop,
       type: "bar" as const,
@@ -49,10 +69,12 @@ export default function AdmixtureBar({ admixture_fractions, ci_low, ci_high }: A
       marker: {
         color: POPULATION_COLORS[pop] ?? "#94A3B8",
       },
-      text: [halfWidth != null && halfWidth > 0.05
-        ? `${(frac * 100).toFixed(1)}% \u00B1${halfWidth.toFixed(1)}%`
-        : `${(frac * 100).toFixed(1)}%`],
-      textposition: "inside" as const,
+      text: [label],
+      // "auto" lets Plotly place a shown label inside when it fits (outside
+      // otherwise) instead of forcing it inside and rotating/clipping it;
+      // cliponaxis keeps an outside label from being cut off at the axis edge.
+      textposition: "auto" as const,
+      cliponaxis: false,
       hovertemplate: hasCi
         ? `${POPULATION_LABELS[pop] ?? pop}: %{x:.1f}% (${((ci_low[pop] ?? frac) * 100).toFixed(1)}–${((ci_high[pop] ?? frac) * 100).toFixed(1)}%)<extra></extra>`
         : `${POPULATION_LABELS[pop] ?? pop}: %{x:.1f}%<extra></extra>`,
