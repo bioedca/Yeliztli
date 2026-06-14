@@ -35,16 +35,11 @@ import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
+import { formatAlleleFrequency } from "@/lib/format"
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers (reused from side panel)                           */
 /* ------------------------------------------------------------------ */
-
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
-}
 
 function renderStars(stars: number | null): string {
   if (stars == null) return ""
@@ -236,7 +231,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <SectionHeader icon={Activity} label="Key Scores" />
       <DetailRow label="gnomAD AF" value={
         <span className="flex items-center gap-1.5">
-          {formatAF(variant.gnomad_af_global)}
+          {formatAlleleFrequency(variant.gnomad_af_global)}
           {rareLabel && (
             <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {rareLabel}

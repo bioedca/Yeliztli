@@ -5,6 +5,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -24,12 +25,6 @@ const POPULATION_LABELS: Record<string, string> = {
   gnomad_af_sas: "South Asian",
 }
 
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af === 0) return "0"
-  if (af < 0.0001) return af.toExponential(2)
-  return (af * 100).toFixed(2) + "%"
-}
 
 export default function VariantDetailPanel({ variant, onClose }: VariantDetailPanelProps) {
   const popFreqs = [
@@ -242,7 +237,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               {popFreqs.map(({ key, value }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">{POPULATION_LABELS[key]}</span>
-                  <span className="text-sm font-mono">{formatAF(value)}</span>
+                  <span className="text-sm font-mono">{formatAlleleFrequency(value)}</span>
                 </div>
               ))}
             </div>

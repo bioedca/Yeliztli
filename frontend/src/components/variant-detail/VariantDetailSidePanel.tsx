@@ -20,18 +20,12 @@ import { useVariantDetail } from "@/api/variant-detail"
 import type { VariantDetail, EvidenceConflictDetail } from "@/types/variant-detail"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
+import { formatAlleleFrequency } from "@/lib/format"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
   sampleId: number | null
   onClose: () => void
-}
-
-/** Format allele frequency for display. */
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
 }
 
 /** Render ClinVar review stars as filled/empty unicode stars. */
@@ -225,7 +219,7 @@ function PanelContent({
           label="gnomAD AF"
           value={
             <span className="flex items-center gap-1.5">
-              {formatAF(variant.gnomad_af_global)}
+              {formatAlleleFrequency(variant.gnomad_af_global)}
               {rareLabel && (
                 <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                   {rareLabel}

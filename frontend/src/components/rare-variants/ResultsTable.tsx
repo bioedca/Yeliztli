@@ -5,6 +5,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
@@ -85,9 +86,7 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-xs">
                   {v.gnomad_af_global != null
-                    ? v.gnomad_af_global < 0.0001
-                      ? v.gnomad_af_global.toExponential(1)
-                      : (v.gnomad_af_global * 100).toFixed(3) + "%"
+                    ? formatAlleleFrequency(v.gnomad_af_global)
                     : "Novel"}
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-xs">

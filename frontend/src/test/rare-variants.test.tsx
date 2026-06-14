@@ -172,6 +172,25 @@ describe("ResultsTable", () => {
     expect(screen.getByText("Novel")).toBeInTheDocument()
   })
 
+  it("renders gnomAD AF in one consistent unit across the 0.0001 threshold (#564)", () => {
+    // Two near-identical frequencies straddling the old percent/fraction split.
+    // Pre-fix, 0.00012 rendered as "0.012%" and 0.00009 as "9.0e-5" — a ~100x
+    // unit mismatch that made the smaller value look unrelated. Both must now be
+    // bare fractions (no "%") so the column is comparable by eye.
+    const variants = [
+      makeMockVariant({ rsid: "rs_hi", gnomad_af_global: 0.00012 }),
+      makeMockVariant({ rsid: "rs_lo", gnomad_af_global: 0.00009 }),
+    ]
+    render(<ResultsTable items={variants} selectedRsid={null} onSelect={vi.fn()} />)
+    const rows = screen.getAllByTestId("result-row")
+    expect(rows).toHaveLength(2)
+    for (const row of rows) {
+      expect(row.textContent).not.toContain("%")
+    }
+    expect(screen.getByText("9.00e-5")).toBeInTheDocument()
+    expect(screen.getByText("0.0001")).toBeInTheDocument()
+  })
+
   it("shows evidence conflict indicator", () => {
     const variant = makeMockVariant({ evidence_conflict: true })
     render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)

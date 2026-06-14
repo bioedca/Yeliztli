@@ -17,3 +17,22 @@ export function parseSampleId(raw: string | null): number | null {
 export function formatNumber(n: number): string {
   return n.toLocaleString()
 }
+
+/**
+ * Format a gnomAD allele frequency as a raw fraction — the single source of
+ * truth for AF display across views (#564).
+ *
+ * AF is a fraction by definition, so this never converts to a percentage:
+ * mixing a percentage for common variants with a bare fraction for rare ones
+ * (the previous Rare Variant Finder behavior) makes near-identical frequencies
+ * look ~100× apart and uncomparable by eye. Very small frequencies use
+ * scientific notation so they keep their significant digits; ``null`` (variant
+ * absent from gnomAD) is the caller's affordance — callers that mean "Novel"
+ * should branch before calling.
+ */
+export function formatAlleleFrequency(af: number | null): string {
+  if (af == null) return "—"
+  if (af === 0) return "0"
+  if (af < 0.0001) return af.toExponential(2)
+  return af.toFixed(4)
+}

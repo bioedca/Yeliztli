@@ -25,21 +25,13 @@ import {
 } from "lucide-react"
 
 import { useGeneDetail } from "@/api/gene-detail"
-import { parseSampleId } from "@/lib/format"
+import { parseSampleId, formatAlleleFrequency } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import { cn } from "@/lib/utils"
 import { NightingaleViewer, PopulationAFChart } from "@/components/gene-detail"
 import type { GeneVariantSummary, PubMedArticle } from "@/types/gene-detail"
-
-/* ── Helpers ───────────────────────────────────────────────────── */
-
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
-}
 
 function renderStars(stars: number | null): string {
   if (stars == null) return ""
@@ -308,7 +300,7 @@ export default function GeneDetailPage() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
-                      {formatAF(v.gnomad_af_global)}
+                      {formatAlleleFrequency(v.gnomad_af_global)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
                       {v.cadd_phred != null ? v.cadd_phred.toFixed(1) : "—"}
