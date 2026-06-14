@@ -31,6 +31,8 @@ import {
   Heart,
   Bone,
   Eye,
+  Dna,
+  Users,
   type LucideIcon,
 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -228,6 +230,20 @@ const MODULE_META: Record<string, ModuleMeta> = {
     icon: Droplet,
     route: null,
     color: "text-red-600 dark:text-red-400",
+  },
+  // Gated disclosure module: surfaces in the findings list after the user
+  // acknowledges its gate. No dedicated page → non-navigable (like parkinsons).
+  sex_aneuploidy: {
+    label: "Sex Aneuploidy",
+    icon: Dna,
+    route: null,
+    color: "text-violet-700 dark:text-violet-500",
+  },
+  kinship: {
+    label: "Kinship",
+    icon: Users,
+    route: null,
+    color: "text-blue-700 dark:text-blue-500",
   },
 }
 
