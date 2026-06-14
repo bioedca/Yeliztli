@@ -541,7 +541,7 @@ function GenomeTab({ variant, sampleId }: { variant: VariantDetail; sampleId: nu
       </div>
       <div className="mt-3">
         <Link
-          to={`/genome-browser?locus=chr${variant.chrom}:${variant.pos}${sampleId != null ? `&sampleId=${sampleId}` : ""}`}
+          to={`/genome-browser?locus=chr${variant.chrom}:${variant.pos}${sampleId != null ? `&sample_id=${sampleId}` : ""}`}
           className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
         >
           Open full browser <ExternalLink className="h-3.5 w-3.5" />

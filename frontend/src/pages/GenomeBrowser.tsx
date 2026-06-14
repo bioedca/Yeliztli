@@ -7,7 +7,7 @@
  *
  * Supports navigation via URL search params:
  *   ?locus=BRCA1  — jump to a gene/region
- *   ?sampleId=1   — load user variant track for the given sample
+ *   ?sample_id=1  — load user variant track for the given sample
  */
 import { useRef, useMemo, useState, useCallback, type FormEvent } from "react"
 import { useSearchParams } from "react-router-dom"
@@ -15,21 +15,22 @@ import { Search } from "lucide-react"
 import { IgvBrowser } from "@/components/igv-browser"
 import type { IgvBrowserHandle, IgvVariantClickEvent } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
+import { parseSampleId } from "@/lib/format"
 
 export default function GenomeBrowser() {
   const [searchParams, setSearchParams] = useSearchParams()
   const locusParam = searchParams.get("locus") ?? "all"
-  const sampleIdParam = searchParams.get("sampleId")
-  const sampleId = sampleIdParam ? parseInt(sampleIdParam, 10) : undefined
+  // The app writes the selected sample as ?sample_id (snake_case) on every page
+  // (IndividualSelector); read the same param — via the shared parseSampleId the
+  // other 30 views use — so the user's variant track loads from the normal flow,
+  // not only from the variant-detail link (#621).
+  const sampleId = parseSampleId(searchParams.get("sample_id")) ?? undefined
 
   const browserRef = useRef<IgvBrowserHandle>(null)
   const [searchValue, setSearchValue] = useState("")
   const [lastClickedVariant, setLastClickedVariant] = useState<IgvVariantClickEvent | null>(null)
 
-  const tracks = useMemo(
-    () => buildDefaultTracks(Number.isFinite(sampleId) ? sampleId : undefined),
-    [sampleId],
-  )
+  const tracks = useMemo(() => buildDefaultTracks(sampleId), [sampleId])
 
   const handleSearch = useCallback(
     (e: FormEvent) => {
