@@ -2,10 +2,40 @@
 
 from __future__ import annotations
 
+import multiprocessing
+import os
 import threading
 import time
+from pathlib import Path
 
-from backend.db.build_guard import build_lock
+from backend.db.build_guard import (
+    build_lock,
+    claims_dir,
+    cross_process_build_claim,
+    is_cross_process_build_claimed,
+)
+
+# Module-level child targets (must be importable/picklable for spawn safety).
+
+
+def _child_hold_until(data_dir_str: str, acquired_evt, release_evt) -> None:
+    """Acquire the claim, signal, hold until released, then exit normally."""
+    with cross_process_build_claim("clinvar", Path(data_dir_str)) as got:
+        if got:
+            acquired_evt.set()
+            release_evt.wait(timeout=10)
+
+
+def _child_acquire_and_die(data_dir_str: str, acquired_evt) -> None:
+    """Acquire the claim, signal, then die WITHOUT releasing (simulated crash).
+
+    ``os._exit`` skips the context manager's ``__exit__`` (no explicit
+    ``flock(LOCK_UN)``), so only the kernel's on-death release can free it.
+    """
+    with cross_process_build_claim("clinvar", Path(data_dir_str)) as got:
+        if got:
+            acquired_evt.set()
+        os._exit(0)
 
 
 class TestBuildLock:
@@ -88,3 +118,76 @@ class TestBuildLock:
         t.start()
         assert acquired.wait(timeout=5)
         t.join(timeout=5)
+
+
+class TestCrossProcessBuildClaim:
+    """The flock-backed cross-process claim layered over the in-process lock.
+
+    flock conflicts across *independent open file descriptions* — including
+    descriptions held by different processes — so two ``os.open`` descriptions
+    in one test process exercise the very same kernel mutual-exclusion that
+    spans the API and Huey processes in production. The multiprocessing tests
+    then prove the end-to-end cross-process behaviour, including the kernel's
+    automatic release when a holder dies.
+    """
+
+    def test_second_acquirer_blocked_while_held(self, tmp_path: Path) -> None:
+        with cross_process_build_claim("clinvar", tmp_path) as first:
+            assert first is True
+            # A second, independent description cannot acquire while the first
+            # holds it (this is exactly the cross-process denial).
+            with cross_process_build_claim("clinvar", tmp_path) as second:
+                assert second is False
+        # Released on exit → a fresh claim succeeds.
+        with cross_process_build_claim("clinvar", tmp_path) as third:
+            assert third is True
+
+    def test_different_dbs_do_not_conflict(self, tmp_path: Path) -> None:
+        with cross_process_build_claim("clinvar", tmp_path) as a:
+            with cross_process_build_claim("cpic", tmp_path) as b:
+                assert a is True
+                assert b is True
+
+    def test_probe_reflects_claim_state(self, tmp_path: Path) -> None:
+        assert is_cross_process_build_claimed("clinvar", tmp_path) is False
+        with cross_process_build_claim("clinvar", tmp_path):
+            assert is_cross_process_build_claimed("clinvar", tmp_path) is True
+            # A different DB is independent.
+            assert is_cross_process_build_claimed("cpic", tmp_path) is False
+        assert is_cross_process_build_claimed("clinvar", tmp_path) is False
+
+    def test_claim_file_lives_under_claims_dir(self, tmp_path: Path) -> None:
+        with cross_process_build_claim("clinvar", tmp_path):
+            assert (claims_dir(tmp_path) / "clinvar.claim").exists()
+
+    def test_cross_process_mutual_exclusion(self, tmp_path: Path) -> None:
+        ctx = multiprocessing.get_context("fork")
+        acquired, release = ctx.Event(), ctx.Event()
+        proc = ctx.Process(target=_child_hold_until, args=(str(tmp_path), acquired, release))
+        proc.start()
+        try:
+            assert acquired.wait(timeout=10), "child never acquired the claim"
+            # While the child holds it, this process cannot claim or sees it held.
+            with cross_process_build_claim("clinvar", tmp_path) as got:
+                assert got is False
+            assert is_cross_process_build_claimed("clinvar", tmp_path) is True
+        finally:
+            release.set()
+            proc.join(timeout=10)
+        assert proc.exitcode == 0
+        # After the child releases and exits, the claim is free again.
+        with cross_process_build_claim("clinvar", tmp_path) as got:
+            assert got is True
+
+    def test_os_releases_claim_on_holder_death(self, tmp_path: Path) -> None:
+        ctx = multiprocessing.get_context("fork")
+        acquired = ctx.Event()
+        proc = ctx.Process(target=_child_acquire_and_die, args=(str(tmp_path), acquired))
+        proc.start()
+        assert acquired.wait(timeout=10), "child never acquired the claim"
+        proc.join(timeout=10)
+        assert proc.exitcode == 0
+        # The child died holding the claim and never ran an explicit unlock;
+        # the kernel must have released the flock on process death.
+        with cross_process_build_claim("clinvar", tmp_path) as got:
+            assert got is True
