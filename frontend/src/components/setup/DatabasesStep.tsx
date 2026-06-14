@@ -318,7 +318,24 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
         onSuccess: () => {
           toast.info(`${dbName}: removed the partial/corrupt artifact`)
           setDownloadError(null)
-          handleStartDownload()
+          // Re-download ONLY this DB. We must not re-derive from `selectedDbs`
+          // (built from the dbList cache): the cleaned DB's list entry still
+          // reads downloaded:true until the list refetches, so it would be
+          // filtered out of the selection and never re-downloaded.
+          setIsDownloading(true)
+          setAggregate(null)
+          triggerDownload.mutate([dbName], {
+            onSuccess: (result) =>
+              connectToSession(result.downloads, result.session_id),
+            onError: (err) => {
+              setIsDownloading(false)
+              setDownloadError(
+                err instanceof Error
+                  ? err.message
+                  : `Failed to re-download ${dbName}`,
+              )
+            },
+          })
         },
         onError: (err) =>
           toast.error(
@@ -326,7 +343,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
           ),
       })
     },
-    [cleanDatabase, handleStartDownload],
+    [cleanDatabase, triggerDownload, connectToSession],
   )
 
   // Whether the user may proceed past the Databases step. This is the SAME

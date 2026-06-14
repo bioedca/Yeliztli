@@ -1944,6 +1944,42 @@ describe('DatabasesStep', () => {
     expect(screen.getByTestId('db-clean-clinvar')).toBeInTheDocument()
   })
 
+  it('Clean & re-download re-downloads only the cleaned DB (not the stale set)', async () => {
+    routeDatabasesFetch({
+      list: downloadedClinvar(),
+      download: {
+        body: { session_id: 's1', downloads: [{ db_name: 'clinvar', job_id: 'j1' }] },
+      },
+      health: {
+        databases: [
+          {
+            name: 'clinvar',
+            integrity_ok: false,
+            integrity_detail: 'malformed image',
+            can_clean: true,
+          },
+        ],
+      },
+    })
+    const _restore = stubEventSource()
+    void _restore
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('db-clean-clinvar'))
+
+    // The cleaned DB's list entry still reads downloaded:true, so the re-download
+    // must target it EXPLICITLY rather than re-deriving from the selected set.
+    await waitFor(() => {
+      const dl = mockFetch.mock.calls.find(([u]: [unknown]) =>
+        String(u).includes('/api/databases/download'),
+      )
+      expect(dl).toBeTruthy()
+      expect(JSON.parse((dl![1] as { body: string }).body)).toEqual({
+        databases: ['clinvar'],
+      })
+    })
+    vi.unstubAllGlobals()
+  })
+
   it('offers Resume on a failed download with a resumable partial', async () => {
     routeDatabasesFetch({
       list: mockDatabaseList(),
