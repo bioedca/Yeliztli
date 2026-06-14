@@ -630,7 +630,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
             old_significances=old_sigs,
             new_significances=new_sigs,
         )
@@ -663,7 +662,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
             old_significances=old_sigs,
             new_significances=new_sigs,
         )
@@ -677,7 +675,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
             old_significances={},
             new_significances={},
         )
@@ -716,7 +713,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
             old_significances=old_sigs,
             new_significances=new_sigs,
         )
@@ -761,7 +757,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
             old_significances=old_sigs,
             new_significances=new_sigs,
         )
@@ -818,7 +813,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
         )
 
         assert result.candidate_count == 1
@@ -867,7 +861,6 @@ class TestPrecheck:
             sample_engine,
             reference_engine,
             sample_id=1,
-            sample_name="Test",
         )
 
         assert result.candidate_count == 1
