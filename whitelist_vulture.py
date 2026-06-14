@@ -8,12 +8,17 @@
 # Pydantic model fields, SQLAlchemy declarative attributes / event-listener
 # params, pydantic-settings source hooks, and symbols referenced only reflectively.
 #
-# Regenerate after intentional changes:  vulture backend tests --make-whitelist > whitelist_vulture.py
+# Regenerate after intentional changes:
+#   vulture backend tests --make-whitelist > whitelist_vulture.py
 #
-# NOTE (#579): this is a *baseline*, not a hand-audited allow-list — it may also
-# be suppressing genuinely-dead public symbols. Auditing it down (and then
-# flipping the CI step from advisory to blocking) is deferred follow-up work,
-# mirroring how the frontend `knip` advisory baseline is being cleared.
+# NOTE (#579): this is a *baseline*, not a hand-audited allow-list — like the
+# frontend `knip` advisory baseline, it accepts the CURRENT state (so the
+# advisory flags only NEW dead code) and therefore also suppresses some
+# genuinely-dead public symbols, e.g. `load_constraint_from_tsv` /
+# `download_constraint` in backend/annotation/gnomad_constraint.py (the
+# pre-bundle TSV ingest path, no callers). Auditing this baseline down — removing
+# the real dead code, keeping only framework false positives — and then flipping
+# the CI step from advisory to blocking is deferred follow-up work.
 
 ref_freq  # unused variable (backend/analysis/ancestry.py:167)
 EBMD_PMIDS  # unused variable (backend/analysis/ebmd_prs.py:33)

@@ -74,6 +74,9 @@ packages = ["backend"]
 [tool.ruff]
 line-length = 99
 target-version = "py312"
+# The generated vulture baseline is a wall of bare names (F821 by design); keep a
+# bare `ruff check` from the repo root clean. CI already scopes ruff to backend/+tests/.
+extend-exclude = ["whitelist_vulture.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -91,9 +94,10 @@ select = ["E", "F", "I", "UP"]
 # decorated callables, pydantic-settings source hooks) are suppressed by the
 # decorator list below plus the reviewed `whitelist_vulture.py` baseline.
 #
-# Known limitation: vulture ignores `_`-prefixed (private) names by convention,
-# so a private dead constant like #527's `_TSV_COLUMN_MAP` is NOT caught — vulture
-# covers the *public* dead-symbol class (#535/#553/#561), not the private one.
+# Known limitation: vulture ignores `_`-prefixed (private) *variables and
+# module-level constants* by convention (private *functions* are still caught),
+# so a private dead constant like #527's `_TSV_COLUMN_MAP` is NOT caught — the
+# blind spot is private constants/module-level assignments, not all private names.
 [tool.vulture]
 # Scan backend AND tests together so a backend symbol referenced only from a test
 # is not false-flagged as dead (and genuinely-dead backend code is still caught);
