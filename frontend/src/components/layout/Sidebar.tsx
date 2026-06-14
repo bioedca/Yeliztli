@@ -22,6 +22,7 @@ import {
   Globe,
   Dna,
   SlidersHorizontal,
+  Layers,
   FileText,
   Settings,
   SearchCheck,
@@ -55,6 +56,7 @@ const navItems = [
   { to: '/rare-variants', icon: SearchCheck, label: 'Rare Variants' },
   { to: '/genome-browser', icon: Dna, label: 'Genome Browser' },
   { to: '/query-builder', icon: SlidersHorizontal, label: 'Query Builder' },
+  { to: '/overlays', icon: Layers, label: 'Annotation Overlays' },
   { to: '/reports', icon: FileText, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]

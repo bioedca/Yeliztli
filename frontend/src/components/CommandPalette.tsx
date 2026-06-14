@@ -36,6 +36,7 @@ import {
   Fingerprint,
   Activity,
   SlidersHorizontal,
+  Layers,
   ArrowRightLeft,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -63,6 +64,7 @@ const pages = [
   { to: "/ancestry", icon: Globe, label: "Ancestry" },
   { to: "/genome-browser", icon: Dna, label: "Genome Browser" },
   { to: "/query-builder", icon: SlidersHorizontal, label: "Query Builder" },
+  { to: "/overlays", icon: Layers, label: "Annotation Overlays" },
   { to: "/reports", icon: FileText, label: "Reports" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ]
