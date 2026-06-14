@@ -146,7 +146,6 @@ class PathwayResult:
 
     pathway_id: str
     pathway_name: str
-    pathway_description: str
     level: str  # Elevated / Moderate / Standard
     snp_results: list[SNPResult] = field(default_factory=list)
 
@@ -468,7 +467,6 @@ def score_nutrigenomics_pathways(
             PathwayResult(
                 pathway_id=pathway.id,
                 pathway_name=pathway.name,
-                pathway_description=pathway.description,
                 level=level,
                 snp_results=snp_results,
             )

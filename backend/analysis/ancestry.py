@@ -1625,26 +1625,6 @@ def _classify_node_match(
     return snps_present, snps_conflicting, snps_total
 
 
-def _check_node_match(
-    node: HaplogroupNode,
-    genotype_map: dict[str, str | None],
-) -> tuple[int, int]:
-    """Check how many defining SNPs match for a node.
-
-    A defining SNP matches if the sample's genotype at that rsid
-    contains the derived allele (heterozygous or homozygous). Back-compatible
-    shim over :func:`_classify_node_match` (drops the conflicting count).
-
-    Args:
-        node: Tree node to check.
-        genotype_map: Mapping rsid → genotype string.
-
-    Returns:
-        Tuple of (snps_present, snps_total).
-    """
-    snps_present, _snps_conflicting, snps_total = _classify_node_match(node, genotype_map)
-    return snps_present, snps_total
-
 
 def _tree_walk(
     node: HaplogroupNode,
