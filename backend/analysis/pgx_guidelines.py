@@ -42,7 +42,6 @@ PGX_SOURCES_PMID = "34216021"
 _CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "pgx" / "pgx_guideline_sources.csv"
 
 
-
 @lru_cache(maxsize=1)
 def _load_sources() -> dict[tuple[str, str], dict[str, Any]]:
     """Load + cache the curated gene-drug → cross-source evidence map."""
@@ -72,8 +71,6 @@ def lookup_guideline_sources(gene: str | None, drug: str | None) -> dict[str, An
     if not gene or not drug:
         return None
     return _load_sources().get((gene.strip(), drug.strip().lower()))
-
-
 
 
 def assess_sample_pgx_guidelines(sample_engine: sa.Engine) -> dict[str, Any]:

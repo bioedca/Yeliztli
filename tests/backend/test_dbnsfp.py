@@ -9,7 +9,7 @@ Covers:
 - Table creation and index creation
 - Version recording in database_versions
 - Download function structure
-- Ensemble pathogenicity helpers (count_deleterious, is_ensemble_pathogenic)
+- Ensemble pathogenicity helpers (deleterious_count, is_ensemble_pathogenic)
 - LoadStats dataclass
 """
 
@@ -35,7 +35,6 @@ from backend.annotation.dbnsfp import (
     _parse_dbnsfp_float,
     _parse_dbnsfp_pred,
     _parse_float,
-    count_deleterious,
     create_dbnsfp_tables,
     download_and_load_dbnsfp,
     is_ensemble_pathogenic,
@@ -488,7 +487,7 @@ class TestEnsemblePathogenicity:
             metasvm=0.5,
         )
         # SIFT, PolyPhen, CADD + the collapsed META axis = 4 independent axes.
-        assert count_deleterious(annot) == 4
+        assert annot.deleterious_count == 4
         assert is_ensemble_pathogenic(annot)
 
     def test_exactly_three_deleterious(self):
@@ -499,7 +498,7 @@ class TestEnsemblePathogenicity:
             revel=0.3,  # T: < 0.5
             metasvm=-0.5,  # T: <= 0
         )
-        assert count_deleterious(annot) == 3
+        assert annot.deleterious_count == 3
         assert is_ensemble_pathogenic(annot)
 
     def test_two_deleterious_not_pathogenic(self):
@@ -510,7 +509,7 @@ class TestEnsemblePathogenicity:
             revel=0.3,  # T
             metasvm=-0.5,  # T
         )
-        assert count_deleterious(annot) == 2
+        assert annot.deleterious_count == 2
         assert not is_ensemble_pathogenic(annot)
 
     def test_none_deleterious(self):
@@ -521,7 +520,7 @@ class TestEnsemblePathogenicity:
             revel=0.1,
             metasvm=-1.0,
         )
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
         assert not is_ensemble_pathogenic(annot)
 
     def test_polyphen_strict_threshold(self):
@@ -532,37 +531,37 @@ class TestEnsemblePathogenicity:
         ``evidence_conflict._is_polyphen_deleterious`` (> 0.909).
         """
         # Possibly-damaging range — does NOT count.
-        assert count_deleterious(self._make_annot(polyphen2_hsvar_score=0.7)) == 0
-        assert count_deleterious(self._make_annot(polyphen2_hsvar_score=0.909)) == 0
+        assert self._make_annot(polyphen2_hsvar_score=0.7).deleterious_count == 0
+        assert self._make_annot(polyphen2_hsvar_score=0.909).deleterious_count == 0
         # Probably-damaging (> 0.909) — counts.
-        assert count_deleterious(self._make_annot(polyphen2_hsvar_score=0.95)) == 1
+        assert self._make_annot(polyphen2_hsvar_score=0.95).deleterious_count == 1
 
     def test_all_null_scores(self):
         annot = self._make_annot()
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
         assert not is_ensemble_pathogenic(annot)
 
     def test_boundary_values(self):
         """Test exact threshold boundaries."""
         # SIFT boundary: exactly 0.05 is NOT deleterious (< 0.05 required)
         annot = self._make_annot(sift_score=0.05)
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
 
         # PolyPhen boundary: exactly 0.453 is NOT deleterious (> 0.453 required)
         annot = self._make_annot(polyphen2_hsvar_score=0.453)
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
 
         # CADD boundary: exactly 20 IS deleterious (>= 20)
         annot = self._make_annot(cadd_phred=20.0)
-        assert count_deleterious(annot) == 1
+        assert annot.deleterious_count == 1
 
         # REVEL boundary: exactly 0.5 IS deleterious (>= 0.5)
         annot = self._make_annot(revel=0.5)
-        assert count_deleterious(annot) == 1
+        assert annot.deleterious_count == 1
 
         # MetaSVM boundary: exactly 0 is NOT deleterious (> 0 required)
         annot = self._make_annot(metasvm=0.0)
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
 
     def test_meta_predictors_collapse_to_one_axis(self):
         """F24: REVEL+MetaSVM+MetaLR count as ONE axis, not three votes.
@@ -573,7 +572,7 @@ class TestEnsemblePathogenicity:
         its own (k-of-present needs ≥2 axes).
         """
         annot = self._make_annot(revel=0.9, metasvm=0.8, metalr=0.9)
-        assert count_deleterious(annot) == 1
+        assert annot.deleterious_count == 1
         assert annot.deleterious_total_assessed == 1
         assert not is_ensemble_pathogenic(annot)
 
@@ -581,7 +580,7 @@ class TestEnsemblePathogenicity:
         """F24: a lone deleterious meta-predictor outvoted by its siblings is not a vote."""
         # MetaSVM says deleterious; REVEL and MetaLR say tolerated → axis = not del.
         annot = self._make_annot(revel=0.2, metasvm=0.8, metalr=0.1)
-        assert count_deleterious(annot) == 0
+        assert annot.deleterious_count == 0
         assert annot.deleterious_total_assessed == 1
 
     def test_k_of_present_flags_two_of_two(self):
@@ -592,7 +591,7 @@ class TestEnsemblePathogenicity:
         rule fires — the old fixed threshold of 3 made this unreachable.
         """
         annot = self._make_annot(sift_score=0.001, cadd_phred=30.0)
-        deleterious, assessed = count_deleterious(annot), annot.deleterious_total_assessed
+        deleterious, assessed = annot.deleterious_count, annot.deleterious_total_assessed
         assert (deleterious, assessed) == (2, 2)
         assert is_ensemble_pathogenic(annot)
 

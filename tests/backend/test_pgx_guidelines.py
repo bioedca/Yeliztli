@@ -11,7 +11,6 @@ import sqlalchemy as sa
 from backend.analysis.pgx_guidelines import (
     PGX_SOURCES_PMID,
     assess_sample_pgx_guidelines,
-    loe_rank,
     lookup_guideline_sources,
 )
 from backend.db.sample_schema import create_sample_tables
@@ -67,13 +66,6 @@ class TestLookup:
     def test_uncurated_pair_returns_none(self) -> None:
         assert lookup_guideline_sources("BRCA1", "aspirin") is None
         assert lookup_guideline_sources(None, "x") is None
-
-
-class TestLoeRank:
-    def test_ordering(self) -> None:
-        assert loe_rank("1A") < loe_rank("1B") < loe_rank("2A") < loe_rank("3") < loe_rank("4")
-        assert loe_rank(None) == 99
-        assert loe_rank("nonsense") == 99
 
 
 class TestAssessSample:
