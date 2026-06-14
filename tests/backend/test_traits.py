@@ -277,10 +277,13 @@ class TestDRD4Proxy:
         the locus does not model, so it is withheld as Indeterminate rather than
         silently scored Standard (which would hide a carrier as 'no effect') — #608."""
         drd4 = self._get_drd4(panel)
-        result = _score_snp(drd4, "CT")
-        assert result.category == INDETERMINATE
-        assert result.present_in_sample is True
-        assert "does not model" in result.effect_summary
+        for gt in ("CT", "TC"):
+            result = _score_snp(drd4, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        # A non-nucleotide no-call is not an unmodeled allele — it stays Standard.
+        assert _score_snp(drd4, "--").category == STANDARD
 
     def test_drd4_finding_preserves_coverage_note(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
