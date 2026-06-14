@@ -314,6 +314,19 @@ class TestACEProxy:
         result = _score_snp(ace, "GG")
         assert result.three_state_label is None
 
+    def test_ace_third_allele_genotype_indeterminate(self, panel: FitnessPanel) -> None:
+        """rs4341 is 4-allelic (G/A/C/T) but the panel models only the A/G I/D-proxy
+        contrast. A genotype carrying the unmodeled third allele (the issue's
+        observed ``CG``) must be withheld as Indeterminate — never silently scored
+        Standard, which would hide the carrier as 'no effect' (#608)."""
+        ace = self._get_ace(panel)
+        for gt in ("CG", "GC"):
+            result = _score_snp(ace, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert result.three_state_label is None
+            assert "does not model" in result.effect_summary, gt
+
 
 # ── COL1A1 rs1800012 soft-tissue direction tests (issue #144) ──────────────
 

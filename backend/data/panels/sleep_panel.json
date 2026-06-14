@@ -192,15 +192,15 @@
               "category": "Standard",
               "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
-            "CT": {
+            "CA": {
               "category": "Standard",
               "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
-            "TC": {
+            "AC": {
               "category": "Standard",
               "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             },
-            "TT": {
+            "AA": {
               "category": "Standard",
               "effect_summary": "rs2858884 is an HLA class II region marker, not a validated proxy for HLA-DQB1*06:02 carriage. No narcolepsy genotype call is made. Narcolepsy type 1 risk is driven by HLA-DQB1*06:02, which this SNP does not tag and which requires direct HLA typing."
             }

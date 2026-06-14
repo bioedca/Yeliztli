@@ -20,8 +20,22 @@ alleles (``tests/fixtures/categorical_panel_ensembl_alleles.json``, sourced from
 Ensembl): ``{risk_allele, ref_allele}`` must be **strand-consistent** with the
 real alleles — both plus-strand, or both complements — never mixed. For a locus
 that is bi-allelic in Ensembl it additionally asserts the real heterozygote
-resolves. Coverage currently spans the loci verified for #538; the fixture is
-designed to grow to every categorical-panel locus (follow-up to #538).
+resolves. Coverage currently spans the loci verified for #538 plus rs2858884
+(#608); the fixture is designed to grow to every categorical-panel locus
+(follow-up to #538 tracked by #608).
+
+**Known blind spot (#608).** The set-based ``_strand_consistent`` check is
+*undecidable* for a locus where every curated allele's Watson–Crick complement is
+also a real allele. The flagship case is rs9273363 (HLA-DQB1, real ``C/A/G``): a
+mis-stranded panel pair ``{C, T}`` (``T`` = complement of the real ``A``)
+complements wholesale to ``{G, A}`` — both real — so the set check FALSE-PASSES,
+and being tri-allelic the locus gets no bi-allelic het-resolves check either.
+4-allelic loci (e.g. rs4341 ``G/A/C/T``) are trivially undecidable for the same
+reason. Such loci need an *observed-genotype-resolves* check (or the scorer's
+not-modeled→Indeterminate handling, #608), not the allele-set check;
+``test_strand_consistent_blind_spot_for_multiallelic`` characterises the
+limitation so it cannot be "fixed" silently. rs9273363 is deliberately NOT in the
+fixture and is tracked separately (its T1D risk *direction* is also contested).
 """
 
 from __future__ import annotations
@@ -162,3 +176,21 @@ def test_real_heterozygote_resolves(
         f"{panel}:{rsid} real heterozygote {het} (Ensembl {'/'.join(real_alleles)}) does not "
         f"resolve in genotype_effects keys {list(snp['genotype_effects'])} (#538)."
     )
+
+
+def test_strand_consistent_blind_spot_for_multiallelic() -> None:
+    """Characterise the guard's known undecidability (#608).
+
+    ``_strand_consistent`` FALSE-PASSES a mixed-strand pair when every panel allele's
+    complement is also a real allele. rs9273363 (HLA-DQB1, real ``C/A/G``) is the
+    case: the mis-stranded panel pair ``{C, T}`` (``T`` = complement of the real
+    ``A``) complements wholesale to ``{G, A}`` — both real — so the set check reads
+    "consistent" even though ``C`` is plus-strand and ``T`` is not. This asserts the
+    LIMITATION, not desired behaviour: it is why rs9273363 is excluded from the
+    fixture and handled by the scorer's not-modeled→Indeterminate path instead. If a
+    future change makes ``_strand_consistent`` multi-allelic-aware, update this test
+    deliberately.
+    """
+    real = {"C", "A", "G"}  # rs9273363, Ensembl GRCh37 plus strand
+    mixed_pair = {"C", "T"}  # panel risk=C (plus) + ref=T (= complement of real A)
+    assert _strand_consistent(mixed_pair, real) is True

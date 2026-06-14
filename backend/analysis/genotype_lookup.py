@@ -85,6 +85,21 @@ def lookup_by_genotype[T](mapping: dict[str, T], genotype: str) -> T | None:
     return None
 
 
+def is_acgt_genotype(genotype: str | None) -> bool:
+    """Whether ``genotype`` is a callable SNP genotype of real A/C/G/T bases.
+
+    True for a non-empty string composed solely of A/C/G/T (case-insensitive) —
+    i.e. an actually-observed nucleotide call. False for ``None``, no-calls
+    (``"--"``, ``""``), and slash-delimited indel tokens (``"delG/G"``). Used by
+    the categorical scorers to distinguish an *observed* genotype that resolves to
+    no curated entry — which therefore carries an allele the locus does not model
+    and must be withheld as Indeterminate rather than scored as baseline (#608) —
+    from a non-nucleotide token that legitimately falls through to the default.
+    """
+    gt = (genotype or "").upper()
+    return bool(gt) and all(base in COMPLEMENT for base in gt)
+
+
 # ── Palindromic (strand-ambiguous) SNP guard (#170) ────────────────────────
 #
 # A/T and C/G are palindromic allele pairs: one allele is the Watson–Crick
