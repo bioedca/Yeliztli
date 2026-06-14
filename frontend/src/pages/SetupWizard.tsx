@@ -80,7 +80,10 @@ export default function SetupWizard() {
   // accepted, and never show a post-disclaimer step (e.g. a stale resumed one)
   // while the disclaimer is still unaccepted.
   useEffect(() => {
-    if (!status) return
+    // Once setup is complete the redirect effect owns the transition (and clears
+    // the resume hint); clamping here would setCurrentStep and let the persist
+    // effect re-write the key right after it was cleared.
+    if (!status || !status.needs_setup) return
     if (!status.disclaimer_accepted && currentStep !== 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentStep(0)

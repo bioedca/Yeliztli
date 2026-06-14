@@ -86,4 +86,26 @@ describe('SetupWizard — resume on reload', () => {
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }))
     expect(sessionStorage.getItem(STEP_KEY)).toBeNull()
   })
+
+  it('keeps the hint cleared even when the clamp could fire under completed status', async () => {
+    // Stored step 0 + completed: the clamp would advance 0→1 and the persist
+    // effect would re-write the key after the redirect cleared it — guard that.
+    sessionStorage.setItem(STEP_KEY, '0')
+    routeStatus(status({ needs_setup: false, disclaimer_accepted: true, required_dbs_ready: true }))
+    render(<SetupWizard />)
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }))
+    // Stays null (fails — never null — without the clamp's needs_setup guard).
+    await waitFor(() => expect(sessionStorage.getItem(STEP_KEY)).toBeNull())
+  })
+
+  it('falls back to the first step when the stored step is invalid/out-of-range', async () => {
+    sessionStorage.setItem(STEP_KEY, '99') // out of range → discarded → 0
+    routeStatus(status({ disclaimer_accepted: true }))
+    render(<SetupWizard />)
+
+    // 99 discarded → step 0 → disclaimer clamp advances to step 1 (stepper "2"),
+    // never an out-of-range/blank step.
+    await waitFor(() => expect(activeStepLabel()).toBe('2'))
+  })
 })
