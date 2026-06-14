@@ -259,53 +259,79 @@ class TestIngestEndpoint:
 
 
 class TestGenomeBuildGate:
-    """The ingest route refuses non-GRCh37 builds rather than silently
-    consuming them.
+    """The ingest route lifts 23andMe v3 (build 36 / hg18) uploads to GRCh37 and
+    refuses any *other* non-GRCh37 build rather than silently consuming it.
 
-    23andMe v3 raw-data files are reported on NCBI build 36 (hg18), but the
-    whole pipeline treats stored (chrom, pos) as GRCh37 and there is no
-    build-36→37 liftover. A v3 upload accepted verbatim would be mis-placed by
-    up to several megabases at the wrong build, corrupting the genome browser,
-    GRCh38 liftover, and polygenic scores with no error (issue #480). The gate
-    rejects it with HTTP 422 before any sample/job rows are written.
+    23andMe v3 files are on NCBI build 36 (hg18) while the pipeline treats stored
+    (chrom, pos) as GRCh37. Rather than reject v3 (PR #547), they are now lifted
+    build-36→GRCh37 at ingest (strand-aware; #562) so the GRCh37 invariant holds.
+    Any build for which there is no lift path is still refused with HTTP 422
+    before any sample/job rows are written.
     """
 
     def test_v3_fixture_is_genuinely_build36(self):
         """Premise check: the v3 fixture really is build 36, with a coordinate
         far from its GRCh37 locus (rs7412 @ 19:50103919, ~4.69 Mb from the true
-        GRCh37 19:45412079) — so the gate is rejecting genuine build-36 input,
+        GRCh37 19:45412079) — so the lift is operating on genuine build-36 input,
         not a mislabel."""
         result = parse_23andme(V3_FILE)
         assert result.build == "GRCh36"
         rs7412 = next(v for v in result.variants if v.rsid == "rs7412")
         assert (rs7412.chrom, rs7412.pos) == ("19", 50103919)
 
-    def test_v3_build36_upload_rejected_422(self, client):
+    def test_v3_build36_upload_accepted_and_lifted(self, client, tmp_data_dir):
+        """A v3 (build 36) upload now succeeds (202) and its coordinates are
+        lifted to GRCh37: rs7412 is stored at the true GRCh37 19:45412079, not
+        its build-36 19:50103919."""
         with open(V3_FILE, "rb") as f:
             response = client.post(
                 "/api/ingest",
                 files={"file": ("pgp_v3_build36.txt", f, "text/plain")},
+            )
+        assert response.status_code == 202, response.text
+        data = response.json()
+        # file_format keeps "v3" — the durable record that this sample was lifted.
+        assert data["file_format"] == "23andme_v3"
+        # Some variants drop (synthetic fixture positions in chain gaps), so the
+        # lifted count is positive but below the 100 parsed rows.
+        assert 0 < data["variant_count"] < 100
+
+        sample_db = tmp_data_dir / "samples" / f"sample_{data['sample_id']}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(raw_variants.c.chrom, raw_variants.c.pos, raw_variants.c.genotype).where(
+                    raw_variants.c.rsid == "rs7412"
+                )
+            ).fetchone()
+        engine.dispose()
+        assert row is not None, "rs7412 should have lifted, not dropped"
+        # Lifted to the true GRCh37 coordinate; plus-strand here, genotype intact.
+        assert (row.chrom, row.pos, row.genotype) == ("19", 45412079, "CC")
+
+    def test_unsupported_build_rejected_422_and_no_rows(self, client, tmp_data_dir):
+        """A build with no lift path is still refused before any persistence, so
+        no sample/job row is left behind. (The parser only emits GRCh36/GRCh37,
+        so this defensive branch is exercised with a patched parse result.)"""
+        from backend.ingestion.base import ParseResult, SourceVendor
+
+        bogus = ParseResult(
+            vendor=SourceVendor.TWENTYTHREEANDME, version="v5", build="GRCh99", variants=[]
+        )
+        with (
+            patch("backend.api.routes.ingest.parse", return_value=bogus),
+            open(V5_FILE, "rb") as f,
+        ):
+            response = client.post(
+                "/api/ingest",
+                files={"file": ("bogus_build.txt", f, "text/plain")},
             )
         assert response.status_code == 422, response.text
         detail = response.json()["detail"]
-        # A plain string so the upload UI renders it verbatim (frontend
-        # api/setup.ts shows only string ``detail``; an object body would fall
-        # back to a generic "Upload failed: 422").
         assert isinstance(detail, str)
-        assert "GRCh36" in detail
+        assert "GRCh99" in detail
         assert "GRCh37" in detail
-        assert "build 36" in detail
-        assert "polygenic" in detail.lower()
 
-    def test_v3_rejection_writes_no_sample_or_job_rows(self, client, tmp_data_dir):
-        """The gate fires before any persistence: no sample/job row is left
-        behind from a rejected build-36 upload."""
-        with open(V3_FILE, "rb") as f:
-            response = client.post(
-                "/api/ingest",
-                files={"file": ("pgp_v3_build36.txt", f, "text/plain")},
-            )
-        assert response.status_code == 422
         ref_path = Settings(data_dir=tmp_data_dir, wal_mode=False).reference_db_path
         engine = sa.create_engine(f"sqlite:///{ref_path}")
         with engine.connect() as conn:

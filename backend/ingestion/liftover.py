@@ -1,16 +1,21 @@
-"""GRCh38 liftover integration (P4-19).
+"""Liftover integration (P4-19, #562).
 
-Converts GRCh37 (hg19) genomic coordinates to GRCh38 (hg38) using pyliftover.
+Hosts two UCSC liftOver chains, both vendored in-repo at ``backend/data/chains/``
+and loaded directly so liftover never touches the network (pyliftover's default
+``LiftOver("hg19", "hg38")`` would download from UCSC on first use, which made CI
+flaky when that fetch failed; the bundled file keeps tests offline/deterministic
+and avoids a first-run download in production — a network fetch remains only as a
+fallback if a vendored file is ever missing):
 
-The hg19→hg38 chain file is vendored in-repo at ``backend/data/chains/`` and
-loaded directly, so liftover never touches the network. pyliftover's default
-behaviour (``LiftOver("hg19", "hg38")``) would download the chain from UCSC on
-first use, which made CI flaky when that fetch failed; loading the bundled file
-keeps tests offline/deterministic and avoids a first-run download in production.
-A network fetch remains only as a fallback if the vendored file is ever missing.
-
-Lifted coordinates are stored as parallel columns (chrom_grch38, pos_grch38) in
-the annotated_variants table — the primary (chrom, pos) columns remain GRCh37.
+- **hg19→hg38** (:func:`convert_coordinate`): converts annotated GRCh37 (hg19)
+  coordinates to GRCh38 (hg38). Stored as parallel columns (chrom_grch38,
+  pos_grch38) in annotated_variants — the primary (chrom, pos) stay GRCh37.
+- **hg18→hg19** (:func:`convert_hg18_to_hg19`): converts 23andMe v3 (NCBI build
+  36 / hg18) coordinates to GRCh37 **at ingest**, so the "primary (chrom, pos)
+  are GRCh37" invariant holds for v3 uploads (#562). Unlike the hg19→hg38 path,
+  this one **returns the target strand** so the caller can complement alleles
+  for regions that inverted between builds (a chain-driven, position-dependent
+  flip — see ``backend/ingestion/build36_liftover.py``).
 """
 
 from __future__ import annotations
@@ -33,6 +38,14 @@ _CHAIN_PATH = (
 # loaded once and reused across all liftover calls).
 _lock = threading.Lock()
 _liftover: LiftOver | None = None
+
+# Vendored UCSC hg18→hg19 chain (~140 KB) for lifting 23andMe v3 (build 36)
+# uploads to GRCh37 at ingest (#562). Separate singleton from the hg19→hg38 one.
+_CHAIN_PATH_HG18 = (
+    Path(__file__).resolve().parent.parent / "data" / "chains" / "hg18ToHg19.over.chain.gz"
+)
+_lock_hg18 = threading.Lock()
+_liftover_hg18: LiftOver | None = None
 
 
 def _get_liftover() -> LiftOver:
@@ -115,6 +128,88 @@ def convert_coordinate(
     return (out_chrom, new_pos_0based + 1)
 
 
+def _get_liftover_hg18() -> LiftOver:
+    """Return (or lazily initialise) the hg18→hg19 LiftOver instance.
+
+    Mirrors :func:`_get_liftover` for the build-36 chain: vendored file first,
+    UCSC web download only as a last-resort fallback (logged, since it
+    reintroduces the network dependency the vendored file removes).
+    """
+    global _liftover_hg18
+    with _lock_hg18:
+        if _liftover_hg18 is None:
+            if _CHAIN_PATH_HG18.exists():
+                logger.info(
+                    "liftover_init",
+                    extra={"from": "hg18", "to": "hg19", "source": "vendored"},
+                )
+                _liftover_hg18 = LiftOver(str(_CHAIN_PATH_HG18))
+            else:
+                logger.warning(
+                    "liftover_chain_missing_fallback_to_web",
+                    extra={"expected_path": str(_CHAIN_PATH_HG18)},
+                )
+                _liftover_hg18 = LiftOver("hg18", "hg19")
+    return _liftover_hg18
+
+
+def convert_hg18_to_hg19(
+    chrom: str,
+    pos: int,
+) -> tuple[str, int, str] | None:
+    """Convert a single NCBI build 36 (hg18) coordinate to GRCh37 (hg19).
+
+    Used at ingest to lift 23andMe v3 uploads (#562). Unlike
+    :func:`convert_coordinate` (hg19→hg38), this **returns the target strand**:
+    hg18→hg19 liftover is position-dependent and inverts some regions, and when
+    the target strand is ``"-"`` the caller must Watson–Crick complement the
+    genotype alleles to keep stored data plus-strand-relative on GRCh37 (see
+    ``backend/ingestion/build36_liftover.py``).
+
+    Args:
+        chrom: Chromosome name (e.g. "1", "X", "MT"). The ``chr`` prefix is
+            added automatically if missing (pyliftover requires UCSC-style names).
+        pos: 1-based hg18 position. pyliftover uses 0-based coordinates
+            internally; we convert to 0-based before the call and back on return.
+
+    Returns:
+        ``(chrom_grch37, pos_grch37, strand)`` with 1-based position, chromosome
+        name without the ``chr`` prefix, and ``strand`` one of ``"+"``/``"-"``;
+        or ``None`` if the coordinate could not be lifted (chromosome absent from
+        the chain, or the region was deleted/rearranged in hg19), or for
+        mitochondrial input (see below).
+
+    Mitochondrial inputs (``MT`` / ``M``) always return ``None``: the hg18 ``chrM``
+    is the old (non-rCRS) reference, so any lifted MT coordinate would be wrong —
+    declining to lift is correct rather than emitting a bogus position. v3 MT
+    variants are therefore dropped-and-counted by the caller.
+    """
+    clean = chrom.removeprefix("chr")
+
+    # MT short-circuit: hg18 chrM is not rCRS, so a lifted MT coordinate is wrong.
+    if clean in ("MT", "M"):
+        return None
+
+    lo = _get_liftover_hg18()
+
+    # pyliftover requires UCSC-style "chr"-prefixed names.
+    ucsc_chrom = f"chr{clean}"
+
+    # pyliftover uses 0-based coordinates; our positions are 1-based.
+    results = lo.convert_coordinate(ucsc_chrom, pos - 1)
+
+    if not results:
+        return None
+
+    # Take the best (first / highest-score) mapping. The chromosome can change
+    # across builds (rare, but real — Ormond et al. 2021), so trust the lift.
+    new_chrom, new_pos_0based, strand, _score = results[0]
+    out_chrom = new_chrom.removeprefix("chr")
+
+    # Convert back to 1-based.
+    return (out_chrom, new_pos_0based + 1, strand)
+
+
 def batch_convert(
     variants: list[tuple[str, str, int]],
 ) -> dict[str, tuple[str, int] | None]:
@@ -151,7 +246,9 @@ def batch_convert(
 
 
 def reset_liftover() -> None:
-    """Reset the cached LiftOver instance (for testing)."""
-    global _liftover
+    """Reset both cached LiftOver instances (for testing)."""
+    global _liftover, _liftover_hg18
     with _lock:
         _liftover = None
+    with _lock_hg18:
+        _liftover_hg18 = None

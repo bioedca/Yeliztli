@@ -10,7 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.ingestion import liftover as liftover_module
-from backend.ingestion.liftover import batch_convert, convert_coordinate, reset_liftover
+from backend.ingestion.liftover import (
+    batch_convert,
+    convert_coordinate,
+    convert_hg18_to_hg19,
+    reset_liftover,
+)
 
 # ── Unit tests: convert_coordinate ────────────────────────────────────
 
@@ -85,6 +90,56 @@ class TestConvertCoordinate:
         """Invalid chromosome returns None."""
         result = convert_coordinate("99", 100)
         assert result is None
+
+
+# ── Unit tests: convert_hg18_to_hg19 (build 36 → GRCh37, #562) ─────────
+
+
+class TestConvertHg18ToHg19:
+    """Build-36 (hg18) → GRCh37 conversion for 23andMe v3 ingest.
+
+    Pins exact known conversions (chain-behaviour lock — a bad/changed chain
+    fails these). The APOE pair below are real build-36 coordinates whose GRCh37
+    targets are independently verified via Ensembl GRCh37 REST.
+    """
+
+    def test_rs7412_apoe_build36_to_grch37(self) -> None:
+        """APOE rs7412 build36 19:50103919 → GRCh37 19:45412079 (plus strand).
+
+        GRCh37 19:45412079 is confirmed by Ensembl GRCh37 (allele C/T, strand +)
+        and is the coordinate ``test_v3_fixture_is_genuinely_build36`` names.
+        """
+        assert convert_hg18_to_hg19("19", 50103919) == ("19", 45412079, "+")
+
+    def test_rs429358_apoe_build36_to_grch37(self) -> None:
+        """APOE rs429358 build36 19:50103781 → GRCh37 19:45411941 (plus strand)."""
+        assert convert_hg18_to_hg19("19", 50103781) == ("19", 45411941, "+")
+
+    def test_returns_target_strand_for_inverted_region(self) -> None:
+        """A region inverted between builds returns a ``-`` strand so the caller
+        knows to complement alleles. This locus sits in a known minus-strand
+        chain block; the strand is the load-bearing difference from the
+        hg19→hg38 ``convert_coordinate`` (which discards strand)."""
+        result = convert_hg18_to_hg19("1", 2480000)
+        assert result is not None
+        chrom, _pos, strand = result
+        assert chrom == "1"
+        assert strand == "-"
+
+    def test_mt_returns_none(self) -> None:
+        """MT/chrM must NOT lift — hg18 chrM is not rCRS, so any lifted MT
+        coordinate is wrong. v3 MT variants are dropped-and-counted instead."""
+        assert convert_hg18_to_hg19("MT", 263) is None
+        assert convert_hg18_to_hg19("M", 750) is None
+        assert convert_hg18_to_hg19("chrM", 73) is None
+
+    def test_chr_prefix_handled(self) -> None:
+        """Input with the 'chr' prefix works the same as without."""
+        assert convert_hg18_to_hg19("chr19", 50103919) == convert_hg18_to_hg19("19", 50103919)
+
+    def test_returns_none_for_invalid_chrom(self) -> None:
+        """A chromosome absent from the chain returns None (dropped)."""
+        assert convert_hg18_to_hg19("99", 100) is None
 
 
 # ── Unit tests: batch_convert ─────────────────────────────────────────
