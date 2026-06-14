@@ -62,11 +62,38 @@ def _recorded_sex(registry, sample_id: int) -> str | None:
         ).scalar()
 
 
+def _sample_file_format(registry, sample_id: int) -> str | None:
+    with registry.reference_engine.connect() as conn:
+        return conn.execute(
+            sa.select(samples.c.file_format).where(samples.c.id == sample_id)
+        ).scalar()
+
+
 def _other_sample_het_rates(registry, sample_id: int) -> list[float]:
-    """Read other local samples' stored heterozygosity rates (best-effort)."""
+    """Read other local samples' stored het rates from the SAME genotyping array.
+
+    Heterozygosity rate is strongly array-ascertainment-dependent — SNP arrays
+    "massively overestimate" expected heterozygosity, biased by each panel's
+    discovery design, so array H is not comparable across different arrays (the
+    same person can differ ~1.7x between 23andMe and AncestryDNA — issue #563).
+    A het-outlier z-score is therefore only valid *within* one array, so we
+    compare only against other samples sharing this sample's ``file_format``.
+    A mixed-array account no longer produces chip-confounded "outlier" flags: a
+    minority-array sample simply has too few same-array peers and is reported
+    ``insufficient_samples`` rather than a spurious contamination alarm.
+
+    When this sample's ``file_format`` is unknown, no comparable cohort can be
+    guaranteed, so we withhold (return an empty cohort).
+    """
+    file_format = _sample_file_format(registry, sample_id)
+    if file_format is None:
+        return []
     with registry.reference_engine.connect() as conn:
         rows = conn.execute(
-            sa.select(samples.c.db_path).where(samples.c.id != sample_id)
+            sa.select(samples.c.db_path).where(
+                samples.c.id != sample_id,
+                samples.c.file_format == file_format,
+            )
         ).fetchall()
     rates: list[float] = []
     for row in rows:

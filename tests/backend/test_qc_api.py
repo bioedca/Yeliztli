@@ -14,7 +14,13 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import individuals, raw_variants, reference_metadata, samples
+from backend.db.tables import (
+    individuals,
+    qc_metrics,
+    raw_variants,
+    reference_metadata,
+    samples,
+)
 from backend.disclaimers import QC_DISCLAIMER_TEXT, QC_DISCLAIMER_TITLE
 
 
@@ -129,3 +135,122 @@ class TestRunAndMetrics:
         assert m["sex_check"] == "concordant"
         # Single account sample → no cohort for outlier detection.
         assert m["het_outlier_status"] == "insufficient_samples"
+
+
+# ── Het-outlier cohort must be stratified by genotyping array (#563) ──────
+
+
+@pytest.fixture()
+def het_cohort_client(tmp_path: Path):
+    """Factory: build a QC client over an account of samples with chosen
+    ``(file_format, heterozygosity_rate)`` pairs.
+
+    The target is sample 1; ``others`` become samples 2…N. Each sample gets a
+    ``qc_metrics`` row with the given het rate (inserted directly — we are
+    testing the *cohort* selection, not het computation). Returns the target's
+    ``/metrics`` JSON.
+    """
+    created: list[DBRegistry] = []
+
+    def _build(target: tuple[str, float], others: list[tuple[str, float]]) -> dict:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "samples").mkdir()
+
+        ref_engine = sa.create_engine(f"sqlite:///{data_dir / 'reference.db'}")
+        reference_metadata.create_all(ref_engine)
+        with ref_engine.begin() as conn:
+            conn.execute(
+                sa.insert(individuals), [{"id": 1, "display_name": "P", "biological_sex": "XX"}]
+            )
+
+        def _add(sid: int, file_format: str, het: float) -> None:
+            with ref_engine.begin() as conn:
+                conn.execute(
+                    sa.insert(samples),
+                    [
+                        {
+                            "id": sid,
+                            "name": f"sample_{sid}",
+                            "db_path": f"samples/sample_{sid}.db",
+                            "file_format": file_format,
+                            "file_hash": f"hash{sid}",
+                            "individual_id": 1,
+                        }
+                    ],
+                )
+            se = sa.create_engine(f"sqlite:///{data_dir / 'samples' / f'sample_{sid}.db'}")
+            create_sample_tables(se)
+            with se.begin() as conn:
+                conn.execute(sa.insert(qc_metrics), [{"heterozygosity_rate": het}])
+            se.dispose()
+
+        _add(1, target[0], target[1])
+        for i, (fmt, het) in enumerate(others, start=2):
+            _add(i, fmt, het)
+        ref_engine.dispose()
+
+        settings = Settings(data_dir=data_dir)
+        reset_registry()
+        registry = DBRegistry(settings)
+        created.append(registry)
+        with (
+            patch("backend.api.routes.risk_common.get_registry", return_value=registry),
+            patch("backend.api.routes.qc.get_registry", return_value=registry),
+        ):
+            from backend.api.routes.qc import router
+
+            app = FastAPI()
+            app.include_router(router, prefix="/api")
+            client = TestClient(app)
+            return client.get("/api/analysis/qc/metrics?sample_id=1").json()
+
+    yield _build
+
+    for r in created:
+        r.dispose_all()
+    reset_registry()
+
+
+class TestHetOutlierArrayStratification:
+    """The het-outlier z-score must compare only within a single genotyping
+    array — heterozygosity is array-ascertainment-dependent and not comparable
+    across arrays (#563)."""
+
+    def test_minority_array_sample_not_flagged_outlier(self, het_cohort_client) -> None:
+        # The #563 repro: one 23andMe sample (het 0.17) in an account otherwise
+        # full of AncestryDNA samples (het ~0.30). Pre-fix the 23andMe sample
+        # z-scored against the AncestryDNA cohort → spurious "outlier". Post-fix
+        # the cross-array cohort is excluded, leaving 0 same-array peers.
+        m = het_cohort_client(
+            target=("23andme_v5", 0.17),
+            others=[
+                ("ancestrydna_v2.0", 0.30),
+                ("ancestrydna_v2.0", 0.31),
+                ("ancestrydna_v2.0", 0.29),
+            ],
+        )
+        assert m["computed"] is True
+        assert m["het_outlier_status"] != "outlier"
+        assert m["het_outlier_status"] == "insufficient_samples"
+        assert m["het_outlier_z"] is None
+
+    def test_same_array_cohort_still_detects_outlier(self, het_cohort_client) -> None:
+        # Control: the SAME numbers (target 0.17 vs cohort ~0.30) ARE a genuine
+        # outlier when the cohort is the same array — proving stratification did
+        # not just disable the check.
+        m = het_cohort_client(
+            target=("23andme_v5", 0.17),
+            others=[("23andme_v5", 0.30), ("23andme_v5", 0.31), ("23andme_v5", 0.29)],
+        )
+        assert m["computed"] is True
+        assert m["het_outlier_status"] == "outlier"
+        assert m["het_outlier_z"] is not None and m["het_outlier_z"] < -3
+
+    def test_same_array_typical_within_range(self, het_cohort_client) -> None:
+        # A same-array sample close to its same-array cohort is within range.
+        m = het_cohort_client(
+            target=("23andme_v5", 0.175),
+            others=[("23andme_v5", 0.17), ("23andme_v5", 0.18), ("23andme_v5", 0.172)],
+        )
+        assert m["het_outlier_status"] == "within_range"
