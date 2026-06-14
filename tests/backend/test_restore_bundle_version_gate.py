@@ -49,6 +49,9 @@ def _make_client_ctx(settings: Settings):
     stack = ExitStack()
     for target in _PATCHES:
         stack.enter_context(patch(target, return_value=settings))
+    # Restore extracts config.toml to config_toml_path() (DEFAULT_DATA_DIR); pin
+    # it to the temp data dir so these tests never write the real ~/.yeliztli.
+    stack.enter_context(patch("backend.config.DEFAULT_DATA_DIR", settings.data_dir))
     return stack
 
 

@@ -533,6 +533,77 @@ def _create_backup_archive(
     return archive_path
 
 
+def _relocated_client(home: Path, settings: Settings):
+    """ExitStack patching a wizard-relocated install: config.toml in ``home``
+    (config_toml_path) while samples/DBs live under ``settings.data_dir``."""
+    from contextlib import ExitStack
+
+    ref = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(ref)
+    ref.dispose()
+
+    stack = ExitStack()
+    for target in (
+        "backend.main.get_settings",
+        "backend.db.connection.get_settings",
+        "backend.api.routes.setup.get_settings",
+        "backend.api.routes.databases.get_settings",
+    ):
+        stack.enter_context(patch(target, return_value=settings))
+    stack.enter_context(patch("backend.config.DEFAULT_DATA_DIR", home))
+    return stack
+
+
+def test_detect_existing_finds_home_config_for_relocated_install(tmp_path: Path) -> None:
+    """detect-existing reads the home config.toml even when data_dir is relocated."""
+    home = tmp_path / "home"
+    home.mkdir()
+    relocated = tmp_path / "store"
+    relocated.mkdir()
+    (home / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
+    settings = Settings(data_dir=relocated, wal_mode=False)
+
+    with _relocated_client(home, settings):
+        reset_registry()
+        from backend.main import create_app
+
+        with TestClient(create_app()) as tc:
+            resp = tc.get("/api/setup/detect-existing")
+        reset_registry()
+
+    # Found despite the config living at home, not the relocated data_dir.
+    assert resp.json()["has_config"] is True
+
+
+def test_restore_relocated_install_writes_config_to_home(tmp_path: Path) -> None:
+    """Restoring writes config.toml to the home dir (config_toml_path), samples to data_dir."""
+    home = tmp_path / "home"
+    home.mkdir()
+    relocated = tmp_path / "store"
+    relocated.mkdir()
+    settings = Settings(data_dir=relocated, wal_mode=False)
+    archive = _create_backup_archive(tmp_path, include_config=True, num_samples=1)
+
+    with _relocated_client(home, settings):
+        reset_registry()
+        from backend.main import create_app
+
+        with TestClient(create_app()) as tc, archive.open("rb") as f:
+            resp = tc.post(
+                "/api/setup/import-backup",
+                files={"file": ("backup.tar.gz", f, "application/gzip")},
+            )
+        reset_registry()
+
+    assert resp.status_code == 200
+    assert resp.json()["config_restored"] is True
+    # config.toml restored to HOME (where Settings reads it), NOT the relocated data_dir.
+    assert (home / "config.toml").exists()
+    assert not (relocated / "config.toml").exists()
+    # samples restored under the relocated data_dir.
+    assert (relocated / "samples" / "sample_000.db").exists()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/setup/detect-existing
 # ═══════════════════════════════════════════════════════════════════════
