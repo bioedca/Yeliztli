@@ -132,14 +132,6 @@ class TraitsPanel:
         """Return all individual SNP rsids in the panel."""
         return [snp.rsid for pathway in self.pathways for snp in pathway.snps]
 
-    def all_prs_rsids(self) -> list[str]:
-        """Return all PRS weight set rsids."""
-        rsids: list[str] = []
-        for ws in self.prs_weight_sets:
-            for w in ws.get("weights", []):
-                rsids.append(w["rsid"])
-        return rsids
-
 
 @dataclass
 class SNPResult:
