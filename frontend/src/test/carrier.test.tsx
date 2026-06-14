@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen } from "./test-utils"
 import VariantDetailPanel from "@/components/carrier/VariantDetailPanel"
+import VariantCard from "@/components/carrier/VariantCard"
 import type { CarrierVariant } from "@/types/carrier"
 
 const CFTR_VARIANT: CarrierVariant = {
@@ -156,5 +157,34 @@ describe("Carrier VariantDetailPanel", () => {
 
     expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
     expect(screen.getByText(/sickle-cell trait/i)).toBeInTheDocument()
+  })
+})
+
+describe("Carrier VariantCard genotype-line label (#540)", () => {
+  it("keeps '(heterozygous carrier)' for autosomal-recessive genes (CFTR)", () => {
+    render(<VariantCard variant={CFTR_VARIANT} onClick={vi.fn()} sampleId={1} />)
+    expect(screen.getByText(/\(heterozygous carrier\)/i)).toBeInTheDocument()
+    // The accessible name keeps "carrier" for a recessive gene.
+    expect(screen.getByRole("button", { name: /CFTR.*carrier/i })).toBeInTheDocument()
+  })
+
+  it("drops the 'carrier' framing for autosomal-dominant BRCA1 (personal-risk gene)", () => {
+    render(<VariantCard variant={BRCA1_VARIANT} onClick={vi.fn()} sampleId={1} />)
+    // The genotype line must not call a dominant-risk variant a "carrier"...
+    expect(screen.queryByText(/\(heterozygous carrier\)/i)).not.toBeInTheDocument()
+    // ...but should still annotate the genotype as heterozygous.
+    expect(screen.getByText(/\(heterozygous\)/i)).toBeInTheDocument()
+    // ...and the footer still labels the gene Autosomal Dominant (no contradiction).
+    expect(screen.getByText(/Autosomal Dominant/i)).toBeInTheDocument()
+    // The accessible name is also de-"carrier"-ed for screen-reader users.
+    const card = screen.getByTestId("carrier-variant-card")
+    expect(card.getAttribute("aria-label")).not.toMatch(/carrier/i)
+    expect(card.getAttribute("aria-label")).toMatch(/heterozygous variant/i)
+  })
+
+  it("drops the 'carrier' framing for any AD gene, even without a cancer cross-link", () => {
+    render(<VariantCard variant={AD_NON_CANCER_VARIANT} onClick={vi.fn()} sampleId={1} />)
+    expect(screen.queryByText(/\(heterozygous carrier\)/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/\(heterozygous\)/i)).toBeInTheDocument()
   })
 })

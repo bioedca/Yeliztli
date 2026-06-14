@@ -67,7 +67,8 @@ export default function CarrierStatusView() {
         <div>
           <h1 className="text-2xl font-bold">Carrier Status</h1>
           <p className="text-sm text-muted-foreground">
-            Autosomal recessive carrier variant identification for family planning
+            Reproductive carrier screening, plus the autosomal-dominant genes BRCA1/2
+            (personal-risk context)
           </p>
         </div>
       </div>

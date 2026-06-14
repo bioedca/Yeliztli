@@ -47,6 +47,17 @@ const DEFAULT_CONFIG = {
 export default function VariantCard({ variant, onClick, selected, sampleId }: VariantCardProps) {
   const config = SIGNIFICANCE_CONFIG[variant.clinvar_significance] || DEFAULT_CONFIG
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
+  // A heterozygous P/LP variant means different things by inheritance mode: for
+  // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is
+  // NOT a silent recessive-carrier state, so we drop the "carrier" framing there
+  // and reserve it for the recessive (AR/XL) genes. Mirrors VariantDetailPanel,
+  // which uses plain "(heterozygous)" and conveys risk via its banner and the
+  // cancer cross-link below. (#540)
+  const isDominant = variant.inheritance === "AD"
+  const zygosityNote = isDominant ? "(heterozygous)" : "(heterozygous carrier)"
+  // Keep the screen-reader announcement consistent with the visible label — a
+  // dominant-risk variant is not announced as a "carrier" either. (#540)
+  const a11yDescriptor = isDominant ? "heterozygous variant" : "carrier"
 
   return (
     <button
@@ -59,7 +70,7 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${variant.gene_symbol} ${variant.rsid} — carrier, ${variant.clinvar_significance}`}
+      aria-label={`${variant.gene_symbol} ${variant.rsid} — ${a11yDescriptor}, ${variant.clinvar_significance}`}
       data-testid="carrier-variant-card"
     >
       {/* Header: gene + significance badge */}
@@ -82,7 +93,7 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
       {variant.genotype && (
         <p className="text-sm font-mono text-foreground mb-1">
           {variant.genotype}
-          <span className="text-muted-foreground ml-2">(heterozygous carrier)</span>
+          <span className="text-muted-foreground ml-2">{zygosityNote}</span>
         </p>
       )}
 
