@@ -27,6 +27,14 @@ from __future__ import annotations
 
 from backend.analysis.zygosity import COMPLEMENT
 
+# The four indel genotype tokens a panel may key directly. Vendors (23andMe /
+# AncestryDNA) emit insertion/deletion calls as literal ``I``/``D`` rather than
+# nucleotides; the generic no-call check treats a bare ``I``/``D`` string as a
+# no-call, so a categorical scorer must explicitly preserve these tokens when —
+# and only when — the locus's ``genotype_effects`` is keyed on them (panel
+# context). Shared so every module's normalizer uses one definition (#610).
+SCORABLE_PANEL_INDELS = frozenset({"II", "ID", "DI", "DD"})
+
 
 def _order_variants(genotype: str) -> list[str]:
     """Return the genotype with its two alleles in both orders.

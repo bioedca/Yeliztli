@@ -41,6 +41,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.genotype_lookup import (
+    SCORABLE_PANEL_INDELS,
     genotype_candidates,
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -76,8 +77,9 @@ _MULTIPLE_MODERATE_FINDINGS_THRESHOLD = 3
 MODULE_NAME = "methylation"
 
 # Some methylation panel entries intentionally use insertion/deletion genotype
-# vocabulary that other trait modules treat as unscoreable raw no-calls.
-_SCORABLE_PANEL_INDELS = frozenset({"II", "ID", "DI", "DD"})
+# vocabulary that other trait modules treat as unscoreable raw no-calls. Shared
+# definition lives in genotype_lookup so skin and methylation stay in sync (#610).
+_SCORABLE_PANEL_INDELS = SCORABLE_PANEL_INDELS
 
 
 # ── Data classes ──────────────────────────────────────────────────────────

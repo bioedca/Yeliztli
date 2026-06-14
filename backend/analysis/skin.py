@@ -33,6 +33,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from collections.abc import Container
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,6 +41,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.genotype_lookup import (
+    SCORABLE_PANEL_INDELS,
     genotype_candidates,
     is_strand_ambiguous,
     lookup_by_genotype,
@@ -263,15 +265,36 @@ def load_skin_panel(panel_path: Path | None = None) -> SkinPanel:
 # ── Genotype scoring ─────────────────────────────────────────────────────
 
 
-def _normalize_genotype(genotype: str | None) -> str | None:
+def _normalize_genotype(
+    genotype: str | None,
+    *,
+    scorable_genotypes: Container[str] | None = None,
+) -> str | None:
     """Normalize genotype string for lookup.
 
-    Handles common formats: 'CT', 'TC', '--' (no-call).
-    Returns None for no-calls or missing data.
+    Handles common formats: 'CT', 'TC', '--' (no-call). Returns None for no-calls
+    or missing data.
+
+    Insertion/deletion loci are reported by 23andMe as literal ``I``/``D`` tokens
+    (e.g. MMP1 rs1799750 = ``II``/``DI``/``DD``), which the generic ``is_no_call``
+    check would otherwise discard as no-calls — silently dropping a genotyped indel
+    (#610). So when the locus's ``genotype_effects`` actually keys on these tokens
+    (``scorable_genotypes``), preserve them; mirrors the methylation normalizer.
     """
+    if genotype is None:
+        return None
+
+    normalized = genotype.strip().upper()
+    if (
+        normalized in SCORABLE_PANEL_INDELS
+        and scorable_genotypes is not None
+        and normalized in scorable_genotypes
+    ):
+        return normalized
+
     if is_no_call(genotype):
         return None
-    return genotype.strip().upper()
+    return normalized
 
 
 def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
@@ -682,7 +705,9 @@ def score_skin_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            gt = _normalize_genotype(
+                genotypes.get(snp.rsid), scorable_genotypes=snp.genotype_effects
+            )
             result = _score_snp(snp, gt)
             snp_results.append(result)
 

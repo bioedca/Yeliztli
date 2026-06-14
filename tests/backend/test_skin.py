@@ -129,7 +129,7 @@ ALL_SKIN_VARIANTS = [
     ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het
     ("rs61816761", "1", 152285861, "GA"),  # FLG het
     ("rs1695", "11", 67585218, "AG"),  # GSTP1 het
-    ("rs1799750", "11", 102799717, "GGG"),  # MMP1 1G/2G het
+    ("rs1799750", "11", 102799717, "DI"),  # MMP1 1G/2G het (23andMe I/D tokens, #610)
     ("rs4880", "6", 160113872, "CT"),  # SOD2 het
     ("rs2228570", "12", 48272895, "GA"),  # VDR FokI het
     ("rs1544410", "12", 48239835, "GA"),  # VDR BsmI het
@@ -249,6 +249,49 @@ class TestMMP1CitationProvenance:
         assert not leaked, f"MMP1 row still cites unrelated PMID(s) {sorted(leaked)}"
 
 
+class TestMMP1IndelScoring:
+    """MMP1 rs1799750 is reported by 23andMe as I/D indel tokens, not nucleotides.
+
+    Before #610 the panel keyed GG/GGG/GGGG, so every real 23andMe genotype
+    (II/DI/DD) failed to match and the variant was silently scored "not genotyped"
+    (present=False, Standard) — dropping MMP1's photoaging contribution for all
+    23andMe users (e.g. PGP 4187's II = 2G/2G, the highest-photoaging genotype).
+    These tests pin the real I/D representation as present and scored. (II's panel
+    category is Elevated, but MMP1 is ★☆ evidence so the scorer hard-caps it to
+    Moderate — the genotype_effects category itself is locked in
+    test_indel_polarity_provenance.py::TestMMP1Polarity.)
+    """
+
+    def _mmp1(self, panel: SkinPanel) -> PanelSNP:
+        for pathway in panel.pathways:
+            for snp in pathway.snps:
+                if snp.rsid == "rs1799750":
+                    return snp
+        raise AssertionError("rs1799750 (MMP1) not found")
+
+    def test_real_23andme_indel_calls_are_present_not_dropped(self, panel: SkinPanel) -> None:
+        mmp1 = self._mmp1(panel)
+        for gt in ("II", "DI", "ID", "DD"):
+            # End-to-end: normalize (preserve the indel) then score.
+            norm = _normalize_genotype(gt, scorable_genotypes=mmp1.genotype_effects)
+            assert norm == gt, gt
+            assert _score_snp(mmp1, norm).present_in_sample is True, gt
+
+    def test_genotype_categories(self, panel: SkinPanel) -> None:
+        mmp1 = self._mmp1(panel)
+        # 1G/1G (DD) baseline; 1G/2G (DI/ID) and 2G/2G (II, Elevated→Moderate cap)
+        # both score Moderate after the ★☆ evidence cap.
+        assert _score_snp(mmp1, "DD").category == STANDARD
+        assert _score_snp(mmp1, "DI").category == MODERATE
+        assert _score_snp(mmp1, "ID").category == MODERATE
+        assert _score_snp(mmp1, "II").category == MODERATE  # Elevated capped to Moderate (★☆)
+
+    def test_legacy_nucleotide_genotype_no_longer_matches(self, panel: SkinPanel) -> None:
+        # The old nucleotide encoding is gone: a "GGG" call no longer resolves
+        # (guards against accidentally re-adding the nucleotide keys).
+        assert "GGG" not in self._mmp1(panel).genotype_effects
+
+
 class TestGSTP1CitationProvenance:
     """The GSTP1 rs1695 (Ile105Val) row must cite real GSTP1/skin oxidative-stress
     evidence, not the unrelated RCC-antigen / FGFR4-NFκB / pediatric-sleep papers
@@ -296,11 +339,25 @@ class TestGenotypeNormalization:
     def test_whitespace(self) -> None:
         assert _normalize_genotype("  CT  ") == "CT"
 
-    def test_indel_markers(self) -> None:
+    def test_indel_markers_are_no_call_without_panel_context(self) -> None:
+        # Without panel context an I/D token is a no-call — the generic behaviour
+        # for the nucleotide-keyed loci that make up most of the panel.
         assert _normalize_genotype("II") is None
         assert _normalize_genotype("DD") is None
         assert _normalize_genotype("DI") is None
         assert _normalize_genotype("ID") is None
+
+    def test_panel_defined_indel_markers_are_preserved(self) -> None:
+        # When the locus's genotype_effects keys on I/D tokens (MMP1 rs1799750),
+        # the normalizer preserves the genotyped indel instead of discarding it as
+        # a no-call (#610).
+        scorable = {"DD": {}, "DI": {}, "ID": {}, "II": {}}
+        for gt in ("II", "DD", "DI", "ID"):
+            assert _normalize_genotype(gt, scorable_genotypes=scorable) == gt
+        # A token the panel does NOT define stays a no-call.
+        assert _normalize_genotype("II", scorable_genotypes={"DD": {}}) is None
+        # Nucleotide genotypes are unaffected by the indel-preservation path.
+        assert _normalize_genotype("CT", scorable_genotypes=scorable) == "CT"
 
     def test_lowercase(self) -> None:
         assert _normalize_genotype("ct") == "CT"
@@ -1130,7 +1187,7 @@ class TestStoreFindingsIntegration:
                 ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het → Moderate
                 ("rs61816761", "1", 152285861, "GA"),  # FLG het → Moderate
                 ("rs1695", "11", 67585218, "GG"),  # GSTP1 hom → Moderate (capped)
-                ("rs1799750", "11", 102799717, "GGG"),  # MMP1 het → Moderate
+                ("rs1799750", "11", 102799717, "DI"),  # MMP1 het → Moderate (I/D, #610)
                 ("rs4880", "6", 160113872, "TT"),  # SOD2 hom → Moderate (capped)
                 ("rs2228570", "12", 48272895, "AA"),  # VDR FokI hom → Moderate (capped)
                 ("rs1544410", "12", 48239835, "AA"),  # VDR BsmI hom → Moderate (capped)
