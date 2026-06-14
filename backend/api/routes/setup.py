@@ -825,8 +825,10 @@ def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "block
 
 
 # Roots whose contents are conventionally wiped on reboot. A data dir here (or
-# below it) loses downloaded databases on restart.
-_VOLATILE_PATH_ROOTS = ("/tmp", "/var/tmp", "/dev/shm")
+# below it) loses downloaded databases on restart. The /private/* entries are the
+# macOS canonical targets of /tmp and /var/tmp (both are symlinks into /private),
+# so a resolved path matches there too.
+_VOLATILE_PATH_ROOTS = ("/tmp", "/var/tmp", "/dev/shm", "/private/tmp", "/private/var/tmp")
 # Filesystem types that do not survive a reboot (RAM-backed).
 _VOLATILE_FS_TYPES = frozenset({"tmpfs", "ramfs"})
 _VOLATILE_PATH_MESSAGE = (
@@ -845,23 +847,41 @@ def _is_volatile_path(path: Path) -> bool:
     longest matching ``/proc/mounts`` entry. Best-effort and side-effect free: an
     unreadable ``/proc/mounts`` (non-Linux, restricted) degrades to the
     root-prefix check, and a path resolution error never raises.
+
+    The root check runs against BOTH the absolute path with symlinks intact AND
+    the fully-resolved form. This matters on macOS, where ``/tmp`` is itself a
+    symlink to ``/private/tmp``: ``.resolve()`` alone would rewrite ``/tmp`` to
+    ``/private/tmp`` and miss the ``/tmp`` root, while ``.absolute()`` keeps the
+    symlink so ``/tmp`` still matches. Checking the resolved form too catches a
+    symlink that points *into* a volatile root.
     """
-    try:
-        resolved = path.expanduser().resolve()
-    except OSError:
-        resolved = path
 
-    parents = set(resolved.parents)
-    for root in _VOLATILE_PATH_ROOTS:
-        r = Path(root)
-        if resolved == r or r in parents:
-            return True
+    def _safe(getter) -> Path | None:
+        try:
+            return getter()
+        except (OSError, RuntimeError):
+            return None
 
+    expanded = _safe(path.expanduser) or path
+    candidates = {p for p in (_safe(expanded.absolute), _safe(expanded.resolve)) if p is not None}
+    if not candidates:
+        candidates = {expanded}
+
+    for cand in candidates:
+        parents = set(cand.parents)
+        for root in _VOLATILE_PATH_ROOTS:
+            r = Path(root)
+            if cand == r or r in parents:
+                return True
+
+    # tmpfs/ramfs mount detection (Linux) against the resolved/canonical form.
+    resolved = _safe(expanded.resolve) or expanded
     try:
         mounts = Path("/proc/mounts").read_text(encoding="utf-8")
     except OSError:
         return False
 
+    resolved_parents = set(resolved.parents)
     best_mount_len = -1
     best_fstype = ""
     for line in mounts.splitlines():
@@ -872,7 +892,7 @@ def _is_volatile_path(path: Path) -> bool:
         mount_point = parts[1].replace("\\040", " ")
         fstype = parts[2]
         mp = Path(mount_point)
-        if (resolved == mp or mp in parents) and len(mount_point) > best_mount_len:
+        if (resolved == mp or mp in resolved_parents) and len(mount_point) > best_mount_len:
             best_mount_len = len(mount_point)
             best_fstype = fstype
     return best_fstype in _VOLATILE_FS_TYPES
