@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend.config import get_settings
+from backend.config import config_toml_path, get_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -137,7 +137,7 @@ async def backup_estimate() -> BackupEstimateResponse:
     sample_files = _collect_sample_files(data_dir)
     sample_bytes = sum(_get_file_size(f) for f in sample_files)
 
-    config_path = data_dir / "config.toml"
+    config_path = config_toml_path()
     disclaimer_path = data_dir / ".disclaimer_accepted"
     config_bytes = _get_file_size(config_path) + _get_file_size(disclaimer_path)
 

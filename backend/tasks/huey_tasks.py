@@ -16,7 +16,7 @@ import structlog
 from huey import SqliteHuey, crontab
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.config import get_settings
+from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
 
 logger = structlog.get_logger(__name__)
@@ -960,8 +960,9 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         # Collect files to archive
         files_to_add: list[tuple[Path, str]] = []
 
-        # Config files
-        config_path = data_dir / "config.toml"
+        # Config files. config.toml lives in the home dir (config_toml_path), the
+        # single file Settings reads; the disclaimer flag stays under data_dir.
+        config_path = config_toml_path()
         if config_path.exists():
             files_to_add.append((config_path, "config.toml"))
 

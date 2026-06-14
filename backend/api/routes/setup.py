@@ -320,7 +320,7 @@ async def detect_existing() -> DetectExistingResponse:
     settings = get_settings()
     data_dir = settings.data_dir
 
-    has_config = (data_dir / "config.toml").exists()
+    has_config = config_toml_path().exists()
     has_samples = _has_any_samples()
     has_dbs = _has_any_databases()
     existing_found = has_config or has_samples or has_dbs
@@ -651,7 +651,14 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     if top_level not in _ALLOWED_ARCHIVE_ENTRIES:
                         continue
 
-                    dest = data_dir / member.name
+                    # config.toml lives in the home dir (config_toml_path), the
+                    # single file Settings reads; everything else (samples,
+                    # .disclaimer_accepted) restores under data_dir.
+                    dest = (
+                        config_toml_path()
+                        if member.name == "config.toml"
+                        else data_dir / member.name
+                    )
                     if member.isdir():
                         dest.mkdir(parents=True, exist_ok=True)
                     elif member.isfile():

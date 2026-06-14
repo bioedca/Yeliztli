@@ -42,6 +42,9 @@ def _make_client(settings: Settings):
     stack = ExitStack()
     for target in _PATCHES:
         stack.enter_context(patch(target, return_value=settings))
+    # config.toml is read/written at config_toml_path() (DEFAULT_DATA_DIR); pin it
+    # to the temp data dir so backup never touches the real ~/.yeliztli.
+    stack.enter_context(patch("backend.config.DEFAULT_DATA_DIR", settings.data_dir))
     return stack
 
 
@@ -421,3 +424,45 @@ class TestBackupRoundTrip:
         assert (fresh_dir / "config.toml").exists()
         assert (fresh_dir / "samples" / "sample_1.db").exists()
         assert (fresh_dir / "samples" / "sample_2.db").exists()
+
+
+def test_backup_includes_home_config_for_relocated_install(tmp_path: Path) -> None:
+    """A relocated data_dir backup still pulls config.toml from the home dir.
+
+    Regression: backup read data_dir/config.toml, but config.toml lives at
+    config_toml_path() (DEFAULT_DATA_DIR, the home dir). For a relocated install
+    (data_dir != home) the user's config would be silently omitted from the
+    archive — and lost on restore.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    relocated = tmp_path / "store"
+    (relocated / "samples").mkdir(parents=True)
+    (relocated / "downloads").mkdir(parents=True)
+
+    settings = Settings(data_dir=relocated, wal_mode=False)
+    eng = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(eng)
+    eng.dispose()
+
+    # config.toml at HOME; the sample under the relocated data_dir.
+    (home / "config.toml").write_text('[yeliztli]\npubmed_email = "x@y.com"\n', encoding="utf-8")
+    (relocated / "samples" / "sample_1.db").write_bytes(b"s" * 100)
+
+    with (
+        patch("backend.config.DEFAULT_DATA_DIR", home),
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+        patch("backend.tasks.huey_tasks.get_settings", return_value=settings),
+        patch("backend.api.routes.backup.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        try:
+            _, filename = _run_export(settings)
+            assert filename is not None
+            with tarfile.open(settings.downloads_dir / filename, "r:gz") as tf:
+                names = tf.getnames()
+            assert "config.toml" in names  # pulled from home, not the relocated data_dir
+            assert any(n.startswith("samples/") for n in names)
+        finally:
+            reset_registry()
