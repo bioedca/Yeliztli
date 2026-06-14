@@ -352,3 +352,71 @@ describe("ReportBuilder", () => {
     expect(screen.getByLabelText("Download PDF report")).toBeDisabled()
   })
 })
+
+// ── Module completeness / drift-proofing (#596) ─────────────────────
+
+const COMPLETE_SUMMARY: FindingsSummaryResponse = {
+  total_findings: 10,
+  modules: [
+    { module: "cancer", count: 2, max_evidence_level: 4, top_finding_text: "BRCA1 pathogenic variant" },
+    // module value the backend actually writes is "carrier" (not "carrier_status")
+    { module: "carrier", count: 3, max_evidence_level: 3, top_finding_text: "CFTR carrier" },
+    { module: "metabolic", count: 1, max_evidence_level: 2, top_finding_text: "T2D risk" },
+    { module: "fh", count: 1, max_evidence_level: 3, top_finding_text: "FH variant" },
+    { module: "ebmd", count: 1, max_evidence_level: 2, top_finding_text: "Low BMD" },
+    // an unknown / risk-panel module not in MODULE_ORDER or the display-name map
+    { module: "gout", count: 2, max_evidence_level: 2, top_finding_text: "Gout risk" },
+  ],
+  high_confidence_findings: [],
+}
+
+function mockCompleteSummary() {
+  mockFetch.mockImplementation(async (url: string) => {
+    if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+      return {
+        ok: true,
+        json: async () => COMPLETE_SUMMARY,
+        text: async () => JSON.stringify(COMPLETE_SUMMARY),
+      }
+    }
+    return { ok: false, status: 404, text: async () => "Not found" }
+  })
+}
+
+describe("ReportBuilder — module completeness (#596)", () => {
+  it("offers Carrier Status (module='carrier', not 'carrier_status')", async () => {
+    mockCompleteSummary()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+    await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
+    // Pre-#596 the "carrier_status" key never matched the "carrier" summary key,
+    // so Carrier Status was never selectable.
+    expect(screen.getByText("Carrier Status")).toBeInTheDocument()
+  })
+
+  it("offers Metabolic, FH and eBMD modules (previously absent from MODULE_ORDER)", async () => {
+    mockCompleteSummary()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+    await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
+    expect(screen.getByText("Metabolic (T2D & Obesity)")).toBeInTheDocument()
+    expect(screen.getByText("Familial Hypercholesterolemia")).toBeInTheDocument()
+    expect(screen.getByText("Bone Density (eBMD)")).toBeInTheDocument()
+  })
+
+  it("renders an unknown finding module with a humanized label (drift-proof)", async () => {
+    mockCompleteSummary()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+    await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
+    // "gout" is in neither MODULE_ORDER nor the display-name map, yet it must
+    // still appear (data-driven), title-cased.
+    expect(screen.getByText("Gout")).toBeInTheDocument()
+  })
+
+  it("counts every module's findings (no silent undercount)", async () => {
+    mockCompleteSummary()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+    await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
+    // All 6 modules auto-selected; total findings = 2+3+1+1+1+2 = 10.
+    expect(screen.getByText("Modules (6 of 6 selected)")).toBeInTheDocument()
+    expect(screen.getByText("10")).toBeInTheDocument()
+  })
+})
