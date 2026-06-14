@@ -603,3 +603,46 @@ def test_validator_persisted_on_download(
         assert row.validator == '"etag-xyz"'
     finally:
         server.shutdown()
+
+
+def test_download_succeeds_when_validator_column_absent(
+    ref_engine: sa.Engine,
+    dl_dir: Path,
+) -> None:
+    """A DownloadManager on a not-yet-backfilled reference.db (no ``validator``
+    column — e.g. the Huey consumer's raw engine before the API lifespan ran the
+    backfill) must complete the download, not crash on the validator query."""
+    # Recreate downloads WITHOUT the validator column (pre-PR-15 shape).
+    with ref_engine.begin() as conn:
+        conn.execute(sa.text("DROP TABLE downloads"))
+        conn.execute(
+            sa.text(
+                "CREATE TABLE downloads ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  url TEXT NOT NULL,"
+                "  dest_path TEXT NOT NULL,"
+                "  total_bytes INTEGER,"
+                "  downloaded_bytes INTEGER DEFAULT 0,"
+                "  checksum_sha256 TEXT,"
+                "  status TEXT DEFAULT 'pending',"
+                "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                "  updated_at DATETIME"
+                ")"
+            )
+        )
+
+    manager = DownloadManager(ref_engine, dl_dir, sleep=lambda _delay: None)
+    assert manager._validator_supported is False
+
+    server = HTTPServer(("127.0.0.1", 0), _EtagHTTPHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        url = f"http://{host}:{port}/novalidator.db"
+        result = manager.start(url, "novalidator.db")
+        assert result.error is None
+        # Read degrades to None rather than raising "no such column".
+        assert manager._get_validator(result.download_id) is None
+    finally:
+        server.shutdown()

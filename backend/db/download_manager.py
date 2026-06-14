@@ -93,6 +93,21 @@ class DownloadManager:
         self._downloads_dir.mkdir(parents=True, exist_ok=True)
         # Injectable for tests so retry backoff doesn't sleep for real.
         self._sleep = sleep
+        # The durable-If-Range ``validator`` column is added by the reference-schema
+        # backfill, which runs in the API lifespan — but a DownloadManager can be
+        # built on a raw engine in the Huey consumer (bundle auto-updates) whose
+        # shared reference.db may not be backfilled yet. Probe once so the
+        # validator read/write degrade to a no-op there instead of raising
+        # "no such column" mid-download; the column appears (and full behaviour
+        # resumes) for the next manager once any backfill has run on the file.
+        self._validator_supported = self._detect_validator_column()
+
+    def _detect_validator_column(self) -> bool:
+        try:
+            cols = {c["name"] for c in sa.inspect(self._engine).get_columns("downloads")}
+        except Exception:  # noqa: BLE001 - missing table / inspect failure → unsupported
+            return False
+        return "validator" in cols
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -458,6 +473,8 @@ class DownloadManager:
 
     def _get_validator(self, download_id: int) -> str | None:
         """Return the persisted If-Range validator for a download, if any."""
+        if not self._validator_supported:
+            return None
         with self._engine.connect() as conn:
             row = conn.execute(
                 sa.select(downloads.c.validator).where(downloads.c.id == download_id)
@@ -469,8 +486,12 @@ class DownloadManager:
 
         Called by ``stream_download`` the moment a validator is (re)captured, so
         a download interrupted mid-stream still leaves a validator for the next
-        cross-process resume to send as ``If-Range``.
+        cross-process resume to send as ``If-Range``. No-ops if the column is not
+        present yet (see ``__init__``) — the transfer still completes, just
+        without the durable validator until the schema is backfilled.
         """
+        if not self._validator_supported:
+            return
         with self._engine.begin() as conn:
             conn.execute(
                 downloads.update()
