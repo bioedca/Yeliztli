@@ -92,6 +92,17 @@ jobs:
       - name: Ruff format check
         run: ruff format --check backend/ tests/
 
+      # Python dead-code detector (#579) — the backend sibling of the `knip`
+      # advisory below. ruff (E/F/I/UP) flags unused locals/imports but NOT unused
+      # module-level constants/functions, so backend dead code ships CI-invisible
+      # (the recurring #527/#535/#553/#561 cluster). Advisory (continue-on-error):
+      # vulture is clean against the reviewed `whitelist_vulture.py` baseline today
+      # and surfaces NEW public dead code here; flip to blocking once the baseline
+      # whitelist is audited down. Config + caveats: [tool.vulture] in pyproject.toml.
+      - name: Vulture (dead code — advisory)
+        run: vulture
+        continue-on-error: true
+
       - name: Install frontend deps
         run: cd frontend && npm ci
 

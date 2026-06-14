@@ -50,6 +50,9 @@ dev = [
     "mypy",
     "pyyaml",
     "pandas",
+    # Dead-code detector (#579). Pinned: vulture's findings/confidence can shift
+    # across releases, so an exact pin keeps the CI advisory deterministic.
+    "vulture==2.16",
 ]
 # Documentation site (MkDocs Material). Install with `pip install -e ".[docs]"`
 # — used locally, by the `docs-build` CI job, and by the Pages deploy workflow.
@@ -74,6 +77,49 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+# Dead-code detector (#579) — the Python sibling of the frontend `knip` advisory
+# (#555). ruff (E/F/I/UP) flags unused *locals* and *imports* but NOT unused
+# module-level constants/functions, so dead code ships CI-invisible (the recurring
+# #527/#535/#553/#561 cleanup cluster). Vulture fills that gap.
+#
+# Run in CI advisory-only (`continue-on-error`) — see `.github/workflows/ci.yml`
+# and `whitelist_vulture.py`. `min_confidence = 60` is needed to surface unused
+# module-level functions/constants (vulture rates those 60%); the framework
+# dynamic-reference false positives that confidence surfaces (Pydantic model
+# fields, SQLAlchemy declarative attrs / event-listener params, FastAPI/Huey
+# decorated callables, pydantic-settings source hooks) are suppressed by the
+# decorator list below plus the reviewed `whitelist_vulture.py` baseline.
+#
+# Known limitation: vulture ignores `_`-prefixed (private) names by convention,
+# so a private dead constant like #527's `_TSV_COLUMN_MAP` is NOT caught — vulture
+# covers the *public* dead-symbol class (#535/#553/#561), not the private one.
+[tool.vulture]
+# Scan backend AND tests together so a backend symbol referenced only from a test
+# is not false-flagged as dead (and genuinely-dead backend code is still caught);
+# whitelist_vulture.py is the reviewed baseline of current framework dynamic-refs.
+paths = ["backend", "tests", "whitelist_vulture.py"]
+min_confidence = 60
+ignore_decorators = [
+    "@router.*",
+    "@app.*",
+    "@*.get",
+    "@*.post",
+    "@*.put",
+    "@*.patch",
+    "@*.delete",
+    "@*.websocket",
+    "@*.task",
+    "@*.periodic_task",
+    "@huey.*",
+    "@pytest.*",
+    "@field_validator",
+    "@model_validator",
+    "@validator",
+    "@root_validator",
+    "@*.command",
+    "@*.callback",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
