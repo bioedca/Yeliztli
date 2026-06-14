@@ -883,6 +883,15 @@ class TestPrecheck:
 class TestAutoUpdateToggle:
     """Step 12: get_auto_update / set_auto_update round-trip + fallback."""
 
+    @pytest.fixture(autouse=True)
+    def _setup_complete(self):
+        """Treat first-run setup as done so the suppress-during-setup guard
+        (``_first_run_setup_active``, which reads global ~/.yeliztli state) does
+        not mask the dispatch path on a clean CI runner. The guard is covered
+        hermetically in TestSuppressAutoUpdateDuringSetup."""
+        with patch("backend.db.update_manager._first_run_setup_active", return_value=False):
+            yield
+
     def test_get_falls_back_to_defaults_when_row_missing(self, reference_engine):
         # No rows in auto_update_settings — fall back to AUTO_UPDATE_DEFAULTS.
         for db_name, expected in AUTO_UPDATE_DEFAULTS.items():
@@ -1009,6 +1018,15 @@ class TestAutoUpdateToggle:
 
 
 class TestScheduledUpdateCheck:
+    @pytest.fixture(autouse=True)
+    def _setup_complete(self):
+        """Treat first-run setup as done so the suppress-during-setup guard
+        (``_first_run_setup_active``, which reads global ~/.yeliztli state) does
+        not mask the dispatch path on a clean CI runner. The guard is covered
+        hermetically in TestSuppressAutoUpdateDuringSetup."""
+        with patch("backend.db.update_manager._first_run_setup_active", return_value=False):
+            yield
+
     def test_orchestrator_skips_auto_disabled(self, reference_engine, tmp_path: Path):
         settings = _settings_for_test(tmp_path)
 
