@@ -36,32 +36,35 @@ from backend.disclaimers import (
 @pytest.fixture
 def setup_client(tmp_data_dir: Path) -> TestClient:
     """FastAPI TestClient with patched settings for setup API tests."""
-    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+    # Isolate config.toml + the data_dir pointer (both at DEFAULT_DATA_DIR) to the
+    # temp dir so tests never touch the developer's real ~/.yeliztli. Settings is
+    # built UNDER this patch so its config.toml source reads the empty tmp config
+    # (config_toml_path), not the real one — otherwise e.g. GET /credentials
+    # returns the developer's real saved email.
+    with patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir):
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
 
-    # Create reference.db so the registry can initialize
-    ref_path = settings.reference_db_path
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
-    reference_metadata.create_all(engine)
-    engine.dispose()
+        # Create reference.db so the registry can initialize
+        ref_path = settings.reference_db_path
+        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        reference_metadata.create_all(engine)
+        engine.dispose()
 
-    with (
-        patch("backend.main.get_settings", return_value=settings),
-        patch("backend.db.connection.get_settings", return_value=settings),
-        patch("backend.api.routes.setup.get_settings", return_value=settings),
-        patch("backend.api.routes.databases.get_settings", return_value=settings),
-        # Isolate the data_dir pointer (written by set-storage-path) to the temp
-        # dir so tests never touch the developer's real ~/.yeliztli.
-        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
-    ):
-        reset_registry()
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.api.routes.setup.get_settings", return_value=settings),
+            patch("backend.api.routes.databases.get_settings", return_value=settings),
+        ):
+            reset_registry()
 
-        from backend.main import create_app
+            from backend.main import create_app
 
-        app = create_app()
-        with TestClient(app) as tc:
-            yield tc
+            app = create_app()
+            with TestClient(app) as tc:
+                yield tc
 
-        reset_registry()
+            reset_registry()
 
 
 @pytest.fixture
@@ -1107,8 +1110,40 @@ class TestGetCredentials:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def test_save_credentials_busts_settings_cache(tmp_path: Path, monkeypatch) -> None:
+    """After saving, get_settings() reflects the new credentials in the same process."""
+    import asyncio
+
+    import backend.config as config
+    from backend.api.routes.setup import SaveCredentialsRequest, save_credentials
+    from backend.config import get_settings
+
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    get_settings.cache_clear()
+    assert get_settings().pubmed_email == ""  # fresh: empty home config
+
+    asyncio.run(
+        save_credentials(SaveCredentialsRequest(pubmed_email="new@example.com", ncbi_api_key="k1"))
+    )
+
+    # The cache was busted, so a fresh read reflects the saved values (no restart).
+    assert get_settings().pubmed_email == "new@example.com"
+    assert get_settings().pubmed_api_key == "k1"
+    get_settings.cache_clear()
+
+
 class TestSaveCredentials:
     """Tests for the credentials save endpoint."""
+
+    def test_save_rejects_empty_email(self, setup_client: TestClient) -> None:
+        """Empty pubmed_email is rejected server-side (422), never persisted."""
+        resp = setup_client.post("/api/setup/credentials", json={"pubmed_email": ""})
+        assert resp.status_code == 422
+
+    def test_save_rejects_malformed_email(self, setup_client: TestClient) -> None:
+        """A malformed pubmed_email is rejected server-side (422)."""
+        resp = setup_client.post("/api/setup/credentials", json={"pubmed_email": "not-an-email"})
+        assert resp.status_code == 422
 
     def test_save_credentials(self, setup_client: TestClient, tmp_data_dir: Path) -> None:
         """Should successfully save credentials to config.toml."""

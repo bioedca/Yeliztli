@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tarfile
 import tempfile
@@ -27,7 +28,7 @@ import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.config import (
     config_toml_path,
@@ -905,12 +906,26 @@ class CredentialsResponse(BaseModel):
     omim_api_key: str
 
 
+# Basic email shape — same contract the CredentialsStep UI enforces client-side.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 class SaveCredentialsRequest(BaseModel):
     """Request to save external service credentials."""
 
     pubmed_email: str
     ncbi_api_key: str = ""
     omim_api_key: str = ""
+
+    @field_validator("pubmed_email", mode="after")
+    @classmethod
+    def _require_valid_email(cls, value: str) -> str:
+        # NCBI Entrez TOS requires a contact email; reject empty/malformed
+        # server-side too (422) so an empty pubmed_email can never be persisted.
+        value = value.strip()
+        if not _EMAIL_RE.match(value):
+            raise ValueError("pubmed_email must be a valid email address")
+        return value
 
 
 class SaveCredentialsResponse(BaseModel):
@@ -960,6 +975,11 @@ async def save_credentials(body: SaveCredentialsRequest) -> SaveCredentialsRespo
         section["omim_api_key"] = body.omim_api_key
         write_config_section(existing_content, section)
         write_config_toml(config_path, existing_content)
+
+    # Bust the settings cache so the saved credentials take effect immediately in
+    # this process (NCBI calls in the same run use the new email/key, not stale
+    # empties), mirroring auth/preferences/storage-path.
+    get_settings.cache_clear()
 
     logger.info(
         "credentials_saved",
