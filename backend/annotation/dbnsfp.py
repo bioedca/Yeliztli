@@ -45,7 +45,12 @@ from backend.annotation.bulk_load import (
     insert_batch,
     retry_on_locked,
 )
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER as _SQLITE_VAR_LIMIT
 
 if TYPE_CHECKING:
@@ -770,15 +775,23 @@ def download_dbnsfp(
 
     logger.info("dbnsfp_download_start", url=url)
 
+    # Resumable so a partial ~47 GB archive survives a failed/restarted build and
+    # the next run continues via HTTP Range instead of re-downloading from zero.
+    # The validator sidecar persists the partial's If-Range token across runs so
+    # a rotated upstream forces a clean restart rather than a corrupt splice.
     outcome = stream_download(
         url,
         tmp_path,
         progress_callback=progress_callback,
         timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
 
-    # Atomic rename on success (stream_download cleans up the .tmp on failure).
+    # Atomic rename on success; drop the now-stale validator sidecar.
     tmp_path.replace(dest_path)
+    clear_validator_sidecar(tmp_path)
 
     logger.info("dbnsfp_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
     return dest_path

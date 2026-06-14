@@ -163,6 +163,58 @@ def _validator(response: httpx.Response) -> str | None:
     return response.headers.get("ETag") or response.headers.get("Last-Modified")
 
 
+def _validator_sidecar_path(tmp_path: Path) -> Path:
+    """Path of the sidecar that persists a partial's ``If-Range`` validator."""
+    return tmp_path.with_name(tmp_path.name + ".validator")
+
+
+def read_validator_sidecar(tmp_path: Path) -> str | None:
+    """Recover the persisted ``If-Range`` validator for a resumable partial.
+
+    ``stream_download`` itself has no cross-run storage: a caller that wants a
+    partial ``.tmp`` to survive a process restart (``resumable=True``) must also
+    persist the validator the partial was associated with, so the next run can
+    send ``If-Range`` and detect a rotated upstream instead of splicing new
+    bytes onto a stale prefix. This reads that sidecar.
+
+    Returns the stored ETag/Last-Modified only when **both** the sidecar and the
+    ``tmp_path`` partial exist — a sidecar with no partial is meaningless (the
+    next download starts at offset 0 and sends no ``If-Range``), so it is
+    ignored rather than seeding a stale validator. Any read error degrades to
+    ``None`` (a fresh, validator-less attempt), never a crash.
+    """
+    sidecar = _validator_sidecar_path(tmp_path)
+    try:
+        if not (tmp_path.exists() and sidecar.exists()):
+            return None
+        return sidecar.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def write_validator_sidecar(tmp_path: Path, validator: str) -> None:
+    """Persist a partial's ``If-Range`` validator next to its ``.tmp``.
+
+    Pass as ``on_validator`` to :func:`stream_download`: it fires the moment the
+    validator is (re)captured, so a transfer that dies mid-stream still leaves
+    the token on disk for the next process to validate its resume against.
+    Persisting the validator must never break a live download, so any write
+    error is logged and swallowed.
+    """
+    try:
+        _validator_sidecar_path(tmp_path).write_text(validator, encoding="utf-8")
+    except OSError as exc:
+        logger.warning("validator_sidecar_write_failed", path=str(tmp_path), error=str(exc))
+
+
+def clear_validator_sidecar(tmp_path: Path) -> None:
+    """Remove a partial's validator sidecar (after the ``.tmp`` has been finalized)."""
+    try:
+        _validator_sidecar_path(tmp_path).unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("validator_sidecar_clear_failed", path=str(tmp_path), error=str(exc))
+
+
 def stream_download(
     url: str,
     tmp_path: Path,

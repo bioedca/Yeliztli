@@ -19,8 +19,11 @@ from backend.annotation.http_download import (
     DownloadError,
     DownloadOutcome,
     _content_range_total,
+    clear_validator_sidecar,
     compute_backoff,
+    read_validator_sidecar,
     stream_download,
+    write_validator_sidecar,
 )
 
 # 256 KiB of structured data so byte offsets are meaningful and resumes
@@ -715,3 +718,86 @@ def test_seeded_validator_forces_clean_restart_on_rotation(tmp_path: Path) -> No
         assert captured == ['"v2"']
     finally:
         server.shutdown()
+
+
+# ── Cross-run validator sidecar (issue #756) ─────────────────────────
+# stream_download has no cross-run storage of its own. These cover the sidecar
+# helpers that let a caller (e.g. download_dbnsfp) persist a partial's If-Range
+# validator next to its .tmp so a SEPARATE process run can resume via Range
+# instead of re-downloading a ~47 GB archive from zero.
+
+
+def test_validator_sidecar_round_trip(tmp_path: Path) -> None:
+    """read/write/clear, and the rule that a sidecar without a partial is ignored."""
+    tmp = tmp_path / "archive.zip.tmp"
+
+    # A sidecar with no partial is meaningless: the next download starts at
+    # offset 0 and sends no If-Range, so read must ignore it (return None).
+    write_validator_sidecar(tmp, '"v1"')
+    assert read_validator_sidecar(tmp) is None
+
+    # With a partial present, the persisted validator is recovered.
+    tmp.write_bytes(b"partial")
+    assert read_validator_sidecar(tmp) == '"v1"'
+
+    # Clearing removes it.
+    clear_validator_sidecar(tmp)
+    assert read_validator_sidecar(tmp) is None
+    # Clearing again is a safe no-op.
+    clear_validator_sidecar(tmp)
+
+
+def test_cross_run_resume_uses_persisted_sidecar_validator(tmp_path: Path) -> None:
+    """A partial .tmp + persisted sidecar from a prior run resumes via Range+If-Range
+    on the FIRST request of the next run — the cross-process gap #756 closes."""
+    tmp = tmp_path / "archive.zip.tmp"
+    tmp.write_bytes(bytes(40))  # partial left by a prior, interrupted run
+    write_validator_sidecar(tmp, '"v1"')  # its persisted validator
+
+    sink: list[dict[str, str]] = []
+    total = 100
+    responses = [
+        _FakeResponse(206, {"Content-Range": f"bytes 40-{total - 1}/{total}"}, [bytes(60)]),
+    ]
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        resumable=True,
+        validator=read_validator_sidecar(tmp),
+        on_validator=lambda v: write_validator_sidecar(tmp, v),
+        client_factory=_client_factory(responses, sink),
+        sleep=NOOP_SLEEP,
+    )
+    assert outcome.total_bytes == total
+    assert tmp.stat().st_size == total
+    # First request of THIS run resumed from byte 40 with the persisted validator —
+    # no full re-fetch.
+    assert sink[0].get("Range") == "bytes=40-"
+    assert sink[0].get("If-Range") == '"v1"'
+
+
+def test_cross_run_rotation_updates_sidecar(tmp_path: Path) -> None:
+    """A rotated upstream (200 ignoring the conditional Range) restarts clean and
+    the sidecar is rewritten to the new validator for the next run."""
+    tmp = tmp_path / "archive.zip.tmp"
+    tmp.write_bytes(bytes(40))
+    write_validator_sidecar(tmp, '"v1"')
+
+    sink: list[dict[str, str]] = []
+    total = 100
+    responses = [
+        # Range+If-Range:"v1" sent, but the resource rotated -> 200 full body, "v2".
+        _FakeResponse(200, {"Content-Length": str(total), "ETag": '"v2"'}, [bytes(total)]),
+    ]
+    stream_download(
+        "http://fake/file.bin",
+        tmp,
+        resumable=True,
+        validator=read_validator_sidecar(tmp),
+        on_validator=lambda v: write_validator_sidecar(tmp, v),
+        client_factory=_client_factory(responses, sink),
+        sleep=NOOP_SLEEP,
+    )
+    assert tmp.stat().st_size == total
+    assert sink[0].get("If-Range") == '"v1"'  # attempted conditional resume
+    assert read_validator_sidecar(tmp) == '"v2"'  # sidecar refreshed for the next run

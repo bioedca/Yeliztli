@@ -38,6 +38,7 @@ from backend.annotation.dbnsfp import (
     _parse_dbnsfp_pred,
     _parse_float,
     download_and_load_dbnsfp,
+    download_dbnsfp,
     is_ensemble_pathogenic,
     load_dbnsfp_from_csv,
     lookup_dbnsfp_by_positions,
@@ -703,6 +704,45 @@ class TestDownloadAndLoadDbNSFP:
                 sa.select(database_versions).where(database_versions.c.db_name == "dbnsfp")
             ).fetchone()
         assert row.version == "4.5a"
+
+
+class TestDownloadDbNSFPResume:
+    """download_dbnsfp opts into cross-run resume with a validator sidecar (#756)."""
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+
+        tmp_file = tmp_path / "dbnsfp_archive.zip.tmp"
+        sidecar = tmp_path / "dbnsfp_archive.zip.tmp.validator"
+        # Simulate a partial + persisted validator left by a prior interrupted run.
+        tmp_file.write_bytes(b"partial-from-prior-run")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+
+        captured: dict[str, object] = {}
+
+        def fake_stream_download(url: str, tmp_path_arg: Path, **kwargs: object):
+            captured["url"] = url
+            captured.update(kwargs)
+            tmp_path_arg.write_bytes(b"complete-archive")  # finalize the partial
+            return SimpleNamespace(total_bytes=16)
+
+        monkeypatch.setattr("backend.annotation.dbnsfp.stream_download", fake_stream_download)
+
+        dest = download_dbnsfp(tmp_path)
+
+        assert dest == tmp_path / "dbnsfp_archive.zip"
+        assert dest.read_bytes() == b"complete-archive"
+        # Opted into resume, seeded with the sidecar's persisted validator.
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        # Success finalized the .tmp and cleared the sidecar.
+        assert not sidecar.exists()
+        # The on_validator hook persists a freshly captured validator for the next run.
+        captured["on_validator"]('"etag-v2"')  # type: ignore[operator]
+        assert sidecar.read_text(encoding="utf-8") == '"etag-v2"'
 
 
 # ── Constants tests ──────────────────────────────────────────────────────
