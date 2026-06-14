@@ -31,9 +31,9 @@ const CONFIDENCE_CONFIG: Record<
   CallConfidence,
   { icon: typeof CheckCircle2; color: string }
 > = {
-  Complete: { icon: CheckCircle2, color: "text-emerald-600 dark:text-emerald-400" },
-  Partial: { icon: AlertTriangle, color: "text-amber-600 dark:text-amber-400" },
-  Insufficient: { icon: XCircle, color: "text-red-600 dark:text-red-400" },
+  Complete: { icon: CheckCircle2, color: "text-emerald-700 dark:text-emerald-400" },
+  Partial: { icon: AlertTriangle, color: "text-amber-700 dark:text-amber-400" },
+  Insufficient: { icon: XCircle, color: "text-red-700 dark:text-red-400" },
 }
 
 function CoverageBadge({ coverage }: { coverage: CoverageInfo | null }) {

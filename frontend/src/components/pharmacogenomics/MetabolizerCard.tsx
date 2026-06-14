@@ -15,19 +15,19 @@ const CONFIDENCE_CONFIG: Record<
   Complete: {
     icon: CheckCircle2,
     label: "Complete",
-    color: "text-emerald-600 dark:text-emerald-400",
+    color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-50 dark:bg-emerald-950/30",
   },
   Partial: {
     icon: AlertTriangle,
     label: "Partial",
-    color: "text-amber-600 dark:text-amber-400",
+    color: "text-amber-700 dark:text-amber-400",
     bg: "bg-amber-50 dark:bg-amber-950/30",
   },
   Insufficient: {
     icon: XCircle,
     label: "Insufficient",
-    color: "text-red-600 dark:text-red-400",
+    color: "text-red-700 dark:text-red-400",
     bg: "bg-red-50 dark:bg-red-950/30",
   },
 }
@@ -94,7 +94,7 @@ export default function MetabolizerCard({ gene }: MetabolizerCardProps) {
 
       {/* Confidence note tooltip text */}
       {gene.confidence_note && confidence === "Partial" && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 italic">
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 italic">
           {gene.confidence_note}
         </p>
       )}

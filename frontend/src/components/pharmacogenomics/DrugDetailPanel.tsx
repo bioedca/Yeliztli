@@ -25,9 +25,9 @@ const CONFIDENCE_ICON: Record<CallConfidence, typeof CheckCircle2> = {
 }
 
 const CONFIDENCE_COLOR: Record<CallConfidence, string> = {
-  Complete: "text-emerald-600 dark:text-emerald-400",
-  Partial: "text-amber-600 dark:text-amber-400",
-  Insufficient: "text-red-600 dark:text-red-400",
+  Complete: "text-emerald-700 dark:text-emerald-400",
+  Partial: "text-amber-700 dark:text-amber-400",
+  Insufficient: "text-red-700 dark:text-red-400",
 }
 
 function GeneEffectCard({ effect }: { effect: GeneEffect }) {

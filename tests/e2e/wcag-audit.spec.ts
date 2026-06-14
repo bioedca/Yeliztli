@@ -178,6 +178,100 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     }
   })
 
+  // ── axe-core on data-rich rendered states (#573) ─────────
+  // The audits above visit pages with no sample_id, so they only check the
+  // empty "Select a sample…" states + app shell — contrast regressions in real
+  // content (cards, badges, status labels) slip through. Render a data-rich
+  // pharmacogenomics state (route-stubbed) and axe it in light mode, exercising
+  // all three call-confidence colours (Complete/Partial/Insufficient) which
+  // previously failed WCAG AA contrast at text-xs with the -600 tokens.
+  test.describe('axe-core on data-rich content (#573)', () => {
+    function jsonRoute(payload: unknown) {
+      return { status: 200, contentType: 'application/json', body: JSON.stringify(payload) }
+    }
+
+    const GENES = {
+      items: [
+        {
+          gene: 'CYP2C19', diplotype: '*1/*2', phenotype: 'Intermediate Metabolizer',
+          call_confidence: 'Complete', confidence_note: null, activity_score: 1.0,
+          ehr_notation: 'CYP2C19 *1/*2', evidence_level: 4, involved_rsids: ['rs4244285'],
+          drugs: ['clopidogrel', 'omeprazole'], gene_caveat: null,
+        },
+        {
+          gene: 'CYP2D6', diplotype: '*1/*4', phenotype: 'Intermediate Metabolizer',
+          call_confidence: 'Partial',
+          confidence_note: 'SNP-based alleles called, but structural variants cannot be excluded.',
+          activity_score: 1.0, ehr_notation: 'CYP2D6 *1/*4', evidence_level: 3,
+          involved_rsids: ['rs3892097'], drugs: ['codeine'], gene_caveat: null,
+        },
+        {
+          gene: 'CYP2B6', diplotype: null, phenotype: null, call_confidence: 'Insufficient',
+          confidence_note: 'Key defining rsids not on the array.', activity_score: null,
+          ehr_notation: null, evidence_level: null, involved_rsids: [], drugs: ['efavirenz'],
+          gene_caveat: null,
+        },
+      ],
+    }
+
+    const DRUGS = {
+      items: [
+        { drug: 'clopidogrel', genes: ['CYP2C19'], classification: 'A' },
+        { drug: 'codeine', genes: ['CYP2D6'], classification: 'A' },
+      ],
+    }
+
+    const geneCoverage = (g: (typeof GENES.items)[number]) => ({
+      gene: g.gene, diplotype: g.diplotype, phenotype: g.phenotype,
+      call_confidence: g.call_confidence, confidence_note: g.confidence_note,
+      coverage: { assessed: 1, total: 2 }, activity_score: g.activity_score,
+      ehr_notation: g.ehr_notation, evidence_level: g.evidence_level, gene_caveat: null,
+    })
+
+    const REPORT = {
+      reference_bias_disclosure: 'Calls are relative to the reference genome.',
+      genes_assessed: 3, drugs_assessed: 2, actionable_drug_count: 1,
+      gene_coverage: GENES.items.map(geneCoverage),
+      drugs: [
+        {
+          drug: 'clopidogrel', actionable: true,
+          gene_effects: [{
+            gene: 'CYP2C19', diplotype: '*1/*2', phenotype: 'Intermediate Metabolizer',
+            recommendation: 'Consider an alternative antiplatelet agent.', classification: 'A',
+            guideline_url: null, call_confidence: 'Complete', confidence_note: null,
+            evidence_level: 4, activity_score: 1.0, ehr_notation: 'CYP2C19 *1/*2',
+            coverage: { assessed: 1, total: 2 }, actionability: 'actionable', gene_caveat: null,
+          }],
+        },
+      ],
+    }
+
+    test('pharmacogenomics data-rich state passes axe-core in light mode', async ({ page }) => {
+      await page.route('**/api/analysis/pharma/genes**', (r) => r.fulfill(jsonRoute(GENES)))
+      await page.route('**/api/analysis/pharma/drugs**', (r) => r.fulfill(jsonRoute(DRUGS)))
+      await page.route('**/api/analysis/pharma/report**', (r) => r.fulfill(jsonRoute(REPORT)))
+
+      await page.goto('/pharmacogenomics?sample_id=1')
+      await waitForReactHydration(page)
+      // Wait for the data-rich content (confidence labels) to render.
+      await expect(page.getByText('Partial').first()).toBeVisible()
+
+      let builder = new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      for (const sel of THIRD_PARTY_EXCLUDES) {
+        builder = builder.exclude(sel)
+      }
+      const results = await builder.analyze()
+      const violations = results.violations.map((v) => ({
+        id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
+      }))
+      expect(
+        violations,
+        `axe-core violations on data-rich /pharmacogenomics:\n${JSON.stringify(violations, null, 2)}`,
+      ).toEqual([])
+    })
+  })
+
   // ── Heading hierarchy ────────────────────────────────────
   test.describe('Heading hierarchy (no skipped levels)', () => {
     for (const page of APP_PAGES) {
