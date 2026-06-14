@@ -16,7 +16,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -880,3 +880,66 @@ class TestDownloadIntegration:
         # Only cpic should be downloaded (clinvar already exists)
         assert len(data["downloads"]) == 1
         assert data["downloads"][0]["db_name"] == "cpic"
+
+
+class TestDownloadProgressForwarding:
+    """A download-mode DB's byte progress must reach the wizard's own
+    ``dbdl-`` job, not just DownloadManager's internal job (PR-17) — otherwise
+    the wizard bar sits frozen until the file jumps to 100%."""
+
+    def test_execute_download_forwards_progress_to_wizard_job(
+        self, reference_engine: sa.Engine, tmp_data_dir: Path
+    ) -> None:
+        from backend.api.routes.databases import _execute_download
+        from backend.db.download_manager import DownloadResult
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        test_db = DatabaseInfo(
+            name="test_dl_db",
+            display_name="Test DL",
+            description="t",
+            url="http://example/test_dl.db",
+            filename="test_dl.db",
+            expected_size_bytes=1000,
+            build_mode="download",
+            target_db="standalone",
+        )
+        job_id = "dbdl-testdl"
+        _create_job_record(reference_engine, job_id, test_db.name)
+        final_dest = test_db.dest_path(settings)
+
+        def fake_start(*, url, filename, expected_sha256, progress_callback):
+            # Mimic a successful transfer; no progress emitted from here.
+            final_dest.parent.mkdir(parents=True, exist_ok=True)
+            final_dest.write_bytes(b"db-bytes")
+            return DownloadResult(
+                download_id=1, job_id=job_id, dest_path=final_dest, total_bytes=1000
+            )
+
+        dm = MagicMock()
+        dm.start.side_effect = fake_start
+
+        with patch(
+            "backend.api.routes.databases._apply_manifest_overrides", side_effect=lambda d: d
+        ):
+            _execute_download(
+                dm=dm,
+                db_info=test_db,
+                job_id=job_id,
+                engine=reference_engine,
+                settings=settings,
+            )
+
+        # The wizard job's callback was handed to DownloadManager.
+        cb = dm.start.call_args.kwargs["progress_callback"]
+        assert cb is not None
+
+        # Invoking it writes byte-aware mid-progress to THIS (dbdl-) job.
+        cb(500, 1000)
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.progress_pct, jobs.c.message).where(jobs.c.job_id == job_id)
+            ).fetchone()
+        assert row.progress_pct == 50.0
+        assert "500" in row.message
+        assert "50%" in row.message

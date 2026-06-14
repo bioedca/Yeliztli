@@ -947,10 +947,47 @@ def _execute_download(
         msg = f"Downloading {db_info.display_name}..."
         _update_job(engine, job_id, status="running", message=msg)
 
+        # Forward byte-level progress to THIS (wizard ``dbdl-``) job. Without
+        # this, a download-mode DB's bar sits frozen until the file jumps to
+        # 100%, because DownloadManager writes progress to its own internal job,
+        # not the one the wizard's SSE stream tracks. Throttled to ~2s and capped
+        # at 99% so the final move/transform step owns 100%.
+        _last_progress_write = 0.0
+        _last_pct = 0.0
+        _PROGRESS_THROTTLE_S = 2.0
+
+        def on_download_progress(downloaded: int, total: int | None) -> None:
+            nonlocal _last_progress_write, _last_pct
+            now = time.monotonic()
+            if now - _last_progress_write < _PROGRESS_THROTTLE_S:
+                return
+            if total and total > 0:
+                _last_pct = min(99.0, downloaded / total * 100.0)
+                progress_msg = (
+                    f"Downloading {db_info.display_name}... "
+                    f"{downloaded:,} / {total:,} bytes ({_last_pct:.0f}%)"
+                )
+            else:
+                # No advertised total — hold the bar, report bytes so the user
+                # still sees forward motion.
+                progress_msg = f"Downloading {db_info.display_name}... {downloaded:,} bytes"
+            try:
+                _update_job(
+                    engine,
+                    job_id,
+                    status="running",
+                    progress_pct=_last_pct,
+                    message=progress_msg,
+                )
+                _last_progress_write = now
+            except sa.exc.OperationalError:
+                _last_progress_write = now  # back off even on a transient write failure
+
         result = dm.start(
             url=db_info.url,
             filename=db_info.filename,
             expected_sha256=db_info.sha256,
+            progress_callback=on_download_progress,
         )
 
         if result.error:
