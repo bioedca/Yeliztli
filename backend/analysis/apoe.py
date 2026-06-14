@@ -46,6 +46,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.array_confidence import APOE_ARRAY_RELIABILITY_PMIDS
 from backend.analysis.zygosity import is_no_call
 from backend.db.tables import findings, raw_variants
 
@@ -75,7 +76,10 @@ APOE_CHROM = "19"
 # RELIABILITY FLAG ONLY (mirrors backend.analysis.array_confidence): it does NOT
 # change the well-established APOE evidence_level — it records that an actionable
 # ε-call from array data should be confirmed in a CLIA/accredited lab.
-APOE_RELIABILITY_PMIDS = ["24448547", "22972946", "24903779"]
+# Single source of truth: the shared array-confidence model (#636) owns these
+# citations and lists rs429358/rs7412 in its locus-specific low-reliability set,
+# so the APOE-local caveat and the shared model can never drift apart.
+APOE_RELIABILITY_PMIDS = APOE_ARRAY_RELIABILITY_PMIDS
 APOE_ARRAY_RELIABILITY_CAVEAT = (
     "APOE ε-status here is derived from consumer genotyping-array calls at "
     "rs429358 and rs7412. These two ε-defining SNPs are a recognised array weak "

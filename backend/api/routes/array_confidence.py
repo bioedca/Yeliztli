@@ -46,6 +46,11 @@ class ArrayConfidenceResponse(BaseModel):
     context_only: bool
     pmid_citations: list[str] = []
     note: str
+    # Locus-specific weak-spot override (#636): True when ``reliability`` was set
+    # to ``locus_low`` by rsID regardless of frequency; ``frequency_band`` then
+    # records what allele frequency alone would have rated the call.
+    locus_low_reliability: bool = False
+    frequency_band: str | None = None
 
 
 @router.get("", response_model=list[ArrayConfidenceResponse])
@@ -56,7 +61,8 @@ def list_array_confidence(
 
     Every returned finding is ClinVar-catalogued by definition, so ``is_novel``
     is always ``False`` and reliability is one of ``high`` / ``moderate`` /
-    ``low`` / ``unknown`` (never ``very_low``).
+    ``low`` / ``unknown`` (never ``very_low``), or ``locus_low`` for a finding at
+    a locus-specific array weak spot (#636) regardless of its frequency.
     """
     engine = resolve_sample_engine(sample_id)
     return [ArrayConfidenceResponse(**item) for item in assess_pathogenic_findings(engine)]
