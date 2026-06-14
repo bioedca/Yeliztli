@@ -721,6 +721,20 @@ class TestSNPScoring:
         assert result.category == STANDARD
         assert result.present_in_sample is True
 
+    def test_unmodeled_allele_genotype_withheld_as_indeterminate(self, panel: SkinPanel) -> None:
+        """#608: a present, real-nucleotide genotype carrying an allele the locus
+        does not model (FLG rs61816761 is A/G; observed ``GT`` carries an unmodeled
+        ``T``) is withheld as Indeterminate, not silently scored Standard (which
+        would hide the carrier as 'no effect'). A non-nucleotide no-call is not an
+        unmodeled allele and still falls through to Standard."""
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs61816761")
+        for gt in ("GT", "TG"):
+            result = _score_snp(snp, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        assert _score_snp(snp, "--").category == STANDARD
+
     def test_gstp1_gg_capped_at_moderate(self, panel: SkinPanel) -> None:
         """GSTP1 has evidence_level=1, so GG (Elevated) → capped at Moderate."""
         gstp1 = None

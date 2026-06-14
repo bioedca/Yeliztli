@@ -272,12 +272,15 @@ class TestDRD4Proxy:
         assert drd4.cross_module is not None
         assert drd4.cross_module["module"] == "gene_health"
 
-    def test_drd4_t_containing_genotype_is_not_curated(self, panel: TraitsPanel) -> None:
+    def test_drd4_t_containing_genotype_is_indeterminate(self, panel: TraitsPanel) -> None:
+        """DRD4 rs747302 models the C/G contrast; an observed ``CT`` carries a ``T``
+        the locus does not model, so it is withheld as Indeterminate rather than
+        silently scored Standard (which would hide a carrier as 'no effect') — #608."""
         drd4 = self._get_drd4(panel)
         result = _score_snp(drd4, "CT")
-        assert result.category == STANDARD
+        assert result.category == INDETERMINATE
         assert result.present_in_sample is True
-        assert "not in curated panel definitions" in result.effect_summary
+        assert "does not model" in result.effect_summary
 
     def test_drd4_finding_preserves_coverage_note(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)

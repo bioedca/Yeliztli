@@ -420,6 +420,22 @@ class TestSNPScoring:
         assert result.category == STANDARD
         assert result.present_in_sample is True
 
+    def test_unmodeled_allele_genotype_withheld_as_indeterminate(
+        self, panel: AllergyPanel
+    ) -> None:
+        """#608: a present, real-nucleotide genotype carrying an allele the locus
+        does not model (IL13 rs20541 is A/G; observed ``GT`` carries an unmodeled
+        ``T``) is withheld as Indeterminate, not silently scored Standard (which
+        would hide the carrier as 'no effect'). A non-nucleotide no-call is not an
+        unmodeled allele and still falls through to Standard."""
+        snp = self._get_snp(panel, "rs20541")
+        for gt in ("GT", "TG"):
+            result = _score_snp(snp, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        assert _score_snp(snp, "--").category == STANDARD
+
     def test_reversed_genotype_lookup(self, panel: AllergyPanel) -> None:
         """Reversed genotype (AG vs GA) still works."""
         snp = self._get_snp(panel, "rs20541")

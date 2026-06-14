@@ -44,7 +44,11 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import is_strand_ambiguous, lookup_by_genotype
+from backend.analysis.genotype_lookup import (
+    is_acgt_genotype,
+    is_strand_ambiguous,
+    lookup_by_genotype,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -331,20 +335,32 @@ def _score_snp(
     effect = lookup_by_genotype(snp.genotype_effects, genotype)
 
     if effect is None:
-        # Unknown genotype — default to Standard
         logger.warning(
             "unknown_genotype_for_panel_snp",
             rsid=snp.rsid,
             gene=snp.gene,
             genotype=genotype,
         )
+        # A present, real-nucleotide genotype that resolves to no curated entry is
+        # NOT baseline: it carries an allele this locus does not model (a third/rare
+        # allele or an unkeyed pair), so it is withheld as Indeterminate rather than
+        # silently scored Standard (which would hide a carrier as "no effect"). Only
+        # non-nucleotide tokens (indels, no-calls) fall through to the Standard
+        # default. (#608, mirroring the fitness/methylation fix in #730.)
+        unmodeled = is_acgt_genotype(genotype)
         return SNPResult(
             rsid=snp.rsid,
             gene=snp.gene,
             variant_name=snp.variant_name,
             genotype=genotype,
-            category=STANDARD,
-            effect_summary=f"Genotype {genotype} not in curated panel definitions.",
+            category=INDETERMINATE if unmodeled else STANDARD,
+            effect_summary=(
+                f"Genotype {genotype} carries an allele this locus does not model "
+                f"(it matches no curated genotype), so it is reported as indeterminate "
+                f"rather than assumed baseline."
+                if unmodeled
+                else f"Genotype {genotype} not in curated panel definitions."
+            ),
             evidence_level=snp.evidence_level,
             pmids=snp.pmids,
             recommendation_text=snp.recommendation_text,

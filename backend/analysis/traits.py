@@ -46,7 +46,11 @@ import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
 from backend.analysis.evidence import TRAITS_EVIDENCE_CAP, cap_evidence_level
-from backend.analysis.genotype_lookup import is_strand_ambiguous, lookup_by_genotype
+from backend.analysis.genotype_lookup import (
+    is_acgt_genotype,
+    is_strand_ambiguous,
+    lookup_by_genotype,
+)
 from backend.analysis.prs import (
     PRSResult,
     PRSSNPWeight,
@@ -351,19 +355,37 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             gene=snp.gene,
             genotype=genotype,
         )
+        # A present, real-nucleotide genotype that resolves to no curated entry is
+        # NOT baseline: it carries an allele this locus does not model (a third/rare
+        # allele or an unkeyed pair), so it is withheld as Indeterminate rather than
+        # silently scored Standard (which would hide a carrier as "no effect"). Only
+        # non-nucleotide tokens (indels, no-calls) fall through to the Standard
+        # default. (#608, mirroring the fitness/methylation fix in #730.)
+        unmodeled = is_acgt_genotype(genotype)
         return SNPResult(
             rsid=snp.rsid,
             gene=snp.gene,
             variant_name=snp.variant_name,
             genotype=genotype,
-            category=STANDARD,
-            effect_summary=f"Genotype {genotype} not in curated panel definitions.",
+            category=INDETERMINATE if unmodeled else STANDARD,
+            effect_summary=(
+                f"Genotype {genotype} carries an allele this locus does not model "
+                f"(it matches no curated genotype), so it is reported as indeterminate "
+                f"rather than assumed baseline."
+                if unmodeled
+                else f"Genotype {genotype} not in curated panel definitions."
+            ),
             evidence_level=snp.evidence_level,
             pmids=snp.pmids,
             recommendation_text=snp.recommendation_text,
             present_in_sample=True,
             trait_domain=snp.trait_domain,
-            coverage_note=snp.coverage_note,
+            coverage_note=(
+                "Observed genotype includes an allele outside this locus's curated "
+                "model; not interpretable from the panel."
+                if unmodeled
+                else snp.coverage_note
+            ),
             cross_module=snp.cross_module,
         )
 
