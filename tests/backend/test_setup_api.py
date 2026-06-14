@@ -651,6 +651,51 @@ def test_import_backup_is_transactional_on_failure(tmp_path: Path, monkeypatch) 
     assert not list(data_dir.glob(".import_staging_*"))  # staging cleaned up
 
 
+def test_import_backup_leaves_no_partial_samples_on_commit_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A failure during the samples commit (move) leaves no partial sample set.
+
+    The first-run restore commits the staged samples as a single atomic directory
+    rename, so a failure there moves nothing into data_dir.
+    """
+    import os
+
+    home = tmp_path / "home"
+    home.mkdir()
+    data_dir = tmp_path / "store"
+    data_dir.mkdir()
+    settings = Settings(data_dir=data_dir, wal_mode=False)
+    archive = _create_backup_archive(tmp_path, num_samples=2)  # samples only
+
+    real_replace = os.replace
+
+    def _boom_on_samples(src, dst):
+        # Fail the atomic samples directory rename (dst is data_dir/samples).
+        if str(dst).rstrip("/").endswith("samples"):
+            raise OSError("simulated commit failure")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr("backend.api.routes.setup.os.replace", _boom_on_samples)
+
+    with _relocated_client(home, settings):
+        reset_registry()
+        from backend.main import create_app
+
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        with client as tc, archive.open("rb") as f:
+            resp = tc.post(
+                "/api/setup/import-backup",
+                files={"file": ("backup.tar.gz", f, "application/gzip")},
+            )
+        reset_registry()
+
+    assert resp.status_code != 200
+    samples_dir = data_dir / "samples"
+    assert not samples_dir.exists() or not list(samples_dir.glob("*.db"))
+    assert not list(data_dir.glob(".import_staging_*"))
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/setup/detect-existing
 # ═══════════════════════════════════════════════════════════════════════

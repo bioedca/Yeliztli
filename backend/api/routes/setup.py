@@ -14,6 +14,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -684,15 +685,29 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     for staged, _final in staged_samples:
                         _upgrade_restored_sample_db(staged)
 
-                    # Commit: move into place. Samples are same-filesystem as the
-                    # staging dir → atomic os.replace. config.toml goes to the home
-                    # dir (config_toml_path), which may be a different filesystem
-                    # than a relocated data_dir, so copy that single small file.
-                    (data_dir / "samples").mkdir(parents=True, exist_ok=True)
-                    for staged, final in staged_samples:
-                        final.parent.mkdir(parents=True, exist_ok=True)
-                        os.replace(staged, final)
-                        samples_restored += 1
+                    # Commit. Move the staged samples into place as a SINGLE atomic
+                    # directory rename — onto the (startup-created) empty samples
+                    # dir or an absent one, so all samples appear together or not
+                    # at all, never a half-populated set. Only a NON-empty samples
+                    # dir (a rarer re-restore) raises ENOTEMPTY and falls back to a
+                    # per-file merge; any other error propagates so the restore
+                    # fails cleanly. Same filesystem (staging is under data_dir) →
+                    # os.replace is atomic.
+                    staged_samples_dir = staging_dir / "samples"
+                    final_samples_dir = data_dir / "samples"
+                    if staged_samples_dir.is_dir():
+                        try:
+                            os.replace(staged_samples_dir, final_samples_dir)
+                        except OSError as exc:
+                            if exc.errno != errno.ENOTEMPTY:
+                                raise
+                            for staged, final in staged_samples:
+                                final.parent.mkdir(parents=True, exist_ok=True)
+                                os.replace(staged, final)
+                        samples_restored = len(staged_samples)
+                    # config.toml goes to the home dir (config_toml_path), which may
+                    # be a different filesystem than a relocated data_dir, so copy
+                    # that single small file.
                     if staged_config is not None:
                         config_dest = config_toml_path()
                         config_dest.parent.mkdir(parents=True, exist_ok=True)
