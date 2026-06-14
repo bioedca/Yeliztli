@@ -246,14 +246,21 @@ def check_clinvar_update(
         last_modified = resp.headers.get("Last-Modified", "")
         content_length = int(resp.headers.get("Content-Length", "0"))
 
-        # Parse Last-Modified into a version string (YYYYMMDD)
-        if last_modified:
-            from email.utils import parsedate_to_datetime
+        # Without Last-Modified the remote version is undeterminable. Don't
+        # fabricate "today": today is always newer than the recorded (past)
+        # version, so the check would offer an update on every run and an
+        # auto-updater would re-download the full ClinVar VCF for no new data.
+        # Withhold the offer instead (#590). A Last-Modified header can be
+        # realistically absent (a CDN/mirror/proxy in front of NCBI strips it).
+        if not last_modified:
+            logger.warning("clinvar_update_check_no_last_modified", url=CLINVAR_VCF_URL)
+            return None
 
-            dt = parsedate_to_datetime(last_modified)
-            remote_version = dt.strftime("%Y%m%d")
-        else:
-            remote_version = datetime.now(UTC).strftime("%Y%m%d")
+        # Parse Last-Modified into a version string (YYYYMMDD)
+        from email.utils import parsedate_to_datetime
+
+        dt = parsedate_to_datetime(last_modified)
+        remote_version = dt.strftime("%Y%m%d")
 
         if current and current >= remote_version:
             return None  # Already up to date

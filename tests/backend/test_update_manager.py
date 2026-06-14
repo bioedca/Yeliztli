@@ -212,6 +212,27 @@ class TestCheckClinvarUpdate:
             result = check_clinvar_update(reference_engine)
         assert result is None
 
+    def test_no_last_modified_withholds_update(self, reference_engine):
+        # A CDN/mirror/proxy in front of NCBI can strip Last-Modified, making the
+        # remote version undeterminable. The check must NOT fabricate today's date
+        # as the remote version — that is always newer than the recorded (past)
+        # version, so it would offer an update on every check and re-download the
+        # full ClinVar VCF for no new data. Withhold the offer instead (#590).
+        _record_version(reference_engine, "clinvar", "20250101")  # a past version
+
+        mock_resp = MagicMock()
+        mock_resp.headers = {"Content-Length": "30000000"}  # no Last-Modified
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("backend.db.update_manager.httpx.Client") as mock_client:
+            mock_client.return_value.__enter__ = MagicMock(return_value=mock_client.return_value)
+            mock_client.return_value.__exit__ = MagicMock(return_value=False)
+            mock_client.return_value.head.return_value = mock_resp
+
+            result = check_clinvar_update(reference_engine)
+
+        assert result is None
+
 
 class TestCheckAllUpdates:
     """``check_all_updates`` dispatches via ``CHECK_FNS`` (Step 25).
