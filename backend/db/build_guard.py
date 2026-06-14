@@ -150,7 +150,7 @@ def cross_process_build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     claims_dir(data_dir).mkdir(parents=True, exist_ok=True)
     # O_CLOEXEC so a child process (e.g. a subprocess spawned mid-build) does
     # not inherit the descriptor and accidentally extend the claim's lifetime.
-    fd = os.open(_claim_path(data_dir, db_name), os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o644)
+    fd = os.open(_claim_path(data_dir, db_name), os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -182,7 +182,7 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
     path = _claim_path(data_dir, db_name)
     if not path.exists():
         return False
-    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o644)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError as exc:

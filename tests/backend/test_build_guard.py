@@ -161,6 +161,15 @@ class TestCrossProcessBuildClaim:
         with cross_process_build_claim("clinvar", tmp_path):
             assert (claims_dir(tmp_path) / "clinvar.claim").exists()
 
+    def test_claim_file_is_owner_only(self, tmp_path: Path) -> None:
+        # The empty flock marker holds no data and is this user's private lock,
+        # so it must not be group/world readable (CodeQL py/overly-permissive-
+        # file). The file is opened 0o600; O_CREAT honours umask, which can only
+        # clear bits, so group/other must stay unset regardless of umask.
+        with cross_process_build_claim("clinvar", tmp_path):
+            mode = (claims_dir(tmp_path) / "clinvar.claim").stat().st_mode & 0o777
+            assert mode & 0o077 == 0, f"claim file is group/world accessible: {oct(mode)}"
+
     def test_cross_process_mutual_exclusion(self, tmp_path: Path) -> None:
         ctx = multiprocessing.get_context("fork")
         acquired, release = ctx.Event(), ctx.Event()

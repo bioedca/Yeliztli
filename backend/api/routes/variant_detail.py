@@ -229,7 +229,10 @@ def _fetch_all_transcripts(rsid: str) -> list[TranscriptAnnotation]:
             )
             rows = conn.execute(stmt, {"rsid": rsid}).fetchall()
     except Exception as exc:
-        logger.debug("VEP bundle query failed for %s: %s", rsid, exc)
+        # Strip CR/LF so a crafted rsid (a URL path param) cannot forge log
+        # lines (CodeQL py/log-injection).
+        safe_rsid = rsid.replace("\r", "").replace("\n", "")
+        logger.debug("VEP bundle query failed for %s: %s", safe_rsid, exc)
         return []
 
     return [
