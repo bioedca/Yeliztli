@@ -4,7 +4,7 @@
  * Uses react-plotly.js for interactive zoom, hover tooltips, and responsive sizing.
  */
 
-import Plot from 'react-plotly.js'
+import Plot from '@/components/charts/Plot'
 import type { ChromosomeQCStats } from '@/types/variants'
 import { useThemeContext } from '@/lib/ThemeContext'
 import { getPlotlyTheme } from '@/lib/plotly-theme'

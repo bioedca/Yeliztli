@@ -5,7 +5,7 @@
  * in the gene. Uses Plotly.js for interactive charting.
  */
 
-import Plot from "react-plotly.js"
+import Plot from "@/components/charts/Plot"
 import type { PopulationAFSummary } from "@/types/gene-detail"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"

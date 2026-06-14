@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react"
-import Plot from "react-plotly.js"
+import Plot from "@/components/charts/Plot"
 import type { PCACoordinatesResponse } from "@/types/ancestry"
 import { POPULATION_COLORS, POPULATION_LABELS } from "./constants"
 import { useThemeContext } from "@/lib/ThemeContext"

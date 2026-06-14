@@ -6,7 +6,7 @@
  * Uses react-plotly.js for interactive hover and responsive sizing.
  */
 
-import Plot from "react-plotly.js"
+import Plot from "@/components/charts/Plot"
 import { POPULATION_COLORS, POPULATION_LABELS } from "./constants"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"
