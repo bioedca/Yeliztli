@@ -20,7 +20,8 @@ from sqlalchemy.pool import StaticPool
 from backend.annotation.dbnsfp import (
     LOOKUP_BATCH_SIZE,
     POSITION_LOOKUP_BATCH_SIZE,
-    create_dbnsfp_tables,
+    _create_dbnsfp_indexes,
+    _create_dbnsfp_table,
     lookup_dbnsfp_by_rsids,
 )
 from backend.annotation.engine import AnnotationEngineResult, run_annotation
@@ -101,13 +102,14 @@ def test_default_engine_no_read_optimized_pragmas(tmp_path) -> None:
 
 
 def test_dbnsfp_covering_index_created() -> None:
-    """create_dbnsfp_tables creates the covering index for rsid lookups."""
+    """Table + index creation builds the covering index for rsid lookups."""
     engine = sa.create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_dbnsfp_tables(engine)
+    _create_dbnsfp_table(engine)
+    _create_dbnsfp_indexes(engine)
 
     with engine.connect() as conn:
         indexes = conn.execute(
@@ -133,7 +135,8 @@ def test_dbnsfp_covering_index_used_for_rsid_lookup() -> None:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_dbnsfp_tables(engine)
+    _create_dbnsfp_table(engine)
+    _create_dbnsfp_indexes(engine)
 
     # Seed with enough rows so the query planner prefers the index over a scan.
     rng = random.Random(42)
@@ -250,7 +253,8 @@ def test_dbnsfp_rsid_lookup_performance() -> None:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_dbnsfp_tables(engine)
+    _create_dbnsfp_table(engine)
+    _create_dbnsfp_indexes(engine)
 
     # Seed with 50k variants
     import random

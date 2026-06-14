@@ -31,11 +31,12 @@ from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
     DbNSFPRecord,
     LoadStats,
+    _create_dbnsfp_indexes,
+    _create_dbnsfp_table,
     _normalize_chrom,
     _parse_dbnsfp_float,
     _parse_dbnsfp_pred,
     _parse_float,
-    create_dbnsfp_tables,
     download_and_load_dbnsfp,
     is_ensemble_pathogenic,
     load_dbnsfp_from_csv,
@@ -60,7 +61,8 @@ def dbnsfp_engine() -> sa.Engine:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_dbnsfp_tables(engine)
+    _create_dbnsfp_table(engine)
+    _create_dbnsfp_indexes(engine)
     return engine
 
 
@@ -293,8 +295,9 @@ class TestCreateDbnsfpTables:
         assert "idx_dbnsfp_chrom_pos" in index_names
 
     def test_idempotent(self, dbnsfp_engine: sa.Engine):
-        """Calling create_dbnsfp_tables twice should not error."""
-        create_dbnsfp_tables(dbnsfp_engine)
+        """Calling table + index creation twice should not error."""
+        _create_dbnsfp_table(dbnsfp_engine)
+        _create_dbnsfp_indexes(dbnsfp_engine)
         # Should not raise
 
 

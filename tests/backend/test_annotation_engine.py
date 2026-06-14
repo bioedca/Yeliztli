@@ -29,7 +29,8 @@ from sqlalchemy.pool import StaticPool
 from backend.annotation.alphamissense import create_alphamissense_table
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
-    create_dbnsfp_tables,
+    _create_dbnsfp_indexes,
+    _create_dbnsfp_table,
     load_dbnsfp_from_csv,
     lookup_dbnsfp_by_rsids,
 )
@@ -278,7 +279,8 @@ def dbnsfp_engine() -> sa.Engine:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_dbnsfp_tables(engine)
+    _create_dbnsfp_table(engine)
+    _create_dbnsfp_indexes(engine)
     load_dbnsfp_from_csv(DBNSFP_SEED_CSV, engine, clear_existing=False)
     return engine
 

@@ -606,18 +606,6 @@ def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
     retry_on_locked(_do)
 
 
-def create_dbnsfp_tables(engine: sa.Engine) -> None:
-    """Create the dbnsfp_scores table and indexes in the target database.
-
-    Safe to call multiple times (uses IF NOT EXISTS).
-
-    Args:
-        engine: SQLAlchemy engine for the dbnsfp.db file.
-    """
-    _create_dbnsfp_table(engine)
-    _create_dbnsfp_indexes(engine)
-
-
 def load_dbnsfp_from_tsv(
     tsv_path: Path,
     engine: sa.Engine,
