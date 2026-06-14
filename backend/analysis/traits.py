@@ -133,7 +133,6 @@ class TraitsPanel:
         return [snp.rsid for pathway in self.pathways for snp in pathway.snps]
 
 
-
 @dataclass
 class SNPResult:
     """Scoring result for a single SNP."""
@@ -159,6 +158,7 @@ class PathwayResult:
 
     pathway_id: str
     pathway_name: str
+    pathway_description: str
     level: str  # Elevated / Moderate / Standard
     prs_primary: bool = False
     snp_results: list[SNPResult] = field(default_factory=list)
@@ -630,6 +630,7 @@ def score_traits_pathways(
             PathwayResult(
                 pathway_id=pathway.id,
                 pathway_name=pathway.name,
+                pathway_description=pathway.description,
                 level=level,
                 prs_primary=pathway.prs_primary,
                 snp_results=snp_results,
