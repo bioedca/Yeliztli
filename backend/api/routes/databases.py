@@ -368,6 +368,31 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
 # Smoothing factor for the per-DB download-speed EWMA (higher = more reactive).
 _SPEED_EWMA_ALPHA = 0.3
 
+# Ceiling on a reported ETA. A throttled transfer drives the smoothed speed
+# toward zero, so a naive ``remaining / speed`` explodes toward infinity and the
+# wizard renders an ever-growing "~999h" estimate (the symptom that made a
+# throttled AlphaMissense download look hung). Past this ceiling we report no
+# ETA so the UI shows "estimating…"/omits it instead of a bogus number. The
+# ceiling also adapts to file size: ``eta > MAX`` ⇔ ``speed < remaining / MAX``,
+# i.e. a built-in, size-aware floor on the rate we are willing to extrapolate.
+_MAX_ETA_SECONDS = 24 * 3600
+
+
+def _eta_seconds(speed_bps: float | None, remaining_bytes: int) -> int | None:
+    """Honest ETA from a smoothed rate, or ``None`` when it can't be trusted.
+
+    Returns ``0`` when nothing remains (done), ``None`` when the rate is
+    non-positive (stalled — no honest estimate) or when the extrapolation would
+    exceed :data:`_MAX_ETA_SECONDS` (a throttled trickle, where ``remaining /
+    speed`` would otherwise climb without bound). Otherwise the rounded seconds.
+    """
+    if remaining_bytes <= 0:
+        return 0
+    if not speed_bps or speed_bps <= 0:
+        return None
+    eta = round(remaining_bytes / speed_bps)
+    return eta if eta <= _MAX_ETA_SECONDS else None
+
 
 def _aggregate_progress(db_statuses: list[dict[str, Any]]) -> dict[str, Any]:
     """Roll per-database byte progress up into one session-level summary.
@@ -387,7 +412,7 @@ def _aggregate_progress(db_statuses: list[dict[str, Any]]) -> dict[str, Any]:
         "remaining_bytes": remaining,
         "overall_pct": round(downloaded / total * 100.0, 1) if total else None,
         "speed_bps": round(speed) if speed else None,
-        "eta_seconds": round(remaining / speed) if speed > 0 else None,
+        "eta_seconds": _eta_seconds(speed, remaining) if total else None,
         "size_unknown_count": sum(1 for d in db_statuses if not d.get("total_bytes")),
     }
 
@@ -459,16 +484,27 @@ async def download_progress(session_id: str) -> StreamingResponse:
                 else:
                     downloaded_bytes = None
 
-                # Speed = EWMA of the byte delta between polls, only while the DB
-                # is actively progressing. A forced restart (bytes regress) resets
-                # the estimate rather than emitting a negative rate.
+                # Speed = EWMA of the byte delta between polls, updated only on a
+                # real byte advance. A forced restart (bytes regress) resets the
+                # estimate rather than emitting a negative rate.
+                #
+                # Crucially, a poll that sees NO change leaves both the estimate
+                # and the prev marker untouched: ``downloaded_bytes`` is derived
+                # from ``progress_pct``, which the downloader refreshes only every
+                # ~2s, while this loop polls every 0.5s — so most polls see no
+                # change. Feeding those as zero-rate samples would decay the EWMA
+                # toward zero and make the ETA climb without bound during a
+                # throttle. Holding state instead means the next real delta is
+                # measured over the true elapsed interval.
                 speed_bps = ewma_speed.get(db_name)
                 if downloaded_bytes is not None and not is_terminal:
                     prev = prev_bytes.get(db_name)
-                    if prev is not None:
+                    if prev is None:
+                        prev_bytes[db_name] = (downloaded_bytes, now)
+                    else:
                         prev_b, prev_t = prev
                         dt = now - prev_t
-                        if dt > 0 and downloaded_bytes >= prev_b:
+                        if downloaded_bytes > prev_b and dt > 0:
                             inst = (downloaded_bytes - prev_b) / dt
                             speed_bps = (
                                 inst
@@ -476,23 +512,20 @@ async def download_progress(session_id: str) -> StreamingResponse:
                                 else _SPEED_EWMA_ALPHA * inst + (1 - _SPEED_EWMA_ALPHA) * speed_bps
                             )
                             ewma_speed[db_name] = speed_bps
+                            prev_bytes[db_name] = (downloaded_bytes, now)
                         elif downloaded_bytes < prev_b:
                             speed_bps = None
                             ewma_speed.pop(db_name, None)
-                    prev_bytes[db_name] = (downloaded_bytes, now)
+                            prev_bytes[db_name] = (downloaded_bytes, now)
                 if is_terminal:
                     speed_bps = 0.0  # nothing in flight
 
-                eta_seconds: int | None = None
-                if (
-                    speed_bps
-                    and speed_bps > 0
-                    and total_bytes is not None
-                    and downloaded_bytes is not None
-                ):
-                    eta_seconds = round(max(0, total_bytes - downloaded_bytes) / speed_bps)
-                elif is_complete:
-                    eta_seconds = 0
+                if is_complete:
+                    eta_seconds: int | None = 0
+                elif total_bytes is not None and downloaded_bytes is not None:
+                    eta_seconds = _eta_seconds(speed_bps, max(0, total_bytes - downloaded_bytes))
+                else:
+                    eta_seconds = None
 
                 db_statuses.append(
                     {

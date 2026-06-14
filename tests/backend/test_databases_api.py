@@ -998,3 +998,54 @@ class TestAggregateProgress:
         assert agg["speed_bps"] is None
         assert agg["eta_seconds"] is None
         assert agg["overall_pct"] == 20.0
+
+    def test_throttled_trickle_suppresses_runaway_eta(self) -> None:
+        """A throttled trickle must not surface an ever-growing ETA (the bug).
+
+        With ~600 MB still to go at a few bytes/sec, ``remaining / speed`` is
+        days — the wizard used to render a climbing "~999h". The aggregate now
+        reports no ETA (UI shows "estimating…") past the ceiling.
+        """
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress(
+            [{"total_bytes": 622_000_000, "downloaded_bytes": 20_000_000, "speed_bps": 8}]
+        )
+        # Speed is still reported honestly; the ETA is suppressed, not inflated.
+        assert agg["speed_bps"] == 8
+        assert agg["eta_seconds"] is None
+        assert agg["remaining_bytes"] == 602_000_000
+
+
+class TestEtaSeconds:
+    """The pure ETA helper that both the per-DB and aggregate paths share."""
+
+    def test_done_is_zero(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(1_000_000, 0) == 0
+        # Even with no rate, nothing-remaining means done, not "unknown".
+        assert _eta_seconds(0, 0) == 0
+        assert _eta_seconds(None, 0) == 0
+
+    def test_no_rate_is_unknown(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(0, 1_000) is None
+        assert _eta_seconds(None, 1_000) is None
+        assert _eta_seconds(-5, 1_000) is None
+
+    def test_normal_rate_extrapolates(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(100, 3_500) == 35
+        assert _eta_seconds(8_000_000, 720_000_000) == 90
+
+    def test_runaway_eta_is_capped_to_none(self) -> None:
+        from backend.api.routes.databases import _MAX_ETA_SECONDS, _eta_seconds
+
+        # Just under the ceiling → still a number; a hair over → suppressed.
+        assert _eta_seconds(1, _MAX_ETA_SECONDS) == _MAX_ETA_SECONDS
+        assert _eta_seconds(1, _MAX_ETA_SECONDS + 1) is None
+        # A throttled trickle against a multi-hundred-MB remainder → suppressed.
+        assert _eta_seconds(8, 602_000_000) is None
