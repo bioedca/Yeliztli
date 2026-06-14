@@ -144,6 +144,11 @@ class SetStoragePathResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
+# Bump when the disclaimer text materially changes — a stored flag with an older
+# (or missing/corrupt) version is treated as not-accepted, forcing re-acceptance.
+_DISCLAIMER_VERSION = "1.0"
+
+
 def _disclaimer_flag_path() -> Path:
     """Path to the disclaimer acceptance flag file."""
     settings = get_settings()
@@ -151,8 +156,31 @@ def _disclaimer_flag_path() -> Path:
 
 
 def _is_disclaimer_accepted() -> bool:
-    """Check if the global disclaimer has been accepted."""
-    return _disclaimer_flag_path().exists()
+    """Whether the current global disclaimer has been accepted.
+
+    Parses the flag file rather than checking mere existence: a truncated or
+    corrupt flag (e.g. a crash mid-write) no longer counts as accepted, and a
+    flag written for an older disclaimer version forces re-acceptance.
+    """
+    try:
+        data = json.loads(_disclaimer_flag_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("version") == _DISCLAIMER_VERSION
+
+
+def _is_writable(path: Path) -> bool:
+    """Whether ``path`` (an existing directory) accepts a new file.
+
+    Uses a uniquely-named temp file rather than a fixed ``.write_test`` name, so
+    concurrent probes can't race on the same path and a crash never leaves a
+    stray file behind.
+    """
+    try:
+        with tempfile.NamedTemporaryFile(dir=path, prefix=".write_test_"):
+            return True
+    except OSError:
+        return False
 
 
 def _has_any_databases() -> bool:
@@ -298,10 +326,14 @@ async def accept_disclaimer() -> AcceptDisclaimerResponse:
     flag_path = _disclaimer_flag_path()
     accepted_at = datetime.now(UTC).isoformat()
 
-    flag_path.write_text(
-        json.dumps({"accepted_at": accepted_at, "version": "1.0"}),
+    # Atomic write: a crash mid-write must not leave a partial flag (and
+    # _is_disclaimer_accepted now also parse-validates it).
+    tmp_path = flag_path.parent / (flag_path.name + ".tmp")
+    tmp_path.write_text(
+        json.dumps({"accepted_at": accepted_at, "version": _DISCLAIMER_VERSION}),
         encoding="utf-8",
     )
+    os.replace(tmp_path, flag_path)
 
     logger.info("global_disclaimer_accepted", accepted_at=accepted_at)
 
@@ -811,13 +843,7 @@ async def storage_info() -> StorageInfoResponse:
     path_exists = data_dir.exists()
     path_writable = False
     if path_exists:
-        try:
-            test_file = data_dir / ".write_test"
-            test_file.write_text("test")
-            test_file.unlink()
-            path_writable = True
-        except OSError:
-            pass
+        path_writable = _is_writable(data_dir)
     else:
         # Check if the parent is writable (for creating the directory)
         parent = data_dir.parent
@@ -876,15 +902,11 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
         ) from exc
 
     # Verify writability
-    try:
-        test_file = resolved / ".write_test"
-        test_file.write_text("test")
-        test_file.unlink()
-    except OSError as exc:
+    if not _is_writable(resolved):
         raise HTTPException(
             status_code=400,
             detail=f"Directory at {resolved} is not writable.",
-        ) from exc
+        )
 
     # Check disk space
     free_bytes, _ = _get_disk_space(resolved)

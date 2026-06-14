@@ -382,7 +382,7 @@ class TestAcceptDisclaimer:
     """Tests for the disclaimer acceptance endpoint."""
 
     def test_accept_creates_flag_file(self, setup_client: TestClient, tmp_data_dir: Path) -> None:
-        """Accepting the disclaimer should persist a flag file."""
+        """Accepting the disclaimer should persist a flag file atomically."""
         resp = setup_client.post("/api/setup/accept-disclaimer")
         assert resp.status_code == 200
         data = resp.json()
@@ -394,6 +394,24 @@ class TestAcceptDisclaimer:
         flag_data = json.loads(flag_path.read_text())
         assert "accepted_at" in flag_data
         assert flag_data["version"] == "1.0"
+        # Atomic write leaves no temp file behind.
+        assert not (tmp_data_dir / ".disclaimer_accepted.tmp").exists()
+
+    def test_corrupt_flag_is_not_accepted(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A truncated/garbage flag (e.g. crash mid-write) must not count as accepted."""
+        (tmp_data_dir / ".disclaimer_accepted").write_text('{"accepted_at": "x"')  # truncated JSON
+        assert setup_client.get("/api/setup/status").json()["disclaimer_accepted"] is False
+
+    def test_old_version_flag_forces_reacceptance(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A flag written for an older disclaimer version is treated as not-accepted."""
+        (tmp_data_dir / ".disclaimer_accepted").write_text(
+            '{"accepted_at": "2020-01-01T00:00:00", "version": "0.9"}'
+        )
+        assert setup_client.get("/api/setup/status").json()["disclaimer_accepted"] is False
 
     def test_accept_idempotent(
         self,
@@ -983,6 +1001,14 @@ class TestStorageInfo:
         assert "message" in data
         assert isinstance(data["path_exists"], bool)
         assert isinstance(data["path_writable"], bool)
+
+    def test_writability_probe_leaves_no_stray_file(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The writability probe must report True and leave no temp file behind."""
+        data = setup_client.get("/api/setup/storage-info").json()
+        assert data["path_writable"] is True
+        assert not list(tmp_data_dir.glob(".write_test*"))
 
     def test_free_space_positive(self, setup_client: TestClient) -> None:
         """Free and total space should be positive values."""
