@@ -58,7 +58,8 @@ from backend.annotation.gnomad import (
     RARE_AF_THRESHOLD,
     ULTRA_RARE_AF_THRESHOLD,
     GnomADAnnotation,
-    create_gnomad_tables,
+    _create_gnomad_indexes,
+    _create_gnomad_table,
     lookup_gnomad_by_rsids,
 )
 from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
@@ -239,8 +240,9 @@ def gnomad_engine() -> sa.Engine:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    # Use the module's create_gnomad_tables for proper table + indexes
-    create_gnomad_tables(engine)
+    # Create the table then its indexes for proper table + indexes setup.
+    _create_gnomad_table(engine)
+    _create_gnomad_indexes(engine)
     with engine.begin() as conn:
         with open(GNOMAD_SEED_CSV, encoding="utf-8") as f:
             reader = csv.DictReader(f)

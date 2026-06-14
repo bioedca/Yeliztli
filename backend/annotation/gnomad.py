@@ -467,18 +467,6 @@ def _create_gnomad_indexes(engine: sa.Engine) -> None:
     retry_on_locked(_do)
 
 
-def create_gnomad_tables(engine: sa.Engine) -> None:
-    """Create the gnomad_af table and indexes in the target database.
-
-    Safe to call multiple times (uses IF NOT EXISTS).
-
-    Args:
-        engine: SQLAlchemy engine for the gnomad_af.db file.
-    """
-    _create_gnomad_table(engine)
-    _create_gnomad_indexes(engine)
-
-
 def load_gnomad_from_vcf(
     vcf_path: Path,
     engine: sa.Engine,

@@ -46,7 +46,7 @@ from backend.annotation.dbnsfp import (
     load_dbnsfp_from_tsv,
 )
 from backend.annotation.engine import run_annotation
-from backend.annotation.gnomad import create_gnomad_tables
+from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -99,7 +99,7 @@ DBNSFP_REAL_COLUMNS: tuple[str, ...] = (
     "PrimateAI_score",
 )
 
-# gnomad_af column order (matches create_gnomad_tables / the e2e seeder).
+# gnomad_af column order (matches _create_gnomad_table / the e2e seeder).
 _GNOMAD_COLUMNS: tuple[str, ...] = (
     "rsid",
     "chrom",
@@ -254,7 +254,8 @@ def _build_vep_db(db_path: Path, vep: list[dict]) -> None:
 def _build_gnomad_db(db_path: Path, gnomad: list[dict]) -> None:
     engine = sa.create_engine(f"sqlite:///{db_path}")
     try:
-        create_gnomad_tables(engine)
+        _create_gnomad_table(engine)
+        _create_gnomad_indexes(engine)
         with engine.begin() as conn:
             for row in gnomad:
                 af = row.get("af_global", 0.0)
