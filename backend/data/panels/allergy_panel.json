@@ -213,8 +213,12 @@
             "hla_allele": "HLA-A*31:01",
             "r_squared_eur": 0.88,
             "clinical_grade": true,
-            "confirmatory_test_required": true
+            "confirmatory_test_required": true,
+            "false_positive_mechanism": "HLA-A*33 cross-reactivity",
+            "reduced_ancestry": "Native American",
+            "better_proxy_for_reduced_ancestry": "rs17179220"
           },
+          "coverage_note": "rs1061235 is an imperfect tag SNP for HLA-A*31:01: it also marks HLA-A*33 types, so a positive (carrier) result can be a false positive (validated specificity ~95%, with a much higher false-positive rate reported in some cohorts — 41% in one). This is why confirmatory high-resolution HLA-A*31:01 typing is required before acting on a positive call. Proxy performance is also reduced in Native American ancestry (negative predictive value ~0.80–0.91; rs17179220 is a better proxy there). (Krause 2021; Buchner 2021; Fernandes 2022.)",
           "evidence_level": 3,
           "pmids": ["21428769", "24322785", "29392710"],
           "recommendation_text": "HLA-A*31:01 is associated with carbamazepine hypersensitivity (DRESS and maculopapular exanthema) across multiple populations. Proxy r²=0.88 in EUR. CPIC recommends HLA-A*31:01 testing before carbamazepine initiation. Confirmatory HLA typing required.",

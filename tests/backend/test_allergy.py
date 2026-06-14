@@ -36,7 +36,9 @@ from backend.analysis.allergy import (
     SNPResult,
     _determine_pathway_level,
     _normalize_genotype,
+    _positive_hla_proxy_specificity_caveat,
     _score_snp,
+    _stored_snp_detail,
     load_allergy_panel,
     score_allergy_pathways,
     store_allergy_findings,
@@ -874,6 +876,76 @@ class TestHLAA31ProxyAlleleDirection:
         (cannot distinguish plus-strand TT carrier from minus-strand AA)."""
         result = _score_snp(self._snp(panel), "TT")
         assert result.category == INDETERMINATE
+
+
+# ── HLA-A*31:01 proxy specificity caveat (#611) ─────────────────────────────
+
+
+class TestHLAA31ProxySpecificityCaveat:
+    """#611 (follow-up to #545): rs1061235 is an imperfect HLA-A*31:01 tag SNP — it
+    cross-reacts with HLA-A*33 (false positives) and is less reliable in Native
+    American ancestry. With the direction fixed (#545), surface that specificity
+    caveat alongside a positive (carrier) call so it isn't read as a confirmed
+    HLA-A*31:01 result.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1061235")
+
+    def test_panel_records_specificity_metadata(self, panel: AllergyPanel) -> None:
+        proxy = self._snp(panel).hla_proxy
+        assert proxy is not None
+        assert proxy["false_positive_mechanism"] == "HLA-A*33 cross-reactivity"
+        assert proxy["reduced_ancestry"] == "Native American"
+        assert proxy["better_proxy_for_reduced_ancestry"] == "rs17179220"
+
+    def test_coverage_note_surfaces_caveat_with_citations(self, panel: AllergyPanel) -> None:
+        note = (self._snp(panel).coverage_note or "").lower()
+        assert "hla-a*33" in note
+        assert "native american" in note
+        assert "confirmatory" in note
+        # The scientific claim carries its citation with it (user-facing).
+        for cite in ("krause", "buchner", "fernandes"):
+            assert cite in note, cite
+
+    def test_caveat_surfaced_for_heterozygous_carrier(self, panel: AllergyPanel) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        assert carrier.category == ELEVATED
+        caveat = _positive_hla_proxy_specificity_caveat(carrier)
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "confirmatory" in caveat.lower()
+        assert "Native American" in caveat
+        # And it lands in the stored SNP detail JSON.
+        detail = _stored_snp_detail(carrier, {})
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+
+    def test_caveat_not_surfaced_for_indeterminate_homozygote(self, panel: AllergyPanel) -> None:
+        # The palindromic AA/TT homozygotes are withheld (Indeterminate), not a
+        # positive carrier call — they must NOT get a "this positive result" caveat.
+        for gt in ("AA", "TT"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == INDETERMINATE, gt
+            assert _positive_hla_proxy_specificity_caveat(result) is None, gt
+            assert "hla_proxy_specificity_caveat" not in _stored_snp_detail(result, {}), gt
+
+    def test_caveat_not_surfaced_for_proxy_without_mechanism(self) -> None:
+        # A positive HLA-proxy call whose panel records no false_positive_mechanism
+        # (e.g. the clinical-grade HLA-B*57:01 proxy) gets no specificity caveat.
+        result = SNPResult(
+            rsid="rs2395029",
+            gene="HLA-B",
+            variant_name="HLA-B*57:01 proxy",
+            genotype="GT",
+            category=ELEVATED,
+            effect_summary="carrier",
+            evidence_level=4,
+            pmids=[],
+            recommendation_text="",
+            present_in_sample=True,
+            hla_proxy={"hla_allele": "HLA-B*57:01", "clinical_grade": True},
+        )
+        assert _positive_hla_proxy_specificity_caveat(result) is None
 
 
 # ── HLA proxy lookup tests ──────────────────────────────────────────────

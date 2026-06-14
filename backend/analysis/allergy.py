@@ -1006,6 +1006,38 @@ def _negative_hla_proxy_caveat(
     )
 
 
+def _positive_hla_proxy_specificity_caveat(snp: SNPResult) -> str | None:
+    """Specificity caveat for a POSITIVE (carrier) HLA-proxy call (#611).
+
+    A tag SNP can mark a positive that is actually a different, cross-reactive HLA
+    type — a *false positive* — which is precisely why confirmatory typing is
+    required before acting on a positive. Surfaced only for carrier calls whose
+    panel ``hla_proxy`` records the cross-reactivity mechanism (e.g. rs1061235
+    false-positives via HLA-A*33). Counterpart to ``_negative_hla_proxy_caveat``
+    (which addresses residual risk on *negative* calls). Applies only to an actual
+    positive carrier call (Elevated/Moderate) — never to a Standard non-carrier or
+    a withheld Indeterminate (e.g. rs1061235's palindromic A/T homozygotes).
+    """
+    if snp.category not in (ELEVATED, MODERATE) or snp.hla_proxy is None:
+        return None
+    mechanism = snp.hla_proxy.get("false_positive_mechanism")
+    if not mechanism:
+        return None
+
+    hla_allele = snp.hla_proxy.get("hla_allele", "the HLA allele")
+    caveat = (
+        f"This positive {hla_allele} result is from an imperfect tag SNP and can be a "
+        f"false positive via {mechanism}; confirmatory high-resolution HLA typing is "
+        "required before acting on it (e.g. withholding the drug)."
+    )
+    reduced = snp.hla_proxy.get("reduced_ancestry")
+    if reduced:
+        better = snp.hla_proxy.get("better_proxy_for_reduced_ancestry")
+        suffix = f" (a better proxy there is {better})" if better else ""
+        caveat += f" Proxy reliability is also reduced in {reduced} ancestry{suffix}."
+    return caveat
+
+
 def _stored_snp_detail(
     snp: SNPResult,
     hla_proxy_info: dict[str, HLAProxyInfo],
@@ -1030,6 +1062,10 @@ def _stored_snp_detail(
     caveat = _negative_hla_proxy_caveat(snp, hla_proxy_info)
     if caveat is not None:
         detail["hla_proxy_caveat"] = caveat
+
+    specificity_caveat = _positive_hla_proxy_specificity_caveat(snp)
+    if specificity_caveat is not None:
+        detail["hla_proxy_specificity_caveat"] = specificity_caveat
 
     return detail
 
