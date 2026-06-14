@@ -27,7 +27,7 @@ chrX/chrY evidence:
    individual is heterozygous at a large fraction of markers (female-level,
    tens of percent). So a rate at/below ``_THRESHOLD_X_HET_HEMIZYGOUS``
    (default 0.05) is a *candidate* XY; a rate at/above
-   ``_THRESHOLD_X_HET_DIPLOID`` (default 0.15) is diploid-X; a rate in
+   ``THRESHOLD_X_HET_DIPLOID`` (default 0.15) is diploid-X; a rate in
    between is ambiguous X dosage → ``manual_review``. The denominator
    ``x_nonpar_typed`` counts every typed call — diploid homozygotes plus
    hemizygous single-allele male calls (``"A"``, the 23andMe non-PAR X
@@ -91,10 +91,15 @@ _THRESHOLD_PAR_NOISE: float = 0.10
 # Carracelas et al. 2025). The two clusters (≈0.3% vs ≈25–40%) are far apart, so
 # a wide ambiguous band between these cutoffs is safe:
 #   • rate ≤ _THRESHOLD_X_HET_HEMIZYGOUS → one X (male-consistent; tolerates noise)
-#   • rate ≥ _THRESHOLD_X_HET_DIPLOID    → two X (XX / XXY-consistent)
+#   • rate ≥ THRESHOLD_X_HET_DIPLOID    → two X (XX / XXY-consistent)
 #   • in between                          → ambiguous X dosage → manual_review
 _THRESHOLD_X_HET_HEMIZYGOUS: float = 0.05
-_THRESHOLD_X_HET_DIPLOID: float = 0.15
+# ``THRESHOLD_X_HET_DIPLOID`` is public because it is the shared single source of
+# truth for "two X" across modules: ``backend/analysis/sex_aneuploidy.py`` imports
+# it so its XXY screen and this classifier's XX/XXY branch agree on the cutoff.
+# ``_THRESHOLD_X_HET_HEMIZYGOUS`` stays module-private — only this classifier uses
+# the lower (one-X) bound.
+THRESHOLD_X_HET_DIPLOID: float = 0.15
 
 # Minimum evaluable sex-chromosome evidence required before a *confident*
 # (XX / XY / manual_review) verdict; below either floor the sample is too thin
@@ -177,7 +182,7 @@ def _classify(
       heterozygosity rate separates one X (≈0, genotyping noise only) from two X
       (female-level, tens of percent). A *rate* at/below
       ``_THRESHOLD_X_HET_HEMIZYGOUS`` is male-consistent and tolerates the noise
-      every real male array carries; a rate at/above ``_THRESHOLD_X_HET_DIPLOID``
+      every real male array carries; a rate at/above ``THRESHOLD_X_HET_DIPLOID``
       is diploid-X (XX or, with chrY present, the discordant XXY case #122); a
       rate in between is ambiguous X dosage → ``manual_review``.
     - On the hemizygous (candidate-XY) branch, chrY confirms: a non-no-call rate
@@ -206,7 +211,7 @@ def _classify(
         if y_rate > _THRESHOLD_PAR_NOISE:
             return "manual_review"
         return "unknown"
-    if x_het_rate >= _THRESHOLD_X_HET_DIPLOID:
+    if x_het_rate >= THRESHOLD_X_HET_DIPLOID:
         # Two X — discordant when chrY is also present (XXY case #122), else XX.
         if y_rate > _THRESHOLD_PAR_NOISE:
             return "manual_review"
