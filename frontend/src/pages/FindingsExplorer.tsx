@@ -211,6 +211,24 @@ const MODULE_META: Record<string, ModuleMeta> = {
     route: null,
     color: "text-blue-600 dark:text-blue-400",
   },
+  mt_rnr1: {
+    label: "MT-RNR1",
+    icon: Pill,
+    route: null,
+    color: "text-sky-600 dark:text-sky-400",
+  },
+  alpha1: {
+    label: "Alpha-1",
+    icon: Activity,
+    route: null,
+    color: "text-teal-600 dark:text-teal-400",
+  },
+  apol1: {
+    label: "APOL1",
+    icon: Droplet,
+    route: null,
+    color: "text-red-600 dark:text-red-400",
+  },
 }
 
 function getModuleMeta(module: string): ModuleMeta {

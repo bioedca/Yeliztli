@@ -56,6 +56,8 @@ const FINDINGS = [
   finding(5, 'ebmd', 'eBMD finding'),
   finding(6, 'fitness', 'Fitness finding'),
   finding(7, 'amd', 'AMD risk finding'), // panel-only — no dedicated page
+  finding(8, 'mt_rnr1', 'MT-RNR1 finding'), // panel-only, acronym label
+  finding(9, 'apol1', 'APOL1 finding'), // panel-only, acronym label
 ]
 
 const SUMMARY = {
@@ -104,9 +106,14 @@ test.describe('All Findings module links resolve to the right page (#544)', () =
     await expect(page.getByText('Fh', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Ebmd', { exact: true })).toHaveCount(0)
 
-    // The panel-only module (no page) shows its label but is NOT a link.
+    // Panel-only modules (no page) show their correctly-cased label but are NOT
+    // links — including the acronym ones that the title-case fallback would mangle.
     await expect(page.getByText('AMD', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: /AMD module/ })).toHaveCount(0)
+    await expect(page.getByText('MT-RNR1', { exact: true })).toBeVisible()
+    await expect(page.getByText('APOL1', { exact: true })).toBeVisible()
+    await expect(page.getByText('Mt Rnr1', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Apol1', { exact: true })).toHaveCount(0)
 
     // No finding-row module link silently targets the Dashboard root.
     const hrefs = await page.getByRole('link').evaluateAll((els) =>

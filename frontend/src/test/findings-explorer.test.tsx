@@ -364,4 +364,28 @@ describe("FindingsExplorer", () => {
       expect(link.getAttribute("href")).not.toBe("/")
     }
   })
+
+  it("correctly cases the remaining page-less risk modules (MT-RNR1, Alpha-1, APOL1)", async () => {
+    // These persist findings too (store_risk_findings) but have no page — they
+    // must render correctly-cased, non-navigable labels, not "Mt Rnr1"/"Alpha1"/
+    // "Apol1" from the title-case fallback.
+    const findings: Finding[] = [
+      makeFinding(1, "mt_rnr1", "MT-RNR1 finding"),
+      makeFinding(2, "alpha1", "Alpha-1 finding"),
+      makeFinding(3, "apol1", "APOL1 finding"),
+    ]
+    setupFetchMock(findings, { total_findings: 3, modules: [], high_confidence_findings: [] })
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+    await screen.findByText("MT-RNR1 finding")
+
+    expect(screen.getByText("MT-RNR1")).toBeInTheDocument()
+    expect(screen.getByText("Alpha-1")).toBeInTheDocument()
+    expect(screen.getByText("APOL1")).toBeInTheDocument()
+    // The old title-case fallback would have produced these:
+    expect(screen.queryByText("Mt Rnr1")).not.toBeInTheDocument()
+    expect(screen.queryByText("Alpha1")).not.toBeInTheDocument()
+    expect(screen.queryByText("Apol1")).not.toBeInTheDocument()
+    // None render a navigable link (no dedicated page).
+    expect(screen.queryAllByRole("link")).toHaveLength(0)
+  })
 })
