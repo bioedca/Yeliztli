@@ -296,6 +296,27 @@ describe("PRSGaugeCard", () => {
     expect(screen.getByText(/BCAC.*EUR.*228,951/)).toBeInTheDocument()
   })
 
+  it("omits the source parenthetical entirely when ancestry + sample size are absent (#589)", () => {
+    // FH/eBMD adapt to the gauge with source_ancestry="" + sample_size=0, which
+    // previously rendered a broken "Source: … (, n=0)" (stray comma + false n=0).
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, source_ancestry: "", sample_size: 0 }} />)
+    expect(screen.getByText(/Source:\s*BCAC/)).toBeInTheDocument()
+    expect(screen.queryByText(/n=0/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\(,/)).not.toBeInTheDocument()
+  })
+
+  it("drops the empty ancestry but keeps n when only sample size is present (#589)", () => {
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, source_ancestry: "" }} />)
+    // No leading comma — just "(n=228,951)".
+    expect(screen.getByText(/Source:\s*BCAC\s*\(n=228,951\)/)).toBeInTheDocument()
+  })
+
+  it("keeps ancestry but drops n when sample size is zero (#589)", () => {
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, sample_size: 0 }} />)
+    expect(screen.getByText(/Source:\s*BCAC\s*\(EUR\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/n=0/)).not.toBeInTheDocument()
+  })
+
   it("renders evidence stars", () => {
     render(<PRSGaugeCard prs={BREAST_PRS} />)
     expect(screen.getByLabelText("2 of 4 stars evidence")).toBeInTheDocument()
