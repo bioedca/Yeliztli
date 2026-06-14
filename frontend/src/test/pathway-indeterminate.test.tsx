@@ -76,14 +76,6 @@ const DETAIL = {
   snp_details: [INDETERMINATE_SNP],
 }
 
-type DetailHook =
-  | typeof useAllergyPathwayDetail
-  | typeof useMethylationPathwayDetail
-  | typeof useGeneHealthPathwayDetail
-  | typeof useTraitsPathwayDetail
-  | typeof useNutrigenomicsPathwayDetail
-  | typeof useSkinPathwayDetail
-
 interface PanelProps {
   pathwayId: string
   pathwayName: string
@@ -91,35 +83,41 @@ interface PanelProps {
   onClose: () => void
 }
 
+// At runtime each imported hook IS the vi.fn() from its factory mock above; we
+// type it as a generic mock (not the real hook's union signature) so
+// `mockReturnValue` accepts our partial fixture. (Typing it as the union of the
+// six real hooks makes mockReturnValue demand the *intersection* of their
+// return types — an unsatisfiable type that fails `tsc -b`.)
+type MockedDetailHook = ReturnType<typeof vi.fn>
+const asMock = (h: unknown) => h as unknown as MockedDetailHook
+
 const MODULES: {
   name: string
   Panel: ComponentType<PanelProps>
-  hook: DetailHook
+  hook: MockedDetailHook
 }[] = [
-  { name: "allergy", Panel: AllergyPanel, hook: useAllergyPathwayDetail },
-  { name: "methylation", Panel: MethylationPanel, hook: useMethylationPathwayDetail },
-  { name: "gene-health", Panel: GeneHealthPanel, hook: useGeneHealthPathwayDetail },
-  { name: "traits", Panel: TraitsPanel, hook: useTraitsPathwayDetail },
-  { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: useNutrigenomicsPathwayDetail },
-  { name: "skin", Panel: SkinPanel, hook: useSkinPathwayDetail },
+  { name: "allergy", Panel: AllergyPanel, hook: asMock(useAllergyPathwayDetail) },
+  { name: "methylation", Panel: MethylationPanel, hook: asMock(useMethylationPathwayDetail) },
+  { name: "gene-health", Panel: GeneHealthPanel, hook: asMock(useGeneHealthPathwayDetail) },
+  { name: "traits", Panel: TraitsPanel, hook: asMock(useTraitsPathwayDetail) },
+  { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: asMock(useNutrigenomicsPathwayDetail) },
+  { name: "skin", Panel: SkinPanel, hook: asMock(useSkinPathwayDetail) },
 ]
 
 describe.each(MODULES)(
   "$name PathwayDetailPanel: Indeterminate → slate, never green Standard (#559)",
   ({ Panel, hook }) => {
-    const mockHook = vi.mocked(hook)
-
     beforeEach(() => {
-      mockHook.mockReset()
+      hook.mockReset()
     })
 
     it("renders a strand-withheld Indeterminate SNP as neutral slate, not emerald Standard", () => {
-      mockHook.mockReturnValue({
+      hook.mockReturnValue({
         data: DETAIL,
         isLoading: false,
         isError: false,
         error: null,
-      } as unknown as ReturnType<typeof hook>)
+      })
 
       render(
         <Panel
