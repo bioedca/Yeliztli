@@ -12,7 +12,19 @@ Haplotype definitions (forward-strand alleles):
   - ε3: rs429358=T + rs7412=C  (Cys112, Arg158)  ← reference/common
   - ε4: rs429358=C + rs7412=C  (Arg112, Arg158)
 
-Both SNPs are on the 23andMe v5 array, so no partial-call ambiguity.
+Array-reliability caveat (#557): the two ε-defining SNPs are a recognised
+array-genotyping weak spot — they are absent from most genome-wide arrays and
+"only imperfectly captured" on common microarray platforms (Radmanesh 2014,
+PMID 24448547; Lill 2012, PMID 22972946), and array/imputed APOE agrees only
+~90% (ε genotype) / ~93% (ε4 status) with direct clinical genotyping
+(Oldmeadow 2014, PMID 24903779). 23andMe v5 adds them as custom (directly
+typed) content, but other vendors/arrays do not, so an array ε-call — and the
+ε4 Alzheimer's finding that rides on it — is NOT equivalent to clinical
+genotyping. This module therefore attaches ``APOE_ARRAY_RELIABILITY_CAVEAT`` to
+the genotype and every derived finding. Following the repo's reliability-flag
+pattern (``array_confidence`` / ``gene_constraint``), this is a caveat ONLY: it
+records that an actionable ε-call should be confirmed in a CLIA/accredited lab,
+and it never changes the (well-established) APOE evidence level.
 
 Usage::
 
@@ -52,6 +64,43 @@ APOE_RS7412 = "rs7412"  # codon 158: C=Arg (ε3/ε4), T=Cys (ε2)
 APOE_RS429358_POS = 45411941
 APOE_RS7412_POS = 45412079
 APOE_CHROM = "19"
+
+# ── Array-genotyping reliability caveat (#557) ──────────────────────────
+#
+# The ε-defining SNPs rs429358/rs7412 are a documented array weak spot: absent
+# from most genome-wide arrays and only imperfectly captured on common platforms
+# (Radmanesh 2014; Lill 2012), with array/imputed-vs-direct concordance ~90% for
+# the ε genotype and ~93% for ε4 status (Oldmeadow 2014). The same person's two
+# vendor files can therefore disagree at rs429358 and flip ε4 status. This is a
+# RELIABILITY FLAG ONLY (mirrors backend.analysis.array_confidence): it does NOT
+# change the well-established APOE evidence_level — it records that an actionable
+# ε-call from array data should be confirmed in a CLIA/accredited lab.
+APOE_RELIABILITY_PMIDS = ["24448547", "22972946", "24903779"]
+APOE_ARRAY_RELIABILITY_CAVEAT = (
+    "APOE ε-status here is derived from consumer genotyping-array calls at "
+    "rs429358 and rs7412. These two ε-defining SNPs are a recognised array weak "
+    "spot — absent from most genome-wide arrays and only imperfectly captured on "
+    "common platforms — and array/imputed APOE agrees only ~90% (ε genotype) / "
+    "~93% (ε4 status) with direct clinical genotyping, so the same person's data "
+    "from two vendors can disagree and flip ε4 status. This is a reliability "
+    "caveat, not a change to the finding's evidence level: confirm an actionable "
+    "ε4 (or ε2) call in a CLIA/accredited laboratory before any medical decision, "
+    "and treat a single-vendor array ε-status — especially one that conflicts "
+    "with another file for the same person — as provisional."
+)
+
+
+def _apoe_array_reliability_flag() -> dict[str, Any]:
+    """Structured array-reliability flag attached to APOE findings (#557).
+
+    Reliability flag only — does NOT change evidence_level (cf. array_confidence).
+    """
+    return {
+        "caveat": APOE_ARRAY_RELIABILITY_CAVEAT,
+        "confirm_in_clia_recommended": True,
+        "concordance_with_direct_genotyping": "~90% ε genotype / ~93% ε4 status",
+        "pmids": APOE_RELIABILITY_PMIDS,
+    }
 
 
 class APOEAllele(StrEnum):
@@ -322,6 +371,7 @@ def store_apoe_finding(
         "e4_count": result.e4_count,
         "has_e2": result.has_e2,
         "e2_count": result.e2_count,
+        "array_reliability": _apoe_array_reliability_flag(),
     }
 
     finding_text = f"APOE genotype: {result.diplotype}"
@@ -669,6 +719,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "diplotype": diplotype,
                 "risk_level": cv_data["risk_level"],
                 "scope": "Type III hyperlipoproteinemia, LDL metabolism, statin response",
+                "array_reliability": _apoe_array_reliability_flag(),
             },
         )
     )
@@ -691,9 +742,10 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "caveats": (
                     "This is a probabilistic risk factor, not a diagnosis. "
                     "Clinical utility is limited. No approved prevention exists. "
-                    f"{_ALZHEIMERS_RISK_CONTEXT}"
+                    f"{_ALZHEIMERS_RISK_CONTEXT} {APOE_ARRAY_RELIABILITY_CAVEAT}"
                 ),
                 "risk_estimate_context": _ALZHEIMERS_RISK_CONTEXT,
+                "array_reliability": _apoe_array_reliability_flag(),
             },
         )
     )
@@ -712,6 +764,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "diplotype": diplotype,
                 "dietary_response": lipid_data["dietary_response"],
                 "scope": "Saturated fat response differential",
+                "array_reliability": _apoe_array_reliability_flag(),
             },
         )
     )

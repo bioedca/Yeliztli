@@ -30,11 +30,14 @@ import json
 import pytest
 import sqlalchemy as sa
 
+import backend.analysis.apoe as apoe_module
 from backend.analysis.apoe import (
+    APOE_ARRAY_RELIABILITY_CAVEAT,
     APOE_FINDING_ALZHEIMERS,
     APOE_FINDING_CATEGORIES,
     APOE_FINDING_CV,
     APOE_FINDING_LIPID,
+    APOE_RELIABILITY_PMIDS,
     APOE_RS7412,
     APOE_RS429358,
     APOEAllele,
@@ -1081,3 +1084,87 @@ def test_apoe_position_constants_are_grch37() -> None:
     # explicitly NOT the GRCh38 coordinates
     assert APOE_RS429358_POS != 44908684
     assert APOE_RS7412_POS != 44908822
+
+
+class TestAPOEArrayReliabilityCaveat:
+    """#557: APOE ε-status from a consumer array is not equivalent to clinical
+    genotyping (rs429358/rs7412 are an array weak spot). Every APOE finding must
+    carry an array-reliability caveat recommending CLIA confirmation, and the
+    module must not assert unconditional "no partial-call ambiguity"."""
+
+    ALL_DIPLOTYPES = ["ε2/ε2", "ε2/ε3", "ε2/ε4", "ε3/ε3", "ε3/ε4", "ε4/ε4"]
+
+    def _make_result(self, diplotype: str) -> APOEResult:
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+        a1_str, a2_str = diplotype.split("/")
+        return APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=allele_map[a1_str],
+            allele2=allele_map[a2_str],
+            diplotype=diplotype,
+            rs429358_genotype="CT",
+            rs7412_genotype="CC",
+        )
+
+    def test_module_docstring_drops_no_ambiguity_overclaim(self) -> None:
+        """The false "no partial-call ambiguity" claim is gone; the honest
+        array-reliability caveat is documented instead."""
+        doc = apoe_module.__doc__ or ""
+        assert "no partial-call ambiguity" not in doc
+        assert "Array-reliability caveat" in doc
+
+    def test_caveat_is_canonical_and_clia_framed(self) -> None:
+        """The caveat recommends CLIA confirmation and names the real concern."""
+        caveat = APOE_ARRAY_RELIABILITY_CAVEAT.lower()
+        assert "clia" in caveat
+        assert "rs429358" in caveat
+        assert "confirm" in caveat
+        # Carries re-verifiable reliability citations (digit PMIDs).
+        assert APOE_RELIABILITY_PMIDS
+        assert all(pmid.isdigit() for pmid in APOE_RELIABILITY_PMIDS)
+
+    @pytest.mark.parametrize("diplotype", ALL_DIPLOTYPES, ids=ALL_DIPLOTYPES)
+    def test_all_three_findings_carry_array_reliability_flag(self, diplotype: str) -> None:
+        """Every derived finding (CV / Alzheimer's / lipid) carries the flag."""
+        findings_list = generate_apoe_findings(self._make_result(diplotype))
+        assert len(findings_list) == 3
+        for f in findings_list:
+            flag = f.detail_json.get("array_reliability")
+            assert flag is not None, f"{f.category}: missing array_reliability flag"
+            assert flag["confirm_in_clia_recommended"] is True
+            assert "clia" in flag["caveat"].lower()
+            assert flag["pmids"] == APOE_RELIABILITY_PMIDS
+
+    @pytest.mark.parametrize("diplotype", ALL_DIPLOTYPES, ids=ALL_DIPLOTYPES)
+    def test_alzheimers_caveats_text_includes_array_reliability(self, diplotype: str) -> None:
+        """The most sensitive finding folds the caveat into its caveats text too."""
+        findings_list = generate_apoe_findings(self._make_result(diplotype))
+        alz = next(f for f in findings_list if f.category == APOE_FINDING_ALZHEIMERS)
+        caveats = alz.detail_json["caveats"].lower()
+        assert "clia" in caveats and "rs429358" in caveats
+
+    def test_genotype_finding_detail_carries_flag(self) -> None:
+        """The stored genotype finding also carries the array-reliability flag."""
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        # rs429358=CT, rs7412=CC -> ε3/ε4 (an ε4 carrier — the sensitive case)
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {"rsid": "rs429358", "chrom": "19", "pos": 45411941, "genotype": "CT"},
+                    {"rsid": "rs7412", "chrom": "19", "pos": 45412079, "genotype": "CC"},
+                ],
+            )
+        result = determine_apoe_genotype(engine)
+        assert result.has_e4
+        assert store_apoe_finding(result, engine) == 1
+        with engine.begin() as conn:
+            row = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "apoe", findings.c.category == "genotype"
+                )
+            ).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["array_reliability"]["confirm_in_clia_recommended"] is True
+        assert "clia" in detail["array_reliability"]["caveat"].lower()
