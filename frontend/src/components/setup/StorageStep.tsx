@@ -196,7 +196,8 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                     Volatile storage location
                   </span>
                   <p className="text-sm text-amber-600 dark:text-amber-400">
-                    {storageInfo.volatile_message}
+                    {storageInfo.volatile_message ??
+                      'This storage location may be erased when the machine restarts.'}
                   </p>
                 </div>
               </div>
