@@ -227,6 +227,29 @@ class TestCYP1A2Metabolizer:
     def test_resolve_metabolizer_none_genotype(self, panel: SleepPanel) -> None:
         assert _resolve_metabolizer_state(panel, None) is None
 
+    # ── Strand harmonization (#585) ──────────────────────────────────────
+    # rs762551 is curated plus-strand (Ensembl GRCh37 C/A), but a vendor may
+    # report the complement (design) strand. These complement-strand calls must
+    # resolve to the same metabolizer state; before #585 the raw ==/in test
+    # silently dropped them to None.
+
+    def test_resolve_metabolizer_rapid_complement_strand(self, panel: SleepPanel) -> None:
+        # TT is the complement of AA (Rapid). Fails on the old raw == test.
+        assert _resolve_metabolizer_state(panel, "TT") == "Rapid metabolizer"
+
+    def test_resolve_metabolizer_intermediate_complement_strand(self, panel: SleepPanel) -> None:
+        # TG / GT are the complement-strand forms of AC / CA (Intermediate).
+        assert _resolve_metabolizer_state(panel, "TG") == "Intermediate metabolizer"
+        assert _resolve_metabolizer_state(panel, "GT") == "Intermediate metabolizer"
+
+    def test_resolve_metabolizer_slow_complement_strand(self, panel: SleepPanel) -> None:
+        # GG is the complement of CC (Slow). Fails on the old raw == test.
+        assert _resolve_metabolizer_state(panel, "GG") == "Slow metabolizer"
+
+    def test_resolve_metabolizer_unrelated_genotype_is_none(self, panel: SleepPanel) -> None:
+        # A genotype with no plus- or complement-strand match stays None.
+        assert _resolve_metabolizer_state(panel, "AT") is None
+
     def test_cyp1a2_aa_standard(self, panel: SleepPanel) -> None:
         """Rapid metabolizer (AA) → Standard category."""
         cyp = self._get_cyp1a2(panel)

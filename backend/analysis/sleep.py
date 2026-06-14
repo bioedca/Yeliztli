@@ -40,7 +40,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import lookup_by_genotype
+from backend.analysis.genotype_lookup import genotype_candidates, lookup_by_genotype
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -253,6 +253,15 @@ def _resolve_metabolizer_state(
 
     Returns None if the panel has no CYP1A2_metabolizer special calling
     or the genotype doesn't match any state.
+
+    Matching is strand- and order-aware: the curated state genotypes are on the
+    panel's plus strand (rs762551 is Ensembl GRCh37 ``C/A``), while array vendors
+    may report the design (complement) strand. A raw ``==`` / ``in`` test silently
+    dropped complement-strand calls (``TG``/``TT``/``GG``) to no metabolizer state,
+    even though the per-SNP scoring path harmonizes them via ``lookup_by_genotype``
+    (#585, sibling of the MTHFR compound-het fix #528). rs762551 is A/C — not a
+    palindromic A/T or C/G locus — so the complement fallback resolves homozygotes
+    unambiguously here.
     """
     if panel.special_calling is None or genotype is None:
         return None
@@ -261,10 +270,12 @@ def _resolve_metabolizer_state(
     if cyp_config is None:
         return None
 
-    for state_name, state_data in cyp_config["states"].items():
-        if "genotype" in state_data and state_data["genotype"] == genotype:
-            return state_data["label"]
-        if "genotypes" in state_data and genotype in state_data["genotypes"]:
+    candidates = genotype_candidates(genotype)
+    for state_data in cyp_config["states"].values():
+        accepted = state_data.get("genotypes")
+        if accepted is None and "genotype" in state_data:
+            accepted = [state_data["genotype"]]
+        if accepted and any(candidate in accepted for candidate in candidates):
             return state_data["label"]
 
     return None
