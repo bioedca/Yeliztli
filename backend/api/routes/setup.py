@@ -898,6 +898,7 @@ async def storage_info() -> StorageInfoResponse:
     total_gb = total_bytes / (1024**3)
     status, message = _assess_disk_space(free_bytes)
     volatile = _is_volatile_path(data_dir)
+    volatile_message = _VOLATILE_PATH_MESSAGE if volatile else None
 
     path_exists = data_dir.exists()
     path_writable = False
@@ -921,7 +922,7 @@ async def storage_info() -> StorageInfoResponse:
         path_exists=path_exists,
         path_writable=path_writable,
         volatile=volatile,
-        volatile_message=_VOLATILE_PATH_MESSAGE if volatile else None,
+        volatile_message=volatile_message,
     )
 
 
