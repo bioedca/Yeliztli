@@ -365,6 +365,33 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
 # ── GET /api/databases/progress ──────────────────────────────────────
 
 
+# Smoothing factor for the per-DB download-speed EWMA (higher = more reactive).
+_SPEED_EWMA_ALPHA = 0.3
+
+
+def _aggregate_progress(db_statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    """Roll per-database byte progress up into one session-level summary.
+
+    Only databases with a known ``total_bytes`` contribute to the byte totals;
+    the rest are surfaced via ``size_unknown_count`` so the UI can say
+    "estimating…" honestly instead of implying a precise overall percentage.
+    """
+    sized = [d for d in db_statuses if d.get("total_bytes")]
+    total = sum(d["total_bytes"] for d in sized)
+    downloaded = sum(d.get("downloaded_bytes") or 0 for d in sized)
+    remaining = max(0, total - downloaded)
+    speed = sum(d.get("speed_bps") or 0 for d in db_statuses)
+    return {
+        "total_bytes": total or None,
+        "downloaded_bytes": downloaded,
+        "remaining_bytes": remaining,
+        "overall_pct": round(downloaded / total * 100.0, 1) if total else None,
+        "speed_bps": round(speed) if speed else None,
+        "eta_seconds": round(remaining / speed) if speed > 0 else None,
+        "size_unknown_count": sum(1 for d in db_statuses if not d.get("total_bytes")),
+    }
+
+
 @router.get("/progress/{session_id}")
 async def download_progress(session_id: str) -> StreamingResponse:
     """SSE stream reporting per-database download progress.
@@ -387,13 +414,20 @@ async def download_progress(session_id: str) -> StreamingResponse:
     async def event_stream():
         terminal_states = {"complete", "failed", "cancelled"}
         poll_interval = 0.5
+        # Per-DB resume state for the speed EWMA: db_name -> (downloaded_bytes, ts).
+        prev_bytes: dict[str, tuple[int, float]] = {}
+        ewma_speed: dict[str, float] = {}
 
         while True:
             all_terminal = True
             db_statuses: list[dict[str, Any]] = []
+            now = time.monotonic()
 
             for db_name, job_id in entries:
                 status = await asyncio.to_thread(get_job_progress, engine, job_id)
+                db_info = get_database(db_name)
+                total_bytes = db_info.expected_size_bytes if db_info else None
+
                 if status is None:
                     db_statuses.append(
                         {
@@ -403,28 +437,86 @@ async def download_progress(session_id: str) -> StreamingResponse:
                             "progress_pct": 0.0,
                             "message": "Job not found",
                             "error": None,
+                            "total_bytes": total_bytes,
+                            "downloaded_bytes": None,
+                            "speed_bps": None,
+                            "eta_seconds": None,
                         }
                     )
                     all_terminal = False
-                else:
-                    db_statuses.append(
-                        {
-                            "db_name": db_name,
-                            "job_id": status.job_id,
-                            "status": status.status,
-                            "progress_pct": status.progress_pct,
-                            "message": status.message,
-                            "error": status.error,
-                        }
+                    continue
+
+                is_terminal = status.status in terminal_states
+                is_complete = status.status == "complete"
+                pct = status.progress_pct or 0.0
+                # progress_pct is byte-accurate for downloads and the best signal
+                # for builds; derive bytes from it against the known artifact size
+                # so build- and download-mode DBs report uniformly.
+                if total_bytes:
+                    downloaded_bytes = (
+                        total_bytes if is_complete else round(total_bytes * pct / 100.0)
                     )
-                    if status.status not in terminal_states:
-                        all_terminal = False
+                else:
+                    downloaded_bytes = None
+
+                # Speed = EWMA of the byte delta between polls, only while the DB
+                # is actively progressing. A forced restart (bytes regress) resets
+                # the estimate rather than emitting a negative rate.
+                speed_bps = ewma_speed.get(db_name)
+                if downloaded_bytes is not None and not is_terminal:
+                    prev = prev_bytes.get(db_name)
+                    if prev is not None:
+                        prev_b, prev_t = prev
+                        dt = now - prev_t
+                        if dt > 0 and downloaded_bytes >= prev_b:
+                            inst = (downloaded_bytes - prev_b) / dt
+                            speed_bps = (
+                                inst
+                                if speed_bps is None
+                                else _SPEED_EWMA_ALPHA * inst + (1 - _SPEED_EWMA_ALPHA) * speed_bps
+                            )
+                            ewma_speed[db_name] = speed_bps
+                        elif downloaded_bytes < prev_b:
+                            speed_bps = None
+                            ewma_speed.pop(db_name, None)
+                    prev_bytes[db_name] = (downloaded_bytes, now)
+                if is_terminal:
+                    speed_bps = 0.0  # nothing in flight
+
+                eta_seconds: int | None = None
+                if (
+                    speed_bps
+                    and speed_bps > 0
+                    and total_bytes is not None
+                    and downloaded_bytes is not None
+                ):
+                    eta_seconds = round(max(0, total_bytes - downloaded_bytes) / speed_bps)
+                elif is_complete:
+                    eta_seconds = 0
+
+                db_statuses.append(
+                    {
+                        "db_name": db_name,
+                        "job_id": status.job_id,
+                        "status": status.status,
+                        "progress_pct": status.progress_pct,
+                        "message": status.message,
+                        "error": status.error,
+                        "total_bytes": total_bytes,
+                        "downloaded_bytes": downloaded_bytes,
+                        "speed_bps": round(speed_bps) if speed_bps is not None else None,
+                        "eta_seconds": eta_seconds,
+                    }
+                )
+                if not is_terminal:
+                    all_terminal = False
 
             yield _format_sse(
                 "progress",
                 {
                     "session_id": session_id,
                     "databases": db_statuses,
+                    "aggregate": _aggregate_progress(db_statuses),
                 },
             )
 

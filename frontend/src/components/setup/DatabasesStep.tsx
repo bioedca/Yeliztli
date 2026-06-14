@@ -144,6 +144,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
           progress_pct: 0,
           message: 'Queued...',
           error: null,
+          total_bytes: null,
+          downloaded_bytes: null,
+          speed_bps: null,
+          eta_seconds: null,
         }
       }
       setDbProgress((prev) => ({ ...prev, ...initial }))

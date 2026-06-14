@@ -124,11 +124,35 @@ export interface DatabaseProgressEvent {
   progress_pct: number
   message: string
   error: string | null
+  /** Known artifact size in bytes, or null when the size is unknown. */
+  total_bytes: number | null
+  /** Bytes transferred so far (derived from progress_pct × total_bytes). */
+  downloaded_bytes: number | null
+  /** Smoothed (EWMA) transfer rate in bytes/sec; null when not progressing. */
+  speed_bps: number | null
+  /** Estimated seconds remaining for this DB; null when unknown. */
+  eta_seconds: number | null
+}
+
+export interface DownloadAggregateProgress {
+  /** Sum of known total_bytes across the session, or null if none are known. */
+  total_bytes: number | null
+  downloaded_bytes: number
+  remaining_bytes: number
+  /** Overall percent across sized DBs, or null while no total is known. */
+  overall_pct: number | null
+  /** Combined transfer rate in bytes/sec; null when nothing is in flight. */
+  speed_bps: number | null
+  /** Estimated seconds until the whole session completes; null when unknown. */
+  eta_seconds: number | null
+  /** Number of DBs whose size is unknown (excluded from the byte totals). */
+  size_unknown_count: number
 }
 
 export interface DownloadProgressData {
   session_id: string
   databases: DatabaseProgressEvent[]
+  aggregate: DownloadAggregateProgress
 }
 
 // ── P1-19g: Upload sample file ──────────────────────────────────

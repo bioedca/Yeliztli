@@ -736,8 +736,22 @@ class TestDownloadProgress:
             payload = json.loads(data_line.split("data: ", 1)[1])
             assert payload["session_id"] == session_id
             assert len(payload["databases"]) == 1
-            assert payload["databases"][0]["db_name"] == "clinvar"
-            assert payload["databases"][0]["status"] == "complete"
+            db0 = payload["databases"][0]
+            assert db0["db_name"] == "clinvar"
+            assert db0["status"] == "complete"
+            # PR-18: per-DB byte/speed/ETA fields.
+            expected_total = get_database("clinvar").expected_size_bytes
+            assert db0["total_bytes"] == expected_total
+            assert db0["downloaded_bytes"] == expected_total  # complete → full
+            assert db0["speed_bps"] == 0
+            assert db0["eta_seconds"] == 0
+            # PR-18: session aggregate block.
+            agg = payload["aggregate"]
+            assert agg["total_bytes"] == expected_total
+            assert agg["downloaded_bytes"] == expected_total
+            assert agg["remaining_bytes"] == 0
+            assert agg["overall_pct"] == 100.0
+            assert agg["size_unknown_count"] == 0
 
     def test_progress_cleans_up_session(
         self,
@@ -943,3 +957,44 @@ class TestDownloadProgressForwarding:
         assert row.progress_pct == 50.0
         assert "500" in row.message
         assert "50%" in row.message
+
+
+class TestAggregateProgress:
+    """The session-level roll-up that drives the wizard's overall bar/ETA (PR-18)."""
+
+    def test_rolls_up_bytes_speed_and_eta(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        rows = [
+            {"total_bytes": 1000, "downloaded_bytes": 500, "speed_bps": 100},
+            {"total_bytes": 3000, "downloaded_bytes": 0, "speed_bps": 50},
+            {"total_bytes": None, "downloaded_bytes": None, "speed_bps": None},
+        ]
+        agg = _aggregate_progress(rows)
+        assert agg["total_bytes"] == 4000
+        assert agg["downloaded_bytes"] == 500
+        assert agg["remaining_bytes"] == 3500
+        assert agg["overall_pct"] == 12.5
+        assert agg["speed_bps"] == 150
+        assert agg["eta_seconds"] == round(3500 / 150)
+        assert agg["size_unknown_count"] == 1
+
+    def test_no_known_sizes_is_estimating(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress(
+            [{"total_bytes": None, "downloaded_bytes": None, "speed_bps": None}]
+        )
+        assert agg["total_bytes"] is None
+        assert agg["overall_pct"] is None
+        assert agg["eta_seconds"] is None
+        assert agg["remaining_bytes"] == 0
+        assert agg["size_unknown_count"] == 1
+
+    def test_zero_speed_yields_no_eta(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress([{"total_bytes": 1000, "downloaded_bytes": 200, "speed_bps": 0}])
+        assert agg["speed_bps"] is None
+        assert agg["eta_seconds"] is None
+        assert agg["overall_pct"] == 20.0
