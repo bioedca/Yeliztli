@@ -298,6 +298,9 @@ describe("AdmixtureBar", () => {
     const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
     const byName: Record<string, { text: string[]; textposition: string; cliponaxis: boolean }> =
       Object.fromEntries(traces.map((t: { name: string }) => [t.name, t]))
+    for (const name of ["African", "Middle Eastern", "Admixed American"]) {
+      expect(byName[name]).toBeDefined()
+    }
 
     // Wide slices keep a label with the ±CI suffix.
     expect(byName["African"].text[0]).toMatch(/23\.5% .*\d/)
@@ -328,6 +331,7 @@ describe("AdmixtureBar", () => {
     const chart = screen.getByTestId("plotly-chart")
     const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
     const mid = traces.find((t: { name: string }) => t.name === "Middle Eastern")
+    expect(mid).toBeDefined()
     expect(mid.text[0]).toBe("6.0%")
     expect(mid.text[0]).not.toContain("±")
   })
