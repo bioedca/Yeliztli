@@ -1113,3 +1113,38 @@ class TestGwasSeedVitaminDDirection:
             f"rs10741657 seed beta {beta} encodes A-lowers-vitamin-D (inverted); "
             "G is the lower-25(OH)D allele (#242/#335)"
         )
+
+
+class TestGwasZeroRowGuard:
+    """A destructive clear with 0 rows to load must never wipe gwas_associations.
+
+    Mirrors the cpic/clingen guard: a zero-row external fetch/parse (empty or
+    truncated download, an upstream format change that drops every row) must not
+    silently empty the curated table (#753).
+    """
+
+    @staticmethod
+    def _count(engine: sa.Engine) -> int:
+        with engine.connect() as conn:
+            return conn.execute(sa.select(sa.func.count()).select_from(gwas_associations)).scalar()
+
+    def test_load_into_db_refuses_to_wipe(self, seeded_reference_engine: sa.Engine):
+        assert self._count(seeded_reference_engine) == 5
+        with pytest.raises(ValueError, match="0 rows"):
+            load_gwas_into_db([], seeded_reference_engine, clear_existing=True)
+        assert self._count(seeded_reference_engine) == 5  # curated rows preserved
+
+    def test_load_into_db_empty_no_clear_is_noop(self, seeded_reference_engine: sa.Engine):
+        # A non-destructive empty load is a safe no-op (no raise, no wipe).
+        load_gwas_into_db([], seeded_reference_engine, clear_existing=False)
+        assert self._count(seeded_reference_engine) == 5
+
+    def test_load_from_iter_refuses_to_wipe(self, seeded_reference_engine: sa.Engine):
+        # The streaming loader peeks the first batch before any DELETE.
+        with pytest.raises(ValueError, match="0 rows"):
+            load_gwas_from_iter(iter([]), seeded_reference_engine, clear_existing=True)
+        assert self._count(seeded_reference_engine) == 5
+
+    def test_load_from_iter_empty_no_clear_is_noop(self, seeded_reference_engine: sa.Engine):
+        load_gwas_from_iter(iter([]), seeded_reference_engine, clear_existing=False)
+        assert self._count(seeded_reference_engine) == 5

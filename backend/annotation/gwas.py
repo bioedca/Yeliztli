@@ -654,6 +654,15 @@ def load_gwas_into_db(
     Returns:
         Updated GWASLoadStats.
     """
+    # Guard: refuse a destructive clear when there is nothing to load — an empty
+    # or malformed parse must never silently wipe the curated gwas_associations
+    # table (mirrors load_cpic_into_db / load_clingen_into_db).
+    if clear_existing and not rows:
+        raise ValueError(
+            "Refusing to clear gwas_associations with 0 rows to load "
+            "(likely an empty or malformed GWAS Catalog source)."
+        )
+
     if stats is None:
         stats = GWASLoadStats(associations_loaded=len(rows))
 
@@ -693,13 +702,27 @@ def load_gwas_from_iter(
         for row, stats in row_iter:
             yield row
 
+    # Peek the first batch BEFORE any destructive clear so a zero-row stream
+    # (empty/truncated download, upstream format change) never wipes the curated
+    # table to nothing. Only one batch is held in memory, preserving streaming.
+    batches = _batched(rows_only(), BATCH_SIZE)
+    first_batch = next(batches, None)
+    if clear_existing and not first_batch:
+        raise ValueError(
+            "Refusing to clear gwas_associations with 0 rows to load "
+            "(likely an empty or malformed GWAS Catalog source)."
+        )
+
     if clear_existing:
         with engine.begin() as conn:
             conn.execute(gwas_associations.delete())
 
-    for batch in _batched(rows_only(), BATCH_SIZE):
+    if first_batch is not None:
         with engine.begin() as conn:
-            conn.execute(gwas_associations.insert(), batch)
+            conn.execute(gwas_associations.insert(), first_batch)
+        for batch in batches:
+            with engine.begin() as conn:
+                conn.execute(gwas_associations.insert(), batch)
 
     _wal_checkpoint(engine)
 

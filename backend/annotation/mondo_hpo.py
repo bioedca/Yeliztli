@@ -306,6 +306,14 @@ def load_mondo_hpo_from_csv(
 
     stats.records_loaded = len(rows)
 
+    # Guard: refuse a destructive clear when the CSV yielded no loadable rows —
+    # an empty/malformed seed must never silently wipe the curated mondo_hpo rows.
+    if clear_existing and not rows:
+        raise ValueError(
+            "Refusing to clear gene_phenotype (mondo_hpo) with 0 rows to load "
+            "(likely an empty or malformed MONDO/HPO seed CSV)."
+        )
+
     if clear_existing:
         with engine.begin() as conn:
             conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
@@ -456,6 +464,15 @@ def load_mondo_hpo_rows(
     Returns:
         Number of rows loaded.
     """
+    # Guard: refuse a destructive clear when there is nothing to load — an empty
+    # or malformed parse must never silently wipe the curated mondo_hpo rows
+    # (mirrors load_cpic_into_db / load_clingen_into_db).
+    if clear_existing and not rows:
+        raise ValueError(
+            "Refusing to clear gene_phenotype (mondo_hpo) with 0 rows to load "
+            "(likely an empty or malformed MONDO/HPO source)."
+        )
+
     if clear_existing:
         with engine.begin() as conn:
             conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
