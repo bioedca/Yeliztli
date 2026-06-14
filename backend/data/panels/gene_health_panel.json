@@ -44,29 +44,29 @@
           "gene": "CLU",
           "variant_name": "CLU intergenic",
           "hgvs_protein": null,
-          "risk_allele": "T",
-          "ref_allele": "C",
+          "risk_allele": "C",
+          "ref_allele": "T",
           "genotype_effects": {
-            "CC": {
+            "TT": {
               "category": "Standard",
-              "effect_summary": "Carries the protective C allele. CLU (clusterin/apolipoprotein J) is involved in amyloid-beta clearance and neuroinflammation regulation."
+              "effect_summary": "Homozygous for the protective T allele — the lowest-risk genotype at this locus. The minor T allele is associated with reduced Alzheimer's disease risk (OR ~0.86 per T allele). CLU (clusterin/apolipoprotein J) is involved in amyloid-beta clearance and neuroinflammation regulation."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T risk allele. Modestly reduced CLU expression associated with slightly increased Alzheimer's disease risk. Clusterin plays a role in amyloid-beta clearance."
+              "effect_summary": "One copy of the C risk allele. The common C allele is associated with slightly increased Alzheimer's disease risk relative to the protective T allele. Clusterin plays a role in amyloid-beta clearance."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T risk allele. Modestly reduced CLU expression associated with slightly increased Alzheimer's disease risk. Clusterin plays a role in amyloid-beta clearance."
+              "effect_summary": "One copy of the C risk allele. The common C allele is associated with slightly increased Alzheimer's disease risk relative to the protective T allele. Clusterin plays a role in amyloid-beta clearance."
             },
-            "TT": {
+            "CC": {
               "category": "Moderate",
-              "effect_summary": "Homozygous T risk allele. Associated with reduced clusterin levels and modestly increased Alzheimer's disease risk. Effect size is small (OR ~1.16) and insufficient for individual prediction."
+              "effect_summary": "Homozygous for the C risk allele — the higher-risk genotype at this locus (OR ~1.16 per C allele versus T). Associated with modestly increased Alzheimer's disease risk; effect size is small and insufficient for individual prediction. Clusterin is involved in amyloid-beta clearance and neuroinflammation regulation."
             }
           },
           "evidence_level": 2,
           "pmids": ["19734903", "21460841", "24162737"],
-          "recommendation_text": "CLU is a replicated Alzheimer's disease GWAS locus with a modest effect size. Clusterin (apolipoprotein J) is involved in amyloid-beta clearance and complement regulation. This finding contributes to polygenic risk assessment but has limited individual predictive value."
+          "recommendation_text": "CLU is a replicated Alzheimer's disease GWAS locus with a modest effect size; the common C allele is the risk-increasing allele and the minor T allele is protective (T-allele OR ~0.86; Harold 2009, Braskie 2011). Clusterin (apolipoprotein J) is involved in amyloid-beta clearance and complement regulation. This finding contributes to polygenic risk assessment but has limited individual predictive value."
         },
         {
           "rsid": "rs356219",

@@ -409,6 +409,32 @@ class TestSNPScoring:
         result = _score_snp(snp, "CC")
         assert result.category == STANDARD
 
+    def test_clu_rs11136000_direction(self, panel: GeneHealthPanel) -> None:
+        """#581: CLU rs11136000 — C is the AD risk allele, T is protective.
+
+        Literature is unanimous (the panel-cited Harold 2009 GWAS gives the T
+        minor allele OR ~0.86; Braskie 2011: the C allele confers 1.16 greater
+        odds than T): CC is the highest-risk genotype, TT the lowest (protective).
+        Regression for the inverted entry that had ``risk_allele="T"`` and
+        scored the protective TT homozygote (a real Harvard PGP genotype) as a
+        "homozygous T risk allele" with "increased Alzheimer's risk".
+        """
+        snp = self._get_snp(panel, "rs11136000")
+        assert snp.risk_allele == "C"
+        assert snp.ref_allele == "T"
+
+        # The protective T homozygote must NOT be flagged as risk-elevated.
+        assert _score_snp(snp, "TT").category == STANDARD
+        # One / two copies of the C risk allele.
+        assert _score_snp(snp, "CT").category == MODERATE
+        assert _score_snp(snp, "TC").category == MODERATE
+        assert _score_snp(snp, "CC").category == MODERATE
+
+        # Effect summaries point the right way (T protective, C risk).
+        assert "protective" in snp.genotype_effects["TT"]["effect_summary"].lower()
+        assert "risk allele" in snp.genotype_effects["CC"]["effect_summary"].lower()
+        assert "protective" not in snp.genotype_effects["CC"]["effect_summary"].lower()
+
     def test_pparg_ala12_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
         """PPARG Pro12Ala (rs1801282): the protective Ala12 (G) allele must not be
         scored as risk. All genotypes map to Standard so a protective genotype
