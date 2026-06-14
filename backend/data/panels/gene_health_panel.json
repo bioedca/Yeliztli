@@ -66,7 +66,7 @@
           },
           "evidence_level": 2,
           "pmids": ["19734903", "21460841", "24162737"],
-          "recommendation_text": "CLU is a replicated Alzheimer's disease GWAS locus with a modest effect size; the common C allele is the risk-increasing allele and the minor T allele is protective (T-allele OR ~0.86; Harold 2009, Braskie 2011). Clusterin (apolipoprotein J) is involved in amyloid-beta clearance and complement regulation. This finding contributes to polygenic risk assessment but has limited individual predictive value."
+          "recommendation_text": "CLU is a replicated Alzheimer's disease GWAS locus with a modest effect size; the common C allele is the risk-increasing allele and the minor T allele is protective (T-allele OR ~0.86; Lambert 2009 GWAS, replicated in the IGAP meta-analyses). Clusterin (apolipoprotein J) is involved in amyloid-beta clearance and complement regulation. This finding contributes to polygenic risk assessment but has limited individual predictive value."
         },
         {
           "rsid": "rs356219",
