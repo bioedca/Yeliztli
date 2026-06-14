@@ -393,6 +393,41 @@ class TestSNPScoring:
         assert aa.category == STANDARD
         assert "lower vitamin d" not in aa.effect_summary.lower()
 
+    def test_gc_rs7041_a_is_lower_vitamin_d_direction(self, panel: NutrigenomicsPanel) -> None:
+        """GC rs7041 (Asp432Glu): plus-strand A is the lower-25(OH)D allele (#588).
+
+        rs7041 is c.1296T>G on the chr4 minus-strand GC gene, so the plus strand the
+        array reports maps A = c.1296T = Asp432 (Gc1F) and C = c.1296G = Glu432 (Gc1S);
+        Ensembl GRCh37 gives chr4:72618334 ancestral A. The literature is unanimous, and
+        two studies reporting directly in plus-strand A/C terms (Zhao 2021, Li 2025)
+        confirm CC has the *higher* 25(OH)D / protective direction while AA is the
+        deficiency-risk genotype: c.1296T (Asp432) lowers circulating 25(OH)D, c.1296G
+        (Glu432, Gc1S) raises it. So plus-strand A — not C — must carry the lower-25(OH)D
+        concern. Guards against re-inverting the direction (the bug this row had: risk=C,
+        CC -> "lower circulating 25(OH)D"; same direction-swap class as #581/#332).
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs7041")
+
+        assert snp.risk_allele == "A"
+        # ref_allele is the non-risk (higher-25(OH)D) allele; must differ from risk (#336).
+        assert snp.ref_allele == "C"
+        assert snp.ref_allele != snp.risk_allele
+
+        aa = _score_snp(snp, "AA")
+        ac = _score_snp(snp, "AC")
+        ca = _score_snp(snp, "CA")
+        cc = _score_snp(snp, "CC")
+
+        # AA (Asp432/Asp432, Gc1F) carries the reduced-affinity / lower-25(OH)D concern.
+        assert aa.category == ELEVATED
+        assert "lower circulating 25(oh)d" in aa.effect_summary.lower()
+        assert "20541252" in aa.pmids
+        # Heterozygotes: one Asp432 allele, modestly reduced (strand/order invariant).
+        assert ac.category == ca.category == MODERATE
+        # CC (Glu432/Glu432, Gc1S) is the higher/normal-25(OH)D common genotype.
+        assert cc.category == STANDARD
+        assert "lower circulating 25(oh)d" not in cc.effect_summary.lower()
+
     def test_cyp2r1_rs12794714_direction_is_marked_unsettled(
         self, panel: NutrigenomicsPanel
     ) -> None:
