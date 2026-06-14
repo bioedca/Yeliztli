@@ -104,7 +104,15 @@ ignore_decorators = [
     "@field_validator",
     "@model_validator",
     "@app.exception_handler",
+    # pytest invokes fixtures dynamically, so vulture flags every @pytest.fixture
+    # as an unused function/method. Without this a new fixture fails the gate even
+    # though it's live (#590 surfaced 3 such false positives on main).
+    "@pytest.fixture",
 ]
+# pytest discovers test_* functions by name (they're never called directly), so
+# vulture reports them as unused. No production symbol uses this prefix, so this
+# is safe and keeps new test functions from tripping the gate.
+ignore_names = ["test_*"]
 sort_by_size = true
 
 [tool.pytest.ini_options]

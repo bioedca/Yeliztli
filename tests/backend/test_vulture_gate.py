@@ -35,6 +35,12 @@ def test_vulture_config_is_wired() -> None:
     assert "vulture_whitelist.py" in vulture["paths"]
     assert (REPO_ROOT / "vulture_whitelist.py").exists(), "baseline whitelist missing"
 
+    # pytest invokes fixtures and test_* functions dynamically, so they read as
+    # "unused" to vulture. Excluding them keeps every new fixture/test from
+    # tripping the gate (the false positives #590 surfaced on main). Lock it in.
+    assert "@pytest.fixture" in vulture["ignore_decorators"]
+    assert "test_*" in vulture.get("ignore_names", [])
+
 
 def test_vulture_detects_unused_module_symbols(tmp_path: Path) -> None:
     """The configured detector flags an unused module-level constant AND function
@@ -54,3 +60,31 @@ def test_vulture_detects_unused_module_symbols(tmp_path: Path) -> None:
     assert result.returncode != 0, f"vulture found nothing:\n{result.stdout}\n{result.stderr}"
     assert "unused_function" in result.stdout
     assert "UNUSED_CONSTANT" in result.stdout
+
+
+def test_vulture_does_not_flag_pytest_fixtures(tmp_path: Path) -> None:
+    """A @pytest.fixture is invoked dynamically by pytest; with @pytest.fixture in
+    ignore_decorators it must NOT be reported as dead. Regression guard for the
+    false positives #590 surfaced on main."""
+    module = tmp_path / "fixture_module.py"
+    module.write_text(
+        "import pytest\n\n\n@pytest.fixture\ndef my_fixture():\n    return 1\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vulture",
+            str(module),
+            "--min-confidence",
+            "60",
+            "--ignore-decorators",
+            "@pytest.fixture",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert "my_fixture" not in result.stdout
+    assert result.returncode == 0, f"fixture wrongly flagged:\n{result.stdout}"
