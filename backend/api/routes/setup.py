@@ -639,54 +639,73 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     )
                     raise HTTPException(status_code=409, detail=mismatch)
 
-                # Extract safe members
+                # Extract + upgrade in a staging dir on the SAME filesystem as
+                # data_dir, then move into place — so a mid-extraction or
+                # mid-upgrade failure never leaves data_dir half-populated with
+                # partial sample DBs. Nothing is visible under data_dir until the
+                # whole archive has been extracted and upgraded.
                 samples_restored = 0
                 config_restored = False
-                restored_sample_paths: list[Path] = []
+                with tempfile.TemporaryDirectory(
+                    dir=data_dir, prefix=".import_staging_"
+                ) as staging:
+                    staging_dir = Path(staging)
+                    staged_samples: list[tuple[Path, Path]] = []  # (staged, final)
+                    staged_config: Path | None = None
+                    staged_disclaimer: Path | None = None
 
-                for member in tf.getmembers():
-                    if not _validate_tar_member(member):
-                        continue
-
-                    top_level = member.name.split("/")[0]
-                    if top_level not in _ALLOWED_ARCHIVE_ENTRIES:
-                        continue
-
-                    # config.toml lives in the home dir (config_toml_path), the
-                    # single file Settings reads; everything else (samples,
-                    # .disclaimer_accepted) restores under data_dir.
-                    dest = (
-                        config_toml_path()
-                        if member.name == "config.toml"
-                        else data_dir / member.name
-                    )
-                    if member.isdir():
-                        dest.mkdir(parents=True, exist_ok=True)
-                    elif member.isfile():
-                        dest.parent.mkdir(parents=True, exist_ok=True)
+                    for member in tf.getmembers():
+                        if not _validate_tar_member(member):
+                            continue
+                        top_level = member.name.split("/")[0]
+                        if top_level not in _ALLOWED_ARCHIVE_ENTRIES:
+                            continue
+                        if member.isdir():
+                            (staging_dir / member.name).mkdir(parents=True, exist_ok=True)
+                            continue
+                        if not member.isfile():
+                            continue
+                        staged = staging_dir / member.name
+                        staged.parent.mkdir(parents=True, exist_ok=True)
                         src = tf.extractfile(member)
-                        if src is not None:
-                            with dest.open("wb") as out:
-                                shutil.copyfileobj(src, out)
+                        if src is None:
+                            continue
+                        with staged.open("wb") as out:
+                            shutil.copyfileobj(src, out)
+                        if top_level == "samples" and member.name.endswith(".db"):
+                            staged_samples.append((staged, data_dir / member.name))
+                        elif member.name == "config.toml":
+                            staged_config = staged
+                        elif member.name == ".disclaimer_accepted":
+                            staged_disclaimer = staged
 
-                            if top_level == "samples" and member.name.endswith(".db"):
-                                samples_restored += 1
-                                restored_sample_paths.append(dest)
-                            elif member.name == "config.toml":
-                                config_restored = True
+                    # Idempotent v7→v8 / annotation_state / bundle-version upgrade
+                    # on each staged sample, before it becomes visible in data_dir.
+                    for staged, _final in staged_samples:
+                        _upgrade_restored_sample_db(staged)
+
+                    # Commit: move into place. Samples are same-filesystem as the
+                    # staging dir → atomic os.replace. config.toml goes to the home
+                    # dir (config_toml_path), which may be a different filesystem
+                    # than a relocated data_dir, so copy that single small file.
+                    (data_dir / "samples").mkdir(parents=True, exist_ok=True)
+                    for staged, final in staged_samples:
+                        final.parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(staged, final)
+                        samples_restored += 1
+                    if staged_config is not None:
+                        config_dest = config_toml_path()
+                        config_dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(staged_config, config_dest)
+                        config_restored = True
+                    if staged_disclaimer is not None:
+                        os.replace(staged_disclaimer, data_dir / ".disclaimer_accepted")
 
         except tarfile.TarError as exc:
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to read archive: {exc}",
             ) from exc
-
-        # Post-restore three-step idempotent upgrade for every restored
-        # per-sample DB (Plan §7.6). Forward-migrates v7→v8, adds
-        # `annotation_state` for pre-Phase-0 backups, and backfills the
-        # bundle-version row.
-        for sample_db_path in restored_sample_paths:
-            _upgrade_restored_sample_db(sample_db_path)
 
         logger.info(
             "backup_imported",
