@@ -163,7 +163,7 @@ def list_pathways(
 ) -> PathwaysResponse:
     """List all nutrigenomics pathway results for a sample.
 
-    Returns each of the six nutrient pathways with their categorical
+    Returns each of the seven nutrient pathways with their categorical
     level (Elevated / Moderate / Standard), evidence level, and SNP counts.
 
     Example: ``GET /api/analysis/nutrigenomics/pathways?sample_id=1``

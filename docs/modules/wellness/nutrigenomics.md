@@ -7,11 +7,12 @@ reports *tendencies*, never numeric risk scores or dietary prescriptions.
 
 ## What it looks at
 
-**15 curated SNPs** across six pathways:
+**15 curated SNPs** across seven pathways:
 
 - **Folate metabolism** (*MTHFR* C677T/A1298C, *MTRR*)
 - **Vitamin D** (*GC*, *CYP2R1*)
-- **Vitamin B12** (*FUT2*, *ALPL*)
+- **Vitamin B12** (*FUT2*)
+- **Vitamin B6** (*ALPL*)
 - **Omega-3** (*FADS1*, *FADS2*)
 - **Iron metabolism** (*HFE* C282Y/H63D)
 - **Lactose tolerance** (*MCM6/LCT*)

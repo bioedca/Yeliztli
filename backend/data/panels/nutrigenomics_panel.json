@@ -1,7 +1,7 @@
 {
   "module": "nutrigenomics",
   "version": "1.0.0",
-  "description": "Curated nutrigenomics SNP panel for Yeliztli (P3-08). Covers 6 nutrient pathways with evidence-gated categorical scoring.",
+  "description": "Curated nutrigenomics SNP panel for Yeliztli (P3-08). Covers 7 nutrient pathways with evidence-gated categorical scoring.",
   "pathways": [
     {
       "id": "folate_metabolism",
