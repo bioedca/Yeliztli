@@ -491,7 +491,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -512,7 +511,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -531,7 +529,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -552,7 +549,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
@@ -567,7 +563,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -588,7 +583,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -625,7 +619,6 @@ class TestCrossContextFindings:
             power_pr = PathwayResult(
                 pathway_id="power",
                 pathway_name="Power",
-                pathway_description="",
                 level=category,
                 snp_results=[
                     SNPResult(
@@ -646,7 +639,6 @@ class TestCrossContextFindings:
             endurance_pr = PathwayResult(
                 pathway_id="endurance",
                 pathway_name="Endurance",
-                pathway_description="",
                 level=STANDARD,
             )
             cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
@@ -665,7 +657,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -686,7 +677,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -712,13 +702,11 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
         )
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -1165,7 +1153,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

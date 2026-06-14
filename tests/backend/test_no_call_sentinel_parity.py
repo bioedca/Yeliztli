@@ -39,7 +39,7 @@ from backend.analysis import (
 from backend.analysis.ancestry import (
     HaplogroupNode,
     HaplogroupSNP,
-    _check_node_match,
+    _classify_node_match,
 )
 from backend.analysis.apoe import (
     APOE_RS7412,
@@ -164,7 +164,7 @@ def test_apoe_determine_genotype_parity() -> None:
     assert result_dash.status == result_q.status
 
 
-# ── ancestry._check_node_match (haplogroup tree-walk) ────────────────────────
+# ── ancestry._classify_node_match (haplogroup tree-walk) ─────────────────────
 
 
 def test_ancestry_haplogroup_tree_walk_parity() -> None:
@@ -176,8 +176,8 @@ def test_ancestry_haplogroup_tree_walk_parity() -> None:
     snp = HaplogroupSNP(rsid="rs123", pos=1000, allele="A")
     node = HaplogroupNode(haplogroup="H1", defining_snps=[snp], children=[])
 
-    present_dash, total_dash = _check_node_match(node, {"rs123": "--"})
-    present_q, total_q = _check_node_match(node, {"rs123": "??"})
+    present_dash, _conf_dash, total_dash = _classify_node_match(node, {"rs123": "--"})
+    present_q, _conf_q, total_q = _classify_node_match(node, {"rs123": "??"})
 
     assert present_dash == 0
     assert present_q == 0

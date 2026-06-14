@@ -448,7 +448,6 @@ class TestCrossModuleFindings:
         caffeine_pr = PathwayResult(
             pathway_id="caffeine_sleep",
             pathway_name="Caffeine & Sleep",
-            pathway_description="",
             level=ELEVATED,
             snp_results=[
                 SNPResult(
@@ -480,7 +479,6 @@ class TestCrossModuleFindings:
         caffeine_pr = PathwayResult(
             pathway_id="caffeine_sleep",
             pathway_name="Caffeine & Sleep",
-            pathway_description="",
             level=STANDARD,
         )
         results = [caffeine_pr]
@@ -492,7 +490,6 @@ class TestCrossModuleFindings:
         caffeine_pr = PathwayResult(
             pathway_id="caffeine_sleep",
             pathway_name="Caffeine & Sleep",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -871,7 +868,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

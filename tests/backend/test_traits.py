@@ -451,7 +451,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -483,7 +482,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -510,7 +508,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=STANDARD,
         )
         results = [behavioral_pr]
@@ -920,7 +917,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

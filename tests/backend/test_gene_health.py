@@ -929,7 +929,6 @@ class TestCrossModuleFindings:
             PathwayResult(
                 pathway_id="p1",
                 pathway_name="P1",
-                pathway_description="",
                 level=MODERATE,
                 snp_results=[_snp_result("rs2228570"), _snp_result("rs1544410")],
             )

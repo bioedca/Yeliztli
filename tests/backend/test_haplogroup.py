@@ -29,7 +29,6 @@ from backend.analysis.ancestry import (
     HaplogroupResult,
     HaplogroupSNP,
     HaplogroupTraversalStep,
-    _check_node_match,
     _classify_node_match,
     _collect_rsids,
     _parse_tree_node,
@@ -267,8 +266,8 @@ class TestParseTreeNode:
 # ── SNP matching tests ──────────────────────────────────────────────────
 
 
-class TestCheckNodeMatch:
-    """Test defining SNP matching logic."""
+class TestClassifyNodeMatchPresence:
+    """Test defining-SNP present/total counts from _classify_node_match."""
 
     def test_all_match(self) -> None:
         node = HaplogroupNode(
@@ -280,7 +279,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AA", "rs2": "GG"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 2
         assert total == 2
 
@@ -294,7 +293,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AA", "rs2": "TT"}  # rs2 doesn't have G
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 1
         assert total == 2
 
@@ -305,7 +304,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {}  # no data
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 0
         assert total == 1
 
@@ -316,7 +315,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "--"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 0
         assert total == 1
 
@@ -328,13 +327,13 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AG"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 1
         assert total == 1
 
     def test_empty_defining_snps(self) -> None:
         node = HaplogroupNode(haplogroup="root", defining_snps=[], children=[])
-        present, total = _check_node_match(node, {})
+        present, _conflicting, total = _classify_node_match(node, {})
         assert present == 0
         assert total == 0
 

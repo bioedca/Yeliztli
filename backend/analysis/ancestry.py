@@ -1625,7 +1625,6 @@ def _classify_node_match(
     return snps_present, snps_conflicting, snps_total
 
 
-
 def _tree_walk(
     node: HaplogroupNode,
     genotype_map: dict[str, str | None],
