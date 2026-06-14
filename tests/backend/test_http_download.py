@@ -572,6 +572,94 @@ def test_max_attempts_ceiling_enforced(tmp_path: Path) -> None:
     assert "max_attempts" in str(exc_info.value)
 
 
+# ── Minimum-throughput watchdog (throttle / stall guard) ─────────────
+
+
+def _fake_clock(step: float, start: float = 0.0):
+    """A monotonic stub that advances ``step`` seconds on every call."""
+    state = {"now": start}
+
+    def clock() -> float:
+        state["now"] += step
+        return state["now"]
+
+    return clock
+
+
+def test_throttle_below_floor_aborts_and_fails_as_no_progress(tmp_path: Path) -> None:
+    """A trickle below the throughput floor aborts each attempt and fails fast.
+
+    The watchdog raises mid-stream; the abort is deliberately counted as
+    no-progress (even though a window of bytes landed), so a persistent throttle
+    exhausts ``max_retries`` instead of crawling all the way to the much higher
+    ``max_attempts`` ceiling (the AlphaMissense hang). Without the watchdog the
+    transfer would never raise at all.
+    """
+    sink: list[dict[str, str]] = []
+    total = 1_000_000
+    # One byte lands per attempt (real forward progress), but the clock makes
+    # each window's throughput ~0, so the watchdog aborts every attempt.
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, [bytes(1)])]
+    for start in range(1, 6):
+        responses.append(
+            _FakeResponse(206, {"Content-Range": f"bytes {start}-{total - 1}/{total}"}, [bytes(1)])
+        )
+    tmp = tmp_path / "throttle.bin.tmp"
+    with pytest.raises(DownloadError) as exc_info:
+        stream_download(
+            "http://fake/file.bin",
+            tmp,
+            client_factory=_client_factory(responses, sink),
+            max_retries=2,
+            max_attempts=50,  # high → the failure must come from the throughput budget
+            stall_window=60.0,
+            min_throughput_bps=1024.0,
+            sleep=NOOP_SLEEP,
+            monotonic=_fake_clock(step=100.0),  # 100s between calls » 60s window, ~0 B/s
+        )
+    msg = str(exc_info.value)
+    assert "max_retries" in msg  # the no-progress budget tripped, not max_attempts
+    assert "throughput" in msg  # the SlowTransferError cause was surfaced
+    assert not tmp.exists()  # non-resumable → partial cleaned up on permanent failure
+
+
+def test_throughput_above_floor_completes_and_resets_window(tmp_path: Path) -> None:
+    """A transfer that meets the floor each window is left alone and completes."""
+    sink: list[dict[str, str]] = []
+    body = [bytes(1000)] * 4
+    total = 4000
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, body)]
+    tmp = tmp_path / "steady.bin.tmp"
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        client_factory=_client_factory(responses, sink),
+        stall_window=10.0,
+        min_throughput_bps=1.0,  # 1 B/s floor; 1000 B/chunk clears it with room to spare
+        sleep=NOOP_SLEEP,
+        monotonic=_fake_clock(step=5.0),  # a window closes every 2 chunks, all above floor
+    )
+    assert outcome.total_bytes == total
+    assert tmp.stat().st_size == total
+
+
+def test_watchdog_disabled_allows_arbitrarily_slow_transfer(tmp_path: Path) -> None:
+    """``min_throughput_bps=None`` disables the guard — no abort however slow."""
+    sink: list[dict[str, str]] = []
+    total = 10
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, [bytes(total)])]
+    tmp = tmp_path / "slow-ok.bin.tmp"
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        client_factory=_client_factory(responses, sink),
+        min_throughput_bps=None,  # watchdog off
+        sleep=NOOP_SLEEP,
+        monotonic=_fake_clock(step=10_000.0),  # absurdly slow clock, but ignored
+    )
+    assert outcome.total_bytes == total
+
+
 def test_206_unknown_total_completes_without_false_incomplete(tmp_path: Path) -> None:
     """A 206 with an unknown total (bytes X-Y/*) completes without a bogus check."""
     sink: list[dict[str, str]] = []
