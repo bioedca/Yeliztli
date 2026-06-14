@@ -105,6 +105,8 @@ class TestFhStatusRoute:
         assert body.get("variants", []) == []
 
     def test_missing_sample_returns_404(self, fh_client: TestClient) -> None:
-        # require_fresh_sample resolves existence before staleness → 404 for missing.
+        # 404 is enforced redundantly: require_fresh_sample resolves existence
+        # before staleness, and the handler's own _get_sample_engine also 404s —
+        # either layer alone yields 404 for a missing sample.
         resp = fh_client.get("/api/analysis/cardiovascular/fh-status", params={"sample_id": 999})
         assert resp.status_code == 404

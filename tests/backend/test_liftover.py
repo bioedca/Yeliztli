@@ -199,8 +199,14 @@ class TestConvertRoute:
 
     def test_convert_mt_returns_success_false(self, test_client: TestClient) -> None:
         """MT is deliberately not lifted (F34: hg19 chrM is Yoruba, not rCRS) —
-        the route reports `success=False` rather than a wrong coordinate."""
-        resp = test_client.get("/api/liftover/convert", params={"chrom": "MT", "pos": 263})
+        the route reports `success=False` rather than a wrong coordinate.
+
+        Uses ``M``/750, a position that *would* lift to a (wrong) GRCh38
+        coordinate if the ``convert_coordinate`` short-circuit were removed, so
+        this genuinely locks F34 at the route boundary (the ``MT``/263 spelling
+        would return None via the chain regardless — chr name absent — and so
+        could not catch a regressed short-circuit)."""
+        resp = test_client.get("/api/liftover/convert", params={"chrom": "M", "pos": 750})
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["success"] is False
