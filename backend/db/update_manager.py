@@ -36,6 +36,7 @@ from backend.db.tables import (
     auto_update_settings,
     clinvar_variants,
     database_versions,
+    download_sessions,
     reannotation_prompts,
     samples,
     update_history,
@@ -1717,6 +1718,45 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     run_database_update_task(job_id, db_name)
 
 
+def _first_run_setup_active(engine: Engine) -> bool:
+    """Whether first-run setup is still in progress (or a wizard download is live).
+
+    Auto-updates must not fire while the setup wizard is still fetching/building
+    the required databases: a scheduler-driven update of the same DB would race
+    the wizard's build on a second write connection — the in-process
+    :func:`backend.db.build_guard.build_lock` cannot serialize the API and Huey
+    processes — and a background version change mid-setup is a surprising state
+    change under the user's feet.
+
+    Reuses the exact ``GET /api/setup/status`` predicates (one definition) so
+    "is setup done" cannot drift between the readiness gate and the scheduler.
+    The import is lazy because :mod:`backend.api.routes.setup` is an API-route
+    module; importing it at db-module load time would invert layering and risk a
+    circular import (the dispatch path uses lazy imports for the same reason).
+    """
+    from backend.api.routes.setup import (
+        _is_disclaimer_accepted,
+        _required_dbs_ready,
+    )
+
+    if not _is_disclaimer_accepted():
+        return True
+    required_ready, _ = _required_dbs_ready()
+    if not required_ready:
+        return True
+    # Post-setup safety: a user-triggered wizard download still streaming. The
+    # needs_setup predicates above already cover the during-setup case (required
+    # DBs aren't ready yet); this also blocks the rarer post-setup manual
+    # download racing the scheduler.
+    with engine.connect() as conn:
+        active = conn.execute(
+            sa.select(download_sessions.c.session_id)
+            .where(download_sessions.c.status == "in_progress")
+            .limit(1)
+        ).first()
+    return active is not None
+
+
 def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
     """Run a scheduled update check and apply auto-updates.
 
@@ -1725,9 +1765,19 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
     available result that satisfies both the per-DB :func:`get_auto_update`
     toggle and the :func:`should_download_now` bandwidth-window check.
     Dispatch is centralized in :func:`_dispatch_auto_update`.
+
+    No-ops entirely while first-run setup is active (see
+    :func:`_first_run_setup_active`) so the scheduler never races the wizard.
     """
     settings = registry.settings
     engine = registry.reference_engine
+
+    # 0. Never run auto-updates while the setup wizard is still provisioning the
+    #    required databases (or a wizard download is mid-flight). Returning an
+    #    empty result keeps the on-demand/periodic callers' messaging correct.
+    if _first_run_setup_active(engine):
+        logger.info("update_check_skipped_setup_active")
+        return UpdateCheckResult()
 
     # 1. Check for updates across all registered databases.
     check_result = check_all_updates(engine, settings=settings)
