@@ -1033,7 +1033,7 @@ def _positive_hla_proxy_specificity_caveat(snp: SNPResult) -> str | None:
     reduced = snp.hla_proxy.get("reduced_ancestry")
     if reduced:
         better = snp.hla_proxy.get("better_proxy_for_reduced_ancestry")
-        suffix = f" (a better proxy there is {better})" if better else ""
+        suffix = f" (better alternative: {better})" if better else ""
         caveat += f" Proxy reliability is also reduced in {reduced} ancestry{suffix}."
     return caveat
 
