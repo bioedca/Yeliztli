@@ -23,6 +23,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job's GITHUB_TOKEN. CI here only checks out
+# and tests code (no PR comments, releases, or issue filing — those live in
+# nightly.yml / bundle-release.yml, which set their own scopes), so read-only is
+# sufficient. A job that needs more should override `permissions` on itself.
+permissions:
+  contents: read
+
 jobs:
   # ── Change detection (path filters drive PR-tier scoping) ───────────────
   changes:
