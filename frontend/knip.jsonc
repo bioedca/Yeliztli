@@ -1,0 +1,30 @@
+{
+  // Knip — dead-export / dead-file / unused-dependency detector for the
+  // frontend (issue #555). Run via `npm run knip`. In CI it runs as a
+  // NON-BLOCKING advisory step (continue-on-error) inside the Lint job, so the
+  // existing baseline it surfaces — the known frontend dead-code backlog
+  // (#542 LoadingEmpty + the unused exports/types it lists) — is reported on
+  // every PR without reddening `main`. Promotion to a blocking gate follows
+  // once that backlog is cleared (see the per-symbol dead-code issues).
+  //
+  // Entry points (Vite app entry via index.html → src/main.tsx, the Vitest
+  // setup + *.test.* files, and the vite/vitest config) are auto-detected by
+  // knip's built-in vite/vitest plugins, so only the genuine false positives
+  // below need configuring.
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+
+  // Ambient type-declaration files augment types for the compiler; they have
+  // no runtime importer by design and must not be reported as "unused files".
+  "ignore": ["**/*.d.ts"],
+
+  "ignoreDependencies": [
+    // Lazy-loaded at runtime through an indirected `importFn("igv")` in
+    // src/components/igv-browser/IgvBrowser.tsx (code-split + test-injectable),
+    // which knip's static analysis cannot trace to the `igv` package.
+    "igv",
+    // Backs the repo-root Playwright e2e suite (../tests/e2e/ +
+    // playwright.config.ts), not frontend/src — knip, run from frontend/,
+    // cannot see those consumers.
+    "@playwright/test"
+  ]
+}
