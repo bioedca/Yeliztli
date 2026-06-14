@@ -155,9 +155,7 @@ def test_record_db_version_concurrent_stamps_one_row(tmp_path: Path) -> None:
     assert errors == []
     with engine.connect() as conn:
         rows = conn.execute(
-            sa.select(database_versions.c.db_name).where(
-                database_versions.c.db_name == "clinvar"
-            )
+            sa.select(database_versions.c.db_name).where(database_versions.c.db_name == "clinvar")
         ).fetchall()
     assert len(rows) == 1  # exactly one row, not one-per-writer
     engine.dispose()
