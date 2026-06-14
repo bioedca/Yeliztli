@@ -30,6 +30,7 @@ const CORE_PAGES = [
   { path: '/nutrigenomics', title: 'Nutrigenomics' },
   { path: '/cancer', title: 'Cancer' },
   { path: '/cardiovascular', title: 'Cardiovascular' },
+  { path: '/fh', title: 'Familial Hypercholesterolemia' },
   { path: '/ancestry', title: 'Ancestry' },
   { path: '/carrier-status', title: 'Carrier Status' },
   { path: '/fitness', title: 'Gene Fitness' },

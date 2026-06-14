@@ -1,5 +1,5 @@
 /**
- * P3-68 — ui-inspector verification pass on all 7 new module pages.
+ * P3-68 — ui-inspector verification pass on the module pages.
  *
  * Verifies each module page renders correctly without JavaScript errors,
  * has proper heading structure, ARIA landmarks, keyboard navigability,
@@ -13,6 +13,7 @@
  *   5. Gene Allergy   (/allergy)
  *   6. Traits & Personality (/traits)
  *   7. Gene Health    (/gene-health)
+ *   8. Familial Hypercholesterolemia (/fh) — added for page-coverage parity (#551)
  */
 
 import { test, expect } from '@playwright/test'
@@ -23,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
 })
 
-// All 7 module pages with expected content
+// All module pages with expected content
 const MODULE_PAGES = [
   {
     path: '/fitness',
@@ -59,6 +60,11 @@ const MODULE_PAGES = [
     path: '/gene-health',
     title: 'Gene Health',
     emptyText: 'Select a sample to view gene health results.',
+  },
+  {
+    path: '/fh',
+    title: 'Familial Hypercholesterolemia',
+    emptyText: 'Select a sample to view the FH assessment.',
   },
 ] as const
 
@@ -187,7 +193,7 @@ test.describe('P3-68: Module pages verification', () => {
 
   // Cross-module navigation tests
   test.describe('Cross-module navigation', () => {
-    test('all 7 module routes are reachable from root', async ({ page }) => {
+    test('all module routes are reachable from root', async ({ page }) => {
       for (const mod of MODULE_PAGES) {
         const response = await page.goto(mod.path)
         expect(response?.status()).toBeLessThan(400)
