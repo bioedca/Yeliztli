@@ -8,7 +8,7 @@
  *     all → "No variants match your filters" + clear + quick-apply suggestions
  */
 
-import { Upload, FlaskConical, SearchX, ShieldAlert, Dna } from "lucide-react"
+import { Upload, FlaskConical, SearchX, ShieldAlert } from "lucide-react"
 import { FILTER_SUGGESTIONS } from "./filterSuggestions"
 
 // ── Shared wrapper ──────────────────────────────────────────────────
@@ -138,18 +138,6 @@ export function ErrorEmpty({ message }: { message: string }) {
       icon={<ShieldAlert className="h-10 w-10 text-destructive/60" />}
       title="Error loading variants"
       description={message}
-    />
-  )
-}
-
-// ── 5. Loading state ────────────────────────────────────────────────
-
-export function LoadingEmpty() {
-  return (
-    <EmptyWrapper
-      icon={<Dna className="h-10 w-10 animate-pulse" />}
-      title="Loading variants..."
-      description="Fetching data from the sample database."
     />
   )
 }
