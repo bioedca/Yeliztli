@@ -655,62 +655,6 @@ def download_gnomad_vcf(
     return dest_path
 
 
-def download_and_load_gnomad(
-    gnomad_engine: sa.Engine,
-    dest_dir: Path,
-    *,
-    url: str = GNOMAD_VCF_URL,
-    download_progress: Callable[[int, int | None], None] | None = None,
-    parse_progress: Callable[[int], None] | None = None,
-    timeout: float = 3600.0,
-    reference_engine: sa.Engine | None = None,
-) -> LoadStats:
-    """Full pipeline: download gnomAD VCF, parse, and load into gnomad_af.db.
-
-    Args:
-        gnomad_engine: SQLAlchemy engine for gnomad_af.db.
-        dest_dir: Directory for downloaded files.
-        url: gnomAD VCF URL (override for testing).
-        download_progress: Callback for download progress.
-        parse_progress: Callback for parse progress.
-        timeout: HTTP timeout in seconds.
-        reference_engine: Optional engine for reference.db to record version.
-
-    Returns:
-        LoadStats with counts and metadata.
-    """
-    # Download
-    vcf_path = download_gnomad_vcf(
-        dest_dir,
-        url=url,
-        progress_callback=download_progress,
-        timeout=timeout,
-    )
-
-    # Compute checksum
-    sha256 = _compute_sha256(vcf_path)
-
-    # Parse and load
-    stats = load_gnomad_from_vcf(
-        vcf_path,
-        gnomad_engine,
-        progress_callback=parse_progress,
-    )
-    stats.sha256 = sha256
-
-    # Record version in reference.db
-    if reference_engine is not None:
-        record_gnomad_version(
-            reference_engine,
-            version="r2.1.1",
-            file_path=str(vcf_path),
-            file_size_bytes=vcf_path.stat().st_size,
-            checksum=sha256,
-        )
-
-    return stats
-
-
 # ── Version tracking ─────────────────────────────────────────────────────
 
 
@@ -733,37 +677,6 @@ def record_gnomad_version(
         sha256=checksum,
         file_path=file_path,
     )
-
-
-def check_gnomad_update(
-    reference_engine: sa.Engine,
-    settings: object | None = None,
-    *,
-    timeout: float = 30.0,
-):
-    """Check whether the gnomAD bundle pinned in the manifest is newer than installed.
-
-    gnomAD now ships as a prebuilt SQLite bundle (``bundles["gnomad"]`` in
-    ``bundles/manifest.json``), not a pipeline VCF rebuild. This delegates to
-    the generic manifest-bundle checker (version string-equality vs the
-    recorded ``database_versions`` row), matching ``lai_bundle`` /
-    ``ancestry_pca``. It is retained for direct callers/tests; the registered
-    CHECK_FN is :func:`backend.db.update_manager.check_gnomad_bundle_update`.
-
-    Args:
-        reference_engine: Reference DB engine for ``database_versions`` lookup.
-        settings: Accepted for dispatch-signature parity; unused.
-        timeout: Manifest-fetch timeout in seconds.
-
-    Returns:
-        ``VersionInfo`` when the manifest bundle is newer than the installed
-        version, otherwise ``None`` (including when the bundle entry is absent,
-        as in the pre-publish deferred state).
-    """
-    del settings  # unused; kept for dispatch-signature parity
-    from backend.db.update_manager import _check_manifest_bundle_update
-
-    return _check_manifest_bundle_update(reference_engine, "gnomad", timeout=timeout)
 
 
 # ── Annotation lookup ────────────────────────────────────────────────────
