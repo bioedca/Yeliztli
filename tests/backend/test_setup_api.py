@@ -1126,7 +1126,15 @@ class TestIsVolatilePath:
         from backend.api.routes import setup as setup_module
 
         real_resolve = Path.resolve
-        mapped = {"/tmp": "/private/tmp", "/var/tmp": "/private/var/tmp"}
+        mapped = {
+            "/tmp": "/private/tmp",
+            "/var/tmp": "/private/var/tmp",
+            # A user symlink whose absolute() name is NOT under any root but which
+            # RESOLVES into macOS temp — exercises the resolved-form check + the
+            # /private/* roots (which the /tmp/var-tmp cases alone never reach,
+            # since their absolute() form already matches the original roots).
+            "/data/scratch": "/private/tmp/scratch",
+        }
 
         def fake_resolve(self, *args, **kwargs):
             s = str(self)
@@ -1138,9 +1146,12 @@ class TestIsVolatilePath:
             return real_resolve(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, "resolve", fake_resolve)
+        # Symlink-intact absolute() form keeps the volatile root match:
         assert setup_module._is_volatile_path(Path("/tmp")) is True
         assert setup_module._is_volatile_path(Path("/tmp/yeliztli")) is True
         assert setup_module._is_volatile_path(Path("/var/tmp/foo")) is True
+        # Resolved-form match via the /private/* roots (absolute() doesn't match):
+        assert setup_module._is_volatile_path(Path("/data/scratch")) is True
         # A persistent path is unaffected by the symlink mapping.
         assert setup_module._is_volatile_path(Path("/opt/yeliztli/data")) is False
 
