@@ -34,25 +34,60 @@ const WIZARD_STEPS: WizardStep[] = [
  *  blocked because a required, downloadable database is not integrity-ready. */
 const DATABASES_STEP_INDEX = WIZARD_STEPS.findIndex((s) => s.id === 'databases')
 
+const MAX_STEP_INDEX = WIZARD_STEPS.length - 1
+/** sessionStorage key holding the current wizard step, so a same-session reload
+ *  resumes where the user was instead of bouncing back to the first step. */
+const STEP_STORAGE_KEY = 'yeliztli.setupWizard.step'
+
+function readStoredStep(): number {
+  try {
+    const raw = sessionStorage.getItem(STEP_STORAGE_KEY)
+    const n = raw == null ? Number.NaN : Number.parseInt(raw, 10)
+    return Number.isInteger(n) && n >= 0 && n <= MAX_STEP_INDEX ? n : 0
+  } catch {
+    return 0
+  }
+}
+
 export default function SetupWizard() {
   const navigate = useNavigate()
   const { data: status, isLoading } = useSetupStatus()
-  const [currentStep, setCurrentStep] = useState(0)
+  // Resume at the step the user last reached this session (survives a reload).
+  const [currentStep, setCurrentStep] = useState(readStoredStep)
 
-  // If setup is already complete, redirect to dashboard
+  // Persist the current step so a same-session reload resumes here.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STEP_STORAGE_KEY, String(currentStep))
+    } catch {
+      /* sessionStorage unavailable (e.g. private mode) — resume is best-effort. */
+    }
+  }, [currentStep])
+
+  // If setup is already complete, clear the resume hint and go to the dashboard.
   useEffect(() => {
     if (status && !status.needs_setup) {
+      try {
+        sessionStorage.removeItem(STEP_STORAGE_KEY)
+      } catch {
+        /* ignore */
+      }
       navigate('/', { replace: true })
     }
   }, [status, navigate])
 
-  // If disclaimer already accepted, advance past step 0
+  // Keep the step consistent with status: never sit on the disclaimer once it's
+  // accepted, and never show a post-disclaimer step (e.g. a stale resumed one)
+  // while the disclaimer is still unaccepted.
   useEffect(() => {
-    if (status?.disclaimer_accepted && currentStep === 0) {
+    if (!status) return
+    if (!status.disclaimer_accepted && currentStep !== 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentStep(0)
+    } else if (status.disclaimer_accepted && currentStep === 0) {
       setCurrentStep(1)
     }
-  }, [status?.disclaimer_accepted, currentStep])
+  }, [status, currentStep])
 
   const handleDisclaimerAccepted = useCallback(() => {
     setCurrentStep(1)
