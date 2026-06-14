@@ -128,6 +128,19 @@ describe("VariantTable", () => {
     expect(screen.getByText(/go to the dashboard/i)).toBeInTheDocument()
   })
 
+  it("announces the loading state to screen readers via role=status (#601)", () => {
+    setupFetchMock(makeVariantPage(1), makeCountResponse(1))
+    // The first synchronous render is the pending state, before the query resolves.
+    render(<VariantTable sampleId={1} />)
+    const loadingText = screen.getByText("Loading variants...")
+    // The indicator sits inside a status live region so SR users are notified...
+    const status = loadingText.closest('[role="status"]')
+    expect(status).not.toBeNull()
+    expect(status).toHaveTextContent("Loading variants...")
+    // ...and the decorative spinner is hidden from assistive tech.
+    expect(status?.querySelector("svg")).toHaveAttribute("aria-hidden", "true")
+  })
+
   it("renders variant rows from API", async () => {
     const page = makeVariantPage(3)
     setupFetchMock(page, makeCountResponse(3))

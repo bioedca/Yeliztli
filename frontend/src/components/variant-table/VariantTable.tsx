@@ -402,8 +402,15 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
               {status === "pending" ? (
                 <tr>
                   <td colSpan={table.getAllColumns().length} className="text-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
-                    <p className="text-sm text-muted-foreground mt-2">Loading variants...</p>
+                    {/* role="status" (implies aria-live=polite) so SR users are
+                        told variants are loading; the spinner is decorative. (#601) */}
+                    <div role="status">
+                      <Loader2
+                        className="h-6 w-6 animate-spin mx-auto text-primary"
+                        aria-hidden="true"
+                      />
+                      <p className="text-sm text-muted-foreground mt-2">Loading variants...</p>
+                    </div>
                   </td>
                 </tr>
               ) : allRows.length === 0 ? (
@@ -455,8 +462,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           {/* Infinite scroll sentinel */}
           <div ref={sentinelRef} className="h-10 flex items-center justify-center">
             {isFetchingNextPage && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <div
+                role="status"
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Loading more...
               </div>
             )}
