@@ -46,6 +46,7 @@ _liftover_hg18: LiftOver | None = None
 # tokens (I/D), no-calls (-, 0) and 23andMe internal markers pass through
 # unchanged — they must NOT be complemented.
 _BASE_COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
+_ACGT = frozenset("ACGT")
 
 
 def _get_liftover() -> LiftOver:
@@ -208,7 +209,19 @@ def lift_build36_to_grch37(
     # Take the best (first) result: (chrom, pos_0based, strand, score).
     new_chrom, new_pos_0based, strand, _score = results[0]
     out_chrom = new_chrom.removeprefix("chr")
-    out_genotype = genotype.translate(_BASE_COMPLEMENT) if strand == "-" else genotype
+
+    out_genotype = genotype
+    if strand == "-":
+        # Complement A/C/G/T alleles so the call stays plus-strand-relative on
+        # GRCh37, then restore the parser's canonical uppercased+sorted-pair form.
+        # str.translate preserves allele order, so a sorted het "AG" would
+        # otherwise become "TC" rather than the canonical "CT" — silently breaking
+        # sorted-pair lookups for exactly these minus-strand v3 calls. Only re-sort
+        # 2-char A/C/G/T pairs; indel tokens (I/D), no-calls and single-char
+        # haploid calls are left as-is (their set is not ⊆ {A,C,G,T}).
+        out_genotype = genotype.translate(_BASE_COMPLEMENT)
+        if len(out_genotype) == 2 and set(out_genotype) <= _ACGT:
+            out_genotype = "".join(sorted(out_genotype))
 
     return (out_chrom, new_pos_0based + 1, out_genotype)
 

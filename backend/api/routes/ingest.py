@@ -125,18 +125,25 @@ def _lift_result_build36(result: ParseResult) -> dict[str, int]:
     """
     lifted: list[ParsedVariant] = []
     dropped = 0
+    nocall = 0
     for v in result.variants:
         out = lift_build36_to_grch37(v.chrom, v.pos, v.genotype)
         if out is None:
             dropped += 1
             continue
         new_chrom, new_pos, new_genotype = out
+        if new_genotype == "--":  # parser's no-call sentinel
+            nocall += 1
         lifted.append(
             ParsedVariant(rsid=v.rsid, chrom=new_chrom, pos=new_pos, genotype=new_genotype)
         )
 
     stats = {"total": len(result.variants), "lifted": len(lifted), "dropped": dropped}
     result.variants = lifted
+    # Re-derive the no-call count for the *stored* (post-drop) set so the upload
+    # response's variant_count and nocall_count describe the same variants; the
+    # parser's pre-lift count would over-count dropped no-calls.
+    result.nocall_count = nocall
     result.build = _SUPPORTED_BUILD
     return stats
 

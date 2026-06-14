@@ -145,13 +145,23 @@ class TestLiftBuild36ToGrch37:
 
     def test_minus_strand_complements_snv_alleles(self) -> None:
         """On a strand-flipped (−) segment, A/C/G/T alleles are complemented so the
-        stored call is plus-strand-relative on GRCh37 (hg18 chr1:2480001 lifts −)."""
+        stored call is plus-strand-relative on GRCh37 (hg18 chr1:2480001 lifts −).
+        The result keeps the parser's canonical uppercased+SORTED-pair form: the
+        complement of sorted "AG" is "TC" in place, re-sorted to canonical "CT"."""
         result = lift_build36_to_grch37("1", 2480001, "AG")
         assert result is not None
         out_chrom, out_pos, out_genotype = result
         assert out_chrom == "1"
         assert out_pos == 2494417
-        assert out_genotype == "TC"  # A→T, G→C
+        assert out_genotype == "CT"  # complement(A,G)=(T,C) → sorted "CT"
+
+    def test_minus_strand_output_is_canonical_sorted_pair(self) -> None:
+        """Every minus-strand SNV lift returns a canonical sorted pair (matching a
+        fresh parse), so sorted-pair lookups can't silently miss these calls."""
+        for gt in ("AG", "AC", "CT", "GT", "AT", "CG"):
+            out = lift_build36_to_grch37("1", 2480001, gt)
+            assert out is not None
+            assert out[2] == "".join(sorted(out[2])), f"{gt} → {out[2]} not sorted"
 
     def test_minus_strand_does_not_complement_indels(self) -> None:
         """Indel tokens I/D must NOT be complemented on a strand flip."""

@@ -326,6 +326,55 @@ class TestGenomeBuildGate:
             assert conn.execute(sa.select(sa.func.count()).select_from(jobs)).scalar() == 1
         engine.dispose()
 
+    def test_v3_nocall_count_matches_stored_variants(self, client, tmp_data_dir):
+        """The upload response's counts describe the post-lift *stored* set: both
+        variant_count and nocall_count match raw_variants, rather than the parser's
+        pre-lift no-call count (which would over-count dropped no-calls)."""
+        with open(V3_FILE, "rb") as f:
+            response = client.post("/api/ingest", files={"file": ("pgp_v3.txt", f, "text/plain")})
+        assert response.status_code == 202, response.text
+        body = response.json()
+        sample_db = tmp_data_dir / "samples" / f"sample_{body['sample_id']}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.connect() as conn:
+            stored_total = conn.execute(
+                sa.select(sa.func.count()).select_from(raw_variants)
+            ).scalar()
+            stored_nocall = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(raw_variants)
+                .where(raw_variants.c.genotype == "--")
+            ).scalar()
+        engine.dispose()
+        assert body["variant_count"] == stored_total
+        assert body["nocall_count"] == stored_nocall
+
+    def test_unknown_build_still_rejected_422_no_rows(self, client, tmp_data_dir, monkeypatch):
+        """A build that is neither GRCh36 nor GRCh37 has no supported liftover and
+        is refused with 422 before any sample/job rows are written (the elif gate)."""
+        from backend.ingestion.base import ParsedVariant, ParseResult, SourceVendor
+
+        fake = ParseResult(
+            vendor=SourceVendor.TWENTYTHREEANDME,
+            version="v?",
+            build="GRCh38",
+            variants=[ParsedVariant(rsid="rs1", chrom="1", pos=100, genotype="AA")],
+        )
+        monkeypatch.setattr("backend.api.routes.ingest.parse", lambda _stream: fake)
+        response = client.post(
+            "/api/ingest", files={"file": ("x.txt", io.BytesIO(b"header\n"), "text/plain")}
+        )
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert isinstance(detail, str)
+        assert "GRCh38" in detail
+        ref_path = Settings(data_dir=tmp_data_dir, wal_mode=False).reference_db_path
+        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        with engine.connect() as conn:
+            assert conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar() == 0
+            assert conn.execute(sa.select(sa.func.count()).select_from(jobs)).scalar() == 0
+        engine.dispose()
+
     def test_v5_build37_upload_still_accepted(self, client):
         """The gate is build-scoped, not a blanket 23andMe block: a build-37
         23andMe file (v5) still ingests at 202."""
