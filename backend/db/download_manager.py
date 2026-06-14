@@ -46,6 +46,15 @@ CHUNK_SIZE = 65_536  # 64 KiB
 DEFAULT_CONNECT_TIMEOUT = 30.0
 DEFAULT_TOTAL_TIMEOUT = 3600.0  # 1 hour for large files
 
+# ``downloads.status`` values that represent an *incomplete* transfer whose
+# partial can be continued: queued (``pending``), interrupted-but-marked-live
+# (``downloading`` — an orphan until the startup sweep flips it to ``failed``),
+# or terminally-failed-yet-resumable (``failed``). This is the single source of
+# truth: ``backend.db.db_health`` derives its resumable/active split from it
+# (resumable = INCOMPLETE − active), so the two modules cannot drift on which
+# states carry a resumable partial.
+INCOMPLETE_DOWNLOAD_STATES: frozenset[str] = frozenset({"pending", "downloading", "failed"})
+
 
 @dataclass
 class DownloadResult:
@@ -415,7 +424,7 @@ class DownloadManager:
                 .where(
                     downloads.c.url == url,
                     downloads.c.dest_path == dest_path,
-                    downloads.c.status.in_(["pending", "downloading", "failed"]),
+                    downloads.c.status.in_(tuple(INCOMPLETE_DOWNLOAD_STATES)),
                 )
                 .order_by(downloads.c.created_at.desc())
                 .limit(1)

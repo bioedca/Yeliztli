@@ -36,6 +36,8 @@ import sqlalchemy as sa
 from backend.config import Settings
 from backend.db.database_registry import _record_db_version, get_database
 from backend.db.db_health import (
+    _ACTIVE_DOWNLOAD_STATES,
+    _RESUMABLE_DOWNLOAD_STATES,
     DatabaseHealth,
     IntegrityResult,
     artifact_present,
@@ -46,6 +48,7 @@ from backend.db.db_health import (
     recover_orphaned_downloads,
     validate_database,
 )
+from backend.db.download_manager import INCOMPLETE_DOWNLOAD_STATES
 from backend.db.tables import (
     clinvar_variants,
     cpic_alleles,
@@ -515,6 +518,14 @@ def _write_tmp_partial(settings: Settings, db_name: str, nbytes: int) -> Path:
     return tmp_path
 
 
+def test_resumable_and_active_states_partition_incomplete() -> None:
+    """db_health's resumable/active split must exactly cover DownloadManager's
+    incomplete-download set, with no overlap — so a row the transport would
+    resume is never reported here as unresumable, and vice versa."""
+    assert _RESUMABLE_DOWNLOAD_STATES | _ACTIVE_DOWNLOAD_STATES == INCOMPLETE_DOWNLOAD_STATES
+    assert _RESUMABLE_DOWNLOAD_STATES & _ACTIVE_DOWNLOAD_STATES == frozenset()
+
+
 class TestFindResumableDownload:
     def test_returns_dict_for_download_mode(self, settings: Settings, ref_db: sa.Engine) -> None:
         # encode_ccres is build_mode="download".
@@ -537,6 +548,29 @@ class TestFindResumableDownload:
         # Byte count comes from the .tmp file on disk, not the DB checkpoint.
         assert info["downloaded_bytes"] == 512
         assert info["total_bytes"] == 2048
+
+    def test_total_bytes_falls_back_to_expected_size_when_null(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        """A partial whose original transfer died before learning the real total
+        (``total_bytes`` NULL) still reports a total — the artifact's known size —
+        so the resume UI can always show a "% saved" instead of a blank."""
+        _write_tmp_partial(settings, "encode_ccres", 256)
+        with ref_db.begin() as conn:
+            conn.execute(
+                downloads.insert().values(
+                    url="http://example/encode_ccres.db",
+                    dest_path=_downloads_dest_str(settings, "encode_ccres"),
+                    total_bytes=None,  # died before the first response set it
+                    status="failed",
+                )
+            )
+        db_info = get_database("encode_ccres")
+        info = find_resumable_download(ref_db, db_info, settings)
+        assert info is not None
+        assert info["downloaded_bytes"] == 256
+        assert info["total_bytes"] == db_info.expected_size_bytes
+        assert info["total_bytes"]  # non-zero → a percentage is computable
 
     def test_lai_bundle_download_mode_resumable(
         self, settings: Settings, ref_db: sa.Engine
@@ -867,9 +901,12 @@ class TestResumablePartialHealth:
         assert h.progress_pct == 50.0
         assert h.download_id is not None
 
-    def test_partial_resumable_no_total_no_progress(
+    def test_partial_resumable_falls_back_to_expected_size_for_progress(
         self, settings: Settings, ref_db: sa.Engine
     ) -> None:
+        """A resumable partial whose row never learned the real total still
+        reports a percentage, derived from the artifact's known expected size
+        (PR-16) — previously this showed a blank "% saved"."""
         _write_tmp_partial(settings, "encode_ccres", 300)
         with ref_db.begin() as conn:
             conn.execute(
@@ -880,10 +917,12 @@ class TestResumablePartialHealth:
                     status="failed",
                 )
             )
+        db_info = get_database("encode_ccres")
         h = _health(settings, ref_db, "encode_ccres")
         assert h.state == "partial"
         assert h.resumable is True
-        assert h.progress_pct is None
+        assert h.total_bytes == db_info.expected_size_bytes
+        assert h.progress_pct == round(300 / db_info.expected_size_bytes * 100.0, 1)
 
 
 class TestGetAllDatabaseHealth:

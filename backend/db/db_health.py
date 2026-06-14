@@ -61,6 +61,7 @@ from backend.db.database_registry import (
     get_database,
     validate_lai_bundle,
 )
+from backend.db.download_manager import INCOMPLETE_DOWNLOAD_STATES
 from backend.db.tables import database_versions, download_session_jobs, downloads, jobs
 
 if TYPE_CHECKING:
@@ -138,14 +139,19 @@ _ANCESTRY_PCA_KEYS: frozenset[str] = frozenset(
 # exist as the committed offline fixture without a version row.
 _VERSION_REQUIRED_MODES: frozenset[str] = frozenset({"pipeline", "download"})
 
-# downloads.status values that carry a *resumable* partial. Deliberately
-# excludes "downloading": an actively-downloading row is in-progress, not a
-# resumable leftover, and is reported as state="downloading" (see
-# :func:`_active_download_row`).
-_RESUMABLE_DOWNLOAD_STATES: frozenset[str] = frozenset({"pending", "failed"})
-
 # downloads.status values that indicate an in-flight transfer.
 _ACTIVE_DOWNLOAD_STATES: frozenset[str] = frozenset({"downloading"})
+
+# downloads.status values that carry a *resumable* partial: every incomplete
+# state that is not currently active. Derived from DownloadManager's single
+# source of truth (the set its resume path reuses) so the "what can resume"
+# definition cannot drift between the transport and health reporting — a row the
+# DownloadManager would resume is never reported here as unresumable. Excludes
+# "downloading": an actively-downloading row is in-progress, not a resumable
+# leftover, and is reported as state="downloading" (see
+# :func:`_active_download_row`); the startup sweep flips orphaned "downloading"
+# rows to "failed", moving them into this set.
+_RESUMABLE_DOWNLOAD_STATES: frozenset[str] = INCOMPLETE_DOWNLOAD_STATES - _ACTIVE_DOWNLOAD_STATES
 
 # build_modes whose artifact is fetched through :class:`DownloadManager` (which
 # tracks a ``downloads`` row + a checkpointed ``.tmp`` in downloads_dir, so the
@@ -419,7 +425,10 @@ def find_resumable_download(
     return {
         "download_id": row.id,
         "downloaded_bytes": on_disk,
-        "total_bytes": row.total_bytes,
+        # Fall back to the artifact's known size when the row never learned the
+        # real total (the original transfer died before the first response set
+        # it), so "% saved" is always computable instead of a blank percentage.
+        "total_bytes": row.total_bytes or db_info.expected_size_bytes or None,
     }
 
 
@@ -453,7 +462,13 @@ def _active_download_row(
         return None
     tmp_path = dl_dest.with_suffix(dl_dest.suffix + ".tmp")
     on_disk = tmp_path.stat().st_size if tmp_path.exists() else (row.downloaded_bytes or 0)
-    return {"download_id": row.id, "downloaded_bytes": on_disk, "total_bytes": row.total_bytes}
+    return {
+        "download_id": row.id,
+        "downloaded_bytes": on_disk,
+        # Same known-size fallback as find_resumable_download, so an active
+        # transfer whose total has not yet been learned still shows a percentage.
+        "total_bytes": row.total_bytes or db_info.expected_size_bytes or None,
+    }
 
 
 # ── Job correlation ──────────────────────────────────────────────────
