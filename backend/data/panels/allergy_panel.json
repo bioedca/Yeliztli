@@ -189,24 +189,24 @@
           "gene": "HLA-A",
           "variant_name": "HLA-A*31:01 proxy",
           "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
+          "risk_allele": "T",
+          "ref_allele": "A",
           "genotype_effects": {
-            "GG": {
-              "category": "Standard",
-              "effect_summary": "No HLA-A*31:01 proxy allele detected. Low risk of carbamazepine DRESS/maculopapular exanthema at this locus."
-            },
-            "GA": {
-              "category": "Elevated",
-              "effect_summary": "Carrier of HLA-A*31:01 proxy allele. Associated with increased risk of carbamazepine-induced DRESS syndrome and maculopapular exanthema across multiple ethnicities."
-            },
-            "AG": {
-              "category": "Elevated",
-              "effect_summary": "Carrier of HLA-A*31:01 proxy allele. Associated with increased risk of carbamazepine-induced DRESS syndrome and maculopapular exanthema across multiple ethnicities."
-            },
             "AA": {
+              "category": "Standard",
+              "effect_summary": "Homozygous for the common A allele — no HLA-A*31:01 proxy (T) allele detected (non-carrier). Low risk of carbamazepine DRESS/maculopapular exanthema at this locus."
+            },
+            "AT": {
               "category": "Elevated",
-              "effect_summary": "Homozygous HLA-A*31:01 proxy. High probability of HLA-A*31:01 carrier status. Carbamazepine should not be prescribed without confirmatory HLA typing."
+              "effect_summary": "Heterozygous carrier of the HLA-A*31:01 proxy allele (T). Associated with increased risk of carbamazepine-induced DRESS syndrome and maculopapular exanthema across multiple ethnicities. Confirmatory HLA-A*31:01 typing recommended before carbamazepine."
+            },
+            "TA": {
+              "category": "Elevated",
+              "effect_summary": "Heterozygous carrier of the HLA-A*31:01 proxy allele (T). Associated with increased risk of carbamazepine-induced DRESS syndrome and maculopapular exanthema across multiple ethnicities. Confirmatory HLA-A*31:01 typing recommended before carbamazepine."
+            },
+            "TT": {
+              "category": "Elevated",
+              "effect_summary": "Homozygous for the HLA-A*31:01 proxy allele (T). High probability of HLA-A*31:01 carrier status. Carbamazepine should not be prescribed without confirmatory HLA typing."
             }
           },
           "hla_proxy": {

@@ -208,7 +208,7 @@ ALL_ALLERGY_VARIANTS = [
     # Drug Hypersensitivity
     ("rs2395029", "6", 31431272, "TG"),  # HLA-B*57:01 proxy het
     ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 proxy het
-    ("rs1061235", "6", 29910670, "GA"),  # HLA-A*31:01 proxy het
+    ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 proxy het (A/T SNP, T=risk; #545)
     ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 proxy het
     # Food Sensitivity
     ("rs2187668", "6", 32605884, "CT"),  # HLA-DQ2 proxy het
@@ -820,6 +820,62 @@ class TestHistamineCombined:
         assert "AOC1" in hc.combined_text and "HNMT" not in hc.combined_text
 
 
+# ── HLA-A*31:01 proxy allele-direction regression (#545) ────────────────────
+
+
+class TestHLAA31ProxyAlleleDirection:
+    """#545: rs1061235 (HLA-A*31:01 / carbamazepine proxy) was encoded with the
+    risk allele inverted and a non-existent ``G`` allele (risk=A/ref=G, keyed
+    GG/GA/AG/AA), so the common homozygote was falsely flagged a carbamazepine
+    contraindication and true heterozygous carriers were silently dropped.
+
+    rs1061235 is an **A/T** SNP (Ensembl GRCh37 6:29913298; ancestral/common A,
+    minor T MAF 0.085). The **T** allele tags HLA-A*31:01 (Thorstensen 2014:
+    homozygous-A = non-carrier, carriers are heterozygous). Because A/T is
+    palindromic, array strand cannot be resolved for the homozygotes, so the
+    correct, safe behavior is: het carriers Elevated; both homozygotes withheld
+    as strand-Indeterminate (never a flipped call). The dangerous false-positive
+    is gone either way.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1061235")
+
+    def test_encoded_as_real_at_snp_with_correct_direction(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        assert snp.gene == "HLA-A"
+        # Real A/T alleles, T = HLA-A*31:01 tag (risk), A = common (ref). No G.
+        assert (snp.risk_allele, snp.ref_allele) == ("T", "A")
+        assert set(snp.genotype_effects) == {"AA", "AT", "TA", "TT"}
+        assert "G" not in "".join(snp.genotype_effects)
+
+    def test_common_homozygote_is_not_a_false_carbamazepine_flag(
+        self, panel: AllergyPanel
+    ) -> None:
+        """The common AA homozygote (~84% of people) must NOT be flagged Elevated
+        with a carbamazepine contraindication. As a palindromic A/T homozygote it
+        is withheld as strand-Indeterminate, not the old inverted Elevated."""
+        result = _score_snp(self._snp(panel), "AA")
+        assert result.category == INDETERMINATE
+        assert result.category != ELEVATED
+        assert "should not be prescribed" not in result.effect_summary.lower()
+        assert "palindromic" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true HLA-A*31:01 carrier is heterozygous (A/T); het is strand-
+        resolvable, so it is correctly flagged Elevated (was previously dropped)."""
+        for gt in ("AT", "TA"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == ELEVATED, gt
+            assert "carrier" in result.effect_summary.lower()
+
+    def test_variant_homozygote_withheld_as_indeterminate(self, panel: AllergyPanel) -> None:
+        """The rare TT homozygote is also a palindromic homozygote → withheld
+        (cannot distinguish plus-strand TT carrier from minus-strand AA)."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == INDETERMINATE
+
+
 # ── HLA proxy lookup tests ──────────────────────────────────────────────
 
 
@@ -976,7 +1032,7 @@ class TestCrossModuleFindings:
             sample_engine,
             [
                 ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → pgx
-                ("rs1061235", "6", 29910670, "GA"),  # HLA-A*31:01 → pgx
+                ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 het carrier → pgx (#545)
             ],
         )
         _seed_hla_proxies(reference_engine)
