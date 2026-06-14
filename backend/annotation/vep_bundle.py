@@ -104,54 +104,6 @@ def consequence_severity(consequence: str | None) -> int:
     return max(CONSEQUENCE_SEVERITY.get(t, 0) for t in terms)
 
 
-def most_severe_consequence(consequence: str | None) -> str | None:
-    """Extract the single most-severe SO term from a compound consequence.
-
-    VEP may annotate a variant with multiple consequences separated by
-    ``&`` (e.g. ``"missense_variant&splice_region_variant"``).  This
-    function returns the single term with the highest severity ranking.
-
-    Args:
-        consequence: A single SO term or ``&``-delimited compound term.
-
-    Returns:
-        The most-severe single SO term, or ``None`` if input is empty.
-    """
-    if not consequence:
-        return None
-    terms = consequence.split("&")
-    if len(terms) == 1:
-        return terms[0]
-    return max(terms, key=lambda t: CONSEQUENCE_SEVERITY.get(t, 0))
-
-
-def select_best_transcript(
-    annotations: list[VEPAnnotation],
-) -> VEPAnnotation | None:
-    """Select the best transcript annotation from a list.
-
-    Preference order:
-    1. MANE Select transcript (``mane_select=True``)
-    2. Most-severe consequence (highest ``CONSEQUENCE_SEVERITY`` rank)
-
-    This is the public API for the MANE Select + severity deduplication
-    logic used internally by :func:`lookup_vep_by_rsids`.
-
-    Args:
-        annotations: List of :class:`VEPAnnotation` objects for the same
-            variant (different transcripts).
-
-    Returns:
-        The single best annotation, or ``None`` if the list is empty.
-    """
-    if not annotations:
-        return None
-    return max(
-        annotations,
-        key=lambda a: (a.mane_select, consequence_severity(a.consequence)),
-    )
-
-
 # ── Data classes ──────────────────────────────────────────────────────────
 
 

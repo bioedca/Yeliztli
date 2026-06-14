@@ -279,12 +279,6 @@ def assess_ensemble(annot: DbNSFPRecord) -> tuple[int, int]:
     return sum(1 for a in assessed if a), len(assessed)
 
 
-def count_deleterious(annot: DbNSFPRecord) -> int:
-    """Number of independent in-silico axes voting deleterious (0–4, F24)."""
-    deleterious, _ = assess_ensemble(annot)
-    return deleterious
-
-
 #: Minimum independent axes that must be assessable before the ensemble flag can
 #: fire — a "majority" of a single axis is not corroborating evidence (F25).
 ENSEMBLE_MIN_AXES = 2
