@@ -2,11 +2,10 @@
 
 Covers:
   - Panel JSON loading and structural validation
-  - All 6 curated SNPs present with correct genes
-  - 4 pathway cards (Caffeine & Sleep, Chronotype & Circadian Rhythm,
-    Sleep Quality, Sleep Disorders)
+  - All 5 curated SNPs present with correct genes
+  - 3 pathway cards (Caffeine & Sleep, Sleep Quality, Sleep Disorders);
+    the PER3 chronotype_circadian pathway was removed (#615, dead VNTR marker)
   - CYP1A2 metabolizer status special calling (rapid/intermediate/slow)
-  - PER3 VNTR proxy with coverage note
   - rs2858884 HLA-DQ region marker (informational, not a DQB1*06:02 proxy)
   - Genotype effects categories are valid (Elevated/Moderate/Standard)
   - Evidence levels within expected range
@@ -35,20 +34,21 @@ VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 EXPECTED_RSIDS = {
     "rs762551",  # CYP1A2 caffeine metabolism marker
     "rs5751876",  # ADORA2A
-    "rs57875989",  # PER3 VNTR proxy
     "rs2300478",  # MEIS1
     "rs9357271",  # BTBD9
     "rs2858884",  # HLA-DQ region marker (not a DQB1*06:02 proxy)
 }
 
+# The PER3 chronotype_circadian pathway was removed (#615): its sole marker
+# rs57875989 IS the PER3 54-bp VNTR (deprecated/unplaced, not array-typeable) and
+# no validated array-typeable tag SNP for the VNTR exists, so it could never fire.
 EXPECTED_PATHWAYS = {
     "caffeine_sleep",
-    "chronotype_circadian",
     "sleep_quality",
     "sleep_disorders",
 }
 
-EXPECTED_GENES = {"CYP1A2", "ADORA2A", "PER3", "MEIS1", "BTBD9", "HLA-DQB1"}
+EXPECTED_GENES = {"CYP1A2", "ADORA2A", "MEIS1", "BTBD9", "HLA-DQB1"}
 
 
 @pytest.fixture()
@@ -78,8 +78,9 @@ class TestPanelStructure:
         assert "description" in panel_data
         assert len(panel_data["description"]) > 0
 
-    def test_panel_has_four_pathways(self, panel_data: dict) -> None:
-        assert len(panel_data["pathways"]) == 4
+    def test_panel_has_three_pathways(self, panel_data: dict) -> None:
+        # chronotype_circadian removed (#615) — see EXPECTED_PATHWAYS note.
+        assert len(panel_data["pathways"]) == 3
 
     def test_pathway_ids(self, panel_data: dict) -> None:
         pathway_ids = {p["id"] for p in panel_data["pathways"]}
@@ -88,7 +89,6 @@ class TestPanelStructure:
     def test_pathway_names(self, panel_data: dict) -> None:
         pathway_names = {p["name"] for p in panel_data["pathways"]}
         assert "Caffeine & Sleep" in pathway_names
-        assert "Chronotype & Circadian Rhythm" in pathway_names
         assert "Sleep Quality" in pathway_names
         assert "Sleep Disorders" in pathway_names
 
@@ -98,7 +98,7 @@ class TestPanelStructure:
 
 class TestSNPCoverage:
     def test_all_expected_rsids_present(self, panel_data: dict) -> None:
-        """All 6 curated SNPs from the PRD must be present."""
+        """All 5 curated SNPs must be present."""
         all_rsids = set()
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
@@ -113,9 +113,9 @@ class TestSNPCoverage:
         assert all_genes == EXPECTED_GENES
 
     def test_total_snp_count(self, panel_data: dict) -> None:
-        """6 curated SNPs total across all pathways."""
+        """5 curated SNPs total across all pathways (PER3 rs57875989 removed, #615)."""
         count = sum(len(p["snps"]) for p in panel_data["pathways"])
-        assert count == 6
+        assert count == 5
 
 
 # ── SNP field validation tests ──────────────────────────────────────────
@@ -316,87 +316,6 @@ class TestCYP1A2Metabolizer:
         assert set(sc["states"]["intermediate"]["genotypes"]) == {"AC", "CA"}
 
 
-# ── PER3 VNTR proxy tests ───────────────────────────────────────────────
-
-
-class TestPER3Proxy:
-    """Validate PER3 VNTR proxy metadata in panel."""
-
-    def _get_per3(self, panel_data: dict) -> dict:
-        for pathway in panel_data["pathways"]:
-            for snp in pathway["snps"]:
-                if snp["rsid"] == "rs57875989":
-                    return snp
-        pytest.fail("PER3 rs57875989 not found in panel")
-
-    def test_per3_has_coverage_note(self, panel_data: dict) -> None:
-        per3 = self._get_per3(panel_data)
-        assert "coverage_note" in per3
-        assert "proxy" in per3["coverage_note"].lower()
-        assert "vntr" in per3["coverage_note"].lower()
-
-    def test_per3_gg_standard_morningness(self, panel_data: dict) -> None:
-        """GG (5-repeat proxy) → Standard category (morningness)."""
-        per3 = self._get_per3(panel_data)
-        effect = per3["genotype_effects"]["GG"]
-        assert effect["category"] == "Standard"
-        assert "morningness" in effect["effect_summary"].lower()
-
-    def test_per3_aa_elevated_eveningness(self, panel_data: dict) -> None:
-        """AA (4-repeat proxy) → Elevated category (eveningness)."""
-        per3 = self._get_per3(panel_data)
-        effect = per3["genotype_effects"]["AA"]
-        assert effect["category"] == "Elevated"
-        assert "eveningness" in effect["effect_summary"].lower()
-
-    def test_per3_in_special_calling(self, panel_data: dict) -> None:
-        assert "PER3_VNTR_proxy" in panel_data["special_calling"]
-        sc = panel_data["special_calling"]["PER3_VNTR_proxy"]
-        assert sc["rsid"] == "rs57875989"
-        assert "proxy_accuracy_note" in sc
-
-    def test_per3_evidence_level(self, panel_data: dict) -> None:
-        per3 = self._get_per3(panel_data)
-        assert per3["evidence_level"] == 1  # VNTR proxy, less replicated
-
-    # ── Citation provenance (issue #188) ────────────────────────────────
-    # The PER3 row previously cited three unrelated papers: 17343727
-    # (array-CGH cancer methods), 23430975 (Duchenne muscular dystrophy
-    # arginine-butyrate), and 19289833 (HIV gp41/CCR5 resistance). Pin the
-    # row to verified PER3 VNTR / rs57875989 circadian references so those
-    # off-topic PMIDs cannot silently reappear.
-    _PER3_PMIDS = {
-        "22324552",  # Lazar 2012 — PER3 VNTR rs57875989 diurnal preference / sleep timing
-        "29248294",  # Archer 2018, Sleep Med Rev — PER3 variant circadian/sleep phenotyping
-    }
-    _BANNED_PMIDS = {"17343727", "23430975", "19289833"}
-
-    def test_per3_cites_verified_circadian_refs(self, panel_data: dict) -> None:
-        per3 = self._get_per3(panel_data)
-        assert set(per3["pmids"]) == self._PER3_PMIDS
-
-    def test_per3_drops_unrelated_pmids(self, panel_data: dict) -> None:
-        per3 = self._get_per3(panel_data)
-        leaked = self._BANNED_PMIDS & set(per3["pmids"])
-        assert not leaked, f"PER3 still cites unrelated PMID(s) {sorted(leaked)}"
-
-    def test_unrelated_pmids_absent_from_whole_sleep_panel(self, panel_data: dict) -> None:
-        # All three banned PMIDs were exclusive to the PER3 row, so none should
-        # appear anywhere in the sleep panel after the fix.
-        def _all_pmids(obj: object):
-            if isinstance(obj, dict):
-                if isinstance(obj.get("pmids"), list):
-                    yield from obj["pmids"]
-                for value in obj.values():
-                    yield from _all_pmids(value)
-            elif isinstance(obj, list):
-                for item in obj:
-                    yield from _all_pmids(item)
-
-        leaked = self._BANNED_PMIDS & set(_all_pmids(panel_data))
-        assert not leaked, f"unrelated PMID(s) still in sleep panel: {sorted(leaked)}"
-
-
 # ── ADORA2A tests ────────────────────────────────────────────────────────
 
 
@@ -585,11 +504,6 @@ class TestPathwayAllocation:
         rsids = {s["rsid"] for s in pw["snps"]}
         assert "rs762551" in rsids  # CYP1A2
         assert "rs5751876" in rsids  # ADORA2A
-
-    def test_chronotype_circadian_snps(self, panel_data: dict) -> None:
-        pw = self._get_pathway(panel_data, "chronotype_circadian")
-        rsids = {s["rsid"] for s in pw["snps"]}
-        assert "rs57875989" in rsids  # PER3
 
     def test_sleep_quality_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "sleep_quality")

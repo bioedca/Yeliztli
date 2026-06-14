@@ -109,7 +109,6 @@ _GENE_TOPIC_LOCKED: frozenset[str] = frozenset(
         "skin_panel.json::rs885479",  # MC1R
         "sleep_panel.json::rs2858884",  # HLA-DQB1
         "sleep_panel.json::rs5751876",  # ADORA2A
-        "sleep_panel.json::rs57875989",  # PER3
         "sleep_panel.json::rs762551",  # CYP1A2
         "sleep_panel.json::rs9357271",  # BTBD9
         "traits_panel.json::rs747302",  # DRD4

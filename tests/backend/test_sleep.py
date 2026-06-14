@@ -4,7 +4,6 @@ Covers:
   - Panel loading and dataclass construction
   - CYP1A2 caffeine metabolizer calling (rapid/intermediate/slow)
   - rs2858884 HLA-DQ region marker (informational, not a DQB1*06:02 proxy)
-  - PER3 VNTR proxy with coverage note
   - Genotype normalization
   - SNP scoring with evidence-level gating
   - Pathway level determination (highest category)
@@ -130,23 +129,23 @@ class TestPanelLoading:
         assert panel.module == "sleep"
         assert panel.version == "1.0.0"
 
-    def test_panel_has_four_pathways(self, panel: SleepPanel) -> None:
-        assert len(panel.pathways) == 4
+    def test_panel_has_three_pathways(self, panel: SleepPanel) -> None:
+        # chronotype_circadian removed (#615): its sole marker rs57875989 is the
+        # PER3 54-bp VNTR (deprecated/unplaced, not array-typeable), no proxy exists.
+        assert len(panel.pathways) == 3
         pathway_ids = {p.id for p in panel.pathways}
         assert pathway_ids == {
             "caffeine_sleep",
-            "chronotype_circadian",
             "sleep_quality",
             "sleep_disorders",
         }
 
     def test_panel_all_rsids(self, panel: SleepPanel) -> None:
         rsids = panel.all_rsids()
-        assert len(rsids) == 6
+        assert len(rsids) == 5
         expected = {
             "rs762551",
             "rs5751876",
-            "rs57875989",
             "rs2300478",
             "rs9357271",
             "rs2858884",
@@ -169,8 +168,9 @@ class TestPanelLoading:
     def test_panel_has_special_calling(self, panel: SleepPanel) -> None:
         assert panel.special_calling is not None
         assert "CYP1A2_metabolizer" in panel.special_calling
-        assert "PER3_VNTR_proxy" in panel.special_calling
         assert "HLA_DQ_region_marker" in panel.special_calling
+        # PER3_VNTR_proxy removed (#615): the marker was the dead PER3 VNTR.
+        assert "PER3_VNTR_proxy" not in panel.special_calling
 
     def test_load_nonexistent_panel_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -324,36 +324,6 @@ class TestHLAProxy:
         hla = self._get_hla(panel)
         result = _score_snp(hla, "TT", panel)
         assert result.metabolizer_state is None
-
-
-# ── PER3 VNTR proxy tests ────────────────────────────────────────────────
-
-
-class TestPER3Proxy:
-    def _get_per3(self, panel: SleepPanel) -> PanelSNP:
-        for pw in panel.pathways:
-            for snp in pw.snps:
-                if snp.rsid == "rs57875989":
-                    return snp
-        pytest.fail("PER3 not found")
-
-    def test_per3_has_coverage_note(self, panel: SleepPanel) -> None:
-        per3 = self._get_per3(panel)
-        assert per3.coverage_note is not None
-        assert "proxy" in per3.coverage_note.lower()
-        assert "vntr" in per3.coverage_note.lower()
-
-    def test_per3_aa_capped_moderate(self, panel: SleepPanel) -> None:
-        """AA (4-repeat proxy, eveningness) → Moderate (capped from Elevated, evidence=1)."""
-        per3 = self._get_per3(panel)
-        assert per3.evidence_level == 1
-        result = _score_snp(per3, "AA", panel)
-        assert result.category == MODERATE  # Capped from Elevated
-
-    def test_per3_gg_standard(self, panel: SleepPanel) -> None:
-        per3 = self._get_per3(panel)
-        result = _score_snp(per3, "GG", panel)
-        assert result.category == STANDARD
 
 
 # ── SNP scoring tests ────────────────────────────────────────────────────
@@ -545,13 +515,12 @@ class TestScorePathways:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Score pathways with all 6 panel SNPs genotyped."""
+        """Score pathways with all 5 panel SNPs genotyped."""
         _seed_variants(
             sample_engine,
             [
                 ("rs762551", "15", 75041917, "CC"),  # CYP1A2 slow metabolizer
                 ("rs5751876", "22", 24825044, "TT"),  # ADORA2A increased sensitivity
-                ("rs57875989", "1", 7845023, "AA"),  # PER3 eveningness proxy
                 ("rs2300478", "2", 66662600, "GG"),  # MEIS1 RLS risk
                 ("rs9357271", "6", 38165204, "TT"),  # BTBD9 PLMS risk
                 ("rs2858884", "6", 32632760, "TT"),  # HLA-DQ marker (informational)
@@ -571,13 +540,6 @@ class TestScorePathways:
         #   → pathway = Elevated
         caffeine = next(pr for pr in result.pathway_results if pr.pathway_id == "caffeine_sleep")
         assert caffeine.level == ELEVATED
-
-        # Chronotype: PER3 AA=Moderate (capped from Elevated, star1)
-        #   → pathway = Moderate
-        chrono = next(
-            pr for pr in result.pathway_results if pr.pathway_id == "chronotype_circadian"
-        )
-        assert chrono.level == MODERATE
 
         # Sleep Quality: MEIS1 GG=Elevated (star2), BTBD9 TT=Moderate (capped, star1)
         #   → pathway = Elevated
@@ -646,23 +608,6 @@ class TestScorePathways:
             assert len(pr.called_snps) == 0
             assert len(pr.missing_snps) > 0
 
-    def test_per3_proxy_coverage_note_preserved(
-        self,
-        panel: SleepPanel,
-        sample_engine: sa.Engine,
-        reference_engine: sa.Engine,
-    ) -> None:
-        """PER3 coverage note survives through scoring pipeline."""
-        _seed_variants(sample_engine, [("rs57875989", "1", 7845023, "GA")])
-        result = score_sleep_pathways(panel, sample_engine, reference_engine)
-
-        chrono = next(
-            pr for pr in result.pathway_results if pr.pathway_id == "chronotype_circadian"
-        )
-        per3 = next(s for s in chrono.called_snps if s.rsid == "rs57875989")
-        assert per3.coverage_note is not None
-        assert "vntr" in per3.coverage_note.lower()
-
 
 # ── Findings storage tests ─────────────────────────────────────────────
 
@@ -695,9 +640,10 @@ class TestStoreFindingsIntegration:
 
         assert len(rows) == count
 
-        # Check pathway summary findings exist (always 4)
+        # Check pathway summary findings exist (always 3 since #615 removed the
+        # dead PER3 chronotype pathway)
         pathway_summaries = [r for r in rows if r.category == "pathway_summary"]
-        assert len(pathway_summaries) == 4
+        assert len(pathway_summaries) == 3
 
     def test_metabolizer_state_finding_stored(
         self,
@@ -827,7 +773,7 @@ class TestStoreFindingsIntegration:
             ).fetchall()
 
         assert len(snp_findings) == 0
-        assert count == 4  # 4 pathway summaries, all Standard
+        assert count == 3  # 3 pathway summaries, all Standard (#615)
 
     def test_14_trait_findings_max(
         self,
@@ -841,7 +787,6 @@ class TestStoreFindingsIntegration:
             [
                 ("rs762551", "15", 75041917, "CC"),  # CYP1A2 slow → Elevated
                 ("rs5751876", "22", 24825044, "TT"),  # ADORA2A → Moderate (capped)
-                ("rs57875989", "1", 7845023, "AA"),  # PER3 → Moderate (capped)
                 ("rs2300478", "2", 66662600, "GG"),  # MEIS1 → Elevated
                 ("rs9357271", "6", 38165204, "TT"),  # BTBD9 → Moderate (capped)
                 ("rs2858884", "6", 32632760, "TT"),  # HLA-DQ marker → Standard (informational)
@@ -851,10 +796,10 @@ class TestStoreFindingsIntegration:
         result = score_sleep_pathways(panel, sample_engine, reference_engine)
         count = store_sleep_findings(result, sample_engine)
 
-        # 4 pathway summaries + up to 6 SNP findings + 1 metabolizer
+        # 3 pathway summaries + up to 5 SNP findings + 1 metabolizer
         # + 1 cross-module ≤ 14
         assert count <= 14
-        assert count >= 4  # At minimum, 4 pathway summaries
+        assert count >= 3  # At minimum, 3 pathway summaries (#615)
 
     def test_findings_include_pmids(
         self,

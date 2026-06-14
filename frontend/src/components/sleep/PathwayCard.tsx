@@ -20,8 +20,6 @@ interface PathwayCardProps {
 const PATHWAY_DESCRIPTIONS: Record<string, string> = {
   caffeine_sleep:
     "Caffeine metabolism rate, sensitivity to sleep disruption, and optimal intake timing.",
-  chronotype_circadian:
-    "Morning/evening preference, circadian clock gene variants, and sleep-wake cycle timing.",
   sleep_quality:
     "Sleep depth, duration needs, and restorative sleep efficiency.",
   sleep_disorders:

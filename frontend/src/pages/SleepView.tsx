@@ -22,7 +22,6 @@ import { useSleepPathways } from "@/api/sleep"
 import type { CrossModuleItem, MetabolizerState } from "@/types/sleep"
 import PathwayCard from "@/components/sleep/PathwayCard"
 import PathwayDetailPanel from "@/components/sleep/PathwayDetailPanel"
-import ChronotypeDial from "@/components/sleep/ChronotypeDial"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
 const METABOLIZER_LABELS: Record<string, { label: string; color: string; description: string }> = {
@@ -63,11 +62,6 @@ export default function SleepView() {
       </div>
     )
   }
-
-  // Find the chronotype pathway for the dial
-  const chronotypePathway = pathwaysQuery.data?.items.find(
-    (p) => p.pathway_id === "chronotype_circadian",
-  )
 
   // Find the sleep disorders pathway for the risk card
   const disordersPathway = pathwaysQuery.data?.items.find(
@@ -112,21 +106,12 @@ export default function SleepView() {
         <>
           {pathwaysQuery.data && pathwaysQuery.data.items.length > 0 && (
             <>
-              {/* Chronotype dial + CYP1A2 metabolizer card */}
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" aria-label="Sleep highlights">
-                {/* Chronotype dial */}
-                {chronotypePathway && (
-                  <ChronotypeDial
-                    level={chronotypePathway.level}
-                    calledSnps={chronotypePathway.called_snps}
-                  />
-                )}
-
-                {/* CYP1A2 metabolizer card */}
-                {pathwaysQuery.data.metabolizer && (
+              {/* CYP1A2 metabolizer card */}
+              {pathwaysQuery.data.metabolizer && (
+                <section className="mb-6 md:max-w-md" aria-label="Sleep highlights">
                   <MetabolizerCard metabolizer={pathwaysQuery.data.metabolizer} />
-                )}
-              </section>
+                </section>
+              )}
 
               {/* Sleep disorders risk card */}
               {disordersPathway && disordersPathway.level !== "Standard" && (

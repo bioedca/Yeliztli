@@ -18,7 +18,7 @@
     "nutrigenomics:pathway_summary": 7,
     "rare_variants:clinvar_pathogenic": 2,
     "skin:pathway_summary": 4,
-    "sleep:pathway_summary": 4,
+    "sleep:pathway_summary": 3,
     "traits:pathway_summary": 2
   }
 }

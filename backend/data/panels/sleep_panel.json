@@ -1,7 +1,7 @@
 {
   "module": "sleep",
   "version": "1.0.0",
-  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 4 sleep pathways (Caffeine & Sleep, Chronotype & Circadian Rhythm, Sleep Quality, Sleep Disorders) with 6 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations. CYP1A2 rs762551 has cross-module reference to Pharmacogenomics. PER3 rs57875989 is a VNTR proxy with coverage caveat. rs2858884 is retained as a non-diagnostic HLA-DQ region marker only — it is NOT a validated HLA-DQB1*06:02 / narcolepsy-risk proxy and no narcolepsy risk is inferred from it.",
+  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 3 sleep pathways (Caffeine & Sleep, Sleep Quality, Sleep Disorders) with 5 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations (chronotype/morningness still surface via the GWAS terms). CYP1A2 rs762551 has cross-module reference to Pharmacogenomics. The PER3 chronotype pathway was removed (#615): its sole marker rs57875989 IS the PER3 54-bp VNTR itself — a deprecated/unplaced dbSNP record not genotyped on any SNP array — and no validated array-typeable tag SNP for the VNTR exists, so the pathway could never fire. rs2858884 is retained as a non-diagnostic HLA-DQ region marker only — it is NOT a validated HLA-DQB1*06:02 / narcolepsy-risk proxy and no narcolepsy risk is inferred from it.",
   "pathways": [
     {
       "id": "caffeine_sleep",
@@ -70,43 +70,6 @@
           "evidence_level": 1,
           "pmids": ["17329997", "18305461", "31817803"],
           "recommendation_text": "ADORA2A encodes the adenosine A2A receptor — the primary target of caffeine. TT carriers may be more sensitive to caffeine's anxiogenic and sleep-disrupting effects. Consider reducing total caffeine intake, not just timing."
-        }
-      ]
-    },
-    {
-      "id": "chronotype_circadian",
-      "name": "Chronotype & Circadian Rhythm",
-      "description": "Variants influencing intrinsic circadian clock period length and chronotype preference (morningness vs. eveningness).",
-      "snps": [
-        {
-          "rsid": "rs57875989",
-          "gene": "PER3",
-          "variant_name": "VNTR proxy",
-          "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
-          "genotype_effects": {
-            "GG": {
-              "category": "Standard",
-              "effect_summary": "Proxy for PER3 5-repeat VNTR allele. Associated with morningness — earlier sleep onset and wake times. Standard circadian alignment."
-            },
-            "GA": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous PER3 VNTR proxy. Intermediate chronotype. No strong bias toward morningness or eveningness."
-            },
-            "AG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous PER3 VNTR proxy. Intermediate chronotype. No strong bias toward morningness or eveningness."
-            },
-            "AA": {
-              "category": "Elevated",
-              "effect_summary": "Proxy for PER3 4-repeat VNTR allele. Associated with eveningness — later preferred sleep and wake times. May experience delayed sleep phase tendency."
-            }
-          },
-          "coverage_note": "rs57875989 is a proxy SNP for the PER3 54-bp variable number tandem repeat (VNTR) polymorphism (4-repeat vs. 5-repeat), which is not directly genotyped on SNP arrays. Proxy accuracy depends on linkage disequilibrium in the individual's ancestry population.",
-          "evidence_level": 1,
-          "pmids": ["22324552", "29248294"],
-          "recommendation_text": "PER3 VNTR influences circadian period length. Individuals with the 4-repeat allele (eveningness) may benefit from consistent sleep schedules and morning light exposure to maintain circadian alignment."
         }
       ]
     },
@@ -246,12 +209,6 @@
       "rsid": "rs2858884",
       "proxy_target": null,
       "proxy_accuracy_note": "rs2858884 is not a valid proxy for HLA-DQB1*06:02. The defining narcolepsy GWAS (Hor et al. 2010, PMID 20711174) matched cases and controls on HLA-DRB1*15:01-DQB1*06:02, so this SNP cannot tag DQB1*06:02 carriage; its associated HLA-region signal is protective and conditional on DQB1*06:02 status. No narcolepsy risk is inferred from this marker; direct HLA-DQB1*06:02 typing (PMID 24381371) is required for narcolepsy genetic risk assessment."
-    },
-    "PER3_VNTR_proxy": {
-      "description": "PER3 variable number tandem repeat (54-bp VNTR, 4-repeat vs. 5-repeat) is not directly genotyped on SNP arrays. rs57875989 is used as a proxy SNP in linkage disequilibrium with the VNTR.",
-      "rsid": "rs57875989",
-      "proxy_target": "PER3 54-bp VNTR (4-repeat vs. 5-repeat in exon 18)",
-      "proxy_accuracy_note": "Linkage disequilibrium between rs57875989 and PER3 VNTR varies by ancestry. Proxy accuracy is highest in European populations and may be lower in other populations. Results should be interpreted with this caveat."
     }
   },
   "gwas_efo_terms": [
