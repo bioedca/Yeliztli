@@ -98,7 +98,6 @@ class PreCheckResult:
     """Result of comparing updated reference data against a sample."""
 
     sample_id: int
-    sample_name: str
     db_name: str
     candidate_count: int
     reclassified_variants: list[dict] = field(default_factory=list)
@@ -116,7 +115,6 @@ class UpdateResult:
     variants_reclassified: int = 0
     download_size_bytes: int = 0
     duration_seconds: int = 0
-    pre_check_results: list[PreCheckResult] = field(default_factory=list)
 
 
 # ── Bandwidth window ─────────────────────────────────────────────────
@@ -1191,7 +1189,6 @@ def run_clinvar_update(
         variants_reclassified=variants_reclassified,
         download_size_bytes=download_size,
         duration_seconds=duration,
-        pre_check_results=pre_check_results,
     )
 
 
@@ -1203,7 +1200,6 @@ def run_precheck_single_sample(
     reference_engine: Engine,
     *,
     sample_id: int,
-    sample_name: str,
     db_name: str,
     old_significances: dict[str, str | None] | None = None,
     new_significances: dict[str, str | None] | None = None,
@@ -1216,7 +1212,6 @@ def run_precheck_single_sample(
     """
     result = PreCheckResult(
         sample_id=sample_id,
-        sample_name=sample_name,
         db_name=db_name,
         candidate_count=0,
     )
@@ -1226,7 +1221,6 @@ def run_precheck_single_sample(
             sample_engine,
             reference_engine,
             sample_id=sample_id,
-            sample_name=sample_name,
             old_significances=old_significances,
             new_significances=new_significances,
         )
@@ -1239,14 +1233,12 @@ def _precheck_clinvar(
     reference_engine: Engine,
     *,
     sample_id: int,
-    sample_name: str,
     old_significances: dict[str, str | None] | None = None,
     new_significances: dict[str, str | None] | None = None,
 ) -> PreCheckResult:
     """ClinVar-specific pre-check: detect significance changes."""
     result = PreCheckResult(
         sample_id=sample_id,
-        sample_name=sample_name,
         db_name="clinvar",
         candidate_count=0,
     )
@@ -1397,7 +1389,6 @@ def run_precheck_all_samples(
                 sample_engine,
                 engine,
                 sample_id=sample_row.id,
-                sample_name=sample_row.name,
                 db_name=db_name,
                 old_significances=old_significances,
                 new_significances=new_significances,
