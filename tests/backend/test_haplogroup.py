@@ -31,6 +31,7 @@ from backend.analysis.ancestry import (
     HaplogroupTraversalStep,
     _classify_node_match,
     _collect_rsids,
+    _haplogroup_confidence,
     _parse_tree_node,
     _tree_walk,
     assign_haplogroups,
@@ -637,15 +638,27 @@ class TestAssignHaplogroups:
     def test_confidence_calculation(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
     ) -> None:
-        """T3-33: Confidence equals defining_snps_present / defining_snps_total."""
+        """T3-33: confidence = defining_snps_present / defining_snps_total, pinned
+        to INDEPENDENTLY-derived literals (#640).
+
+        The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
+        HV → H → H1 → H1a, with 3 + 5 + 2 + 1 + 1 + 2 + 1 + 2 = 17 defining SNPs,
+        all 17 derived in the fixture — so the expected present/total/confidence
+        are knowable offline (17 / 17 → 1.0). Asserting those literals, rather
+        than recomputing from the result's own ``defining_snps_present`` /
+        ``defining_snps_total`` (the old self-derivation tautology), means a
+        present/total miscount (e.g. an #498-class tree-walk counting a
+        conflicting/ancestral marker as derived) or a changed confidence formula
+        now fails here instead of shipping green. The formula itself is pinned
+        against a non-trivial ratio in :class:`TestHaplogroupConfidence`."""
         _seed_mt_h1a(sample_engine)
         results = assign_haplogroups(bundle, sample_engine)
 
         mt = results[0]
-        expected_confidence = mt.defining_snps_present / mt.defining_snps_total
-        assert mt.confidence == round(expected_confidence, 4)
-        assert mt.defining_snps_present > 0
-        assert mt.defining_snps_total > 0
+        assert mt.haplogroup == "H1a"
+        assert mt.defining_snps_present == 17
+        assert mt.defining_snps_total == 17
+        assert mt.confidence == 1.0
 
     def test_traversal_path_populated(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
@@ -669,6 +682,37 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.haplogroup == "mt-MRCA"
         assert len(mt.traversal_path) == 0
+
+
+# ── Confidence formula unit tests (#640) ─────────────────────────────────
+
+
+class TestHaplogroupConfidence:
+    """Pin the ``_haplogroup_confidence`` formula to literals (#640).
+
+    The integration fixture happens to be a full match (17 / 17 → 1.0), a ratio
+    too trivial to distinguish ``present / total`` from alternatives on its own.
+    These cases pin the formula against a NON-trivial ratio (16 / 17) and the
+    zero-denominator guard, so a Jaccard-style rewrite — ``present / (total +
+    present)`` — or any other formula change fails here. Shared by both the mt
+    and Y tree-walks, so this is the single place the arithmetic is locked.
+    """
+
+    def test_partial_path_ratio_is_present_over_total(self) -> None:
+        # 16 / 17 = 0.94117… → 0.9412 rounded. A Jaccard present/(total+present)
+        # would be 16 / 33 = 0.4848, and present/(total) inverted (total/present)
+        # would be 17 / 16 = 1.0625 — neither rounds to 0.9412.
+        assert round(_haplogroup_confidence(16, 17), 4) == 0.9412
+
+    def test_full_match_is_one(self) -> None:
+        assert _haplogroup_confidence(17, 17) == 1.0
+
+    def test_half_match(self) -> None:
+        assert _haplogroup_confidence(1, 2) == 0.5
+
+    def test_zero_total_guards_division(self) -> None:
+        # Root / empty path: no defining SNP evaluated → 0.0, not ZeroDivisionError.
+        assert _haplogroup_confidence(0, 0) == 0.0
 
 
 # ── Findings storage tests ──────────────────────────────────────────────
