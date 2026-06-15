@@ -320,7 +320,7 @@ def _format_discordance_note(rsid: str, calls: list[dict[str, Any]], affects_e4:
     lead = (
         "This directly changes ε4 status — "
         if affects_e4
-        else "This does not change ε4 status, but "
+        else "This does not change ε4 status, but you should still "
     )
     return (
         f"Your source files disagree at {rsid} (APOE): {'; '.join(parts)}. {lead}"

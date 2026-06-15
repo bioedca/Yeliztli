@@ -1348,7 +1348,7 @@ class TestSourceDiscordanceNotes:
         result = determine_apoe_genotype(sample_engine)
         generated = generate_apoe_findings(result)
 
-        assert generated  # all three findings
+        assert len(generated) == 3
         for finding in generated:
             discrepancies = finding.detail_json["source_discrepancies"]
             assert len(discrepancies) == 1
