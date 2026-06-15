@@ -8,11 +8,12 @@
 
 import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Activity, FlaskConical } from "lucide-react"
+import { Activity, FlaskConical, Loader2 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import SectionError from "@/components/ui/SectionError"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
 import { useMetabolicAnchors, useMetabolicPRS, useRunMetabolic } from "@/api/metabolic"
@@ -72,8 +73,12 @@ export default function MetabolicView() {
     )
   }
 
-  const isLoading = run.isPending || prsQuery.isLoading || anchorsQuery.isLoading
-  const hasError = run.isError || prsQuery.isError || anchorsQuery.isError
+  // Gate the page on the PRIMARY work (run + the core T2D/BMI PRS scores) only.
+  // The anchor-SNP query is a secondary, optional feature that degrades to a
+  // localized inline error/spinner in its own section, so an anchors 500 no
+  // longer blanks the successfully-computed PRS results (#642).
+  const isLoading = run.isPending || prsQuery.isLoading
+  const hasError = run.isError || prsQuery.isError
 
   return (
     <div className="p-6">
@@ -128,17 +133,37 @@ export default function MetabolicView() {
             )}
           </section>
 
-          {anchorsQuery.data && anchorsQuery.data.items.length > 0 && (
+          {/* Established anchor SNPs — secondary section: render its own
+              error/spinner so an anchors failure or slow load never hides the
+              PRS results above (#642). Hidden entirely only when it resolved
+              with no items. */}
+          {(anchorsQuery.isError ||
+            anchorsQuery.isLoading ||
+            (anchorsQuery.data && anchorsQuery.data.items.length > 0)) && (
             <section aria-label="Established anchor SNPs" className="mt-8">
               <h2 className="text-lg font-semibold mb-1">Established variants</h2>
               <p className="text-sm text-muted-foreground mb-4">
                 Directly-typed, large-effect common variants — interpretable on their own.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {anchorsQuery.data.items.map((a) => (
-                  <AnchorCard key={a.rsid} anchor={a} />
-                ))}
-              </div>
+              {anchorsQuery.isError ? (
+                <SectionError
+                  label="established anchor SNPs"
+                  message={
+                    anchorsQuery.error instanceof Error ? anchorsQuery.error.message : undefined
+                  }
+                  onRetry={() => anchorsQuery.refetch()}
+                />
+              ) : anchorsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {anchorsQuery.data?.items.map((a) => (
+                    <AnchorCard key={a.rsid} anchor={a} />
+                  ))}
+                </div>
+              )}
             </section>
           )}
 

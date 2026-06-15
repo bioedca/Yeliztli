@@ -31,6 +31,7 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import SectionError from "@/components/ui/SectionError"
 
 /** Map target module to route path for cross-module links. */
 const MODULE_ROUTES: Record<string, string> = {
@@ -130,8 +131,12 @@ export default function TraitsPersonalityView() {
     )
   }
 
-  const isLoading = pathwaysQuery.isLoading || prsQuery.isLoading
-  const isError = pathwaysQuery.isError || prsQuery.isError
+  // Gate the page on the PRIMARY query (pathways) only. The PRS query is a
+  // secondary "Research Use Only" feature that degrades to a localized inline
+  // error/spinner in its own section, so a PRS 500 no longer blanks the
+  // successfully-computed pathway results (#642).
+  const isLoading = pathwaysQuery.isLoading
+  const isError = pathwaysQuery.isError
 
   return (
     <div className="p-6">
@@ -187,27 +192,45 @@ export default function TraitsPersonalityView() {
         <PageLoading message="Loading traits data..." />
       )}
 
-      {/* Error state */}
+      {/* Error state — only when the PRIMARY pathways query fails. */}
       {isError && !isLoading && (
         <PageError
-          message={pathwaysQuery.error instanceof Error ? pathwaysQuery.error.message : prsQuery.error instanceof Error ? prsQuery.error.message : "An unexpected error occurred."}
-          onRetry={() => { pathwaysQuery.refetch(); prsQuery.refetch(); }}
+          message={pathwaysQuery.error instanceof Error ? pathwaysQuery.error.message : "An unexpected error occurred."}
+          onRetry={() => pathwaysQuery.refetch()}
         />
       )}
 
       {/* Main content */}
       {!isLoading && !isError && (
         <>
-          {/* PRS gauge charts */}
-          {prsQuery.data && prsQuery.data.items.length > 0 && (
+          {/* PRS gauge charts — secondary section: render its own error/spinner
+              so a PRS failure or slow load never hides the pathway results
+              below (#642). Hidden entirely only when it resolved with no items. */}
+          {(prsQuery.isError ||
+            prsQuery.isLoading ||
+            (prsQuery.data && prsQuery.data.items.length > 0)) && (
             <section className="mb-6" aria-label="Polygenic risk scores">
               <h2 className="text-lg font-semibold mb-3">Polygenic Risk Scores</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {prsQuery.data.items.map((prs) => (
-                  <TraitsPRSGaugeCard key={prs.trait} prs={prs} />
-                ))}
-              </div>
-              <TraitArchitectureCard />
+              {prsQuery.isError ? (
+                <SectionError
+                  label="polygenic risk scores"
+                  message={prsQuery.error instanceof Error ? prsQuery.error.message : undefined}
+                  onRetry={() => prsQuery.refetch()}
+                />
+              ) : prsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {prsQuery.data?.items.map((prs) => (
+                      <TraitsPRSGaugeCard key={prs.trait} prs={prs} />
+                    ))}
+                  </div>
+                  <TraitArchitectureCard />
+                </>
+              )}
             </section>
           )}
 
