@@ -168,17 +168,19 @@ _R1B1A_GENOTYPES = [
 # blocking that branch, so the man resolves into his real CT clade. Routes
 # Y-Adam → CT → C → C2.
 _CT_M168_GENOTYPES = [
-    # The bug trigger: ancestral allele A at the A-clade marker.
-    {"rsid": "rs2032597", "chrom": "Y", "pos": 2832640, "genotype": "A"},
+    # The bug trigger: ancestral allele A at the A-clade marker. (Diploid notation
+    # matches the other fixtures; the tree-walk's substring match treats "AA" and
+    # haploid "A" identically.)
+    {"rsid": "rs2032597", "chrom": "Y", "pos": 2832640, "genotype": "AA"},
     # CT (M168 + rs13304168)
-    {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "T"},
-    {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "G"},
+    {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "TT"},
+    {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "GG"},
     # C
-    {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "C"},
-    {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "C"},
-    {"rsid": "rs17250625", "chrom": "Y", "pos": 8459804, "genotype": "A"},
+    {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "CC"},
+    {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "CC"},
+    {"rsid": "rs17250625", "chrom": "Y", "pos": 8459804, "genotype": "AA"},
     # C2
-    {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "T"},
+    {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "TT"},
 ]
 
 
