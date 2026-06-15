@@ -183,6 +183,18 @@ class TestRenderFindingSvg:
         assert 'stroke="#14B8A6"' not in svg
         assert 'opacity="0.35"' not in svg
 
+    def test_prs_gauge_with_malformed_bootstrap_ci_omits_ci_band(self, prs_finding):
+        detail = json.loads(prs_finding["detail_json"])
+        detail["bootstrap_ci_lower"] = "not-a-number"
+        prs_finding["detail_json"] = json.dumps(detail)
+
+        svg = render_finding_svg(prs_finding)
+
+        assert svg is not None
+        assert "95% CI" not in svg
+        assert 'stroke="#14B8A6"' not in svg
+        assert 'opacity="0.35"' not in svg
+
     def test_nutrigenomics_generates_pathway_indicator(self, nutrigenomics_finding):
         svg = render_finding_svg(nutrigenomics_finding)
         assert svg is not None

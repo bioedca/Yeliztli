@@ -157,14 +157,21 @@ def _render_prs_gauge(
     z_score = detail.get("z_score") or finding.get("prs_score")
     ci_lower_raw = detail.get("bootstrap_ci_lower")
     ci_upper_raw = detail.get("bootstrap_ci_upper")
-    has_ci = ci_lower_raw is not None and ci_upper_raw is not None
-    ci_lower = percentile if ci_lower_raw is None else float(ci_lower_raw)
-    ci_upper = percentile if ci_upper_raw is None else float(ci_upper_raw)
-    ci_lower = max(0.0, min(100.0, ci_lower))
-    ci_upper = max(0.0, min(100.0, ci_upper))
-    if ci_lower > ci_upper:
-        ci_lower, ci_upper = ci_upper, ci_lower
-    has_ci = has_ci and ci_lower != ci_upper
+    ci_lower = percentile
+    ci_upper = percentile
+    has_ci = False
+    if ci_lower_raw is not None and ci_upper_raw is not None:
+        try:
+            ci_lower = float(ci_lower_raw)
+            ci_upper = float(ci_upper_raw)
+        except (TypeError, ValueError):
+            has_ci = False
+        else:
+            ci_lower = max(0.0, min(100.0, ci_lower))
+            ci_upper = max(0.0, min(100.0, ci_upper))
+            if ci_lower > ci_upper:
+                ci_lower, ci_upper = ci_upper, ci_lower
+            has_ci = ci_lower != ci_upper
     trait_name = finding.get("phenotype") or detail.get("trait_name", "Trait")
 
     parts: list[str] = []
