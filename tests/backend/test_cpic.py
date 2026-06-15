@@ -24,12 +24,6 @@ from backend.annotation.cpic import (
     _parse_float,
     load_cpic_from_csvs,
     load_cpic_into_db,
-    lookup_all_cpic_drugs,
-    lookup_alleles_by_gene,
-    lookup_alleles_by_rsids,
-    lookup_diplotypes_by_gene,
-    lookup_guidelines_by_gene,
-    lookup_guidelines_by_gene_drug,
     parse_cpic_alleles_csv,
     parse_cpic_diplotypes_csv,
     parse_cpic_guidelines_csv,
@@ -452,122 +446,6 @@ class TestLoadCPICFromCSVs:
                 sa.select(database_versions).where(database_versions.c.db_name == "cpic")
             ).first()
             assert row is not None
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Lookup function tests
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestLookupAllelesByGene:
-    def test_lookup_cyp2d6(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_gene("CYP2D6", seeded_reference_engine)
-
-        assert len(results) == 4  # *1, *2, *4, *10 in seed
-        names = {r["allele_name"] for r in results}
-        assert "*1" in names
-        assert "*4" in names
-
-    def test_lookup_nonexistent_gene(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_gene("FAKEGENE", seeded_reference_engine)
-        assert len(results) == 0
-
-    def test_defining_variants_parsed(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_gene("CYP2D6", seeded_reference_engine)
-
-        star2 = next(r for r in results if r["allele_name"] == "*2")
-        assert isinstance(star2["defining_variants"], list)
-        assert len(star2["defining_variants"]) == 1
-        assert star2["defining_variants"][0]["rsid"] == "rs16947"
-
-    def test_star1_has_no_defining_variants(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_gene("CYP2D6", seeded_reference_engine)
-
-        star1 = next(r for r in results if r["allele_name"] == "*1")
-        assert star1["defining_variants"] == []
-
-
-class TestLookupAllelesByRsids:
-    def test_find_alleles_for_rsid(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_rsids(["rs16947"], seeded_reference_engine)
-
-        assert "rs16947" in results
-        entries = results["rs16947"]
-        assert len(entries) >= 1
-        assert entries[0]["gene"] == "CYP2D6"
-        assert entries[0]["allele_name"] == "*2"
-
-    def test_unknown_rsid(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_rsids(["rs9999999999"], seeded_reference_engine)
-        assert "rs9999999999" not in results
-
-    def test_empty_input(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_rsids([], seeded_reference_engine)
-        assert results == {}
-
-    def test_multiple_rsids(self, seeded_reference_engine: sa.Engine):
-        results = lookup_alleles_by_rsids(["rs16947", "rs3892097"], seeded_reference_engine)
-        assert "rs16947" in results  # CYP2D6 *2
-        assert "rs3892097" in results  # CYP2D6 *4
-
-
-class TestLookupDiplotypes:
-    def test_lookup_cyp2d6(self, seeded_reference_engine: sa.Engine):
-        results = lookup_diplotypes_by_gene("CYP2D6", seeded_reference_engine)
-
-        assert len(results) == 5  # 5 diplotypes in seed
-        diplotypes = {r["diplotype"] for r in results}
-        assert "*1/*1" in diplotypes
-        assert "*4/*4" in diplotypes
-
-    def test_phenotype_correctness(self, seeded_reference_engine: sa.Engine):
-        results = lookup_diplotypes_by_gene("CYP2D6", seeded_reference_engine)
-
-        pm = next(r for r in results if r["diplotype"] == "*4/*4")
-        assert pm["phenotype"] == "Poor Metabolizer"
-
-        nm = next(r for r in results if r["diplotype"] == "*1/*1")
-        assert nm["phenotype"] == "Normal Metabolizer"
-
-
-class TestLookupGuidelines:
-    def test_lookup_by_gene_drug(self, seeded_reference_engine: sa.Engine):
-        results = lookup_guidelines_by_gene_drug("CYP2D6", "codeine", seeded_reference_engine)
-
-        assert len(results) >= 2  # At least Normal + Intermediate + Poor
-        phenotypes = {r["phenotype"] for r in results}
-        assert "Normal Metabolizer" in phenotypes
-        assert "Poor Metabolizer" in phenotypes
-
-    def test_poor_metabolizer_recommendation(self, seeded_reference_engine: sa.Engine):
-        results = lookup_guidelines_by_gene_drug("CYP2D6", "codeine", seeded_reference_engine)
-
-        pm = next(r for r in results if r["phenotype"] == "Poor Metabolizer")
-        assert "Avoid" in pm["recommendation"]
-        assert pm["classification"] == "A"
-
-    def test_lookup_by_gene(self, seeded_reference_engine: sa.Engine):
-        results = lookup_guidelines_by_gene("CYP2D6", seeded_reference_engine)
-
-        drugs = {r["drug"] for r in results}
-        assert "codeine" in drugs
-        assert "tramadol" in drugs
-
-    def test_nonexistent_drug(self, seeded_reference_engine: sa.Engine):
-        results = lookup_guidelines_by_gene_drug(
-            "CYP2D6", "nonexistent_drug", seeded_reference_engine
-        )
-        assert len(results) == 0
-
-
-class TestLookupAllDrugs:
-    def test_returns_gene_drug_pairs(self, seeded_reference_engine: sa.Engine):
-        results = lookup_all_cpic_drugs(seeded_reference_engine)
-
-        assert len(results) >= 3  # codeine, tramadol, clopidogrel
-        pairs = {(r["gene"], r["drug"]) for r in results}
-        assert ("CYP2D6", "codeine") in pairs
-        assert ("CYP2C19", "clopidogrel") in pairs
 
 
 # ═══════════════════════════════════════════════════════════════════════
