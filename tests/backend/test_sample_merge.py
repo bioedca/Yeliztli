@@ -47,6 +47,7 @@ from backend.services.sample_merge import (
     StaleSourceError,
     _compute_file_hash,
     _estimate_duration_seconds,
+    _resolve_winner,
     merge_samples,
     preview_merge,
 )
@@ -251,6 +252,36 @@ S2_VARIANTS = [
 # ── Test classes ─────────────────────────────────────────────────────
 
 
+class TestResolveWinnerVendorVsPosition:
+    """`_resolve_winner` decides by VENDOR token, not source position (#648).
+
+    The contract (docstring §10.2): "source order in the request is irrelevant
+    for strategy semantics". These cases pin that by reversing the vendor↔position
+    correlation that every other fixture bakes in — so a position-based regression
+    (e.g. ``return "S1" if PREFER_23ANDME else "S2"``) fails here.
+    """
+
+    def test_prefer_23andme_picks_the_23andme_side_regardless_of_position(self) -> None:
+        # 23andMe as S2 → must return S2 (a position stub would say S1).
+        assert _resolve_winner(MergeStrategy.PREFER_23ANDME, "ancestrydna", "23andme") == "S2"
+        # 23andMe as S1 → S1 (the aligned case).
+        assert _resolve_winner(MergeStrategy.PREFER_23ANDME, "23andme", "ancestrydna") == "S1"
+
+    def test_prefer_ancestrydna_picks_the_ancestrydna_side_regardless_of_position(self) -> None:
+        # AncestryDNA as S1 → must return S1 (a position stub would say S2).
+        assert _resolve_winner(MergeStrategy.PREFER_ANCESTRYDNA, "ancestrydna", "23andme") == "S1"
+        # AncestryDNA as S2 → S2 (the aligned case).
+        assert _resolve_winner(MergeStrategy.PREFER_ANCESTRYDNA, "23andme", "ancestrydna") == "S2"
+
+    def test_tiebreak_s1_when_both_or_neither_match_target(self) -> None:
+        # Both sides the target vendor, or neither → S1 by convention (§10.2 step 2).
+        assert _resolve_winner(MergeStrategy.PREFER_23ANDME, "23andme", "23andme") == "S1"
+        assert _resolve_winner(MergeStrategy.PREFER_23ANDME, "ancestrydna", "ancestrydna") == "S1"
+
+    def test_flag_only_returns_empty(self) -> None:
+        assert _resolve_winner(MergeStrategy.FLAG_ONLY, "23andme", "ancestrydna") == ""
+
+
 class TestHappyPath:
     """Plan §10.2 / §10.5: end-to-end against the dual-fixture buckets."""
 
@@ -418,6 +449,87 @@ class TestHappyPath:
         assert disc.concordance == "discordant"
         assert disc.genotype == "GG"  # S2 (AncestryDNA) wins
         assert disc.discordant_alt_genotype == "S1=AA"
+
+    # ── Vendor resolution decoupled from source position (#648) ──────────
+    #
+    # Every other fixture seeds 23andMe as S1 + AncestryDNA as S2, so "prefer
+    # vendor X wins" is indistinguishable from "position S1/S2 wins". This fixture
+    # REVERSES that — AncestryDNA is S1, 23andMe is S2 — so a discordant locus
+    # discriminates vendor-based resolution (the contract: source order is
+    # irrelevant) from a position-based regression. At (1, 400) the AncestryDNA
+    # (S1) call is "GG" and the 23andMe (S2) call is "AA".
+
+    @pytest.fixture
+    def reversed_vendor_setup(
+        self,
+        merge_registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> tuple[DBRegistry, int, int, int]:
+        _seed_installed_vep_bundle(merge_registry, "v2.0.0")
+        _noop_annotation_enqueue(monkeypatch)
+        individual_id = _create_individual(merge_registry, "Reversed Vendors")
+        # S1 = AncestryDNA (its calls), S2 = 23andMe (its calls) — vendor token
+        # is now anti-correlated with source position.
+        s1_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="rev_ancestrydna.txt",
+            file_format="ancestrydna_v2.0",
+            file_hash="hash_rev_s1",
+            variants=S2_VARIANTS,  # the AncestryDNA calls (rs400="GG")
+        )
+        s2_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="rev_23andme.txt",
+            file_format="23andme_v5",
+            file_hash="hash_rev_s2",
+            variants=S1_VARIANTS,  # the 23andMe calls (rs400="AA")
+        )
+        return merge_registry, individual_id, s1_id, s2_id
+
+    def test_prefer_23andme_wins_by_vendor_not_position(
+        self, reversed_vendor_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """prefer_23andme keeps the 23andMe call even when 23andMe is S2 (#648).
+
+        The 23andMe file is the *second* source here, so a position-based
+        regression (S1 wins for prefer_23andme) would keep the AncestryDNA "GG"
+        and silently corrupt the merged genotype. Vendor-based resolution keeps
+        the 23andMe "AA" (the S2 side). This merge is reachable end-to-end via the
+        commit route, which passes source_sample_ids verbatim with no ordering.
+        """
+        registry, individual_id, s1_id, s2_id = reversed_vendor_setup
+        new_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.PREFER_23ANDME,
+            display_name="Reversed (prefer 23andMe)",
+        )
+        disc = {(r.chrom, r.pos): r for r in _read_merge_rows(registry, new_id)}[("1", 400)]
+        assert disc.concordance == "discordant"
+        assert disc.genotype == "AA"  # the 23andMe call (S2) wins by vendor
+        assert disc.discordant_alt_genotype == "S1=GG"  # AncestryDNA (S1) is the loser
+
+    def test_prefer_ancestrydna_wins_by_vendor_not_position(
+        self, reversed_vendor_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Mirror of the above: prefer_ancestrydna keeps the AncestryDNA call even
+        when AncestryDNA is S1 (a position regression for prefer_ancestrydna would
+        wrongly take S2 = the 23andMe "AA")."""
+        registry, individual_id, s1_id, s2_id = reversed_vendor_setup
+        new_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.PREFER_ANCESTRYDNA,
+            display_name="Reversed (prefer AncestryDNA)",
+        )
+        disc = {(r.chrom, r.pos): r for r in _read_merge_rows(registry, new_id)}[("1", 400)]
+        assert disc.concordance == "discordant"
+        assert disc.genotype == "GG"  # the AncestryDNA call (S1) wins by vendor
+        assert disc.discordant_alt_genotype == "S2=AA"  # 23andMe (S2) is the loser
 
     def test_new_sample_row_carries_individual_and_format(
         self, merged_setup: tuple[DBRegistry, int, int, int]
