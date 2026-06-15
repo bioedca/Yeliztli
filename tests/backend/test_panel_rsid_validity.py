@@ -88,8 +88,8 @@ class TestPanelRsidValidity:
             for rsid in rsids:
                 if rsid in _RETIRED_OR_INVALID_RSIDS:
                     offenders.append(f"{fname}: {rsid} — {_RETIRED_OR_INVALID_RSIDS[rsid]}")
-        assert not offenders, "retired/invalid panel rsIDs (use the current dbSNP ID):\n" + "\n".join(
-            offenders
+        assert not offenders, (
+            "retired/invalid panel rsIDs (use the current dbSNP ID):\n" + "\n".join(offenders)
         )
 
     def test_rs_prefixed_ids_are_well_formed(self) -> None:
@@ -106,7 +106,9 @@ class TestPanelRsidValidity:
             for rsid in rsids:
                 if rsid.startswith("rs") and not _RSID_RE.match(rsid):
                     malformed.append(f"{fname}: {rsid!r}")
-        assert not malformed, "malformed dbSNP rsIDs (expected rs<digits>):\n" + "\n".join(malformed)
+        assert not malformed, "malformed dbSNP rsIDs (expected rs<digits>):\n" + "\n".join(
+            malformed
+        )
 
     @pytest.mark.parametrize("retired", sorted(_RETIRED_OR_INVALID_RSIDS))
     def test_denylist_entries_are_documented(self, retired: str) -> None:
