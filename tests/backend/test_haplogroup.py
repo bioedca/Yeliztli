@@ -159,6 +159,28 @@ _R1B1A_GENOTYPES = [
     {"rsid": "rs1000154", "chrom": "Y", "pos": 39970128, "genotype": "GG"},
 ]
 
+# Issue #660: a CT/M168+ male whose rs2032597 *is typed* — as the ancestral
+# allele A that every non-A man carries. Pre-fix, the A node encoded its derived
+# state as "A" (the dbSNP/Ensembl ancestral allele; ancestral_allele=A, alt=C), so
+# this man false-matched haplogroup A and the greedy walk drove him to the
+# basal-African A1b — a wrong paternal-lineage finding for the global majority of
+# men. Post-fix (A/A1 derived="C") the ancestral A now *conflicts* with the A node,
+# blocking that branch, so the man resolves into his real CT clade. Routes
+# Y-Adam → CT → C → C2.
+_CT_M168_GENOTYPES = [
+    # The bug trigger: ancestral allele A at the A-clade marker.
+    {"rsid": "rs2032597", "chrom": "Y", "pos": 2832640, "genotype": "A"},
+    # CT (M168 + rs13304168)
+    {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "T"},
+    {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "G"},
+    # C
+    {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "C"},
+    {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "C"},
+    {"rsid": "rs17250625", "chrom": "Y", "pos": 8459804, "genotype": "A"},
+    # C2
+    {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "T"},
+]
+
 
 def _seed_mt_h1a(engine: sa.Engine) -> None:
     """Seed H1a mtDNA genotypes into raw_variants."""
@@ -682,6 +704,81 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.haplogroup == "mt-MRCA"
         assert len(mt.traversal_path) == 0
+
+
+# ── Y A-branch polarity / placement regression (#660) ────────────────────
+
+
+def _find_y_node(node: HaplogroupNode, haplogroup: str) -> HaplogroupNode | None:
+    """Depth-first search for a node by haplogroup name."""
+    if node.haplogroup == haplogroup:
+        return node
+    for child in node.children:
+        found = _find_y_node(child, haplogroup)
+        if found is not None:
+            return found
+    return None
+
+
+class TestYABranchPolarity:
+    """Regression for #660: a CT/M168+ male must not be mis-assigned to A1b.
+
+    The proximate cause was a mis-polarized A-clade marker: ``rs2032597`` is
+    ``ref/ancestral=A``, ``alt/derived=C`` (Ensembl: ancestral_allele=A; SPDI
+    NC_000024.10:…:A:C), but the bundle encoded the A/A1 nodes' derived state as
+    the *ancestral* allele ``A``. Because ``A`` is the common state in every
+    non-A lineage, every non-A man false-matched haplogroup A, and M168
+    (``rs2032652``, a CT-defining marker) erroneously listed under A1b let the
+    walk reach the basal-African A1b. These tests pin all three fixes.
+    """
+
+    def test_ct_m168_male_resolves_into_ct_not_a_branch(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """End-to-end: a CT/M168+ male with rs2032597 typed as the ancestral A
+        resolves into the CT subtree (its real clade), never the A branch."""
+        rows = _CT_M168_GENOTYPES + _Y_TYPED_PADDING + _NONPAR_X_HOM_GENOTYPES
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+        y = next(r for r in results if r.tree_type == "Y")
+        path = [step.haplogroup for step in y.traversal_path]
+
+        # The bug surfaced basal-African A1b (path A → A1 → A1b); the fix keeps
+        # the walk in the man's true CT clade.
+        assert path[0] == "CT", f"expected CT branch, walked into {path!r}"
+        assert not ({"A", "A0", "A1", "A1a", "A1b", "A1b1"} & set(path)), (
+            f"non-A man mis-routed through the A branch: {path!r}"
+        )
+        assert y.haplogroup not in {"A", "A0", "A1", "A1a", "A1b", "A1b1"}
+
+    def test_a_node_rs2032597_polarity_in_real_bundle(self, bundle: HaplogroupBundle) -> None:
+        """The A/A1 nodes' rs2032597 derived allele is C (alt), so the ancestral
+        A is a *conflict* (evidence against A), not a match."""
+        for name in ("A", "A1"):
+            node = _find_y_node(bundle.y_tree, name)
+            assert node is not None, f"{name} node missing from bundle"
+            snp = next(s for s in node.defining_snps if s.rsid == "rs2032597")
+            assert snp.allele == "C", f"{name} rs2032597 derived allele must be C (alt)"
+
+            # Ancestral A → conflicting; derived C → present.
+            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "A"})
+            assert (present, conflicting) == (0, 1)
+            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "C"})
+            assert (present, conflicting) == (1, 0)
+
+    def test_m168_not_an_a1b_defining_marker(self, bundle: HaplogroupBundle) -> None:
+        """M168 (rs2032652) defines CT, the sister clade of A — it must not appear
+        under A1b (where it forced a conflict for real A1b men and let mis-routed
+        non-A men reach A1b). It remains a defining marker of CT."""
+        a1b = _find_y_node(bundle.y_tree, "A1b")
+        assert a1b is not None
+        assert "rs2032652" not in {s.rsid for s in a1b.defining_snps}
+
+        ct = _find_y_node(bundle.y_tree, "CT")
+        assert ct is not None
+        assert "rs2032652" in {s.rsid for s in ct.defining_snps}
 
 
 # ── Confidence formula unit tests (#640) ─────────────────────────────────
