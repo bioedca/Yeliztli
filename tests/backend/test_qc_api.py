@@ -221,7 +221,10 @@ class TestHetOutlierArrayStratification:
         # The #563 repro: one 23andMe sample (het 0.17) in an account otherwise
         # full of AncestryDNA samples (het ~0.30). Pre-fix the 23andMe sample
         # z-scored against the AncestryDNA cohort → spurious "outlier". Post-fix
-        # the cross-array cohort is excluded, leaving 0 same-array peers.
+        # the cross-array cohort is excluded, leaving 0 same-array peers. Other
+        # samples DO exist, just none on this array, so the verdict is the more
+        # informative ``insufficient_comparable_samples`` (#656), not the
+        # nearly-empty-account ``insufficient_samples``.
         m = het_cohort_client(
             target=("23andme_v5", 0.17),
             others=[
@@ -232,7 +235,7 @@ class TestHetOutlierArrayStratification:
         )
         assert m["computed"] is True
         assert m["het_outlier_status"] != "outlier"
-        assert m["het_outlier_status"] == "insufficient_samples"
+        assert m["het_outlier_status"] == "insufficient_comparable_samples"
         assert m["het_outlier_z"] is None
 
     def test_same_array_cohort_still_detects_outlier(self, het_cohort_client) -> None:
@@ -254,3 +257,40 @@ class TestHetOutlierArrayStratification:
             others=[("23andme_v5", 0.17), ("23andme_v5", 0.18), ("23andme_v5", 0.172)],
         )
         assert m["het_outlier_status"] == "within_range"
+
+
+class TestHetOutlierWithheldReason:
+    """When the het-outlier z-score is withheld, the status distinguishes a
+    chip-confounded gap (other samples exist but on a different array) from a
+    genuinely small account — the #563 "option 2" enhancement (#656).
+
+    The two tests below are the discriminator: they hold the *number* of other
+    samples fixed (two) and vary ONLY the array, so a route that branched on raw
+    sample count alone (the pre-#656 behaviour) would return the same status for
+    both and fail exactly one of them.
+    """
+
+    def test_other_samples_all_different_array_is_insufficient_comparable(
+        self, het_cohort_client
+    ) -> None:
+        # Two other samples, both on a DIFFERENT array → no within-array peers,
+        # but the account is not nearly empty → insufficient_comparable_samples.
+        m = het_cohort_client(
+            target=("23andme_v5", 0.17),
+            others=[("ancestrydna_v2.0", 0.30), ("ancestrydna_v2.0", 0.31)],
+        )
+        assert m["computed"] is True
+        assert m["het_outlier_z"] is None
+        assert m["het_outlier_status"] == "insufficient_comparable_samples"
+
+    def test_too_few_same_array_samples_is_insufficient_samples(self, het_cohort_client) -> None:
+        # The discriminator vs the test above: the SAME number of other samples
+        # (two), but both share the target's array → comparable peers DO exist,
+        # there are just too few (<3) for a z-score → insufficient_samples.
+        m = het_cohort_client(
+            target=("23andme_v5", 0.17),
+            others=[("23andme_v5", 0.30), ("23andme_v5", 0.31)],
+        )
+        assert m["computed"] is True
+        assert m["het_outlier_z"] is None
+        assert m["het_outlier_status"] == "insufficient_samples"

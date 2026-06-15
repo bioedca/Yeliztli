@@ -8,6 +8,7 @@ POST /api/analysis/qc/run?sample_id=N       — (re)compute and persist qc_metri
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Query
@@ -24,6 +25,18 @@ from backend.services.sex_inference import infer_biological_sex
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis/qc", tags=["qc"])
+
+
+# The het-outlier verdict surfaced to the API. ``insufficient_samples`` and
+# ``insufficient_comparable_samples`` both mean "withheld", but distinguish a
+# nearly-empty account from one whose other samples are merely on a different
+# genotyping array (so a within-array het comparison is impossible — see #563).
+HetOutlierStatus = Literal[
+    "within_range",
+    "outlier",
+    "insufficient_samples",
+    "insufficient_comparable_samples",
+]
 
 
 class QCDisclaimerResponse(BaseModel):
@@ -44,7 +57,7 @@ class QCMetricsResponse(BaseModel):
     recorded_sex: str | None = None
     sex_check: str | None = None
     het_outlier_z: float | None = None
-    het_outlier_status: str | None = None
+    het_outlier_status: HetOutlierStatus | None = None
 
 
 class QCRunResponse(BaseModel):
@@ -79,8 +92,9 @@ def _other_sample_het_rates(registry, sample_id: int) -> list[float]:
     A het-outlier z-score is therefore only valid *within* one array, so we
     compare only against other samples sharing this sample's ``file_format``.
     A mixed-array account no longer produces chip-confounded "outlier" flags: a
-    minority-array sample simply has too few same-array peers and is reported
-    ``insufficient_samples`` rather than a spurious contamination alarm.
+    minority-array sample simply has no same-array peers, so the verdict is
+    withheld (reported ``insufficient_comparable_samples`` by the route, #656)
+    rather than raising a spurious contamination alarm.
 
     When this sample's ``file_format`` is unknown, no comparable cohort can be
     guaranteed, so we withhold (return an empty cohort).
@@ -113,6 +127,38 @@ def _other_sample_het_rates(registry, sample_id: int) -> list[float]:
     return rates
 
 
+def _has_other_samples_only_on_different_array(registry, sample_id: int) -> bool:
+    """True when the account has *other* samples but **none** share this sample's
+    genotyping array (``file_format``).
+
+    Used to refine the "withheld" het-outlier verdict (#656): when the z-score is
+    unavailable, this distinguishes a chip-confounded gap — samples exist, just
+    none on the same array, so a within-array het comparison is impossible (#563)
+    — from a genuinely small account (few or no other samples at all). When this
+    sample's ``file_format`` is unknown we cannot assert another sample is on a
+    *different* array, so we return ``False`` (defaults to ``insufficient_samples``).
+    """
+    file_format = _sample_file_format(registry, sample_id)
+    if file_format is None:
+        return False
+    with registry.reference_engine.connect() as conn:
+        total_others = (
+            conn.execute(
+                sa.select(sa.func.count()).select_from(samples).where(samples.c.id != sample_id)
+            ).scalar()
+            or 0
+        )
+        same_array_others = (
+            conn.execute(
+                sa.select(sa.func.count())
+                .select_from(samples)
+                .where(samples.c.id != sample_id, samples.c.file_format == file_format)
+            ).scalar()
+            or 0
+        )
+    return total_others > 0 and same_array_others == 0
+
+
 @router.get("/disclaimer")
 def get_disclaimer() -> QCDisclaimerResponse:
     return QCDisclaimerResponse(title=QC_DISCLAIMER_TITLE, text=QC_DISCLAIMER_TEXT)
@@ -132,7 +178,11 @@ def get_metrics(sample_id: int = Query(..., description="Sample ID")) -> QCMetri
     others = _other_sample_het_rates(registry, sample_id)
     z = het_outlier_zscore(row.heterozygosity_rate, others)
     if z is None:
-        het_status = "insufficient_samples"
+        het_status = (
+            "insufficient_comparable_samples"
+            if _has_other_samples_only_on_different_array(registry, sample_id)
+            else "insufficient_samples"
+        )
     elif abs(z) > 3:
         het_status = "outlier"
     else:
