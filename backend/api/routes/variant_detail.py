@@ -35,10 +35,16 @@ router = APIRouter(
 
 # ── Response models ──────────────────────────────────────────────────
 
-# In-silico tools used for evidence conflict assessment
+# In-silico tools used for evidence conflict assessment.
+# Numeric thresholds mirror the canonical dbnsfp._meta_axis convention so the
+# displayed "N of M tools predict deleterious" list cannot drift from the
+# ensemble scorer: REVEL ≥ 0.5, MetaSVM > 0, MetaLR > 0.5.  MetaSVM is a signed
+# SVM decision score (deleterious > 0); MetaLR is a [0,1] logistic-regression
+# probability (deleterious > 0.5) — they do NOT share a threshold.
 _INSILICO_TOOLS = ["sift_pred", "polyphen2_hsvar_pred", "metasvm", "metalr", "revel"]
 _DELETERIOUS_PREDS = {"D", "probably_damaging"}
 _REVEL_THRESHOLD = 0.5
+_METALR_THRESHOLD = 0.5
 
 
 class TranscriptAnnotation(BaseModel):
@@ -322,19 +328,27 @@ def _build_evidence_conflict_detail(
             continue
         total_assessed += 1
         if tool_col == "revel":
-            # REVEL is a float score; > threshold = deleterious
+            # REVEL is a [0,1] ensemble score; ≥ 0.5 = deleterious.
             try:
                 if float(val) >= _REVEL_THRESHOLD:
                     deleterious_tools.append(tool_display[tool_col])
             except (ValueError, TypeError):
                 pass
-        elif tool_col in ("metasvm", "metalr"):
-            # MetaSVM/MetaLR are float scores; stored as score, pred is "D"
-            # These are stored as float scores in the DB; check deleterious_count
-            # Actually these are float columns — we check if they indicate deleterious
-            # For these tools, a positive score indicates deleterious
+        elif tool_col == "metasvm":
+            # MetaSVM is a signed SVM decision score (can be negative); > 0 =
+            # deleterious.
             try:
                 if float(val) > 0:
+                    deleterious_tools.append(tool_display[tool_col])
+            except (ValueError, TypeError):
+                pass
+        elif tool_col == "metalr":
+            # MetaLR is a [0,1] logistic-regression probability — NOT signed like
+            # MetaSVM — so its deleterious cutoff is > 0.5, not > 0.  Treating it
+            # like MetaSVM (> 0) counts it deleterious for nearly every scored
+            # variant, since MetaLR scores are essentially never negative.
+            try:
+                if float(val) > _METALR_THRESHOLD:
                     deleterious_tools.append(tool_display[tool_col])
             except (ValueError, TypeError):
                 pass

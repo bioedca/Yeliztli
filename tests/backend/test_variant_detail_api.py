@@ -115,6 +115,44 @@ SAMPLE_VARIANT_VUS = {
     "annotation_coverage": 0b001111,
 }
 
+# A variant whose in-silico scores are present for all 5 tools but ALL benign —
+# the mirror image of SAMPLE_VARIANT_VUS.  This pins the *not-deleterious* side
+# of every tool's threshold, which the all-deleterious VUS alone cannot:
+#   • sift_pred "T" / polyphen "B"  → categorical D-mapping excludes them
+#   • metasvm -1.0                  → signed score, > 0 polarity (negative = T)
+#   • metalr 0.30                   → [0,1] probability, > 0.5 cutoff.  0.30 sits
+#                                     in (0, 0.5): the OLD endpoint copy used
+#                                     `metalr > 0` and would mis-count it as
+#                                     deleterious; the correct > 0.5 cutoff does
+#                                     not.  This value is the MetaLR-threshold
+#                                     regression lock for #651.
+#   • revel 0.10                    → below the 0.5 cutoff
+SAMPLE_VARIANT_BENIGN = {
+    "rsid": "rs555555555",
+    "chrom": "11",
+    "pos": 5248232,
+    "ref": "T",
+    "alt": "C",
+    "genotype": "TC",
+    "zygosity": "het",
+    "gene_symbol": "HBB",
+    "transcript_id": "NM_000518.5",
+    "consequence": "missense_variant",
+    "clinvar_significance": "Likely benign",
+    "clinvar_review_stars": 1,
+    "cadd_phred": 8.1,
+    "sift_score": 0.42,
+    "sift_pred": "T",
+    "polyphen2_hsvar_score": 0.05,
+    "polyphen2_hsvar_pred": "B",
+    "revel": 0.10,
+    "metasvm": -1.0,
+    "metalr": 0.30,
+    "deleterious_count": 0,
+    "evidence_conflict": False,
+    "annotation_coverage": 0b001111,
+}
+
 SAMPLE_VARIANT_MINIMAL = {
     "rsid": "rs999",
     "chrom": "1",
@@ -256,7 +294,12 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict], gene_pheno: list[dic
 def client(tmp_data_dir: Path):
     yield from _setup_client(
         tmp_data_dir,
-        [SAMPLE_VARIANT_BRCA1, SAMPLE_VARIANT_VUS, SAMPLE_VARIANT_MINIMAL],
+        [
+            SAMPLE_VARIANT_BRCA1,
+            SAMPLE_VARIANT_VUS,
+            SAMPLE_VARIANT_BENIGN,
+            SAMPLE_VARIANT_MINIMAL,
+        ],
         GENE_PHENOTYPE_DATA,
     )
 
@@ -519,11 +562,35 @@ class TestEvidenceConflictDetail:
         assert "CADD: 28.4" in ecd["summary"]
 
     def test_conflict_lists_deleterious_tools(self, client):
+        # The VUS seeds all-deleterious scores for every in-silico tool
+        # (sift=D, polyphen=D, metasvm=0.8, metalr=0.7, revel=0.75), so all five
+        # must appear by NAME — not merely a non-empty list.  An existence-only
+        # assertion (`len > 0`) survives a polarity flip, a mislabel, or a wrong
+        # threshold in the endpoint's reimplementation (#651): pin the set.
         tc, sid = client
         data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
         ecd = data["evidence_conflict_detail"]
-        assert ecd["total_tools_assessed"] > 0
-        assert len(ecd["deleterious_tools"]) > 0
+        assert ecd["total_tools_assessed"] == 5
+        assert set(ecd["deleterious_tools"]) == {
+            "SIFT",
+            "PolyPhen-2",
+            "MetaSVM",
+            "MetaLR",
+            "REVEL",
+        }
+
+    def test_benign_variant_lists_no_deleterious_tools(self, client):
+        # Mirror of the all-deleterious VUS: every tool is assessed but none is
+        # deleterious.  This locks the *not-deleterious* side of each threshold —
+        # the categorical D-mapping (SIFT "T"/PolyPhen "B"), the MetaSVM > 0
+        # polarity (metasvm=-1.0), the REVEL ≥ 0.5 cutoff (revel=0.10), and
+        # critically the MetaLR > 0.5 cutoff (metalr=0.30, which the old
+        # endpoint's `metalr > 0` copy mis-counted as deleterious).  #651.
+        tc, sid = client
+        data = tc.get(f"/api/variants/rs555555555?sample_id={sid}").json()
+        ecd = data["evidence_conflict_detail"]
+        assert ecd["total_tools_assessed"] == 5
+        assert ecd["deleterious_tools"] == []
 
     def test_conflict_detail_for_minimal_variant(self, client):
         tc, sid = client
