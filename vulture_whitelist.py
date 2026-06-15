@@ -1,5 +1,4 @@
 ref_freq  # unused variable (backend/analysis/ancestry.py:167)
-EBMD_PMIDS  # unused variable (backend/analysis/ebmd_prs.py:33)
 source_pathway  # unused variable (backend/analysis/fitness.py:171)
 trait_label  # unused variable (backend/analysis/pgs_bridge.py:75)
 filters_applied  # unused variable (backend/analysis/rare_variant_finder.py:189)
