@@ -17,7 +17,9 @@
       "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
-      "allow_strand_complement": false
+      "allow_strand_complement": false,
+      "alias_rsids": ["i5050994"],
+      "alias_rsids_note": "23andMe v5 PGP 4187 emits the MT:1555 probe under this internal i-ID in addition to rs267606617; read_genotypes resolves aliases back to the canonical rsID so chip versions that omit the rsID are still assessed (#669)."
     },
     {
       "rsid": "rs267606619",
@@ -28,7 +30,9 @@
       "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
-      "allow_strand_complement": false
+      "allow_strand_complement": false,
+      "alias_rsids": ["i704695"],
+      "alias_rsids_note": "23andMe v5 PGP 4187 emits the MT:1494 probe only under this internal i-ID, with no rs267606619 row observed; resolving it as an alias keeps the m.1494C>T locus typed rather than falsely off-chip (#669)."
     },
     {
       "rsid": "rs267606618",
