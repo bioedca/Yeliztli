@@ -93,6 +93,7 @@ test.describe('Big Five radar labels stay within the SVG viewport (#650)', () =>
     })
     await expect(radar).toBeVisible()
 
+    expect(BIG_FIVE_LABELS).toHaveLength(5)
     for (const label of BIG_FIVE_LABELS) {
       const labelNode = radar.locator('text').filter({ hasText: label })
       await expect(labelNode).toBeVisible()

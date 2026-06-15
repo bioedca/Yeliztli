@@ -87,7 +87,7 @@ export default function BigFiveRadarChart({
   return (
     <div className={cn("w-full max-w-[320px] mx-auto", className)}>
       <svg
-        viewBox="0 0 300 300"
+        viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
         className="w-full"
         role="img"
         aria-label="Big Five personality trait associations radar chart. Visual representation only — no numeric claims."
