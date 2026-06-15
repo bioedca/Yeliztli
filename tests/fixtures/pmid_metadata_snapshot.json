@@ -1,8 +1,8 @@
 {
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
-    "accessed": "2026-06-13",
-    "pmid_count": 364,
+    "accessed": "2026-06-15",
+    "pmid_count": 368,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -25,6 +25,11 @@
     "2563166": {
       "title": "Association between a specific apolipoprotein B mutation and familial defective apolipoprotein B-100.",
       "journal": "Proc Natl Acad Sci U S A",
+      "year": "1989"
+    },
+    "2570460": {
+      "title": "Identification of the cystic fibrosis gene: genetic analysis.",
+      "journal": "Science",
       "year": "1989"
     },
     "8807664": {
