@@ -9,6 +9,7 @@ import Plot from "@/components/charts/Plot"
 import type { PopulationAFSummary } from "@/types/gene-detail"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"
+import { formatAlleleFrequency } from "@/lib/format"
 
 const POPULATIONS = [
   { key: "gnomad_af_global" as const, label: "Global", color: "#0D9488" },
@@ -67,7 +68,11 @@ export default function PopulationAFChart({ data, selectedVariant }: PopulationA
             x: values,
             y: labels,
             marker: { color: colors },
-            text: values.map((v) => (v < 0.0001 ? v.toExponential(2) : v.toFixed(4))),
+            // Per-population AF as a raw fraction via the shared helper, so the
+            // unit can't drift from the other views (#564/#664). values are
+            // pre-filtered to > 0 above, so the output matches the prior inline
+            // formatter exactly.
+            text: values.map((v) => formatAlleleFrequency(v)),
             textposition: "outside",
             hovertemplate: "%{y}: %{x:.6f}<extra></extra>",
           },

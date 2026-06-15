@@ -258,6 +258,15 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByTestId("pop-bar-global")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-afr")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-eur")).toBeInTheDocument()
+
+    // Per-population AF must render as a raw FRACTION (the shared
+    // formatAlleleFrequency unit), not a percentage — matching the other
+    // per-population views (#664). Existence alone was blind to the unit:
+    // under the old formatPercent, eur=0.0004 rendered "0.0400%".
+    expect(screen.getByTestId("pop-bar-eur")).toHaveTextContent("0.0004")
+    expect(screen.getByTestId("pop-bar-global")).toHaveTextContent("0.0003")
+    expect(screen.getByTestId("pop-bar-eur")).not.toHaveTextContent("%")
+    expect(screen.getByTestId("pop-bar-afr")).not.toHaveTextContent("%")
   })
 
   it("shows rare variant note in Population tab", async () => {

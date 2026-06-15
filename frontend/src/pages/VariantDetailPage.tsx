@@ -52,11 +52,6 @@ function formatConsequence(consequence: string | null): string {
   return consequence.replace(/_/g, " ")
 }
 
-function formatPercent(af: number | null): string {
-  if (af == null) return "—"
-  return (af * 100).toFixed(4) + "%"
-}
-
 /* ------------------------------------------------------------------ */
 /*  Tab definitions                                                    */
 /* ------------------------------------------------------------------ */
@@ -163,7 +158,10 @@ function PopulationBar({ label, code, af, maxAF, highlighted }: PopulationBarPro
         "text-sm w-24 text-right font-mono tabular-nums",
         highlighted ? "font-semibold text-foreground" : "text-muted-foreground",
       )}>
-        {formatPercent(af)}
+        {/* Per-population AF as a raw fraction — the shared single source of
+            truth (#564/#664). The bar *width* above stays proportional; only the
+            printed value is unified so it cannot drift to a percentage again. */}
+        {formatAlleleFrequency(af)}
       </span>
     </div>
   )
