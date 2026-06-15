@@ -152,7 +152,36 @@ class TestRenderFindingSvg:
         assert svg is not None
         assert "<svg" in svg
         assert "72" in svg  # percentile value
+        assert "95% CI: 65 – 79" in svg
+        assert 'stroke="#14B8A6"' in svg
+        assert 'opacity="0.35"' in svg
         assert "</svg>" in svg
+
+    def test_prs_gauge_without_bootstrap_ci_omits_ci_band(self, prs_finding):
+        detail = json.loads(prs_finding["detail_json"])
+        detail.pop("bootstrap_ci_lower")
+        detail.pop("bootstrap_ci_upper")
+        prs_finding["detail_json"] = json.dumps(detail)
+
+        svg = render_finding_svg(prs_finding)
+
+        assert svg is not None
+        assert "95% CI" not in svg
+        assert 'stroke="#14B8A6"' not in svg
+        assert 'opacity="0.35"' not in svg
+
+    def test_prs_gauge_with_collapsed_bootstrap_ci_omits_ci_band(self, prs_finding):
+        detail = json.loads(prs_finding["detail_json"])
+        detail["bootstrap_ci_lower"] = 72.0
+        detail["bootstrap_ci_upper"] = 72.0
+        prs_finding["detail_json"] = json.dumps(detail)
+
+        svg = render_finding_svg(prs_finding)
+
+        assert svg is not None
+        assert "95% CI" not in svg
+        assert 'stroke="#14B8A6"' not in svg
+        assert 'opacity="0.35"' not in svg
 
     def test_nutrigenomics_generates_pathway_indicator(self, nutrigenomics_finding):
         svg = render_finding_svg(nutrigenomics_finding)
@@ -292,7 +321,9 @@ class TestGenerateSvgsForSample:
             assert len(rows) == 1
             assert rows[0].svg_path is not None
             # svg_path is relative; file exists under sample_dir
-            assert (tmp_path / rows[0].svg_path).exists()
+            svg_path = tmp_path / rows[0].svg_path
+            assert svg_path.exists()
+            assert "95% CI: 65 – 79" in svg_path.read_text()
 
     def test_empty_findings_returns_zero(self, sample_engine, tmp_path):
         count = generate_svgs_for_sample(sample_engine, tmp_path)
