@@ -32,14 +32,6 @@ export interface CarrierDisclaimerResponse {
   gene_notes: Record<string, string>
 }
 
-/** Result of running carrier status analysis. */
-export interface CarrierRunResponse {
-  findings_count: number
-  panel_genes_checked: number
-  variants_in_panel_genes: number
-  homozygous_plp_skipped: number
-}
-
 /** Shared inheritance mode labels used across carrier components. */
 export const INHERITANCE_LABELS: Record<string, string> = {
   AD: "Autosomal Dominant",

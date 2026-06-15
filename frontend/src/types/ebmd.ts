@@ -1,6 +1,6 @@
 /** Osteoporosis / eBMD module API types (SW-B7, bring-your-own). */
 
-export interface EbmdPrs {
+interface EbmdPrs {
   name: string
   calibrated: boolean
   percentile: number | null

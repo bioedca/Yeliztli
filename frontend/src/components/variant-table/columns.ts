@@ -16,7 +16,7 @@ const col = createColumnHelper<VariantRow>()
 
 /** Pinned conflict flag column — non-hideable per PRD (P2-07, P2-22).
  *  Amber indicator when ClinVar vs in-silico disagreement fires. */
-export const conflictColumn = col.accessor("evidence_conflict", {
+const conflictColumn = col.accessor("evidence_conflict", {
   id: "evidence_conflict",
   header: "",
   size: 36,

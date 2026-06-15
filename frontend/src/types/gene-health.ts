@@ -3,7 +3,7 @@
 import type { SnpCategory } from "@/lib/snpCategory"
 
 /** Categorical level for a gene-health pathway. */
-export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
+type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
 /** Per-SNP result within a gene-health pathway. */
 export interface SNPDetail {

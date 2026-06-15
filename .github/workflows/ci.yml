@@ -117,12 +117,12 @@ jobs:
 
       # Dead-export / dead-file / unused-dependency detector (#555). ESLint and
       # `tsc -b` cannot see exported-but-unused members, so dead exports ship
-      # green. Advisory (continue-on-error) while the existing baseline is
-      # cleared by the per-symbol dead-code issues; flip to blocking once knip
-      # reports clean. See frontend/knip.jsonc.
-      - name: Knip (dead exports — advisory)
+      # green. BLOCKING as of #634: the historical backlog has been cleared, so
+      # any newly-introduced dead export / file / unused dependency now fails CI
+      # (annotate a genuinely-intentional public export with knip's `@public`
+      # JSDoc tag rather than re-adding it to a baseline). See frontend/knip.jsonc.
+      - name: Knip (dead exports)
         run: cd frontend && npm run knip
-        continue-on-error: true
 
   # ── Backend tests — Tier 1 (Linux, PR-blocking) ─────────────────────────
   test-backend:

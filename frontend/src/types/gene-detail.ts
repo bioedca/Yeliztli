@@ -18,7 +18,7 @@ export interface ProteinFeature {
 }
 
 /** UniProt protein data for Nightingale rendering. */
-export interface UniProtData {
+interface UniProtData {
   accession: string
   gene_symbol: string
   sequence_length: number
@@ -29,7 +29,7 @@ export interface UniProtData {
 }
 
 /** Gene-phenotype association from MONDO/HPO or OMIM. */
-export interface GenePhenotypeRecord {
+interface GenePhenotypeRecord {
   gene_symbol: string
   disease_name: string
   disease_id: string | null

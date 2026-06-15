@@ -44,7 +44,7 @@ export interface DatabaseHealth {
   can_verify: boolean
 }
 
-export interface DatabaseHealthList {
+interface DatabaseHealthList {
   databases: DatabaseHealth[]
 }
 

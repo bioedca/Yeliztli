@@ -35,32 +35,6 @@ export function useCreatePreset() {
   })
 }
 
-export function useUpdatePreset() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      name,
-      ...body
-    }: {
-      name: string
-      new_name?: string
-      columns?: string[]
-    }) => {
-      const res = await fetch(`/api/column-presets/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to update preset")
-      }
-      return res.json()
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["column-presets"] }),
-  })
-}
-
 export function useDeletePreset() {
   const queryClient = useQueryClient()
   return useMutation({

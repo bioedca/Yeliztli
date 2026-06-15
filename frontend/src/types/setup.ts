@@ -1,10 +1,10 @@
 /** Setup wizard types. */
 
 /** How a database is provisioned (matches backend DatabaseInfo.build_mode). */
-export type BuildMode = 'pipeline' | 'download' | 'manual' | 'bundled'
+type BuildMode = 'pipeline' | 'download' | 'manual' | 'bundled'
 
 /** Health/readiness of one database that gates the dashboard. */
-export interface DbReadiness {
+interface DbReadiness {
   name: string
   /** Mirrors backend DatabaseHealth.state (ready | partial | corrupt | …). */
   state: string
@@ -91,7 +91,7 @@ export interface SaveCredentialsResult {
 
 // ── P1-19f: Download databases ──────────────────────────────────
 
-export interface DatabaseStatus {
+interface DatabaseStatus {
   name: string
   display_name: string
   description: string
@@ -111,7 +111,7 @@ export interface DatabaseListResult {
   total_count: number
 }
 
-export interface DownloadJobInfo {
+interface DownloadJobInfo {
   db_name: string
   job_id: string
 }

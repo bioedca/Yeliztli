@@ -25,7 +25,7 @@ export interface CardiovascularVariantsListResponse {
 }
 
 /** Summary of a single FH variant within the FH status response. */
-export interface FHVariantSummary {
+interface FHVariantSummary {
   rsid: string
   gene_symbol: string
   genotype: string | null

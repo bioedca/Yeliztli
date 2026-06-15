@@ -30,14 +30,6 @@ export interface IngestResult {
   file_format: string
 }
 
-export interface IngestProgress {
-  job_id: string
-  status: "pending" | "running" | "complete" | "failed" | "cancelled"
-  progress_pct: number
-  message: string
-  error: string | null
-}
-
 /** Merged sample that lists another sample in its merge_provenance sources
  * (AncestryDNA Plan §10.8 / Step 66). Surfaced by
  * ``GET /api/samples/{id}/merged-children`` to drive the delete-cascade

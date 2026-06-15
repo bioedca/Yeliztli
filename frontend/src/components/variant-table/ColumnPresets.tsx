@@ -46,7 +46,7 @@ interface ColumnPresetsProps {
   onPresetChange: (presetName: string | null, columns: string[] | null) => void
 }
 
-export { ALWAYS_VISIBLE, ALL_COLUMN_IDS }
+export { ALWAYS_VISIBLE }
 
 export default function ColumnPresets({ activePreset, onPresetChange }: ColumnPresetsProps) {
   const [open, setOpen] = useState(false)

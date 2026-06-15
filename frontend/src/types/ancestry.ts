@@ -1,7 +1,7 @@
 /** Ancestry module API types (P3-27). */
 
 /** Distance to a reference population centroid. */
-export interface PopulationDistance {
+interface PopulationDistance {
   population: string
   distance: number
 }
@@ -50,7 +50,7 @@ export interface PCACoordinatesResponse {
 }
 
 /** A single step in the haplogroup traversal path (P3-34). */
-export interface HaplogroupTraversalStep {
+interface HaplogroupTraversalStep {
   haplogroup: string
   snps_present: number
   snps_total: number

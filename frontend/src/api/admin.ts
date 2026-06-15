@@ -32,7 +32,7 @@ export interface DatabaseStat {
   version: string | null
 }
 
-export interface SampleStat {
+interface SampleStat {
   sample_id: number
   name: string
   db_path: string
@@ -40,7 +40,7 @@ export interface SampleStat {
   exists: boolean
 }
 
-export interface DiskUsage {
+interface DiskUsage {
   data_dir: string
   total_bytes: number
   free_bytes: number
@@ -51,7 +51,7 @@ export interface DiskUsage {
   other_bytes: number
 }
 
-export interface ActiveJob {
+interface ActiveJob {
   job_id: string
   job_type: string
   status: string
@@ -60,7 +60,7 @@ export interface ActiveJob {
   created_at: string | null
 }
 
-export interface SystemStatus {
+interface SystemStatus {
   version: string
   uptime_seconds: number
   data_dir: string
@@ -82,11 +82,11 @@ export interface LogFilters {
 
 // ── Query keys ───────────────────────────────────────────────────────
 
-export const ADMIN_LOGS_KEY = ['admin', 'logs'] as const
-export const ADMIN_DB_STATS_KEY = ['admin', 'db-stats'] as const
-export const ADMIN_SAMPLE_STATS_KEY = ['admin', 'sample-stats'] as const
-export const ADMIN_DISK_USAGE_KEY = ['admin', 'disk-usage'] as const
-export const ADMIN_STATUS_KEY = ['admin', 'status'] as const
+const ADMIN_LOGS_KEY = ['admin', 'logs'] as const
+const ADMIN_DB_STATS_KEY = ['admin', 'db-stats'] as const
+const ADMIN_SAMPLE_STATS_KEY = ['admin', 'sample-stats'] as const
+const ADMIN_DISK_USAGE_KEY = ['admin', 'disk-usage'] as const
+const ADMIN_STATUS_KEY = ['admin', 'status'] as const
 
 // ── Fetch functions ─────────────────────────────────────────────────
 

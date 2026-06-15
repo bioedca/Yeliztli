@@ -3,7 +3,7 @@
 import type { SnpCategory } from "@/lib/snpCategory"
 
 /** Categorical level for an allergy pathway. */
-export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
+type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
 /**
  * HLA proxy metadata for a SNP — the curated `hla_proxy` block from the panel
@@ -12,7 +12,7 @@ export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
  * or in legacy `r_squared_<pop>` keys (e.g. `r_squared_eur`). The clean
  * per-population r² for display comes from the sibling `HLAProxyLookup`.
  */
-export interface HLAProxyInfo {
+interface HLAProxyInfo {
   hla_allele: string
   clinical_grade?: boolean
   clinical_grade_context?: string | null
@@ -27,7 +27,7 @@ export interface HLAProxyInfo {
  * Runtime HLA proxy lookup result (backend `hla_proxy_lookup`): the clean
  * per-population r² source. Null when the proxy SNP has no lookup row.
  */
-export interface HLAProxyLookup {
+interface HLAProxyLookup {
   hla_allele?: string
   r_squared_by_pop?: Record<string, number>
   clinical_context?: string | null

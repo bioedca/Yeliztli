@@ -66,7 +66,7 @@ export interface DrugLookupResponse {
 // ── Medication-safety report (SW-E4) ─────────────────────────────────
 
 /** Coarse actionability label for a CPIC recommendation. Presentation aid only. */
-export type Actionability = "actionable" | "routine" | "indeterminate"
+type Actionability = "actionable" | "routine" | "indeterminate"
 
 /**
  * SNP defining-position coverage for a pharmacogene: `assessed` of `total`

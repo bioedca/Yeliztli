@@ -65,9 +65,3 @@ export function useTheme() {
 
   return { theme, resolvedTheme, setTheme, cycleTheme }
 }
-
-/** Returns whether dark mode is currently active. Re-renders on theme change. */
-export function useIsDark(): boolean {
-  const { resolvedTheme } = useTheme()
-  return resolvedTheme === 'dark'
-}

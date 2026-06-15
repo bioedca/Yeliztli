@@ -3,7 +3,7 @@
 import type { SnpCategory } from "@/lib/snpCategory"
 
 /** Categorical level for a skin pathway. */
-export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
+type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
 /** Per-SNP result within a skin pathway. */
 export interface SNPDetail {

@@ -17,7 +17,7 @@ export interface IgvBrowserHandle {
   getBrowser: () => IgvBrowserInstance | null
 }
 
-export interface IgvBrowserProps {
+interface IgvBrowserProps {
   /** Initial locus to display (e.g., "all", "chr1", "BRCA1", "chr17:41196312-41277500") */
   locus?: string
   /** Additional tracks to load beyond defaults */

@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 
 // ── Types ────────────────────────────────────────────────────────────
 
-export interface BackupEstimate {
+interface BackupEstimate {
   sample_bytes: number
   config_bytes: number
   reference_bytes: number
@@ -32,7 +32,7 @@ export interface BackupStatus {
 
 // ── Query keys ───────────────────────────────────────────────────────
 
-export const BACKUP_ESTIMATE_KEY = ['backup', 'estimate'] as const
+const BACKUP_ESTIMATE_KEY = ['backup', 'estimate'] as const
 
 // ── Fetch functions ─────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ async function startBackupExport(includeReferenceDbs: boolean): Promise<BackupEx
   return res.json()
 }
 
-export async function fetchBackupStatus(jobId: string): Promise<BackupStatus> {
+async function fetchBackupStatus(jobId: string): Promise<BackupStatus> {
   const res = await fetch(`/api/backup/status/${jobId}`)
   if (!res.ok) throw new Error(`Failed to fetch backup status: ${res.status}`)
   return res.json()

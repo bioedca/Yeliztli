@@ -14,12 +14,6 @@ export interface APOEGateStatusResponse {
   acknowledged_at: string | null
 }
 
-/** Result of acknowledging the APOE gate. */
-export interface APOEGateAcknowledgeResponse {
-  acknowledged: boolean
-  acknowledged_at: string
-}
-
 /** Basic APOE genotype information (not gate-protected). */
 export interface APOEGenotypeResponse {
   status: "determined" | "missing_snps" | "no_call" | "ambiguous" | "not_run"
