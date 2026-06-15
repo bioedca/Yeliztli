@@ -89,7 +89,7 @@ function BigFiveSection({ sampleId }: { sampleId: number }) {
   if (detailQuery.isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
       </div>
     )
   }
@@ -219,7 +219,7 @@ export default function TraitsPersonalityView() {
                 />
               ) : prsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
                 </div>
               ) : (
                 <>
