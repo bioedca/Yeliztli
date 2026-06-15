@@ -180,6 +180,11 @@ class APOEResult:
         e4_count: Number of ε4 alleles (0, 1, or 2).
         has_e2: Whether at least one ε2 allele is present.
         e2_count: Number of ε2 alleles (0, 1, or 2).
+        discordance_notes: Per-sample source-discrepancy notes for the ε-defining
+            SNPs (#637) — populated only when a merged sample carries `discordant`
+            provenance at rs429358/rs7412. Each entry names the conflicting source
+            calls and the ε-status each implies; empty for concordant or
+            single-source samples.
     """
 
     status: APOEStatus
@@ -188,6 +193,7 @@ class APOEResult:
     diplotype: str | None = None
     rs429358_genotype: str | None = None
     rs7412_genotype: str | None = None
+    discordance_notes: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def has_e4(self) -> bool:
@@ -236,6 +242,138 @@ def _normalise_genotype(genotype: str) -> str:
     return "".join(sorted(genotype))
 
 
+def _resolve_diplotype(
+    rs429358_gt: str | None, rs7412_gt: str | None
+) -> tuple[APOEAllele, APOEAllele] | None:
+    """Map a two-SNP genotype pair to its sorted ε-allele pair, or None.
+
+    Returns None when either genotype is missing, a no-call, or the pair is not a
+    valid ε-diplotype (the impossible ε1 combinations omitted from
+    :data:`_DIPLOTYPE_TABLE`). Used both for the primary determination context and
+    to compute the ε-status each side of a source discrepancy would imply (#637).
+    """
+    if not rs429358_gt or not rs7412_gt:
+        return None
+    if is_no_call(rs429358_gt) or is_no_call(rs7412_gt):
+        return None
+    pair = _DIPLOTYPE_TABLE.get((_normalise_genotype(rs429358_gt), _normalise_genotype(rs7412_gt)))
+    if pair is None:
+        return None
+    return tuple(sorted(pair, key=lambda a: a.value))  # type: ignore[return-value]
+
+
+def _parse_discordant_calls(kept_genotype: str | None, discordant_alt: str) -> dict[str, str]:
+    """Recover both source calls at a discordant locus from merge provenance.
+
+    The merge writer (``backend.services.sample_merge``) records a discordant
+    locus as ``genotype`` = the kept (winner) call and
+    ``discordant_alt_genotype`` = either ``"S2=<gt>"`` (the rejected loser only,
+    winner in ``genotype``) or ``"S1=<gt>;S2=<gt>"`` (both calls, when the
+    flag-only strategy keeps a no-call). This reconstructs ``{"S1": gt, "S2": gt}``
+    for whichever sources are recoverable.
+    """
+    calls: dict[str, str] = {}
+    for part in (discordant_alt or "").split(";"):
+        part = part.strip()
+        if "=" in part:
+            src, _, gt = part.partition("=")
+            src, gt = src.strip(), gt.strip()
+            if src and gt:
+                calls[src] = gt
+    # Only the loser is listed → the winner's call is the kept genotype, on the
+    # complementary source.
+    if len(calls) == 1 and kept_genotype and not is_no_call(kept_genotype):
+        loser = next(iter(calls))
+        winner = "S2" if loser == "S1" else "S1"
+        calls[winner] = kept_genotype
+    return calls
+
+
+def _implied_e_status(
+    discordant_rsid: str, discordant_gt: str, other_kept_gt: str | None
+) -> tuple[str | None, bool | None]:
+    """The diplotype + ε4 presence implied by one source's call at a discordant
+    ε-SNP, holding the *other* ε-SNP at its kept genotype.
+
+    Returns ``(diplotype_str, e4_present)``, or ``(None, None)`` when the
+    combination is indeterminate (other SNP no-call/missing or impossible pair).
+    """
+    if discordant_rsid == APOE_RS429358:
+        pair = _resolve_diplotype(discordant_gt, other_kept_gt)
+    else:
+        pair = _resolve_diplotype(other_kept_gt, discordant_gt)
+    if pair is None:
+        return None, None
+    return "/".join(a.value for a in pair), (APOEAllele.E4 in pair)
+
+
+def _format_discordance_note(rsid: str, calls: list[dict[str, Any]], affects_e4: bool) -> str:
+    """Human-readable per-sample discrepancy sentence for one discordant ε-SNP."""
+    parts = []
+    for call in calls:
+        if call["e4_present"] is None:
+            implied = "an indeterminate ε-genotype"
+        else:
+            e4 = "ε4 present" if call["e4_present"] else "ε4 absent"
+            implied = f"{call['implied_diplotype']} ({e4})"
+        parts.append(f"{call['source']} reports {call['genotype']} → {implied}")
+    lead = (
+        "This directly changes ε4 status — "
+        if affects_e4
+        else "This does not change ε4 status, but "
+    )
+    return (
+        f"Your source files disagree at {rsid} (APOE): {'; '.join(parts)}. {lead}"
+        "confirm in a CLIA/accredited laboratory before any medical decision."
+    )
+
+
+def _build_discordance_notes(
+    provenance: dict[str, dict[str, str]], kept: dict[str, str | None]
+) -> list[dict[str, Any]]:
+    """Build structured per-sample discrepancy notes for the ε-defining SNPs (#637).
+
+    ``provenance`` maps each ε-SNP rsid to ``{"concordance", "alt"}`` from
+    ``raw_variants``; ``kept`` maps each ε-SNP rsid to its kept genotype. A note is
+    emitted only for a SNP with ``discordant`` provenance whose two source calls
+    are both recoverable.
+    """
+    notes: list[dict[str, Any]] = []
+    for rsid in (APOE_RS429358, APOE_RS7412):
+        prov = provenance.get(rsid)
+        if not prov or prov.get("concordance") != "discordant":
+            continue
+        calls_map = _parse_discordant_calls(kept.get(rsid), prov.get("alt", ""))
+        if len(calls_map) < 2:
+            continue  # can't characterise the divergence without both source calls
+        other_rsid = APOE_RS7412 if rsid == APOE_RS429358 else APOE_RS429358
+        other_kept = kept.get(other_rsid)
+        calls: list[dict[str, Any]] = []
+        for source in sorted(calls_map):
+            gt = calls_map[source]
+            diplotype, e4_present = _implied_e_status(rsid, gt, other_kept)
+            calls.append(
+                {
+                    "source": source,
+                    "genotype": gt,
+                    "implied_diplotype": diplotype,
+                    "e4_present": e4_present,
+                }
+            )
+        affects_e4 = len({call["e4_present"] for call in calls}) > 1
+        notes.append(
+            {
+                "rsid": rsid,
+                "gene": "APOE",
+                "kept_genotype": kept.get(rsid),
+                "calls": calls,
+                "affects_e4_status": affects_e4,
+                "note": _format_discordance_note(rsid, calls, affects_e4),
+            }
+        )
+    return notes
+
+
 def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     """Determine the APOE diplotype from raw variant genotypes.
 
@@ -249,13 +387,29 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
         APOEResult with the diplotype determination.
     """
     with sample_engine.connect() as conn:
-        stmt = sa.select(raw_variants.c.rsid, raw_variants.c.genotype).where(
-            raw_variants.c.rsid.in_([APOE_RS429358, APOE_RS7412])
-        )
-        rows = {row.rsid: row.genotype for row in conn.execute(stmt)}
+        stmt = sa.select(
+            raw_variants.c.rsid,
+            raw_variants.c.genotype,
+            raw_variants.c.concordance,
+            raw_variants.c.discordant_alt_genotype,
+        ).where(raw_variants.c.rsid.in_([APOE_RS429358, APOE_RS7412]))
+        rows = {row.rsid: row for row in conn.execute(stmt)}
 
-    rs429358_gt = rows.get(APOE_RS429358)
-    rs7412_gt = rows.get(APOE_RS7412)
+    rs429358_gt = rows[APOE_RS429358].genotype if APOE_RS429358 in rows else None
+    rs7412_gt = rows[APOE_RS7412].genotype if APOE_RS7412 in rows else None
+
+    # Per-sample source-discrepancy notes at the ε-defining SNPs (#637): when a
+    # merged sample carries `discordant` provenance, surface the conflicting calls
+    # and the ε-status each implies, pulled from the merge-discordance columns
+    # rather than re-derived. Computed for every status (a discordance is real
+    # regardless of whether the kept call resolves to a diplotype).
+    provenance = {
+        rsid: {"concordance": row.concordance, "alt": row.discordant_alt_genotype}
+        for rsid, row in rows.items()
+    }
+    discordance_notes = _build_discordance_notes(
+        provenance, {APOE_RS429358: rs429358_gt, APOE_RS7412: rs7412_gt}
+    )
 
     # Check for missing SNPs
     missing = []
@@ -270,6 +424,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
             status=APOEStatus.MISSING_SNPS,
             rs429358_genotype=rs429358_gt,
             rs7412_genotype=rs7412_gt,
+            discordance_notes=discordance_notes,
         )
 
     # Check for no-call genotypes
@@ -283,6 +438,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
             status=APOEStatus.NO_CALL,
             rs429358_genotype=rs429358_gt,
             rs7412_genotype=rs7412_gt,
+            discordance_notes=discordance_notes,
         )
 
     # Normalise genotypes (sort alleles alphabetically)
@@ -302,6 +458,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
             status=APOEStatus.AMBIGUOUS,
             rs429358_genotype=rs429358_gt,
             rs7412_genotype=rs7412_gt,
+            discordance_notes=discordance_notes,
         )
 
     # Sort alleles so lower ε number comes first (ε2 < ε3 < ε4)
@@ -324,6 +481,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
         diplotype=diplotype,
         rs429358_genotype=rs429358_gt,
         rs7412_genotype=rs7412_gt,
+        discordance_notes=discordance_notes,
     )
 
 
@@ -376,6 +534,10 @@ def store_apoe_finding(
         "has_e2": result.has_e2,
         "e2_count": result.e2_count,
         "array_reliability": _apoe_array_reliability_flag(),
+        # Per-sample source discrepancy at the ε-SNPs (#637). Lives in detail_json
+        # like the ε4 fields above, so it inherits the same APOE disclosure gating
+        # (it names ε4 status); empty for concordant / single-source samples.
+        "source_discrepancies": result.discordance_notes,
     }
 
     finding_text = f"APOE genotype: {result.diplotype}"
@@ -724,6 +886,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "risk_level": cv_data["risk_level"],
                 "scope": "Type III hyperlipoproteinemia, LDL metabolism, statin response",
                 "array_reliability": _apoe_array_reliability_flag(),
+                "source_discrepancies": result.discordance_notes,
             },
         )
     )
@@ -750,6 +913,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 ),
                 "risk_estimate_context": _ALZHEIMERS_RISK_CONTEXT,
                 "array_reliability": _apoe_array_reliability_flag(),
+                "source_discrepancies": result.discordance_notes,
             },
         )
     )
@@ -769,6 +933,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
                 "dietary_response": lipid_data["dietary_response"],
                 "scope": "Saturated fat response differential",
                 "array_reliability": _apoe_array_reliability_flag(),
+                "source_discrepancies": result.discordance_notes,
             },
         )
     )
