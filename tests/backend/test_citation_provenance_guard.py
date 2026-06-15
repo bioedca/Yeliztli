@@ -482,9 +482,7 @@ def test_indel_polarity_collector_finds_known_provenance_pmids() -> None:
     } <= set(by_locus), f"indel-polarity discovery regressed: {sorted(by_locus)}"
     assert by_locus["carrier_status:rs113993960"] == {"2570460"}
     assert {"9285800", "20647424", "19022952"} <= set().union(*by_locus.values())
-    assert set(_iter_indel_polarity_pmids({"sources": ["PubMed PMID: 12345"]})) == {
-        "12345"
-    }
+    assert set(_iter_indel_polarity_pmids({"sources": ["PubMed PMID: 12345"]})) == {"12345"}
 
 
 def test_every_curated_panel_is_covered_by_the_shared_collector() -> None:
