@@ -26,7 +26,12 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import findings, reference_metadata, samples
+from backend.db.tables import (
+    apoe_gate,
+    findings,
+    reference_metadata,
+    samples,
+)
 from backend.disclaimers import (
     CARRIER_STATUS_DISCLAIMER_TEXT,
     CARRIER_STATUS_DISCLAIMER_TITLE,
@@ -185,6 +190,40 @@ def sample_with_findings(
     return ref_engine, sample_engine, sample_dir
 
 
+def _insert_gated_report_findings(sample_engine: sa.Engine) -> None:
+    """Seed findings whose modules are hidden until their gates are acknowledged."""
+    gated_findings = [
+        {
+            "module": "apoe",
+            "category": "gated",
+            "evidence_level": 4,
+            "gene_symbol": "APOE",
+            "finding_text": "Sensitive APOE report narrative",
+        },
+        {
+            "module": "parkinsons",
+            "category": "gated",
+            "evidence_level": 4,
+            "gene_symbol": "LRRK2",
+            "finding_text": "Sensitive Parkinsons report narrative",
+        },
+        {
+            "module": "sex_aneuploidy",
+            "category": "gated",
+            "evidence_level": 4,
+            "finding_text": "Sensitive aneuploidy report narrative",
+        },
+    ]
+    with sample_engine.begin() as conn:
+        for finding in gated_findings:
+            conn.execute(findings.insert().values(**finding))
+
+
+def _acknowledge_gate(sample_engine: sa.Engine, gate_table: sa.Table) -> None:
+    with sample_engine.begin() as conn:
+        conn.execute(gate_table.insert().values(id=1, acknowledged=True))
+
+
 @pytest.fixture
 def report_client(
     tmp_data_dir: Path,
@@ -250,6 +289,38 @@ class TestLoadFindings:
         results = _load_findings(sample_engine, modules=["cancer"])
         brca = next(r for r in results if r["gene_symbol"] == "BRCA1")
         assert brca["pmid_citations"] == ["12345678", "87654321"]
+
+    def test_withholds_unacknowledged_gated_modules(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_gated_report_findings(sample_engine)
+
+        results = _load_findings(sample_engine, modules=None)
+        modules = {r["module"] for r in results}
+
+        assert "cancer" in modules
+        assert {"apoe", "parkinsons", "sex_aneuploidy"}.isdisjoint(modules)
+        assert all("Sensitive" not in r["finding_text"] for r in results)
+
+    @pytest.mark.parametrize("module", ["apoe", "parkinsons", "sex_aneuploidy"])
+    def test_withholds_explicit_unacknowledged_gated_module(
+        self,
+        sample_with_findings: tuple,
+        module: str,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_gated_report_findings(sample_engine)
+
+        assert _load_findings(sample_engine, modules=[module]) == []
+
+    def test_releases_only_acknowledged_gated_module(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_gated_report_findings(sample_engine)
+        _acknowledge_gate(sample_engine, apoe_gate)
+
+        results = _load_findings(sample_engine, modules=["apoe", "parkinsons"])
+
+        assert [r["module"] for r in results] == ["apoe"]
+        assert results[0]["finding_text"] == "Sensitive APOE report narrative"
 
 
 # ── Unit tests: SVG reading ──────────────────────────────────────
@@ -472,6 +543,34 @@ class TestHtmlRendering:
         # Excluded modules should not appear
         assert "CYP2C19" not in html
         assert "Folate Metabolism" not in html
+
+    def test_render_report_html_hides_unacknowledged_gated_findings(
+        self,
+        tmp_data_dir: Path,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_gated_report_findings(sample_engine)
+
+        html = _render_html_helper(tmp_data_dir, sample_with_findings)
+
+        assert "BRCA1" in html
+        assert "Sensitive APOE report narrative" not in html
+        assert "Sensitive Parkinsons report narrative" not in html
+        assert "Sensitive aneuploidy report narrative" not in html
+
+    def test_render_report_html_hides_explicit_unacknowledged_gated_module(
+        self,
+        tmp_data_dir: Path,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_gated_report_findings(sample_engine)
+
+        html = _render_html_helper(tmp_data_dir, sample_with_findings, modules=["apoe"])
+
+        assert "Sensitive APOE report narrative" not in html
+        assert "APOE Risk" not in html
 
     def test_evidence_stars_rendered(
         self,

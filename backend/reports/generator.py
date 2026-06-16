@@ -28,6 +28,7 @@ import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
@@ -103,10 +104,14 @@ def _load_findings(
     engine: sa.Engine,
     modules: list[str] | None,
 ) -> list[dict[str, Any]]:
-    """Query findings from sample DB, grouped by module and sorted by evidence."""
+    """Query reportable findings from sample DB, sorted by evidence."""
     clauses = []
     if modules:
         clauses.append(findings.c.module.in_(modules))
+
+    hidden_modules = gated_modules_to_hide(engine)
+    if hidden_modules:
+        clauses.append(findings.c.module.not_in(hidden_modules))
 
     stmt = sa.select(findings)
     if clauses:
