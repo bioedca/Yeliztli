@@ -251,6 +251,53 @@ describe("PathwayFlowDiagram", () => {
     await user.click(screen.getByRole("button", { name: /Folate.*Elevated/ }))
     expect(onSelect).toHaveBeenCalledWith("folate_mthfr")
   })
+
+  it("keeps the selected node ring thicker than unselected node borders", () => {
+    render(
+      <PathwayFlowDiagram
+        pathways={ALL_PATHWAYS}
+        selectedPathwayId="folate_mthfr"
+        onSelectPathway={onSelect}
+      />,
+    )
+    const selectedNode = screen.getByRole("button", { name: /Folate.*Elevated/ })
+    const unselectedNode = screen.getByRole("button", { name: /Methionine.*Moderate/ })
+    const selectedRect = selectedNode.querySelector("rect")
+    const unselectedRect = unselectedNode.querySelector("rect")
+
+    expect(selectedRect).toHaveAttribute(
+      "class",
+      expect.stringContaining("stroke-[3]"),
+    )
+    expect(selectedRect).not.toHaveAttribute(
+      "class",
+      expect.stringContaining("stroke-[2]"),
+    )
+    expect(unselectedRect).toHaveAttribute(
+      "class",
+      expect.stringContaining("stroke-[2]"),
+    )
+  })
+
+  it("places diagonal connector endpoints on node edges", () => {
+    const { container } = render(
+      <PathwayFlowDiagram
+        pathways={ALL_PATHWAYS}
+        selectedPathwayId={null}
+        onSelectPathway={onSelect}
+      />,
+    )
+    const lines = container.querySelectorAll("line")
+    const folateToBh4 = lines[2]
+    const methionineToCholine = lines[3]
+    const attrNumber = (element: Element, attr: string) =>
+      Number(element.getAttribute(attr))
+
+    expect(attrNumber(folateToBh4, "y1")).toBeCloseTo(88)
+    expect(attrNumber(folateToBh4, "y2")).toBeCloseTo(152)
+    expect(attrNumber(methionineToCholine, "y1")).toBeCloseTo(88)
+    expect(attrNumber(methionineToCholine, "y2")).toBeCloseTo(152)
+  })
 })
 
 // ── CompoundHetBanner tests ──────────────────────────────────────────

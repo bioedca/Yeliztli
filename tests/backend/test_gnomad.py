@@ -9,7 +9,7 @@ Covers:
 - Table creation and index creation
 - Version recording in database_versions
 - Download function structure
-- P2-10: classify_variant_rarity() and compute_rare_flags() utilities
+- P2-10: compute_rare_flags() utilities
 - P2-10: Rare flag boundary values, NULL AF handling, position-based flagging
 - P2-10: Database indexes on rare_flag and ultra_rare_flag columns
 """
@@ -27,14 +27,12 @@ from sqlalchemy.pool import StaticPool
 from backend.annotation.gnomad import (
     GNOMAD_BITMASK,
     LOOKUP_BATCH_SIZE,
-    LOW_FREQUENCY_AF_THRESHOLD,
     RARE_AF_THRESHOLD,
     ULTRA_RARE_AF_THRESHOLD,
     GnomADAnnotation,
     LoadStats,
     _create_gnomad_indexes,
     _create_gnomad_table,
-    classify_variant_rarity,
     compute_af_popmax,
     compute_rare_flags,
     iter_gnomad_vcf,
@@ -501,7 +499,6 @@ class TestRareVariantFlags:
         """Threshold constants match PRD specs."""
         assert RARE_AF_THRESHOLD == 0.01
         assert ULTRA_RARE_AF_THRESHOLD == 0.001
-        assert LOW_FREQUENCY_AF_THRESHOLD == 0.05
 
     def test_position_lookup_returns_rare_flags(self, gnomad_engine_with_data: sa.Engine):
         """Position-based lookup also computes rare flags correctly."""
@@ -653,41 +650,6 @@ class TestGnomADAnnotation:
         assert isinstance(annot.homozygous_count, int)
         assert isinstance(annot.rare_flag, bool)
         assert isinstance(annot.ultra_rare_flag, bool)
-
-
-# ── classify_variant_rarity tests (P2-10) ────────────────────────────────
-
-
-class TestClassifyVariantRarity:
-    """Test the classify_variant_rarity utility function (P2-10)."""
-
-    def test_ultra_rare(self):
-        """AF < 0.001 → ultra_rare."""
-        assert classify_variant_rarity(0.00004) == "ultra_rare"
-        assert classify_variant_rarity(0.0) == "ultra_rare"
-        assert classify_variant_rarity(0.0009) == "ultra_rare"
-
-    def test_rare(self):
-        """0.001 <= AF < 0.01 → rare."""
-        assert classify_variant_rarity(0.001) == "rare"
-        assert classify_variant_rarity(0.005) == "rare"
-        assert classify_variant_rarity(0.0099) == "rare"
-
-    def test_low_frequency(self):
-        """0.01 <= AF < 0.05 → low_frequency."""
-        assert classify_variant_rarity(0.01) == "low_frequency"
-        assert classify_variant_rarity(0.03) == "low_frequency"
-        assert classify_variant_rarity(0.0499) == "low_frequency"
-
-    def test_common(self):
-        """AF >= 0.05 → common."""
-        assert classify_variant_rarity(0.05) == "common"
-        assert classify_variant_rarity(0.15) == "common"
-        assert classify_variant_rarity(0.5) == "common"
-
-    def test_none_af(self):
-        """None AF → unknown."""
-        assert classify_variant_rarity(None) == "unknown"
 
 
 # ── compute_rare_flags tests (P2-10) ─────────────────────────────────────

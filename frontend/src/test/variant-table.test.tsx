@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, waitFor } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import VariantTable from "@/components/variant-table/VariantTable"
-import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset } from "@/types/variants"
+import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset, Tag } from "@/types/variants"
 
 // Mock fetch globally
 const mockFetch = vi.fn()
@@ -87,15 +87,21 @@ const defaultChromCounts: ChromosomeSummary[] = [
   { chrom: "X", count: 10000 },
 ]
 
+const defaultTags: Tag[] = []
+
 function setupFetchMock(
   page: VariantPage,
   count: VariantCount,
   chromCounts: ChromosomeSummary[] = defaultChromCounts,
   presets: ColumnPreset[] = defaultPresets,
+  tags: Tag[] = defaultTags,
 ) {
   mockFetch.mockImplementation(async (url: string) => {
     if (url.includes("/api/column-presets")) {
       return { ok: true, json: async () => ({ presets }) }
+    }
+    if (url.includes("/api/tags")) {
+      return { ok: true, json: async () => tags }
     }
     if (url.includes("/api/variants/chromosomes")) {
       return { ok: true, json: async () => chromCounts }
@@ -155,6 +161,45 @@ describe("VariantTable", () => {
     // The genotype column carries a value, not just a header — all three rows
     // are genotype "AG" in this fixture.
     expect(screen.getAllByText("AG")).toHaveLength(3)
+  })
+
+  it("renders table tag pills with the configured tag colors and gray fallback (#710)", async () => {
+    const page = makeVariantPage(1)
+    page.items[0].tags = ["Pathogenic", "Reviewed", "Unknown"]
+    setupFetchMock(
+      page,
+      makeCountResponse(1),
+      defaultChromCounts,
+      defaultPresets,
+      [
+        {
+          id: 1,
+          name: "Pathogenic",
+          color: "#dc2626",
+          is_predefined: false,
+          created_at: null,
+          variant_count: 1,
+        },
+        {
+          id: 2,
+          name: "Reviewed",
+          color: "#16a34a",
+          is_predefined: false,
+          created_at: null,
+          variant_count: 1,
+        },
+      ],
+    )
+
+    render(<VariantTable sampleId={1} />)
+
+    const pathogenic = await screen.findByTitle("Pathogenic")
+    const reviewed = screen.getByTitle("Reviewed")
+    const unknown = screen.getByTitle("Unknown")
+
+    expect(pathogenic).toHaveStyle({ backgroundColor: "#dc2626" })
+    expect(reviewed).toHaveStyle({ backgroundColor: "#16a34a" })
+    expect(unknown).toHaveStyle({ backgroundColor: "#6b7280" })
   })
 
   it("renders genotype and zygosity for het and hom_alt rows", async () => {

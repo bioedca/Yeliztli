@@ -34,12 +34,14 @@ Usage::
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.ancestry import get_inferred_ancestry
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -76,6 +78,11 @@ _ELEVATED_MIN_STARS = 2
 
 # Minimum r2 used by the panel for clinical-grade proxy framing.
 _HLA_PROXY_CLINICAL_GRADE_R2 = 0.85
+
+# Internal ancestry inference emits AMR for the Admixed American bucket. The
+# rs1061235 panel metadata names the reduced-reliability population explicitly,
+# so keep the mapping local to this HLA-proxy display rule.
+_HLA_PROXY_REDUCED_ANCESTRY_CODES = {"Native American": frozenset({"AMR"})}
 
 # Module name for findings storage
 MODULE_NAME = "allergy"
@@ -250,6 +257,7 @@ class AllergyResult:
     histamine_combined: HistamineCombinedResult | None = None
     cross_module_findings: list[CrossModuleFinding] = field(default_factory=list)
     panel_coverage_rows: list[dict] = field(default_factory=list)
+    inferred_ancestry: str | None = None
 
 
 # ── Panel loading ─────────────────────────────────────────────────────────
@@ -915,6 +923,7 @@ def score_allergy_pathways(
 
     # Fetch HLA proxy lookup data for ancestry-specific r² display
     hla_proxy_info = _fetch_hla_proxy_info(all_rsids, reference_engine)
+    inferred_ancestry = get_inferred_ancestry(sample_engine)
 
     # Celiac DQ2/DQ8 combined assessment
     celiac_combined = _compute_celiac_combined(pathway_results, panel)
@@ -946,6 +955,7 @@ def score_allergy_pathways(
         histamine_combined=histamine_combined,
         cross_module_findings=cross_module,
         panel_coverage_rows=coverage_rows,
+        inferred_ancestry=inferred_ancestry,
     )
 
 
@@ -1028,7 +1038,60 @@ def _negative_hla_proxy_caveat(
     )
 
 
-def _positive_hla_proxy_specificity_caveat(snp: SNPResult) -> str | None:
+def _hla_proxy_reduced_ancestry_applies(
+    snp: SNPResult,
+    *,
+    inferred_ancestry: str | None,
+) -> bool:
+    """Whether an HLA-proxy reduced-ancestry caveat applies to this sample."""
+    if snp.hla_proxy is None:
+        return False
+    reduced = snp.hla_proxy.get("reduced_ancestry")
+    if not reduced or not inferred_ancestry:
+        return False
+
+    inferred = inferred_ancestry.strip()
+    reduced_name = str(reduced).strip()
+    if not inferred or not reduced_name:
+        return False
+    if inferred.casefold() == reduced_name.casefold():
+        return True
+
+    mapped_codes = _HLA_PROXY_REDUCED_ANCESTRY_CODES.get(reduced_name)
+    if mapped_codes is None:
+        return False
+    return inferred.upper() in mapped_codes
+
+
+def _contextual_hla_proxy_coverage_note(
+    snp: SNPResult,
+    *,
+    inferred_ancestry: str | None,
+) -> str | None:
+    """Return coverage note with sample-specific reduced-ancestry text gated."""
+    note = snp.coverage_note
+    if not note or snp.hla_proxy is None:
+        return note
+
+    reduced = snp.hla_proxy.get("reduced_ancestry")
+    if not reduced or _hla_proxy_reduced_ancestry_applies(
+        snp,
+        inferred_ancestry=inferred_ancestry,
+    ):
+        return note
+
+    pattern = (
+        rf"\s*Proxy performance is also reduced in {re.escape(str(reduced))} ancestry "
+        r"\([^)]*\)\."
+    )
+    return re.sub(pattern, "", note).strip()
+
+
+def _positive_hla_proxy_specificity_caveat(
+    snp: SNPResult,
+    *,
+    inferred_ancestry: str | None = None,
+) -> str | None:
     """Specificity caveat for a POSITIVE (carrier) HLA-proxy call (#611).
 
     A tag SNP can mark a positive that is actually a different, cross-reactive HLA
@@ -1053,7 +1116,10 @@ def _positive_hla_proxy_specificity_caveat(snp: SNPResult) -> str | None:
         "required before acting on it (e.g. withholding the drug)."
     )
     reduced = snp.hla_proxy.get("reduced_ancestry")
-    if reduced:
+    if reduced and _hla_proxy_reduced_ancestry_applies(
+        snp,
+        inferred_ancestry=inferred_ancestry,
+    ):
         better = snp.hla_proxy.get("better_proxy_for_reduced_ancestry")
         suffix = f" (better alternative: {better})" if better else ""
         caveat += f" Proxy reliability is also reduced in {reduced} ancestry{suffix}."
@@ -1063,6 +1129,8 @@ def _positive_hla_proxy_specificity_caveat(snp: SNPResult) -> str | None:
 def _stored_snp_detail(
     snp: SNPResult,
     hla_proxy_info: dict[str, HLAProxyInfo],
+    *,
+    inferred_ancestry: str | None = None,
 ) -> dict:
     """Build pathway-level SNP detail JSON, including HLA proxy caveats."""
     detail = {
@@ -1074,7 +1142,10 @@ def _stored_snp_detail(
         "effect_summary": snp.effect_summary,
         "evidence_level": snp.evidence_level,
         "hla_proxy": snp.hla_proxy,
-        "coverage_note": snp.coverage_note,
+        "coverage_note": _contextual_hla_proxy_coverage_note(
+            snp,
+            inferred_ancestry=inferred_ancestry,
+        ),
     }
 
     lookup = _hla_proxy_lookup_detail(snp, hla_proxy_info)
@@ -1085,7 +1156,10 @@ def _stored_snp_detail(
     if caveat is not None:
         detail["hla_proxy_caveat"] = caveat
 
-    specificity_caveat = _positive_hla_proxy_specificity_caveat(snp)
+    specificity_caveat = _positive_hla_proxy_specificity_caveat(
+        snp,
+        inferred_ancestry=inferred_ancestry,
+    )
     if specificity_caveat is not None:
         detail["hla_proxy_specificity_caveat"] = specificity_caveat
 
@@ -1134,7 +1208,14 @@ def store_allergy_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
-            "snp_details": [_stored_snp_detail(s, result.hla_proxy_info) for s in pr.called_snps],
+            "snp_details": [
+                _stored_snp_detail(
+                    s,
+                    result.hla_proxy_info,
+                    inferred_ancestry=result.inferred_ancestry,
+                )
+                for s in pr.called_snps
+            ],
         }
 
         # Add HLA proxy info for drug hypersensitivity and food sensitivity pathways
@@ -1196,8 +1277,12 @@ def store_allergy_findings(
                 lookup = _hla_proxy_lookup_detail(snp, result.hla_proxy_info)
                 if lookup is not None:
                     snp_detail["hla_proxy_lookup"] = lookup
-            if snp.coverage_note:
-                snp_detail["coverage_note"] = snp.coverage_note
+            coverage_note = _contextual_hla_proxy_coverage_note(
+                snp,
+                inferred_ancestry=result.inferred_ancestry,
+            )
+            if coverage_note:
+                snp_detail["coverage_note"] = coverage_note
 
             rows.append(
                 {

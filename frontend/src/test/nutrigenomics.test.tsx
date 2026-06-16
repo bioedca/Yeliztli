@@ -1,10 +1,20 @@
+/// <reference types="node" />
 /** Tests for the Nutrigenomics UI (P3-11, T3-11). */
 
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/nutrigenomics/PathwayCard"
+import {
+  PATHWAY_DESCRIPTIONS,
+} from "@/components/nutrigenomics/pathwayDescriptions"
 import type { PathwaySummary } from "@/types/nutrigenomics"
+
+interface NutrigenomicsPanelJson {
+  pathways: Array<{ id: string }>
+}
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -50,6 +60,28 @@ const LACTOSE_PATHWAY: PathwaySummary = {
   total_snps: 2,
   missing_snps: ["rs182549"],
   pmids: ["12068507"],
+}
+
+const VITAMIN_B6_PATHWAY: PathwaySummary = {
+  pathway_id: "vitamin_b6",
+  pathway_name: "Vitamin B6",
+  level: "Moderate",
+  evidence_level: 2,
+  called_snps: 1,
+  total_snps: 1,
+  missing_snps: [],
+  pmids: ["19744961"],
+}
+
+function loadPanelPathwayIds(): string[] {
+  const panelPath = resolve(
+    process.cwd(),
+    "../backend/data/panels/nutrigenomics_panel.json",
+  )
+  const panel = JSON.parse(
+    readFileSync(panelPath, "utf8"),
+  ) as NutrigenomicsPanelJson
+  return panel.pathways.map(({ id }) => id)
 }
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
@@ -125,6 +157,22 @@ describe("PathwayCard", () => {
     expect(
       screen.getByText(/Folate.*essential for DNA synthesis/),
     ).toBeInTheDocument()
+  })
+
+  it("renders the Vitamin B6 pathway description", () => {
+    render(<PathwayCard pathway={VITAMIN_B6_PATHWAY} onClick={onClick} />)
+    expect(
+      screen.getByText(/pyridoxal 5'-phosphate.*circulating levels/i),
+    ).toBeInTheDocument()
+  })
+
+  it("has a description for every backend nutrigenomics pathway", () => {
+    const describedPathways = new Set(Object.keys(PATHWAY_DESCRIPTIONS))
+    const missingDescriptions = loadPanelPathwayIds().filter(
+      (pathwayId) => !describedPathways.has(pathwayId),
+    )
+
+    expect(missingDescriptions).toEqual([])
   })
 
   it("renders lactose pathway correctly", () => {

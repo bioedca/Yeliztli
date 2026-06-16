@@ -6,30 +6,13 @@
  */
 
 import { cn } from "@/lib/utils"
+import { pathwayLevelSvg } from "@/lib/pathwayLevel"
 import type { PathwaySummary, PathwayLevel } from "@/types/methylation"
 
 interface PathwayFlowDiagramProps {
   pathways: PathwaySummary[]
   selectedPathwayId: string | null
   onSelectPathway: (pathwayId: string) => void
-}
-
-const LEVEL_FILL: Record<PathwayLevel, { bg: string; border: string; text: string }> = {
-  Elevated: {
-    bg: "fill-amber-100 dark:fill-amber-950",
-    border: "stroke-amber-400 dark:stroke-amber-600",
-    text: "fill-amber-800 dark:fill-amber-300",
-  },
-  Moderate: {
-    bg: "fill-blue-100 dark:fill-blue-950",
-    border: "stroke-blue-400 dark:stroke-blue-600",
-    text: "fill-blue-800 dark:fill-blue-300",
-  },
-  Standard: {
-    bg: "fill-emerald-100 dark:fill-emerald-950",
-    border: "stroke-emerald-400 dark:stroke-emerald-600",
-    text: "fill-emerald-800 dark:fill-emerald-300",
-  },
 }
 
 const SELECTED_RING = "stroke-primary stroke-[3]"
@@ -54,6 +37,16 @@ const EDGES: Array<{ from: string; to: string }> = [
 const NODE_W = 130
 const NODE_H = 56
 
+function nodeBoundaryOffset(nx: number, ny: number) {
+  if (nx === 0 && ny === 0) {
+    return 0
+  }
+
+  const xOffset = nx === 0 ? Number.POSITIVE_INFINITY : NODE_W / 2 / Math.abs(nx)
+  const yOffset = ny === 0 ? Number.POSITIVE_INFINITY : NODE_H / 2 / Math.abs(ny)
+  return Math.min(xOffset, yOffset)
+}
+
 function PathwayNode({
   pathwayId,
   layout,
@@ -67,7 +60,7 @@ function PathwayNode({
   selected: boolean
   onClick: () => void
 }) {
-  const fill = LEVEL_FILL[level] || LEVEL_FILL.Standard
+  const fill = pathwayLevelSvg(level)
   const lines = layout.label.split("\n")
 
   return (
@@ -90,7 +83,7 @@ function PathwayNode({
         width={NODE_W}
         height={NODE_H}
         rx={10}
-        className={cn(fill.bg, selected ? SELECTED_RING : fill.border, "stroke-[2]")}
+        className={cn(fill.bg, selected ? SELECTED_RING : fill.border, !selected && "stroke-[2]")}
       />
       {lines.map((line, i) => (
         <text
@@ -135,10 +128,11 @@ export default function PathwayFlowDiagram({
         const nx = dx / dist
         const ny = dy / dist
 
-        const x1 = f.x + nx * (NODE_W / 2)
-        const y1 = f.y + ny * (NODE_H / 2)
-        const x2 = t.x - nx * (NODE_W / 2)
-        const y2 = t.y - ny * (NODE_H / 2)
+        const offset = nodeBoundaryOffset(nx, ny)
+        const x1 = f.x + nx * offset
+        const y1 = f.y + ny * offset
+        const x2 = t.x - nx * offset
+        const y2 = t.y - ny * offset
 
         return (
           <line

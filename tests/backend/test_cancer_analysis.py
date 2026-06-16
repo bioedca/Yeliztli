@@ -119,6 +119,20 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
             "annotation_coverage": 2,
         },
+        # PMS2 Pathogenic — suppressed because PMS2CL can confound localization
+        {
+            "rsid": "rs_pms2_pseudogene_confounded",
+            "chrom": "7",
+            "pos": 60487632,
+            "genotype": "AG",
+            "zygosity": "het",
+            "gene_symbol": "PMS2",
+            "clinvar_significance": "Pathogenic",
+            "clinvar_review_stars": 2,
+            "clinvar_accession": "VCV000PMS2",
+            "clinvar_conditions": "Lynch syndrome",
+            "annotation_coverage": 2,
+        },
         # APC Benign — should NOT appear in results
         {
             "rsid": "rs1801155",
@@ -237,6 +251,14 @@ class TestExtractCancerVariants:
         rsids = {v.rsid for v in result.variants}
         assert "rs999888" not in rsids  # VUS
 
+    def test_suppresses_pms2_pseudogene_confounded_calls(
+        self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
+    ) -> None:
+        result = extract_cancer_variants(panel, sample_with_cancer_variants)
+        rsids = {v.rsid for v in result.variants}
+        assert "rs_pms2_pseudogene_confounded" not in rsids
+        assert result.pseudogene_suppressed == 1
+
     def test_brca1_golden_fixture(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:
@@ -310,8 +332,8 @@ class TestExtractCancerVariants:
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:
         result = extract_cancer_variants(panel, sample_with_cancer_variants)
-        # BRCA1 (x2 incl VUS), TP53, MLH1, ATM, BRCA2, APC = 7 in panel genes
-        assert result.variants_in_panel_genes == 7
+        # BRCA1 (x2 incl VUS), TP53, MLH1, ATM, BRCA2, PMS2, APC = 8 panel rows
+        assert result.variants_in_panel_genes == 8
 
     def test_inheritance_pattern_enrichment(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
@@ -334,6 +356,7 @@ class TestExtractCancerVariants:
         assert result.pathogenic_count == 0
         assert result.variants == []
         assert result.panel_genes_checked == 28
+        assert result.pseudogene_suppressed == 0
 
     def test_excludes_non_carried_zygosity(
         self, panel: CancerPanel, sample_engine: sa.Engine

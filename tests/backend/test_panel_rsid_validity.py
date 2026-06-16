@@ -10,12 +10,11 @@ with no CI guard to catch them:
     absent from Ensembl GRCh37/38: not a valid rsID at all.
 
 This guard is the fast, offline, per-PR regression lock: every panel rsID is
-well-formed (``rs`` + digits), and none is a known-retired/invalid ID. The
-broader systemic check — resolving *every* panel rsID against dbSNP/Ensembl to
-catch a newly-retired but well-formed ID — is tracked separately (it needs a
-network-backed nightly verifier or a committed resolution snapshot, with the
-documented carve-outs for haplogroup Y-SNP naming and ClinVar pathogenic indels
-absent from Ensembl-GRCh37).
+well-formed (``rs`` + digits), none is a known-retired/invalid ID, and every
+dbSNP-style rsID in coordinate-bearing panels has a committed Ensembl GRCh37
+coordinate snapshot. Haplogroup tree-marker identity is audited separately
+because those panels mix dbSNP rsIDs with synthetic probe and phylogenetic
+marker names.
 """
 
 from __future__ import annotations
@@ -27,6 +26,9 @@ from pathlib import Path
 import pytest
 
 PANELS_DIR = Path(__file__).resolve().parent.parent.parent / "backend" / "data" / "panels"
+COORDINATE_FIXTURE = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "panel_rsid_coordinates.json"
+)
 
 # rsIDs dbSNP has retired (merged) or that are not valid dbSNP records at all,
 # verified against dbSNP refsnp v2 + Ensembl GRCh37 (#645). They must never
@@ -35,11 +37,27 @@ _RETIRED_OR_INVALID_RSIDS = {
     "rs28940299": "dbSNP-merged into rs5030806 → rs104893829; use the current rs104893829",
     "rs5030806": "dbSNP-merged into rs104893829; use the current rs104893829",
     "rs6269442": "no dbSNP refsnp record / absent from Ensembl GRCh37 — invalid rsID",
+    "rs267608087": "dbSNP-merged into rs748452299; use the current rs748452299",
 }
 
 _RS_FIELDS = ("rsid",)  # dict keys whose string value is a single rsID
 _RS_LIST_FIELDS = ("expected_clinvar_rsids",)  # dict keys whose value is a list of rsIDs
 _RSID_RE = re.compile(r"^rs\d+$")
+_STANDARD_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
+_DISALLOWED_VARIANT_CLASSES = {
+    "cnv",
+    "copy_number_variation",
+    "microsatellite",
+    "tandem_repeat",
+    "vntr",
+}
+_COORDINATE_EXCLUDED_PANEL_FILES = {
+    "haplogroup_bundle.json": (
+        "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and "
+        "phylogenetic Y/mt marker naming; tree-marker identity is audited separately "
+        "(see issue #805)."
+    )
+}
 
 
 def _collect_rsids(obj: object) -> list[str]:
@@ -80,6 +98,21 @@ def _panel_rsids() -> dict[str, list[str]]:
     return out
 
 
+def _well_formed_panel_rsids() -> set[str]:
+    """All dbSNP-style panel rsIDs that should resolve in the coordinate fixture."""
+    return {
+        rsid
+        for fname, rsids in _panel_rsids().items()
+        if fname not in _COORDINATE_EXCLUDED_PANEL_FILES
+        for rsid in rsids
+        if _RSID_RE.match(rsid)
+    }
+
+
+def _coordinate_fixture() -> dict:
+    return json.loads(COORDINATE_FIXTURE.read_text(encoding="utf-8"))
+
+
 class TestPanelRsidValidity:
     def test_no_retired_or_invalid_rsids(self) -> None:
         """No panel rsID field may contain a dbSNP-retired or invalid rsID (#645)."""
@@ -114,3 +147,57 @@ class TestPanelRsidValidity:
     def test_denylist_entries_are_documented(self, retired: str) -> None:
         """Each denylisted rsID carries a provenance reason (keeps the guard auditable)."""
         assert _RETIRED_OR_INVALID_RSIDS[retired].strip()
+
+    def test_coordinate_fixture_shape_is_locked(self) -> None:
+        """The offline rsID coordinate fixture has provenance and stable fields (#742)."""
+        fixture = _coordinate_fixture()
+        provenance = fixture.get("_provenance")
+        assert isinstance(provenance, dict)
+        assert provenance.get("source") == "Ensembl GRCh37 REST /variation/human/{rsid}"
+        assert provenance.get("assembly") == "GRCh37"
+        assert provenance.get("generator") == "scripts/build_panel_rsid_coordinates.py"
+        assert provenance.get("excluded_panel_files") == _COORDINATE_EXCLUDED_PANEL_FILES
+        assert isinstance(provenance.get("accessed"), str) and provenance["accessed"]
+
+        coords = fixture.get("rsids")
+        assert isinstance(coords, dict)
+        assert len(coords) >= 100, "coordinate fixture coverage regressed"
+        for rsid, rec in coords.items():
+            assert _RSID_RE.match(rsid), f"fixture key is not a well-formed rsID: {rsid!r}"
+            assert rec.get("assembly") == "GRCh37", rsid
+            assert rec.get("chrom") in _STANDARD_CHROMS, rsid
+            assert isinstance(rec.get("start"), int) and rec["start"] > 0, rsid
+            assert isinstance(rec.get("end"), int) and rec["end"] > 0, rsid
+            expected_location = (
+                f"{rec['chrom']}:{rec['start']}"
+                if rec["start"] == rec["end"]
+                else f"{rec['chrom']}:{rec['start']}-{rec['end']}"
+            )
+            assert rec.get("location") == expected_location, rsid
+            assert rec.get("strand") in (1, -1), rsid
+            assert isinstance(rec.get("allele_string"), str) and rec["allele_string"], rsid
+            assert isinstance(rec.get("variant_class"), str), rsid
+            assert rec.get("source", "").endswith(f"/{rsid}"), rsid
+
+    def test_every_panel_rsid_resolves_to_a_coordinate(self) -> None:
+        """Every curated dbSNP-style panel rsID has an offline GRCh37 coordinate (#742)."""
+        panel_rsids = _well_formed_panel_rsids()
+        fixture_rsids = set(_coordinate_fixture()["rsids"])
+
+        missing = sorted(panel_rsids - fixture_rsids, key=lambda rsid: int(rsid[2:]))
+        stale = sorted(fixture_rsids - panel_rsids, key=lambda rsid: int(rsid[2:]))
+        assert not missing, "panel rsIDs missing from coordinate fixture: " + ", ".join(missing)
+        assert not stale, "coordinate fixture has rsIDs absent from panels: " + ", ".join(stale)
+
+    def test_coordinate_fixture_excludes_repeat_or_structural_markers(self) -> None:
+        """Panel rsIDs must resolve to array-typeable SNV/short-indel style records."""
+        offenders = []
+        for rsid, rec in _coordinate_fixture()["rsids"].items():
+            variant_class = rec.get("variant_class", "").casefold()
+            if variant_class in _DISALLOWED_VARIANT_CLASSES:
+                offenders.append(f"{rsid}: {rec.get('variant_class')}")
+
+        assert not offenders, (
+            "panel rsIDs resolve to repeat/structural classes that are not ordinary "
+            "array-typeable loci: " + ", ".join(offenders)
+        )

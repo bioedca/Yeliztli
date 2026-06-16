@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useAllergyPathways } from "@/api/allergy"
 import type {
   CeliacCombinedItem,
@@ -285,7 +286,7 @@ function CrossModuleCard({
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             Allergy
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {item.target_module.charAt(0).toUpperCase() + item.target_module.slice(1)}
+            {getModuleMeta(item.target_module).label}
           </span>
         </div>
         <EvidenceStars level={item.evidence_level} />
@@ -296,7 +297,7 @@ function CrossModuleCard({
           to={`${targetRoute}?sample_id=${sampleId}`}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in {item.target_module.charAt(0).toUpperCase() + item.target_module.slice(1)}
+          View in {getModuleMeta(item.target_module).label}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       )}

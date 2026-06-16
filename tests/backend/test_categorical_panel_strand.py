@@ -182,15 +182,18 @@ def test_strand_consistent_blind_spot_for_multiallelic() -> None:
     """Characterise the guard's known undecidability (#608).
 
     ``_strand_consistent`` FALSE-PASSES a mixed-strand pair when every panel allele's
-    complement is also a real allele. rs9273363 (HLA-DQB1, real ``C/A/G``) is the
-    case: the mis-stranded panel pair ``{C, T}`` (``T`` = complement of the real
-    ``A``) complements wholesale to ``{G, A}`` — both real — so the set check reads
-    "consistent" even though ``C`` is plus-strand and ``T`` is not. This asserts the
-    LIMITATION, not desired behaviour: it is why rs9273363 is excluded from the
-    fixture and handled by the scorer's not-modeled→Indeterminate path instead. If a
+    complement is also a real allele. rs9273363 (HLA-DQB1, real ``C/A/G``) was the
+    flagship case: its old mis-stranded panel pair ``{C, T}`` (``T`` = complement of
+    the real ``A``) complements wholesale to ``{G, A}`` — both real — so the set
+    check reads "consistent" even though ``C`` is plus-strand and ``T`` is not. This
+    asserts the guard's LIMITATION, not desired behaviour, using that historical pair
+    as the illustration. #731 has since re-keyed rs9273363 to the correct plus-strand
+    ``{A, C}`` and demoted it to a non-diagnostic HLA-DQ marker, but it stays out of
+    the strand fixture because it is still tri-allelic (the set check still cannot
+    validate it); it is covered by an observed-genotype-resolves test instead. If a
     future change makes ``_strand_consistent`` multi-allelic-aware, update this test
     deliberately.
     """
     real = {"C", "A", "G"}  # rs9273363, Ensembl GRCh37 plus strand
-    mixed_pair = {"C", "T"}  # panel risk=C (plus) + ref=T (= complement of real A)
+    mixed_pair = {"C", "T"}  # the historical mis-stranded pair (T = complement of real A)
     assert _strand_consistent(mixed_pair, real) is True

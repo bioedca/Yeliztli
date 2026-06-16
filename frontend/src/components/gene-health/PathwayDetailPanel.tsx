@@ -5,9 +5,10 @@
  * and PubMed references.
  */
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { SNP_CATEGORY_COLORS, SNP_CATEGORY_DOT } from "@/lib/snpCategory"
@@ -129,6 +130,8 @@ export default function PathwayDetailPanel({
   onClose,
 }: PathwayDetailPanelProps) {
   const detailQuery = useGeneHealthPathwayDetail(pathwayId, sampleId)
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -140,6 +143,7 @@ export default function PathwayDetailPanel({
 
   return (
     <aside
+      ref={panelRef}
       className={cn(
         "fixed right-0 top-0 z-40 h-full w-full max-w-lg",
         "bg-background border-l shadow-xl",
@@ -149,6 +153,7 @@ export default function PathwayDetailPanel({
       role="dialog"
       aria-modal="true"
       aria-label={`${pathwayName} pathway details`}
+      tabIndex={-1}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b px-6 py-4">

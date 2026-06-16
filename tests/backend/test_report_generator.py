@@ -27,6 +27,10 @@ from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import findings, reference_metadata, samples
+from backend.disclaimers import (
+    CARRIER_STATUS_DISCLAIMER_TEXT,
+    CARRIER_STATUS_DISCLAIMER_TITLE,
+)
 from backend.reports.generator import (
     _group_findings_into_sections,
     _load_findings,
@@ -147,7 +151,7 @@ def sample_with_findings(
             "pathway_level": "Standard",
         },
         {
-            "module": "carrier_status",
+            "module": "carrier",
             "category": "monogenic_variant",
             "evidence_level": 3,
             "gene_symbol": "CFTR",
@@ -286,7 +290,7 @@ class TestSectionGrouping:
         assert "cancer" in module_names
         assert "pharmacogenomics" in module_names
         assert "nutrigenomics" in module_names
-        assert "carrier_status" in module_names
+        assert "carrier" in module_names
         assert "ancestry" in module_names
         assert "traits" in module_names
 
@@ -322,6 +326,65 @@ class TestSectionGrouping:
         sections = _group_findings_into_sections(rows, sample_dir, modules=["cancer"])
         assert sections[0]["disclaimer"] is not None
         assert "predisposition" in sections[0]["disclaimer"].lower()
+
+    def test_carrier_module_uses_stored_key_display_name_and_disclaimer(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Report grouping honors the finding module written by carrier_status.py."""
+        _, sample_engine, sample_dir = sample_with_findings
+        rows = _load_findings(sample_engine, modules=["carrier"])
+        sections = _group_findings_into_sections(rows, sample_dir, modules=["carrier"])
+
+        assert [section["module"] for section in sections] == ["carrier"]
+        carrier_section = sections[0]
+        assert carrier_section["display_name"] == "Carrier Status"
+        assert carrier_section["disclaimer_title"] == CARRIER_STATUS_DISCLAIMER_TITLE
+        assert carrier_section["disclaimer"] == CARRIER_STATUS_DISCLAIMER_TEXT
+
+    def test_prs_module_display_names_do_not_fallback_title_case(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Acronym and product labels stay aligned with report-builder labels."""
+        _, sample_engine, sample_dir = sample_with_findings
+        extra_findings = [
+            {
+                "module": "metabolic",
+                "category": "prs",
+                "evidence_level": 2,
+                "finding_text": "Type 2 diabetes PRS",
+            },
+            {
+                "module": "fh",
+                "category": "prs",
+                "evidence_level": 2,
+                "finding_text": "LDL-C PRS",
+            },
+            {
+                "module": "ebmd",
+                "category": "prs",
+                "evidence_level": 2,
+                "finding_text": "Heel eBMD PRS",
+            },
+        ]
+        with sample_engine.begin() as conn:
+            for finding in extra_findings:
+                conn.execute(findings.insert().values(**finding))
+
+        rows = _load_findings(sample_engine, modules=["metabolic", "fh", "ebmd"])
+        sections = _group_findings_into_sections(
+            rows,
+            sample_dir,
+            modules=["metabolic", "fh", "ebmd"],
+        )
+        display_names = {section["module"]: section["display_name"] for section in sections}
+
+        assert display_names == {
+            "metabolic": "Metabolic (T2D & Obesity)",
+            "fh": "Familial Hypercholesterolemia",
+            "ebmd": "Bone Density (eBMD)",
+        }
+        assert "Fh" not in display_names.values()
+        assert "Ebmd" not in display_names.values()
 
     def test_svg_content_embedded(self, sample_with_findings: tuple) -> None:
         _, sample_engine, sample_dir = sample_with_findings
@@ -544,7 +607,7 @@ class TestModuleDisclaimers:
             "apoe",
             "pharmacogenomics",
             "nutrigenomics",
-            "carrier_status",
+            "carrier",
             "ancestry",
             "traits",
         ]

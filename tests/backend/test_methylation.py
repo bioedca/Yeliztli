@@ -410,6 +410,97 @@ class TestQDPRThirdAllele:
         assert result.category != INDETERMINATE
 
 
+class TestFOLH1Direction:
+    """rs202676 (FOLH1) risk direction must not be inverted (#750).
+
+    Ensembl GRCh37 (plus strand): A/G, minor_allele=G (MAF ~0.39; EUR A 0.77 /
+    G 0.23) — so A is the reference *major* allele and G is the variant. The
+    panel previously labelled A the risk allele, scoring the homozygous-reference
+    AA (~55%+ of EUR) as "Homozygous FOLH1 variant — reduced folate absorption"
+    and the true variant GG as Standard — the exact opposite of the panel's own
+    primary citation (Guo 2012, PMID 22918695: the GG genotype has lower folate /
+    higher homocysteine). These assertions lock the corrected direction.
+    """
+
+    def _get_folh1(self, panel: MethylationPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs202676":
+                    return snp
+        pytest.fail("FOLH1 rs202676 not found")
+
+    def test_panel_alleles_not_inverted(self, panel: MethylationPanel) -> None:
+        folh1 = self._get_folh1(panel)
+        # G (the Ensembl minor allele) is the variant; A (major/reference) is not.
+        assert folh1.risk_allele == "G"
+        assert folh1.ref_allele == "A"
+        # variant_name corrected from the spurious Thr→Ser to the real Tyr→His.
+        assert folh1.variant_name == "Y60H"
+
+    def test_homozygous_reference_AA_is_standard(self, panel: MethylationPanel) -> None:
+        # AA is homozygous REFERENCE (the EUR majority) — it must read as normal,
+        # never "Homozygous FOLH1 variant".
+        result = _score_snp(self._get_folh1(panel), "AA")
+        assert result.category == STANDARD
+        assert "variant" not in result.effect_summary.lower()
+        assert "normal" in result.effect_summary.lower()
+
+    def test_homozygous_variant_GG_is_the_reduced_state(self, panel: MethylationPanel) -> None:
+        # GG is the homozygous VARIANT (Guo 2012: lower folate) — capped Moderate
+        # at evidence_level 1.
+        result = _score_snp(self._get_folh1(panel), "GG")
+        assert result.category == MODERATE
+        assert "homozygous" in result.effect_summary.lower()
+        assert "reduced" in result.effect_summary.lower()
+
+    def test_heterozygous_is_moderate(self, panel: MethylationPanel) -> None:
+        folh1 = self._get_folh1(panel)
+        assert _score_snp(folh1, "GA").category == MODERATE
+        assert _score_snp(folh1, "AG").category == MODERATE
+
+
+class TestCholineBetaineAlleleFrames:
+    """Issue #717: BHMT/SLC44A1 genotype keys must match real variant alleles."""
+
+    def _get_snp(self, panel: MethylationPanel, rsid: str) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found")
+
+    def test_rs585800_real_heterozygotes_resolve(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AT", "TA"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == MODERATE, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+    def test_rs585800_palindromic_homozygotes_withheld(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AA", "TT"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == INDETERMINATE, genotype
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+
+    def test_rs3199966_real_genotypes_resolve(self, panel: MethylationPanel) -> None:
+        slc44a1 = self._get_snp(panel, "rs3199966")
+        expected = {
+            "GG": STANDARD,
+            "GT": MODERATE,
+            "TG": MODERATE,
+            "TT": MODERATE,
+        }
+        for genotype, category in expected.items():
+            result = _score_snp(slc44a1, genotype)
+            assert result.category == category, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+
 # ── COMT catecholamine framing tests ─────────────────────────────────────
 
 
@@ -1017,7 +1108,7 @@ class TestStoreFindingsIntegration:
                 ("rs1801133", "1", 11856378, "GA"),  # C677T het → Moderate (★★)
                 ("rs1801131", "1", 11854476, "AC"),  # A1298C het → Moderate (★★)
                 ("rs1051266", "21", 46957794, "AA"),  # SLC19A1 hom → Moderate (★☆)
-                ("rs202676", "11", 49175363, "AA"),  # FOLH1 hom → Moderate (★☆)
+                ("rs202676", "11", 49175363, "GG"),  # FOLH1 hom variant → Moderate (★☆) (#750)
             ],
         )
 
@@ -1062,7 +1153,7 @@ class TestStoreFindingsIntegration:
                 ("rs1801133", "1", 11856378, "GG"),  # C677T reference
                 ("rs1801131", "1", 11854476, "AA"),  # A1298C reference
                 ("rs1051266", "21", 46957794, "GG"),  # SLC19A1 reference
-                ("rs202676", "11", 49175363, "GG"),  # FOLH1 reference
+                ("rs202676", "11", 49175363, "AA"),  # FOLH1 reference (AA = major allele, #750)
             ],
         )
 

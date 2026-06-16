@@ -187,6 +187,18 @@ def partial_sample(sample_engine: sa.Engine) -> sa.Engine:
     return _insert_raw_genotypes(sample_engine, genotypes)
 
 
+@pytest.fixture()
+def admixed_sample(sample_engine: sa.Engine) -> sa.Engine:
+    """Full-coverage sample that lands between small-bundle centroids."""
+    genotypes = [
+        {"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AG"},
+        {"rsid": "rs2", "chrom": "2", "pos": 200, "genotype": "CT"},
+        {"rsid": "rs3", "chrom": "3", "pos": 300, "genotype": "GA"},
+        {"rsid": "rs4", "chrom": "4", "pos": 400, "genotype": "TC"},
+    ]
+    return _insert_raw_genotypes(sample_engine, genotypes)
+
+
 # ── Bundle loading tests ─────────────────────────────────────────────────
 
 
@@ -536,6 +548,22 @@ class TestInferAncestry:
         assert result.snps_used == 1
         assert result.coverage_fraction == 0.25
         assert result.is_sufficient is False
+        assert result.classification_status == "uncertain"
+        assert result.top_population == UNCERTAIN
+        assert "low_coverage" in result.quality_flags
+
+    def test_full_coverage_ambiguous_sample_is_admixed(
+        self,
+        small_bundle: AncestryBundle,
+        admixed_sample: sa.Engine,
+    ) -> None:
+        result = infer_ancestry(small_bundle, admixed_sample)
+        assert result.snps_used == 4
+        assert result.coverage_fraction == 1.0
+        assert result.is_sufficient is True
+        assert result.classification_status == "admixed"
+        assert result.top_population == ADMIXED
+        assert "low_centroid_margin" in result.quality_flags
 
     def test_empty_sample(
         self,

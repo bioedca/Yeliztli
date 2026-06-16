@@ -5,7 +5,9 @@
  * and BRCA1/2 cross-link to cancer module.
  */
 
+import { useRef } from "react"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { CarrierVariant } from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -36,15 +38,21 @@ export default function VariantDetailPanel({
   // Keep the panel's accessible name inheritance-aware too: a dominant-risk gene
   // (BRCA1/2) is not announced as a "carrier" — consistent with VariantCard. (#540)
   const isDominant = variant.inheritance === "AD"
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
 
   return (
     <aside
+      ref={panelRef}
       className={cn(
         "fixed right-0 top-0 bottom-0 z-40 w-full max-w-md",
         "overflow-y-auto border-l bg-background shadow-xl",
         "animate-in slide-in-from-right duration-200",
       )}
+      role="dialog"
+      aria-modal="true"
       aria-label={`${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`}
+      tabIndex={-1}
       data-testid="carrier-detail-panel"
     >
       <div className="p-6">

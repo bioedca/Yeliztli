@@ -90,7 +90,7 @@ def carrier_finding() -> dict:
     """A carrier status finding dict."""
     return {
         "id": 4,
-        "module": "carrier_status",
+        "module": "carrier",
         "category": "monogenic_variant",
         "evidence_level": 4,
         "gene_symbol": "CFTR",
@@ -357,7 +357,7 @@ class TestGenerateSvgsForSample:
             )
             conn.execute(
                 findings.insert().values(
-                    module="carrier_status",
+                    module="carrier",
                     category="monogenic_variant",
                     evidence_level=4,
                     gene_symbol="CFTR",
@@ -372,5 +372,6 @@ class TestGenerateSvgsForSample:
         # Both findings should have svg_path set
         with sample_engine.connect() as conn:
             rows = conn.execute(sa.select(findings)).fetchall()
+            assert len(rows) == 2
             for row in rows:
                 assert row.svg_path is not None

@@ -201,6 +201,32 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
         conn.execute(sa.insert(hla_proxy_lookup), _hla_proxy_seed_entries())
 
 
+def _seed_ancestry(
+    engine: sa.Engine,
+    top_population: str,
+    admixture_fractions: dict[str, float] | None = None,
+) -> None:
+    """Seed the latest ancestry finding consumed by allergy HLA caveat gating."""
+    fractions = admixture_fractions or {top_population: 1.0}
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            {
+                "module": "ancestry",
+                "category": "nnls_admixture",
+                "evidence_level": 2,
+                "finding_text": f"Inferred ancestry: {top_population}",
+                "detail_json": json.dumps(
+                    {
+                        "top_population": top_population,
+                        "inferred_ancestry": top_population,
+                        "admixture_fractions": fractions,
+                    }
+                ),
+            },
+        )
+
+
 # All 14 panel SNPs with their chromosome positions
 ALL_ALLERGY_VARIANTS = [
     # Atopic Conditions
@@ -209,12 +235,12 @@ ALL_ALLERGY_VARIANTS = [
     ("rs324011", "12", 57527283, "CT"),  # STAT6 het
     # Drug Hypersensitivity
     ("rs2395029", "6", 31431272, "TG"),  # HLA-B*57:01 proxy het
-    ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 proxy het
+    ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 proxy het (T/A SNP, A=risk; #709)
     ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 proxy het (A/T SNP, T=risk; #545)
     ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 proxy het
     # Food Sensitivity
     ("rs2187668", "6", 32605884, "CT"),  # HLA-DQ2 proxy het
-    ("rs7775228", "6", 32713862, "CC"),  # HLA-DQ8 proxy ref
+    ("rs7775228", "6", 32713862, "TT"),  # HLA-DQ8 proxy ref (no proxy; minor C=risk, #748)
     # Histamine Metabolism
     ("rs10156191", "7", 150554592, "CT"),  # AOC1 Thr16Met het
     ("rs1049742", "7", 150554553, "CT"),  # AOC1 Ser332Phe het (#386)
@@ -526,7 +552,7 @@ class TestCeliacCombined:
             sample_engine,
             [
                 ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
-                ("rs7775228", "6", 32713862, "CC"),  # DQ8 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy; minor C=risk, #748)
             ],
         )
         _seed_hla_proxies(reference_engine)
@@ -546,7 +572,7 @@ class TestCeliacCombined:
             sample_engine,
             [
                 ("rs2187668", "6", 32605884, "CT"),  # DQ2 het
-                ("rs7775228", "6", 32713862, "CC"),  # DQ8 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy; minor C=risk, #748)
             ],
         )
         _seed_hla_proxies(reference_engine)
@@ -632,7 +658,8 @@ class TestCeliacCombined:
         reference_engine: sa.Engine,
     ) -> None:
         """DQ8 reference but DQ2 untyped → 'indeterminate' (cannot rule out via one proxy)."""
-        _seed_variants(sample_engine, [("rs7775228", "6", 32713862, "CC")])  # DQ8 ref only
+        # DQ8 ref only (TT = no proxy; minor C=risk after #748)
+        _seed_variants(sample_engine, [("rs7775228", "6", 32713862, "TT")])
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         assert result.celiac_combined is not None
@@ -838,6 +865,61 @@ class TestHistamineCombined:
         assert "AOC1" in hc.combined_text and "HNMT" not in hc.combined_text
 
 
+# ── HLA-B*15:02 proxy allele-direction regression (#709) ────────────────────
+
+
+class TestHLAB1502ProxyAlleleDirection:
+    """#709: rs144012689 (HLA-B*15:02 / carbamazepine SJS/TEN proxy) was
+    encoded with a nonexistent C allele and the common T allele as risk
+    (risk=T/ref=C, keyed CC/CT/TC/TT). That falsely flagged common TT
+    homozygotes and dropped true heterozygous carriers.
+
+    NCBI/dbSNP and Ensembl both report rs144012689 as a T/A SNP in HLA-B
+    (GRCh37 6:31322780; GRCh38 6:31355003), with A as the minor/alternate
+    allele. The A allele is the HLA-B*15:02 proxy risk tag. Because T/A is
+    palindromic, array strand cannot be resolved for homozygotes, so the safe
+    behavior is: heterozygous carriers Elevated; both homozygotes withheld as
+    strand-Indeterminate.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs144012689")
+
+    def test_encoded_as_real_ta_snp_with_correct_direction(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        assert snp.gene == "HLA-B"
+        # Real T/A alleles, A = HLA-B*15:02 tag (risk), T = common/ref. No C.
+        assert (snp.risk_allele, snp.ref_allele) == ("A", "T")
+        assert set(snp.genotype_effects) == {"TT", "TA", "AT", "AA"}
+        assert "C" not in "".join(snp.genotype_effects)
+
+    def test_common_homozygote_is_not_a_false_carbamazepine_flag(
+        self, panel: AllergyPanel
+    ) -> None:
+        """The common TT homozygote must not be reported as an HLA-B*15:02
+        carrier. Because the locus is palindromic, it is withheld as
+        strand-Indeterminate rather than force-called Standard."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == INDETERMINATE
+        assert result.category != ELEVATED
+        assert "contraindicated" not in result.effect_summary.lower()
+        assert "palindromic" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true HLA-B*15:02 proxy carrier is heterozygous (T/A); het is
+        strand-resolvable, so it is correctly flagged Elevated."""
+        for gt in ("TA", "AT"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == ELEVATED, gt
+            assert "carrier" in result.effect_summary.lower()
+
+    def test_variant_homozygote_withheld_as_indeterminate(self, panel: AllergyPanel) -> None:
+        """The rare AA homozygote is also a palindromic homozygote and is
+        withheld because its array strand cannot be resolved from the genotype."""
+        result = _score_snp(self._snp(panel), "AA")
+        assert result.category == INDETERMINATE
+
+
 # ── HLA-A*31:01 proxy allele-direction regression (#545) ────────────────────
 
 
@@ -894,15 +976,107 @@ class TestHLAA31ProxyAlleleDirection:
         assert result.category == INDETERMINATE
 
 
+# ── Celiac HLA-DQ8 proxy allele-direction regression (#748) ─────────────────
+
+
+class TestCeliacDQ8ProxyAlleleDirection:
+    """#748: rs7775228 (celiac HLA-DQ8 proxy) had its risk allele inverted —
+    risk=T/ref=C with TT→Elevated — labelling the COMMON major allele T (~84%
+    EUR) as the proxy-positive allele. That falsely flagged ~71% of EUR (TT
+    homozygotes) as homozygous DQ8 carriers needing serological screening and
+    propagated into the combined DQ2/DQ8 rule-out, while true minor-allele (CC)
+    carriers were called DQ8-negative (false reassurance).
+
+    Ensembl GRCh37 (6:32658079) reports rs7775228 as T/A/C with minor allele
+    **C** (MAF 0.214, ancestral T); the minor C allele tags the HLA risk
+    haplotype (GWAS Catalog HLA associations sit on C). C/T is a non-palindromic
+    transition, so homozygotes are strand-resolvable — no Indeterminate needed
+    (unlike the palindromic A/T siblings #709/#545).
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs7775228")
+
+    def test_minor_allele_c_is_the_risk_allele(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        # Minor allele C = HLA-DQ8 proxy tag (risk); common T = ref.
+        assert (snp.risk_allele, snp.ref_allele) == ("C", "T")
+        assert set(snp.genotype_effects) == {"CC", "CT", "TC", "TT"}
+
+    def test_common_major_homozygote_is_not_a_false_dq8_flag(self, panel: AllergyPanel) -> None:
+        """The common TT homozygote (~71% EUR) must NOT be flagged a homozygous
+        DQ8 proxy. It is the no-proxy reference → Standard, not Elevated."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == STANDARD
+        assert result.category != ELEVATED
+        assert "no hla-dq8 proxy allele detected" in result.effect_summary.lower()
+
+    def test_minor_allele_homozygote_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true minor-allele (CC) homozygote is the homozygous DQ8 proxy →
+        Elevated (was falsely Standard / DQ8-negative pre-fix)."""
+        result = _score_snp(self._snp(panel), "CC")
+        assert result.category == ELEVATED
+        assert "homozygous" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_moderate(self, panel: AllergyPanel) -> None:
+        for gt in ("CT", "TC"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == MODERATE, gt
+            assert "one copy" in result.effect_summary.lower()
+
+    def test_combined_dq8_positivity_tracks_the_minor_allele(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """The combined DQ2/DQ8 assessment must flag the minor-allele (CC) carrier
+        as DQ8-positive and the common TT majority as DQ8-negative — the inverse of
+        the pre-#748 behavior. (DQ2 held at its non-risk TT-... i.e. CC ref.)"""
+        # Common TT majority: DQ8-negative; DQ2 ref (CC) too → 'neither'.
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy)
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        neither = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert neither.celiac_combined is not None
+        assert neither.celiac_combined.state == "neither"
+
+    def test_combined_minor_allele_homozygote_is_dq8_positive(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A true CC minor-allele homozygote (DQ2 ref) → 'dq8_only', not the false
+        'neither' rule-out that the pre-#748 direction produced."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "CC"),  # DQ8 homozygous proxy (minor C)
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "dq8_only"
+
+
 # ── HLA-A*31:01 proxy specificity caveat (#611) ─────────────────────────────
 
 
 class TestHLAA31ProxySpecificityCaveat:
     """#611 (follow-up to #545): rs1061235 is an imperfect HLA-A*31:01 tag SNP — it
     cross-reacts with HLA-A*33 (false positives) and is less reliable in Native
-    American ancestry. With the direction fixed (#545), surface that specificity
+    American ancestry. With the direction fixed (#545), surface the specificity
     caveat alongside a positive (carrier) call so it isn't read as a confirmed
-    HLA-A*31:01 result.
+    HLA-A*31:01 result, and gate the reduced-reliability clause to matching
+    inferred ancestry (#738).
     """
 
     def _snp(self, panel: AllergyPanel) -> PanelSNP:
@@ -931,10 +1105,47 @@ class TestHLAA31ProxySpecificityCaveat:
         assert caveat is not None
         assert "HLA-A*33 cross-reactivity" in caveat
         assert "confirmatory" in caveat.lower()
-        assert "Native American" in caveat
+        assert "Native American" not in caveat
         # And it lands in the stored SNP detail JSON.
         detail = _stored_snp_detail(carrier, {})
         assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "Native American" not in detail["coverage_note"]
+        assert "HLA-A*33" in detail["coverage_note"]
+
+    def test_reduced_ancestry_clause_surfaced_for_amr_ancestry(self, panel: AllergyPanel) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        caveat = _positive_hla_proxy_specificity_caveat(
+            carrier,
+            inferred_ancestry="AMR",
+        )
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "Native American" in caveat
+        assert "rs17179220" in caveat
+
+        detail = _stored_snp_detail(carrier, {}, inferred_ancestry="AMR")
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "Native American" in detail["coverage_note"]
+        assert "rs17179220" in detail["coverage_note"]
+
+    def test_reduced_ancestry_clause_omitted_for_non_amr_ancestry(
+        self, panel: AllergyPanel
+    ) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        caveat = _positive_hla_proxy_specificity_caveat(
+            carrier,
+            inferred_ancestry="EUR",
+        )
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "Native American" not in caveat
+        assert "rs17179220" not in caveat
+
+        detail = _stored_snp_detail(carrier, {}, inferred_ancestry="EUR")
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "HLA-A*33" in detail["coverage_note"]
+        assert "Native American" not in detail["coverage_note"]
+        assert "rs17179220" not in detail["coverage_note"]
 
     def test_caveat_not_surfaced_for_indeterminate_homozygote(self, panel: AllergyPanel) -> None:
         # The palindromic AA/TT homozygotes are withheld (Indeterminate), not a
@@ -1119,7 +1330,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → pgx
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → pgx
                 ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 het carrier → pgx (#545)
             ],
         )
@@ -1149,7 +1360,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → carbamazepine
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → carbamazepine
                 ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 → allopurinol
             ],
         )
@@ -1408,6 +1619,90 @@ class TestFindingsStorage:
         assert "hla_proxy_lookup" in detail
         assert detail["hla_proxy_lookup"]["hla_allele"] == "HLA-B*57:01"
         assert "EUR" in detail["hla_proxy_lookup"]["r_squared_by_pop"]
+
+    def test_hla_a3101_native_american_clause_omitted_for_non_amr_storage(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Persisted rs1061235 detail keeps HLA-A*33 caveat but gates ancestry text."""
+        _seed_ancestry(sample_engine, "EUR", {"EUR": 0.9, "AMR": 0.1})
+        _seed_variants(sample_engine, [("rs1061235", "6", 29910670, "AT")])
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.inferred_ancestry == "EUR"
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            drug_summary = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Drug Hypersensitivity",
+                )
+            ).fetchone()
+            snp_finding = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs1061235",
+                )
+            ).fetchone()
+
+        assert drug_summary is not None
+        assert snp_finding is not None
+        pathway_detail = json.loads(drug_summary.detail_json)
+        rs106_detail = next(d for d in pathway_detail["snp_details"] if d["rsid"] == "rs1061235")
+        snp_detail = json.loads(snp_finding.detail_json)
+
+        assert "HLA-A*33 cross-reactivity" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" not in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" not in rs106_detail["coverage_note"]
+        assert "rs17179220" not in rs106_detail["coverage_note"]
+        assert "HLA-A*33" in rs106_detail["coverage_note"]
+        assert "Native American" not in snp_detail["coverage_note"]
+
+    def test_hla_a3101_native_american_clause_kept_for_amr_storage(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Persisted rs1061235 detail includes reduced-reliability text for AMR."""
+        _seed_ancestry(sample_engine, "AMR", {"AMR": 0.8, "EUR": 0.2})
+        _seed_variants(sample_engine, [("rs1061235", "6", 29910670, "AT")])
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.inferred_ancestry == "AMR"
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            drug_summary = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Drug Hypersensitivity",
+                )
+            ).fetchone()
+            snp_finding = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs1061235",
+                )
+            ).fetchone()
+
+        assert drug_summary is not None
+        assert snp_finding is not None
+        pathway_detail = json.loads(drug_summary.detail_json)
+        rs106_detail = next(d for d in pathway_detail["snp_details"] if d["rsid"] == "rs1061235")
+        snp_detail = json.loads(snp_finding.detail_json)
+
+        assert "HLA-A*33 cross-reactivity" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "rs17179220" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" in rs106_detail["coverage_note"]
+        assert "rs17179220" in rs106_detail["coverage_note"]
+        assert "Native American" in snp_detail["coverage_note"]
 
     def test_hla_b5801_negative_proxy_caveat_in_pathway_detail(
         self,

@@ -35,6 +35,7 @@ from backend.analysis.gene_health import (
     SNPResult,
     _determine_pathway_level,
     _generate_cross_module_findings,
+    _is_standard_carrier_context,
     _map_indel_genotype,
     _normalize_genotype,
     _score_snp,
@@ -169,7 +170,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs6910071", "6", 32574073, "GA"),  # HLA-DRB1 shared epitope het -> Elevated
     ("rs2476601", "1", 114377568, "GA"),  # PTPN22 R620W het -> Moderate
     ("rs7574865", "2", 191964633, "GT"),  # STAT4 het -> Moderate
-    ("rs9273363", "6", 32658525, "TC"),  # HLA-DQB1 T1D proxy het -> Elevated
+    ("rs9273363", "6", 32626272, "CA"),  # HLA-DQB1 non-diagnostic HLA-DQ marker (#731) -> Standard
     ("rs689", "11", 2159842, "TA"),  # INS VNTR proxy het -> Moderate
     ("rs2066844", "16", 50745926, "CT"),  # NOD2 R702W het -> Moderate
     ("rs11209026", "1", 67705958, "GA"),  # IL23R R381Q het -> Standard/protective
@@ -473,6 +474,49 @@ class TestSNPScoring:
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
 
+    def test_hla_dqb1_rs9273363_demoted_to_non_diagnostic_marker(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """HLA-DQB1 rs9273363 (#731): re-keyed to the real plus-strand C/A alleles
+        and demoted to a non-diagnostic HLA-DQ region marker.
+
+        Two bugs were fixed together:
+          - Strand mis-key: the panel keyed ``ref_allele="T"`` (the minus-strand
+            complement of the real minor allele ``A``), so a real ``A/C``
+            heterozygote matched no curated row and dropped to *Indeterminate*
+            (#608's unmodeled-allele path) — the carrier was hidden. The
+            observed-genotype-resolves assertions below (real ``CA``/``AC`` now
+            score, ``present_in_sample`` true) are the tri-allelic locus's coverage
+            that the set-based strand guard structurally cannot provide.
+          - Contested/incoherent direction: the old panel made the 0.76-major allele
+            ``C`` the risk allele, scoring the majority ``CC`` genotype "Elevated /
+            strongly elevated T1D risk" for a ~0.3%-prevalence disease. The GWAS
+            Catalog reports a contested single-SNP direction (A: OR 5.48; C also an
+            effect allele), and a tag SNP cannot capture the protective DQB1*06:02
+            haplotype, so NO T1D risk is inferred from any genotype now.
+        """
+        snp = self._get_snp(panel, "rs9273363")
+        # Re-keyed to the real Ensembl GRCh37 plus-strand alleles (no impossible T).
+        assert snp.risk_allele == "A"
+        assert snp.ref_allele == "C"
+
+        # Every real genotype resolves to the curated non-diagnostic entry (Standard,
+        # present_in_sample) — NOT Indeterminate (the old mis-strand result for a real
+        # A/C het) and NOT Elevated (the old major-CC call).
+        for genotype in ("CC", "CA", "AC", "AA"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} must be Standard (non-diagnostic)"
+            assert result.present_in_sample is True
+
+        # The framing infers no T1D risk and labels it a marker, not a risk call.
+        for effect in snp.genotype_effects.values():
+            summary = effect["effect_summary"].lower()
+            assert "no type 1 diabetes risk is inferred" in summary
+            assert "elevated" not in summary
+        # variant_name reads as a non-diagnostic marker, not a "risk proxy".
+        assert "marker" in snp.variant_name.lower()
+        assert "not a validated" in snp.variant_name.lower()
+
     def test_cdkn2b_as1_plus_strand_and_protective_direction(self, panel: GeneHealthPanel) -> None:
         """CDKN2B-AS1/9p21 (rs2157719): the entry must be on the plus strand (C/T,
         per Ensembl GRCh37) AND in the correct, protective direction — the minor
@@ -516,7 +560,7 @@ class TestSNPScoring:
 
     def test_hla_proxy_rows_carry_ancestry_caveats(self, panel: GeneHealthPanel) -> None:
         """#689: HLA tag-SNP rows must declare ancestry-limited proxy confidence."""
-        for rsid in ("rs3135388", "rs6910071", "rs9273363"):
+        for rsid in ("rs3135388", "rs6910071"):
             snp = self._get_snp(panel, rsid)
             assert snp.ancestry_caveat is not None
             assert snp.ancestry_caveat["applies_to_categories"] == [ELEVATED]
@@ -524,6 +568,10 @@ class TestSNPScoring:
             caveat = snp.ancestry_caveat["caveat_text"]
             assert "HLA tag-SNP is a proxy" in caveat
             assert "high-resolution HLA typing" in caveat
+
+        hla_dq = self._get_snp(panel, "rs9273363")
+        assert hla_dq.ancestry_caveat is None
+        assert all(effect["category"] == STANDARD for effect in hla_dq.genotype_effects.values())
 
     def test_il2_il21_rs6822844_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
         """IL2/IL21 rs6822844: the minor T allele is protective across autoimmune
@@ -618,11 +666,17 @@ class TestSNPScoring:
         # A non-nucleotide no-call is not an unmodeled allele — it stays Standard.
         assert _score_snp(snp, "--").category == STANDARD
 
-    def test_gjb2_het_moderate(self, panel: GeneHealthPanel) -> None:
-        """GJB2 35delG het (G/delG) -> Moderate."""
+    def test_gjb2_het_carrier_standard(self, panel: GeneHealthPanel) -> None:
+        """GJB2 35delG het (G/delG) -> Standard (#700).
+
+        DFNB1/GJB2 hearing loss is autosomal recessive and requires biallelic
+        pathogenic variants; a single 35delG allele is an unaffected carrier, so
+        its *personal* risk is Standard (not Moderate), matching the sibling
+        recessive carrier SLC26A4. The variant is still present in the sample.
+        """
         snp = self._get_snp(panel, "rs80338939")
         result = _score_snp(snp, "G/delG")
-        assert result.category == MODERATE
+        assert result.category == STANDARD
         assert result.present_in_sample is True
 
     def test_gjb2_hom_elevated(self, panel: GeneHealthPanel) -> None:
@@ -632,10 +686,10 @@ class TestSNPScoring:
         assert result.category == ELEVATED
 
     def test_gjb2_reversed_slash_genotype(self, panel: GeneHealthPanel) -> None:
-        """GJB2 reversed slash genotype (delG/G) -> matches G/delG -> Moderate."""
+        """GJB2 reversed slash genotype (delG/G) -> matches G/delG -> Standard (#700)."""
         snp = self._get_snp(panel, "rs80338939")
         result = _score_snp(snp, "delG/G")
-        assert result.category == MODERATE
+        assert result.category == STANDARD
         assert result.present_in_sample is True
 
     def test_gjb2_indel_map_translates_vendor_id_codes(self, panel: GeneHealthPanel) -> None:
@@ -707,15 +761,21 @@ class TestGJB2IndelEndToEnd:
         assert gjb2.category == ELEVATED
         assert "homozygous" in gjb2.effect_summary.lower()
 
-    def test_heterozygous_di_is_carrier_moderate(
+    def test_heterozygous_di_is_carrier_standard(
         self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
     ) -> None:
+        """#700: a heterozygous 35delG (vendor DI) carrier scores Standard — not
+        Moderate — because DFNB1 is autosomal recessive (biallelic required). The
+        carrier is still surfaced (present + carrier-display context), so dropping
+        the personal-risk category does not hide the reproductive-relevant status."""
         _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "DI")])
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         gjb2 = self._gjb2(result)
         assert gjb2.present_in_sample is True
-        assert gjb2.category == MODERATE
+        assert gjb2.category == STANDARD
         assert "carrier" in gjb2.effect_summary.lower()
+        # Standard ≠ hidden: still surfaced as a reproductive-relevant carrier.
+        assert _is_standard_carrier_context(gjb2) is True
 
     def test_homozygous_reference_ii_is_standard_present(
         self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
@@ -736,6 +796,30 @@ class TestGJB2IndelEndToEnd:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         cov = next(r for r in result.panel_coverage_rows if r["rsid"] == "rs80338939")
         assert cov["coverage_status"] == "called"
+
+    def test_recessive_deafness_het_carriers_consistent_and_no_pathway_inflation(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        """#700: heterozygous carriers of the recessive deafness genes GJB2 (35delG)
+        and SLC26A4 must both score Standard, so a lone carrier does not inflate the
+        max-category 'Sensory Conditions' pathway above Standard. Locks GJB2 and
+        SLC26A4 to consistent recessive-carrier handling."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs80338939", "13", 20763612, "DI"),  # GJB2 35delG het carrier
+                ("rs111033313", "7", 107683453, "AG"),  # SLC26A4 het carrier
+            ],
+        )
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        by_rsid = {s.rsid: s for pr in result.pathway_results for s in pr.snp_results}
+        assert by_rsid["rs80338939"].category == STANDARD
+        assert by_rsid["rs111033313"].category == STANDARD
+
+        sensory = next(
+            pr for pr in result.pathway_results if pr.pathway_name == "Sensory Conditions"
+        )
+        assert sensory.level == STANDARD
 
 
 # -- Pathway level determination tests ----------------------------------------
@@ -1152,7 +1236,6 @@ class TestFullScoring:
         hla_variants = [
             ("rs3135388", "6", 32408274, "GA"),
             ("rs6910071", "6", 32574073, "GA"),
-            ("rs9273363", "6", 32658525, "TC"),
         ]
         hla_rsids = {row[0] for row in hla_variants}
         _seed_variants(sample_engine, hla_variants)
@@ -1165,7 +1248,7 @@ class TestFullScoring:
             if snp.rsid in hla_rsids
         }
 
-        assert set(hla_results) == {"rs3135388", "rs6910071", "rs9273363"}
+        assert set(hla_results) == {"rs3135388", "rs6910071"}
         for snp in hla_results.values():
             assert snp.category == ELEVATED
             assert snp.ancestry_caveated is True

@@ -1,6 +1,8 @@
 /** Drug detail slide-in panel showing per-gene effects (P3-06). */
 
+import { useRef } from "react"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { usePharmaDrugLookup } from "@/api/pharmacogenomics"
 import type { GeneEffect, CallConfidence } from "@/types/pharmacogenomics"
 import {
@@ -95,9 +97,12 @@ export default function DrugDetailPanel({
   onClose,
 }: DrugDetailPanelProps) {
   const { data, isLoading, isError, error } = usePharmaDrugLookup(drugName, sampleId)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(panelRef)
 
   return (
     <div
+      ref={panelRef}
       className={cn(
         "fixed inset-y-0 right-0 z-40 w-full max-w-md",
         "border-l bg-background shadow-xl",
@@ -107,6 +112,7 @@ export default function DrugDetailPanel({
       role="dialog"
       aria-label={`${drugName} drug detail`}
       aria-modal="true"
+      tabIndex={-1}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
