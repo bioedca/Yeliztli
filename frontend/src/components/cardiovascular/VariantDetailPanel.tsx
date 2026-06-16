@@ -4,7 +4,9 @@
  * ClinVar data, cardiovascular category, conditions, PMIDs, and inheritance.
  */
 
+import { useRef } from "react"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { CardiovascularVariant } from "@/types/cardiovascular"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -20,14 +22,21 @@ export default function VariantDetailPanel({
   variant,
   onClose,
 }: VariantDetailPanelProps) {
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
+
   return (
     <aside
+      ref={panelRef}
       className={cn(
         "fixed right-0 top-0 bottom-0 z-40 w-full max-w-md",
         "overflow-y-auto border-l bg-background shadow-xl",
         "animate-in slide-in-from-right duration-200",
       )}
+      role="dialog"
+      aria-modal="true"
       aria-label={`${variant.gene_symbol} variant detail`}
+      tabIndex={-1}
       data-testid="variant-detail-panel"
     >
       <div className="p-6">
