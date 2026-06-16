@@ -339,7 +339,9 @@ class TestLogout:
 class TestSetPassword:
     """Test password set/update flows."""
 
-    def test_set_initial_password(self, noauth_client: TestClient) -> None:
+    def test_set_initial_password(self, noauth_client: TestClient, tmp_data_dir: Path) -> None:
+        import tomllib
+
         resp = noauth_client.post(
             "/api/auth/set-password",
             json={"password": "newpin123"},
@@ -347,6 +349,12 @@ class TestSetPassword:
         assert resp.status_code == 200
         assert resp.json()["success"] is True
         assert "gi_session" in resp.cookies
+
+        cfg = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        persisted_hash = cfg["yeliztli"]["auth_password_hash"]
+        assert cfg["yeliztli"]["auth_enabled"] is True
+        assert persisted_hash != "newpin123"
+        assert verify_password("newpin123", persisted_hash) is True
 
     def test_set_password_too_short(self, noauth_client: TestClient) -> None:
         resp = noauth_client.post(
