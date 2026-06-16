@@ -1,4 +1,5 @@
 import { act } from "react"
+import { QueryClient } from "@tanstack/react-query"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "./test-utils"
 import AnnotationPanel from "@/components/dashboard/AnnotationPanel"
@@ -60,6 +61,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -283,6 +285,35 @@ describe("AnnotationPanel", () => {
 
       await waitFor(() => {
         expect(es.readyState).toBe(2) // CLOSED
+      })
+    })
+
+    it("invalidates sample QC metrics on terminal state", async () => {
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries")
+
+      mockStartAnnotation()
+      render(<AnnotationPanel sampleId={42} variantCount={1000} />)
+
+      fireEvent.click(screen.getByText("Run Annotation"))
+
+      await waitFor(() => expect(MockEventSource.instances.length).toBe(1))
+
+      const callsBeforeTerminalState = invalidateSpy.mock.calls.length
+
+      act(() => {
+        MockEventSource.instances[0]._emit("progress", {
+          job_id: "test-job-123",
+          status: "complete",
+          progress_pct: 100.0,
+          message: "Done",
+          error: null,
+        })
+      })
+
+      await waitFor(() => {
+        expect(
+          invalidateSpy.mock.calls.slice(callsBeforeTerminalState),
+        ).toContainEqual([{ queryKey: ["analysis-qc-metrics", 42] }])
       })
     })
   })

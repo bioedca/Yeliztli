@@ -86,7 +86,7 @@ export function PostMergeRewatchModal({
   onClose,
 }: PostMergeRewatchModalProps) {
   const queryClient = useQueryClient()
-  const progress = useAnnotationProgress(jobId)
+  const progress = useAnnotationProgress(jobId, mergedSampleId)
 
   // Annotation cascade is finished when SSE reports complete OR no jobId
   // was provided AND the user opened the modal manually. Plan §10.6

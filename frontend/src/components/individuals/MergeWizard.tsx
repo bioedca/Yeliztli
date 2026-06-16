@@ -89,7 +89,8 @@ export function MergeWizard({
   // Bind to the annotation SSE channel once a job id arrives. The hook
   // tolerates null and tears down its EventSource when the id resets.
   const jobId = commitMutation.data?.job_id || null
-  const progress = useAnnotationProgress(jobId)
+  const mergedSampleId = commitMutation.data?.merged_sample_id ?? null
+  const progress = useAnnotationProgress(jobId, mergedSampleId)
 
   // Close on Escape — mirrors the project's existing modal idiom
   // (ColumnPresets.CreatePresetDialog).

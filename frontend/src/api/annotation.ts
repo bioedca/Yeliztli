@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { qcMetricsQueryKey } from "@/api/qc"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -40,8 +41,9 @@ export function useStartAnnotation() {
       }
       return await res.json()
     },
-    onSuccess: () => {
+    onSuccess: (_result, sampleId) => {
       queryClient.invalidateQueries({ queryKey: ["variants-count"] })
+      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) })
     },
   })
 }
@@ -95,7 +97,10 @@ export function useActiveAnnotationJob(sampleId: number | null) {
 
 const TERMINAL_STATES = new Set(["complete", "failed", "cancelled"])
 
-export function useAnnotationProgress(jobId: string | null): AnnotationProgress | null {
+export function useAnnotationProgress(
+  jobId: string | null,
+  sampleId: number | null = null,
+): AnnotationProgress | null {
   const [progress, setProgress] = useState<AnnotationProgress | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const queryClient = useQueryClient()
@@ -135,6 +140,9 @@ export function useAnnotationProgress(jobId: string | null): AnnotationProgress 
         queryClient.invalidateQueries({ queryKey: ["variants-count"] })
         queryClient.invalidateQueries({ queryKey: ["variants-total-count"] })
         queryClient.invalidateQueries({ queryKey: ["variants-qc-stats"] })
+        if (sampleId != null) {
+          queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) })
+        }
         queryClient.invalidateQueries({ queryKey: ["variants-chromosomes"] })
         // Invalidate findings so High-Confidence Findings refreshes
         queryClient.invalidateQueries({ queryKey: ["findings-summary"] })
@@ -148,7 +156,7 @@ export function useAnnotationProgress(jobId: string | null): AnnotationProgress 
     })
 
     return cleanup
-  }, [jobId, cleanup, queryClient])
+  }, [jobId, cleanup, queryClient, sampleId])
 
   return progress
 }

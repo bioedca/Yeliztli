@@ -80,7 +80,7 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
 
   const startAnnotation = useStartAnnotation()
   const cancelAnnotation = useCancelAnnotation()
-  const progress = useAnnotationProgress(jobId)
+  const progress = useAnnotationProgress(jobId, sampleId)
   const eta = useETA(progress)
 
   const handleStart = useCallback(() => {
