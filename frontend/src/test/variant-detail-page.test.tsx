@@ -52,7 +52,7 @@ const mockVariant: VariantDetail = {
   sift_score: 0.001,
   sift_pred: "D",
   polyphen2_hsvar_score: 0.99,
-  polyphen2_hsvar_pred: "probably_damaging",
+  polyphen2_hsvar_pred: "D",
   revel: 0.85,
   mutpred2: 0.72,
   vest4: 0.88,
@@ -329,6 +329,10 @@ describe("VariantDetailPage (P2-21a)", () => {
     // All in-silico scores
     expect(screen.getByText("28.4")).toBeInTheDocument() // CADD
     expect(screen.getByText("0.850")).toBeInTheDocument() // REVEL
+    // PolyPhen-2: the raw dbNSFP code "D" maps to a readable "Probably Damaging"
+    // label in the damaging colour (#680), not a bare "D" in the benign green.
+    const polyphen = screen.getByText(/Probably Damaging/)
+    expect(polyphen).toHaveClass("text-red-600")
   })
 
   it("shows disease associations in Clinical tab", async () => {

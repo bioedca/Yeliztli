@@ -21,6 +21,7 @@ import type { VariantDetail, EvidenceConflictDetail } from "@/types/variant-deta
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
 import { formatAlleleFrequency } from "@/lib/format"
+import { polyphen2Display } from "@/lib/insilico"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
@@ -257,16 +258,10 @@ function PanelContent({
           label="PolyPhen-2"
           value={
             variant.polyphen2_hsvar_pred ? (
-              <span
-                className={cn(
-                  variant.polyphen2_hsvar_pred === "probably_damaging"
-                    ? "text-red-600 dark:text-red-400"
-                    : variant.polyphen2_hsvar_pred === "possibly_damaging"
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-green-600 dark:text-green-400",
-                )}
-              >
-                {variant.polyphen2_hsvar_pred.replace(/_/g, " ")}
+              <span className={polyphen2Display(variant.polyphen2_hsvar_pred).colorClass}>
+                {polyphen2Display(variant.polyphen2_hsvar_pred).label}
+                {variant.polyphen2_hsvar_score != null &&
+                  ` (${variant.polyphen2_hsvar_score.toFixed(3)})`}
               </span>
             ) : null
           }

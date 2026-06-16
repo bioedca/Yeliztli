@@ -36,7 +36,7 @@ function makeVariantPage(count: number): VariantPage {
       sift_score: 0.001,
       sift_pred: "D",
       polyphen2_hsvar_score: 0.99,
-      polyphen2_hsvar_pred: "probably_damaging",
+      polyphen2_hsvar_pred: "D",
       revel: 0.85,
       annotation_coverage: 0b111111,
       evidence_conflict: i === 0,
@@ -213,6 +213,29 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     expect(screen.getByText("Pathogenic")).toBeInTheDocument()
     expect(screen.getByText("missense variant")).toBeInTheDocument()
     expect(screen.getByText("MANE Select")).toBeInTheDocument()
+  })
+
+  it("maps the single-char PolyPhen-2 code 'D' to 'Probably Damaging' in the damaging colour (#680)", async () => {
+    // The backend stores the raw dbNSFP code ("D"), not "probably_damaging";
+    // pre-fix the full-word check never matched, so a probably-damaging call
+    // rendered as a bare "D" in the benign green colour.
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => mockVariantDetail,
+    }))
+
+    render(
+      <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+
+    const polyphen = screen.getByText(/Probably Damaging/)
+    expect(polyphen).toHaveClass("text-red-600")
+    // The raw single-letter code must not leak through as the label.
+    expect(polyphen.textContent).not.toBe("D")
   })
 
   it("shows evidence conflict section when conflict exists", async () => {
