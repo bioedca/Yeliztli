@@ -27,6 +27,7 @@ import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
@@ -135,7 +136,11 @@ def _load_findings(
                 "rsid": row.rsid,
                 "finding_text": row.finding_text,
                 "phenotype": row.phenotype,
-                "conditions": row.conditions,
+                # Clean the raw CLNDN blob for display (#918), mirroring the
+                # frontend helper (#917); raw value stays in the DB. (The current
+                # report_base.html does not render this row, but keep both report
+                # finding-builders symmetric so it is correct if it ever does.)
+                "conditions": format_clinvar_conditions_text(row.conditions),
                 "zygosity": row.zygosity,
                 "clinvar_significance": row.clinvar_significance,
                 "diplotype": row.diplotype,

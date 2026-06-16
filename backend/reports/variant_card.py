@@ -26,6 +26,7 @@ import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
@@ -84,7 +85,10 @@ def _load_single_finding(
         "rsid": row.rsid,
         "finding_text": row.finding_text,
         "phenotype": row.phenotype,
-        "conditions": row.conditions,
+        # Clean the raw CLNDN blob for display (#918): drop | separators, the
+        # not provided/not specified placeholders, and drug-response entries.
+        # Mirrors the frontend helper (#917); raw value stays in the DB.
+        "conditions": format_clinvar_conditions_text(row.conditions),
         "zygosity": row.zygosity,
         "clinvar_significance": row.clinvar_significance,
         "diplotype": row.diplotype,

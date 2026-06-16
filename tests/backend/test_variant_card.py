@@ -139,6 +139,26 @@ def sample_with_findings(
             "finding_text": "mtDNA Haplogroup: H1a1",
             "haplogroup": "H1a1",
         },
+        {
+            # #918: a CFTR carrier finding whose `conditions` is the raw CLNDN
+            # blob — | separators, not provided/not specified placeholders, a
+            # case-duplicate, and an ivacaftor drug-response (not a disease).
+            "id": 6,
+            "module": "carrier",
+            "category": "carrier_variant",
+            "evidence_level": 3,
+            "gene_symbol": "CFTR",
+            "rsid": "rs78655421",
+            "finding_text": "CFTR carrier variant",
+            "clinvar_significance": "Pathogenic",
+            "zygosity": "heterozygous",
+            "conditions": (
+                "Respiratory ciliopathies including non-CF bronchiectasis|"
+                "Cystic fibrosis|not provided|not specified|CFTR-related disorder|"
+                "cystic fibrosis|Obstructive azoospermia|ivacaftor response - Efficacy"
+            ),
+            "pmid_citations": json.dumps(["11111111"]),
+        },
     ]
     with sample_engine.begin() as conn:
         for f in seed_findings:
@@ -226,6 +246,24 @@ class TestLoadSingleFinding:
         with pytest.raises(ValueError, match="Finding 999 not found"):
             _load_single_finding(sample_engine, finding_id=999)
 
+    def test_clinvar_conditions_cleaned(self, sample_with_findings: tuple) -> None:
+        """#918: the raw CLNDN blob is cleaned for display — no | separators, no
+        not provided/not specified placeholders, no drug-response entries, and
+        case-duplicates collapsed — while real conditions survive."""
+        _, sample_engine, _ = sample_with_findings
+        result = _load_single_finding(sample_engine, finding_id=6)
+        conditions = result["conditions"]
+
+        assert "|" not in conditions
+        assert "not provided" not in conditions
+        assert "not specified" not in conditions
+        assert "ivacaftor response - Efficacy" not in conditions
+        # Real disease names survive, comma-joined, de-duped (one "Cystic fibrosis").
+        assert "Cystic fibrosis" in conditions
+        assert "CFTR-related disorder" in conditions
+        assert "Obstructive azoospermia" in conditions
+        assert conditions.lower().count("cystic fibrosis") == 1
+
 
 # ── Unit tests: HTML rendering ───────────────────────────────────────
 
@@ -256,6 +294,34 @@ class TestVariantCardHtml:
         assert "BRCA1" in html
         assert "rs80357906" in html
         assert "Pathogenic variant for Hereditary Breast Cancer" in html
+
+    def test_conditions_row_renders_cleaned_blob(
+        self, tmp_data_dir: Path, sample_with_findings: tuple
+    ) -> None:
+        """#918: the rendered card's Conditions row shows cleaned disease names,
+        never the raw CLNDN blob (| separators / placeholders / drug-response)."""
+        ref_engine, _, _ = sample_with_findings
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        with (
+            patch("backend.reports.generator.get_registry") as mock_reg,
+            patch("backend.db.connection.get_settings", return_value=settings),
+        ):
+            registry = mock_reg.return_value
+            registry.settings = settings
+            registry.reference_engine = ref_engine
+
+            sample_db = tmp_data_dir / "samples" / "sample_1.db"
+            sample_engine = sa.create_engine(f"sqlite:///{sample_db}")
+            registry.get_sample_engine.return_value = sample_engine
+
+            html = render_variant_card_html(sample_id=1, finding_id=6)
+
+        assert "Conditions" in html
+        assert "Cystic fibrosis" in html
+        # The raw-blob artifacts must not reach the rendered report.
+        assert "not provided" not in html
+        assert "not specified" not in html
+        assert "ivacaftor response - Efficacy" not in html
 
     def test_contains_evidence_stars(
         self, tmp_data_dir: Path, sample_with_findings: tuple
