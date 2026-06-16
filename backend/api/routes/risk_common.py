@@ -144,7 +144,8 @@ def make_risk_router(
     """Build a disclaimer / findings / run router for a risk-genotype module.
 
     ``runner(sample_engine)`` performs the load → assess → store for the module
-    and returns ``(findings_count, indeterminate_loci)``.
+    and returns either ``(findings_count, indeterminate_loci)`` or
+    ``(findings_count, indeterminate_loci, indeterminate_reasons)``.
     """
     router = APIRouter(prefix=prefix, tags=tags)
 
@@ -167,9 +168,14 @@ def make_risk_router(
         result = runner(engine)
         if len(result) == 3:
             count, indeterminate, indeterminate_reasons = result
-        else:
+        elif len(result) == 2:
             count, indeterminate = result
             indeterminate_reasons = {}
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid runner response shape; expected 2 or 3 tuple items.",
+            )
         return RiskRunResponse(
             findings_count=count,
             indeterminate_loci=indeterminate,
