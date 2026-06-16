@@ -267,17 +267,26 @@ class TestSNPFields:
         assert {"21248726", "22286173"}.isdisjoint(snp["pmids"])
 
     def test_hla_b1502_proxy_lookup_cites_real_evidence(self) -> None:
-        # The HLA-B*15:02 entries in the proxy lookup carried the same unrelated
-        # EMR pharmacogenomics PMID (21248726, #194). They must cite real
-        # HLA-B*15:02/carbamazepine evidence instead.
+        # A PROXY-lookup entry asserts that rs144012689 *tags* HLA-B*15:02, so it
+        # must cite rs144012689 proxy-VALIDATION evidence — NOT the clinical
+        # HLA-B*15:02/carbamazepine association (Chung 2004, 15057820, which belongs
+        # on the allergy-panel finding, not the proxy r²) and NOT the unrelated EMR
+        # PGx PMID (21248726, #194). Fixed in #850:
+        #   36169168 — Xi 2022: rs144012689 is a highly specific representative
+        #              marker of HLA-B*15:02 in the Chinese (EAS) population.
+        #   34381365 — Buchner 2021: validation of the rs144012689 SNV assay for
+        #              HLA-B*15:02 across diverse ancestral backgrounds.
+        proxy_validation = {"36169168", "34381365"}
         proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
         b1502 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*15:02"]
         assert b1502, "no HLA-B*15:02 entries in proxy lookup"
+        by_pop = {e["ancestry_pop"]: e["pmid"] for e in b1502}
+        # Ancestry-matched proxy-validation citations.
+        assert by_pop.get("EAS") == "36169168", by_pop
+        assert by_pop.get("SAS") == "34381365", by_pop
         for entry in b1502:
-            assert entry["pmid"] == "15057820", (
-                f"HLA-B*15:02/{entry['ancestry_pop']} cites unexpected PMID: {entry['pmid']}"
-            )
-            assert entry["pmid"] not in {"21248726", "22286173"}
+            assert entry["pmid"] in proxy_validation, entry
+            assert entry["pmid"] not in {"15057820", "21248726", "22286173"}, entry
 
     def test_hla_a3101_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-A*31:01 / carbamazepine (rs1061235 proxy) is a pharmacogenomic safety

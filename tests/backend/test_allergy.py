@@ -150,7 +150,9 @@ def _hla_proxy_seed_entries() -> list[dict]:
             "r_squared": 0.93,
             "ancestry_pop": "EAS",
             "clinical_context": "Carbamazepine-induced SJS/TEN",
-            "pmid": "15057820",
+            # rs144012689 proxy-VALIDATION evidence (Xi 2022, EAS-specific), not the
+            # clinical-association PMID 15057820 — mirrors production (#850).
+            "pmid": "36169168",
         },
         {
             "hla_allele": "HLA-B*58:01",
@@ -1213,8 +1215,9 @@ class TestHLAProxyLookup:
         """The HLA proxy seed fixture must cite the same curated PMIDs as the
         production hla_proxy_lookup table, so it can't drift back to the
         misattributed citations scrubbed from the panel + proxy JSON by
-        #176/#194/#232 (#278): HLA-B*15:02 -> 15057820 (not 21248726),
-        HLA-B*58:01 -> 29392141 (not 22286173)."""
+        #176/#194/#232 (#278): HLA-B*15:02 -> proxy-validation 36169168 (Xi 2022;
+        NOT the clinical-association 15057820 — that belongs on the panel finding,
+        #850 — nor the EMR PMID 21248726), HLA-B*58:01 -> 29392141 (not 22286173)."""
         proxy_path = (
             Path(__file__).resolve().parents[2]
             / "backend"
