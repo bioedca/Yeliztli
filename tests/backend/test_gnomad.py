@@ -7,7 +7,6 @@ Covers:
 - CSV loading into gnomad_af table
 - Batch lookup by rsid and by (chrom, pos, ref, alt)
 - Table creation and index creation
-- Version recording in database_versions
 - Download function structure
 - P2-10: compute_rare_flags() utilities
 - P2-10: Rare flag boundary values, NULL AF handling, position-based flagging
@@ -41,9 +40,8 @@ from backend.annotation.gnomad import (
     lookup_gnomad_by_positions,
     lookup_gnomad_by_rsids,
     parse_gnomad_vcf_line,
-    record_gnomad_version,
 )
-from backend.db.tables import database_versions, reference_metadata, sample_metadata_obj
+from backend.db.tables import reference_metadata, sample_metadata_obj
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -573,46 +571,6 @@ class TestRareVariantFlags:
         annot = results["rs_null"]
         assert annot.rare_flag is False
         assert annot.ultra_rare_flag is False
-
-
-# ── Version recording tests ──────────────────────────────────────────────
-
-
-class TestRecordGnomadVersion:
-    """Test version tracking in database_versions."""
-
-    def test_insert_new_version(self, reference_engine: sa.Engine):
-        """New version is inserted into database_versions."""
-        record_gnomad_version(
-            reference_engine,
-            version="r2.1.1",
-            file_path="/data/gnomad.vcf.bgz",
-            file_size_bytes=50_000_000_000,
-            checksum="abc123",
-        )
-
-        with reference_engine.connect() as conn:
-            row = conn.execute(
-                sa.select(database_versions).where(database_versions.c.db_name == "gnomad")
-            ).fetchone()
-
-        assert row is not None
-        assert row.version == "r2.1.1"
-        assert row.file_size_bytes == 50_000_000_000
-        assert row.checksum_sha256 == "abc123"
-
-    def test_update_existing_version(self, reference_engine: sa.Engine):
-        """Existing version is updated, not duplicated."""
-        record_gnomad_version(reference_engine, version="r2.1.0")
-        record_gnomad_version(reference_engine, version="r2.1.1")
-
-        with reference_engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(database_versions).where(database_versions.c.db_name == "gnomad")
-            ).fetchall()
-
-        assert len(rows) == 1
-        assert rows[0].version == "r2.1.1"
 
 
 # ── Bitmask constant tests ──────────────────────────────────────────────

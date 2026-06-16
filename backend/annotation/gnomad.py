@@ -602,30 +602,6 @@ def download_gnomad_vcf(
     return dest_path
 
 
-# ── Version tracking ─────────────────────────────────────────────────────
-
-
-def record_gnomad_version(
-    engine: sa.Engine,
-    *,
-    version: str,
-    file_path: str | None = None,
-    file_size_bytes: int | None = None,
-    checksum: str | None = None,
-) -> None:
-    """Insert or update the gnomAD version in the database_versions table."""
-    from backend.db.database_registry import _record_db_version
-
-    _record_db_version(
-        engine,
-        db_name="gnomad",
-        version=version,
-        file_size_bytes=file_size_bytes,
-        sha256=checksum,
-        file_path=file_path,
-    )
-
-
 # ── Annotation lookup ────────────────────────────────────────────────────
 
 

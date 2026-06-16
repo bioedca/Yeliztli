@@ -515,6 +515,12 @@ def test_record_db_version_auto_stamps_grch37(reference_engine: sa.Engine) -> No
     assert _build_of(reference_engine, "clinvar") == "GRCh37"
 
 
+def test_record_db_version_auto_stamps_gnomad_grch37(reference_engine: sa.Engine) -> None:
+    """The live gnomAD bundle update path records GRCh37 through _record_db_version."""
+    _record_db_version(reference_engine, db_name="gnomad", version="r2.1.1", file_size_bytes=1)
+    assert _build_of(reference_engine, "gnomad") == "GRCh37"
+
+
 def test_record_db_version_auto_stamps_dbnsfp_grch38(reference_engine: sa.Engine) -> None:
     """dbNSFP is the lone GRCh38 source (F35) — auto-resolved, not flagged."""
     _record_db_version(reference_engine, db_name="dbnsfp", version="5.1", file_size_bytes=1)
@@ -551,19 +557,16 @@ def test_record_version_wrappers_stamp_expected_build(reference_engine: sa.Engin
     from backend.annotation.clinvar import record_clinvar_version
     from backend.annotation.cpic import record_cpic_version
     from backend.annotation.dbnsfp import record_dbnsfp_version
-    from backend.annotation.gnomad import record_gnomad_version
     from backend.annotation.gnomad_constraint import record_constraint_version
     from backend.annotation.gwas import record_gwas_version
 
     record_clinvar_version(reference_engine, version="20260101")
-    record_gnomad_version(reference_engine, version="r2.1.1")
     record_gwas_version(reference_engine, version="20260101")
     record_cpic_version(reference_engine, version="1.0")
     record_constraint_version(reference_engine, version="v2.1.1")
     record_dbnsfp_version(reference_engine, version="5.1")
 
     assert _build_of(reference_engine, "clinvar") == "GRCh37"
-    assert _build_of(reference_engine, "gnomad") == "GRCh37"
     assert _build_of(reference_engine, "gwas_catalog") == "GRCh37"
     assert _build_of(reference_engine, "cpic") == "GRCh37"
     assert _build_of(reference_engine, "gnomad_constraint") == "GRCh37"
