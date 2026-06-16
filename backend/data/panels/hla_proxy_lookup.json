@@ -19,22 +19,6 @@
       "pmid": "18256392"
     },
     {
-      "hla_allele": "HLA-B*15:02",
-      "proxy_rsid": "rs144012689",
-      "r_squared": 0.93,
-      "ancestry_pop": "EAS",
-      "clinical_context": "Carbamazepine-induced SJS/TEN",
-      "pmid": "36169168"
-    },
-    {
-      "hla_allele": "HLA-B*15:02",
-      "proxy_rsid": "rs144012689",
-      "r_squared": 0.46,
-      "ancestry_pop": "SAS",
-      "clinical_context": "Carbamazepine-induced SJS/TEN",
-      "pmid": "34381365"
-    },
-    {
       "hla_allele": "HLA-A*31:01",
       "proxy_rsid": "rs1061235",
       "r_squared": 0.88,

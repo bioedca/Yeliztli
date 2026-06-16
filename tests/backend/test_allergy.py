@@ -144,16 +144,10 @@ def _hla_proxy_seed_entries() -> list[dict]:
             "clinical_context": "Abacavir hypersensitivity",
             "pmid": "18256392",
         },
-        {
-            "hla_allele": "HLA-B*15:02",
-            "proxy_rsid": "rs144012689",
-            "r_squared": 0.93,
-            "ancestry_pop": "EAS",
-            "clinical_context": "Carbamazepine-induced SJS/TEN",
-            # rs144012689 proxy-VALIDATION evidence (Xi 2022, EAS-specific), not the
-            # clinical-association PMID 15057820 — mirrors production (#850).
-            "pmid": "36169168",
-        },
+        # No HLA-B*15:02 / rs144012689 entry: its proxy performance is sensitivity/
+        # specificity (Xi 2022, Buchner 2021), not an LD r², so it carries no
+        # fabricated r² in this r²-keyed lookup — the sourced metric lives in the
+        # allergy_panel coverage_note instead (#935). Mirrors production.
         {
             "hla_allele": "HLA-B*58:01",
             "proxy_rsid": "rs9263726",

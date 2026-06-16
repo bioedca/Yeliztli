@@ -266,27 +266,39 @@ class TestSNPFields:
         assert snp["pmids"] == ["15057820", "29392710"], snp["pmids"]
         assert {"21248726", "22286173"}.isdisjoint(snp["pmids"])
 
-    def test_hla_b1502_proxy_lookup_cites_real_evidence(self) -> None:
-        # A PROXY-lookup entry asserts that rs144012689 *tags* HLA-B*15:02, so it
-        # must cite rs144012689 proxy-VALIDATION evidence — NOT the clinical
-        # HLA-B*15:02/carbamazepine association (Chung 2004, 15057820, which belongs
-        # on the allergy-panel finding, not the proxy r²) and NOT the unrelated EMR
-        # PGx PMID (21248726, #194). Fixed in #850:
+    def test_hla_b1502_proxy_performance_is_sourced_not_fabricated_r2(self) -> None:
+        # rs144012689's HLA-B*15:02 proxy performance is reported by the validation
+        # papers as assay SENSITIVITY/SPECIFICITY (~100%), NOT an LD r². The old
+        # per-ancestry r² (0.93 EAS / 0.46 SAS) was untraceable to any LD panel, and
+        # the 0.46 SAS value was contradicted by its own Buchner citation (which
+        # found good cross-ancestry performance). So #935 removed the fabricated r²
+        # from the r²-keyed proxy lookup and moved the sourced metric into the
+        # allergy-panel coverage_note. Guard both halves:
         #   36169168 — Xi 2022: rs144012689 is a highly specific representative
-        #              marker of HLA-B*15:02 in the Chinese (EAS) population.
-        #   34381365 — Buchner 2021: validation of the rs144012689 SNV assay for
-        #              HLA-B*15:02 across diverse ancestral backgrounds.
-        proxy_validation = {"36169168", "34381365"}
+        #              marker of HLA-B*15:02 in the Chinese (EAS) population (100%
+        #              sensitivity/specificity).
+        #   34381365 — Buchner 2021: the rs144012689 SNV assay (neighbouring variant
+        #              co-called) identified HLA-B*15:02 with 100% sensitivity/
+        #              specificity across diverse ancestral backgrounds.
+        # 1) No fabricated LD r² for HLA-B*15:02 in the r²-keyed proxy lookup.
         proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
         b1502 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*15:02"]
-        assert b1502, "no HLA-B*15:02 entries in proxy lookup"
-        by_pop = {e["ancestry_pop"]: e["pmid"] for e in b1502}
-        # Ancestry-matched proxy-validation citations.
-        assert by_pop.get("EAS") == "36169168", by_pop
-        assert by_pop.get("SAS") == "34381365", by_pop
-        for entry in b1502:
-            assert entry["pmid"] in proxy_validation, entry
-            assert entry["pmid"] not in {"15057820", "21248726", "22286173"}, entry
+        assert b1502 == [], (
+            "HLA-B*15:02 must not carry an LD r² in the proxy lookup — its sourced "
+            "metric is sensitivity/specificity, surfaced via the panel coverage_note"
+        )
+
+        # 2) The panel row carries the sourced proxy-validation evidence + metric,
+        #    with no fabricated r² and no misattributed clinical/EMR PMIDs.
+        panel = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        snp = next(s for pw in panel["pathways"] for s in pw["snps"] if s["rsid"] == "rs144012689")
+        assert "r_squared_eas" not in snp.get("hla_proxy", {}), snp["hla_proxy"]
+        blob = (snp.get("coverage_note") or "") + " " + (snp.get("recommendation_text") or "")
+        assert "r²" not in blob, "no fabricated LD r² should remain in the user-facing text"
+        assert "36169168" in blob and "34381365" in blob, blob
+        assert "sensitivity" in blob.lower() and "specificity" in blob.lower(), blob
+        for banned in ("21248726", "22286173"):
+            assert banned not in blob, banned
 
     def test_celiac_dq8_proxy_lookup_uses_canonical_marker(self, panel_data: dict) -> None:
         # Monsuur 2008 (18509540) reports rs7454108 as the DQ8 tag SNP

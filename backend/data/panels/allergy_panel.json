@@ -172,13 +172,13 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-B*15:02",
-            "r_squared_eas": 0.93,
             "clinical_grade": true,
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
           "pmids": ["15057820", "29392710"],
-          "recommendation_text": "HLA-B*15:02 is strongly associated with carbamazepine-induced SJS/TEN, primarily in East/Southeast Asian populations. This proxy SNP has r²=0.93 in EAS. FDA black box warning and CPIC guideline mandate HLA-B*15:02 testing before carbamazepine use in at-risk populations. Confirmatory HLA typing required.",
+          "recommendation_text": "HLA-B*15:02 is strongly associated with carbamazepine-induced SJS/TEN, primarily in East/Southeast Asian populations. rs144012689 is a validated tag for HLA-B*15:02 (~100% sensitivity and specificity; Xi 2022, Buchner 2021). FDA black box warning and CPIC guideline mandate HLA-B*15:02 testing before carbamazepine use in at-risk populations. Confirmatory HLA typing required.",
+          "coverage_note": "rs144012689 tags HLA-B*15:02 with ~100% sensitivity and specificity in Chinese / East Asian samples (Xi 2022) and across diverse ancestral backgrounds when a neighbouring variant is co-called with manual review (Buchner 2021). HLA-B*15:02 carriage — and thus the carbamazepine SJS/TEN risk — is concentrated in East/Southeast Asian ancestry. Confirmatory high-resolution HLA-B*15:02 typing is required before clinical action. (Xi 2022, PMID 36169168; Buchner 2021, PMID 34381365.)",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Carbamazepine/HLA-B*15:02 cross-links with PGx module for prescribing guidance."

@@ -46,9 +46,12 @@ class TestHLAProxyJSON:
         with open(_JSON_PATH, encoding="utf-8") as fh:
             data = json.load(fh)
         alleles = {e["hla_allele"] for e in data["entries"]}
+        # HLA-B*15:02 is intentionally absent from this r²-keyed lookup: rs144012689's
+        # proxy performance is sensitivity/specificity, not an LD r², so its sourced
+        # metric lives in the allergy_panel coverage_note rather than a fabricated r²
+        # here (#935; see test_allergy_panel.py).
         expected = {
             "HLA-B*57:01",
-            "HLA-B*15:02",
             "HLA-A*31:01",
             "HLA-B*58:01",
             "HLA-DQ2",
