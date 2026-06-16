@@ -26,7 +26,10 @@ MODULE_DISPLAY_NAMES: dict[str, str] = {
     "apoe": "APOE Genotype",
     "pharmacogenomics": "Pharmacogenomics",
     "nutrigenomics": "Nutrigenomics",
-    "carrier_status": "Carrier Status",
+    "metabolic": "Metabolic (T2D & Obesity)",
+    "fh": "Familial Hypercholesterolemia",
+    "ebmd": "Bone Density (eBMD)",
+    "carrier": "Carrier Status",
     "ancestry": "Ancestry & Haplogroups",
     "gene_health": "Gene Health",
     "fitness": "Gene Fitness",
@@ -50,7 +53,7 @@ MODULE_DISCLAIMERS: dict[str, dict[str, str]] = {
         "title": CARDIOVASCULAR_DISCLAIMER_TITLE,
         "text": CARDIOVASCULAR_DISCLAIMER_TEXT,
     },
-    "carrier_status": {
+    "carrier": {
         "title": CARRIER_STATUS_DISCLAIMER_TITLE,
         "text": CARRIER_STATUS_DISCLAIMER_TEXT,
     },

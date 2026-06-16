@@ -70,7 +70,7 @@ def sample_engine(tmp_path: Path) -> sa.Engine:
             },
             # Finding whose rsid is not annotated (left-join yields NULLs).
             {
-                "module": "carrier_status",
+                "module": "carrier",
                 "category": "monogenic_variant",
                 "rsid": "rs9999999",
                 "finding_text": "CFTR carrier",
