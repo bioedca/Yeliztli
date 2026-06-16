@@ -131,18 +131,18 @@ def _hla_proxy_seed_entries() -> list[dict]:
         {
             "hla_allele": "HLA-B*57:01",
             "proxy_rsid": "rs2395029",
-            "r_squared": 0.97,
+            "r_squared": 1.0,
             "ancestry_pop": "EUR",
             "clinical_context": "Abacavir hypersensitivity",
-            "pmid": "18256392",
+            "pmid": "16998491",
         },
         {
-            "hla_allele": "HLA-B*57:01",
-            "proxy_rsid": "rs2395029",
-            "r_squared": 0.85,
-            "ancestry_pop": "AFR",
-            "clinical_context": "Abacavir hypersensitivity",
-            "pmid": "18256392",
+            "hla_allele": "HLA-A*31:01",
+            "proxy_rsid": "rs1061235",
+            "r_squared": 1.0,
+            "ancestry_pop": "EUR",
+            "clinical_context": "Carbamazepine hypersensitivity (DRESS/maculopapular)",
+            "pmid": "21428769",
         },
         # No HLA-B*15:02 / rs144012689 entry: its proxy performance is sensitivity/
         # specificity (Xi 2022, Buchner 2021), not an LD r², so it carries no
@@ -175,10 +175,10 @@ def _hla_proxy_seed_entries() -> list[dict]:
         {
             "hla_allele": "HLA-DQ2",
             "proxy_rsid": "rs2187668",
-            "r_squared": 0.95,
+            "r_squared": 0.997,
             "ancestry_pop": "EUR",
             "clinical_context": "Celiac disease susceptibility (HLA-DQ2.5 haplotype)",
-            "pmid": "18311140",
+            "pmid": "18509540",
         },
         {
             "hla_allele": "HLA-DQ8",
@@ -1186,21 +1186,20 @@ class TestHLAProxyLookup:
         info = result.hla_proxy_info["rs2395029"]
         assert info.hla_allele == "HLA-B*57:01"
         assert "EUR" in info.r_squared_by_pop
-        assert info.r_squared_by_pop["EUR"] == pytest.approx(0.97)
+        assert info.r_squared_by_pop["EUR"] == pytest.approx(1.0)
 
-    def test_hla_proxy_multiple_ancestries(
+    def test_hla_proxy_seed_omits_untraceable_b5701_afr_r2(
         self,
         panel: AllergyPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """HLA proxy info contains multiple ancestry r² values."""
+        """Untraceable HLA-B*57:01 AFR r² rows must not be reintroduced."""
         _seed_variants(sample_engine, ALL_ALLERGY_VARIANTS)
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         info = result.hla_proxy_info["rs2395029"]
-        assert "AFR" in info.r_squared_by_pop
-        assert info.r_squared_by_pop["AFR"] == pytest.approx(0.85)
+        assert info.r_squared_by_pop == {"EUR": pytest.approx(1.0)}
 
     def test_hla_proxy_seed_mirrors_production_provenance(self) -> None:
         """The HLA proxy seed fixture must cite the same curated PMIDs as the
@@ -1512,7 +1511,7 @@ class TestFindingsStorage:
                 )
             ).fetchall()
         assert len(celiac) == 1
-        assert json.loads(celiac[0].pmid_citations) == ["18311140", "20190752"]
+        assert json.loads(celiac[0].pmid_citations) == ["18311140", "18509540", "20190752"]
         detail = json.loads(celiac[0].detail_json)
         assert "state" in detail
 

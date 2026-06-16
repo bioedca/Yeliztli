@@ -5,32 +5,16 @@
     {
       "hla_allele": "HLA-B*57:01",
       "proxy_rsid": "rs2395029",
-      "r_squared": 0.97,
+      "r_squared": 1.0,
       "ancestry_pop": "EUR",
       "clinical_context": "Abacavir hypersensitivity",
-      "pmid": "18256392"
-    },
-    {
-      "hla_allele": "HLA-B*57:01",
-      "proxy_rsid": "rs2395029",
-      "r_squared": 0.85,
-      "ancestry_pop": "AFR",
-      "clinical_context": "Abacavir hypersensitivity",
-      "pmid": "18256392"
+      "pmid": "16998491"
     },
     {
       "hla_allele": "HLA-A*31:01",
       "proxy_rsid": "rs1061235",
-      "r_squared": 0.88,
+      "r_squared": 1.0,
       "ancestry_pop": "EUR",
-      "clinical_context": "Carbamazepine hypersensitivity (DRESS/maculopapular)",
-      "pmid": "21428769"
-    },
-    {
-      "hla_allele": "HLA-A*31:01",
-      "proxy_rsid": "rs1061235",
-      "r_squared": 0.72,
-      "ancestry_pop": "EAS",
       "clinical_context": "Carbamazepine hypersensitivity (DRESS/maculopapular)",
       "pmid": "21428769"
     },
@@ -61,18 +45,10 @@
     {
       "hla_allele": "HLA-DQ2",
       "proxy_rsid": "rs2187668",
-      "r_squared": 0.95,
+      "r_squared": 0.997,
       "ancestry_pop": "EUR",
       "clinical_context": "Celiac disease susceptibility (HLA-DQ2.5 haplotype)",
-      "pmid": "18311140"
-    },
-    {
-      "hla_allele": "HLA-DQ2",
-      "proxy_rsid": "rs2187668",
-      "r_squared": 0.80,
-      "ancestry_pop": "SAS",
-      "clinical_context": "Celiac disease susceptibility (HLA-DQ2.5 haplotype)",
-      "pmid": "18311140"
+      "pmid": "18509540"
     },
     {
       "hla_allele": "HLA-DQ8",

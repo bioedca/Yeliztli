@@ -186,12 +186,13 @@ class TestSNPFields:
         # HLA-B*57:01 / abacavir is a Level-A pharmacogenomic safety row; its
         # citations must be the verified abacavir-HSR evidence trail (#176):
         #   11888582 — Mallal 2002, Lancet: original HLA-B*5701/abacavir association
+        #   16998491 — de Bakker 2006: rs2395029-HLA-B*5701 CEU tag r2=1.0
         #   18256392 — Mallal 2008, NEJM (PREDICT-1): prospective-screening RCT
         #   22378157 — CPIC 2012: HLA-B genotype + abacavir dosing guideline
         snp = next(
             s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs2395029"
         )
-        assert snp["pmids"] == ["11888582", "18256392", "22378157"], snp["pmids"]
+        assert snp["pmids"] == ["11888582", "16998491", "18256392", "22378157"], snp["pmids"]
 
     def test_il13_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # IL13 R130Q (rs20541) is an atopy/asthma cytokine-pathway row; its citations
@@ -300,6 +301,30 @@ class TestSNPFields:
         for banned in ("21248726", "22286173"):
             assert banned not in blob, banned
 
+    def test_celiac_dq2_proxy_lookup_cites_real_evidence(self, panel_data: dict) -> None:
+        # Monsuur 2008 (18509540) reports rs2187668 as the DQ2.5 tag SNP with
+        # r2=0.997 in European cohorts. The old Hunt-2008/SAS row did not report
+        # the stored LD value and must not reappear in this r2-keyed lookup.
+        dq2_snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs2187668"
+        )
+        assert dq2_snp["hla_proxy"]["hla_allele"] == "HLA-DQ2"
+        assert dq2_snp["hla_proxy"]["r_squared_eur"] == 0.997
+        assert "18509540" in dq2_snp["pmids"]
+
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        dq2_entries = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-DQ2"]
+        assert dq2_entries == [
+            {
+                "hla_allele": "HLA-DQ2",
+                "proxy_rsid": "rs2187668",
+                "r_squared": 0.997,
+                "ancestry_pop": "EUR",
+                "clinical_context": "Celiac disease susceptibility (HLA-DQ2.5 haplotype)",
+                "pmid": "18509540",
+            }
+        ]
+
     def test_celiac_dq8_proxy_lookup_uses_canonical_marker(self, panel_data: dict) -> None:
         # Monsuur 2008 (18509540) reports rs7454108 as the DQ8 tag SNP
         # (r2=0.935). rs7775228 belongs to the DQ2.2/DQ4 haplotype marker set
@@ -345,6 +370,27 @@ class TestSNPFields:
         # The two wrong-topic GWAS PMIDs must not remain on the HLA-A*31:01 row.
         assert not ({"24025145", "26808113"} & set(snp["pmids"]))
 
+    def test_hla_a3101_proxy_lookup_cites_real_evidence(self, panel_data: dict) -> None:
+        # McCormack 2011 (21428769) reports rs1061235 as the HLA-A*31:01 proxy in
+        # Europeans with complete LD (r2=1.0). It does not report an EAS r2=0.72.
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs1061235"
+        )
+        assert snp["hla_proxy"]["r_squared_eur"] == 1.0
+
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        a3101 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-A*31:01"]
+        assert a3101 == [
+            {
+                "hla_allele": "HLA-A*31:01",
+                "proxy_rsid": "rs1061235",
+                "r_squared": 1.0,
+                "ancestry_pop": "EUR",
+                "clinical_context": "Carbamazepine hypersensitivity (DRESS/maculopapular)",
+                "pmid": "21428769",
+            }
+        ]
+
     def test_hla_b5801_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-B*58:01 / allopurinol (rs9263726 proxy) is a Level-4 pharmacogenomic
         # safety row; its citations must support HLA-B*58:01/allopurinol SCAR and the
@@ -386,6 +432,28 @@ class TestSNPFields:
                 f"unexpected ancestry label {entry['ancestry_pop']}"
             )
             assert entry["r_squared"] == expected_r2[entry["ancestry_pop"]]
+
+    def test_hla_b5701_proxy_lookup_cites_real_evidence(self, panel_data: dict) -> None:
+        # de Bakker 2006 (16998491) reports rs2395029 as the HLA-B*57:01 tag SNP
+        # with r2=1.0 in the CEU panel. The Mallal PREDICT-1 PMID supports clinical
+        # screening, not the old AFR r2=0.85 lookup row.
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs2395029"
+        )
+        assert snp["hla_proxy"]["r_squared_eur"] == 1.0
+
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        b5701 = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-B*57:01"]
+        assert b5701 == [
+            {
+                "hla_allele": "HLA-B*57:01",
+                "proxy_rsid": "rs2395029",
+                "r_squared": 1.0,
+                "ancestry_pop": "EUR",
+                "clinical_context": "Abacavir hypersensitivity",
+                "pmid": "16998491",
+            }
+        ]
 
     def test_known_misattributed_pmids_absent(self, panel_data: dict) -> None:
         # Guard against re-introducing citations that were attached in error and
@@ -645,7 +713,7 @@ class TestAbacavirCrossLink:
 
     def test_abacavir_proxy_r_squared(self, panel_data: dict) -> None:
         snp = self._get_abacavir_snp(panel_data)
-        assert snp["hla_proxy"]["r_squared_eur"] == 0.97
+        assert snp["hla_proxy"]["r_squared_eur"] == 1.0
 
 
 # ── Drug hypersensitivity PGx cross-links ───────────────────────────────

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
@@ -184,29 +185,29 @@ class TestHLAProxyQueries:
         assert "Han Chinese" in pops
         assert {"EUR", "EAS", "AFR"}.isdisjoint(pops)
 
-    def test_ancestry_specific_r_squared(self, reference_engine: sa.Engine) -> None:
+    def test_source_matched_r_squared_values(self, reference_engine: sa.Engine) -> None:
         self._seed(reference_engine)
         with reference_engine.connect() as conn:
-            eur_row = conn.execute(
-                sa.select(hla_proxy_lookup).where(
-                    sa.and_(
-                        hla_proxy_lookup.c.hla_allele == "HLA-B*57:01",
-                        hla_proxy_lookup.c.ancestry_pop == "EUR",
-                    )
-                )
-            ).fetchone()
-            afr_row = conn.execute(
-                sa.select(hla_proxy_lookup).where(
-                    sa.and_(
-                        hla_proxy_lookup.c.hla_allele == "HLA-B*57:01",
-                        hla_proxy_lookup.c.ancestry_pop == "AFR",
-                    )
-                )
-            ).fetchone()
-        assert eur_row is not None
-        assert afr_row is not None
-        # EUR r² should be higher than AFR for HLA-B*57:01
-        assert eur_row.r_squared > afr_row.r_squared
+            rows = conn.execute(sa.select(hla_proxy_lookup)).fetchall()
+
+        by_allele_pop = {(r.hla_allele, r.ancestry_pop): r for r in rows}
+        b5701 = by_allele_pop[("HLA-B*57:01", "EUR")]
+        assert b5701.proxy_rsid == "rs2395029"
+        assert b5701.r_squared == pytest.approx(1.0)
+        assert b5701.pmid == "16998491"
+        assert ("HLA-B*57:01", "AFR") not in by_allele_pop
+
+        a3101 = by_allele_pop[("HLA-A*31:01", "EUR")]
+        assert a3101.proxy_rsid == "rs1061235"
+        assert a3101.r_squared == pytest.approx(1.0)
+        assert a3101.pmid == "21428769"
+        assert ("HLA-A*31:01", "EAS") not in by_allele_pop
+
+        dq2 = by_allele_pop[("HLA-DQ2", "EUR")]
+        assert dq2.proxy_rsid == "rs2187668"
+        assert dq2.r_squared == pytest.approx(0.997)
+        assert dq2.pmid == "18509540"
+        assert ("HLA-DQ2", "SAS") not in by_allele_pop
 
     def test_celiac_dq2_dq8_present(self, reference_engine: sa.Engine) -> None:
         self._seed(reference_engine)

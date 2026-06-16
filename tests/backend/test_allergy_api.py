@@ -112,13 +112,13 @@ PATHWAY_SUMMARY_FINDINGS = [
                         "evidence_level": 4,
                         "hla_proxy": {
                             "hla_allele": "HLA-B*57:01",
-                            "r_squared_eur": 0.97,
+                            "r_squared_eur": 1.0,
                             "clinical_grade": True,
                             "confirmatory_test_required": True,
                         },
                         "hla_proxy_lookup": {
                             "hla_allele": "HLA-B*57:01",
-                            "r_squared_by_pop": {"EUR": 0.97, "AFR": 0.85},
+                            "r_squared_by_pop": {"EUR": 1.0},
                             "clinical_context": "Abacavir hypersensitivity",
                         },
                         "hla_proxy_caveat": "Confirmatory HLA typing required.",
@@ -161,7 +161,7 @@ PATHWAY_SUMMARY_FINDINGS = [
                 "hla_proxy_lookup": {
                     "rs2395029": {
                         "hla_allele": "HLA-B*57:01",
-                        "r_squared_by_pop": {"EUR": 0.97, "AFR": 0.85},
+                        "r_squared_by_pop": {"EUR": 1.0},
                         "clinical_context": "Abacavir hypersensitivity",
                     },
                     "rs9263726": {
@@ -249,7 +249,7 @@ CELIAC_COMBINED_FINDING = {
     ),
     "pathway": "Food Sensitivity",
     "pathway_level": None,
-    "pmid_citations": json.dumps(["18311140"]),
+    "pmid_citations": json.dumps(["18311140", "18509540", "20190752"]),
     "detail_json": json.dumps(
         {
             "state": "neither",
@@ -472,7 +472,7 @@ class TestPathwayDetail:
         assert data["level"] == "Elevated"
         assert data["hla_proxy_lookup"] is not None
         hla_b5701_detail = next(d for d in data["snp_details"] if d["rsid"] == "rs2395029")
-        assert hla_b5701_detail["hla_proxy_lookup"]["r_squared_by_pop"]["AFR"] == 0.85
+        assert hla_b5701_detail["hla_proxy_lookup"]["r_squared_by_pop"] == {"EUR": 1.0}
         assert hla_b5701_detail["hla_proxy_caveat"] == "Confirmatory HLA typing required."
         hla_b5801_detail = next(d for d in data["snp_details"] if d["rsid"] == "rs9263726")
         assert hla_b5801_detail["hla_proxy_caveat"] == HLA_B5801_NEGATIVE_PROXY_CAVEAT

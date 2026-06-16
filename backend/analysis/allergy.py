@@ -198,7 +198,7 @@ class HLAProxyInfo:
 
     hla_allele: str
     proxy_rsid: str
-    r_squared_by_pop: dict[str, float]  # e.g. {"EUR": 0.97, "AFR": 0.85}
+    r_squared_by_pop: dict[str, float]  # e.g. {"Han Chinese": 0.886}
     clinical_context: str
 
 
@@ -1305,7 +1305,7 @@ def store_allergy_findings(
                 "finding_text": celiac_text,
                 "pathway": "Food Sensitivity",
                 "pathway_level": None,
-                "pmid_citations": json.dumps(["18311140", "20190752"]),
+                "pmid_citations": json.dumps(["18311140", "18509540", "20190752"]),
                 "detail_json": json.dumps(
                     {
                         "state": cc.state,

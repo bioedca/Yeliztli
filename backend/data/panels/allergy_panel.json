@@ -133,13 +133,13 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-B*57:01",
-            "r_squared_eur": 0.97,
+            "r_squared_eur": 1.0,
             "clinical_grade": true,
             "confirmatory_test_required": true
           },
           "evidence_level": 4,
-          "pmids": ["11888582", "18256392", "22378157"],
-          "recommendation_text": "HLA-B*57:01 is the pharmacogenomic gold standard for abacavir hypersensitivity screening. This result is based on a proxy tag SNP (r²=0.97 in EUR). Confirmatory HLA typing is essential before clinical action. CPIC Level A recommendation: do not prescribe abacavir to HLA-B*57:01-positive patients.",
+          "pmids": ["11888582", "16998491", "18256392", "22378157"],
+          "recommendation_text": "HLA-B*57:01 is the pharmacogenomic gold standard for abacavir hypersensitivity screening. This result is based on a proxy tag SNP (r²=1.0 in a CEU/European reference panel). Confirmatory HLA typing is essential before clinical action. CPIC Level A recommendation: do not prescribe abacavir to HLA-B*57:01-positive patients.",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Abacavir/HLA-B*57:01 finding cross-links bi-directionally with the Pharmacogenomics module. See PGx for prescribing guidance."
@@ -211,7 +211,7 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-A*31:01",
-            "r_squared_eur": 0.88,
+            "r_squared_eur": 1.0,
             "clinical_grade": true,
             "confirmatory_test_required": true,
             "false_positive_mechanism": "HLA-A*33 cross-reactivity",
@@ -221,7 +221,7 @@
           "coverage_note": "rs1061235 is an imperfect tag SNP for HLA-A*31:01: it also marks HLA-A*33 types, so a positive (carrier) result can be a false positive (validated specificity ~95%, with a much higher false-positive rate reported in some cohorts — 41% in one). This is why confirmatory high-resolution HLA-A*31:01 typing is required before acting on a positive call. Proxy performance is also reduced in Native American ancestry (negative predictive value ~0.80–0.91; rs17179220 is a better proxy there). (Krause 2021; Buchner 2021; Fernandes 2022.)",
           "evidence_level": 3,
           "pmids": ["21428769", "24322785", "29392710"],
-          "recommendation_text": "HLA-A*31:01 is associated with carbamazepine hypersensitivity (DRESS and maculopapular exanthema) across multiple populations. Proxy r²=0.88 in EUR. CPIC recommends HLA-A*31:01 testing before carbamazepine initiation. Confirmatory HLA typing required.",
+          "recommendation_text": "HLA-A*31:01 is associated with carbamazepine hypersensitivity (DRESS and maculopapular exanthema) across multiple populations. Proxy r²=1.0 in Europeans. CPIC recommends HLA-A*31:01 testing before carbamazepine initiation. Confirmatory HLA typing required.",
           "cross_module": {
             "module": "pharmacogenomics",
             "note": "Carbamazepine/HLA-A*31:01 cross-links with PGx module for prescribing guidance."
@@ -305,13 +305,13 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-DQ2",
-            "r_squared_eur": 0.95,
+            "r_squared_eur": 0.997,
             "clinical_grade": false,
             "confirmatory_test_required": true
           },
           "evidence_level": 3,
-          "pmids": ["18311140", "20190752"],
-          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.95 in EUR) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
+          "pmids": ["18311140", "18509540", "20190752"],
+          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.997 in European cohorts) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
           "cross_module": {
             "module": "nutrigenomics",
             "note": "Celiac-related HLA-DQ2 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
