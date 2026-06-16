@@ -28,7 +28,9 @@
       "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
-      "allow_strand_complement": false
+      "allow_strand_complement": false,
+      "alias_rsids": ["i702654"],
+      "alias_rsids_note": "23andMe v5 (PGP 4187) emits the MT:3460 probe only under this internal i-ID — no rs199476118 row appears in the file at all — so without the alias m.3460G>A is falsely reported off-chip while a real call (i702654=G observed) sits on the chip; resolving the alias keeps the locus typed and a carrier (i702654=A) callable (#677, sibling of #669/MT-RNR1)."
     },
     {
       "rsid": "rs199476104",
@@ -39,7 +41,9 @@
       "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
-      "allow_strand_complement": false
+      "allow_strand_complement": false,
+      "alias_rsids": ["i4000834", "i703492"],
+      "alias_rsids_note": "23andMe v5 (PGP 4187) types MT:14484 under these two internal i-IDs (both observed = T), while its rs199476104 synonym is annotated one base away at MT:14485 as a no-call (--); reading the canonical rsID alone yields that no-call and misses the real 14484 probes. The aliases let read_genotypes prefer the typed i-ID call, keeping m.14484T>C callable and a carrier (i4000834=C) detectable (#677)."
     }
   ],
   "genotype_models": [
