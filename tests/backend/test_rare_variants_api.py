@@ -495,6 +495,7 @@ class TestSearchEndpoint:
             "/api/analysis/rare-variants/search?sample_id=1",
             json={},
         )
+        assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) >= 3, items
 
