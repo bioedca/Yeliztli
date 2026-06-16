@@ -156,6 +156,7 @@ def test_strand_fixture_covers_every_snv_locus() -> None:
         present = [a for a in (snp.get("risk_allele"), snp.get("ref_allele")) if a]
         if present and all(len(a) == 1 and a in "ACGT" for a in present):
             snv_loci.add(rsid)
+    assert snv_loci, "no strand-checkable SNV loci were collected from categorical panels"
     missing = sorted(snv_loci - set(_REFERENCE) - _FIXTURE_EXCLUSIONS)
     assert not missing, (
         "categorical-panel SNV loci missing from the strand reference fixture "
