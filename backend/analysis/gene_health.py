@@ -3,7 +3,8 @@
 Implements P3-65:
   - 17 disease conditions grouped by system across 4 pathway cards
     (Neurological, Metabolic, Autoimmune, Sensory).
-  - No HLA proxy calling (unlike Allergy module).
+  - HLA tag-SNP proxies are ordinary genotype-effect rows, but carry
+    ancestry-conditional caveats when LD/risk transfer is not well supported.
   - No celiac/histamine combined assessments.
   - Cross-links to APOE (Alzheimer's), Allergy (celiac), Methylation (MTHFR),
     Nutrigenomics (FTO), and Traits (ADHD).
@@ -96,6 +97,11 @@ class PanelSNP:
     recommendation_text: str
     cross_module: dict | None = None
     coverage_note: str | None = None
+    # Optional ancestry-conditional caveat. When the called category is one of
+    # ``applies_to_categories`` and the sample's inferred ancestry is NOT in
+    # ``confident_ancestries`` (including unknown), ``caveat_text`` is surfaced
+    # as a coverage note and the result is flagged ``ancestry_caveated``.
+    ancestry_caveat: dict | None = None
     # For indel loci typed as vendor I/D codes (e.g. GJB2 35delG / rs80338939):
     # maps the parser's canonical sorted-pair indel call ("DD"/"DI"/"II") to the
     # curated biological genotype key, so the carrier/homozygous model is
@@ -150,6 +156,7 @@ class SNPResult:
     recommendation_text: str
     present_in_sample: bool
     coverage_note: str | None = None
+    ancestry_caveated: bool = False
 
 
 @dataclass
@@ -237,6 +244,7 @@ def load_gene_health_panel(panel_path: Path | None = None) -> GeneHealthPanel:
                     recommendation_text=snp_data.get("recommendation_text", ""),
                     cross_module=snp_data.get("cross_module"),
                     coverage_note=snp_data.get("coverage_note"),
+                    ancestry_caveat=snp_data.get("ancestry_caveat"),
                     indel_genotype_map=snp_data.get("indel_genotype_map"),
                 )
             )
@@ -294,11 +302,43 @@ def _map_indel_genotype(snp: PanelSNP, raw: str | None) -> str | None:
     return snp.indel_genotype_map.get(raw.strip().upper())
 
 
-def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
+def _apply_ancestry_caveat(
+    snp: PanelSNP,
+    category: str,
+    coverage_note: str | None,
+    inferred_ancestry: str | None,
+) -> tuple[str | None, bool]:
+    """Return an ancestry-conditional coverage note when the marker model needs it."""
+    cfg = snp.ancestry_caveat
+    if not cfg:
+        return coverage_note, False
+    applies_to = set(cfg.get("applies_to_categories", []))
+    if category not in applies_to:
+        return coverage_note, False
+
+    confident = {str(code).upper() for code in cfg.get("confident_ancestries", [])}
+    if inferred_ancestry is not None and inferred_ancestry.upper() in confident:
+        return coverage_note, False
+
+    caveat = cfg.get("caveat_text", "")
+    if not caveat:
+        return coverage_note, True
+    if coverage_note:
+        return f"{coverage_note} {caveat}".strip(), True
+    return caveat, True
+
+
+def _score_snp(
+    snp: PanelSNP,
+    genotype: str | None,
+    inferred_ancestry: str | None = None,
+) -> SNPResult:
     """Score a single SNP given a genotype.
 
     Applies evidence-level gating: ★☆ (evidence_level=1) variants
-    are hard-capped at Moderate regardless of genotype.
+    are hard-capped at Moderate regardless of genotype. Ancestry-conditional
+    caveats are surfaced as coverage notes for markers whose proxy model is not
+    confident for the sample's inferred ancestry.
     """
     if genotype is None:
         return SNPResult(
@@ -404,6 +444,20 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             evidence_level=snp.evidence_level,
         )
 
+    coverage_note, ancestry_caveated = _apply_ancestry_caveat(
+        snp=snp,
+        category=category,
+        coverage_note=snp.coverage_note,
+        inferred_ancestry=inferred_ancestry,
+    )
+    if ancestry_caveated:
+        logger.info(
+            "gene_health_ancestry_caveat_applied",
+            rsid=snp.rsid,
+            category=category,
+            inferred_ancestry=inferred_ancestry,
+        )
+
     return SNPResult(
         rsid=snp.rsid,
         gene=snp.gene,
@@ -415,7 +469,8 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
         pmids=snp.pmids,
         recommendation_text=snp.recommendation_text,
         present_in_sample=True,
-        coverage_note=snp.coverage_note,
+        coverage_note=coverage_note,
+        ancestry_caveated=ancestry_caveated,
     )
 
 
@@ -586,10 +641,14 @@ def score_gene_health_pathways(
     # Fetch all panel rsids from sample
     all_rsids = panel.all_rsids()
     genotypes = _fetch_genotypes(all_rsids, sample_engine)
+    from backend.analysis.ancestry import get_inferred_ancestry
+
+    inferred_ancestry = get_inferred_ancestry(sample_engine)
     logger.info(
         "gene_health_genotypes_fetched",
         panel_rsids=len(all_rsids),
         found_in_sample=len(genotypes),
+        inferred_ancestry=inferred_ancestry,
     )
 
     pathway_results: list[PathwayResult] = []
@@ -604,7 +663,7 @@ def score_gene_health_pathways(
             # to the standard ACGT/no-call path unchanged.
             mapped = _map_indel_genotype(snp, raw)
             gt = mapped if mapped is not None else _normalize_genotype(raw)
-            result = _score_snp(snp, gt)
+            result = _score_snp(snp, gt, inferred_ancestry)
             snp_results.append(result)
 
         level = _determine_pathway_level(snp_results)
@@ -743,6 +802,7 @@ def store_gene_health_findings(
                     "effect_summary": s.effect_summary,
                     "evidence_level": s.evidence_level,
                     "coverage_note": s.coverage_note,
+                    "ancestry_caveated": s.ancestry_caveated,
                 }
                 for s in pr.called_snps
             ],
@@ -812,11 +872,14 @@ def store_gene_health_findings(
                 continue
 
             snp_text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
+            if snp.coverage_note:
+                snp_text = f"{snp_text} Note: {snp.coverage_note}"
 
             snp_detail: dict = {
                 "variant_name": snp.variant_name,
                 "genotype": snp.genotype,
                 "recommendation": snp.recommendation_text,
+                "ancestry_caveated": snp.ancestry_caveated,
             }
             if snp.coverage_note:
                 snp_detail["coverage_note"] = snp.coverage_note

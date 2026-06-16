@@ -17,6 +17,7 @@ export interface SNPDetail {
   recommendation: string | null
   pmids: string[]
   coverage_note: string | null
+  ancestry_caveated: boolean
   cross_module: { module: string; note: string } | null
 }
 

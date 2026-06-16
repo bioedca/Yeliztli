@@ -47,6 +47,7 @@ class SNPDetail(BaseModel):
     recommendation: str | None = None
     pmids: list[str] = []
     coverage_note: str | None = None
+    ancestry_caveated: bool = False
     cross_module: dict | None = None
 
 
@@ -298,6 +299,7 @@ def pathway_detail(
                 recommendation=recommendation,
                 pmids=pmids,
                 coverage_note=sd.get("coverage_note"),
+                ancestry_caveated=bool(sd.get("ancestry_caveated", False)),
                 cross_module=sd.get("cross_module"),
             )
         )

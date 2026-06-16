@@ -124,6 +124,20 @@ def _seed_gwas(
         )
 
 
+def _seed_ancestry(engine: sa.Engine, top_population: str) -> None:
+    """Insert the minimal ancestry finding consumed by get_inferred_ancestry."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            {
+                "module": "ancestry",
+                "category": "pca_projection",
+                "finding_text": f"Inferred ancestry: {top_population}",
+                "detail_json": json.dumps({"top_population": top_population}),
+            },
+        )
+
+
 # All 40 panel SNPs with chromosome positions and representative genotypes.
 # APOE rs429358 (ε4, #329) and LRRK2 rs34637584 (G2019S, #404) are deliberately
 # excluded — each gated opt-in module (APOE / Parkinson's) owns its disclosure, so
@@ -499,6 +513,17 @@ class TestSNPScoring:
             assert result.category == expected
 
         assert "rs6910071-G" in _score_snp(snp, "GG").effect_summary
+
+    def test_hla_proxy_rows_carry_ancestry_caveats(self, panel: GeneHealthPanel) -> None:
+        """#689: HLA tag-SNP rows must declare ancestry-limited proxy confidence."""
+        for rsid in ("rs3135388", "rs6910071", "rs9273363"):
+            snp = self._get_snp(panel, rsid)
+            assert snp.ancestry_caveat is not None
+            assert snp.ancestry_caveat["applies_to_categories"] == [ELEVATED]
+            assert snp.ancestry_caveat["confident_ancestries"] == ["EUR"]
+            caveat = snp.ancestry_caveat["caveat_text"]
+            assert "HLA tag-SNP is a proxy" in caveat
+            assert "high-resolution HLA typing" in caveat
 
     def test_il2_il21_rs6822844_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
         """IL2/IL21 rs6822844: the minor T allele is protective across autoimmune
@@ -1112,6 +1137,105 @@ class TestFullScoring:
 
         assert hla_findings == []
         assert autoimmune_summary == STANDARD
+
+    @pytest.mark.parametrize("top_population", ["AFR", None])
+    def test_hla_proxy_ancestry_caveat_persists_for_non_eur_or_unknown(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        top_population: str | None,
+    ) -> None:
+        """#689: non-EUR or unknown ancestry HLA proxy risk calls carry caveats."""
+        if top_population is not None:
+            _seed_ancestry(sample_engine, top_population)
+        hla_variants = [
+            ("rs3135388", "6", 32408274, "GA"),
+            ("rs6910071", "6", 32574073, "GA"),
+            ("rs9273363", "6", 32658525, "TC"),
+        ]
+        hla_rsids = {row[0] for row in hla_variants}
+        _seed_variants(sample_engine, hla_variants)
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        hla_results = {
+            snp.rsid: snp
+            for pathway in result.pathway_results
+            for snp in pathway.snp_results
+            if snp.rsid in hla_rsids
+        }
+
+        assert set(hla_results) == {"rs3135388", "rs6910071", "rs9273363"}
+        for snp in hla_results.values():
+            assert snp.category == ELEVATED
+            assert snp.ancestry_caveated is True
+            assert "Ancestry note" in (snp.coverage_note or "")
+            assert "high-resolution HLA typing" in (snp.coverage_note or "")
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            snp_rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid.in_(hla_rsids),
+                )
+            ).fetchall()
+            pathway_rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                )
+            ).fetchall()
+
+        assert {row.rsid for row in snp_rows} == set(hla_results)
+        for row in snp_rows:
+            assert "Ancestry note" in row.finding_text
+            detail = json.loads(row.detail_json)
+            assert detail["ancestry_caveated"] is True
+            assert "high-resolution HLA typing" in detail["coverage_note"]
+
+        persisted_details = [
+            snp
+            for row in pathway_rows
+            for snp in json.loads(row.detail_json)["snp_details"]
+            if snp["rsid"] in hla_results
+        ]
+        assert {snp["rsid"] for snp in persisted_details} == set(hla_results)
+        for snp in persisted_details:
+            assert snp["ancestry_caveated"] is True
+            assert "Ancestry note" in snp["coverage_note"]
+
+    def test_hla_proxy_ancestry_caveat_does_not_apply_for_eur(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """EUR ancestry keeps the curated HLA proxy call without the ancestry caveat."""
+        _seed_ancestry(sample_engine, "EUR")
+        _seed_variants(sample_engine, [("rs3135388", "6", 32408274, "GA")])
+
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")
+        hla_drb1 = next(snp for snp in neurological.snp_results if snp.rsid == "rs3135388")
+
+        assert hla_drb1.category == ELEVATED
+        assert hla_drb1.ancestry_caveated is False
+        assert hla_drb1.coverage_note is None
+
+        store_gene_health_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            snp_row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs3135388",
+                )
+            ).one()
+
+        assert "Ancestry note" not in snp_row.finding_text
+        assert json.loads(snp_row.detail_json)["ancestry_caveated"] is False
 
     def test_il2_il21_rs6822844_tt_alone_does_not_raise_autoimmune_pathway(
         self,
@@ -2062,7 +2186,12 @@ class TestGeneHealthCitationRemediation:
 
     # rsid -> exact verified on-topic PMID set the row must cite:
     _REMEDIATED: dict[str, set[str]] = {
-        "rs3135388": {"17660530", "21833088"},  # HLA-DRB1 MS (drop COPD)
+        "rs3135388": {
+            "17660530",
+            "21833088",
+            "23762245",
+            "30335238",
+        },  # HLA-DRB1 MS + HLA proxy caveat evidence (drop COPD)
         "rs6897932": {"17660530", "21833088", "27188999"},  # IL7R MS
         "rs747302": {"20732625", "32075956", "15909295"},  # DRD4 ADHD
         "rs10166942": {"23793025", "27322543", "20802479"},  # TRPM8 migraine

@@ -123,8 +123,13 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17660530", "21833088"],
-          "recommendation_text": "HLA-DRB1*15:01 is the strongest genetic risk factor for multiple sclerosis, accounting for ~30% of the genetic risk. This proxy tag SNP (r² ~0.97 in EUR for DRB1*15:01) indicates MS susceptibility. Environmental factors including vitamin D, EBV infection, and smoking modulate penetrance. Neurological evaluation is recommended if symptoms develop."
+          "pmids": ["17660530", "21833088", "23762245", "30335238"],
+          "recommendation_text": "HLA-DRB1*15:01 is the strongest genetic risk factor for multiple sclerosis, accounting for ~30% of the genetic risk. This proxy tag SNP (r² ~0.97 in EUR for DRB1*15:01) indicates MS susceptibility. Environmental factors including vitamin D, EBV infection, and smoking modulate penetrance. Neurological evaluation is recommended if symptoms develop.",
+          "ancestry_caveat": {
+            "applies_to_categories": ["Elevated"],
+            "confident_ancestries": ["EUR"],
+            "caveat_text": "Ancestry note: this HLA tag-SNP is a proxy, not direct HLA typing. Linkage disequilibrium with the target HLA allele or haplotype and the resulting risk magnitude can vary by ancestry; for non-European or unknown ancestry, confirm with high-resolution HLA typing before clinical interpretation."
+          }
         },
         {
           "rsid": "rs6897932",
@@ -643,8 +648,13 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17804836", "20453842", "24449576"],
-          "recommendation_text": "HLA-DRB1 shared epitope alleles are the strongest genetic risk factor for seropositive rheumatoid arthritis, explaining ~40% of genetic risk. Risk is amplified by smoking. Anti-CCP antibody testing is recommended for at-risk individuals. Early detection and treatment with disease-modifying antirheumatic drugs (DMARDs) can prevent joint destruction."
+          "pmids": ["17804836", "20453842", "24449576", "20018024", "23762245"],
+          "recommendation_text": "HLA-DRB1 shared epitope alleles are the strongest genetic risk factor for seropositive rheumatoid arthritis, explaining ~40% of genetic risk. Risk is amplified by smoking. Anti-CCP antibody testing is recommended for at-risk individuals. Early detection and treatment with disease-modifying antirheumatic drugs (DMARDs) can prevent joint destruction.",
+          "ancestry_caveat": {
+            "applies_to_categories": ["Elevated"],
+            "confident_ancestries": ["EUR"],
+            "caveat_text": "Ancestry note: this HLA tag-SNP is a proxy, not direct HLA typing. Linkage disequilibrium with the target HLA allele or haplotype and the resulting risk magnitude can vary by ancestry; for non-European or unknown ancestry, confirm with high-resolution HLA typing before clinical interpretation."
+          }
         },
         {
           "rsid": "rs2476601",
@@ -730,8 +740,13 @@
             }
           },
           "evidence_level": 3,
-          "pmids": ["17554260", "19430480", "25751624"],
-          "recommendation_text": "HLA-DQ alleles are the strongest genetic determinants of type 1 diabetes, accounting for approximately half of genetic risk. This proxy SNP tags high-risk HLA-DQ haplotypes. Family members of T1D patients who carry risk alleles may benefit from autoantibody screening (GAD65, IA-2, ZnT8). Early detection can guide monitoring and enable enrollment in prevention trials."
+          "pmids": ["17554260", "19430480", "25751624", "23762245", "30335238"],
+          "recommendation_text": "HLA-DQ alleles are the strongest genetic determinants of type 1 diabetes, accounting for approximately half of genetic risk. This proxy SNP tags high-risk HLA-DQ haplotypes. Family members of T1D patients who carry risk alleles may benefit from autoantibody screening (GAD65, IA-2, ZnT8). Early detection can guide monitoring and enable enrollment in prevention trials.",
+          "ancestry_caveat": {
+            "applies_to_categories": ["Elevated"],
+            "confident_ancestries": ["EUR"],
+            "caveat_text": "Ancestry note: this HLA tag-SNP is a proxy, not direct HLA typing. Linkage disequilibrium with the target HLA allele or haplotype and the resulting risk magnitude can vary by ancestry; for non-European or unknown ancestry, confirm with high-resolution HLA typing before clinical interpretation."
+          }
         },
         {
           "rsid": "rs689",

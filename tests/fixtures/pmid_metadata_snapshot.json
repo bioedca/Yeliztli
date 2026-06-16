@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-15",
-    "pmid_count": 368,
+    "pmid_count": 371,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -727,6 +727,11 @@
       "journal": "Nat Genet",
       "year": "2009"
     },
+    "20018024": {
+      "title": "On the association between rheumatoid arthritis and classical HLA class I and class II alleles predicted from single-nucleotide polymorphism data.",
+      "journal": "BMC Proc",
+      "year": "2009"
+    },
     "20032323": {
       "title": "Genetic variants associated with Lp(a) lipoprotein level and coronary disease.",
       "journal": "N Engl J Med",
@@ -1100,6 +1105,11 @@
     "23644932": {
       "title": "Lutein + zeaxanthin and omega-3 fatty acids for age-related macular degeneration: the Age-Related Eye Disease Study 2 (AREDS2) randomized clinical trial.",
       "journal": "JAMA",
+      "year": "2013"
+    },
+    "23762245": {
+      "title": "Imputing amino acid polymorphisms in human leukocyte antigens.",
+      "journal": "PLoS One",
       "year": "2013"
     },
     "23793025": {
@@ -1510,6 +1520,11 @@
     "30311386": {
       "title": "Expert specification of the ACMG/AMP variant interpretation guidelines for genetic hearing loss.",
       "journal": "Hum Mutat",
+      "year": "2018"
+    },
+    "30335238": {
+      "title": "Classical HLA alleles tag SNP in families from Antioquia with type 1 diabetes mellitus.",
+      "journal": "Biomedica",
       "year": "2018"
     },
     "30383109": {
