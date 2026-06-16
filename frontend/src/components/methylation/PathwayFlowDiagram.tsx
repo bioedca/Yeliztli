@@ -6,30 +6,13 @@
  */
 
 import { cn } from "@/lib/utils"
+import { pathwayLevelSvg } from "@/lib/pathwayLevel"
 import type { PathwaySummary, PathwayLevel } from "@/types/methylation"
 
 interface PathwayFlowDiagramProps {
   pathways: PathwaySummary[]
   selectedPathwayId: string | null
   onSelectPathway: (pathwayId: string) => void
-}
-
-const LEVEL_FILL: Record<PathwayLevel, { bg: string; border: string; text: string }> = {
-  Elevated: {
-    bg: "fill-amber-100 dark:fill-amber-950",
-    border: "stroke-amber-400 dark:stroke-amber-600",
-    text: "fill-amber-800 dark:fill-amber-300",
-  },
-  Moderate: {
-    bg: "fill-blue-100 dark:fill-blue-950",
-    border: "stroke-blue-400 dark:stroke-blue-600",
-    text: "fill-blue-800 dark:fill-blue-300",
-  },
-  Standard: {
-    bg: "fill-emerald-100 dark:fill-emerald-950",
-    border: "stroke-emerald-400 dark:stroke-emerald-600",
-    text: "fill-emerald-800 dark:fill-emerald-300",
-  },
 }
 
 const SELECTED_RING = "stroke-primary stroke-[3]"
@@ -67,7 +50,7 @@ function PathwayNode({
   selected: boolean
   onClick: () => void
 }) {
-  const fill = LEVEL_FILL[level] || LEVEL_FILL.Standard
+  const fill = pathwayLevelSvg(level)
   const lines = layout.label.split("\n")
 
   return (
