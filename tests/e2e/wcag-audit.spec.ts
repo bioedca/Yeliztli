@@ -376,14 +376,14 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await page.route('**/api/analysis/ancestry/findings**', (r) => r.fulfill(jsonRoute(ANCESTRY_FINDING)))
       await page.route('**/api/analysis/ancestry/pca-coordinates**', (r) => r.fulfill(jsonRoute(null)))
       await page.route('**/api/analysis/ancestry/haplogroups**', (r) => r.fulfill(jsonRoute({ assignments: [] })))
-      await page.route('**/api/analysis/ancestry/lai/status', (r) => r.fulfill(jsonRoute({
+      await page.route('**/api/analysis/ancestry/lai/status**', (r) => r.fulfill(jsonRoute({
         bundle_downloaded: true,
         java_available: true,
         lai_available: true,
         message: 'Ready',
       })))
-      await page.route('**/api/analysis/ancestry/lai/*/results', (r) => r.fulfill(jsonRoute(LAI_RESULTS)))
-      await page.route('**/api/analysis/ancestry/lai/*/progress', (r) => r.fulfill(jsonRoute(null)))
+      await page.route('**/api/analysis/ancestry/lai/*/results**', (r) => r.fulfill(jsonRoute(LAI_RESULTS)))
+      await page.route('**/api/analysis/ancestry/lai/*/progress**', (r) => r.fulfill(jsonRoute(null)))
 
       await page.goto('/ancestry?sample_id=1')
       await waitForReactHydration(page)

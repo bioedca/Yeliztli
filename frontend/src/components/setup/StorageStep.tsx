@@ -293,7 +293,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                 className={cn(
                   'font-medium',
                   storageInfo.path_writable
-                    ? 'text-green-700'
+                    ? 'text-green-700 dark:text-green-400'
                     : 'text-destructive',
                 )}
               >
