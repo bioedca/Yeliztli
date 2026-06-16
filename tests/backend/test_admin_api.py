@@ -325,6 +325,52 @@ class TestSystemStatus:
         assert job["status"] == "running"
         assert job["progress_pct"] == 45.0
 
+    def test_active_jobs_excludes_terminal_status(self, admin_client: TestClient) -> None:
+        """#808: the Active Jobs panel filters the jobs table to in-flight
+        statuses (pending/running). Seed terminal-status jobs alongside the
+        running one and assert /status returns ONLY the active job.
+
+        The single-running-job fixture could not distinguish "filter to active"
+        from "return all jobs"; the "completed/failed id absent" checks here kill
+        a dropped or broadened status filter (e.g. removing the ``.where(...)``),
+        which would otherwise list finished jobs as if still active.
+        """
+        # Reach the same reference DB the route reads (registry.reference_engine).
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(jobs),
+                [
+                    {
+                        "job_id": "test-job-completed",
+                        "sample_id": 1,
+                        "job_type": "annotation",
+                        "status": "completed",
+                        "progress_pct": 100.0,
+                        "message": "Annotation complete",
+                    },
+                    {
+                        "job_id": "test-job-failed",
+                        "sample_id": 1,
+                        "job_type": "annotation",
+                        "status": "failed",
+                        "progress_pct": 0.0,
+                        "message": "Annotation failed",
+                    },
+                ],
+            )
+
+        resp = admin_client.get("/api/admin/status")
+        data = resp.json()
+        active_ids = {j["job_id"] for j in data["active_jobs"]}
+        # Only the running job is active; the terminal-status jobs are excluded.
+        assert active_ids == {"test-job-1"}
+        assert "test-job-completed" not in active_ids
+        assert "test-job-failed" not in active_ids
+        assert all(j["status"] in {"pending", "running"} for j in data["active_jobs"])
+
     def test_total_samples(self, admin_client: TestClient) -> None:
         """Total samples count matches seeded data."""
         resp = admin_client.get("/api/admin/status")
