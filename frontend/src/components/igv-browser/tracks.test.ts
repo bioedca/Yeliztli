@@ -40,6 +40,15 @@ describe("createClinVarTrack", () => {
     const colorFn = track.color as (v: { info?: Record<string, string> }) => string
     // Pathogenic → red
     expect(colorFn({ info: { CLNSIG: "Pathogenic" } })).toBe("#DC2626")
+    // Multi-word backend-emitted values keep severity colors.
+    expect(colorFn({ info: { CLNSIG: "Likely pathogenic" } })).toBe("#EF4444")
+    expect(colorFn({ info: { CLNSIG: "Uncertain significance" } })).toBe("#F59E0B")
+    expect(colorFn({ info: { CLNSIG: "Likely benign" } })).toBe("#22C55E")
+    expect(colorFn({ info: { CLNSIG: "Conflicting classifications of pathogenicity" } })).toBe(
+      "#F97316",
+    )
+    // Raw underscore forms are normalized before lookup.
+    expect(colorFn({ info: { CLNSIG: "Uncertain_significance" } })).toBe("#F59E0B")
     // Benign → green
     expect(colorFn({ info: { CLNSIG: "Benign" } })).toBe("#16A34A")
     // Unknown → gray

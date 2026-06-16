@@ -11,13 +11,16 @@ import type { IgvTrack } from "./IgvBrowser"
 
 const CLINVAR_COLORS: Record<string, string> = {
   Pathogenic: "#DC2626",
-  "Likely_pathogenic": "#EF4444",
-  "Pathogenic/Likely_pathogenic": "#DC2626",
-  Uncertain_significance: "#F59E0B",
-  "Likely_benign": "#22C55E",
+  "Likely pathogenic": "#EF4444",
+  "Uncertain significance": "#F59E0B",
+  "Likely benign": "#22C55E",
   Benign: "#16A34A",
-  "Benign/Likely_benign": "#16A34A",
-  Conflicting_interpretations_of_pathogenicity: "#F97316",
+  "Conflicting classifications of pathogenicity": "#F97316",
+  "Conflicting interpretations of pathogenicity": "#F97316",
+}
+
+function normalizeClinVarSignificance(significance: string): string {
+  return significance.replace(/_/g, " ").trim()
 }
 
 /**
@@ -35,7 +38,7 @@ export function createClinVarTrack(): IgvTrack {
     visibilityWindow: 1_000_000,
     displayMode: "expanded",
     color: (variant: { info?: Record<string, string> }) => {
-      const sig = variant.info?.["CLNSIG"] ?? ""
+      const sig = normalizeClinVarSignificance(variant.info?.["CLNSIG"] ?? "")
       return CLINVAR_COLORS[sig] ?? "#6B7280"
     },
   }
