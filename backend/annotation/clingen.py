@@ -41,7 +41,7 @@ import structlog
 from backend.db.tables import clingen_gene_validity
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 logger = structlog.get_logger(__name__)
 
@@ -345,7 +345,7 @@ def download_and_load_clingen(
 
 
 def lookup_gene_validities(
-    reference_engine: sa.Engine, gene_symbols: list[str]
+    reference_engine: sa.Engine, gene_symbols: Sequence[str | None]
 ) -> dict[str, list[dict[str, Any]]]:
     """Batch lookup → ``{gene_symbol: [curation, ...]}`` for the genes found.
 
@@ -381,12 +381,3 @@ def lookup_gene_validities(
             }
         )
     return out
-
-
-def lookup_gene_validity(
-    reference_engine: sa.Engine, gene_symbol: str | None
-) -> list[dict[str, Any]]:
-    """All ClinGen curations for one gene (possibly empty)."""
-    if not gene_symbol:
-        return []
-    return lookup_gene_validities(reference_engine, [gene_symbol]).get(gene_symbol, [])

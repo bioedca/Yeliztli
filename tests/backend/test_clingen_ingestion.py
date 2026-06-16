@@ -12,7 +12,6 @@ from backend.annotation.clingen import (
     download_and_load_clingen,
     load_clingen_from_csv,
     lookup_gene_validities,
-    lookup_gene_validity,
     parse_clingen_csv,
     parse_file_created_date,
 )
@@ -94,8 +93,8 @@ def test_load_and_lookup(fixture_csv: Path, ref_engine: sa.Engine) -> None:
     found = lookup_gene_validities(ref_engine, ["BRCA1", "TTN", "NOSUCHGENE"])
     assert set(found) == {"BRCA1", "TTN"}  # uncurated gene simply absent
     assert found["TTN"][0]["classification"] == "Limited"
-    assert lookup_gene_validity(ref_engine, "FOO1")[0]["classification"] == "Disputed"
-    assert lookup_gene_validity(ref_engine, None) == []
+    assert lookup_gene_validities(ref_engine, ["FOO1"])["FOO1"][0]["classification"] == "Disputed"
+    assert lookup_gene_validities(ref_engine, [None]) == {}
 
 
 def test_load_is_idempotent(fixture_csv: Path, ref_engine: sa.Engine) -> None:
@@ -132,7 +131,7 @@ def test_download_and_load_uses_committed_csv(ref_engine: sa.Engine, tmp_path: P
     stats = download_and_load_clingen(ref_engine, tmp_path)
     assert stats.rows_loaded > 3000
     # A well-known Definitive gene-disease pair is present.
-    curations = lookup_gene_validity(ref_engine, "BRCA1")
+    curations = lookup_gene_validities(ref_engine, ["BRCA1"])["BRCA1"]
     assert any(c["classification"] == "Definitive" for c in curations)
 
 
