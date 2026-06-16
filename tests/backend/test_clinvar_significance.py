@@ -24,11 +24,21 @@ _PATHOGENIC = [
     "Pathogenic",
     "Likely pathogenic",
     "Pathogenic|drug response",
-    "Pathogenic, low penetrance",
-    "Pathogenic|risk factor",
+    "Pathogenic|risk factor",  # "risk factor" is a clinical-impact clause, not "risk allele"
     "Pathogenic|Affects",
     "Likely pathogenic|risk factor",
+]
+
+# Low-penetrance / risk-allele modifiers: a distinct ClinGen category, NOT ordinary
+# high-penetrance Mendelian P/LP, so they must NOT be promoted into the pathogenic
+# path (#987). The leading token is Pathogenic/Likely pathogenic, but the modifier
+# downgrades them.
+_NON_MENDELIAN = [
+    "Pathogenic, low penetrance",
     "Likely pathogenic, low penetrance",
+    "Pathogenic|low penetrance",
+    "Pathogenic, Established risk allele",
+    "Likely pathogenic|Likely risk allele",
 ]
 
 _NOT_PATHOGENIC = [
@@ -39,7 +49,9 @@ _NOT_PATHOGENIC = [
     "Uncertain significance",
     "drug response",  # secondary clause alone is not a pathogenic primary
     "risk factor",
+    "Established risk allele",  # standalone risk-allele term — not Mendelian P/LP (#987)
     "Pathogenic/Likely pathogenic",  # slash compounds are normalized before storage
+    *_NON_MENDELIAN,  # low-penetrance / risk-allele compounds (#987)
     "",
     None,
 ]
@@ -83,6 +95,16 @@ class TestPathogenicSignificanceFilter:
         # contains "pathogenicity" but is not a pathogenic primary classification.
         matched = self._query(["Pathogenic", "Conflicting classifications of pathogenicity"])
         assert matched == {"Pathogenic"}
+
+    def test_low_penetrance_and_risk_allele_compounds_excluded(self) -> None:
+        # #987: ClinGen low-penetrance / risk-allele assertions are a distinct
+        # category — not ordinary high-penetrance Mendelian P/LP — so the filter
+        # must NOT select them, even though their primary token is Pathogenic. A
+        # plain "drug response" / "risk factor" clause is still kept.
+        matched = self._query(
+            ["Pathogenic", "Pathogenic|drug response", "Pathogenic|risk factor", *_NON_MENDELIAN]
+        )
+        assert matched == {"Pathogenic", "Pathogenic|drug response", "Pathogenic|risk factor"}
 
 
 class TestPathogenicPrimaryPredicate:

@@ -92,8 +92,8 @@ class TestAssignClinvarEvidenceLevel:
         assert result == 4
 
     def test_likely_pathogenic_compound_2_star(self):
-        """★★★★ — ClinVar LP primary with a secondary clause."""
-        result = assign_clinvar_evidence_level("Likely pathogenic, low penetrance", 2)
+        """★★★★ — ClinVar LP primary with a (non-downgrading) secondary clause."""
+        result = assign_clinvar_evidence_level("Likely pathogenic|risk factor", 2)
         assert result == 4
 
     def test_pathogenic_1_star_review(self):
@@ -103,8 +103,19 @@ class TestAssignClinvarEvidenceLevel:
 
     def test_pathogenic_compound_1_star_review(self):
         """★★★★ — ClinVar Pathogenic primary with 1-star review still gets 4."""
-        result = assign_clinvar_evidence_level("Pathogenic, low penetrance", 1)
+        result = assign_clinvar_evidence_level("Pathogenic|drug response", 1)
         assert result == 4
+
+    def test_low_penetrance_not_promoted_to_definitive(self):
+        """#987 — a low-penetrance compound is NOT ordinary high-penetrance P/LP, so
+        even at 2★ it does not get the ★★★★ definitive tier (primary returns None →
+        preliminary)."""
+        assert assign_clinvar_evidence_level("Pathogenic, low penetrance", 2) == 1
+        assert assign_clinvar_evidence_level("Likely pathogenic, low penetrance", 2) == 1
+
+    def test_risk_allele_compound_not_promoted(self):
+        """#987 — a risk-allele compound is likewise not promoted as Mendelian P/LP."""
+        assert assign_clinvar_evidence_level("Pathogenic, Established risk allele", 3) == 1
 
     def test_likely_pathogenic_1_star_review(self):
         """★★★☆ — ClinVar LP with 1-star review."""

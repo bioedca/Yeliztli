@@ -954,8 +954,18 @@ class TestRareVariantResultProperties:
         assert v.is_clinvar_pathogenic is True
 
     def test_compound_clinvar_primary_is_pathogenic(self) -> None:
-        v = self._result(clinvar_significance="Pathogenic, low penetrance")
+        # A non-downgrading secondary clause keeps the primary-pathogenic match (#813).
+        v = self._result(clinvar_significance="Pathogenic|drug response")
         assert v.is_clinvar_pathogenic is True
+
+    def test_low_penetrance_compound_is_not_clinvar_pathogenic(self) -> None:
+        # #987 — low-penetrance / risk-allele assertions are a distinct ClinGen
+        # category, not ordinary high-penetrance P/LP, so they are NOT routed into
+        # the clinvar_pathogenic path.
+        low_pen = self._result(clinvar_significance="Pathogenic, low penetrance")
+        risk_allele = self._result(clinvar_significance="Pathogenic, Established risk allele")
+        assert low_pen.is_clinvar_pathogenic is False
+        assert risk_allele.is_clinvar_pathogenic is False
 
     def test_consequence_severity_score(self) -> None:
         v = RareVariantResult(
