@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useSkinPathways } from "@/api/skin"
 import type { CrossModuleItem, InsufficientDataItem, MC1RAggregateItem } from "@/types/skin"
 import PathwayCard from "@/components/skin/PathwayCard"
@@ -193,7 +194,7 @@ function CrossModuleCard({
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             Skin
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {item.target_module.charAt(0).toUpperCase() + item.target_module.slice(1)}
+            {getModuleMeta(item.target_module).label}
           </span>
         </div>
         <EvidenceStars level={item.evidence_level} />
@@ -204,7 +205,7 @@ function CrossModuleCard({
           to={`${targetRoute}?sample_id=${sampleId}`}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in {item.target_module.charAt(0).toUpperCase() + item.target_module.slice(1)}
+          View in {getModuleMeta(item.target_module).label}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       )}

@@ -35,4 +35,16 @@ describe("module registry (#620/#544)", () => {
     expect(meta.route).toBeNull()
     expect(meta.label).toBe("Some Unmapped Future Module")
   })
+
+  it("resolves the cross-module-target keys to their canonical (acronym-correct) labels", () => {
+    // The cross-module "View in X" cards route their display name through this
+    // registry (#699). These are the exact keys an ad-hoc capitalize of the raw
+    // key mis-rendered — gene_health→"Gene health", ebmd→"Ebmd", lhon→"Lhon".
+    expect(getModuleMeta("gene_health").label).toBe("Gene Health")
+    expect(getModuleMeta("ebmd").label).toBe("eBMD")
+    expect(getModuleMeta("lhon").label).toBe("LHON")
+    expect(getModuleMeta("apoe").label).toBe("APOE")
+    expect(getModuleMeta("amd").label).toBe("AMD")
+    expect(getModuleMeta("mt_rnr1").label).toBe("MT-RNR1")
+  })
 })

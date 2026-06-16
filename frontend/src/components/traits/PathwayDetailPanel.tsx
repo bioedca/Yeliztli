@@ -8,6 +8,7 @@
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { getModuleMeta } from "@/lib/modules"
 import { useTraitsPathwayDetail } from "@/api/traits"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { SNP_CATEGORY_COLORS, SNP_CATEGORY_DOT } from "@/lib/snpCategory"
@@ -85,12 +86,12 @@ function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
               to={`${MODULE_ROUTES[snp.cross_module.to_module]}?sample_id=${sampleId}`}
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              View in {snp.cross_module.to_module.replaceAll("_", " ")}
+              View in {getModuleMeta(snp.cross_module.to_module).label}
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           ) : (
             <span className="text-xs text-muted-foreground">
-              Related: {snp.cross_module.to_module} ({snp.cross_module.link_type})
+              Related: {getModuleMeta(snp.cross_module.to_module).label} ({snp.cross_module.link_type})
             </span>
           )}
         </div>
