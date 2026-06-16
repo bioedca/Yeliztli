@@ -23,7 +23,6 @@ from _carriage_fixtures import het_pathogenic_row, hom_ref_pathogenic_row
 
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
-    HIGH_IMPACT_CONSEQUENCES,
     RareVariantFilter,
     RareVariantFinderResult,
     RareVariantResult,
@@ -1005,9 +1004,3 @@ class TestRareVariantFinderResultProperties:
 
     def test_default_af_threshold(self) -> None:
         assert DEFAULT_AF_THRESHOLD == 0.01
-
-    def test_high_impact_consequences(self) -> None:
-        assert "stop_gained" in HIGH_IMPACT_CONSEQUENCES
-        assert "missense_variant" in HIGH_IMPACT_CONSEQUENCES
-        assert "frameshift_variant" in HIGH_IMPACT_CONSEQUENCES
-        assert "intron_variant" not in HIGH_IMPACT_CONSEQUENCES

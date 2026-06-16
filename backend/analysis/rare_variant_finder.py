@@ -56,23 +56,6 @@ logger = structlog.get_logger(__name__)
 # Default AF threshold for "rare" variants (gnomAD global)
 DEFAULT_AF_THRESHOLD = 0.01  # 1%
 
-# High-impact consequence types (loss-of-function + missense)
-HIGH_IMPACT_CONSEQUENCES = frozenset(
-    {
-        "transcript_ablation",
-        "splice_acceptor_variant",
-        "splice_donor_variant",
-        "stop_gained",
-        "frameshift_variant",
-        "stop_lost",
-        "start_lost",
-        "inframe_insertion",
-        "inframe_deletion",
-        "missense_variant",
-        "protein_altering_variant",
-    }
-)
-
 # ── Data classes ──────────────────────────────────────────────────────────
 
 
