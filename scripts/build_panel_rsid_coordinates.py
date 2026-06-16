@@ -149,6 +149,13 @@ def _coordinate_record(rsid: str, record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _display_output_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(_REPO))
+    except ValueError:
+        return str(path)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -175,7 +182,7 @@ def main() -> int:
         try:
             coordinates[rsid] = _coordinate_record(rsid, _fetch_variation(rsid))
             print(f"  resolved {idx}/{len(rsids)} {rsid}", file=sys.stderr)
-        except RuntimeError as exc:
+        except (RuntimeError, KeyError, TypeError, ValueError) as exc:
             errors.append(str(exc))
             print(f"  failed {idx}/{len(rsids)} {rsid}", file=sys.stderr)
         time.sleep(0.12)
@@ -203,7 +210,9 @@ def main() -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")
-    print(f"Wrote {len(coordinates)} entries -> {args.output.relative_to(_REPO)}", file=sys.stderr)
+    print(
+        f"Wrote {len(coordinates)} entries -> {_display_output_path(args.output)}", file=sys.stderr
+    )
     return 0
 
 
