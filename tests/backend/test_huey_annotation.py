@@ -580,7 +580,7 @@ class TestAnnotationAPI:
         self, annotation_client: TestClient, annotation_env: dict
     ) -> None:
         """POST /api/annotation/{sample_id} returns 202 with job_id."""
-        with patch("backend.api.routes.annotation.run_annotation_task"):
+        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
             resp = annotation_client.post("/api/annotation/1")
 
         assert resp.status_code == 202
@@ -588,17 +588,21 @@ class TestAnnotationAPI:
         assert "job_id" in data
         assert data["sample_id"] == 1
         assert data["status"] == "pending"
+        mock_run.assert_called_once_with(1, data["job_id"])
 
     def test_start_annotation_duplicate_returns_409(
         self, annotation_client: TestClient, annotation_env: dict
     ) -> None:
         """POST /api/annotation/{sample_id} returns 409 if already running."""
-        with patch("backend.api.routes.annotation.run_annotation_task"):
+        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
             resp1 = annotation_client.post("/api/annotation/1")
             assert resp1.status_code == 202
+            job_id = resp1.json()["job_id"]
 
             resp2 = annotation_client.post("/api/annotation/1")
             assert resp2.status_code == 409
+
+        mock_run.assert_called_once_with(1, job_id)
 
     def test_status_endpoint_returns_sse(
         self, annotation_client: TestClient, annotation_env: dict
@@ -632,9 +636,11 @@ class TestAnnotationAPI:
 
     def test_cancel_annotation(self, annotation_client: TestClient, annotation_env: dict) -> None:
         """POST /api/annotation/cancel/{job_id} cancels a running job."""
-        with patch("backend.api.routes.annotation.run_annotation_task"):
+        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
             resp = annotation_client.post("/api/annotation/1")
             job_id = resp.json()["job_id"]
+
+        mock_run.assert_called_once_with(1, job_id)
 
         resp = annotation_client.post(f"/api/annotation/cancel/{job_id}")
         assert resp.status_code == 200
