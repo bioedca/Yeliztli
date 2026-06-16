@@ -123,7 +123,9 @@ def sample_partial_coverage(sample_engine: sa.Engine) -> sa.Engine:
     return sample_engine
 
 
-def _patch_cancer_run_dependencies(monkeypatch: pytest.MonkeyPatch, *, sex_context: str) -> dict:
+def _patch_cancer_run_dependencies(
+    monkeypatch: pytest.MonkeyPatch, *, sex_context: str
+) -> dict[str, object]:
     from backend.analysis import ancestry as ancestry_module
     from backend.analysis import cancer as cancer_module
 
