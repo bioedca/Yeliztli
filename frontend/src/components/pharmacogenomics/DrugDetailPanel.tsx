@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  MinusCircle,
   Loader2,
 } from "lucide-react"
 
@@ -41,13 +42,32 @@ function GeneEffectCard({ effect }: { effect: GeneEffect }) {
     <div className="rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between gap-2 mb-2">
         <h4 className="font-semibold text-sm">{effect.gene}</h4>
-        {confidence && Icon && (
-          <span className={cn("flex items-center gap-1 text-xs font-medium", color)}>
-            <Icon className="h-3.5 w-3.5" />
-            {confidence}
+        {effect.not_assessed ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <MinusCircle className="h-3.5 w-3.5" />
+            Not assessed
           </span>
+        ) : (
+          confidence &&
+          Icon && (
+            <span className={cn("flex items-center gap-1 text-xs font-medium", color)}>
+              <Icon className="h-3.5 w-3.5" />
+              {confidence}
+            </span>
+          )
         )}
       </div>
+
+      {/* Uncalled guideline gene (#905): make the missing result explicit so a bare
+          "CPIC Level {x}" line can't read as evaluated-and-normal. */}
+      {effect.not_assessed && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 mb-2 dark:border-amber-800 dark:bg-amber-950/30">
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Not assessed — {effect.gene} could not be called from this sample's array, so its
+            effect on this drug is unknown (this is not an evaluated-as-normal result).
+          </p>
+        </div>
+      )}
 
       {effect.diplotype && (
         <p className="text-sm font-mono mb-1">{effect.diplotype}</p>

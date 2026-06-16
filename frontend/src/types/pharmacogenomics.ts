@@ -56,6 +56,10 @@ export interface GeneEffect {
   involved_rsids: string[]
   /** See {@link GeneSummary.gene_caveat}. Mirrors a backend disclaimer (SW-E5). */
   gene_caveat: string | null
+  /** True when the guideline gene has no sample finding (Insufficient/uncallable on
+   *  the array, or not-yet-annotated): the result fields are null because it was NOT
+   *  assessed, not evaluated-and-normal. Drives the "Not assessed" card state (#905). */
+  not_assessed: boolean
 }
 
 export interface DrugLookupResponse {

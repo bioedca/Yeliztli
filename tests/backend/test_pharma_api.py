@@ -302,6 +302,8 @@ class TestDrugLookup:
         assert effect["evidence_level"] == 4
         assert effect["activity_score"] == 0.5
         assert effect["involved_rsids"] == ["rs4244285"]
+        # An evaluated gene must NOT be flagged not_assessed (#905).
+        assert effect["not_assessed"] is False
 
     def test_codeine_returns_cyp2d6(self, client: tuple[TestClient, int]):
         tc, sample_id = client
@@ -353,6 +355,8 @@ class TestDrugLookup:
         assert effect["call_confidence"] is None
         # But should still have guideline metadata
         assert effect["classification"] == "A"
+        # …flagged not_assessed so the UI shows "not assessed", not a bare card (#905).
+        assert effect["not_assessed"] is True
 
     def test_no_findings_at_all(self, client_no_findings: tuple[TestClient, int]):
         """Sample has no PGx findings — genes returned with guideline info only."""
@@ -365,6 +369,7 @@ class TestDrugLookup:
         assert effect["gene"] == "CYP2C19"
         assert effect["diplotype"] is None
         assert effect["classification"] == "A"
+        assert effect["not_assessed"] is True
 
 
 class TestDrugLookupGuideline:

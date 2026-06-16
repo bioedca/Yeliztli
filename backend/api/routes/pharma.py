@@ -65,6 +65,11 @@ class GeneEffect(BaseModel):
     ehr_notation: str | None = None
     involved_rsids: list[str] = []
     gene_caveat: str | None = None  # interpretive caveat (e.g. DPYD fatal-toxicity)
+    # True when this guideline gene has no sample finding — the call was Insufficient
+    # (uncallable on the array) or annotation has not run — so the sample-specific
+    # fields are null because the gene was NOT assessed, not because it was normal.
+    # Lets the UI distinguish "not assessed" from "evaluated and unremarkable" (#905).
+    not_assessed: bool = False
 
 
 class DrugLookupResponse(BaseModel):
@@ -399,18 +404,18 @@ def drug_lookup(
                 )
             )
         else:
-            # No sample finding — return gene info from guidelines only
-            # This happens when the gene call was Insufficient or annotation
-            # hasn't been run yet
+            # No sample finding — return guideline info only, flagged not_assessed
+            # so the UI shows an explicit "not assessed" state rather than a bare
+            # "CPIC Level {x}" card that reads as evaluated-and-normal. This happens
+            # when the gene call was Insufficient (uncallable on the array) or
+            # annotation hasn't run yet (#905).
             gene_info = gene_set[gene]
-
-            # Try to find a matching guideline recommendation for this gene
-            # using the default/normal phenotype
             gene_effects.append(
                 GeneEffect(
                     gene=gene,
                     classification=gene_info["classification"],
                     guideline_url=gene_info["guideline_url"],
+                    not_assessed=True,
                 )
             )
 
