@@ -27,10 +27,7 @@ from datetime import date
 from pathlib import Path
 from typing import TextIO
 
-import sqlalchemy as sa
-
 from backend.analysis.zygosity import ZYG_HET, ZYG_HOM_ALT, ZYG_HOM_REF
-from backend.db.tables import raw_variants
 from backend.ingestion.chrom_order import CHROM_ORDER as _CHROM_ORDER
 
 # ---------------------------------------------------------------------------
@@ -303,52 +300,3 @@ def export_vcf_from_rows(
             dest.write(content)
 
     return content
-
-
-def export_vcf_from_engine(
-    engine: sa.Engine,
-    dest: str | Path | TextIO | None = None,
-    *,
-    sample_name: str = "SAMPLE",
-    skip_nocalls: bool = True,
-    file_date: date | None = None,
-) -> str:
-    """Export all raw_variants from a sample database to VCF 4.2.
-
-    Parameters
-    ----------
-    engine:
-        SQLAlchemy engine connected to a per-sample SQLite database
-        containing a ``raw_variants`` table.
-    dest:
-        Destination file path, writable stream, or ``None`` for string.
-    sample_name:
-        Name for the VCF sample column.
-    skip_nocalls:
-        Skip no-call genotypes (default True).
-    file_date:
-        Override for ``##fileDate``.
-
-    Returns
-    -------
-    str
-        The complete VCF content.
-    """
-    # No ORDER BY — export_vcf_from_rows re-sorts by canonical chrom order.
-    stmt = sa.select(
-        raw_variants.c.rsid,
-        raw_variants.c.chrom,
-        raw_variants.c.pos,
-        raw_variants.c.genotype,
-    )
-
-    with engine.connect() as conn:
-        rows = conn.execute(stmt).fetchall()
-
-    return export_vcf_from_rows(
-        rows,
-        dest=dest,
-        sample_name=sample_name,
-        skip_nocalls=skip_nocalls,
-        file_date=file_date,
-    )
