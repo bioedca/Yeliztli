@@ -17,12 +17,10 @@ cCRE classifications:
 Usage::
 
     from backend.annotation.encode_ccres import (
-        download_encode_ccres_bed,
         load_encode_ccres,
         query_ccres_by_region,
     )
 
-    bed_path = download_encode_ccres_bed(dest_dir)
     stats = load_encode_ccres(bed_path, engine)
     hits = query_ccres_by_region("1", 1_000_000, 2_000_000, engine)
 """
@@ -38,8 +36,6 @@ from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import structlog
-
-from backend.annotation.http_download import stream_download
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -144,58 +140,6 @@ def _normalize_chrom(chrom: str) -> str | None:
     if c in VALID_CHROMS:
         return c
     return None
-
-
-# ── Download ─────────────────────────────────────────────────────────────
-
-
-def download_encode_ccres_bed(
-    dest_dir: Path,
-    *,
-    url: str = ENCODE_CCRES_URL,
-    progress_callback: Callable[[int, int | None], None] | None = None,
-) -> Path:
-    """Download the ENCODE cCREs BED file.
-
-    Args:
-        dest_dir: Directory to save the downloaded file.
-        url: URL to download from (default: ENCODE SCREEN GRCh37).
-        progress_callback: Optional callback(bytes_downloaded, total_bytes).
-
-    Returns:
-        Path to the downloaded BED file.
-
-    Raises:
-        DownloadError: If the download fails after exhausting retries.
-        httpx.HTTPStatusError: On a non-retryable HTTP status (e.g. 404).
-    """
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    filename = url.rsplit("/", 1)[-1]
-    dest_path = dest_dir / filename
-
-    if dest_path.exists():
-        file_size = dest_path.stat().st_size
-        if file_size > 0:
-            logger.info("encode_ccres_bed_exists", path=str(dest_path), size=file_size)
-            return dest_path
-        logger.warning("encode_ccres_bed_empty_removing", path=str(dest_path))
-        dest_path.unlink()
-
-    logger.info("encode_ccres_download_start", url=url, dest=str(dest_path))
-
-    tmp_path = dest_path.with_suffix(".tmp")
-    outcome = stream_download(
-        url,
-        tmp_path,
-        progress_callback=progress_callback,
-        timeout=300.0,
-        chunk_size=1_048_576,
-    )
-
-    # Atomic rename (stream_download cleans up the .tmp on failure).
-    tmp_path.replace(dest_path)
-    logger.info("encode_ccres_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
-    return dest_path
 
 
 # ── Parsing ──────────────────────────────────────────────────────────────

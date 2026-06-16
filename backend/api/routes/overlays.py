@@ -89,14 +89,6 @@ class OverlayApplyResponse(BaseModel):
     records_checked: int
 
 
-class OverlayResultRow(BaseModel):
-    """A single overlay result row."""
-
-    rsid: str
-    overlay_id: int
-    annotations: dict[str, Any] = {}
-
-
 class OverlayResultsResponse(BaseModel):
     """Overlay results for a sample."""
 
