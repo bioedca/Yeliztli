@@ -27,13 +27,10 @@ logger = logging.getLogger(__name__)
 # Build from the actual table definition so it stays in sync automatically.
 ALLOWED_FIELDS: frozenset[str] = frozenset(col.name for col in annotated_variants.columns)
 
-# Column type classification for input validation.
-_NUMERIC_COLUMNS: frozenset[str] = frozenset(
-    col.name
-    for col in annotated_variants.columns
-    if isinstance(col.type, (sa.Integer, sa.Float, sa.Boolean))
-)
-
+# Text columns — gate the string operators (contains/beginsWith/endsWith) to
+# text fields (input validation; see the string-operator branch below). Numeric
+# classification is not precomputed: _coerce_value derives it inline from
+# col.type where value coercion needs it (#1002).
 _TEXT_COLUMNS: frozenset[str] = frozenset(
     col.name for col in annotated_variants.columns if isinstance(col.type, sa.Text)
 )
