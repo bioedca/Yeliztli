@@ -79,9 +79,12 @@ def test_detector_flags_known_flexibility_injury_contradictions() -> None:
 
 
 def test_panel_effect_summaries_do_not_self_contradict_flexibility_and_injury() -> None:
+    effect_summaries = _iter_effect_summaries()
+    assert effect_summaries
+
     contradictions = [
         f"{panel}:{rsid}:{genotype} -> {summary}"
-        for panel, rsid, genotype, summary in _iter_effect_summaries()
+        for panel, rsid, genotype, summary in effect_summaries
         if _has_flexibility_injury_contradiction(summary)
     ]
 
