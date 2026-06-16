@@ -379,6 +379,8 @@ class TestGsaArrayTypeability:
         engine = _make_sample({G6PD_A_MINUS_RSID: "C"})
         with patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"):
             result = assess_g6pd(engine)
+        # Guard against a vacuous pass: every curated variant must be present.
+        assert len(result["variants"]) == len(G6PD_DEFICIENCY_VARIANTS)
         for v in result["variants"]:
             expected = v["name"] != "Cosenza (R459P)"
             assert v["gsa_v3_typed"] is expected, f"{v['name']} gsa_v3_typed should be {expected}"
