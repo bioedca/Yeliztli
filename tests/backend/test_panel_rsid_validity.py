@@ -29,6 +29,29 @@ PANELS_DIR = Path(__file__).resolve().parent.parent.parent / "backend" / "data" 
 COORDINATE_FIXTURE = (
     Path(__file__).resolve().parent.parent / "fixtures" / "panel_rsid_coordinates.json"
 )
+VALIDITY_SNAPSHOT = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "panel_rsid_validity_snapshot.json"
+)
+
+# dbSNP-merged panel rsIDs that already exist on ``main`` — the #787 guard surfaced
+# 12, all in cancer/carrier/cardiovascular ``expected_clinvar_rsids`` ClinVar-match
+# lists. Baselined so the merge guard passes while it locks against *new* merges;
+# correcting each to its current refSNP id is tracked in #885 (this set shrinks to
+# ``{}``). Target = dbSNP refsnp v2 ``merged_into`` (accessed 2026-06-16).
+_KNOWN_DBSNP_MERGED = {
+    "rs33944857": "rs5820323",
+    "rs57621804": "rs618285",
+    "rs80356770": "rs77369218",
+    "rs80356773": "rs75822236",
+    "rs80357713": "rs80357783",
+    "rs80357975": "rs80357867",
+    "rs80359585": "rs80359584",
+    "rs80359716": "rs80359714",
+    "rs375367521": "rs5790770",
+    "rs515726124": "rs515726123",
+    "rs748452299": "rs267608087",
+    "rs786201732": "rs746061888",
+}
 
 # rsIDs dbSNP has retired (merged) or that are not valid dbSNP records at all,
 # verified against dbSNP refsnp v2 + Ensembl GRCh37 (#645). They must never
@@ -111,6 +134,10 @@ def _well_formed_panel_rsids() -> set[str]:
 
 def _coordinate_fixture() -> dict:
     return json.loads(COORDINATE_FIXTURE.read_text(encoding="utf-8"))
+
+
+def _validity_snapshot() -> dict:
+    return json.loads(VALIDITY_SNAPSHOT.read_text(encoding="utf-8"))
 
 
 class TestPanelRsidValidity:
@@ -200,4 +227,89 @@ class TestPanelRsidValidity:
         assert not offenders, (
             "panel rsIDs resolve to repeat/structural classes that are not ordinary "
             "array-typeable loci: " + ", ".join(offenders)
+        )
+
+
+class TestPanelRsidDbsnpMergeValidity:
+    """Systemic dbSNP-merge / withdrawal guard (#787).
+
+    The #786 denylist only catches the few rsIDs we already knew were retired,
+    and the #742 coordinate fixture passes a *merged* rsID (it still maps to a
+    coordinate). This guard resolves every panel rsID against the authoritative
+    dbSNP refsnp v2 source (committed offline in ``panel_rsid_validity_snapshot``)
+    and fails when a panel keys a dbSNP-merged or withdrawn id beyond the
+    documented ``_KNOWN_DBSNP_MERGED`` baseline (the pre-existing backlog tracked
+    in #885). Regenerate via ``scripts/build_panel_rsid_validity_snapshot.py``.
+    """
+
+    def test_validity_snapshot_shape_is_locked(self) -> None:
+        snapshot = _validity_snapshot()
+        provenance = snapshot.get("_provenance")
+        assert isinstance(provenance, dict)
+        assert "dbSNP refsnp v2" in provenance.get("source", "")
+        assert provenance.get("generator") == "scripts/build_panel_rsid_validity_snapshot.py"
+        assert provenance.get("excluded_panel_files") == _COORDINATE_EXCLUDED_PANEL_FILES
+        assert isinstance(provenance.get("accessed"), str) and provenance["accessed"]
+
+        records = snapshot.get("rsids")
+        assert isinstance(records, dict)
+        assert len(records) >= 100, "validity snapshot coverage regressed"
+        for rsid, rec in records.items():
+            assert _RSID_RE.match(rsid), f"snapshot key is not a well-formed rsID: {rsid!r}"
+            assert rec.get("status") in {"current", "merged", "withdrawn"}, rsid
+            merged_into = rec.get("merged_into")
+            if rec["status"] == "merged":
+                assert isinstance(merged_into, list) and merged_into, rsid
+                assert all(_RSID_RE.match(t) for t in merged_into), rsid
+            else:
+                assert merged_into is None, rsid
+            assert rec.get("source", "").endswith(f"/{rsid[2:]}"), rsid
+
+    def test_every_panel_rsid_in_validity_snapshot(self) -> None:
+        """Every curated dbSNP-style panel rsID has a committed validity entry (#787).
+
+        Forces a snapshot regeneration whenever a panel gains/loses an rsID — the
+        refresh re-resolves against dbSNP and catches a newly-added merged id.
+        """
+        panel_rsids = _well_formed_panel_rsids()
+        snapshot_rsids = set(_validity_snapshot()["rsids"])
+        missing = sorted(panel_rsids - snapshot_rsids, key=lambda rsid: int(rsid[2:]))
+        stale = sorted(snapshot_rsids - panel_rsids, key=lambda rsid: int(rsid[2:]))
+        assert not missing, "panel rsIDs missing from validity snapshot: " + ", ".join(missing)
+        assert not stale, "validity snapshot has rsIDs absent from panels: " + ", ".join(stale)
+
+    def test_no_unexpected_merged_or_withdrawn_rsid(self) -> None:
+        """No panel rsID is dbSNP-merged/withdrawn beyond the documented baseline (#787)."""
+        offenders: list[str] = []
+        for rsid, rec in _validity_snapshot()["rsids"].items():
+            if rec["status"] == "current":
+                continue
+            if rsid in _KNOWN_DBSNP_MERGED:
+                continue  # pre-existing, tracked in #885
+            target = rec.get("merged_into") or rec["status"]
+            offenders.append(f"{rsid} ({rec['status']} → {target})")
+        assert not offenders, (
+            "panel rsIDs that dbSNP has merged/withdrawn (switch to the current id, or "
+            "add to _KNOWN_DBSNP_MERGED + #885 if intentionally deferred):\n"
+            + "\n".join(sorted(offenders))
+        )
+
+    def test_known_merged_baseline_is_honest(self) -> None:
+        """Every baselined id must still be a merged panel rsID — so a fixed id
+        (removed from panels, #885) forces its removal from the baseline rather
+        than lingering as dead policy."""
+        records = _validity_snapshot()["rsids"]
+        stale_baseline: list[str] = []
+        for rsid, expected_target in _KNOWN_DBSNP_MERGED.items():
+            rec = records.get(rsid)
+            if rec is None or rec["status"] != "merged":
+                stale_baseline.append(rsid)
+                continue
+            # The recorded dbSNP target should match the documented one.
+            assert expected_target in (rec.get("merged_into") or []), (
+                f"{rsid}: baseline target {expected_target} != snapshot {rec.get('merged_into')}"
+            )
+        assert not stale_baseline, (
+            "_KNOWN_DBSNP_MERGED entries no longer present-and-merged in any panel — "
+            "remove them from the baseline (fixed via #885): " + ", ".join(sorted(stale_baseline))
         )
