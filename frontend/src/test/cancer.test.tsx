@@ -187,6 +187,24 @@ describe("VariantCard", () => {
     expect(screen.getByText("Likely pathogenic")).toBeInTheDocument()
   })
 
+  it("styles combined Pathogenic/Likely pathogenic as a red pathogenic card (#687)", () => {
+    render(
+      <VariantCard
+        variant={{
+          ...BRCA1_VARIANT,
+          clinvar_significance: "Pathogenic/Likely pathogenic",
+        }}
+        onClick={onClick}
+        sampleId={1}
+      />,
+    )
+
+    const cardShell = screen.getByTestId("cancer-variant-card").parentElement
+    if (!cardShell) throw new Error("Expected cancer card shell")
+    expect(cardShell).toHaveClass("bg-red-50")
+    expect(screen.getByText("Pathogenic/Likely pathogenic")).toHaveClass("bg-red-100")
+  })
+
   it("renders genotype and zygosity", () => {
     render(<VariantCard variant={BRCA1_VARIANT} onClick={onClick} sampleId={1} />)
     expect(screen.getByText("C/T")).toBeInTheDocument()

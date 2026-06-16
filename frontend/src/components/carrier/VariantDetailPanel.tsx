@@ -6,6 +6,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { CarrierVariant } from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { INHERITANCE_LABELS } from "@/types/carrier"
@@ -124,8 +125,7 @@ export default function VariantDetailPanel({
               <span className="text-sm text-muted-foreground">ClinVar Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
+                getClinvarSignificanceTextClass(variant.clinvar_significance),
               )}>
                 {variant.clinvar_significance}
               </span>

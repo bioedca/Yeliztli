@@ -196,6 +196,17 @@ describe("ResultsTable", () => {
     render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
     expect(screen.getByLabelText("Evidence conflict")).toBeInTheDocument()
   })
+
+  it("styles combined Pathogenic/Likely pathogenic as red in the table (#687)", () => {
+    const variant = makeMockVariant({
+      clinvar_significance: "Pathogenic/Likely pathogenic",
+    })
+    render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
+
+    const significanceCell = screen.getByText("Pathogenic/Likely pathogenic").closest("td")
+    if (!significanceCell) throw new Error("Expected ClinVar significance cell")
+    expect(significanceCell).toHaveClass("text-red-600")
+  })
 })
 
 describe("SearchSummary", () => {

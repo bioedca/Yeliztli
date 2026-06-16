@@ -20,6 +20,7 @@ import { useVariantDetail } from "@/api/variant-detail"
 import type { VariantDetail, EvidenceConflictDetail } from "@/types/variant-detail"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import { polyphen2Display } from "@/lib/insilico"
 
@@ -195,11 +196,7 @@ function PanelContent({
             variant.clinvar_significance ? (
               <span
                 className={cn(
-                  variant.clinvar_significance.toLowerCase().includes("pathogenic")
-                    ? "text-red-700 dark:text-red-400"
-                    : variant.clinvar_significance.toLowerCase().includes("benign")
-                      ? "text-green-700 dark:text-green-400"
-                      : "",
+                  getClinvarSignificanceTextClass(variant.clinvar_significance),
                 )}
               >
                 {variant.clinvar_significance}

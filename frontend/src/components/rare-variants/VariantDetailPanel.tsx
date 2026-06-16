@@ -5,6 +5,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -127,8 +128,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
+                getClinvarSignificanceTextClass(variant.clinvar_significance),
               )}>
                 {variant.clinvar_significance ?? "—"}
               </span>
