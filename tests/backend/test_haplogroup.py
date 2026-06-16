@@ -602,6 +602,124 @@ class TestTreeWalk:
         assert "H1a" in haplogroups_in_path
 
 
+class TestTreeWalkSharedAncestralMarkers:
+    """#804: descent must rest on clade-*specific* derived markers, so a child
+    that merely re-lists a marker inherited from its parent clade cannot divert or
+    over-extend the walk — while a structural pass-through node (one defined solely
+    by inherited markers) stays transparent to a deeper, supported clade."""
+
+    def test_real_bundle_only_ct_markers_stop_at_ct(self, bundle: HaplogroupBundle) -> None:
+        """The reproduced #804 case on the real Y bundle: a sample with only the two
+        shared CT markers typed (M168 ``rs2032652`` + ``rs13304168``) must stop at
+        CT — not over-resolve into DE (re-lists ``rs13304168``) or F (re-lists
+        ``rs2032652``), which provide no clade-specific evidence."""
+        genotypes = {"rs2032652": "TT", "rs13304168": "GG"}  # CT derived; no DE/F-specific marker
+        terminal, path = _tree_walk(bundle.y_tree, genotypes, [])
+        assert terminal.haplogroup == "CT"
+        assert [s.haplogroup for s in path] == ["CT"]
+
+    def test_synthetic_shared_marker_children_do_not_over_resolve(self) -> None:
+        """Two children that each re-list one of the parent's markers (the CT/DE,
+        CT/F shape) are both refused when their own markers are untyped."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="CT",
+                    defining_snps=[HaplogroupSNP("m168", 1, "T"), HaplogroupSNP("x", 2, "G")],
+                    children=[
+                        HaplogroupNode(  # DE: own rs + re-listed x
+                            haplogroup="DE",
+                            defining_snps=[
+                                HaplogroupSNP("de", 3, "T"),
+                                HaplogroupSNP("x", 2, "G"),
+                            ],
+                            children=[],
+                        ),
+                        HaplogroupNode(  # F: re-listed m168 + own rs
+                            haplogroup="F",
+                            defining_snps=[
+                                HaplogroupSNP("m168", 1, "T"),
+                                HaplogroupSNP("f", 4, "C"),
+                            ],
+                            children=[],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        # Only the two CT markers typed-derived; DE-specific (de) and F-specific (f) untyped.
+        genotypes = {"m168": "TT", "x": "GG"}
+        terminal, path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "CT"
+        assert [s.haplogroup for s in path] == ["CT"]
+
+    def test_passthrough_node_reaches_deeper_supported_clade(self) -> None:
+        """A node defined only by an inherited marker (the K2 = only F's rs3900
+        shape) is transparent: the walk descends through it to a deeper clade that
+        has its own derived evidence."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="P",
+                    defining_snps=[HaplogroupSNP("x", 1, "G")],
+                    children=[
+                        HaplogroupNode(  # pass-through: re-lists only x
+                            haplogroup="PT",
+                            defining_snps=[HaplogroupSNP("x", 1, "G")],
+                            children=[
+                                HaplogroupNode(
+                                    haplogroup="DEEP",
+                                    defining_snps=[HaplogroupSNP("d", 2, "T")],
+                                    children=[],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        genotypes = {"x": "GG", "d": "TT"}
+        terminal, path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "DEEP"
+        assert [s.haplogroup for s in path] == ["P", "PT", "DEEP"]
+
+    def test_passthrough_node_with_no_supported_descendant_stops_at_parent(self) -> None:
+        """A pass-through node (A1 = only A's marker re-listed) with no deeper
+        supported clade is a spurious over-resolution and is not reported: the walk
+        stops at the parent it is indistinguishable from (#805-robust)."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="A",
+                    defining_snps=[HaplogroupSNP("x", 1, "G")],
+                    children=[
+                        HaplogroupNode(  # A1: re-lists only x → no own evidence
+                            haplogroup="A1",
+                            defining_snps=[HaplogroupSNP("x", 1, "G")],
+                            children=[
+                                HaplogroupNode(  # A1b: own marker, but untyped here
+                                    haplogroup="A1b",
+                                    defining_snps=[HaplogroupSNP("b", 2, "T")],
+                                    children=[],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        genotypes = {"x": "GG"}  # A1b-specific marker untyped
+        terminal, path = _tree_walk(root, genotypes, [])
+        assert terminal.haplogroup == "A"
+        assert [s.haplogroup for s in path] == ["A"]
+
+
 # ── Full haplogroup assignment tests ────────────────────────────────────
 
 

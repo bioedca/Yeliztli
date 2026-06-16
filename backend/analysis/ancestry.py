@@ -1607,13 +1607,26 @@ def _classify_node_match(
         ``(snps_present, snps_conflicting, snps_total)`` where ``snps_total`` is
         the node's full defining-SNP count (present + conflicting + missing).
     """
-    snps_total = len(node.defining_snps)
+    return _classify_snps(node.defining_snps, genotype_map)
+
+
+def _classify_snps(
+    snps: list[HaplogroupSNP],
+    genotype_map: dict[str, str | None],
+) -> tuple[int, int, int]:
+    """Classify a list of defining SNPs into present / conflicting / total.
+
+    Shared by :func:`_classify_node_match` (a node's full defining set) and the
+    clade-*specific* subset the tree-walk scores descent on (#804). See
+    ``_classify_node_match`` for the present/conflicting/missing semantics.
+    """
+    snps_total = len(snps)
     if snps_total == 0:
         return 0, 0, 0
 
     snps_present = 0
     snps_conflicting = 0
-    for snp in node.defining_snps:
+    for snp in snps:
         genotype = genotype_map.get(snp.rsid)
         if genotype is None or is_no_call(genotype):
             continue  # missing/untyped → no evidence either way
@@ -1629,67 +1642,123 @@ def _tree_walk(
     node: HaplogroupNode,
     genotype_map: dict[str, str | None],
     path: list[HaplogroupTraversalStep],
+    ancestral_rsids: frozenset[str] = frozenset(),
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
 
-    Starting from a node, checks each child. A child is eligible to descend into
-    only when **no** observed defining SNP contradicts it (``conflicting == 0``)
-    **and** enough of its defining SNPs are observed-and-derived
-    (``present / total >= _HAPLOGROUP_MIN_MATCH_FRACTION``). A single ancestral
-    (conflicting) marker blocks descent so the walk stops at the deepest fully
-    supported ancestor rather than over-resolving into a subclade the sample only
-    half-matches. Among eligible children the best-supported (highest derived
-    fraction) wins. Returns the deepest node that matches.
+    Descent into a child is scored on that child's **clade-specific** defining
+    SNPs — the ones that actually distinguish it from the lineage already walked
+    — *not* its full defining set. The bundle re-lists ancestral/shared markers
+    on descendant nodes (CT's M168 ``rs2032652`` is re-listed on F and R2;
+    ``rs13304168`` on DE and D), so a greedy per-node ``present / total`` let a
+    child match purely on a marker inherited from its parent clade: a sample with
+    only the two CT markers typed scored DE and F at 0.5 each and over-resolved
+    past CT (#804). Excluding inherited markers means a single shared/duplicated
+    marker can no longer divert or over-extend the walk.
 
-    The root node (mt-MRCA / Y-Adam) has no defining SNPs and always
-    matches.
+    A child is eligible only when, over its clade-specific SNPs: **no** observed
+    one contradicts it (``conflicting == 0``), at least one is observed-and-derived
+    (``present >= 1`` — no descent on zero clade-specific evidence), and the
+    derived fraction clears the threshold
+    (``present / total >= _HAPLOGROUP_MIN_MATCH_FRACTION``). A child defined *only*
+    by re-listed ancestral markers has no clade-specific SNPs and is never
+    descended into (it carries no evidence the sample is in it rather than its
+    parent). Among eligible children the highest clade-specific fraction wins. The
+    recorded path step keeps the **full** node match (including inherited markers)
+    so the confidence present/total semantics are unchanged.
+
+    The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
     Args:
         node: Current tree node.
         genotype_map: Mapping rsid → genotype string.
         path: Accumulated traversal path (mutated in-place).
+        ancestral_rsids: rsids of every defining SNP from the root down to (and
+            including) ``node`` — markers a child must not re-use for credit.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
     """
-    # Try each child node
+    # Markers seen from the root down to and including this node.
+    seen_rsids = ancestral_rsids | {snp.rsid for snp in node.defining_snps}
+
     best_child: HaplogroupNode | None = None
     best_child_fraction = 0.0
-    best_child_present = 0
-    best_child_total = 0
+    passthrough_children: list[HaplogroupNode] = []
 
     for child in node.children:
-        present, conflicting, total = _classify_node_match(child, genotype_map)
-        if total == 0:
+        # Clade-specific defining SNPs: drop any marker inherited/duplicated from
+        # an ancestor on the path, so descent rests on evidence that the sample is
+        # in *this* child rather than merely in its parent clade.
+        specific = [snp for snp in child.defining_snps if snp.rsid not in seen_rsids]
+        if not specific:
+            # The child re-lists only ancestral markers, so it adds no distinguishing
+            # evidence of its own (e.g. K2 = only F's rs3900; A1 = only A's rs2032597).
+            # It can't be a terminal match, but it may be a structural pass-through to a
+            # deeper clade that does — defer it (handled only if no child has direct
+            # evidence).
+            passthrough_children.append(child)
             continue
 
+        present, conflicting, total = _classify_snps(specific, genotype_map)
+
         # A clade is defined by all its mutations being derived: any observed
-        # ancestral marker is evidence *against* membership, so refuse to descend.
-        # A missing (untyped) marker is not a conflict — only typed-ancestral is.
-        if conflicting > 0:
+        # ancestral (conflicting) clade-specific marker is evidence *against*. A
+        # missing (untyped) marker is not a conflict. Require ≥1 clade-specific
+        # derived marker actually observed — never descend on zero evidence.
+        if conflicting > 0 or present == 0:
             continue
 
         fraction = present / total
         if fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION and fraction > best_child_fraction:
             best_child = child
             best_child_fraction = fraction
-            best_child_present = present
-            best_child_total = total
 
     if best_child is not None:
-        # Record this step in the traversal path
-        path.append(
-            HaplogroupTraversalStep(
-                haplogroup=best_child.haplogroup,
-                snps_present=best_child_present,
-                snps_total=best_child_total,
-            )
-        )
-        # Recurse into the best matching child
-        return _tree_walk(best_child, genotype_map, path)
+        _record_step(path, best_child, genotype_map)
+        # Recurse into the best directly-supported child.
+        return _tree_walk(best_child, genotype_map, path, seen_rsids)
+
+    # No child has direct clade-specific evidence. A pass-through child (one
+    # defined solely by inherited markers) is descended into ONLY if it leads to a
+    # deeper clade that does — otherwise it is a spurious over-resolution (the
+    # sample is indistinguishable from this node) and the walk stops here.
+    for child in passthrough_children:
+        # The inherited markers were derived to reach here, so a typed-ancestral
+        # one would contradict the lineage — skip such a broken pass-through.
+        _, conflicting, _ = _classify_node_match(child, genotype_map)
+        if conflicting > 0:
+            continue
+        terminal, sub_path = _tree_walk(child, genotype_map, [], seen_rsids)
+        if sub_path:  # the pass-through reached at least one supported descendant
+            _record_step(path, child, genotype_map)
+            path.extend(sub_path)
+            return terminal, path
 
     # No child matched — current node is the deepest match
     return node, path
+
+
+def _record_step(
+    path: list[HaplogroupTraversalStep],
+    child: HaplogroupNode,
+    genotype_map: dict[str, str | None],
+) -> None:
+    """Append a traversal step recording the child's FULL node match.
+
+    The step records present/total over *all* the child's defining SNPs (incl.
+    inherited markers the sample also carries), not just the clade-specific subset
+    used to decide descent, so the confidence present/total semantics are
+    unchanged (#804).
+    """
+    full_present, _, full_total = _classify_node_match(child, genotype_map)
+    path.append(
+        HaplogroupTraversalStep(
+            haplogroup=child.haplogroup,
+            snps_present=full_present,
+            snps_total=full_total,
+        )
+    )
 
 
 # ── Main haplogroup assignment ───────────────────────────────────────
