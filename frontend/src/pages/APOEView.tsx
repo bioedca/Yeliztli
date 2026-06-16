@@ -157,9 +157,7 @@ export default function APOEView() {
                 )}
 
                 {findingsQuery.data && findingsQuery.data.items.length > 0 && (
-                  <div className="mb-4">
-                    <APOECaveats findings={findingsQuery.data.items} />
-                  </div>
+                  <APOECaveats findings={findingsQuery.data.items} />
                 )}
 
                 {findingsQuery.data && findingsQuery.data.items.length > 0 ? (

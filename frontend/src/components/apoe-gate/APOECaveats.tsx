@@ -61,7 +61,7 @@ export default function APOECaveats({ findings }: APOECaveatsProps) {
   return (
     <section
       aria-label="APOE source and array reliability caveats"
-      className="rounded-lg border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100"
+      className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100"
       data-testid="apoe-caveats"
     >
       <div className="flex items-start gap-3">
