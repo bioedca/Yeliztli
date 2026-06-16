@@ -36,6 +36,7 @@ import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { polyphen2Display } from "@/lib/insilico"
 
@@ -174,6 +175,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
     : variant.rare_flag
       ? "Rare"
       : null
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
     <div className="space-y-1" data-testid="tab-overview">
@@ -218,8 +220,8 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
         value={<ClinVarSignificanceBadge significance={variant.clinvar_significance} />}
       />
       <DetailRow label="Review Stars" value={renderStars(variant.clinvar_review_stars) || "—"} />
-      {variant.clinvar_conditions && (
-        <DetailRow label="Conditions" value={variant.clinvar_conditions} />
+      {conditions && (
+        <DetailRow label="Conditions" value={conditions} />
       )}
 
       {/* Key scores */}
@@ -383,6 +385,7 @@ function ProteinTab({ variant, sampleId }: { variant: VariantDetail; sampleId: n
 /* ------------------------------------------------------------------ */
 
 function ClinicalTab({ variant }: { variant: VariantDetail }) {
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   return (
     <div data-testid="tab-clinical">
       {/* ClinVar Record */}
@@ -409,8 +412,8 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
               </a>
             } />
           )}
-          {variant.clinvar_conditions && (
-            <DetailRow label="Conditions" value={variant.clinvar_conditions} />
+          {conditions && (
+            <DetailRow label="Conditions" value={conditions} />
           )}
         </div>
       ) : (

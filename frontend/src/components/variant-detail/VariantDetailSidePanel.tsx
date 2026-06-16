@@ -22,6 +22,7 @@ import WatchButton from "@/components/variant-detail/WatchButton"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { polyphen2Display } from "@/lib/insilico"
 
@@ -123,6 +124,7 @@ function PanelContent({
     : variant.rare_flag
       ? "Rare"
       : null
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
     <>
@@ -208,8 +210,8 @@ function PanelContent({
           }
         />
         <DetailRow label="Review" value={renderStars(variant.clinvar_review_stars) || "—"} />
-        {variant.clinvar_conditions && (
-          <DetailRow label="Conditions" value={variant.clinvar_conditions} />
+        {conditions && (
+          <DetailRow label="Conditions" value={conditions} />
         )}
 
         {/* Population frequency */}

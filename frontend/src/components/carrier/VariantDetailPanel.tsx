@@ -9,6 +9,7 @@ import { useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import type { CarrierVariant } from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { INHERITANCE_LABELS } from "@/types/carrier"
@@ -28,6 +29,7 @@ export default function VariantDetailPanel({
   geneNote,
   onClose,
 }: VariantDetailPanelProps) {
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
@@ -190,10 +192,10 @@ export default function VariantDetailPanel({
         )}
 
         {/* ClinVar conditions */}
-        {variant.clinvar_conditions && (
+        {conditions && (
           <section className="mb-5">
             <h3 className="text-sm font-semibold text-foreground mb-2">ClinVar Conditions</h3>
-            <p className="text-sm text-foreground">{variant.clinvar_conditions}</p>
+            <p className="text-sm text-foreground">{conditions}</p>
           </section>
         )}
 

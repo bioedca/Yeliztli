@@ -7,6 +7,7 @@
 
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceCardConfig } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import type { CancerVariant } from "@/types/cancer"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { Link } from "react-router-dom"
@@ -30,6 +31,7 @@ const INHERITANCE_LABELS: Record<string, string> = {
 
 export default function VariantCard({ variant, onClick, selected, sampleId }: VariantCardProps) {
   const config = getClinvarSignificanceCardConfig(variant.clinvar_significance)
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCrossLink = variant.cross_links.includes("carrier")
 
   return (
@@ -107,9 +109,9 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
       )}
 
       {/* ClinVar conditions */}
-      {variant.clinvar_conditions && (
+      {conditions && (
         <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-          {variant.clinvar_conditions}
+          {conditions}
         </p>
       )}
 

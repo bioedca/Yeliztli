@@ -8,6 +8,7 @@ import { useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -30,6 +31,7 @@ const POPULATION_LABELS: Record<string, string> = {
 
 
 export default function VariantDetailPanel({ variant, onClose }: VariantDetailPanelProps) {
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const popFreqs = [
     { key: "gnomad_af_global", value: variant.gnomad_af_global },
     { key: "gnomad_af_afr", value: variant.gnomad_af_afr },
@@ -164,10 +166,10 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
                 </a>
               </div>
             )}
-            {variant.clinvar_conditions && (
+            {conditions && (
               <div>
                 <span className="text-sm text-muted-foreground">Conditions</span>
-                <p className="text-sm mt-0.5">{variant.clinvar_conditions}</p>
+                <p className="text-sm mt-0.5">{conditions}</p>
               </div>
             )}
           </div>

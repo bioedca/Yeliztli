@@ -7,6 +7,7 @@
 
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceCardConfig } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import type { CarrierVariant } from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { INHERITANCE_LABELS } from "@/types/carrier"
@@ -22,6 +23,7 @@ interface VariantCardProps {
 
 export default function VariantCard({ variant, onClick, selected, sampleId }: VariantCardProps) {
   const config = getClinvarSignificanceCardConfig(variant.clinvar_significance)
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
   // A heterozygous P/LP variant means different things by inheritance mode: for
   // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is
@@ -96,9 +98,9 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
       )}
 
       {/* ClinVar conditions */}
-      {variant.clinvar_conditions && (
+      {conditions && (
         <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-          {variant.clinvar_conditions}
+          {conditions}
         </p>
       )}
 

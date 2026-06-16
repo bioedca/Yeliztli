@@ -8,6 +8,7 @@ import { useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
+import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import type { CancerVariant } from "@/types/cancer"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { Link } from "react-router-dom"
@@ -24,6 +25,7 @@ export default function VariantDetailPanel({
   sampleId,
   onClose,
 }: VariantDetailPanelProps) {
+  const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCrossLink = variant.cross_links.includes("carrier")
   const panelRef = useRef<HTMLElement>(null)
   useDialogFocus(panelRef)
@@ -118,10 +120,10 @@ export default function VariantDetailPanel({
         </section>
 
         {/* ClinVar conditions */}
-        {variant.clinvar_conditions && (
+        {conditions && (
           <section className="mb-5">
             <h3 className="text-sm font-semibold text-foreground mb-2">Conditions</h3>
-            <p className="text-sm text-foreground">{variant.clinvar_conditions}</p>
+            <p className="text-sm text-foreground">{conditions}</p>
           </section>
         )}
 
