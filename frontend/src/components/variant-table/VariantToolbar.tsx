@@ -172,7 +172,7 @@ export default function VariantToolbar({
         onClick={onToggleConflictsOnly}
         className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors ${
           showConflictsOnly
-            ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
             : "border-input bg-background text-muted-foreground hover:text-foreground"
         }`}
         aria-pressed={showConflictsOnly}

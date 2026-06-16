@@ -396,7 +396,7 @@ function DetailRow({
         <span
           className={cn(
             'font-medium',
-            found ? 'text-green-600' : 'text-muted-foreground',
+            found ? 'text-green-700' : 'text-muted-foreground',
           )}
         >
           {found ? 'Found' : 'Not found'}

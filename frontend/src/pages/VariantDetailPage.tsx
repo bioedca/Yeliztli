@@ -436,7 +436,7 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <DetailRow label="SIFT" value={
           variant.sift_pred ? (
             <span className={cn(
-              variant.sift_pred === "D" ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400",
+              variant.sift_pred === "D" ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400",
             )}>
               {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}
               {variant.sift_score != null && ` (${variant.sift_score.toFixed(3)})`}

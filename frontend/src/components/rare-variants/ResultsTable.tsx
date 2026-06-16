@@ -10,9 +10,9 @@ import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
 const SIGNIFICANCE_COLORS: Record<string, string> = {
-  Pathogenic: "text-red-600 dark:text-red-400",
-  "Likely pathogenic": "text-orange-600 dark:text-orange-400",
-  "Uncertain significance": "text-yellow-600 dark:text-yellow-400",
+  Pathogenic: "text-red-700 dark:text-red-400",
+  "Likely pathogenic": "text-orange-700 dark:text-orange-400",
+  "Uncertain significance": "text-yellow-700 dark:text-yellow-400",
 }
 
 interface ResultsTableProps {

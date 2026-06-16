@@ -90,8 +90,8 @@ export default function StatusBar({ sample, variantCount }: StatusBarProps) {
           type="button"
           onClick={() => navigate('/settings/about')}
           className={cn(
-            'flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400',
-            'hover:text-amber-700 dark:hover:text-amber-300 transition-colors',
+            'flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400',
+            'hover:text-amber-800 dark:hover:text-amber-300 transition-colors',
             'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary rounded',
           )}
           aria-label={`App update available: v${appUpdate.latest_version}`}

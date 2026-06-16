@@ -379,7 +379,7 @@ export default function AncestryView() {
                   {/* LAI Results — Painting + Pie Chart */}
                   {laiResultsQuery.data && (
                     <div className="space-y-6">
-                      <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                      <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
                         <CheckCircle className="h-4 w-4" />
                         Chromosome painting complete
                       </div>

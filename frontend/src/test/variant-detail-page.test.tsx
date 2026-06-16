@@ -332,7 +332,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     // PolyPhen-2: the raw dbNSFP code "D" maps to a readable "Probably Damaging"
     // label in the damaging colour (#680), not a bare "D" in the benign green.
     const polyphen = screen.getByText(/Probably Damaging/)
-    expect(polyphen).toHaveClass("text-red-600")
+    expect(polyphen).toHaveClass("text-red-700")
   })
 
   it("shows disease associations in Clinical tab", async () => {

@@ -596,12 +596,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         {formatBytes(db.expected_size_bytes)}
                       </span>
                       {isBundled && (
-                        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+                        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">
                           Included
                         </span>
                       )}
                       {isManual && (
-                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
                           Manual Build
                         </span>
                       )}
@@ -683,7 +683,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                           </p>
                         )}
                         {failAction === 'window' && (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">
                             Outside the scheduled bandwidth window — it retries
                             in-window, or retry now.
                           </p>
@@ -739,7 +739,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     {/* Resumable partial — surface progress + explicit resume */}
                     {showResume && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
                           Partial download
                           {dbHealth?.progress_pct != null &&
                             ` — ${dbHealth.progress_pct}% saved`}
@@ -764,14 +764,14 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     {/* Downloaded status + integrity verdict */}
                     {isComplete && !isBundled && (
                       <div className="mt-0.5 space-y-1">
-                        <p className="text-xs text-green-600 dark:text-green-400">
+                        <p className="text-xs text-green-700 dark:text-green-400">
                           Downloaded
                           {db.file_size_bytes != null &&
                             ` (${formatBytes(db.file_size_bytes)})`}
                         </p>
                         {dbHealth?.integrity_ok === true && dbHealth.version && (
                           <span
-                            className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
+                            className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400"
                             data-testid={`db-verified-${db.name}`}
                           >
                             <ShieldCheck className="h-3 w-3" />
@@ -826,7 +826,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
 
                     {/* Bundled status */}
                     {isBundled && (
-                      <p className="mt-0.5 text-xs text-green-600 dark:text-green-400">
+                      <p className="mt-0.5 text-xs text-green-700 dark:text-green-400">
                         Ships with Yeliztli
                       </p>
                     )}

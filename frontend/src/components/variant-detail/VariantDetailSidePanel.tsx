@@ -196,9 +196,9 @@ function PanelContent({
               <span
                 className={cn(
                   variant.clinvar_significance.toLowerCase().includes("pathogenic")
-                    ? "text-red-600 dark:text-red-400"
+                    ? "text-red-700 dark:text-red-400"
                     : variant.clinvar_significance.toLowerCase().includes("benign")
-                      ? "text-green-600 dark:text-green-400"
+                      ? "text-green-700 dark:text-green-400"
                       : "",
                 )}
               >
@@ -241,8 +241,8 @@ function PanelContent({
                 <span
                   className={cn(
                     variant.sift_pred === "D"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-green-600 dark:text-green-400",
+                      ? "text-red-700 dark:text-red-400"
+                      : "text-green-700 dark:text-green-400",
                   )}
                 >
                   {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}

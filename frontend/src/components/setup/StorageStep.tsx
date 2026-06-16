@@ -195,7 +195,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                   <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
                     Volatile storage location
                   </span>
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
                     {storageInfo.volatile_message ??
                       'This storage location may be erased when the machine restarts.'}
                   </p>
@@ -247,7 +247,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                 isBlocked
                   ? 'text-destructive/80'
                   : isWarning
-                    ? 'text-amber-600 dark:text-amber-400'
+                    ? 'text-amber-700 dark:text-amber-400'
                     : 'text-muted-foreground',
               )}
             >
@@ -293,7 +293,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                 className={cn(
                   'font-medium',
                   storageInfo.path_writable
-                    ? 'text-green-600'
+                    ? 'text-green-700'
                     : 'text-destructive',
                 )}
               >

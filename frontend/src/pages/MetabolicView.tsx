@@ -36,7 +36,7 @@ export function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
       <p className="text-sm text-foreground">
         Genotype <span className="font-mono">{anchor.genotype}</span> —{" "}
         {anchor.indeterminate ? (
-          <span className="text-amber-600 dark:text-amber-500" data-testid="anchor-indeterminate">
+          <span className="text-amber-700 dark:text-amber-500" data-testid="anchor-indeterminate">
             effect-allele dosage not reported (genotype strand could not be resolved)
           </span>
         ) : (

@@ -380,7 +380,7 @@ function DatabaseRow({
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {updateInfo ? (
-          <span className="text-amber-600 dark:text-amber-400 font-medium">
+          <span className="text-amber-700 dark:text-amber-400 font-medium">
             {updateInfo.latest_version}
           </span>
         ) : (
@@ -556,7 +556,7 @@ function AppVersionRow() {
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {hasUpdate ? (
-          <span className="text-amber-600 dark:text-amber-400 font-medium">
+          <span className="text-amber-700 dark:text-amber-400 font-medium">
             v{appUpdate.latest_version}
           </span>
         ) : (
@@ -710,7 +710,7 @@ function HistorySection({
                 {entry.previous_version ?? '(none)'} → {entry.new_version}
               </span>
               {entry.variants_reclassified != null && entry.variants_reclassified > 0 && (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-amber-700 dark:text-amber-400">
                   {entry.variants_reclassified} reclassified
                 </span>
               )}
@@ -800,18 +800,18 @@ export default function UpdateManager() {
       {updateCheck && (
         <div className="flex flex-wrap gap-4 text-sm">
           {updateCheck.available.length > 0 ? (
-            <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
               <AlertTriangle className="h-4 w-4" />
               {updateCheck.available.length} update{updateCheck.available.length !== 1 ? 's' : ''} available
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+            <span className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
               All databases up to date
             </span>
           )}
           {updateCheck.errors.length > 0 && (
-            <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+            <span className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
               <XCircle className="h-4 w-4" />
               {updateCheck.errors.length} check error{updateCheck.errors.length !== 1 ? 's' : ''}
             </span>

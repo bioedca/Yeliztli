@@ -127,8 +127,8 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-600 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-600 dark:text-orange-400",
+                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
+                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
               )}>
                 {variant.clinvar_significance ?? "—"}
               </span>
@@ -194,7 +194,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">CADD Phred</span>
               <span className={cn(
                 "text-sm font-mono",
-                variant.cadd_phred != null && variant.cadd_phred >= 20 && "text-red-600 dark:text-red-400",
+                variant.cadd_phred != null && variant.cadd_phred >= 20 && "text-red-700 dark:text-red-400",
               )}>
                 {variant.cadd_phred?.toFixed(1) ?? "—"}
               </span>
@@ -203,7 +203,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">REVEL</span>
               <span className={cn(
                 "text-sm font-mono",
-                variant.revel != null && variant.revel >= 0.5 && "text-red-600 dark:text-red-400",
+                variant.revel != null && variant.revel >= 0.5 && "text-red-700 dark:text-red-400",
               )}>
                 {variant.revel?.toFixed(4) ?? "—"}
               </span>
@@ -212,7 +212,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">Ensemble Pathogenic</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.ensemble_pathogenic ? "text-red-600 dark:text-red-400" : "text-muted-foreground",
+                variant.ensemble_pathogenic ? "text-red-700 dark:text-red-400" : "text-muted-foreground",
               )}>
                 {variant.ensemble_pathogenic ? "Yes (≥3 tools)" : "No"}
               </span>
@@ -222,7 +222,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <EvidenceStars level={variant.evidence_level} />
             </div>
             {variant.evidence_conflict && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
                 ⚠ Evidence conflict detected between annotation sources
               </p>
             )}

@@ -69,13 +69,13 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "Nutrigenomics",
     icon: Apple,
     route: "/nutrigenomics",
-    color: "text-green-600 dark:text-green-400",
+    color: "text-green-700 dark:text-green-400",
   },
   cancer: {
     label: "Cancer",
     icon: ShieldAlert,
     route: "/cancer",
-    color: "text-red-600 dark:text-red-400",
+    color: "text-red-700 dark:text-red-400",
   },
   cardiovascular: {
     label: "Cardiovascular",
@@ -105,7 +105,7 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "APOE",
     icon: Brain,
     route: "/apoe",
-    color: "text-amber-600 dark:text-amber-400",
+    color: "text-amber-700 dark:text-amber-400",
   },
   carrier: {
     label: "Carrier Status",
@@ -135,7 +135,7 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "Skin",
     icon: Sun,
     route: "/skin",
-    color: "text-orange-600 dark:text-orange-400",
+    color: "text-orange-700 dark:text-orange-400",
   },
   allergy: {
     label: "Allergy",
@@ -153,7 +153,7 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "Gene Health",
     icon: Activity,
     route: "/gene-health",
-    color: "text-emerald-600 dark:text-emerald-400",
+    color: "text-emerald-700 dark:text-emerald-400",
   },
   ancestry: {
     label: "Ancestry",
@@ -165,20 +165,20 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "Rare Variants",
     icon: SearchCheck,
     route: "/rare-variants",
-    color: "text-orange-600 dark:text-orange-400",
+    color: "text-orange-700 dark:text-orange-400",
   },
   // Panel-only risk modules — no dedicated page, so non-navigable (route: null).
   amd: {
     label: "AMD",
     icon: Eye,
     route: null,
-    color: "text-yellow-600 dark:text-yellow-400",
+    color: "text-yellow-700 dark:text-yellow-400",
   },
   lhon: {
     label: "LHON",
     icon: Eye,
     route: null,
-    color: "text-amber-600 dark:text-amber-400",
+    color: "text-amber-700 dark:text-amber-400",
   },
   parkinsons: {
     label: "Parkinson's",
@@ -190,7 +190,7 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "Gout",
     icon: Droplet,
     route: null,
-    color: "text-red-600 dark:text-red-400",
+    color: "text-red-700 dark:text-red-400",
   },
   hemochromatosis: {
     label: "Hemochromatosis",
@@ -226,7 +226,7 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     label: "APOL1",
     icon: Droplet,
     route: null,
-    color: "text-red-600 dark:text-red-400",
+    color: "text-red-700 dark:text-red-400",
   },
   // Gated disclosure modules: surface in the findings list after the user
   // acknowledges the gate. No dedicated page → non-navigable.

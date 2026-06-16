@@ -233,7 +233,7 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     })
 
     const polyphen = screen.getByText(/Probably Damaging/)
-    expect(polyphen).toHaveClass("text-red-600")
+    expect(polyphen).toHaveClass("text-red-700")
     // The raw single-letter code must not leak through as the label.
     expect(polyphen.textContent).not.toBe("D")
   })

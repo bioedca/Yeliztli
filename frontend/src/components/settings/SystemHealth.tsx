@@ -72,9 +72,9 @@ function levelColor(level: string): string {
   switch (level.toUpperCase()) {
     case 'ERROR':
     case 'CRITICAL':
-      return 'text-red-600 dark:text-red-400'
+      return 'text-red-700 dark:text-red-400'
     case 'WARNING':
-      return 'text-amber-600 dark:text-amber-400'
+      return 'text-amber-700 dark:text-amber-400'
     case 'INFO':
       return 'text-blue-600 dark:text-blue-400'
     case 'DEBUG':
@@ -179,12 +179,12 @@ function DiskUsageSection() {
       <div className="mb-3">
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
           <span>Data directory: {disk.data_dir}</span>
-          <span className={cn(isLow && 'text-red-500 font-medium')}>
+          <span className={cn(isLow && 'text-red-700 dark:text-red-400 font-medium')}>
             {formatBytes(disk.free_bytes)} free of {formatBytes(disk.total_bytes)}
           </span>
         </div>
         {isLow && (
-          <div className="flex items-center gap-1 text-xs text-red-500 mb-2">
+          <div className="flex items-center gap-1 text-xs text-red-700 dark:text-red-400 mb-2">
             <AlertTriangle className="h-3 w-3" />
             Low disk space warning
           </div>
@@ -284,11 +284,11 @@ function DbRow({ db }: { db: DatabaseStat }) {
       <td className="py-2 pr-4 font-medium">{db.display_name}</td>
       <td className="py-2 pr-4">
         {db.exists ? (
-          <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+          <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">
             <CheckCircle2 className="h-3 w-3" /> Available
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-xs text-red-500">
+          <span className="inline-flex items-center gap-1 text-xs text-red-700 dark:text-red-400">
             <XCircle className="h-3 w-3" /> Missing
           </span>
         )}
@@ -378,7 +378,7 @@ function LogExplorer() {
       {isLoading ? (
         <div className="py-8 text-center text-sm text-muted-foreground">Loading logs...</div>
       ) : error ? (
-        <div className="py-8 text-center text-sm text-red-500">
+        <div className="py-8 text-center text-sm text-red-700 dark:text-red-400">
           Failed to load logs: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
       ) : !data || data.entries.length === 0 ? (
@@ -504,11 +504,11 @@ function ErrorCard({
 }) {
   return (
     <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-4">
-      <h3 className="flex items-center gap-2 text-base font-semibold text-red-600 dark:text-red-400">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-red-700 dark:text-red-400">
         <AlertTriangle className="h-4 w-4" />
         {label}
       </h3>
-      <p className="text-sm text-red-500 mt-1">
+      <p className="text-sm text-red-700 dark:text-red-400 mt-1">
         {error instanceof Error ? error.message : 'Failed to load data.'}
       </p>
     </div>

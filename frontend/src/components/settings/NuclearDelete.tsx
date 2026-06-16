@@ -123,7 +123,7 @@ export default function NuclearDelete() {
           {nuclearDelete.isError && (
             <p
               role="alert"
-              className="text-sm text-red-600 dark:text-red-400"
+              className="text-sm text-red-700 dark:text-red-400"
               data-testid="nuclear-delete-error"
             >
               Delete failed: {nuclearDelete.error.message}

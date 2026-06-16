@@ -23,10 +23,10 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   const pct = Math.round(confidence * 100)
   const color =
     pct >= 80
-      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
       : pct >= 50
-        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
   return (
     <span
       className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", color)}
@@ -56,7 +56,7 @@ function TraversalPath({ assignment }: { assignment: HaplogroupAssignment }) {
               className={cn(
                 "inline-flex items-center gap-1 rounded px-2 py-1 text-xs",
                 step.haplogroup === assignment.haplogroup
-                  ? "bg-primary/10 text-primary font-semibold"
+                  ? "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300 font-semibold"
                   : "bg-muted text-foreground",
               )}
               data-highlighted={step.haplogroup === assignment.haplogroup ? "" : undefined}

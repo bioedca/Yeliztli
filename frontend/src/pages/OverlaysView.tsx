@@ -179,7 +179,7 @@ function UploadPanel() {
             {previewMutation.data.column_names.join(", ") || "None"}
           </p>
           {previewMutation.data.warnings.length > 0 && (
-            <div className="mt-2 text-amber-600 dark:text-amber-400">
+            <div className="mt-2 text-amber-700 dark:text-amber-400">
               {previewMutation.data.warnings.slice(0, 5).map((w, i) => (
                 <p key={i}>{w}</p>
               ))}

@@ -232,7 +232,7 @@ function SqlResultsDisplay({
         <p className="text-sm font-medium">
           {result.row_count.toLocaleString()} row{result.row_count !== 1 ? "s" : ""}
           {result.truncated && (
-            <span className="text-amber-600 dark:text-amber-400 ml-1">
+            <span className="text-amber-700 dark:text-amber-400 ml-1">
               (truncated)
             </span>
           )}

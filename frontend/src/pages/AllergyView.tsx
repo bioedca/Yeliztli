@@ -171,7 +171,7 @@ function HistamineCombinedCard({
             AOC1 / DAO (rs10156191): <span className="font-mono">{histamine.aoc1_genotype}</span>
             <span className={cn(
               "ml-2 text-xs",
-              histamine.aoc1_category === "Elevated" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+              histamine.aoc1_category === "Elevated" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
             )}>
               {histamine.aoc1_category}
             </span>
@@ -182,7 +182,7 @@ function HistamineCombinedCard({
             HNMT (rs11558538): <span className="font-mono">{histamine.hnmt_genotype}</span>
             <span className={cn(
               "ml-2 text-xs",
-              histamine.hnmt_category === "Elevated" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+              histamine.hnmt_category === "Elevated" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
             )}>
               {histamine.hnmt_category}
             </span>

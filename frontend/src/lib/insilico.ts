@@ -15,9 +15,9 @@ export interface PredictionDisplay {
   colorClass: string
 }
 
-const RED = "text-red-600 dark:text-red-400"
-const AMBER = "text-amber-600 dark:text-amber-400"
-const GREEN = "text-green-600 dark:text-green-400"
+const RED = "text-red-700 dark:text-red-400"
+const AMBER = "text-amber-700 dark:text-amber-400"
+const GREEN = "text-green-700 dark:text-green-400"
 const NEUTRAL = "text-muted-foreground"
 
 /**

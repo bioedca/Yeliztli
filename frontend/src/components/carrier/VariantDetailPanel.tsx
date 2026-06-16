@@ -124,8 +124,8 @@ export default function VariantDetailPanel({
               <span className="text-sm text-muted-foreground">ClinVar Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-600 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-600 dark:text-orange-400",
+                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
+                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
               )}>
                 {variant.clinvar_significance}
               </span>
