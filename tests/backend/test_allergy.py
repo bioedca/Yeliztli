@@ -201,6 +201,32 @@ def _seed_hla_proxies(engine: sa.Engine) -> None:
         conn.execute(sa.insert(hla_proxy_lookup), _hla_proxy_seed_entries())
 
 
+def _seed_ancestry(
+    engine: sa.Engine,
+    top_population: str,
+    admixture_fractions: dict[str, float] | None = None,
+) -> None:
+    """Seed the latest ancestry finding consumed by allergy HLA caveat gating."""
+    fractions = admixture_fractions or {top_population: 1.0}
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            {
+                "module": "ancestry",
+                "category": "nnls_admixture",
+                "evidence_level": 2,
+                "finding_text": f"Inferred ancestry: {top_population}",
+                "detail_json": json.dumps(
+                    {
+                        "top_population": top_population,
+                        "inferred_ancestry": top_population,
+                        "admixture_fractions": fractions,
+                    }
+                ),
+            },
+        )
+
+
 # All 14 panel SNPs with their chromosome positions
 ALL_ALLERGY_VARIANTS = [
     # Atopic Conditions
@@ -955,9 +981,10 @@ class TestHLAA31ProxyAlleleDirection:
 class TestHLAA31ProxySpecificityCaveat:
     """#611 (follow-up to #545): rs1061235 is an imperfect HLA-A*31:01 tag SNP — it
     cross-reacts with HLA-A*33 (false positives) and is less reliable in Native
-    American ancestry. With the direction fixed (#545), surface that specificity
+    American ancestry. With the direction fixed (#545), surface the specificity
     caveat alongside a positive (carrier) call so it isn't read as a confirmed
-    HLA-A*31:01 result.
+    HLA-A*31:01 result, and gate the reduced-reliability clause to matching
+    inferred ancestry (#738).
     """
 
     def _snp(self, panel: AllergyPanel) -> PanelSNP:
@@ -986,10 +1013,47 @@ class TestHLAA31ProxySpecificityCaveat:
         assert caveat is not None
         assert "HLA-A*33 cross-reactivity" in caveat
         assert "confirmatory" in caveat.lower()
-        assert "Native American" in caveat
+        assert "Native American" not in caveat
         # And it lands in the stored SNP detail JSON.
         detail = _stored_snp_detail(carrier, {})
         assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "Native American" not in detail["coverage_note"]
+        assert "HLA-A*33" in detail["coverage_note"]
+
+    def test_reduced_ancestry_clause_surfaced_for_amr_ancestry(self, panel: AllergyPanel) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        caveat = _positive_hla_proxy_specificity_caveat(
+            carrier,
+            inferred_ancestry="AMR",
+        )
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "Native American" in caveat
+        assert "rs17179220" in caveat
+
+        detail = _stored_snp_detail(carrier, {}, inferred_ancestry="AMR")
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "Native American" in detail["coverage_note"]
+        assert "rs17179220" in detail["coverage_note"]
+
+    def test_reduced_ancestry_clause_omitted_for_non_amr_ancestry(
+        self, panel: AllergyPanel
+    ) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        caveat = _positive_hla_proxy_specificity_caveat(
+            carrier,
+            inferred_ancestry="EUR",
+        )
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "Native American" not in caveat
+        assert "rs17179220" not in caveat
+
+        detail = _stored_snp_detail(carrier, {}, inferred_ancestry="EUR")
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+        assert "HLA-A*33" in detail["coverage_note"]
+        assert "Native American" not in detail["coverage_note"]
+        assert "rs17179220" not in detail["coverage_note"]
 
     def test_caveat_not_surfaced_for_indeterminate_homozygote(self, panel: AllergyPanel) -> None:
         # The palindromic AA/TT homozygotes are withheld (Indeterminate), not a
@@ -1463,6 +1527,90 @@ class TestFindingsStorage:
         assert "hla_proxy_lookup" in detail
         assert detail["hla_proxy_lookup"]["hla_allele"] == "HLA-B*57:01"
         assert "EUR" in detail["hla_proxy_lookup"]["r_squared_by_pop"]
+
+    def test_hla_a3101_native_american_clause_omitted_for_non_amr_storage(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Persisted rs1061235 detail keeps HLA-A*33 caveat but gates ancestry text."""
+        _seed_ancestry(sample_engine, "EUR", {"EUR": 0.9, "AMR": 0.1})
+        _seed_variants(sample_engine, [("rs1061235", "6", 29910670, "AT")])
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.inferred_ancestry == "EUR"
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            drug_summary = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Drug Hypersensitivity",
+                )
+            ).fetchone()
+            snp_finding = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs1061235",
+                )
+            ).fetchone()
+
+        assert drug_summary is not None
+        assert snp_finding is not None
+        pathway_detail = json.loads(drug_summary.detail_json)
+        rs106_detail = next(d for d in pathway_detail["snp_details"] if d["rsid"] == "rs1061235")
+        snp_detail = json.loads(snp_finding.detail_json)
+
+        assert "HLA-A*33 cross-reactivity" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" not in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" not in rs106_detail["coverage_note"]
+        assert "rs17179220" not in rs106_detail["coverage_note"]
+        assert "HLA-A*33" in rs106_detail["coverage_note"]
+        assert "Native American" not in snp_detail["coverage_note"]
+
+    def test_hla_a3101_native_american_clause_kept_for_amr_storage(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Persisted rs1061235 detail includes reduced-reliability text for AMR."""
+        _seed_ancestry(sample_engine, "AMR", {"AMR": 0.8, "EUR": 0.2})
+        _seed_variants(sample_engine, [("rs1061235", "6", 29910670, "AT")])
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.inferred_ancestry == "AMR"
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            drug_summary = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Drug Hypersensitivity",
+                )
+            ).fetchone()
+            snp_finding = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs1061235",
+                )
+            ).fetchone()
+
+        assert drug_summary is not None
+        assert snp_finding is not None
+        pathway_detail = json.loads(drug_summary.detail_json)
+        rs106_detail = next(d for d in pathway_detail["snp_details"] if d["rsid"] == "rs1061235")
+        snp_detail = json.loads(snp_finding.detail_json)
+
+        assert "HLA-A*33 cross-reactivity" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "rs17179220" in rs106_detail["hla_proxy_specificity_caveat"]
+        assert "Native American" in rs106_detail["coverage_note"]
+        assert "rs17179220" in rs106_detail["coverage_note"]
+        assert "Native American" in snp_detail["coverage_note"]
 
     def test_hla_b5801_negative_proxy_caveat_in_pathway_detail(
         self,
