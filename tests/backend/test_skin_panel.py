@@ -323,8 +323,10 @@ class TestMC1RMultiAllele:
         sc = panel_data["special_calling"]["MC1R_multi_allele"]
         assert "risk_states" in sc
         assert "0_R_alleles" in sc["risk_states"]
+        assert "mild_r_allele" in sc["risk_states"]
         assert "1_R_allele" in sc["risk_states"]
         assert "2_R_alleles" in sc["risk_states"]
+        assert "baseline" not in sc["risk_states"]["mild_r_allele"]["description"].lower()
 
     def test_mc1r_cancer_cross_links(self, panel_data: dict) -> None:
         """MC1R R alleles should cross-link to Cancer module (melanoma)."""

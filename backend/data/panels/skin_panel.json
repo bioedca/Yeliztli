@@ -371,7 +371,7 @@
   ],
   "special_calling": {
     "MC1R_multi_allele": {
-      "description": "MC1R multi-allele haplotype-aware calling. MC1R variants are classified as 'R' (strong loss-of-function: R151C, R160W, D294H) or 'r' (mild: R163Q). The cumulative count of R alleles across all MC1R positions determines UV sensitivity and melanoma risk. 0 R alleles → low risk, 1 R allele → moderate risk, 2 R alleles → high risk (regardless of which specific variants).",
+      "description": "MC1R multi-allele haplotype-aware calling. MC1R variants are classified as 'R' (strong loss-of-function: R151C, R160W, D294H) or 'r' (mild: R163Q). The cumulative count of strong R alleles across all MC1R positions determines the main UV-sensitivity tier; a called mild R163Q r allele is surfaced separately so it is not collapsed into the no-MC1R-variant baseline.",
       "rsids": ["rs1805007", "rs1805008", "rs1805009", "rs885479"],
       "allele_classes": {
         "rs1805007": "R",
@@ -383,6 +383,10 @@
         "0_R_alleles": {
           "label": "Low UV Sensitivity",
           "description": "No strong MC1R loss-of-function alleles detected. Standard eumelanin production. Baseline melanoma risk."
+        },
+        "mild_r_allele": {
+          "label": "Mild MC1R Variant",
+          "description": "No strong MC1R loss-of-function alleles detected, but a mild R163Q ('r') variant was called. This is weaker than the strong R alleles and does not increase the strong-R dosage, but it is not the same as having no MC1R risk variant."
         },
         "1_R_allele": {
           "label": "Moderate UV Sensitivity",
@@ -429,6 +433,6 @@
     "elevated_requires_min_stars": 2,
     "elevated_requires_genotype": "clinically_meaningful",
     "pathway_level_determination": "highest_category_across_snps",
-    "mc1r_aggregate_rule": "Count R alleles across all MC1R positions. 0 R alleles → Low, 1 R allele → Moderate, 2+ R alleles → Elevated."
+    "mc1r_aggregate_rule": "Count strong R alleles across all MC1R positions. 0 strong R alleles with no mild R163Q call → Low, mild R163Q-only → Mild MC1R Variant, 1 strong R allele → Moderate, 2+ strong R alleles → Elevated."
   }
 }

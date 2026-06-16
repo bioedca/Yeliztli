@@ -417,6 +417,7 @@ class TestMC1RMultiAllele:
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 0
         assert result.mc1r_aggregate.risk_label == "Low UV Sensitivity"
+        assert "Baseline melanoma risk" in result.mc1r_aggregate.risk_description
 
     def test_mc1r_aggregate_1_r_allele(
         self,
@@ -557,26 +558,41 @@ class TestMC1RMultiAllele:
         assert _r_allele_dosage("GG", "T", "C") == 0  # ref hom on complement frame
         assert _r_allele_dosage("AC", "T", "C") is None
 
-    def test_mc1r_r_allele_does_not_count_mild(
+    @pytest.mark.parametrize(
+        ("r163q_genotype", "expected_category"), [("GA", MODERATE), ("AA", MODERATE)]
+    )
+    def test_mc1r_mild_r_variant_does_not_report_baseline(
         self,
+        r163q_genotype: str,
+        expected_category: str,
         panel: SkinPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """R163Q (mild r allele) does NOT count toward R allele aggregate."""
+        """R163Q-only samples keep 0 strong R alleles without reporting baseline risk."""
         _seed_variants(
             sample_engine,
             [
                 ("rs1805007", "16", 89919736, "CC"),
                 ("rs1805008", "16", 89919746, "CC"),
                 ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "AA"),  # Homozygous mild r
+                ("rs885479", "16", 89919722, r163q_genotype),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
+
+        pigmentation = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "pigmentation_uv"
+        )
+        r163q = next(s for s in pigmentation.snp_results if s.rsid == "rs885479")
+        assert r163q.category == expected_category
+        assert r163q.mc1r_allele_class == "r"
+
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 0
-        assert result.mc1r_aggregate.risk_label == "Low UV Sensitivity"
+        assert result.mc1r_aggregate.r_allele_rsids == []
+        assert result.mc1r_aggregate.risk_label == "Mild MC1R Variant"
+        assert "Baseline melanoma risk" not in result.mc1r_aggregate.risk_description
 
     def test_mc1r_aggregate_none_when_no_mc1r_genotyped(
         self,
@@ -1104,6 +1120,41 @@ class TestStoreFindingsIntegration:
         detail = json.loads(row.detail_json)
         assert "r_allele_count" in detail
         assert "risk_label" in detail
+
+    def test_mc1r_aggregate_finding_r163q_only_not_baseline(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Stored MC1R aggregate does not call R163Q-only samples baseline."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs1805007", "16", 89919736, "CC"),
+                ("rs1805008", "16", 89919746, "CC"),
+                ("rs1805009", "16", 89919709, "GG"),
+                ("rs885479", "16", 89919722, "GA"),
+            ],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        store_skin_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "mc1r_aggregate",
+                    )
+                )
+            ).first()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert detail["r_allele_count"] == 0
+        assert detail["risk_label"] == "Mild MC1R Variant"
+        assert "Baseline melanoma risk" not in row.finding_text
 
     def test_cross_module_findings_stored(
         self,

@@ -488,10 +488,11 @@ def _compute_mc1r_aggregate(
     Counts the number of strong 'R' alleles across all MC1R positions
     (rs1805007, rs1805008, rs1805009). The mild 'r' allele (rs885479)
     contributes to total MC1R variant count but does NOT count toward
-    the R-allele aggregate risk state.
+    the strong R-allele dosage.
 
     Risk states:
-      - 0 R alleles → Low UV Sensitivity
+      - 0 R alleles, no mild r call → Low UV Sensitivity
+      - 0 R alleles, one or more mild r calls → Mild MC1R Variant
       - 1 R allele  → Moderate UV Sensitivity
       - 2+ R alleles → High UV Sensitivity
     """
@@ -526,6 +527,9 @@ def _compute_mc1r_aggregate(
     # Count R alleles: for each MC1R SNP with class "R", count risk alleles
     r_allele_count = 0
     r_allele_rsids: list[str] = []
+    mild_r_variant_present = any(
+        allele_classes.get(s.rsid) == "r" and s.category != STANDARD for s in mc1r_results
+    )
 
     for snp_result in mc1r_results:
         allele_class = allele_classes.get(snp_result.rsid)
@@ -560,7 +564,9 @@ def _compute_mc1r_aggregate(
             r_allele_rsids.append(snp_result.rsid)
 
     # Determine risk state
-    if r_allele_count == 0:
+    if r_allele_count == 0 and mild_r_variant_present and "mild_r_allele" in risk_states:
+        state_key = "mild_r_allele"
+    elif r_allele_count == 0:
         state_key = "0_R_alleles"
     elif r_allele_count == 1:
         state_key = "1_R_allele"
