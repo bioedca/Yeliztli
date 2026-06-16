@@ -68,6 +68,11 @@ STANDARD = "Standard"
 # panel-JSON category.
 INDETERMINATE = "Indeterminate"
 
+# Coverage status values
+CALLED = "called"
+NO_CALL = "no_call"
+NOT_ON_ARRAY = "not_on_array"
+
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
 
@@ -736,11 +741,11 @@ def score_skin_pathways(
             gt = _normalize_genotype(raw_gt, scorable_genotypes=snp.genotype_effects)
             result = _score_snp(snp, gt)
             if raw_gt is None:
-                result.coverage_status = "not_on_array"
+                result.coverage_status = NOT_ON_ARRAY
             elif gt is None:
-                result.coverage_status = "no_call"
+                result.coverage_status = NO_CALL
             else:
-                result.coverage_status = "called"
+                result.coverage_status = CALLED
             snp_results.append(result)
 
             # Track FLG insufficient data flag
@@ -846,7 +851,7 @@ def store_skin_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == NO_CALL],
             "snp_details": [
                 {
                     "rsid": s.rsid,
