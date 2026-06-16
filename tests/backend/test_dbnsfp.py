@@ -37,6 +37,7 @@ from backend.annotation.dbnsfp import (
     _parse_dbnsfp_float,
     _parse_dbnsfp_pred,
     _parse_float,
+    _version_at_least,
     assess_ensemble,
     download_and_load_dbnsfp,
     download_dbnsfp,
@@ -651,6 +652,11 @@ class TestEnsemblePathogenicity:
 
 
 class TestRecordDbnsfpVersion:
+    def test_version_compare_orders_multi_digit_components(self):
+        """A dbNSFP 5.10.x release must compare newer than 5.9.x."""
+        assert _version_at_least("5.10.0", "5.9.0")
+        assert not _version_at_least("5.9.0", "5.10.0")
+
     def test_inserts_version(self, reference_engine: sa.Engine):
         record_dbnsfp_version(
             reference_engine,
