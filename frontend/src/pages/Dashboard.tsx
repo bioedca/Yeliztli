@@ -18,6 +18,7 @@ import { PostMergeRewatchModal } from '@/components/individuals/PostMergeRewatch
 import { useSamples } from '@/api/samples'
 import { useIndividuals, individualsKeys } from '@/api/individuals'
 import { useTotalVariantCount, useQCStats } from '@/api/variants'
+import { useQCMetrics } from '@/api/qc'
 import { parseSampleId } from '@/lib/format'
 import { Upload, User } from 'lucide-react'
 import PageLoading from '@/components/ui/PageLoading'
@@ -46,6 +47,7 @@ export default function Dashboard() {
 
   const { data: variantCount } = useTotalVariantCount(activeSampleId)
   const { data: qcStats } = useQCStats(activeSampleId)
+  const { data: qcMetrics } = useQCMetrics(activeSampleId)
 
   // ── Two-level context chip (Plan §9.5) ───────────────────
   // Walk loaded individual-detail caches to discover which individual
@@ -153,7 +155,11 @@ export default function Dashboard() {
         <FindingsPreview sampleId={activeSample.id} />
 
         {/* Collapsible QC */}
-        <QualityControl variantCount={variantCount ?? null} qcStats={qcStats ?? null} />
+        <QualityControl
+          variantCount={variantCount ?? null}
+          qcStats={qcStats ?? null}
+          qcMetrics={qcMetrics ?? null}
+        />
       </div>
 
       {postMergeFlag && activeSampleId != null && (

@@ -10,6 +10,7 @@ import QualityControl from '@/components/dashboard/QualityControl'
 import ChromosomeBarChart from '@/components/charts/ChromosomeBarChart'
 import HeterozygosityHistogram from '@/components/charts/HeterozygosityHistogram'
 import type { QCStats, ChromosomeQCStats } from '@/types/variants'
+import type { QCMetrics } from '@/types/qc'
 
 // Mock react-plotly.js since it requires a browser canvas. Expose each trace's
 // name + y-values so tests can assert the DATA reaching the chart (the
@@ -58,6 +59,22 @@ const MOCK_QC_STATS: QCStats = {
   ],
 }
 
+const MOCK_QC_METRICS: QCMetrics = {
+  computed: true,
+  call_rate: 0.977817,
+  call_rate_pass: true,
+  heterozygosity_rate: 0.344262,
+  ti_tv_ratio: 2.08,
+  total_variants: 623841,
+  called_variants: 610000,
+  nocall_variants: 13841,
+  genetic_sex: 'XX',
+  recorded_sex: 'XY',
+  sex_check: 'discordant',
+  het_outlier_z: null,
+  het_outlier_status: 'insufficient_comparable_samples',
+}
+
 // ─── QualityControl with QC stats ────────────────────────────────────
 
 describe('QualityControl with QC stats', () => {
@@ -95,6 +112,43 @@ describe('QualityControl with QC stats', () => {
     expect(screen.getByText('623,841')).toBeInTheDocument()
     const dashes = screen.getAllByText('—')
     expect(dashes.length).toBe(2)
+  })
+
+  it('surfaces interpretive QC metrics from /analysis/qc/metrics', () => {
+    render(
+      <QualityControl
+        variantCount={623841}
+        qcStats={MOCK_QC_STATS}
+        qcMetrics={MOCK_QC_METRICS}
+      />,
+    )
+    fireEvent.click(screen.getByText('Sample QC'))
+
+    expect(screen.getByText('Heterozygosity check')).toBeInTheDocument()
+    expect(screen.getByText('No comparable array peers')).toBeInTheDocument()
+    expect(
+      screen.getByText('No other samples on the same genotyping array to compare against.'),
+    ).toBeInTheDocument()
+
+    expect(screen.getByText('Sex concordance')).toBeInTheDocument()
+    expect(screen.getByText('Discordant')).toBeInTheDocument()
+    expect(screen.getByText('Recorded and inferred sex are discordant.')).toBeInTheDocument()
+    expect(screen.getByText(/Inferred: XX/)).toBeInTheDocument()
+    expect(screen.getByText(/Recorded: XY/)).toBeInTheDocument()
+    expect(screen.getByText('Concordance check only; not an aneuploidy assessment.')).toBeInTheDocument()
+  })
+
+  it('does not render interpretive QC section before metrics are computed', () => {
+    render(
+      <QualityControl
+        variantCount={623841}
+        qcStats={MOCK_QC_STATS}
+        qcMetrics={{ ...MOCK_QC_METRICS, computed: false }}
+      />,
+    )
+    fireEvent.click(screen.getByText('Sample QC'))
+
+    expect(screen.queryByTestId('qc-interpretive-metrics')).not.toBeInTheDocument()
   })
 })
 

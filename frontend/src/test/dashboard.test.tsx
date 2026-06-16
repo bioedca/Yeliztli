@@ -74,6 +74,28 @@ function mockQCStatsResponse() {
   }
 }
 
+function mockQCMetricsResponse() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      computed: true,
+      call_rate: 0.977817,
+      call_rate_pass: true,
+      heterozygosity_rate: 0.344262,
+      ti_tv_ratio: 2.08,
+      total_variants: 623841,
+      called_variants: 610000,
+      nocall_variants: 13841,
+      genetic_sex: 'XX',
+      recorded_sex: 'XX',
+      sex_check: 'concordant',
+      het_outlier_z: null,
+      het_outlier_status: 'within_range',
+    }),
+  }
+}
+
 function mockUpdateStatusResponse(statuses?: unknown[]) {
   return {
     ok: true,
@@ -121,6 +143,9 @@ function setupFetchMocks(options: {
     }
     if (url.includes('/api/variants/qc-stats')) {
       return Promise.resolve(mockQCStatsResponse())
+    }
+    if (url.includes('/api/analysis/qc/metrics')) {
+      return Promise.resolve(mockQCMetricsResponse())
     }
     if (url.includes('/api/variants/count')) {
       return Promise.resolve(mockVariantCountResponse(options.variantCount ?? 623841))
@@ -237,6 +262,9 @@ describe('Dashboard', () => {
       }
       if (url.includes('/api/variants/qc-stats')) {
         return Promise.resolve(mockQCStatsResponse())
+      }
+      if (url.includes('/api/analysis/qc/metrics')) {
+        return Promise.resolve(mockQCMetricsResponse())
       }
       if (url.includes('/api/variants/count')) {
         return Promise.resolve(mockVariantCountResponse(500000))
