@@ -28,16 +28,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  apoe: "/apoe",
-  allergy: "/allergy",
-  methylation: "/methylation",
-  nutrigenomics: "/nutrigenomics",
-  traits: "/traits",
-  pharmacogenomics: "/pharmacogenomics",
-}
-
 /** Cross-module finding card with navigation link. */
 function CrossModuleCard({
   item,
@@ -46,7 +36,9 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
+  // Route from the shared registry (the sidebar/router source of truth), not a
+  // hand-duplicated local map — null for panel-only modules → non-navigable (#838).
+  const targetRoute = getModuleMeta(item.target_module).route
   // Canonical display name from the shared registry (matches the sidebar /
   // Command Palette), not an ad-hoc capitalize of the raw key (#699).
   const moduleName = getModuleMeta(item.target_module).label

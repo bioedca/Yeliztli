@@ -22,12 +22,6 @@ interface PathwayDetailPanelProps {
   onClose: () => void
 }
 
-const MODULE_ROUTES: Record<string, string> = {
-  sleep: "/sleep",
-  gene_health: "/gene-health",
-  pharmacogenomics: "/pharmacogenomics",
-}
-
 function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
   const categoryColor = SNP_CATEGORY_COLORS[snp.category] || SNP_CATEGORY_COLORS.Standard
   const dotColor = SNP_CATEGORY_DOT[snp.category] || SNP_CATEGORY_DOT.Standard
@@ -81,9 +75,9 @@ function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
       {/* Cross-module link */}
       {snp.cross_module && (
         <div className="flex items-center gap-2 mb-2">
-          {MODULE_ROUTES[snp.cross_module.to_module] ? (
+          {getModuleMeta(snp.cross_module.to_module).route ? (
             <Link
-              to={`${MODULE_ROUTES[snp.cross_module.to_module]}?sample_id=${sampleId}`}
+              to={`${getModuleMeta(snp.cross_module.to_module).route}?sample_id=${sampleId}`}
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               View in {getModuleMeta(snp.cross_module.to_module).label}

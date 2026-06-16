@@ -8,6 +8,7 @@
 import { useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { getModuleMeta } from "@/lib/modules"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -22,14 +23,6 @@ interface PathwayDetailPanelProps {
   onClose: () => void
 }
 
-const CROSS_MODULE_ROUTES: Record<string, string> = {
-  apoe: "/apoe",
-  allergy: "/allergy",
-  methylation: "/methylation",
-  nutrigenomics: "/nutrigenomics",
-  traits: "/traits",
-  pharmacogenomics: "/pharmacogenomics",
-}
 
 function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
   const categoryColor = SNP_CATEGORY_COLORS[snp.category] || SNP_CATEGORY_COLORS.Standard
@@ -84,9 +77,9 @@ function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
       {/* Cross-module link */}
       {snp.cross_module && (
         <div className="flex items-center gap-2 mb-2">
-          {CROSS_MODULE_ROUTES[snp.cross_module.module] ? (
+          {getModuleMeta(snp.cross_module.module).route ? (
             <Link
-              to={`${CROSS_MODULE_ROUTES[snp.cross_module.module]}?sample_id=${sampleId}`}
+              to={`${getModuleMeta(snp.cross_module.module).route}?sample_id=${sampleId}`}
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               {snp.cross_module.note}

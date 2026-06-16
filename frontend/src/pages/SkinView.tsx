@@ -31,14 +31,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  cancer: "/cancer",
-  nutrigenomics: "/nutrigenomics",
-  pharmacogenomics: "/pharmacogenomics",
-  allergy: "/allergy",
-}
-
 /** MC1R allele summary card — displays multi-allele aggregate result. */
 function MC1RSummaryCard({
   aggregate,
@@ -181,7 +173,9 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
+  // Route from the shared registry (sidebar/router source of truth); null →
+  // non-navigable for panel-only modules (#838).
+  const targetRoute = getModuleMeta(item.target_module).route
 
   return (
     <div className="rounded-lg border bg-card p-4">

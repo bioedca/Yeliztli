@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render } from "./test-utils"
+import { render, screen } from "./test-utils"
 import type { CrossModuleItem, PathwaySummary } from "@/types/traits"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
@@ -94,4 +94,31 @@ describe("Cross-module 'View in X' labels (#699)", () => {
       }
     },
   )
+})
+
+describe("Cross-module 'View in X' routes resolve via the shared registry (#838)", () => {
+  it("page-backed module → Link to the canonical sidebar/router route", () => {
+    // nutrigenomics was ABSENT from this view's old hand-duplicated MODULE_ROUTES
+    // map, so the pre-#838 code rendered NO link for it. Routing through
+    // getModuleMeta(key).route (the sidebar/App.tsx source of truth) now links it.
+    mockPathways.mockReturnValue(
+      q({ data: { items: [PATHWAY], cross_module: [crossModule("nutrigenomics")] } }),
+    )
+    render(<TraitsPersonalityView />)
+    const link = screen.getByRole("link", { name: /View in Nutrigenomics/i })
+    expect(link).toHaveAttribute("href", "/nutrigenomics?sample_id=1")
+  })
+
+  it("panel-only module (route null) → non-navigable label, no link", () => {
+    // LHON is route: null in MODULE_META (no dedicated page) → the chip shows
+    // the label but no "View in" Link is rendered.
+    mockPathways.mockReturnValue(
+      q({ data: { items: [PATHWAY], cross_module: [crossModule("lhon")] } }),
+    )
+    const { container } = render(<TraitsPersonalityView />)
+    expect(screen.queryByRole("link", { name: /View in LHON/i })).toBeNull()
+    // The chip still shows the canonical label (combined with the from_trait,
+    // so assert on the container text rather than an exact-text element).
+    expect(container.textContent).toContain("LHON")
+  })
 })

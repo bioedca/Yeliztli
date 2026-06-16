@@ -37,14 +37,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  pharmacogenomics: "/pharmacogenomics",
-  nutrigenomics: "/nutrigenomics",
-  skin: "/skin",
-  cancer: "/cancer",
-}
-
 /** Celiac DQ2/DQ8 combined assessment card. */
 function CeliacCombinedCard({
   celiac,
@@ -273,7 +265,9 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
+  // Route from the shared registry (sidebar/router source of truth); null →
+  // non-navigable for panel-only modules (#838).
+  const targetRoute = getModuleMeta(item.target_module).route
 
   return (
     <div className="rounded-lg border bg-card p-4">
