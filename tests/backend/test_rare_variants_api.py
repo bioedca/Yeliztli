@@ -481,21 +481,35 @@ class TestSearchEndpoint:
         assert resp.status_code == 422
 
     def test_search_pathogenic_sorted_first(self, rare_client: TestClient) -> None:
-        """ClinVar P/LP variants appear before others in results."""
+        """Results follow the full documented order: ClinVar P/LP first, then AF
+        ascending (rarest first) within the pathogenic group.
+
+        Asserts the whole contract over discriminating fixture rows — not just
+        ``items[0]`` — so reversing/removing the secondary ``effective_af.asc()``
+        key (e.g. ``.desc()``, which buries the rarest variants) fails here
+        instead of shipping green (#950). The fixture has three pathogenic
+        carriers at gnomAD AF 2e-5 / 3e-4 / 5e-4.
+        """
+        plp = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
         resp = rare_client.post(
             "/api/analysis/rare-variants/search?sample_id=1",
             json={},
         )
-        data = resp.json()
-        items = data["items"]
-        if len(items) >= 2:
-            # First items should be ClinVar P/LP
-            first = items[0]
-            assert first["clinvar_significance"] in [
-                "Pathogenic",
-                "Likely pathogenic",
-                "Pathogenic/Likely pathogenic",
-            ]
+        items = resp.json()["items"]
+        assert len(items) >= 3, items
+
+        # 1) Every ClinVar P/LP variant sorts before any non-pathogenic one
+        #    (contiguously at the top), not merely items[0].
+        pathogenic = [i for i in items if i["clinvar_significance"] in plp]
+        assert len(pathogenic) >= 2, pathogenic  # need ≥2 to discriminate asc vs desc
+        assert items[: len(pathogenic)] == pathogenic
+
+        # 3) Within the pathogenic group, gnomAD AF is ascending (rarest first).
+        #    effective_af = coalesce(popmax, global); the fixture sets no popmax, so
+        #    global is the sort value. This is the key the .desc() mutant reverses.
+        afs = [i["gnomad_af_global"] for i in pathogenic]
+        assert all(af is not None for af in afs), afs
+        assert afs == sorted(afs), afs
 
 
 # ═══════════════════════════════════════════════════════════════════════
