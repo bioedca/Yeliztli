@@ -7,6 +7,8 @@ and checking for app updates via GitHub Releases API.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -130,6 +132,39 @@ class FindingChangesResponse(BaseModel):
     added: list[DiffFinding] = []
     removed: list[DiffFinding] = []
     counts: dict[str, int] = {}
+
+
+def _filter_hidden_modules_from_finding_diff(
+    diff: dict[str, Any], hidden_modules: list[str]
+) -> dict[str, Any]:
+    """Drop unacknowledged gated modules from the displayed finding diff.
+
+    The stored diff remains complete for post-acknowledgment display, but the
+    aggregate update banner is itself a finding surface. Its visible counts must
+    be recomputed after filtering so pre-acknowledgment callers cannot infer that
+    a gated finding exists from a nonzero bucket count.
+    """
+    if not hidden_modules:
+        return diff
+
+    hidden = set(hidden_modules)
+
+    def visible(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [entry for entry in entries if entry.get("module") not in hidden]
+
+    changed = visible(diff.get("changed", []))
+    added = visible(diff.get("added", []))
+    removed = visible(diff.get("removed", []))
+    filtered = dict(diff)
+    filtered["changed"] = changed
+    filtered["added"] = added
+    filtered["removed"] = removed
+    filtered["counts"] = {
+        "changed": len(changed),
+        "added": len(added),
+        "removed": len(removed),
+    }
+    return filtered
 
 
 class DatabaseStatus(BaseModel):
@@ -397,11 +432,16 @@ async def get_finding_changes(
     with changes.
     """
     from backend.analysis.finding_diff import has_changes, read_finding_diff
+    from backend.api.gating import gated_modules_to_hide
     from backend.api.routes.risk_common import resolve_sample_engine
 
     engine = resolve_sample_engine(sample_id)
     diff = read_finding_diff(engine)
-    if diff is None or diff.get("dismissed") or not has_changes(diff):
+    if diff is None or diff.get("dismissed"):
+        return FindingChangesResponse(available=False)
+
+    diff = _filter_hidden_modules_from_finding_diff(diff, gated_modules_to_hide(engine))
+    if not has_changes(diff):
         return FindingChangesResponse(available=False)
 
     return FindingChangesResponse(
