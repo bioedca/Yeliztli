@@ -34,6 +34,8 @@ function makeMockVariant(overrides: Partial<RareVariant> = {}): RareVariant {
     gnomad_af_eur: 0.0003,
     gnomad_af_fin: null,
     gnomad_af_sas: null,
+    // Default is a fully catalogued variant (rs id + ClinVar), so it is NOT novel.
+    is_novel: false,
     clinvar_significance: "Pathogenic",
     clinvar_review_stars: 2,
     clinvar_accession: "VCV000012345",
@@ -166,10 +168,26 @@ describe("ResultsTable", () => {
     expect(onSelect).toHaveBeenCalledWith(variant)
   })
 
-  it("shows Novel for variants without gnomAD AF", () => {
-    const variant = makeMockVariant({ gnomad_af_global: null })
+  it("shows Novel only for a genuinely uncatalogued variant (is_novel) (#866)", () => {
+    // A truly novel variant: absent from gnomAD AND uncatalogued (no rs id / ClinVar).
+    const variant = makeMockVariant({
+      gnomad_af_global: null,
+      is_novel: true,
+      rsid: ".",
+      clinvar_significance: null,
+      clinvar_accession: null,
+    })
     render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
     expect(screen.getByText("Novel")).toBeInTheDocument()
+  })
+
+  it("shows 'Not in gnomAD' (not Novel) for a catalogued gnomAD-absent variant (#866)", () => {
+    // The mislabel case: gnomAD-absent but catalogued (rs id + ClinVar) ⇒ is_novel=False.
+    // Must NOT read "Novel" (which would contradict the SearchSummary novel_count).
+    const variant = makeMockVariant({ gnomad_af_global: null, is_novel: false })
+    render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
+    expect(screen.getByText("Not in gnomAD")).toBeInTheDocument()
+    expect(screen.queryByText("Novel")).not.toBeInTheDocument()
   })
 
   it("renders gnomAD AF in one consistent unit across the 0.0001 threshold (#564)", () => {

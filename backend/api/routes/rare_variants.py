@@ -88,6 +88,11 @@ class RareVariantResponse(BaseModel):
     gnomad_af_eur: float | None = None
     gnomad_af_fin: float | None = None
     gnomad_af_sas: float | None = None
+    # Genuine novelty (#866): absent from gnomAD AND uncatalogued (no dbSNP rs id /
+    # ClinVar). gnomAD-absence alone is NOT novelty — the exome-biased gnomAD bundle
+    # lacks most catalogued chip SNPs. The UI must render "Novel" from this, not from
+    # gnomad_af_global == null (which mislabels catalogued, gnomAD-absent variants).
+    is_novel: bool = False
     clinvar_significance: str | None = None
     clinvar_review_stars: int | None = None
     clinvar_accession: str | None = None
@@ -241,6 +246,7 @@ def search_rare_variants(
             gnomad_af_eur=v.gnomad_af_eur,
             gnomad_af_fin=v.gnomad_af_fin,
             gnomad_af_sas=v.gnomad_af_sas,
+            is_novel=v.is_novel,
             clinvar_significance=v.clinvar_significance,
             clinvar_review_stars=v.clinvar_review_stars,
             clinvar_accession=v.clinvar_accession,

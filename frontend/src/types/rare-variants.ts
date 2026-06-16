@@ -30,6 +30,9 @@ export interface RareVariant {
   gnomad_af_eur: number | null
   gnomad_af_fin: number | null
   gnomad_af_sas: number | null
+  // True only when absent from gnomAD AND uncatalogued (#866). gnomAD-absence alone
+  // is not novelty — render "Novel" from this, not from gnomad_af_global == null.
+  is_novel: boolean
   clinvar_significance: string | null
   clinvar_review_stars: number | null
   clinvar_accession: string | null

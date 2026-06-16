@@ -387,6 +387,24 @@ class TestSearchEndpoint:
         for item in data["items"]:
             assert item["gnomad_af_global"] is not None
 
+    def test_search_exposes_per_row_is_novel(self, rare_client: TestClient) -> None:
+        """#866: each row carries is_novel (= RareVariantRecord.is_novel), so the UI
+        renders "Novel" from real novelty rather than gnomAD-absence.
+
+        rs999999999 is absent from gnomAD yet rs-prefixed (catalogued in dbSNP), so it
+        is NOT novel — the exact case the old gnomad_af_global==null proxy mislabeled
+        "Novel". rs28897696 (catalogued, present in gnomAD) is likewise not novel.
+        """
+        resp = rare_client.post("/api/analysis/rare-variants/search?sample_id=1", json={})
+        assert resp.status_code == 200
+        by_rsid = {item["rsid"]: item for item in resp.json()["items"]}
+        assert all("is_novel" in item for item in by_rsid.values())
+        # gnomAD-absent but catalogued (has an rs id) ⇒ not novel (the #866 discriminator).
+        tp53 = by_rsid["rs999999999"]
+        assert tp53["gnomad_af_global"] is None
+        assert tp53["is_novel"] is False
+        assert by_rsid["rs28897696"]["is_novel"] is False
+
     def test_search_zygosity_filter(self, rare_client: TestClient) -> None:
         """Zygosity filter is two-sided — het-only must EXCLUDE a carried hom_alt.
 

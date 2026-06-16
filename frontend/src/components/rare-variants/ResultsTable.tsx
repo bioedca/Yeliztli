@@ -85,9 +85,15 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
                   )}
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-xs">
+                  {/* "Novel" comes from the backend is_novel (absent from gnomAD AND
+                      uncatalogued), not gnomAD-absence alone — a catalogued variant
+                      missing from the exome-biased gnomAD bundle is "Not in gnomAD",
+                      not Novel (#866; matches the SearchSummary novel_count). */}
                   {v.gnomad_af_global != null
                     ? formatAlleleFrequency(v.gnomad_af_global)
-                    : "Novel"}
+                    : v.is_novel
+                      ? "Novel"
+                      : "Not in gnomAD"}
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-xs">
                   {v.cadd_phred?.toFixed(1) ?? "—"}

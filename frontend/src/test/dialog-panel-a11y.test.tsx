@@ -207,6 +207,7 @@ const RARE_VARIANT: RareVariant = {
   gnomad_af_eur: 0.0003,
   gnomad_af_fin: null,
   gnomad_af_sas: null,
+  is_novel: false,
   clinvar_significance: "Pathogenic",
   clinvar_review_stars: 2,
   clinvar_accession: "VCV000012345",
