@@ -98,6 +98,7 @@ function GaugeSVG({
 
 export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
+  const hasAncestryWarning = Boolean(prs.ancestry_warning_text)
 
   // Build the "(ancestry, n=…)" source detail conditionally. Shared adapters that
   // lack these fields (FH/eBMD via toGaugePrs) pass source_ancestry="" and
@@ -114,7 +115,7 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
     <article
       className={cn(
         "rounded-lg border bg-card p-4",
-        prs.ancestry_mismatch && "border-amber-300 dark:border-amber-700",
+        hasAncestryWarning && "border-amber-300 dark:border-amber-700",
       )}
       aria-label={`${prs.name} polygenic risk score`}
       data-testid="cancer-prs-card"
@@ -169,8 +170,8 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
         </div>
       )}
 
-      {/* Ancestry mismatch warning (P3-16) */}
-      {prs.ancestry_mismatch && prs.ancestry_warning_text && (
+      {/* Ancestry warning (P3-16): mismatch or inference not yet run. */}
+      {hasAncestryWarning && (
         <div
           className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-2.5 mb-3"
           data-testid="ancestry-mismatch-warning"

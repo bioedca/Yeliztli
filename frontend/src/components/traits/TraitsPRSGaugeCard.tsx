@@ -95,12 +95,13 @@ function GaugeSVG({
 
 export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
+  const hasAncestryWarning = Boolean(prs.ancestry_warning_text)
 
   return (
     <article
       className={cn(
         "rounded-lg border bg-card p-4",
-        prs.ancestry_mismatch && "border-amber-300 dark:border-amber-700",
+        hasAncestryWarning && "border-amber-300 dark:border-amber-700",
       )}
       aria-label={`${prs.name} polygenic risk score`}
       data-testid="traits-prs-card"
@@ -162,8 +163,8 @@ export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
         </div>
       )}
 
-      {/* Ancestry mismatch warning */}
-      {prs.ancestry_mismatch && prs.ancestry_warning_text && (
+      {/* Ancestry warning: mismatch or inference not yet run. */}
+      {hasAncestryWarning && (
         <div
           className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-2.5 mb-3"
           data-testid="ancestry-mismatch-warning"
