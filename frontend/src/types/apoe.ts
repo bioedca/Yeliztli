@@ -26,6 +26,34 @@ export interface APOEGenotypeResponse {
   rs7412_genotype: string | null
 }
 
+export interface APOEArrayReliability {
+  caveat: string
+  confirm_in_clia_recommended?: boolean
+  concordance_with_direct_genotyping?: string
+  pmids?: string[]
+}
+
+export interface APOESourceDiscrepancyCall {
+  source: string
+  genotype: string
+  implied_diplotype: string | null
+  e4_present: boolean | null
+}
+
+export interface APOESourceDiscrepancy {
+  rsid: string
+  gene?: string
+  kept_genotype?: string | null
+  calls: APOESourceDiscrepancyCall[]
+  affects_e4_status: boolean
+  note?: string
+}
+
+export interface APOEFindingDetail extends Record<string, unknown> {
+  array_reliability?: APOEArrayReliability
+  source_discrepancies?: APOESourceDiscrepancy[]
+}
+
 /** A single APOE finding (CV risk, Alzheimer's, lipid/dietary). */
 export interface APOEFinding {
   category: string
@@ -35,7 +63,7 @@ export interface APOEFinding {
   conditions: string | null
   diplotype: string | null
   pmid_citations: string[]
-  detail_json: Record<string, unknown>
+  detail_json: APOEFindingDetail
 }
 
 /** All APOE findings for a sample (gate-protected). */

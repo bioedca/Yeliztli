@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event"
 import APOEGate from "@/components/apoe-gate/APOEGate"
 import APOEGenotypeCard from "@/components/apoe-gate/APOEGenotypeCard"
 import APOEFindingCard from "@/components/apoe-gate/APOEFindingCard"
+import APOECaveats from "@/components/apoe-gate/APOECaveats"
 import type {
   APOEGateDisclaimerResponse,
   APOEGenotypeResponse,
@@ -107,6 +108,43 @@ const LIPID_FINDING: APOEFinding = {
   diplotype: "e3/e4",
   pmid_citations: ["19124690"],
   detail_json: { risk_level: "enhanced response" },
+}
+
+const CAVEAT_FINDING: APOEFinding = {
+  ...CV_FINDING,
+  detail_json: {
+    ...CV_FINDING.detail_json,
+    array_reliability: {
+      caveat:
+        "APOE ε-status here is derived from consumer genotyping-array calls at rs429358 and rs7412.",
+      confirm_in_clia_recommended: true,
+      concordance_with_direct_genotyping: "~90% ε genotype / ~93% ε4 status",
+      pmids: ["24448547", "22972946"],
+    },
+    source_discrepancies: [
+      {
+        rsid: "rs429358",
+        gene: "APOE",
+        kept_genotype: "CT",
+        affects_e4_status: true,
+        note: "Your source files disagree at rs429358 (APOE).",
+        calls: [
+          {
+            source: "S1",
+            genotype: "TT",
+            implied_diplotype: "ε3/ε3",
+            e4_present: false,
+          },
+          {
+            source: "S2",
+            genotype: "CT",
+            implied_diplotype: "ε3/ε4",
+            e4_present: true,
+          },
+        ],
+      },
+    ],
+  },
 }
 
 // ── APOEGate tests ────────────────────────────────────────────────────
@@ -396,5 +434,43 @@ describe("APOEFindingCard", () => {
   it("renders risk level from detail_json", () => {
     render(<APOEFindingCard finding={CV_FINDING} />)
     expect(screen.getByText("modestly elevated")).toBeInTheDocument()
+  })
+})
+
+// ── APOECaveats tests ─────────────────────────────────────────────────
+
+describe("APOECaveats", () => {
+  it("does not render without source or reliability caveats", () => {
+    const { container } = render(<APOECaveats findings={[CV_FINDING]} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it("renders source-discrepancy calls and ε4 status", () => {
+    render(<APOECaveats findings={[CAVEAT_FINDING]} />)
+
+    const discrepancy = screen.getByTestId("apoe-source-discrepancy-rs429358")
+    expect(discrepancy).toHaveTextContent("Changes ε4 status")
+    expect(discrepancy).toHaveTextContent("S1")
+    expect(discrepancy).toHaveTextContent("TT")
+    expect(discrepancy).toHaveTextContent(/ε3\/ε3/)
+    expect(discrepancy).toHaveTextContent(/ε4 absent/)
+    expect(discrepancy).toHaveTextContent("S2")
+    expect(discrepancy).toHaveTextContent("CT")
+    expect(discrepancy).toHaveTextContent(/ε3\/ε4/)
+    expect(discrepancy).toHaveTextContent(/ε4 present/)
+  })
+
+  it("renders the array-reliability caveat and citations", () => {
+    render(<APOECaveats findings={[CAVEAT_FINDING]} />)
+
+    expect(screen.getByTestId("apoe-array-reliability")).toHaveTextContent(
+      "CLIA confirmation recommended",
+    )
+    expect(screen.getByText(/consumer genotyping-array calls/)).toBeInTheDocument()
+    expect(screen.getByText(/~90% ε genotype \/ ~93% ε4 status/)).toBeInTheDocument()
+    expect(screen.getByText("PMID:24448547")).toHaveAttribute(
+      "href",
+      "https://pubmed.ncbi.nlm.nih.gov/24448547/",
+    )
   })
 })

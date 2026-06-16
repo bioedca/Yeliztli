@@ -33,6 +33,7 @@ import {
 import APOEGate from "@/components/apoe-gate/APOEGate"
 import APOEGenotypeCard from "@/components/apoe-gate/APOEGenotypeCard"
 import APOEFindingCard from "@/components/apoe-gate/APOEFindingCard"
+import APOECaveats from "@/components/apoe-gate/APOECaveats"
 
 export default function APOEView() {
   const [searchParams] = useSearchParams()
@@ -152,6 +153,12 @@ export default function APOEView() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {findingsQuery.data && findingsQuery.data.items.length > 0 && (
+                  <div className="mb-4">
+                    <APOECaveats findings={findingsQuery.data.items} />
                   </div>
                 )}
 
