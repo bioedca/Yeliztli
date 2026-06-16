@@ -18,6 +18,7 @@ from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, reference_metadata, samples
+from backend.reports.fhir_export import LOINC_ALLELIC_STATE, _variant_to_observation
 
 # ── Test data ────────────────────────────────────────────────────────
 
@@ -102,6 +103,30 @@ ANNOTATED_VARIANTS = [
         "annotation_coverage": 0x07,
         "evidence_conflict": False,
         "ensemble_pathogenic": False,
+    },
+    # #890 regression: a hom_ref (non-carrier) row carrying the locus's Pathogenic
+    # ClinVar significance. The sample genotype matches the reference, so it does
+    # NOT carry the variant — it must be excluded from the FHIR bundle, never
+    # exported as a "Homozygous" + Pathogenic Observation. Only `zygosity` matters
+    # for this regression; rs334/HBB is used as a recognizable Pathogenic locus.
+    {
+        "rsid": "rs334",
+        "chrom": "11",
+        "pos": 5248232,
+        "ref": "T",
+        "alt": "A",
+        "genotype": "TT",
+        "zygosity": "hom_ref",
+        "gene_symbol": "HBB",
+        "consequence": "missense_variant",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 4,
+        "clinvar_accession": "VCV000015333",
+        "gnomad_af_global": 0.01,
+        "rare_flag": False,
+        "annotation_coverage": 0x1F,
+        "evidence_conflict": False,
+        "ensemble_pathogenic": True,
     },
 ]
 
@@ -446,11 +471,64 @@ class TestFhirFiltering:
         observations = [
             e for e in bundle["entry"] if e["resource"]["resourceType"] == "Observation"
         ]
-        # Only 3 variants have clinvar_significance (rs12913832 has None)
+        # Of the 4 carried variants, 3 have clinvar_significance (rs12913832 is
+        # None). rs334 also has Pathogenic clinvar_significance but is hom_ref, so
+        # the #890 carriage gate drops it before the clinvar filter ever applies.
         assert len(observations) == 3
         # DiagnosticReport result refs should match
         report = bundle["entry"][0]["resource"]
         assert len(report["result"]) == 3
+
+
+class TestFhirCarriageGate:
+    """#890: hom_ref (non-carrier) positions must not be exported as Observations.
+
+    A FHIR genetic-variant Observation asserts the variant is *present*. The
+    fixture seeds rs334/HBB as hom_ref + Pathogenic; the sample matches the
+    reference there and carries no variant, so it must never appear in the
+    bundle — neither as a variant Observation nor as a "Homozygous" +
+    Pathogenic ClinVar assertion.
+    """
+
+    def test_homref_variant_excluded_include_all(self, client) -> None:
+        tc, sid = client
+        resp = tc.post("/api/export/fhir", json={"sample_id": sid, "include_all": True})
+        bundle = resp.json()
+        blob = json.dumps(bundle)
+        # The hom_ref locus identifiers must not appear anywhere in the bundle.
+        assert "rs334" not in blob
+        assert "VCV000015333" not in blob
+
+    def test_homref_variant_excluded_clinvar_only(self, client) -> None:
+        tc, sid = client
+        resp = tc.post("/api/export/fhir", json={"sample_id": sid, "include_all": False})
+        bundle = resp.json()
+        assert "rs334" not in json.dumps(bundle)
+
+    def test_homref_row_emits_no_allelic_state(self) -> None:
+        # Defense in depth (#890): even if a hom_ref row reached the observation
+        # builder directly, it must NOT be labelled "Homozygous" (LA6705-3, the
+        # code shared with hom_alt). hom_ref is deliberately absent from
+        # ALLELIC_STATE_MAP, so the allelic-state component is simply omitted.
+        row = {
+            "rsid": "rs334",
+            "chrom": "11",
+            "pos": 5248232,
+            "ref": "T",
+            "alt": "A",
+            "genotype": "TT",
+            "zygosity": "hom_ref",
+            "gene_symbol": "HBB",
+            "clinvar_significance": "Pathogenic",
+            "clinvar_accession": "VCV000015333",
+        }
+        _full_url, obs = _variant_to_observation(row)
+        allelic_codes = [
+            comp["code"]["coding"][0]["code"]
+            for comp in obs.get("component", [])
+            if comp["code"]["coding"][0]["code"] == LOINC_ALLELIC_STATE
+        ]
+        assert allelic_codes == []
 
 
 class TestFhirErrors:

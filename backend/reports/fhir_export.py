@@ -25,6 +25,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 
@@ -51,11 +52,12 @@ LOINC_DBSNP_ID = "81255-2"  # dbSNP [ID]
 LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic disease assessed
 LOINC_AF = "81258-6"  # Sample variant allelic frequency
 
-# Allelic state LOINC answer codes.
-# hom_ref uses the same LOINC code as hom_alt (LA6705-3 = "Homozygous")
-# because FHIR allelic-state only distinguishes het vs hom.  hom_ref rows
-# may appear in annotated_variants when the sample matches the reference;
-# they are included for completeness in the exported bundle.
+# Allelic state LOINC answer codes.  Only carried zygosities are mapped:
+# build_fhir_bundle carriage-gates to het / hom_alt (#890), so hom_ref never
+# reaches the exporter.  Deliberately omitting hom_ref here is defense in depth —
+# if a hom_ref row ever did slip through, _variant_to_observation drops the
+# allelic-state component (see the ``in ALLELIC_STATE_MAP`` guard) rather than
+# mislabel a reference position as "Homozygous" (LA6705-3, shared with hom_alt).
 ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
     "het": {
         "system": LOINC_SYSTEM,
@@ -63,11 +65,6 @@ ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
         "display": "Heterozygous",
     },
     "hom_alt": {
-        "system": LOINC_SYSTEM,
-        "code": "LA6705-3",
-        "display": "Homozygous",
-    },
-    "hom_ref": {
         "system": LOINC_SYSTEM,
         "code": "LA6705-3",
         "display": "Homozygous",
@@ -374,6 +371,16 @@ def build_fhir_bundle(
     all_variants = _load_annotated_variants(sample_engine)
     if not all_variants:
         raise ValueError(f"Sample {sample_id} has no annotated variants. Run annotation first.")
+
+    # Carriage-gate the exported Observations (#890). A FHIR genetic-variant
+    # Observation asserts the variant is *present* in the sample, so only export
+    # positions actually carried — het / hom_alt — matching the carriage gate the
+    # cancer/carrier/cardiovascular pipelines apply (CARRIED_ZYGOSITIES). hom_ref
+    # positions carry no variant; exporting them (with the variant's ClinVar
+    # significance and a "Homozygous" allelic state indistinguishable from hom_alt)
+    # is a false clinical assertion — thousands of false homozygous-pathogenic rows
+    # per healthy sample.
+    all_variants = [v for v in all_variants if v.get("zygosity") in CARRIED_ZYGOSITIES]
 
     # Filter if requested
     if not include_all:
