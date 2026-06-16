@@ -240,7 +240,7 @@ ALL_ALLERGY_VARIANTS = [
     ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 proxy het
     # Food Sensitivity
     ("rs2187668", "6", 32605884, "CT"),  # HLA-DQ2 proxy het
-    ("rs7775228", "6", 32713862, "CC"),  # HLA-DQ8 proxy ref
+    ("rs7775228", "6", 32713862, "TT"),  # HLA-DQ8 proxy ref (no proxy; minor C=risk, #748)
     # Histamine Metabolism
     ("rs10156191", "7", 150554592, "CT"),  # AOC1 Thr16Met het
     ("rs1049742", "7", 150554553, "CT"),  # AOC1 Ser332Phe het (#386)
@@ -552,7 +552,7 @@ class TestCeliacCombined:
             sample_engine,
             [
                 ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
-                ("rs7775228", "6", 32713862, "CC"),  # DQ8 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy; minor C=risk, #748)
             ],
         )
         _seed_hla_proxies(reference_engine)
@@ -572,7 +572,7 @@ class TestCeliacCombined:
             sample_engine,
             [
                 ("rs2187668", "6", 32605884, "CT"),  # DQ2 het
-                ("rs7775228", "6", 32713862, "CC"),  # DQ8 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy; minor C=risk, #748)
             ],
         )
         _seed_hla_proxies(reference_engine)
@@ -658,7 +658,8 @@ class TestCeliacCombined:
         reference_engine: sa.Engine,
     ) -> None:
         """DQ8 reference but DQ2 untyped → 'indeterminate' (cannot rule out via one proxy)."""
-        _seed_variants(sample_engine, [("rs7775228", "6", 32713862, "CC")])  # DQ8 ref only
+        # DQ8 ref only (TT = no proxy; minor C=risk after #748)
+        _seed_variants(sample_engine, [("rs7775228", "6", 32713862, "TT")])
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         assert result.celiac_combined is not None
@@ -973,6 +974,97 @@ class TestHLAA31ProxyAlleleDirection:
         (cannot distinguish plus-strand TT carrier from minus-strand AA)."""
         result = _score_snp(self._snp(panel), "TT")
         assert result.category == INDETERMINATE
+
+
+# ── Celiac HLA-DQ8 proxy allele-direction regression (#748) ─────────────────
+
+
+class TestCeliacDQ8ProxyAlleleDirection:
+    """#748: rs7775228 (celiac HLA-DQ8 proxy) had its risk allele inverted —
+    risk=T/ref=C with TT→Elevated — labelling the COMMON major allele T (~84%
+    EUR) as the proxy-positive allele. That falsely flagged ~71% of EUR (TT
+    homozygotes) as homozygous DQ8 carriers needing serological screening and
+    propagated into the combined DQ2/DQ8 rule-out, while true minor-allele (CC)
+    carriers were called DQ8-negative (false reassurance).
+
+    Ensembl GRCh37 (6:32658079) reports rs7775228 as T/A/C with minor allele
+    **C** (MAF 0.214, ancestral T); the minor C allele tags the HLA risk
+    haplotype (GWAS Catalog HLA associations sit on C). C/T is a non-palindromic
+    transition, so homozygotes are strand-resolvable — no Indeterminate needed
+    (unlike the palindromic A/T siblings #709/#545).
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs7775228")
+
+    def test_minor_allele_c_is_the_risk_allele(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        # Minor allele C = HLA-DQ8 proxy tag (risk); common T = ref.
+        assert (snp.risk_allele, snp.ref_allele) == ("C", "T")
+        assert set(snp.genotype_effects) == {"CC", "CT", "TC", "TT"}
+
+    def test_common_major_homozygote_is_not_a_false_dq8_flag(self, panel: AllergyPanel) -> None:
+        """The common TT homozygote (~71% EUR) must NOT be flagged a homozygous
+        DQ8 proxy. It is the no-proxy reference → Standard, not Elevated."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == STANDARD
+        assert result.category != ELEVATED
+        assert "no hla-dq8 proxy allele detected" in result.effect_summary.lower()
+
+    def test_minor_allele_homozygote_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true minor-allele (CC) homozygote is the homozygous DQ8 proxy →
+        Elevated (was falsely Standard / DQ8-negative pre-fix)."""
+        result = _score_snp(self._snp(panel), "CC")
+        assert result.category == ELEVATED
+        assert "homozygous" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_moderate(self, panel: AllergyPanel) -> None:
+        for gt in ("CT", "TC"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == MODERATE, gt
+            assert "one copy" in result.effect_summary.lower()
+
+    def test_combined_dq8_positivity_tracks_the_minor_allele(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """The combined DQ2/DQ8 assessment must flag the minor-allele (CC) carrier
+        as DQ8-positive and the common TT majority as DQ8-negative — the inverse of
+        the pre-#748 behavior. (DQ2 held at its non-risk TT-... i.e. CC ref.)"""
+        # Common TT majority: DQ8-negative; DQ2 ref (CC) too → 'neither'.
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "TT"),  # DQ8 ref (no proxy)
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        neither = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert neither.celiac_combined is not None
+        assert neither.celiac_combined.state == "neither"
+
+    def test_combined_minor_allele_homozygote_is_dq8_positive(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A true CC minor-allele homozygote (DQ2 ref) → 'dq8_only', not the false
+        'neither' rule-out that the pre-#748 direction produced."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs2187668", "6", 32605884, "CC"),  # DQ2 ref
+                ("rs7775228", "6", 32713862, "CC"),  # DQ8 homozygous proxy (minor C)
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "dq8_only"
 
 
 # ── HLA-A*31:01 proxy specificity caveat (#611) ─────────────────────────────

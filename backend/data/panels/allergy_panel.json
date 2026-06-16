@@ -322,12 +322,12 @@
           "gene": "HLA-DQB1",
           "variant_name": "HLA-DQ8 proxy",
           "hgvs_protein": null,
-          "risk_allele": "T",
-          "ref_allele": "C",
+          "risk_allele": "C",
+          "ref_allele": "T",
           "genotype_effects": {
             "CC": {
-              "category": "Standard",
-              "effect_summary": "No HLA-DQ8 proxy allele detected. This single-marker result does not rule out celiac disease because HLA-DQ2 can still confer genetic susceptibility; use the combined DQ2/DQ8 assessment for rule-out framing."
+              "category": "Elevated",
+              "effect_summary": "Homozygous HLA-DQ8 proxy. Elevated celiac risk allele dosage. Serological screening recommended, especially with family history or symptoms of gluten sensitivity."
             },
             "CT": {
               "category": "Moderate",
@@ -338,8 +338,8 @@
               "effect_summary": "One copy of HLA-DQ8 proxy. Genetic susceptibility to celiac disease is present. HLA-DQ8 accounts for ~5–10% of celiac cases (those without DQ2). Lower penetrance than DQ2. Serological testing recommended if symptoms present."
             },
             "TT": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous HLA-DQ8 proxy. Elevated celiac risk allele dosage. Serological screening recommended, especially with family history or symptoms of gluten sensitivity."
+              "category": "Standard",
+              "effect_summary": "No HLA-DQ8 proxy allele detected. This single-marker result does not rule out celiac disease because HLA-DQ2 can still confer genetic susceptibility; use the combined DQ2/DQ8 assessment for rule-out framing."
             }
           },
           "hla_proxy": {
