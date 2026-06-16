@@ -63,6 +63,7 @@ def _with_source(rows: list[dict], source: str) -> list[dict]:
 
 
 def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    """Model a VCF writer that successfully emits every candidate site."""
     counts: dict[str, dict[str, int]] = {}
     for site in sites:
         src = site.get("source", "") or ""
@@ -104,24 +105,31 @@ class TestPerSourceAccumulator:
         """Mapped rsIDs count as hits only after REF/ALT encoding emits a VCF row."""
 
         class FakeBGZFile:
+            """Tiny stand-in for pysam.BGZFile that writes bytes to disk."""
+
             def __init__(self, path: str, mode: str) -> None:
+                """Store the target path and file mode until context entry."""
                 self.path = Path(path)
                 self.mode = mode
                 self.handle = None
 
             def __enter__(self):
+                """Open the target file and return this fake BGZF writer."""
                 self.handle = self.path.open(self.mode)
                 return self
 
             def __exit__(self, *exc_info):
+                """Close the file handle when leaving the context manager."""
                 assert self.handle is not None
                 self.handle.close()
 
             def write(self, data: bytes) -> int:
+                """Write raw bytes to the opened file handle."""
                 assert self.handle is not None
                 return self.handle.write(data)
 
         def fake_tabix_index(path: str, *, preset: str, force: bool) -> None:
+            """Record that the VCF writer requested a forced VCF tabix index."""
             assert preset == "vcf"
             assert force is True
             Path(f"{path}.tbi").write_text("index", encoding="utf-8")

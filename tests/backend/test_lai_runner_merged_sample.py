@@ -46,6 +46,7 @@ def runner() -> LAIRunner:
 
 
 def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    """Model a VCF writer that successfully emits every candidate site."""
     counts: dict[str, dict[str, int]] = {}
     for site in sites:
         src = site.get("source", "") or ""
