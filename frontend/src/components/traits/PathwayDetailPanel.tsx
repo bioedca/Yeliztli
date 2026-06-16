@@ -22,15 +22,10 @@ interface PathwayDetailPanelProps {
   onClose: () => void
 }
 
-const MODULE_ROUTES: Record<string, string> = {
-  sleep: "/sleep",
-  gene_health: "/gene-health",
-  pharmacogenomics: "/pharmacogenomics",
-}
-
 function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
   const categoryColor = SNP_CATEGORY_COLORS[snp.category] || SNP_CATEGORY_COLORS.Standard
   const dotColor = SNP_CATEGORY_DOT[snp.category] || SNP_CATEGORY_DOT.Standard
+  const crossModuleMeta = snp.cross_module ? getModuleMeta(snp.cross_module.to_module) : null
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -81,17 +76,17 @@ function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
       {/* Cross-module link */}
       {snp.cross_module && (
         <div className="flex items-center gap-2 mb-2">
-          {MODULE_ROUTES[snp.cross_module.to_module] ? (
+          {crossModuleMeta?.route ? (
             <Link
-              to={`${MODULE_ROUTES[snp.cross_module.to_module]}?sample_id=${sampleId}`}
+              to={`${crossModuleMeta.route}?sample_id=${sampleId}`}
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              View in {getModuleMeta(snp.cross_module.to_module).label}
+              View in {crossModuleMeta.label}
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           ) : (
             <span className="text-xs text-muted-foreground">
-              Related: {getModuleMeta(snp.cross_module.to_module).label} ({snp.cross_module.link_type})
+              Related: {crossModuleMeta?.label} ({snp.cross_module.link_type})
             </span>
           )}
         </div>

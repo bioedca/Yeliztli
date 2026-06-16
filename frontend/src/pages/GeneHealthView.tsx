@@ -28,16 +28,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  apoe: "/apoe",
-  allergy: "/allergy",
-  methylation: "/methylation",
-  nutrigenomics: "/nutrigenomics",
-  traits: "/traits",
-  pharmacogenomics: "/pharmacogenomics",
-}
-
 /** Cross-module finding card with navigation link. */
 function CrossModuleCard({
   item,
@@ -46,10 +36,11 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
   // Canonical display name from the shared registry (matches the sidebar /
   // Command Palette), not an ad-hoc capitalize of the raw key (#699).
-  const moduleName = getModuleMeta(item.target_module).label
+  const moduleMeta = getModuleMeta(item.target_module)
+  const targetRoute = moduleMeta.route
+  const moduleName = moduleMeta.label
 
   return (
     <div className="rounded-lg border bg-card p-4">

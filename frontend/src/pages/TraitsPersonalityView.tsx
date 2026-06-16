@@ -34,14 +34,6 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import SectionError from "@/components/ui/SectionError"
 
-/** Map target module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  sleep: "/sleep",
-  gene_health: "/gene-health",
-  pharmacogenomics: "/pharmacogenomics",
-  cancer: "/cancer",
-}
-
 /** Cross-module finding card. */
 function CrossModuleCard({
   item,
@@ -50,10 +42,11 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.to_module]
   // Canonical display name from the shared registry (matches the sidebar /
   // Command Palette), not an ad-hoc capitalize of the raw key (#699).
-  const moduleName = getModuleMeta(item.to_module).label
+  const moduleMeta = getModuleMeta(item.to_module)
+  const targetRoute = moduleMeta.route
+  const moduleName = moduleMeta.label
 
   return (
     <div className="rounded-lg border bg-card p-4">

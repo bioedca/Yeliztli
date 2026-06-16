@@ -37,14 +37,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  pharmacogenomics: "/pharmacogenomics",
-  nutrigenomics: "/nutrigenomics",
-  skin: "/skin",
-  cancer: "/cancer",
-}
-
 /** Celiac DQ2/DQ8 combined assessment card. */
 function CeliacCombinedCard({
   celiac,
@@ -230,6 +222,9 @@ function DrugHypersensitivityAlert({
   item: CrossModuleItem
   sampleId: number
 }) {
+  const pharmacogenomics = getModuleMeta("pharmacogenomics")
+  const targetRoute = pharmacogenomics.route
+
   return (
     <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 p-4">
       <div className="flex items-start gap-3">
@@ -248,13 +243,15 @@ function DrugHypersensitivityAlert({
           </div>
           <p className="text-sm text-muted-foreground mb-2">{item.finding_text}</p>
           <div className="flex items-center gap-3">
-            <Link
-              to={`/pharmacogenomics?sample_id=${sampleId}`}
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              View in Pharmacogenomics
-              <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            </Link>
+            {targetRoute && (
+              <Link
+                to={`${targetRoute}?sample_id=${sampleId}`}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View in {pharmacogenomics.label}
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            )}
             <span className="text-xs text-muted-foreground italic">
               Confirmatory HLA typing recommended
             </span>
@@ -273,7 +270,8 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
+  const moduleMeta = getModuleMeta(item.target_module)
+  const targetRoute = moduleMeta.route
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -286,7 +284,7 @@ function CrossModuleCard({
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             Allergy
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {getModuleMeta(item.target_module).label}
+            {moduleMeta.label}
           </span>
         </div>
         <EvidenceStars level={item.evidence_level} />
@@ -297,7 +295,7 @@ function CrossModuleCard({
           to={`${targetRoute}?sample_id=${sampleId}`}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in {getModuleMeta(item.target_module).label}
+          View in {moduleMeta.label}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       )}

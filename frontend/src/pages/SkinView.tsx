@@ -31,14 +31,6 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Map target_module to route path for cross-module links. */
-const MODULE_ROUTES: Record<string, string> = {
-  cancer: "/cancer",
-  nutrigenomics: "/nutrigenomics",
-  pharmacogenomics: "/pharmacogenomics",
-  allergy: "/allergy",
-}
-
 /** MC1R allele summary card — displays multi-allele aggregate result. */
 function MC1RSummaryCard({
   aggregate,
@@ -181,7 +173,8 @@ function CrossModuleCard({
   item: CrossModuleItem
   sampleId: number
 }) {
-  const targetRoute = MODULE_ROUTES[item.target_module]
+  const moduleMeta = getModuleMeta(item.target_module)
+  const targetRoute = moduleMeta.route
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -194,7 +187,7 @@ function CrossModuleCard({
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             Skin
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {getModuleMeta(item.target_module).label}
+            {moduleMeta.label}
           </span>
         </div>
         <EvidenceStars level={item.evidence_level} />
@@ -205,7 +198,7 @@ function CrossModuleCard({
           to={`${targetRoute}?sample_id=${sampleId}`}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in {getModuleMeta(item.target_module).label}
+          View in {moduleMeta.label}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       )}

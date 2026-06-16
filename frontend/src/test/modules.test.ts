@@ -7,9 +7,20 @@
  * `tests/backend/test_findings_module_registry.py` (which reads this file).
  */
 
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { MODULE_META, getModuleMeta } from "@/lib/modules"
+
+const CROSS_MODULE_ROUTE_CONSUMERS = [
+  "pages/GeneHealthView.tsx",
+  "pages/TraitsPersonalityView.tsx",
+  "pages/SkinView.tsx",
+  "pages/AllergyView.tsx",
+  "components/traits/PathwayDetailPanel.tsx",
+  "components/gene-health/PathwayDetailPanel.tsx",
+] as const
 
 describe("module registry (#620/#544)", () => {
   it("is non-trivially populated (guards against accidental gutting)", () => {
@@ -46,5 +57,13 @@ describe("module registry (#620/#544)", () => {
     expect(getModuleMeta("apoe").label).toBe("APOE")
     expect(getModuleMeta("amd").label).toBe("AMD")
     expect(getModuleMeta("mt_rnr1").label).toBe("MT-RNR1")
+  })
+
+  it("is the only source of cross-module card routes in route consumers (#838)", () => {
+    for (const relativePath of CROSS_MODULE_ROUTE_CONSUMERS) {
+      const source = readFileSync(join(process.cwd(), "src", relativePath), "utf8")
+      expect(source, relativePath).not.toMatch(/\b(?:CROSS_)?MODULE_ROUTES\b/)
+      expect(source, relativePath).toMatch(/\bgetModuleMeta\b/)
+    }
   })
 })
