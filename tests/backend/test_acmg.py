@@ -5,10 +5,13 @@ from __future__ import annotations
 import pytest
 
 from backend.analysis.acmg import (
+    BA1_AF_MIN,
     BENIGN,
+    BS1_AF_MIN,
     LIKELY_BENIGN,
     LIKELY_PATHOGENIC,
     PATHOGENIC,
+    PM2_AF_MAX,
     UNCERTAIN,
     AcmgEvidence,
     classify_acmg,
@@ -76,6 +79,11 @@ class TestPVS1:
 
 
 class TestOtherCriteria:
+    def test_frequency_threshold_constants_match_documented_defaults(self) -> None:
+        assert PM2_AF_MAX == pytest.approx(1e-4)
+        assert BS1_AF_MIN == pytest.approx(0.01)
+        assert BA1_AF_MIN == pytest.approx(0.05)
+
     def test_pm2_missing_frequency_data_is_neutral(self) -> None:
         assert criterion_pm2(AcmgEvidence(gnomad_af_popmax=None, gnomad_af_global=None)) is None
 
@@ -84,6 +92,14 @@ class TestOtherCriteria:
 
     def test_pm2_not_applied_when_not_rare(self) -> None:
         assert criterion_pm2(AcmgEvidence(gnomad_af_popmax=0.005)) is None
+
+    def test_pm2_boundary_is_strictly_below_cutoff(self) -> None:
+        eps = PM2_AF_MAX / 10
+        just_below = criterion_pm2(AcmgEvidence(gnomad_af_popmax=PM2_AF_MAX - eps))
+        assert just_below is not None and just_below.points == 1
+        assert criterion_pm2(AcmgEvidence(gnomad_af_popmax=PM2_AF_MAX)) is None
+        assert criterion_pm2(AcmgEvidence(gnomad_af_popmax=PM2_AF_MAX + eps)) is None
+        assert criterion_pm2(AcmgEvidence(gnomad_af_popmax=5e-4)) is None
 
     def test_pm4_inframe(self) -> None:
         assert criterion_pm4(AcmgEvidence(consequence="inframe_deletion")).points == 2
@@ -161,11 +177,28 @@ class TestOtherCriteria:
     def test_ba1_not_applied_below_5pct(self) -> None:
         assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=0.04)) is None
 
+    def test_ba1_boundary_is_strictly_above_cutoff(self) -> None:
+        eps = BA1_AF_MIN / 100
+        just_above = criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN + eps))
+        assert just_above is not None and just_above.strength == "Standalone"
+        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN)) is None
+        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN - eps)) is None
+
     def test_bs1_above_1pct(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)).points == -4
 
     def test_bs1_not_applied_in_ba1_range(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
+
+    def test_bs1_boundary_is_above_one_pct_through_ba1_cutoff(self) -> None:
+        lower_eps = BS1_AF_MIN / 10
+        upper_eps = BA1_AF_MIN / 100
+        just_above_lower = criterion_bs1(AcmgEvidence(gnomad_af_popmax=BS1_AF_MIN + lower_eps))
+        at_upper = criterion_bs1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN))
+        assert just_above_lower is not None and just_above_lower.points == -4
+        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=BS1_AF_MIN)) is None
+        assert at_upper is not None and at_upper.points == -4
+        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN + upper_eps)) is None
 
     def test_bp7_synonymous(self) -> None:
         assert criterion_bp7(AcmgEvidence(consequence="synonymous_variant")).points == -1
