@@ -1,5 +1,6 @@
-/** A11y coverage for the slide-in detail panels (#703):
+/** A11y coverage for the slide-in detail panels (#703/#846):
  *  - the shared `useDialogFocus` hook (focus-in / Tab-trap / focus-restore);
+ *  - modal hardening (background inert + scroll lock);
  *  - the four previously-bare panels now expose role="dialog" + aria-modal and
  *    move focus into themselves on open.
  */
@@ -39,6 +40,15 @@ function ControlledDialog({ open }: { open: boolean }) {
       <button data-testid="trigger">open</button>
       {open && <FocusHarness />}
     </>
+  )
+}
+
+function ScrollContainerDialog({ open }: { open: boolean }) {
+  return (
+    <div id="main-content" data-testid="scroll-container" style={{ overflow: "auto" }}>
+      <button data-testid="background-action">background action</button>
+      {open && <FocusHarness />}
+    </div>
   )
 }
 
@@ -84,6 +94,37 @@ describe("useDialogFocus", () => {
 
     rerender(<ControlledDialog open={false} />) // close → focus restored
     expect(document.activeElement).toBe(trigger)
+  })
+
+  it("marks background siblings inert while the dialog is open", () => {
+    const { rerender } = render(<ControlledDialog open={false} />)
+    const trigger = screen.getByTestId("trigger")
+
+    rerender(<ControlledDialog open={true} />)
+    const dialog = screen.getByRole("dialog")
+
+    expect(trigger).toHaveAttribute("inert")
+    expect(dialog).not.toHaveAttribute("inert")
+
+    rerender(<ControlledDialog open={false} />)
+    expect(trigger).not.toHaveAttribute("inert")
+  })
+
+  it("locks and restores body plus app scroll-container overflow", () => {
+    document.body.style.overflow = "auto"
+    const { rerender } = render(<ScrollContainerDialog open={false} />)
+    const scrollContainer = screen.getByTestId("scroll-container")
+
+    rerender(<ScrollContainerDialog open={true} />)
+
+    expect(document.body.style.overflow).toBe("hidden")
+    expect(scrollContainer).toHaveStyle({ overflow: "hidden" })
+
+    rerender(<ScrollContainerDialog open={false} />)
+
+    expect(document.body.style.overflow).toBe("auto")
+    expect(scrollContainer).toHaveStyle({ overflow: "auto" })
+    document.body.style.overflow = ""
   })
 })
 
