@@ -6,7 +6,7 @@ Covers:
   - 4 pathway cards (Atopic Conditions, Drug Hypersensitivity,
     Food Sensitivity, Histamine Metabolism)
   - HLA proxy calling metadata (r², ancestry, confirmatory_test_required)
-  - Celiac DQ2/DQ8 combined assessment and high NPV framing
+  - Celiac DQ2.5/DQ2.2 combined assessment (HLA-DQ8 not genotyped; #875)
   - Drug hypersensitivity HLA proxies with cross-module PGx links
   - Histamine metabolism SNPs (AOC1, HNMT) capped at Moderate (★☆)
   - Genotype effects categories are valid (Elevated/Moderate/Standard)
@@ -45,7 +45,7 @@ EXPECTED_RSIDS = {
     "rs1061235",  # HLA-A*31:01 carbamazepine DRESS
     "rs9263726",  # HLA-B*58:01 allopurinol
     "rs2187668",  # HLA-DQ2 celiac
-    "rs7775228",  # HLA-DQ8 celiac
+    "rs7775228",  # HLA-DQ2.2 celiac
     "rs10156191",  # AOC1 DAO histamine (Thr16Met)
     "rs1049742",  # AOC1 DAO histamine (Ser332Phe, #386)
     "rs2052129",  # AOC1 DAO histamine (c.-691G>T promoter, #386)
@@ -544,6 +544,31 @@ class TestHLAProxyCalling:
         celiac = sc["celiac_proxies"]
         assert set(celiac.keys()) == self.CELIAC_PROXY_RSIDS
 
+    def test_rs7775228_tags_dq22_not_dq8(self, panel_data: dict) -> None:
+        """#875: rs7775228 tags HLA-DQ2.2 (DQA1*02:01-DQB1*02:02), NOT HLA-DQ8.
+
+        Per Monsuur 2008 (PMID 18509540, Table 3) the DQ8/DQB1*03:02 tag SNP is
+        rs7454108; rs7775228 tags DQ2.2. The panel had it mislabelled as the
+        "HLA-DQ8 proxy". This locks every rs7775228 surface to DQ2.2 so the
+        mislabel cannot silently return, and asserts no surface still says DQ8.
+        """
+        # Per-SNP entry: variant_name + hla_proxy.hla_allele.
+        snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs7775228"
+        )
+        assert snp["hla_proxy"]["hla_allele"] == "HLA-DQ2.2"
+        assert "DQ2.2" in snp["variant_name"]
+        assert "DQ8" not in snp["variant_name"]
+        for effect in snp["genotype_effects"].values():
+            assert "DQ8 proxy" not in effect["effect_summary"]
+        # The GWAS PMID 18311140 is not a tag-SNP-identity source; Monsuur 2008
+        # (18509540) is. The mislabel cited the former.
+        assert "18509540" in snp["pmids"]
+        assert "18311140" not in snp["pmids"]
+        # Proxy map.
+        celiac = panel_data["special_calling"]["HLA_proxy_calling"]["celiac_proxies"]
+        assert celiac["rs7775228"] == "HLA-DQ2.2"
+
 
 # ── Celiac DQ2/DQ8 combined assessment tests ────────────────────────────
 
@@ -559,15 +584,22 @@ class TestCeliacCombined:
         states = sc["combined_states"]
         assert "neither" in states
         assert "dq2_only" in states
-        assert "dq8_only" in states
+        assert "dq22_only" in states  # rs7775228 tags DQ2.2, not DQ8 (#875)
         assert "both" in states
 
-    def test_celiac_neither_high_npv(self, panel_data: dict) -> None:
-        """Neither DQ2 nor DQ8 → emphasize high NPV."""
+    def test_celiac_neither_discloses_dq8_not_assessed(self, panel_data: dict) -> None:
+        """#875: rs7775228 tags HLA-DQ2.2, not DQ8, and this panel does not
+        genotype HLA-DQ8 — so the 'neither' state must NOT advertise a clean
+        >99% NPV rule-out and must disclose that DQ8 is not assessed."""
         sc = panel_data["special_calling"]["celiac_DQ2_DQ8_combined"]
         neither = sc["combined_states"]["neither"]
         desc_lower = neither["description"].lower()
-        assert "npv" in desc_lower or "99%" in desc_lower
+        label_lower = neither["label"].lower()
+        assert "dq8" in desc_lower
+        assert "not genotyped" in desc_lower or "not assessed" in label_lower
+        # The corrected framing must drop the false clean-exclusion language.
+        assert "extremely unlikely" not in desc_lower
+        assert "essentially rules out" not in desc_lower
 
     def test_celiac_combined_rsids(self, panel_data: dict) -> None:
         sc = panel_data["special_calling"]["celiac_DQ2_DQ8_combined"]
@@ -818,8 +850,8 @@ class TestPathwayAllocation:
     def test_food_sensitivity_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "food_sensitivity")
         rsids = {s["rsid"] for s in pw["snps"]}
-        assert "rs2187668" in rsids  # HLA-DQ2
-        assert "rs7775228" in rsids  # HLA-DQ8
+        assert "rs2187668" in rsids  # HLA-DQ2.5
+        assert "rs7775228" in rsids  # HLA-DQ2.2
 
     def test_histamine_metabolism_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "histamine_metabolism")

@@ -84,9 +84,9 @@ const CELIAC_INDETERMINATE: CeliacCombinedItem = {
   state: "indeterminate",
   label: "Celiac Risk Undetermined (Insufficient HLA Coverage)",
   dq2_genotype: null,
-  dq8_genotype: null,
+  dq22_genotype: null,
   description:
-    "The HLA-DQ2 and/or DQ8 proxy markers were not genotyped in this sample, so celiac disease cannot be excluded.",
+    "The HLA-DQ2.5 and/or DQ2.2 proxy markers were not genotyped in this sample, so celiac susceptibility cannot be assessed.",
   evidence_level: 3,
   pmids: [],
 }
@@ -194,7 +194,7 @@ describe("PathwayCard", () => {
   it("renders pathway description for food_sensitivity", () => {
     render(<PathwayCard pathway={FOOD_PATHWAY} onClick={onClick} />)
     expect(
-      screen.getByText(/Celiac disease.*HLA-DQ2\/DQ8/),
+      screen.getByText(/Celiac disease.*HLA-DQ2\.5 and DQ2\.2/),
     ).toBeInTheDocument()
   })
 
@@ -246,6 +246,43 @@ describe("CeliacCombinedCard indeterminate state (#847)", () => {
     expect(screen.getByTestId("celiac-combined-card")).not.toHaveClass("bg-blue-50")
     expect(screen.getByTestId("celiac-combined-label")).not.toHaveClass("bg-blue-100")
     expect(screen.getByTestId("celiac-combined-description")).not.toHaveClass("bg-blue-100/50")
+  })
+
+  it("labels the rs7775228 proxy as DQ2.2 (not DQ8) — #875", () => {
+    const dq22Only: CeliacCombinedItem = {
+      state: "dq22_only",
+      label: "Celiac Susceptibility (DQ2.2)",
+      dq2_genotype: "CC",
+      dq22_genotype: "CT",
+      description: "HLA-DQ2.2 proxy detected (DQ2.5 proxy negative).",
+      evidence_level: 3,
+      pmids: [],
+    }
+    pathwaysWith(dq22Only)
+    render(<AllergyView />)
+
+    // rs7775228 must be rendered as the DQ2.2 proxy, never DQ8.
+    expect(screen.getByText(/DQ2\.2 proxy \(rs7775228\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/DQ8 proxy \(rs7775228\)/)).not.toBeInTheDocument()
+  })
+
+  it("'neither' drops the >99% NPV rule-out and discloses DQ8 is not genotyped — #875", () => {
+    const neither: CeliacCombinedItem = {
+      state: "neither",
+      label: "Celiac Risk Reduced (DQ8 Not Assessed)",
+      dq2_genotype: "CC",
+      dq22_genotype: "TT",
+      description: "Neither the DQ2.5 nor the DQ2.2 proxy was detected.",
+      evidence_level: 3,
+      pmids: [],
+    }
+    pathwaysWith(neither)
+    render(<AllergyView />)
+
+    const card = screen.getByTestId("celiac-combined-description")
+    // The corrected caveat: DQ8 not genotyped, NOT a clean >99% exclusion.
+    expect(card.textContent).toMatch(/HLA-DQ8 \(DQB1\*03:02\) is not genotyped/)
+    expect(card.textContent).not.toMatch(/Negative predictive value >99% for celiac disease/)
   })
 })
 

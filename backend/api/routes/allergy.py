@@ -69,12 +69,12 @@ class PathwaySummary(BaseModel):
 
 
 class CeliacCombinedItem(BaseModel):
-    """Celiac DQ2/DQ8 combined assessment result."""
+    """Celiac DQ2.5/DQ2.2 combined assessment result."""
 
-    state: str  # "neither", "dq2_only", "dq8_only", "both"
+    state: str  # "neither", "dq2_only", "dq22_only", "both", "indeterminate"
     label: str
     dq2_genotype: str | None = None
-    dq8_genotype: str | None = None
+    dq22_genotype: str | None = None
     description: str | None = None
     evidence_level: int = 3
     pmids: list[str] = []
@@ -252,7 +252,7 @@ def list_pathways(
             state=detail.get("state", "neither"),
             label=detail.get("label", ""),
             dq2_genotype=detail.get("dq2_genotype"),
-            dq8_genotype=detail.get("dq8_genotype"),
+            dq22_genotype=detail.get("dq22_genotype"),
             description=cf["finding_text"],
             evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 3,
             pmids=cf["pmids"],

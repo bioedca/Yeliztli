@@ -1,7 +1,7 @@
 {
   "module": "allergy",
   "version": "1.0.0",
-  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 8 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2/DQ8 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
+  "description": "Curated Gene Allergy & Immune Sensitivities SNP panel for Yeliztli (P3-59). Covers 4 pathways (Atopic Conditions, Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism) with 8 curated SNPs and 6 HLA proxy references. Includes IL13, ORMDL3, STAT6 for atopic triad; HLA-B*57:01 (abacavir), HLA-B*15:02 / HLA-A*31:01 (carbamazepine), HLA-B*58:01 (allopurinol) for drug reactions; HLA-DQ2.5/DQ2.2 celiac disease proxies; AOC1 and HNMT for histamine catabolism.",
   "pathways": [
     {
       "id": "atopic_conditions",
@@ -276,7 +276,7 @@
     {
       "id": "food_sensitivity",
       "name": "Food Sensitivity",
-      "description": "HLA allele proxies for celiac disease (gluten sensitivity). HLA-DQ2 and HLA-DQ8 are necessary but not sufficient for celiac disease development — approximately 30–40% of the general population carries DQ2/DQ8 but only ~1% develops celiac disease. The high negative predictive value applies to the combined DQ2/DQ8 assessment when both proxies are observed non-risk.",
+      "description": "HLA allele proxies for celiac disease (gluten sensitivity). The celiac-predisposing HLA-DQ types (DQ2.5, DQ2.2, DQ8) are necessary but not sufficient — approximately 30–40% of the general population carries a susceptibility haplotype but only ~1% develops celiac disease. This panel genotypes the DQ2.5 (rs2187668) and DQ2.2 (rs7775228) proxies; it does not genotype HLA-DQ8 (DQB1*03:02, tag SNP rs7454108), so it does not provide the full >99% negative predictive value of complete HLA-DQ typing.",
       "snps": [
         {
           "rsid": "rs2187668",
@@ -288,7 +288,7 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "No HLA-DQ2.5 proxy allele detected. This single-marker result does not rule out celiac disease because HLA-DQ8 can still confer genetic susceptibility; use the combined DQ2/DQ8 assessment for rule-out framing."
+              "effect_summary": "No HLA-DQ2.5 proxy allele detected. This single-marker result does not rule out celiac disease, because other celiac-associated HLA-DQ types (DQ2.2, and HLA-DQ8 which this panel does not genotype) can still confer susceptibility; use the combined celiac assessment for rule-out framing."
             },
             "CT": {
               "category": "Moderate",
@@ -311,7 +311,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18311140", "20190752", "22926369"],
-          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.95 in EUR) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
+          "recommendation_text": "HLA-DQ2.5 is present in ~90–95% of celiac disease patients. This proxy (r²=0.95 in EUR) indicates genetic susceptibility but not diagnosis. A negative DQ2.5 proxy alone is not exclusionary because DQ2.2- or DQ8-mediated celiac susceptibility remains possible (this panel genotypes DQ2.5 and DQ2.2, but not HLA-DQ8); use the combined celiac assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
           "cross_module": {
             "module": "nutrigenomics",
             "note": "Celiac-related HLA-DQ2 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
@@ -320,40 +320,40 @@
         {
           "rsid": "rs7775228",
           "gene": "HLA-DQB1",
-          "variant_name": "HLA-DQ8 proxy",
+          "variant_name": "HLA-DQ2.2 proxy",
           "hgvs_protein": null,
           "risk_allele": "C",
           "ref_allele": "T",
           "genotype_effects": {
             "CC": {
               "category": "Elevated",
-              "effect_summary": "Homozygous HLA-DQ8 proxy. Elevated celiac risk allele dosage. Serological screening recommended, especially with family history or symptoms of gluten sensitivity."
+              "effect_summary": "Homozygous HLA-DQ2.2 proxy (tags DQA1*02:01–DQB1*02:02). DQ2.2 is a secondary celiac-associated HLA-DQ haplotype; in isolation it confers lower risk than DQ2.5, but two DQB1*02 copies raise risk, and combination with DQ2.5 is high-risk. Serological testing (tTG-IgA) recommended if gluten-related symptoms are present."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "One copy of HLA-DQ8 proxy. Genetic susceptibility to celiac disease is present. HLA-DQ8 accounts for ~5–10% of celiac cases (those without DQ2). Lower penetrance than DQ2. Serological testing recommended if symptoms present."
+              "effect_summary": "One copy of the HLA-DQ2.2 proxy (tags DQA1*02:01–DQB1*02:02). DQ2.2 is a secondary celiac-susceptibility haplotype that, in isolation, confers substantially lower risk than DQ2.5; its main contribution is increasing risk in combination with DQ2.5. Serological testing recommended if symptoms present."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "One copy of HLA-DQ8 proxy. Genetic susceptibility to celiac disease is present. HLA-DQ8 accounts for ~5–10% of celiac cases (those without DQ2). Lower penetrance than DQ2. Serological testing recommended if symptoms present."
+              "effect_summary": "One copy of the HLA-DQ2.2 proxy (tags DQA1*02:01–DQB1*02:02). DQ2.2 is a secondary celiac-susceptibility haplotype that, in isolation, confers substantially lower risk than DQ2.5; its main contribution is increasing risk in combination with DQ2.5. Serological testing recommended if symptoms present."
             },
             "TT": {
               "category": "Standard",
-              "effect_summary": "No HLA-DQ8 proxy allele detected. This single-marker result does not rule out celiac disease because HLA-DQ2 can still confer genetic susceptibility; use the combined DQ2/DQ8 assessment for rule-out framing."
+              "effect_summary": "No HLA-DQ2.2 proxy allele detected. This single-marker result does not rule out celiac disease, because DQ2.5 — and HLA-DQ8, which this panel does not genotype — can still confer genetic susceptibility; use the combined assessment for rule-out framing."
             }
           },
           "hla_proxy": {
-            "hla_allele": "HLA-DQ8",
+            "hla_allele": "HLA-DQ2.2",
             "r_squared_eur": 0.89,
             "clinical_grade": false,
             "confirmatory_test_required": true
           },
           "evidence_level": 3,
-          "pmids": ["18311140", "20190752", "22926369"],
-          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.89 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation.",
+          "pmids": ["18509540", "20190752", "22926369"],
+          "recommendation_text": "rs7775228 tags the HLA-DQ2.2 (DQA1*02:01–DQB1*02:02) haplotype, not HLA-DQ8 (Monsuur 2008). DQ2.2 is a secondary celiac-associated HLA-DQ type: in isolation it confers lower risk than DQ2.5, with risk greatest in combination with DQ2.5. This panel does not genotype HLA-DQ8 (DQB1*03:02; tag SNP rs7454108), so it does not provide the full >99% negative predictive value of complete HLA-DQ typing. Symptomatic individuals should pursue serological confirmation and, if indicated, high-resolution HLA-DQ typing.",
           "cross_module": {
             "module": "nutrigenomics",
-            "note": "Celiac-related HLA-DQ8 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
+            "note": "Celiac-related HLA-DQ2.2 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
           }
         }
       ]
@@ -513,7 +513,7 @@
   ],
   "special_calling": {
     "HLA_proxy_calling": {
-      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>=0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
+      "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>=0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. The celiac DQ2.5/DQ2.2 proxies indicate genetic susceptibility but have lower positive predictive value; because this panel does not genotype HLA-DQ8, a negative celiac result does not achieve the >99% negative predictive value of complete HLA-DQ (DQ2 + DQ8) typing.",
       "proxy_rsids": ["rs2395029", "rs144012689", "rs1061235", "rs9263726", "rs2187668", "rs7775228"],
       "drug_hypersensitivity_proxies": {
         "rs2395029": "HLA-B*57:01 (abacavir)",
@@ -523,33 +523,33 @@
       },
       "celiac_proxies": {
         "rs2187668": "HLA-DQ2.5",
-        "rs7775228": "HLA-DQ8"
+        "rs7775228": "HLA-DQ2.2"
       },
       "confirmatory_test_required": true
     },
     "celiac_DQ2_DQ8_combined": {
-      "description": "Celiac disease risk assessment combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7775228) results. DQ2 accounts for ~90–95% of celiac patients, DQ8 for ~5–10%. The key clinical utility is negative predictive value: absence of both DQ2 and DQ8 essentially rules out celiac disease (NPV >99%). Positive results indicate genetic susceptibility only — ~30–40% of the general population carries DQ2/DQ8 but only ~1% develops celiac disease.",
+      "description": "Celiac disease risk assessment from the HLA-DQ2.5 (rs2187668) and HLA-DQ2.2 (rs7775228) proxies. DQ2.5 accounts for ~90–95% of celiac patients; DQ2.2 is a secondary, lower-risk haplotype. This panel does NOT genotype HLA-DQ8 (DQB1*03:02, ~5–10% of celiac cases; tag SNP rs7454108), so a negative result does not achieve the >99% negative predictive value of complete HLA-DQ (DQ2 + DQ8) typing — DQ8-mediated celiac would not be detected. Positive results indicate genetic susceptibility only — ~30–40% of the general population carries a celiac-associated HLA-DQ haplotype but only ~1% develops celiac disease.",
       "rsids": ["rs2187668", "rs7775228"],
       "combined_states": {
         "neither": {
-          "label": "Low Celiac Risk",
-          "description": "Neither DQ2 nor DQ8 proxy detected. Celiac disease is extremely unlikely (NPV >99%). Gluten-related symptoms are unlikely to be celiac disease."
+          "label": "Celiac Risk Reduced (DQ8 Not Assessed)",
+          "description": "Neither the DQ2.5 nor the DQ2.2 proxy was detected. This lowers celiac likelihood but does not rule it out, because HLA-DQ8 (DQB1*03:02, ~5–10% of celiac cases) is not genotyped by this panel. The >99% negative predictive value of HLA-DQ typing requires both DQ2 and DQ8 results. If gluten-related symptoms are present, complete HLA-DQ typing and/or serology (tTG-IgA) is recommended."
         },
         "dq2_only": {
-          "label": "Celiac Susceptibility (DQ2)",
-          "description": "HLA-DQ2 proxy detected. Genetic prerequisite for celiac disease is met. ~3% lifetime risk if heterozygous, ~5% if homozygous. Serological testing (tTG-IgA) recommended if symptoms present."
+          "label": "Celiac Susceptibility (DQ2.5)",
+          "description": "HLA-DQ2.5 proxy detected. Genetic prerequisite for celiac disease is met. ~3% lifetime risk if heterozygous, ~5% if homozygous. Serological testing (tTG-IgA) recommended if symptoms present."
         },
-        "dq8_only": {
-          "label": "Celiac Susceptibility (DQ8)",
-          "description": "HLA-DQ8 proxy detected. Lower celiac penetrance than DQ2. Accounts for ~5–10% of celiac cases. Serological testing recommended if symptoms present."
+        "dq22_only": {
+          "label": "Celiac Susceptibility (DQ2.2)",
+          "description": "HLA-DQ2.2 proxy detected (DQ2.5 proxy negative). DQ2.2 in isolation is a lower-risk celiac haplotype than DQ2.5. Serological testing recommended if symptoms present."
         },
         "both": {
-          "label": "Celiac Susceptibility (DQ2+DQ8)",
-          "description": "Both HLA-DQ2 and DQ8 proxies detected. Combined genetic susceptibility. Higher risk than single haplotype. Serological screening recommended even if asymptomatic, especially with family history."
+          "label": "Celiac Susceptibility (DQ2.5+DQ2.2)",
+          "description": "Both the DQ2.5 and DQ2.2 proxies detected. Carrying DQ2.5 together with a second DQB1*02 (DQ2.2) copy raises celiac risk relative to DQ2.5 alone. Serological screening recommended even if asymptomatic, especially with family history."
         },
         "indeterminate": {
           "label": "Celiac Risk Undetermined (Insufficient HLA Coverage)",
-          "description": "The HLA-DQ2 (rs2187668) and/or DQ8 (rs7775228) proxy markers were not genotyped in this sample, so celiac disease cannot be excluded. The >99% negative predictive value of HLA-DQ typing applies only to an observed non-risk result, not to missing data. If gluten-related symptoms are present, HLA-DQ typing and/or serology (tTG-IgA) via a clinician is recommended."
+          "description": "The HLA-DQ2.5 (rs2187668) and/or DQ2.2 (rs7775228) proxy markers were not genotyped in this sample, so celiac susceptibility cannot be assessed. Note that even with both proxies this panel does not genotype HLA-DQ8 (DQB1*03:02), so it cannot provide the full >99% negative predictive value of complete HLA-DQ typing. If gluten-related symptoms are present, HLA-DQ typing and/or serology (tTG-IgA) via a clinician is recommended."
         }
       }
     },

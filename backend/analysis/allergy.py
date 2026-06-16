@@ -5,7 +5,8 @@ Implements P3-60:
     Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism).
   - HLA proxy calling with r²/ancestry display from hla_proxy_lookup table.
   - Abacavir/HLA-B*57:01 bi-directional cross-link with Pharmacogenomics.
-  - Celiac DQ2/DQ8 combined assessment at ★★★☆ with NPV >99% framing.
+  - Celiac DQ2.5/DQ2.2 combined assessment at ★★★☆ (HLA-DQ8 not genotyped, so
+    no >99% NPV rule-out; rs7775228 tags DQ2.2, not DQ8 — issue #875).
   - Histamine metabolism at ★☆☆☆ visually de-emphasized.
   - Cross-links to PGx (drug hypersensitivity), Skin (IL13/atopic dermatitis),
     and Nutrigenomics (celiac/gluten).
@@ -99,9 +100,11 @@ _HLA_PROXY_RSIDS = frozenset(
     }
 )
 
-# Celiac DQ2/DQ8 rsids for combined assessment
+# Celiac combined-assessment rsids. rs2187668 tags HLA-DQ2.5; rs7775228 tags
+# HLA-DQ2.2 (DQA1*02:01-DQB1*02:02), NOT HLA-DQ8 — Monsuur 2008 (PMID 18509540),
+# issue #875. HLA-DQ8 (DQB1*03:02, tag SNP rs7454108) is not on this panel.
 _CELIAC_DQ2_RSID = "rs2187668"
-_CELIAC_DQ8_RSID = "rs7775228"
+_CELIAC_DQ22_RSID = "rs7775228"
 
 # Histamine metabolism rsids for combined assessment
 _HISTAMINE_RSIDS = frozenset({"rs10156191", "rs11558538"})
@@ -203,13 +206,13 @@ class HLAProxyInfo:
 
 @dataclass
 class CeliacCombinedResult:
-    """Celiac DQ2/DQ8 combined assessment result."""
+    """Celiac DQ2.5/DQ2.2 combined assessment result."""
 
-    state: str  # "neither", "dq2_only", "dq8_only", "both", "indeterminate"
+    state: str  # "neither", "dq2_only", "dq22_only", "both", "indeterminate"
     label: str
     description: str
     dq2_genotype: str | None
-    dq8_genotype: str | None
+    dq22_genotype: str | None
     evidence_level: int
 
 
@@ -525,11 +528,13 @@ def _compute_celiac_combined(
     pathway_results: list[PathwayResult],
     panel: AllergyPanel,
 ) -> CeliacCombinedResult | None:
-    """Compute celiac DQ2/DQ8 combined assessment.
+    """Compute celiac DQ2.5/DQ2.2 combined assessment.
 
-    Combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7775228) results.
-    Key clinical utility is negative predictive value: absence of both
-    DQ2 and DQ8 essentially rules out celiac disease (NPV >99%).
+    Combines HLA-DQ2.5 (rs2187668) and HLA-DQ2.2 (rs7775228) results. Note this
+    panel does NOT genotype HLA-DQ8 (DQB1*03:02; canonical tag SNP rs7454108),
+    so a double-negative does not achieve the >99% negative predictive value of
+    complete HLA-DQ (DQ2 + DQ8) typing — DQ8-mediated celiac is not assessed
+    (rs7775228 tags DQ2.2, not DQ8; Monsuur 2008, PMID 18509540 — issue #875).
     """
     if panel.special_calling is None:
         return None
@@ -540,7 +545,7 @@ def _compute_celiac_combined(
 
     combined_states = celiac_config.get("combined_states", {})
 
-    # Find DQ2 and DQ8 results from food_sensitivity pathway
+    # Find DQ2.5 and DQ2.2 results from food_sensitivity pathway
     food_pr = next(
         (pr for pr in pathway_results if pr.pathway_id == "food_sensitivity"),
         None,
@@ -552,35 +557,37 @@ def _compute_celiac_combined(
         (s for s in food_pr.snp_results if s.rsid == _CELIAC_DQ2_RSID),
         None,
     )
-    dq8_result = next(
-        (s for s in food_pr.snp_results if s.rsid == _CELIAC_DQ8_RSID),
+    dq22_result = next(
+        (s for s in food_pr.snp_results if s.rsid == _CELIAC_DQ22_RSID),
         None,
     )
 
     dq2_present = dq2_result is not None and dq2_result.present_in_sample
-    dq8_present = dq8_result is not None and dq8_result.present_in_sample
+    dq22_present = dq22_result is not None and dq22_result.present_in_sample
     dq2_positive = dq2_present and dq2_result.category != STANDARD
-    dq8_positive = dq8_present and dq8_result.category != STANDARD
+    dq22_positive = dq22_present and dq22_result.category != STANDARD
 
-    if dq2_positive and dq8_positive:
+    if dq2_positive and dq22_positive:
         state_key = "both"
         evidence = 3
     elif dq2_positive:
         state_key = "dq2_only"
         evidence = 3
-    elif dq8_positive:
-        state_key = "dq8_only"
+    elif dq22_positive:
+        state_key = "dq22_only"
         evidence = 3
-    elif dq2_present and dq8_present:
-        # Both proxies observed and reference (non-risk): a genuine negative,
-        # which is the only case where the >99% NPV rule-out applies.
+    elif dq2_present and dq22_present:
+        # Both DQ2.5 and DQ2.2 proxies observed and reference (non-risk). This
+        # lowers celiac likelihood but is NOT a >99% NPV rule-out: HLA-DQ8
+        # (DQB1*03:02) is not genotyped by this panel, so DQ8-mediated celiac
+        # would be missed (the rule-out framing requires DQ2 + DQ8 — issue #875).
         state_key = "neither"
         evidence = 3
     else:
         # At least one proxy was not typed (no-call / not on this array). Missing
         # coverage is NOT a negative result — the NPV claim requires an observed
-        # non-risk genotype — so withhold the exclusionary "Low Celiac Risk"
-        # framing and report insufficient coverage instead (issue #27).
+        # non-risk genotype — so withhold the exclusionary framing and report
+        # insufficient coverage instead (issue #27).
         state_key = "indeterminate"
         evidence = 3
 
@@ -591,7 +598,7 @@ def _compute_celiac_combined(
         label=state.get("label", "Unknown"),
         description=state.get("description", ""),
         dq2_genotype=dq2_result.genotype if dq2_result else None,
-        dq8_genotype=dq8_result.genotype if dq8_result else None,
+        dq22_genotype=dq22_result.genotype if dq22_result else None,
         evidence_level=evidence,
     )
 
@@ -1294,13 +1301,13 @@ def store_allergy_findings(
                 "finding_text": celiac_text,
                 "pathway": "Food Sensitivity",
                 "pathway_level": None,
-                "pmid_citations": json.dumps(["18311140", "20190752", "22926369"]),
+                "pmid_citations": json.dumps(["18509540", "20190752", "22926369"]),
                 "detail_json": json.dumps(
                     {
                         "state": cc.state,
                         "label": cc.label,
                         "dq2_genotype": cc.dq2_genotype,
-                        "dq8_genotype": cc.dq8_genotype,
+                        "dq22_genotype": cc.dq22_genotype,
                     }
                 ),
             }

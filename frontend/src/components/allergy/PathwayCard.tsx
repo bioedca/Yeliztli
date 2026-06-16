@@ -23,7 +23,7 @@ const PATHWAY_DESCRIPTIONS: Record<string, string> = {
   drug_hypersensitivity:
     "HLA-mediated drug hypersensitivity reactions requiring confirmatory HLA typing.",
   food_sensitivity:
-    "Celiac disease genetic susceptibility via HLA-DQ2/DQ8 proxies with high negative predictive value.",
+    "Celiac disease genetic susceptibility via HLA-DQ2.5 and DQ2.2 proxies (HLA-DQ8 is not genotyped by this panel).",
   histamine_metabolism:
     "Histamine and salicylate metabolism enzyme variants affecting tolerance.",
 }

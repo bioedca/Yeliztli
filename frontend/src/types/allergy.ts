@@ -71,12 +71,12 @@ export interface PathwaySummary {
   hla_proxy_lookup: Record<string, unknown> | null
 }
 
-/** Celiac DQ2/DQ8 combined assessment result. */
+/** Celiac DQ2.5/DQ2.2 combined assessment result. */
 export interface CeliacCombinedItem {
-  state: "neither" | "dq2_only" | "dq8_only" | "both" | "indeterminate"
+  state: "neither" | "dq2_only" | "dq22_only" | "both" | "indeterminate"
   label: string
   dq2_genotype: string | null
-  dq8_genotype: string | null
+  dq22_genotype: string | null
   description: string | null
   evidence_level: number
   pmids: string[]

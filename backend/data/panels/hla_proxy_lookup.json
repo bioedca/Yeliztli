@@ -91,20 +91,20 @@
       "pmid": "18311140"
     },
     {
-      "hla_allele": "HLA-DQ8",
+      "hla_allele": "HLA-DQ2.2",
       "proxy_rsid": "rs7775228",
       "r_squared": 0.89,
       "ancestry_pop": "EUR",
-      "clinical_context": "Celiac disease susceptibility (HLA-DQ8 haplotype)",
-      "pmid": "18311140"
+      "clinical_context": "Celiac disease susceptibility (HLA-DQ2.2 haplotype, DQA1*02:01-DQB1*02:02)",
+      "pmid": "18509540"
     },
     {
-      "hla_allele": "HLA-DQ8",
+      "hla_allele": "HLA-DQ2.2",
       "proxy_rsid": "rs7775228",
       "r_squared": 0.74,
       "ancestry_pop": "EAS",
-      "clinical_context": "Celiac disease susceptibility (HLA-DQ8 haplotype)",
-      "pmid": "18311140"
+      "clinical_context": "Celiac disease susceptibility (HLA-DQ2.2 haplotype, DQA1*02:01-DQB1*02:02)",
+      "pmid": "18509540"
     }
   ]
 }

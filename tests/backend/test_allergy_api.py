@@ -245,17 +245,18 @@ CELIAC_COMBINED_FINDING = {
     "gene_symbol": None,
     "rsid": None,
     "finding_text": (
-        "Celiac Disease Risk Assessment — Low Celiac Risk. Neither DQ2 nor DQ8 detected."
+        "Celiac Disease Risk Assessment — Celiac Risk Reduced (DQ8 Not Assessed). "
+        "Neither the DQ2.5 nor the DQ2.2 proxy was detected."
     ),
     "pathway": "Food Sensitivity",
     "pathway_level": None,
-    "pmid_citations": json.dumps(["18311140"]),
+    "pmid_citations": json.dumps(["18509540"]),
     "detail_json": json.dumps(
         {
             "state": "neither",
-            "label": "Low Celiac Risk",
+            "label": "Celiac Risk Reduced (DQ8 Not Assessed)",
             "dq2_genotype": "CC",
-            "dq8_genotype": "CC",
+            "dq22_genotype": "CC",
         }
     ),
 }
@@ -414,7 +415,7 @@ class TestListPathways:
         data = resp.json()
         assert data["celiac_combined"] is not None
         assert data["celiac_combined"]["state"] == "neither"
-        assert data["celiac_combined"]["label"] == "Low Celiac Risk"
+        assert data["celiac_combined"]["label"] == "Celiac Risk Reduced (DQ8 Not Assessed)"
 
     def test_histamine_combined_in_response(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1")

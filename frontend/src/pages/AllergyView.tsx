@@ -37,14 +37,14 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-/** Celiac DQ2/DQ8 combined assessment card. */
+/** Celiac DQ2.5/DQ2.2 combined assessment card. */
 function CeliacCombinedCard({
   celiac,
 }: {
   celiac: CeliacCombinedItem
 }) {
   const isBoth = celiac.state === "both"
-  const isPositive = celiac.state === "dq2_only" || celiac.state === "dq8_only"
+  const isPositive = celiac.state === "dq2_only" || celiac.state === "dq22_only"
   const isIndeterminate = celiac.state === "indeterminate"
   const tone = isBoth
     ? {
@@ -101,12 +101,12 @@ function CeliacCombinedCard({
 
         {celiac.dq2_genotype && (
           <p className="text-sm text-muted-foreground">
-            DQ2 proxy (rs2187668): <span className="font-mono">{celiac.dq2_genotype}</span>
+            DQ2.5 proxy (rs2187668): <span className="font-mono">{celiac.dq2_genotype}</span>
           </p>
         )}
-        {celiac.dq8_genotype && (
+        {celiac.dq22_genotype && (
           <p className="text-sm text-muted-foreground">
-            DQ8 proxy (rs7775228): <span className="font-mono">{celiac.dq8_genotype}</span>
+            DQ2.2 proxy (rs7775228): <span className="font-mono">{celiac.dq22_genotype}</span>
           </p>
         )}
       </div>
@@ -123,7 +123,9 @@ function CeliacCombinedCard({
         </p>
         {celiac.state === "neither" && (
           <p className="text-xs text-muted-foreground mt-1 italic">
-            Negative predictive value &gt;99% for celiac disease.
+            HLA-DQ8 (DQB1*03:02) is not genotyped by this panel, so a negative
+            result does not provide the &gt;99% negative predictive value of
+            complete HLA-DQ typing.
           </p>
         )}
       </div>
