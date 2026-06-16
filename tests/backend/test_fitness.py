@@ -1257,6 +1257,8 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """Stored pathway detail exposes no-calls separately from off-chip SNPs."""
+        # Endurance includes rs1815739 (ACTN3) and rs8192678 (PPARGC1A);
+        # seed only rs1815739 as a no-call so rs8192678 remains off-chip.
         _seed_variants(sample_engine, [("rs1815739", "11", 66328095, "--")])
 
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
