@@ -455,7 +455,6 @@ def _score_snp(
             "gene_health_ancestry_caveat_applied",
             rsid=snp.rsid,
             category=category,
-            inferred_ancestry=inferred_ancestry,
         )
 
     return SNPResult(
@@ -648,7 +647,6 @@ def score_gene_health_pathways(
         "gene_health_genotypes_fetched",
         panel_rsids=len(all_rsids),
         found_in_sample=len(genotypes),
-        inferred_ancestry=inferred_ancestry,
     )
 
     pathway_results: list[PathwayResult] = []
