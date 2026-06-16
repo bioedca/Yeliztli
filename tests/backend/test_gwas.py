@@ -40,6 +40,7 @@ from backend.annotation.gwas import (
     _trait_matches_whitelist,
     download_and_load_gwas,
     download_gwas_catalog,
+    gwas_matched_rsids,
     iter_gwas_tsv,
     load_gwas_from_iter,
     load_gwas_into_db,
@@ -812,6 +813,68 @@ class TestLoadGwasFromIter:
                 sa.select(sa.func.count()).select_from(gwas_associations)
             ).scalar()
             assert count == 4
+
+
+class TestGwasMatchedRsids:
+    def test_returns_distinct_matches(self, reference_engine: sa.Engine):
+        """Return only queried rsids that have at least one GWAS association."""
+        with reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(gwas_associations),
+                [
+                    {"rsid": "rs1", "trait": "Trait A"},
+                    {"rsid": "rs1", "trait": "Trait B"},
+                    {"rsid": "rs2", "trait": "Trait C"},
+                ],
+            )
+
+        matched = gwas_matched_rsids(["rs1", "rs1", "rs2", "rs3"], reference_engine)
+
+        assert matched == {"rs1", "rs2"}
+
+    def test_batches_large_rsid_lists_under_sqlite_variable_limit(
+        self,
+        reference_engine: sa.Engine,
+    ):
+        """Large rsid lists are split before SQLAlchemy expands IN parameters."""
+        with reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(gwas_associations),
+                [
+                    {"rsid": "rs3", "trait": "Trait A"},
+                    {"rsid": "rs899", "trait": "Trait B"},
+                    {"rsid": "rs1204", "trait": "Trait C"},
+                ],
+            )
+
+        parameter_counts: list[int] = []
+
+        def record_parameter_count(
+            _conn,
+            _cursor,
+            statement,
+            parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            if "gwas_associations.rsid IN" in statement:
+                parameter_counts.append(len(parameters))
+
+        sa.event.listen(reference_engine, "before_cursor_execute", record_parameter_count)
+        try:
+            matched = gwas_matched_rsids(
+                [f"rs{i}" for i in range(1205)],
+                reference_engine,
+            )
+        finally:
+            sa.event.remove(
+                reference_engine,
+                "before_cursor_execute",
+                record_parameter_count,
+            )
+
+        assert matched == {"rs3", "rs899", "rs1204"}
+        assert parameter_counts == [900, 305]
 
 
 class TestRecordGwasVersion:

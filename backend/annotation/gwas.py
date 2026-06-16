@@ -5,12 +5,15 @@ filters to a whitelist of EFO trait terms relevant to Yeliztli modules
 (nutrigenomics, fitness, sleep, skin, allergy, traits), and bulk-loads
 into the ``gwas_associations`` table in reference.db.
 
-Analysis modules read GWAS-match presence by querying ``gwas_associations``
-directly (a per-module ``SELECT rsid ... WHERE rsid IN (...) DISTINCT``).
+Analysis modules read GWAS-match presence through ``gwas_matched_rsids``.
 
 Usage::
 
-    from backend.annotation.gwas import download_gwas_catalog, load_gwas_into_db
+    from backend.annotation.gwas import (
+        download_gwas_catalog,
+        gwas_matched_rsids,
+        load_gwas_into_db,
+    )
 
     tsv_path = download_gwas_catalog(dest_dir)
     stats = load_gwas_into_db(tsv_path, engine)
@@ -57,6 +60,10 @@ GWAS_CATALOG_URL = (
 
 # Batch size for bulk inserts (executemany)
 BATCH_SIZE = 10_000
+
+# Batch size for GWAS presence lookups. SQLAlchemy expands IN lists into bound
+# parameters, so keep this below SQLite's default 999-variable limit.
+GWAS_MATCH_BATCH_SIZE = 900
 
 # Valid chromosomes (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
@@ -363,6 +370,49 @@ def _trait_matches_whitelist(trait: str) -> bool:
     """
     trait_lower = trait.lower()
     return any(term in trait_lower for term in EFO_WHITELIST)
+
+
+# ── GWAS presence lookup ─────────────────────────────────────────────────
+
+
+def _iter_rsid_batches(rsids: list[str], size: int) -> Iterator[list[str]]:
+    """Yield unique rsids in stable batches."""
+    seen: set[str] = set()
+    batch: list[str] = []
+
+    for rsid in rsids:
+        if rsid in seen:
+            continue
+        seen.add(rsid)
+        batch.append(rsid)
+        if len(batch) == size:
+            yield batch
+            batch = []
+
+    if batch:
+        yield batch
+
+
+def gwas_matched_rsids(
+    rsids: list[str],
+    reference_engine: sa.Engine,
+) -> set[str]:
+    """Return rsids that have at least one GWAS Catalog association."""
+    if not rsids:
+        return set()
+
+    matched: set[str] = set()
+    with reference_engine.connect() as conn:
+        for batch in _iter_rsid_batches(rsids, GWAS_MATCH_BATCH_SIZE):
+            stmt = (
+                sa.select(gwas_associations.c.rsid)
+                .where(gwas_associations.c.rsid.in_(batch))
+                .distinct()
+            )
+            for row in conn.execute(stmt):
+                matched.add(row.rsid)
+
+    return matched
 
 
 # ── GWAS Catalog TSV column mapping ──────────────────────────────────────

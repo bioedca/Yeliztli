@@ -51,7 +51,8 @@ from backend.analysis.genotype_lookup import (
 )
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
-from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
+from backend.annotation.gwas import gwas_matched_rsids
+from backend.db.tables import annotated_variants, findings, raw_variants
 
 logger = structlog.get_logger(__name__)
 
@@ -552,9 +553,11 @@ def score_nutrigenomics_pathways(
         )
 
     # Identify GWAS-matched rsids for annotation_coverage bitmask (P3-09a)
-    gwas_matched = _lookup_gwas_matches(
-        [r.rsid for pr in pathway_results for r in pr.called_snps],
-        reference_engine,
+    gwas_matched = sorted(
+        gwas_matched_rsids(
+            [r.rsid for pr in pathway_results for r in pr.called_snps],
+            reference_engine,
+        )
     )
 
     return NutrigenomicsResult(
@@ -586,31 +589,6 @@ def _fetch_genotypes(
             result[row.rsid] = row.genotype
 
     return result
-
-
-def _lookup_gwas_matches(
-    rsids: list[str],
-    reference_engine: sa.Engine,
-) -> list[str]:
-    """Look up which rsids have GWAS Catalog associations.
-
-    Returns:
-        List of rsids that have at least one GWAS association.
-    """
-    if not rsids:
-        return []
-
-    matched: list[str] = []
-    with reference_engine.connect() as conn:
-        stmt = (
-            sa.select(gwas_associations.c.rsid)
-            .where(gwas_associations.c.rsid.in_(rsids))
-            .distinct()
-        )
-        for row in conn.execute(stmt):
-            matched.append(row.rsid)
-
-    return matched
 
 
 # ── Findings storage ─────────────────────────────────────────────────────
