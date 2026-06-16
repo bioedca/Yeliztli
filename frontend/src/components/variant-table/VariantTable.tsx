@@ -17,6 +17,7 @@ import { Loader2 } from "lucide-react"
 import { useVariants, useVariantsCount, useTotalVariantCount, useChromosomeCounts } from "@/api/variants"
 import { useColumnPresets } from "@/api/columnPresets"
 import { useMergeProvenance } from "@/api/samples"
+import { useTags } from "@/api/tags"
 import type { ConcordanceTag, SourceTag, VariantRow } from "@/types/variants"
 import { allColumns } from "./columns"
 import VariantToolbar from "./VariantToolbar"
@@ -119,6 +120,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
 
   // Fetch presets to resolve initial URL param
   const { data: presets } = useColumnPresets()
+  const { data: tags } = useTags(sampleId)
+  const tagColors = useMemo(
+    () => new Map(tags?.map((tag) => [tag.name, tag.color]) ?? []),
+    [tags],
+  )
   // TanStack Table accessor columns store their ID in `accessorKey` rather than `id`.
   // The union type doesn't expose accessorKey directly, so we cast through `any`.
   const allColumnIds = useMemo(
@@ -279,6 +285,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
+    meta: { tagColors },
     initialState: {
       columnPinning: { left: ["evidence_conflict"] },
     },
@@ -354,7 +361,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onPresetChange={handlePresetChange}
         activeFilter={activeFilter}
         onClearFilter={() => setActiveFilter(undefined)}
-        sampleId={sampleId}
+        tags={tags}
         activeTag={activeTag}
         onTagFilter={setActiveTag}
         showGRCh38={showGRCh38}
