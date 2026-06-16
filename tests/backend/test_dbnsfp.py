@@ -35,7 +35,6 @@ from backend.annotation.dbnsfp import (
     _create_dbnsfp_table,
     _normalize_chrom,
     _parse_dbnsfp_float,
-    _parse_dbnsfp_pred,
     _parse_float,
     _version_at_least,
     assess_ensemble,
@@ -127,19 +126,6 @@ class TestParseHelpers:
     def test_parse_dbnsfp_float_all_missing(self):
         assert _parse_dbnsfp_float(".;.;.") is None
         assert _parse_dbnsfp_float(".") is None
-
-    def test_parse_dbnsfp_pred_single(self):
-        assert _parse_dbnsfp_pred("D") == "D"
-        assert _parse_dbnsfp_pred("T") == "T"
-
-    def test_parse_dbnsfp_pred_multi(self):
-        assert _parse_dbnsfp_pred("D;T;D") == "D"
-        assert _parse_dbnsfp_pred(".;T;D") == "T"
-
-    def test_parse_dbnsfp_pred_missing(self):
-        assert _parse_dbnsfp_pred(None) is None
-        assert _parse_dbnsfp_pred(".") is None
-        assert _parse_dbnsfp_pred("") is None
 
 
 # ── TSV line parsing tests ───────────────────────────────────────────────

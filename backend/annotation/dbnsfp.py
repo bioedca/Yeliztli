@@ -341,22 +341,6 @@ def _parse_dbnsfp_float_extreme(value: str | None, *, pick: str) -> float | None
     raise ValueError(f"unsupported dbNSFP float aggregation: {pick}")
 
 
-def _parse_dbnsfp_pred(value: str | None) -> str | None:
-    """Parse a dbNSFP prediction value (may be multi-transcript).
-
-    Takes the first non-missing prediction.
-    """
-    if value is None or value in (".", "", "-"):
-        return None
-    if ";" in value:
-        for part in value.split(";"):
-            part = part.strip()
-            if part and part != ".":
-                return part
-        return None
-    return value
-
-
 def _parse_dbnsfp_pred_by_severity(
     value: str | None,
     *,
