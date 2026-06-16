@@ -258,7 +258,7 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
         MID: 44.5678,
         OCE: 88.0102,
       },
-      admixture_fractions: {},
+      admixture_fractions: { AMR: 0.62, EUR: 0.28, MID: 0.10 },
       population_ranking: [
         { population: 'AMR', distance: 12.3456 },
         { population: 'EUR', distance: 38.7012 },
@@ -276,16 +276,59 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       missing_aim_rate: 0.28,
       admixture_method: 'nnls',
       n_pcs_used: 8,
-      nnls_fractions: null,
-      knn_fractions: null,
-      nnls_ci_low: null,
-      nnls_ci_high: null,
+      nnls_fractions: { AMR: 0.62, EUR: 0.28, MID: 0.10 },
+      knn_fractions: { AMR: 0.58, EUR: 0.32, MID: 0.10 },
+      nnls_ci_low: { AMR: 0.56, EUR: 0.22, MID: 0.06 },
+      nnls_ci_high: { AMR: 0.68, EUR: 0.34, MID: 0.14 },
     }
 
     const LAI_RESULTS = {
-      global_ancestry: {},
-      chromosome_painting: {},
-      metadata: {},
+      global_ancestry: {
+        AMR: {
+          fraction: 0.58,
+          percentage: 58,
+          display_name: 'Admixed American',
+          color: '#EF4444',
+          confidence: 0.91,
+        },
+        EUR: {
+          fraction: 0.31,
+          percentage: 31,
+          display_name: 'European',
+          color: '#3B82F6',
+          confidence: 0.88,
+        },
+        MID: {
+          fraction: 0.11,
+          percentage: 11,
+          display_name: 'Middle Eastern',
+          color: '#14B8A6',
+          confidence: 0.74,
+        },
+      },
+      chromosome_painting: {
+        chr1: [
+          {
+            start: 0,
+            end: 85_000_000,
+            n_snps: 312,
+            hap0: 'AMR',
+            hap1: 'EUR',
+            hap0_color: '#EF4444',
+            hap1_color: '#3B82F6',
+          },
+          {
+            start: 85_000_000,
+            end: 170_000_000,
+            n_snps: 287,
+            hap0: 'MID',
+            hap1: 'AMR',
+            hap0_color: '#14B8A6',
+            hap1_color: '#EF4444',
+          },
+        ],
+      },
+      metadata: { windows: 2, source: 'e2e fixture' },
       created_at: '2026-06-15T00:00:00Z',
       coverage_telemetry: null,
     }
@@ -389,6 +432,8 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await waitForReactHydration(page)
       await expect(page.getByTestId('missing-aim-indicator')).toBeVisible()
       await expect(page.getByText('Chromosome painting complete')).toBeVisible()
+      await expect(page.getByTestId('ancestry-pie-chart')).toBeVisible()
+      await expect(page.locator('[data-testid="painting-chr1"] rect[fill="#EF4444"]').first()).toBeVisible()
 
       let builder = new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
