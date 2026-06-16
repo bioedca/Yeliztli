@@ -46,7 +46,11 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.array_confidence import APOE_ARRAY_RELIABILITY_PMIDS
+from backend.analysis.array_confidence import (
+    APOE_ARRAY_CONCORDANCE,
+    APOE_ARRAY_RELIABILITY_PMIDS,
+    array_confidence_badge,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.db.tables import findings, raw_variants
 
@@ -98,12 +102,20 @@ def _apoe_array_reliability_flag() -> dict[str, Any]:
     """Structured array-reliability flag attached to APOE findings (#557).
 
     Reliability flag only — does NOT change evidence_level (cf. array_confidence).
+
+    Derives the CLIA-confirm flag and citations from the shared ``array_confidence``
+    locus_low model for the ε-defining SNP rs429358 (#778): that model is the single
+    source of truth for "rs429358/rs7412 are array weak spots", so the confirm flag
+    and the citation set can't drift from it. The APOE-specific caveat prose stays as
+    an addendum and the concordance figure comes from the shared
+    ``APOE_ARRAY_CONCORDANCE`` constant.
     """
+    badge = array_confidence_badge(popmax_af=None, is_catalogued=True, rsid="rs429358")
     return {
         "caveat": APOE_ARRAY_RELIABILITY_CAVEAT,
-        "confirm_in_clia_recommended": True,
-        "concordance_with_direct_genotyping": "~90% ε genotype / ~93% ε4 status",
-        "pmids": APOE_RELIABILITY_PMIDS,
+        "confirm_in_clia_recommended": badge["confirm_in_clia_recommended"],
+        "concordance_with_direct_genotyping": APOE_ARRAY_CONCORDANCE,
+        "pmids": badge["pmid_citations"],
     }
 
 

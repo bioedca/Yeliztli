@@ -132,10 +132,15 @@ _BAND_COPY: dict[str, tuple[str, str, bool]] = {
 # also consumed by ``backend.analysis.apoe``).
 APOE_ARRAY_RELIABILITY_PMIDS = ["24448547", "22972946", "24903779"]
 
+# Single source of truth for the APOE array-vs-direct concordance figure (Oldmeadow
+# 2014). Consumed by the locus reason below AND by the APOE module's reliability
+# flag (``apoe._apoe_array_reliability_flag``) so the figure lives in one place.
+APOE_ARRAY_CONCORDANCE = "~90% ε genotype / ~93% ε4 status"
+
 _APOE_LOCUS_LOW_REASON = (
     "APOE ε-defining SNP — absent from most genome-wide genotyping arrays and only "
     "imperfectly captured on common platforms; array/imputed-vs-direct concordance is "
-    "only ~90% (ε genotype) / ~93% (ε4 status), so even a common ε4 call can be wrong."
+    f"only {APOE_ARRAY_CONCORDANCE}, so even a common ε4 call can be wrong."
 )
 
 # rsID (lowercase) → {"reason": locus-specific explanation, "pmids": citations}.

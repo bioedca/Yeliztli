@@ -133,6 +133,37 @@ def test_reference_fixture_is_live() -> None:
     assert not stale, f"reference fixture has rsids absent from every categorical panel: {stale}"
 
 
+# Strand-checkable SNV loci that are deliberately NOT in the fixture, each with a
+# documented reason (see the fixture's blind_spot_note). Keep this list tiny.
+_FIXTURE_EXCLUSIONS = {
+    # Tri-allelic (Ensembl C/A/G) → the set-based strand check is undecidable
+    # (every panel allele's complement is also real). Demoted to a non-diagnostic
+    # HLA-DQ marker (#731) and covered by an observed-genotype-resolves test in
+    # test_gene_health.py instead.
+    "rs9273363",
+}
+
+
+def test_strand_fixture_covers_every_snv_locus() -> None:
+    """Coverage completeness (#775): every categorical-panel locus whose curated
+    ``{risk_allele, ref_allele}`` are single-base A/C/G/T — i.e. a strand-checkable
+    SNV — must have an Ensembl reference entry, so a newly-added SNV locus cannot
+    silently escape the strand guard. Indel loci (I/D or multi-base risk/ref) are
+    out of frame and guarded by the indel-polarity guard instead; the only
+    explicit SNV exclusion is the documented tri-allelic ``rs9273363``."""
+    snv_loci = set()
+    for _, rsid, snp in _ALL_SNPS:
+        present = [a for a in (snp.get("risk_allele"), snp.get("ref_allele")) if a]
+        if present and all(len(a) == 1 and a in "ACGT" for a in present):
+            snv_loci.add(rsid)
+    assert snv_loci, "no strand-checkable SNV loci were collected from categorical panels"
+    missing = sorted(snv_loci - set(_REFERENCE) - _FIXTURE_EXCLUSIONS)
+    assert not missing, (
+        "categorical-panel SNV loci missing from the strand reference fixture "
+        f"(add one Ensembl GRCh37 lookup each, or document an exclusion): {missing}"
+    )
+
+
 def test_referenced_cases_nonempty() -> None:
     """Guard the guard: collection must actually produce cases (a refactor that
     breaks _iter_snps would otherwise vacuously 'pass')."""

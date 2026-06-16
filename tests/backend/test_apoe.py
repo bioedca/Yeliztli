@@ -49,6 +49,7 @@ from backend.analysis.apoe import (
     store_apoe_finding,
     store_apoe_three_findings,
 )
+from backend.analysis.array_confidence import APOE_ARRAY_CONCORDANCE, array_confidence_badge
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import findings, raw_variants
 
@@ -1128,12 +1129,21 @@ class TestAPOEArrayReliabilityCaveat:
         """Every derived finding (CV / Alzheimer's / lipid) carries the flag."""
         findings_list = generate_apoe_findings(self._make_result(diplotype))
         assert len(findings_list) == 3
+        # #778: the flag now derives its CLIA-confirm flag + citations from the
+        # shared array_confidence locus_low model for rs429358 (single source of
+        # truth), so they can't drift. The APOE-specific citations remain a subset.
+        shared_badge = array_confidence_badge(popmax_af=None, is_catalogued=True, rsid="rs429358")
+        shared_confirm = shared_badge["confirm_in_clia_recommended"]
+        shared_pmids = shared_badge["pmid_citations"]
         for f in findings_list:
             flag = f.detail_json.get("array_reliability")
             assert flag is not None, f"{f.category}: missing array_reliability flag"
             assert flag["confirm_in_clia_recommended"] is True
+            assert flag["confirm_in_clia_recommended"] == shared_confirm
             assert "clia" in flag["caveat"].lower()
-            assert flag["pmids"] == APOE_RELIABILITY_PMIDS
+            assert flag["pmids"] == shared_pmids
+            assert set(APOE_RELIABILITY_PMIDS).issubset(flag["pmids"])
+            assert flag["concordance_with_direct_genotyping"] == APOE_ARRAY_CONCORDANCE
 
     @pytest.mark.parametrize("diplotype", ALL_DIPLOTYPES, ids=ALL_DIPLOTYPES)
     def test_alzheimers_caveats_text_includes_array_reliability(self, diplotype: str) -> None:
