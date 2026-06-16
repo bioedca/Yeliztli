@@ -37,6 +37,7 @@ from backend.annotation.dbnsfp import (
     _parse_dbnsfp_float,
     _parse_dbnsfp_pred,
     _parse_float,
+    assess_ensemble,
     download_and_load_dbnsfp,
     download_dbnsfp,
     is_ensemble_pathogenic,
@@ -238,7 +239,7 @@ class TestParseDbnsfpTsvLine:
         assert skip == "no_scores"
 
     def test_multi_transcript_scores(self):
-        """Multi-transcript semicolon-separated scores take first non-missing."""
+        """Multi-transcript semicolon-separated SIFT fields choose the damaging score."""
         fields = self._make_fields(
             CADD_phred="28.3",
             SIFT4G_score=".;0.002;0.005",
@@ -248,6 +249,46 @@ class TestParseDbnsfpTsvLine:
         assert record is not None
         assert record.sift_score == pytest.approx(0.002)
         assert record.sift_pred == "D"
+
+    def test_multi_transcript_sift_polyphen_use_most_damaging_values(self):
+        """SIFT/PolyPhen summaries are order-independent over transcript values."""
+        fields = self._make_fields(
+            CADD_phred=".",
+            SIFT4G_score="0.2;0.01",
+            SIFT4G_pred="T;D",
+            Polyphen2_HVAR_score="0.1;0.99",
+            Polyphen2_HVAR_pred="B;D",
+            REVEL_score=".",
+            MetaSVM_score=".",
+            MetaLR_score=".",
+        )
+        record, skip = parse_dbnsfp_tsv_line(fields)
+        assert record is not None
+        assert skip is None
+        assert record.sift_score == pytest.approx(0.01)
+        assert record.sift_pred == "D"
+        assert record.polyphen2_hsvar_score == pytest.approx(0.99)
+        assert record.polyphen2_hsvar_pred == "D"
+        assert assess_ensemble(record) == (2, 2)
+
+        reversed_fields = self._make_fields(
+            CADD_phred=".",
+            SIFT4G_score="0.01;0.2",
+            SIFT4G_pred="D;T",
+            Polyphen2_HVAR_score="0.99;0.1",
+            Polyphen2_HVAR_pred="D;B",
+            REVEL_score=".",
+            MetaSVM_score=".",
+            MetaLR_score=".",
+        )
+        reversed_record, reversed_skip = parse_dbnsfp_tsv_line(reversed_fields)
+        assert reversed_record is not None
+        assert reversed_skip is None
+        assert reversed_record.sift_score == record.sift_score
+        assert reversed_record.sift_pred == record.sift_pred
+        assert reversed_record.polyphen2_hsvar_score == record.polyphen2_hsvar_score
+        assert reversed_record.polyphen2_hsvar_pred == record.polyphen2_hsvar_pred
+        assert assess_ensemble(reversed_record) == (2, 2)
 
     def test_partial_scores(self):
         """Record with only some scores should still be loaded."""

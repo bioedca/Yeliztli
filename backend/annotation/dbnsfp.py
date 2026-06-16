@@ -305,6 +305,22 @@ def _parse_dbnsfp_float(value: str | None) -> float | None:
     return _parse_float(value)
 
 
+def _parse_dbnsfp_float_extreme(value: str | None, *, pick: str) -> float | None:
+    """Parse a multi-transcript dbNSFP score and choose the requested extreme."""
+    if value is None or value in (".", "", "-"):
+        return None
+    parsed = [
+        result for part in value.split(";") if (result := _parse_float(part.strip())) is not None
+    ]
+    if not parsed:
+        return None
+    if pick == "min":
+        return min(parsed)
+    if pick == "max":
+        return max(parsed)
+    raise ValueError(f"unsupported dbNSFP float aggregation: {pick}")
+
+
 def _parse_dbnsfp_pred(value: str | None) -> str | None:
     """Parse a dbNSFP prediction value (may be multi-transcript).
 
@@ -319,6 +335,32 @@ def _parse_dbnsfp_pred(value: str | None) -> str | None:
                 return part
         return None
     return value
+
+
+def _parse_dbnsfp_pred_by_severity(
+    value: str | None,
+    *,
+    severity: dict[str, int],
+) -> str | None:
+    """Parse a multi-transcript dbNSFP prediction and choose the worst prediction."""
+    if value is None or value in (".", "", "-"):
+        return None
+
+    fallback: str | None = None
+    best_value: str | None = None
+    best_rank = -1
+    for part in value.split(";"):
+        pred = part.strip()
+        if not pred or pred in {".", "-"}:
+            continue
+        if fallback is None:
+            fallback = pred
+        rank = severity.get(pred.lower())
+        if rank is not None and rank > best_rank:
+            best_value = pred
+            best_rank = rank
+
+    return best_value if best_value is not None else fallback
 
 
 def _compute_sha256(file_path: Path) -> str:
@@ -387,10 +429,25 @@ def parse_dbnsfp_tsv_line(
 
     # Parse scores
     cadd_phred = _parse_dbnsfp_float(fields.get("CADD_phred"))
-    sift_score = _parse_dbnsfp_float(fields.get("SIFT4G_score"))
-    sift_pred = _parse_dbnsfp_pred(fields.get("SIFT4G_pred"))
-    polyphen2_score = _parse_dbnsfp_float(fields.get("Polyphen2_HVAR_score"))
-    polyphen2_pred = _parse_dbnsfp_pred(fields.get("Polyphen2_HVAR_pred"))
+    sift_score = _parse_dbnsfp_float_extreme(fields.get("SIFT4G_score"), pick="min")
+    sift_pred = _parse_dbnsfp_pred_by_severity(
+        fields.get("SIFT4G_pred"),
+        severity={"t": 0, "d": 1},
+    )
+    polyphen2_score = _parse_dbnsfp_float_extreme(fields.get("Polyphen2_HVAR_score"), pick="max")
+    polyphen2_pred = _parse_dbnsfp_pred_by_severity(
+        fields.get("Polyphen2_HVAR_pred"),
+        severity={
+            "b": 0,
+            "benign": 0,
+            "p": 1,
+            "possibly_damaging": 1,
+            "possibly damaging": 1,
+            "d": 2,
+            "probably_damaging": 2,
+            "probably damaging": 2,
+        },
+    )
     revel = _parse_dbnsfp_float(fields.get("REVEL_score"))
     # dbNSFP 5.x distributes MutPred2 under ``MutPred2_score`` (F31). The old
     # ``MutPred_score`` key never matched, leaving the column 100% NULL.
