@@ -602,7 +602,7 @@ def compute_prs_bootstrap_ci(
     Returns:
         Updated PRSResult with bootstrap_ci_lower/upper populated.
     """
-    if reference_std <= 0 or not result.contributions:
+    if reference_std <= 0 or n_iterations <= 0 or not result.contributions:
         result.bootstrap_ci_lower = result.percentile
         result.bootstrap_ci_upper = result.percentile
         result.bootstrap_iterations = 0

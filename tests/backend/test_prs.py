@@ -599,6 +599,39 @@ class TestBootstrapCI:
         assert result1.bootstrap_ci_lower == result2.bootstrap_ci_lower
         assert result1.bootstrap_ci_upper == result2.bootstrap_ci_upper
 
+    def test_bootstrap_zero_iterations_returns_point_estimate(self) -> None:
+        """A disabled bootstrap should not try to percentile an empty sample."""
+        result = PRSResult(
+            weight_set_name="Test",
+            trait="test",
+            module="test",
+            source_ancestry="EUR",
+            source_study="Test",
+            source_pmid="123",
+            sample_size=1000,
+            raw_score=0.5,
+            percentile=72.0,
+            contributions=[
+                PRSSNPContribution(
+                    rsid="rs1",
+                    effect_allele="A",
+                    weight=0.1,
+                    genotype="AA",
+                    dosage=2,
+                    contribution=0.2,
+                )
+            ],
+        )
+        result = compute_prs_bootstrap_ci(
+            result,
+            reference_mean=0.0,
+            reference_std=1.0,
+            n_iterations=0,
+        )
+        assert result.bootstrap_ci_lower == 72.0
+        assert result.bootstrap_ci_upper == 72.0
+        assert result.bootstrap_iterations == 0
+
     def test_bootstrap_zero_std_returns_point_estimate(self) -> None:
         """Zero reference std should return point estimate as CI bounds."""
         result = PRSResult(
@@ -759,6 +792,21 @@ class TestRunPRS:
         # No ancestry mismatch
         assert result.ancestry_mismatch is False
         assert result.ancestry_warning_text is None
+
+    def test_full_pipeline_with_zero_bootstrap_keeps_percentile(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry="EUR",
+            n_bootstrap=0,
+        )
+
+        assert result.percentile is not None
+        assert result.bootstrap_ci_lower == result.percentile
+        assert result.bootstrap_ci_upper == result.percentile
+        assert result.bootstrap_iterations == 0
 
     def test_full_pipeline_with_mismatch(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
