@@ -346,6 +346,14 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
     ],
     aggregated_findings_count: 0,
   }
+  const mergedLinkedSample = {
+    id: MERGED_SAMPLE_ID,
+    name: SAMPLE_MERGED.name,
+    file_format: SAMPLE_MERGED.file_format,
+    vendor: 'merged',
+    created_at: SAMPLE_MERGED.created_at,
+    updated_at: SAMPLE_MERGED.updated_at,
+  }
 
   await page.route('**/api/individuals', async (route) => {
     await route.fulfill(
@@ -366,7 +374,14 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
   })
 
   await page.route(/\/api\/individuals\/\d+$/, async (route) => {
-    await route.fulfill(jsonRoute(individualDetail))
+    await route.fulfill(
+      jsonRoute({
+        ...individualDetail,
+        linked_samples: state.committed
+          ? [...individualDetail.linked_samples, mergedLinkedSample]
+          : individualDetail.linked_samples,
+      }),
+    )
   })
 
   // Merge preview + commit (Plan §10.6).

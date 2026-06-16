@@ -12,7 +12,7 @@
 
 import type { ReactNode } from "react"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, within, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 
@@ -20,8 +20,33 @@ import IndividualDetail from "@/pages/IndividualDetail"
 
 const mockFetch = vi.fn()
 
+type EventSourceListener = (event: MessageEvent) => void
+
+class MockEventSource {
+  static instances: MockEventSource[] = []
+  url: string
+  listeners: Record<string, EventSourceListener[]> = {}
+  readyState = 0
+
+  constructor(url: string) {
+    this.url = url
+    this.readyState = 1
+    MockEventSource.instances.push(this)
+  }
+
+  addEventListener(event: string, listener: EventSourceListener) {
+    if (!this.listeners[event]) this.listeners[event] = []
+    this.listeners[event].push(listener)
+  }
+
+  close() {
+    this.readyState = 2
+  }
+}
+
 beforeEach(() => {
   mockFetch.mockReset()
+  MockEventSource.instances = []
   vi.stubGlobal("fetch", mockFetch)
 })
 
@@ -163,7 +188,146 @@ function installMocks(individual: MockIndividual) {
   })
 }
 
+function individualPayload(individual: MockIndividual) {
+  return {
+    id: individual.id,
+    display_name: individual.display_name,
+    notes: individual.notes ?? null,
+    biological_sex: individual.biological_sex ?? null,
+    created_at: "2026-05-01T00:00:00",
+    updated_at: null,
+    linked_samples: individual.linked_samples.map((s) => ({
+      id: s.id,
+      name: s.name,
+      file_format: s.file_format,
+      vendor: s.vendor,
+      created_at: "2026-05-01T00:00:00",
+      updated_at: null,
+    })),
+    aggregated_findings_count: individual.aggregated_findings_count ?? 0,
+  }
+}
+
 describe("IndividualDetail page", () => {
+  it("keeps the merge wizard mounted when commit refetches detail with the merged sample", async () => {
+    vi.stubGlobal("EventSource", MockEventSource)
+    const initialSamples: MockLinkedSample[] = [
+      {
+        id: 11,
+        name: "eve_23andme.txt",
+        file_format: "23andme_v5",
+        vendor: "23andme",
+        variantCount: 612345,
+        highConfidenceFindings: [],
+      },
+      {
+        id: 12,
+        name: "eve_ancestry.txt",
+        file_format: "ancestrydna_v2.0",
+        vendor: "ancestrydna",
+        variantCount: 720000,
+        highConfidenceFindings: [],
+      },
+    ]
+    const mergedSample: MockLinkedSample = {
+      id: 99,
+      name: "Eve (merged)",
+      file_format: "merged_v1",
+      vendor: "merged",
+      variantCount: 950000,
+      highConfidenceFindings: [],
+    }
+    let detailRequests = 0
+    const allSamples = [...initialSamples, mergedSample]
+
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/individuals/10") {
+        detailRequests += 1
+        return Promise.resolve(
+          jsonResponse(
+            individualPayload({
+              id: 10,
+              display_name: "Eve",
+              linked_samples:
+                detailRequests === 1 ? initialSamples : allSamples,
+            }),
+          ),
+        )
+      }
+
+      if (url === "/api/individuals/10/merge/preview") {
+        return Promise.resolve(
+          jsonResponse({
+            concordance_summary: {
+              match: 412345,
+              filled_nocall: 1234,
+              discordant: 87,
+              unique_S1: 5000,
+              unique_S2: 6500,
+              collapsed_rsid: 19,
+            },
+            est_duration_seconds: 8,
+          }),
+        )
+      }
+
+      if (url === "/api/individuals/10/merge") {
+        return Promise.resolve(
+          jsonResponse({ merged_sample_id: 99, job_id: "merge-job-1" }, 201),
+        )
+      }
+
+      const countMatch = /^\/api\/variants\/count\?sample_id=(\d+)/.exec(url)
+      if (countMatch) {
+        const sid = Number(countMatch[1])
+        const sample = allSamples.find((s) => s.id === sid)
+        return Promise.resolve(jsonResponse({ total: sample?.variantCount ?? 0 }))
+      }
+
+      const summaryMatch =
+        /^\/api\/analysis\/findings\/summary\?sample_id=(\d+)/.exec(url)
+      if (summaryMatch) {
+        return Promise.resolve(
+          jsonResponse({
+            total_findings: 0,
+            modules: [],
+            high_confidence_findings: [],
+          }),
+        )
+      }
+
+      return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
+    })
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/10"]),
+    })
+
+    fireEvent.click(await screen.findByTestId("merge-samples-button"))
+    expect(screen.getByTestId("merge-wizard-overlay")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /^Preview$/ }))
+    expect(await screen.findByTestId("merge-preview-summary")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /^Continue$/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^Merge$/ }))
+
+    expect(await screen.findByTestId("merge-progress")).toBeInTheDocument()
+    await waitFor(() => expect(detailRequests).toBeGreaterThan(1))
+    expect(await screen.findByTestId("linked-sample-row-99")).toBeInTheDocument()
+    expect(screen.getByTestId("merge-wizard-overlay")).toBeInTheDocument()
+    expect(screen.getByTestId("merge-source-pair")).toHaveTextContent(
+      "eve_23andme.txt",
+    )
+    expect(screen.getByTestId("merge-source-pair")).toHaveTextContent(
+      "eve_ancestry.txt",
+    )
+    expect(MockEventSource.instances[0].url).toBe(
+      "/api/annotation/status/merge-job-1",
+    )
+  })
+
   it("renders metadata, linked samples table, and per-sample variant counts", async () => {
     installMocks({
       id: 7,

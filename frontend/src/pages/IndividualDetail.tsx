@@ -258,10 +258,24 @@ export default function IndividualDetail() {
   // samples. The two-source wizard surface (Plan §10.5 step 1) covers
   // exactly-2 linked samples; 3+ sample pickers are deferred.
   const [showMergeWizard, setShowMergeWizard] = useState(false)
+  const [mergeWizardSourcePair, setMergeWizardSourcePair] = useState<
+    [number, number] | null
+  >(null)
   const canMerge = linkedSamples.length === 2
   const mergeSourcePair = canMerge
     ? ([linkedSamples[0].id, linkedSamples[1].id] as [number, number])
     : null
+
+  const openMergeWizard = () => {
+    if (!mergeSourcePair) return
+    setMergeWizardSourcePair(mergeSourcePair)
+    setShowMergeWizard(true)
+  }
+
+  const closeMergeWizard = () => {
+    setShowMergeWizard(false)
+    setMergeWizardSourcePair(null)
+  }
 
   const findingsQueries = useQueries({
     queries: linkedSamples.map((sample) => ({
@@ -432,7 +446,7 @@ export default function IndividualDetail() {
           {canMerge && (
             <button
               type="button"
-              onClick={() => setShowMergeWizard(true)}
+              onClick={openMergeWizard}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
               data-testid="merge-samples-button"
             >
@@ -470,13 +484,13 @@ export default function IndividualDetail() {
         )}
       </section>
 
-      {showMergeWizard && mergeSourcePair && (
+      {showMergeWizard && mergeWizardSourcePair && (
         <MergeWizard
           individualId={individual.id}
           individualDisplayName={individual.display_name}
           linkedSamples={linkedSamples}
-          sourceSampleIds={mergeSourcePair}
-          onClose={() => setShowMergeWizard(false)}
+          sourceSampleIds={mergeWizardSourcePair}
+          onClose={closeMergeWizard}
         />
       )}
 
