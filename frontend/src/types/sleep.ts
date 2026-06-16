@@ -29,6 +29,8 @@ export interface PathwaySummary {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** Subset of missing_snps that were on-array no-calls. Optional for older cached responses. */
+  no_call_snps?: string[]
   pmids: string[]
 }
 

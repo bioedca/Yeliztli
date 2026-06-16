@@ -62,6 +62,11 @@ MODERATE = "Moderate"
 STANDARD = "Standard"
 INDETERMINATE = "Indeterminate"
 
+# Coverage status values
+CALLED = "called"
+NO_CALL = "no_call"
+NOT_ON_ARRAY = "not_on_array"
+
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
 
@@ -131,6 +136,7 @@ class SNPResult:
     present_in_sample: bool
     metabolizer_state: str | None = None  # CYP1A2 full panel label, e.g. "Slow metabolizer"
     coverage_note: str | None = None  # Proxy caveat for PER3/HLA
+    coverage_status: str | None = None  # called / no_call / not_on_array
 
 
 @dataclass
@@ -519,8 +525,15 @@ def score_sleep_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            raw_gt = genotypes.get(snp.rsid)
+            gt = _normalize_genotype(raw_gt)
             result = _score_snp(snp, gt, panel)
+            if raw_gt is None:
+                result.coverage_status = NOT_ON_ARRAY
+            elif gt is None:
+                result.coverage_status = NO_CALL
+            else:
+                result.coverage_status = CALLED
             snp_results.append(result)
 
             # Track CYP1A2 metabolizer state
@@ -617,6 +630,7 @@ def store_sleep_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == NO_CALL],
             "snp_details": [
                 {
                     "rsid": s.rsid,

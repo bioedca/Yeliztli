@@ -27,6 +27,8 @@ from backend.analysis.sleep import (
     INDETERMINATE,
     MODERATE,
     MODULE_NAME,
+    NO_CALL,
+    NOT_ON_ARRAY,
     STANDARD,
     PanelSNP,
     PathwayResult,
@@ -640,6 +642,23 @@ class TestScorePathways:
             assert len(pr.called_snps) == 0
             assert len(pr.missing_snps) > 0
 
+    def test_no_call_and_not_on_array_coverage_status(
+        self,
+        panel: SleepPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """On-array no-calls are tracked separately from off-chip missing SNPs."""
+        _seed_variants(sample_engine, [("rs762551", "15", 75041917, "--")])
+
+        result = score_sleep_pathways(panel, sample_engine, reference_engine)
+
+        caffeine = next(pr for pr in result.pathway_results if pr.pathway_id == "caffeine_sleep")
+        cyp1a2 = next(s for s in caffeine.missing_snps if s.rsid == "rs762551")
+        adora2a = next(s for s in caffeine.missing_snps if s.rsid == "rs5751876")
+        assert cyp1a2.coverage_status == NO_CALL
+        assert adora2a.coverage_status == NOT_ON_ARRAY
+
 
 # ── Findings storage tests ─────────────────────────────────────────────
 
@@ -763,6 +782,36 @@ class TestStoreFindingsIntegration:
         assert hla_detail["coverage_note"] is not None
         assert "not" in hla_detail["coverage_note"].lower()
         assert "proxy" in hla_detail["coverage_note"].lower()
+
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: SleepPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Stored pathway detail keeps missing_snps union and adds no_call_snps subset."""
+        _seed_variants(sample_engine, [("rs762551", "15", 75041917, "--")])
+
+        result = score_sleep_pathways(panel, sample_engine, reference_engine)
+        store_sleep_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Caffeine & Sleep",
+                    )
+                )
+            ).first()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert "rs762551" in detail["missing_snps"]
+        assert "rs5751876" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs762551"]
+        assert "rs5751876" not in detail["no_call_snps"]
 
     def test_store_clears_previous_findings(
         self,
