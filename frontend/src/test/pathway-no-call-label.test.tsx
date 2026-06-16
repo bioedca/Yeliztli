@@ -19,14 +19,17 @@ vi.mock("@/api/gene-health", () => ({ useGeneHealthPathwayDetail: vi.fn() }))
 vi.mock("@/api/nutrigenomics", () => ({ useNutrigenomicsPathwayDetail: vi.fn() }))
 vi.mock("@/api/allergy", () => ({ useAllergyPathwayDetail: vi.fn() }))
 vi.mock("@/api/fitness", () => ({ useFitnessPathwayDetail: vi.fn() }))
+vi.mock("@/api/methylation", () => ({ useMethylationPathwayDetail: vi.fn() }))
 
 import AllergyPanel from "@/components/allergy/PathwayDetailPanel"
 import FitnessPanel from "@/components/fitness/PathwayDetailPanel"
 import GeneHealthPanel from "@/components/gene-health/PathwayDetailPanel"
+import MethylationPanel from "@/components/methylation/PathwayDetailPanel"
 import NutrigenomicsPanel from "@/components/nutrigenomics/PathwayDetailPanel"
 import { useAllergyPathwayDetail } from "@/api/allergy"
 import { useFitnessPathwayDetail } from "@/api/fitness"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
+import { useMethylationPathwayDetail } from "@/api/methylation"
 import { useNutrigenomicsPathwayDetail } from "@/api/nutrigenomics"
 
 const OFF_CHIP = "rs10000001"
@@ -60,6 +63,7 @@ const MODULES: { name: string; Panel: ComponentType<PanelProps>; hook: MockedDet
   { name: "allergy", Panel: AllergyPanel, hook: asMock(useAllergyPathwayDetail) },
   { name: "fitness", Panel: FitnessPanel, hook: asMock(useFitnessPathwayDetail) },
   { name: "gene-health", Panel: GeneHealthPanel, hook: asMock(useGeneHealthPathwayDetail) },
+  { name: "methylation", Panel: MethylationPanel, hook: asMock(useMethylationPathwayDetail) },
   { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: asMock(useNutrigenomicsPathwayDetail) },
 ]
 

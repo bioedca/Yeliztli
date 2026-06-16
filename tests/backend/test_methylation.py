@@ -743,6 +743,7 @@ class TestScorePathways:
         assert dhfr.present_in_sample is True
         assert dhfr.genotype == genotype
         assert dhfr.category == expected_category
+        assert dhfr.coverage_status == "called"
 
     def test_dhfr_19bp_indel_located_in_intron_1_not_promoter(self) -> None:
         """#351: the DHFR rs70991108 19 bp del/ins is in intron 1, not the
@@ -947,6 +948,37 @@ class TestStoreFindingsIntegration:
         # Check pathway summary findings exist (always 5)
         pathway_summaries = [r for r in rows if r.category == "pathway_summary"]
         assert len(pathway_summaries) == 5
+
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Pathway detail keeps on-chip no-calls separate from off-chip SNPs."""
+        # Folate & MTHFR includes rs1801133 and rs1801131; seed only rs1801133
+        # as a no-call so rs1801131 remains off-chip.
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "--")])
+
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        store_methylation_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Folate & MTHFR",
+                    )
+                )
+            ).one()
+
+        detail = json.loads(row.detail_json)
+        assert "rs1801133" in detail["missing_snps"]
+        assert "rs1801131" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs1801133"]
+        assert "rs1801131" not in detail["no_call_snps"]
 
     def test_compound_het_finding_stored(
         self,

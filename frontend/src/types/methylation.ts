@@ -28,6 +28,7 @@ export interface PathwaySummary {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  no_call_snps?: string[]
   pmids: string[]
   additive_promoted: boolean
 }
