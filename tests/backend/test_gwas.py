@@ -30,8 +30,6 @@ import sqlalchemy as sa
 from backend.annotation.gwas import (
     EFO_MODULES,
     EFO_WHITELIST,
-    GWASAnnotation,
-    GWASAnnotationSet,
     _extract_risk_allele,
     _extract_rsid,
     _is_odds_ratio,
@@ -45,8 +43,6 @@ from backend.annotation.gwas import (
     iter_gwas_tsv,
     load_gwas_from_iter,
     load_gwas_into_db,
-    lookup_gwas_by_rsids,
-    lookup_gwas_traits_for_rsids,
     parse_gwas_tsv,
     parse_gwas_tsv_row,
     record_gwas_version,
@@ -1003,112 +999,6 @@ class TestDownloadAndLoadGwas:
             ).first()
             assert row is not None
             assert row.checksum_sha256 == "fake_sha256"
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Integration tests — Annotation lookup
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestLookupGwasByRsids:
-    def test_single_match(self, seeded_reference_engine: sa.Engine):
-        """Single rsid with one trait association."""
-        results = lookup_gwas_by_rsids(["rs7903146"], seeded_reference_engine)
-        assert "rs7903146" in results
-        aset = results["rs7903146"]
-        assert len(aset.associations) == 1
-        assert aset.associations[0].trait == "Type 2 diabetes"
-        assert aset.associations[0].odds_ratio == 1.37
-
-    def test_multi_trait_variant(self, seeded_reference_engine: sa.Engine):
-        """rs429358 has two trait associations (Alzheimer + CAD)."""
-        results = lookup_gwas_by_rsids(["rs429358"], seeded_reference_engine)
-        assert "rs429358" in results
-        aset = results["rs429358"]
-        assert len(aset.associations) == 2
-        traits = aset.traits
-        assert "Alzheimer disease" in traits
-        assert "Coronary artery disease" in traits
-
-    def test_best_p_value(self, seeded_reference_engine: sa.Engine):
-        """best_p_value should return the most significant p-value."""
-        results = lookup_gwas_by_rsids(["rs429358"], seeded_reference_engine)
-        aset = results["rs429358"]
-        assert aset.best_p_value == 1e-200
-
-    def test_no_match(self, seeded_reference_engine: sa.Engine):
-        """Unknown rsid should not be in results."""
-        results = lookup_gwas_by_rsids(["rs999999999"], seeded_reference_engine)
-        assert "rs999999999" not in results
-
-    def test_empty_input(self, seeded_reference_engine: sa.Engine):
-        results = lookup_gwas_by_rsids([], seeded_reference_engine)
-        assert results == {}
-
-    def test_batch_lookup(self, seeded_reference_engine: sa.Engine):
-        """Multiple rsids in one call."""
-        results = lookup_gwas_by_rsids(
-            ["rs429358", "rs1801133", "rs7903146", "rs999"],
-            seeded_reference_engine,
-        )
-        assert len(results) == 3
-        assert "rs999" not in results
-
-    def test_beta_value(self, seeded_reference_engine: sa.Engine):
-        """rs1801133 should have beta (not OR)."""
-        results = lookup_gwas_by_rsids(["rs1801133"], seeded_reference_engine)
-        annot = results["rs1801133"].associations[0]
-        assert annot.beta == 1.73
-        assert annot.odds_ratio is None
-
-
-class TestLookupGwasTraitsForRsids:
-    def test_traits_only(self, seeded_reference_engine: sa.Engine):
-        """Simplified lookup should return trait names only."""
-        results = lookup_gwas_traits_for_rsids(
-            ["rs429358", "rs7903146"],
-            seeded_reference_engine,
-        )
-        assert "rs429358" in results
-        assert "Alzheimer disease" in results["rs429358"]
-        assert results["rs7903146"] == ["Type 2 diabetes"]
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Dataclass tests
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestGWASAnnotationSet:
-    def test_traits_unique(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", 1e-10, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait A", 1e-8, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait B", 1e-5, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.traits == ["Trait A", "Trait B"]
-
-    def test_best_p_value_none(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", None, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.best_p_value is None
-
-    def test_best_p_value(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", 1e-5, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait B", 1e-10, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.best_p_value == 1e-10
 
 
 class TestGwasSeedVitaminDDirection:

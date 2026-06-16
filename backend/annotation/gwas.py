@@ -1,23 +1,19 @@
-"""GWAS Catalog TSV downloader, EFO-filtered SQLite loader, and annotation lookup.
+"""GWAS Catalog TSV downloader and EFO-filtered SQLite loader.
 
 Downloads the GWAS Catalog associations TSV from the EBI GWAS Catalog,
 filters to a whitelist of EFO trait terms relevant to Yeliztli modules
 (nutrigenomics, fitness, sleep, skin, allergy, traits), and bulk-loads
 into the ``gwas_associations`` table in reference.db.
 
-Also provides annotation lookup: given a list of rsids, returns matching
-GWAS associations grouped by rsid.
+Analysis modules read GWAS-match presence by querying ``gwas_associations``
+directly (a per-module ``SELECT rsid ... WHERE rsid IN (...) DISTINCT``).
 
 Usage::
 
     from backend.annotation.gwas import download_gwas_catalog, load_gwas_into_db
-    from backend.annotation.gwas import lookup_gwas_by_rsids
 
     tsv_path = download_gwas_catalog(dest_dir)
     stats = load_gwas_into_db(tsv_path, engine)
-
-    # Annotation lookup
-    matches = lookup_gwas_by_rsids(["rs429358", "rs7412"], engine)
 """
 
 from __future__ import annotations
@@ -27,7 +23,7 @@ import gzip
 import hashlib
 import re
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
@@ -61,9 +57,6 @@ GWAS_CATALOG_URL = (
 
 # Batch size for bulk inserts (executemany)
 BATCH_SIZE = 10_000
-
-# Batch size for rsid lookups (stay under SQLite 999-variable limit)
-LOOKUP_BATCH_SIZE = 500
 
 # Valid chromosomes (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
@@ -285,40 +278,6 @@ class GWASLoadStats:
     skipped_malformed: int = 0
     file_date: str | None = None
     sha256: str | None = None
-
-
-@dataclass
-class GWASAnnotation:
-    """A single GWAS association for a variant."""
-
-    rsid: str
-    trait: str
-    p_value: float | None
-    odds_ratio: float | None
-    beta: float | None
-    risk_allele: str | None
-    pubmed_id: str | None
-    study: str | None
-    sample_size: int | None
-
-
-@dataclass
-class GWASAnnotationSet:
-    """All GWAS associations for a single variant (may have multiple traits)."""
-
-    rsid: str
-    associations: list[GWASAnnotation] = field(default_factory=list)
-
-    @property
-    def traits(self) -> list[str]:
-        """Return all unique trait names."""
-        return list(dict.fromkeys(a.trait for a in self.associations))
-
-    @property
-    def best_p_value(self) -> float | None:
-        """Return the smallest (most significant) p-value."""
-        p_values = [a.p_value for a in self.associations if a.p_value is not None]
-        return min(p_values) if p_values else None
 
 
 # ── Parsing helpers ───────────────────────────────────────────────────────
@@ -981,89 +940,3 @@ def download_and_load_gwas(
     )
 
     return stats
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# GWAS Catalog Annotation Lookup
-# ═══════════════════════════════════════════════════════════════════════
-
-
-def lookup_gwas_by_rsids(
-    rsids: list[str],
-    reference_engine: sa.Engine,
-) -> dict[str, GWASAnnotationSet]:
-    """Look up GWAS associations for a batch of rsids.
-
-    Returns all associations for each rsid (a variant may be associated
-    with multiple traits). Results are ordered by p-value (most significant
-    first) within each rsid.
-
-    Args:
-        rsids: List of rsid strings (e.g. ["rs429358", "rs7412"]).
-        reference_engine: SQLAlchemy engine for reference.db.
-
-    Returns:
-        Dict mapping rsid → GWASAnnotationSet for matched variants.
-    """
-    if not rsids:
-        return {}
-
-    results: dict[str, GWASAnnotationSet] = {}
-
-    with reference_engine.connect() as conn:
-        for i in range(0, len(rsids), LOOKUP_BATCH_SIZE):
-            batch = rsids[i : i + LOOKUP_BATCH_SIZE]
-
-            stmt = (
-                sa.select(
-                    gwas_associations.c.rsid,
-                    gwas_associations.c.trait,
-                    gwas_associations.c.p_value,
-                    gwas_associations.c.odds_ratio,
-                    gwas_associations.c.beta,
-                    gwas_associations.c.risk_allele,
-                    gwas_associations.c.pubmed_id,
-                    gwas_associations.c.study,
-                    gwas_associations.c.sample_size,
-                )
-                .where(gwas_associations.c.rsid.in_(batch))
-                .order_by(
-                    gwas_associations.c.rsid,
-                    gwas_associations.c.p_value.asc(),
-                )
-            )
-
-            rows = conn.execute(stmt).fetchall()
-
-            for row in rows:
-                rsid = row.rsid
-                annot = GWASAnnotation(
-                    rsid=rsid,
-                    trait=row.trait,
-                    p_value=row.p_value,
-                    odds_ratio=row.odds_ratio,
-                    beta=row.beta,
-                    risk_allele=row.risk_allele,
-                    pubmed_id=row.pubmed_id,
-                    study=row.study,
-                    sample_size=row.sample_size,
-                )
-
-                if rsid not in results:
-                    results[rsid] = GWASAnnotationSet(rsid=rsid)
-                results[rsid].associations.append(annot)
-
-    return results
-
-
-def lookup_gwas_traits_for_rsids(
-    rsids: list[str],
-    reference_engine: sa.Engine,
-) -> dict[str, list[str]]:
-    """Simplified lookup returning just trait names per rsid.
-
-    Convenience function for modules that only need trait names
-    without full association details.
-    """
-    annotation_sets = lookup_gwas_by_rsids(rsids, reference_engine)
-    return {rsid: aset.traits for rsid, aset in annotation_sets.items()}
