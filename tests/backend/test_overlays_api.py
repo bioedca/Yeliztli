@@ -32,6 +32,7 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
     samples,
+    variant_overlays,
 )
 
 # ── Test data ────────────────────────────────────────────────────────
@@ -328,3 +329,92 @@ class TestOverlayIntegration:
         assert rsid_map["rs12345"]["CUSTOM_LABEL"] == "high_impact"
         assert rsid_map["rs429358"]["CUSTOM_AF"] == 0.15
         assert rsid_map["rs429358"]["CUSTOM_LABEL"] == "moderate"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# DELETE clears per-sample variant_overlays rows (cross-DB orphan fix; #854)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _count_overlay_rows(sample_db_path: Path, overlay_id: int) -> int:
+    """Count variant_overlays rows for an overlay directly in the sample DB."""
+    engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    try:
+        with engine.connect() as conn:
+            return conn.execute(
+                sa.select(sa.func.count())
+                .select_from(variant_overlays)
+                .where(variant_overlays.c.overlay_id == overlay_id)
+            ).scalar_one()
+    finally:
+        engine.dispose()
+
+
+_OVERLAY_VCF = (
+    b"##fileformat=VCFv4.2\n"
+    b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+    b"1\t100000\trs12345\tA\tG\t.\tPASS\tSCORE=0.99\n"
+)
+
+
+class TestDeleteClearsSampleResults:
+    """DELETE /api/overlays/{id} must clear the overlay's per-sample
+    variant_overlays rows. They live in each sample DB — a different database
+    from the reference.db config row — so no FK/cascade removes them; the route
+    has to sweep sample DBs explicitly or it orphans the rows (#854)."""
+
+    def _upload_and_apply(self, client: TestClient) -> int:
+        resp = client.post(
+            "/api/overlays/upload?name=DeleteSweep",
+            files={"file": ("o.vcf", io.BytesIO(_OVERLAY_VCF), "text/plain")},
+        )
+        assert resp.status_code == 200
+        overlay_id = resp.json()["overlay"]["id"]
+        resp = client.post(f"/api/overlays/{overlay_id}/apply?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.json()["variants_matched"] == 1
+        return overlay_id
+
+    def test_delete_removes_sample_overlay_rows(
+        self, overlay_client: TestClient, sample_db_path: Path
+    ) -> None:
+        overlay_id = self._upload_and_apply(overlay_client)
+        # The applied row is present in the sample DB before deletion…
+        assert _count_overlay_rows(sample_db_path, overlay_id) == 1
+
+        resp = overlay_client.delete(f"/api/overlays/{overlay_id}")
+        assert resp.status_code == 200
+
+        # …and gone afterwards (no orphaned rows left behind in the sample DB).
+        assert _count_overlay_rows(sample_db_path, overlay_id) == 0
+
+    def test_recreated_overlay_does_not_inherit_stale_rows(
+        self, overlay_client: TestClient, sample_db_path: Path
+    ) -> None:
+        # SQLite reuses the deleted INTEGER PRIMARY KEY, so a new overlay can take
+        # the old id. With the rows cleared on delete, the reused-id overlay starts
+        # empty instead of adopting the previous overlay's annotations (the #854
+        # id-reuse phantom-data escalation).
+        overlay_id = self._upload_and_apply(overlay_client)
+        assert overlay_client.delete(f"/api/overlays/{overlay_id}").status_code == 200
+
+        resp = overlay_client.post(
+            "/api/overlays/upload?name=Reused",
+            files={"file": ("o2.vcf", io.BytesIO(_OVERLAY_VCF), "text/plain")},
+        )
+        new_id = resp.json()["overlay"]["id"]
+        assert new_id == overlay_id  # id was reused — the phantom-data precondition
+
+        # The freshly-created overlay has not been applied, so it must have no rows.
+        assert _count_overlay_rows(sample_db_path, new_id) == 0
+        results = overlay_client.get(f"/api/overlays/{new_id}/results?sample_id=1")
+        assert results.status_code == 200
+        assert results.json()["total"] == 0
+
+    def test_delete_nonexistent_does_not_touch_samples(
+        self, overlay_client: TestClient, sample_db_path: Path
+    ) -> None:
+        # An applied overlay's rows must survive an unrelated overlay's (404) delete.
+        overlay_id = self._upload_and_apply(overlay_client)
+        assert overlay_client.delete("/api/overlays/999").status_code == 404
+        assert _count_overlay_rows(sample_db_path, overlay_id) == 1

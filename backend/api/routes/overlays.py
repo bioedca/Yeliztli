@@ -26,6 +26,7 @@ from backend.annotation.vcfanno_runner import (
     OverlayConfig,
     apply_overlay,
     delete_overlay,
+    delete_overlay_results,
     detect_and_parse_overlay,
     get_overlay,
     get_overlay_results,
@@ -282,6 +283,28 @@ def delete_overlay_config(overlay_id: int) -> dict[str, str]:
     deleted = delete_overlay(overlay_id, registry.reference_engine)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Overlay {overlay_id} not found.")
+
+    # The per-sample applied results (variant_overlays) live in each sample DB,
+    # which is a different database from the reference.db config row just deleted —
+    # there is no cross-database FK/cascade to remove them. Without this explicit
+    # sweep a deleted overlay orphans its rows in every sample it was applied to,
+    # and because SQLite reuses the deleted INTEGER PRIMARY KEY, a later overlay can
+    # inherit that id and adopt the stale annotations (#854). Best-effort per sample:
+    # a missing DB file or absent variant_overlays table just means nothing to clear.
+    with registry.reference_engine.connect() as conn:
+        sample_rows = conn.execute(sa.select(samples.c.id, samples.c.db_path)).fetchall()
+    for sample_row in sample_rows:
+        sample_db_path = registry.settings.data_dir / sample_row.db_path
+        if not sample_db_path.exists():
+            continue
+        try:
+            delete_overlay_results(overlay_id, registry.get_sample_engine(sample_db_path))
+        except (OSError, sa.exc.SQLAlchemyError):
+            logger.warning(
+                "Failed to clear overlay %s results from sample %s",
+                overlay_id,
+                sample_row.id,
+            )
 
     # Clean up stored file
     file_path = registry.settings.data_dir / "overlays" / f"overlay_{overlay_id}.txt"

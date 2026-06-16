@@ -510,11 +510,9 @@ def apply_overlay(
 
     result = ApplyResult(overlay_id=overlay_id, overlay_name=overlay_name)
 
-    # Delete any previous results for this overlay on this sample
-    with sample_engine.begin() as conn:
-        conn.execute(
-            sa.delete(variant_overlays).where(variant_overlays.c.overlay_id == overlay_id)
-        )
+    # Delete any previous results for this overlay on this sample. Shares the single
+    # source of truth for overlay-row removal with the delete route (#854).
+    delete_overlay_results(overlay_id, sample_engine)
 
     # Load all sample variant positions for intersection.
     # Prefer annotated_variants (has ref/alt), fall back to raw_variants.
