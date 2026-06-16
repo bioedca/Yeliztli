@@ -140,7 +140,7 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
 def _render_prs_gauge(
     finding: dict[str, Any],
     detail: dict[str, Any],
-) -> str:
+) -> str | None:
     """Render a semicircular gauge for PRS percentile with bootstrap CI.
 
     Gauge geometry: semicircle (180 degrees) centered at (200, 220),
@@ -151,8 +151,16 @@ def _render_prs_gauge(
     radius = 140
     track_width = 20
 
-    percentile = finding.get("prs_percentile", 50.0)
-    percentile = max(0.0, min(100.0, float(percentile or 50.0)))
+    percentile_raw = finding.get("prs_percentile")
+    if percentile_raw is None:
+        return None
+    try:
+        percentile = float(percentile_raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(percentile):
+        return None
+    percentile = max(0.0, min(100.0, percentile))
 
     z_score = detail.get("z_score") or finding.get("prs_score")
     ci_lower_raw = detail.get("bootstrap_ci_lower")

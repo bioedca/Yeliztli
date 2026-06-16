@@ -195,6 +195,17 @@ class TestRenderFindingSvg:
         assert 'stroke="#14B8A6"' not in svg
         assert 'opacity="0.35"' not in svg
 
+    def test_prs_gauge_with_withheld_percentile_returns_none(self, prs_finding):
+        prs_finding["finding_text"] = (
+            "Breast Cancer: population percentile not reported — "
+            "score lacks a validated reference distribution"
+        )
+        prs_finding["prs_percentile"] = None
+
+        svg = render_finding_svg(prs_finding)
+
+        assert svg is None
+
     def test_nutrigenomics_generates_pathway_indicator(self, nutrigenomics_finding):
         svg = render_finding_svg(nutrigenomics_finding)
         assert svg is not None
@@ -295,6 +306,14 @@ class TestSaveFindingSvgs:
         # But the file exists on disk
         assert (tmp_path / svg_path).exists()
 
+    def test_withheld_prs_percentile_does_not_save_quantitative_gauge(self, tmp_path, prs_finding):
+        prs_finding["prs_percentile"] = None
+
+        updated = save_finding_svgs([prs_finding], tmp_path)
+
+        assert updated[0].get("svg_path") is None
+        assert not (tmp_path / "svgs" / f"{prs_finding['id']}.svg").exists()
+
 
 # ── generate_svgs_for_sample tests ──────────────────────────────────
 
@@ -336,6 +355,36 @@ class TestGenerateSvgsForSample:
             svg_path = tmp_path / rows[0].svg_path
             assert svg_path.exists()
             assert "95% CI: 65 – 79" in svg_path.read_text()
+
+    def test_withheld_prs_percentile_does_not_update_svg_path(self, sample_engine, tmp_path):
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="cancer",
+                    category="prs",
+                    evidence_level=1,
+                    finding_text=(
+                        "Breast Cancer: population percentile not reported — "
+                        "score lacks a validated reference distribution"
+                    ),
+                    prs_percentile=None,
+                    detail_json=json.dumps(
+                        {
+                            "trait": "breast_cancer",
+                            "name": "Breast Cancer",
+                            "z_score": 0.58,
+                        }
+                    ),
+                )
+            )
+
+        count = generate_svgs_for_sample(sample_engine, tmp_path)
+
+        assert count == 0
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings)).one()
+        assert row.svg_path is None
+        assert not (tmp_path / "svgs" / f"{row.id}.svg").exists()
 
     def test_empty_findings_returns_zero(self, sample_engine, tmp_path):
         count = generate_svgs_for_sample(sample_engine, tmp_path)
