@@ -4,7 +4,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/skin/PathwayCard"
-import type { PathwaySummary } from "@/types/skin"
+import PathwayDetailPanel from "@/components/skin/PathwayDetailPanel"
+import { useSkinPathwayDetail } from "@/api/skin"
+import type { PathwayDetailResponse, PathwaySummary } from "@/types/skin"
+
+vi.mock("@/api/skin", () => ({
+  useSkinPathwayDetail: vi.fn(),
+}))
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -51,6 +57,38 @@ const MICRONUTRIENTS_PATHWAY: PathwaySummary = {
   missing_snps: ["rs7975232"],
   pmids: ["20541252"],
 }
+
+const RS885479_DETAIL: PathwayDetailResponse = {
+  pathway_id: "pigmentation_uv",
+  pathway_name: "Pigmentation & UV Response",
+  level: "Moderate",
+  evidence_level: 2,
+  called_snps: 1,
+  total_snps: 1,
+  missing_snps: [],
+  pmids: ["18366057"],
+  snp_details: [
+    {
+      rsid: "rs885479",
+      gene: "MC1R",
+      variant_name: "R163Q",
+      genotype: "AG",
+      category: "Moderate",
+      effect_summary:
+        "One copy of the R163Q 'r' (mild) allele. Modestly reduced MC1R signaling.",
+      evidence_level: 2,
+      recommendation: null,
+      pmids: ["18366057"],
+      mc1r_allele_class: "r",
+      coverage_note: null,
+      insufficient_data_flag: false,
+    },
+  ],
+}
+
+const useSkinPathwayDetailMock = useSkinPathwayDetail as unknown as ReturnType<
+  typeof vi.fn
+>
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
 
@@ -169,5 +207,34 @@ describe("PathwayCard", () => {
       expect(screen.getByText(pathway.pathway_name)).toBeInTheDocument()
       unmount()
     }
+  })
+})
+
+// ── PathwayDetailPanel tests ───────────────────────────────────────────
+
+describe("PathwayDetailPanel", () => {
+  beforeEach(() => {
+    useSkinPathwayDetailMock.mockReset()
+  })
+
+  it("preserves the lowercase MC1R r allele badge for rs885479", () => {
+    useSkinPathwayDetailMock.mockReturnValue({
+      data: RS885479_DETAIL,
+      isLoading: false,
+      isError: false,
+      error: null,
+    })
+
+    render(
+      <PathwayDetailPanel
+        pathwayId="pigmentation_uv"
+        pathwayName="Pigmentation & UV Response"
+        sampleId={1}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(screen.getByText("MC1R r allele")).toBeInTheDocument()
+    expect(screen.queryByText("MC1R R allele")).not.toBeInTheDocument()
   })
 })

@@ -51,7 +51,7 @@ function SNPRow({ snp }: { snp: SNPDetail }) {
           <span className="font-mono font-medium">{snp.genotype}</span>
           {snp.mc1r_allele_class && (
             <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
-              MC1R {snp.mc1r_allele_class.toUpperCase()} allele
+              MC1R {snp.mc1r_allele_class} allele
             </span>
           )}
         </p>
