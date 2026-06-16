@@ -181,6 +181,42 @@ def noauth_client(tmp_data_dir: Path):
     clear_all_sessions()
 
 
+@pytest.fixture
+def auth_enabled_without_password_client(tmp_data_dir: Path):
+    """TestClient with auth_enabled set but no password hash configured."""
+    clear_all_sessions()
+    settings = Settings(
+        data_dir=tmp_data_dir,
+        wal_mode=False,
+        auth_enabled=True,
+        auth_password_hash="",
+    )
+
+    ref_path = settings.reference_db_path
+    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(engine)
+    engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+        patch("backend.auth.get_settings", return_value=settings),
+        patch("backend.api.routes.auth.get_settings", return_value=settings),
+        # config.toml (incl. auth settings) lives in DEFAULT_DATA_DIR; isolate it
+        # to the temp dir so _persist_auth_settings never writes the real home.
+        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
+    ):
+        reset_registry()
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+
+        reset_registry()
+    clear_all_sessions()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # T4-22a: Login with correct/wrong PIN
 # ═══════════════════════════════════════════════════════════════════════
@@ -303,6 +339,16 @@ class TestAuthDisabled:
         body = resp.json()
         assert body["auth_enabled"] is False
         assert body["authenticated"] is True  # Everyone is "authenticated" when disabled
+
+    def test_auth_status_disables_auth_when_no_password_is_set(
+        self, auth_enabled_without_password_client: TestClient
+    ) -> None:
+        resp = auth_enabled_without_password_client.get("/api/auth/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["auth_enabled"] is False
+        assert body["has_password"] is False
+        assert body["authenticated"] is True  # No password means auth cannot be enforced
 
 
 # ═══════════════════════════════════════════════════════════════════════
