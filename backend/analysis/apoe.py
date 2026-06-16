@@ -122,23 +122,6 @@ class APOEAllele(StrEnum):
     E4 = "ε4"
 
 
-# ── Haplotype → allele mapping ──────────────────────────────────────────
-#
-# Each chromosome carries one allele at each SNP position.
-# The combination defines the APOE allele on that chromosome:
-#
-#   rs429358  rs7412   → allele
-#   T         T        → ε2
-#   T         C        → ε3
-#   C         C        → ε4
-#   C         T        → (ε1, extremely rare — not called in standard panels)
-
-_HAPLOTYPE_TO_ALLELE: dict[tuple[str, str], APOEAllele] = {
-    ("T", "T"): APOEAllele.E2,
-    ("T", "C"): APOEAllele.E3,
-    ("C", "C"): APOEAllele.E4,
-}
-
 # ── Diplotype lookup from unphased genotypes ────────────────────────────
 #
 # Since array data is unphased, we work with the two-SNP genotype
