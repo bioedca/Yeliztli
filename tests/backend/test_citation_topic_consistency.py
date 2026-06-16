@@ -38,6 +38,7 @@ import json
 import re
 from pathlib import Path
 
+from test_citation_provenance_guard import _SOURCE_PMID_RE
 from test_indel_polarity_provenance import (
     _discover_carrier_indel_polarities,
     _discover_panel_indel_loci,
@@ -51,7 +52,6 @@ _SNAPSHOT_PATH = (
 
 # Mirror the guard's PMID-bearing keys (test_citation_provenance_guard._PMID_KEYS).
 _PMID_KEYS = ("pmids", "pmid_citations", "pmid", "source_pmid")
-_SOURCE_PMID_RE = re.compile(r"\bPMID\s*:?\s*(\d+)\b", re.IGNORECASE)
 # Sibling keys that name the panel entry whose citations we are checking.
 _RSID_KEYS = ("rsid", "primary_rsid")
 _GENE_KEYS = ("gene", "gene_symbol")
@@ -153,6 +153,7 @@ _INDEL_POLARITY_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "methylation_panel.json::rs70991108": frozenset(
         {"dihydrofolate", "reductase", "folic", "folate"}
     ),
+    "skin_panel.json::rs1799750": frozenset({"mmp", "metalloproteinase", "promoter"}),
 }
 
 
@@ -181,8 +182,13 @@ def _entry_pmids(entry: dict) -> list[str]:
         for source in sources:
             if isinstance(source, str):
                 out.extend(_SOURCE_PMID_RE.findall(source))
+    result: list[str] = []
     seen: set[str] = set()
-    return [p for p in out if p.isdigit() and not (p in seen or seen.add(p))]
+    for pmid in out:
+        if pmid.isdigit() and pmid not in seen:
+            seen.add(pmid)
+            result.append(pmid)
+    return result
 
 
 def _panel_entries() -> dict[str, list[dict]]:
