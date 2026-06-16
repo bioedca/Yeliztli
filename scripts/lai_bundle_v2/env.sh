@@ -73,6 +73,9 @@
 # per-superpop gate forces a different value (e.g. 350).
 : "${PER_REGION_CAP:=250}"               # 0 = no cap; else balance each region to <= N
 : "${MIN_PER_REGION:=20}"                # BUILD GATE — fail if any superpop under-represented
+: "${HELDOUT_PER_REGION_N:=5}"           # Phase 4 hold-out count per superpop for production-path validation
+: "${HELDOUT_MIN_REGION_ACCURACY:=1.0}"  # Phase 7 gate: every superpop must meet/exceed this held-out accuracy
+: "${HELDOUT_MIN_EUR_ACCURACY:=1.0}"     # Phase 7 gate: EUR must meet/exceed this held-out accuracy
 : "${BEAGLE_XMX:=4g}"
 # Phase 6c parallel fan-out: BEAGLE_PARALLEL concurrent Beagle runs, each capped to
 # BEAGLE_NTHREADS threads. BEAGLE_PARALLEL auto-scales from the SLURM cpu allocation

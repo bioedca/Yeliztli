@@ -11,6 +11,8 @@
 #   $ADMIX_DIR/sample_map.txt                  — sample_id<TAB>population (Gnomix input)
 #   $ADMIX_DIR/single_ancestry_samples.tsv     — selected table
 #   $ADMIX_DIR/excluded_admixed_samples.tsv    — audit log
+#   $VALIDATION_DIR/held_out_validation.tsv    — held-out per-superpop validation set
+#   $ADMIX_DIR/sample_map.full.txt             — pre-holdout full training map
 #
 # fastmixture (ADMIXTURE) is still run — its Q now drives only a LIGHT
 # admixture-outlier floor + audit, NOT label assignment. Reference labels come
@@ -87,4 +89,14 @@ python "$SCRIPT_DIR/04c_filter_single_ancestry.py" \
   --out-single-ancestry "$ADMIX_DIR/single_ancestry_samples.tsv" \
   --out-excluded "$ADMIX_DIR/excluded_admixed_samples.tsv"
 
-phase_log "phase 4 complete: $(wc -l < sample_map.txt) reference training samples"
+phase_log "selecting held-out per-superpopulation validation samples before Gnomix training"
+python "$SCRIPT_DIR/06f_select_heldout.py" \
+  --sample-map "$ADMIX_DIR/sample_map.txt" \
+  --n "$HELDOUT_PER_REGION_N" \
+  --seed "$ADMIXTURE_SEED" \
+  --out-heldout "$VALIDATION_DIR/held_out_validation.tsv" \
+  --out-training "$ADMIX_DIR/sample_map.txt" \
+  --out-full-backup "$ADMIX_DIR/sample_map.full.txt" \
+  --min-per-region "$MIN_PER_REGION"
+
+phase_log "phase 4 complete: $(wc -l < sample_map.txt) reference training samples after hold-out"

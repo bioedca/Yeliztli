@@ -60,6 +60,9 @@ EXPECTED_HELPERS = [
     "06c_beagle_one.sh",
     "06d_phasing_accuracy.py",
     "06e_lai_accuracy.py",
+    "06f_select_heldout.py",
+    "06f_heldout_superpop_accuracy.py",
+    "extract_heldout_fixtures.py",
     "07_write_metadata.py",
     "gnomix_launcher.py",
     "07b_reexport_gnomix_models.py",
@@ -202,6 +205,9 @@ class TestPythonHelpersCompile:
             "06b_mendelian_phasing.py",
             "06d_phasing_accuracy.py",
             "06e_lai_accuracy.py",
+            "06f_select_heldout.py",
+            "06f_heldout_superpop_accuracy.py",
+            "extract_heldout_fixtures.py",
             "07_write_metadata.py",
             "gnomix_launcher.py",
             "07b_reexport_gnomix_models.py",
@@ -357,8 +363,9 @@ class TestPhase07Metadata:
 
     def test_reads_correct_accuracy_field(self) -> None:
         text = (SCRIPTS_DIR / "07_write_metadata.py").read_text()
-        assert "mean_val_accuracy" in text  # the field 06e actually writes
-        assert "overall_accuracy" not in text  # the wrong field that returned null
+        # the field 06e actually writes, not the old wrong field that returned null
+        assert 'accuracy = json.loads(lai_report.read_text()).get("mean_val_accuracy")' in text
+        assert 'accuracy = json.loads(lai_report.read_text()).get("overall_accuracy")' not in text
 
     def test_window_count_from_npz_not_pkl(self) -> None:
         text = (SCRIPTS_DIR / "07_write_metadata.py").read_text()
@@ -372,6 +379,11 @@ class TestPhase07Metadata:
         text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
         assert "cp -f " in text
         assert re.search(r'\bcp "\$', text) is None  # every cp is forced
+
+    def test_metadata_records_heldout_superpop_gate(self) -> None:
+        text = (SCRIPTS_DIR / "07_write_metadata.py").read_text()
+        assert "heldout_superpop_accuracy_report.json" in text
+        assert "heldout_superpop_accuracy" in text
 
 
 class TestGnomixPandasAppendShim:
@@ -495,6 +507,45 @@ class TestPhase06WiresLogParser:
         assert "--log-dir" in text and "--chroms" in text
         # the dead inference-glob flags must be gone
         assert "--gnomix-dir" not in text
+
+
+class TestHeldoutSuperpopGate:
+    """Held-out production-path LAI validation is mandatory and ordered.
+
+    The hold-out must be selected before phase 05 trains Gnomix, while the
+    production inference check must run after phase 07 has assembled the runtime
+    bundle layout but before metadata/tarball publication.
+    """
+
+    def test_phase04_selects_holdout_before_training(self) -> None:
+        text = (SCRIPTS_DIR / "04_admixture_filter.sh").read_text()
+        assert "06f_select_heldout.py" in text
+        assert '--out-heldout "$VALIDATION_DIR/held_out_validation.tsv"' in text
+        assert '--out-training "$ADMIX_DIR/sample_map.txt"' in text
+        assert '--out-full-backup "$ADMIX_DIR/sample_map.full.txt"' in text
+
+    def test_phase07_runs_heldout_gate_before_metadata_and_tarball(self) -> None:
+        text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
+        extract_idx = text.index("extract_heldout_fixtures.py")
+        gate_idx = text.index("06f_heldout_superpop_accuracy.py")
+        metadata_idx = text.index("07_write_metadata.py")
+        tarball_idx = text.index("tar -czf")
+        assert extract_idx < gate_idx < metadata_idx < tarball_idx
+        assert 'YELIZTLI_LAI_BUNDLE_PATH="$BUNDLE_DIR"' in text
+        assert '"$VALIDATION_DIR/heldout_superpop_accuracy_report.json"' in text
+
+    def test_extract_heldout_fixtures_is_parametrized(self) -> None:
+        text = (SCRIPTS_DIR / "extract_heldout_fixtures.py").read_text()
+        assert "Path.home()" not in text
+        for flag in ("--panel-dir", "--validation-dir", "--site-map"):
+            assert flag in text
+
+    def test_heldout_accuracy_script_is_a_hard_gate(self) -> None:
+        text = (SCRIPTS_DIR / "06f_heldout_superpop_accuracy.py").read_text()
+        assert "HELDOUT_MIN_REGION_ACCURACY" in text
+        assert "HELDOUT_MIN_EUR_ACCURACY" in text
+        assert "HELD-OUT SUPERPOPULATION GATE FAILED" in text
+        assert "raise SystemExit(1)" in text
 
 
 class TestTrioIdentification:

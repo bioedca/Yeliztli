@@ -4,6 +4,7 @@
 Schema per AncestryDNA_Integration_Plan.md §6.5. Pulls validation metrics from
 the JSON reports produced in Phase 6 when present.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,13 +63,26 @@ def main() -> int:
             pass
 
     # Validation metrics — pulled from Phase 6 reports if present.
-    accuracy = phasing = None
+    accuracy = phasing = heldout = None
     lai_report = args.validation_dir / "lai_accuracy_report.json"
     phase_report = args.validation_dir / "phasing_accuracy_report.json"
+    heldout_report = args.validation_dir / "heldout_superpop_accuracy_report.json"
     if lai_report.exists():
         accuracy = json.loads(lai_report.read_text()).get("mean_val_accuracy")
     if phase_report.exists():
         phasing = json.loads(phase_report.read_text()).get("mean_switch_error_rate")
+    if heldout_report.exists():
+        heldout_data = json.loads(heldout_report.read_text())
+        heldout = {
+            "overall_accuracy": heldout_data.get("overall_accuracy"),
+            "per_region_accuracy": heldout_data.get("per_region_accuracy"),
+            "per_region_n": heldout_data.get("per_region_n"),
+            "min_region_accuracy": heldout_data.get("min_region_accuracy"),
+            "min_eur_accuracy": heldout_data.get("min_eur_accuracy"),
+            "eur_accuracy": heldout_data.get("eur_accuracy"),
+            "eur_passes": heldout_data.get("eur_passes"),
+            "all_regions_pass": heldout_data.get("all_regions_pass"),
+        }
 
     beagle_jar = bundle / "beagle" / "beagle.jar"
     beagle_sha = _sha256(beagle_jar) if beagle_jar.exists() else None
@@ -90,6 +104,7 @@ def main() -> int:
         "window_count": window_count,
         "accuracy_per_window_mean": accuracy,
         "phasing_switch_error": phasing,
+        "heldout_superpop_accuracy": heldout,
     }
     (bundle / "metadata.json").write_text(json.dumps(meta, indent=2))
     print(json.dumps(meta, indent=2))

@@ -6,6 +6,7 @@
 #   $BUNDLE_DIR/metadata.json     — provenance per Plan §6.5
 #   $BUNDLE_DIR/README.md         — citation + build summary
 #   $BUNDLE_DIR/CHECKSUMS.md5
+#   $VALIDATION_DIR/heldout_superpop_accuracy_report.json
 #   $WORKDIR/yeliztli_lai_bundle_${LAI_BUNDLE_VERSION}.tar.gz
 #
 # Plan §6.4 phase 7 — bundle layout unchanged from v1.1; only the per-chrom
@@ -22,6 +23,7 @@ require python
 require md5sum
 require tar
 require conda  # gnomix-model re-export runs in $GNOMIX_ENV (numpy/xgboost/sklearn)
+require_file "$VALIDATION_DIR/held_out_validation.tsv"
 
 cd "$BUNDLE_DIR"
 
@@ -53,6 +55,25 @@ cp -f "$LIFTOVER_DIR/hg19ToHg38.over.chain.gz" liftover/
 cp -f "$LIFTOVER_DIR/rsid_to_grch38.tsv" liftover/array_site_mapping.tsv
 
 cp -f "$BEAGLE_JAR" beagle/beagle.jar
+
+phase_log "extracting held-out per-superpopulation fixtures"
+python "$SCRIPT_DIR/extract_heldout_fixtures.py" \
+  --panel-dir "$PANEL_DIR" \
+  --validation-dir "$VALIDATION_DIR" \
+  --site-map "$LIFTOVER_DIR/rsid_to_grch38.tsv" \
+  --chroms $CHROMS
+
+phase_log "running held-out per-superpopulation production-inference gate"
+mkdir -p "$VALIDATION_DIR/heldout_runtime_data"
+YELIZTLI_DATA_DIR="$VALIDATION_DIR/heldout_runtime_data" \
+YELIZTLI_LAI_BUNDLE_PATH="$BUNDLE_DIR" \
+HELDOUT_MIN_REGION_ACCURACY="$HELDOUT_MIN_REGION_ACCURACY" \
+HELDOUT_MIN_EUR_ACCURACY="$HELDOUT_MIN_EUR_ACCURACY" \
+VAL_WORKERS="${VAL_WORKERS:-6}" \
+  python "$SCRIPT_DIR/06f_heldout_superpop_accuracy.py" \
+    "$VALIDATION_DIR/heldout_fixtures" \
+    "$VALIDATION_DIR/held_out_validation.tsv" \
+    "$VALIDATION_DIR/heldout_superpop_accuracy_report.json"
 
 phase_log "writing metadata.json (Plan §6.5)"
 python "$SCRIPT_DIR/07_write_metadata.py" \
