@@ -522,6 +522,16 @@ class TestRiskTolerance:
         snp = self._get_risk_snp(panel_data)
         assert snp["trait_domain"] == "risk_tolerance"
 
+    def test_risk_tolerance_uses_plus_strand_c_t_frame(self, panel_data: dict) -> None:
+        """GWAS Catalog association 93037387 reports rs993137-C; Ensembl GRCh37
+        reports C/G/T at this locus, so the no-risk comparator must not be A."""
+        snp = self._get_risk_snp(panel_data)
+        assert snp["risk_allele"] == "C"
+        assert snp["ref_allele"] == "T"
+        assert set(snp["genotype_effects"]) == {"TT", "TC", "CT", "CC"}
+        assert snp["genotype_effects"]["TT"]["category"] == "Standard"
+        assert snp["genotype_effects"]["CC"]["category"] == "Moderate"
+
     def test_risk_tolerance_in_behavioral_pathway(self, panel_data: dict) -> None:
         for pw in panel_data["pathways"]:
             if pw["id"] == "behavioral_traits":

@@ -60,14 +60,13 @@ EXPECTED_RSIDS = {
     "rs3733890",  # BHMT
     "rs2228611",  # DNMT1
     "rs2424913",  # DNMT3B
-    # Transsulfuration (7)
+    # Transsulfuration (6)
     "rs234706",  # CBS proxy
     "rs1021737",  # CTH
     "rs17883901",  # GCLC
     "rs41303970",  # GCLM
     "rs1050450",  # GPX1
     "rs4880",  # SOD2
-    "rs3761144",  # GSS
     # BH4 & Neurotransmitter (7)
     "rs4680",  # COMT Val158Met
     "rs2228570",  # VDR FokI
@@ -106,7 +105,6 @@ EXPECTED_GENES = {
     "GCLM",
     "GPX1",
     "SOD2",
-    "GSS",
     "COMT",
     "VDR",
     "MTHFD1",
@@ -184,9 +182,9 @@ class TestSNPCoverage:
         assert all_genes == EXPECTED_GENES
 
     def test_total_snp_count(self, panel_data: dict) -> None:
-        """~35 curated SNPs total across all pathways."""
+        """Curated SNPs total across all pathways."""
         count = sum(len(p["snps"]) for p in panel_data["pathways"])
-        assert count == 35
+        assert count == 34
 
     def test_folate_mthfr_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "folate_mthfr")
@@ -198,7 +196,7 @@ class TestSNPCoverage:
 
     def test_transsulfuration_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "transsulfuration")
-        assert len(pw["snps"]) == 7
+        assert len(pw["snps"]) == 6
 
     def test_bh4_neurotransmitter_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "bh4_neurotransmitter")
@@ -638,7 +636,7 @@ class TestPathwayAllocation:
         assert "rs41303970" in rsids  # GCLM
         assert "rs1050450" in rsids  # GPX1
         assert "rs4880" in rsids  # SOD2
-        assert "rs3761144" in rsids  # GSS
+        assert "rs3761144" not in rsids  # untraceable GSS effect allele removed (#959)
 
     def test_bh4_neurotransmitter_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "bh4_neurotransmitter")
@@ -909,7 +907,7 @@ class TestMethylationCitationRemediation:
     choline-betaine / vitamin-D references — each PMID title verified via NCBI
     esummary and the association verified with the Consensus connector. rsIDs with
     little/no PubMed footprint (MTHFS rs6495446, MAT1A rs10887718, AHCY rs819147,
-    GSS rs3761144, QDPR rs1677693, BHMT rs585800) cite the gene's
+    QDPR rs1677693 and BHMT rs585800 cite the gene's
     functional/discovery papers rather than a fabricated variant-specific one. The
     TCN2 row also drops the dead PMID 19187342 (#417).
     """
@@ -937,7 +935,6 @@ class TestMethylationCitationRemediation:
         "rs2228611": {"28473984", "33854407", "37833704"},  # DNMT1
         "rs2424913": {"21854760", "36980848", "27789275"},  # DNMT3B -149C>T
         "rs1021737": {"15151507", "18476726", "19428278"},  # CTH S403I
-        "rs3761144": {"33888803", "15717202"},  # GSS (gene-level)
         "rs8007267": {"24136375", "18598896"},  # GCH1
         "rs1677693": {"20615890", "16917893"},  # QDPR (gene-level)
         "rs2228570": {"9797477", "17274004", "15899948"},  # VDR FokI

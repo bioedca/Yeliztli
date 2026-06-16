@@ -185,17 +185,17 @@
           "variant_name": "CADM2 intergenic (risk tolerance)",
           "hgvs_protein": null,
           "risk_allele": "C",
-          "ref_allele": "A",
+          "ref_allele": "T",
           "genotype_effects": {
-            "AA": {
+            "TT": {
               "category": "Standard",
               "effect_summary": "No risk allele at CADM2 risk tolerance locus. No association with altered risk-taking behavior at this variant."
             },
-            "AC": {
+            "TC": {
               "category": "Moderate",
               "effect_summary": "One copy of the C allele. Associated with modestly higher self-reported willingness to take risks in GWAS of >1 million participants."
             },
-            "CA": {
+            "CT": {
               "category": "Moderate",
               "effect_summary": "One copy of the C allele. Associated with modestly higher self-reported willingness to take risks in GWAS of >1 million participants."
             },

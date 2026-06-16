@@ -341,6 +341,13 @@ class TestSNPScoring:
         assert result.category == MODERATE
         assert result.trait_domain == "risk_tolerance"
 
+    def test_risk_tolerance_tt_standard(self, panel: TraitsPanel) -> None:
+        """CADM2 risk tolerance TT is the plus-strand no-risk comparator (#959)."""
+        cadm2 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs993137")
+        result = _score_snp(cadm2, "TT")
+        assert result.category == STANDARD
+        assert result.trait_domain == "risk_tolerance"
+
     def test_openness_star1_capped(self, panel: TraitsPanel) -> None:
         """CTNNA2 openness is ★☆ — should be capped at Moderate max."""
         ctnna2 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs2572431")

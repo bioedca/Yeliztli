@@ -4,7 +4,7 @@
     "assembly": "GRCh37",
     "accessed": "2026-06-16",
     "generator": "scripts/build_panel_rsid_coordinates.py",
-    "panel_rsid_count": 521,
+    "panel_rsid_count": 520,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -1429,17 +1429,6 @@
       "allele_string": "G/A",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs3758149"
-    },
-    "rs3761144": {
-      "assembly": "GRCh37",
-      "chrom": "20",
-      "start": 33544075,
-      "end": 33544075,
-      "location": "20:33544075",
-      "strand": 1,
-      "allele_string": "C/G/T",
-      "variant_class": "SNP",
-      "source": "https://grch37.rest.ensembl.org/variation/human/rs3761144"
     },
     "rs3764650": {
       "assembly": "GRCh37",

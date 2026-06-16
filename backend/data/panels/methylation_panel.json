@@ -650,35 +650,6 @@
           "evidence_level": 1,
           "pmids": ["12618592", "15864132", "23952573"],
           "recommendation_text": "SOD2 (MnSOD) is the primary mitochondrial superoxide dismutase. The Val16 allele has less efficient mitochondrial import. Antioxidant-rich diet may support mitochondrial redox balance."
-        },
-        {
-          "rsid": "rs3761144",
-          "gene": "GSS",
-          "variant_name": "GSS 5' UTR",
-          "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
-          "genotype_effects": {
-            "GG": {
-              "category": "Standard",
-              "effect_summary": "Standard glutathione synthetase expression. Normal second step of glutathione synthesis."
-            },
-            "GA": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous GSS variant. May modestly alter glutathione synthetase expression."
-            },
-            "AG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous GSS variant. May modestly alter glutathione synthetase expression."
-            },
-            "AA": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous GSS variant. May reduce glutathione synthetase expression, affecting the second step of glutathione biosynthesis."
-            }
-          },
-          "evidence_level": 1,
-          "pmids": ["33888803", "15717202"],
-          "recommendation_text": "GSS catalyzes the second step of glutathione synthesis (γ-glutamylcysteine + glycine → glutathione). Variants may affect overall glutathione production capacity."
         }
       ]
     },
