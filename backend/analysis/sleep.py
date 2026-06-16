@@ -8,7 +8,8 @@ Implements P3-49:
   - rs2858884 HLA-DQ region marker (NOT a DQB1*06:02 / narcolepsy proxy;
     informational only, no narcolepsy risk inferred).
   - PER3 VNTR proxy with coverage note.
-  - Categorical outputs only (Elevated / Moderate / Standard).
+  - Categorical outputs only (Elevated / Moderate / Standard; Indeterminate
+    for observed genotypes outside the curated locus model).
 
 Panel definition lives in ``backend/data/panels/sleep_panel.json`` (P3-48).
 
@@ -40,7 +41,11 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.genotype_lookup import genotype_candidates, lookup_by_genotype
+from backend.analysis.genotype_lookup import (
+    genotype_candidates,
+    is_acgt_genotype,
+    lookup_by_genotype,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import annotated_variants, findings, gwas_associations, raw_variants
@@ -54,6 +59,7 @@ _PANEL_PATH = Path(__file__).resolve().parent.parent / "data" / "panels" / "slee
 ELEVATED = "Elevated"
 MODERATE = "Moderate"
 STANDARD = "Standard"
+INDETERMINATE = "Indeterminate"
 
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
@@ -116,7 +122,7 @@ class SNPResult:
     gene: str
     variant_name: str
     genotype: str | None  # None if not genotyped
-    category: str  # Elevated / Moderate / Standard
+    category: str  # Elevated / Moderate / Standard / Indeterminate
     effect_summary: str
     evidence_level: int
     pmids: list[str]
@@ -316,21 +322,38 @@ def _score_snp(snp: PanelSNP, genotype: str | None, panel: SleepPanel) -> SNPRes
             gene=snp.gene,
             genotype=genotype,
         )
+        # A present, real-nucleotide genotype that resolves to no curated entry is
+        # NOT baseline: it carries an allele this locus does not model (a third/rare
+        # allele or an unkeyed pair), so it is withheld as Indeterminate rather than
+        # silently scored Standard. Non-nucleotide tokens fall through to Standard.
+        unmodeled = is_acgt_genotype(genotype)
+        metabolizer = None
+        if not unmodeled and snp.rsid == "rs762551":
+            metabolizer = _resolve_metabolizer_state(panel, genotype)
         return SNPResult(
             rsid=snp.rsid,
             gene=snp.gene,
             variant_name=snp.variant_name,
             genotype=genotype,
-            category=STANDARD,
-            effect_summary=f"Genotype {genotype} not in curated panel definitions.",
+            category=INDETERMINATE if unmodeled else STANDARD,
+            effect_summary=(
+                f"Genotype {genotype} carries an allele this locus does not model "
+                f"(it matches no curated genotype), so it is reported as indeterminate "
+                f"rather than assumed baseline."
+                if unmodeled
+                else f"Genotype {genotype} not in curated panel definitions."
+            ),
             evidence_level=snp.evidence_level,
             pmids=snp.pmids,
             recommendation_text=snp.recommendation_text,
             present_in_sample=True,
-            metabolizer_state=(
-                _resolve_metabolizer_state(panel, genotype) if snp.rsid == "rs762551" else None
+            metabolizer_state=metabolizer,
+            coverage_note=(
+                "Observed genotype includes an allele outside this locus's curated "
+                "model; not interpretable from the panel."
+                if unmodeled
+                else snp.coverage_note
             ),
-            coverage_note=snp.coverage_note,
         )
 
     category = effect.get("category", STANDARD)
@@ -377,7 +400,7 @@ def _determine_pathway_level(snp_results: list[SNPResult]) -> str:
     Only SNPs present in the sample contribute to the pathway level.
     If no SNPs are genotyped, the pathway defaults to Standard.
     """
-    called = [r for r in snp_results if r.present_in_sample]
+    called = [r for r in snp_results if r.present_in_sample and r.category != INDETERMINATE]
     if not called:
         return STANDARD
 

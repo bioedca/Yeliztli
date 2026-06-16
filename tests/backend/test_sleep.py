@@ -24,6 +24,7 @@ import sqlalchemy as sa
 
 from backend.analysis.sleep import (
     ELEVATED,
+    INDETERMINATE,
     MODERATE,
     MODULE_NAME,
     STANDARD,
@@ -278,6 +279,16 @@ class TestCYP1A2Metabolizer:
         assert cyp.cross_module is not None
         assert cyp.cross_module["module"] == "pharmacogenomics"
 
+    def test_cyp1a2_unmodeled_acgt_genotype_has_no_metabolizer_state(
+        self, panel: SleepPanel
+    ) -> None:
+        """A real but unmodeled CYP1A2 genotype is withheld, not metabolizer-called."""
+        cyp = self._get_cyp1a2(panel)
+        result = _score_snp(cyp, "AT", panel)
+        assert result.category == INDETERMINATE
+        assert result.metabolizer_state is None
+        assert result.present_in_sample is True
+
 
 # ── rs2858884 HLA-DQ region marker tests ────────────────────────────────
 
@@ -309,7 +320,7 @@ class TestHLAProxy:
     def test_hla_all_genotypes_standard(self, panel: SleepPanel) -> None:
         """No genotype yields a narcolepsy risk call — all map to Standard."""
         hla = self._get_hla(panel)
-        for genotype in ("CC", "CT", "TC", "TT"):
+        for genotype in ("CC", "CA", "AC", "AA"):
             result = _score_snp(hla, genotype, panel)
             assert result.category == STANDARD, f"{genotype} should be Standard"
             assert result.coverage_note is not None
@@ -362,11 +373,22 @@ class TestSNPScoring:
         result_tc = _score_snp(adora2a, "TC", panel)
         assert result_ct.category == result_tc.category == MODERATE
 
-    def test_unknown_genotype_defaults_standard(self, panel: SleepPanel) -> None:
+    def test_non_nucleotide_unknown_genotype_defaults_standard(self, panel: SleepPanel) -> None:
         snp = panel.pathways[0].snps[0]
         result = _score_snp(snp, "ZZ", panel)
         assert result.category == STANDARD
         assert result.present_in_sample is True
+
+    def test_unmodeled_acgt_genotype_withheld_as_indeterminate(self, panel: SleepPanel) -> None:
+        """A real nucleotide genotype outside the model is not scored baseline."""
+        snp = _make_test_snp()
+        result = _score_snp(snp, "AC", panel)
+        assert result.category == INDETERMINATE
+        assert result.present_in_sample is True
+        assert result.genotype == "AC"
+        assert result.coverage_note is not None
+        assert "outside this locus" in result.coverage_note
+        assert "indeterminate" in result.effect_summary.lower()
 
     def test_adora2a_tt_capped_at_moderate(self, panel: SleepPanel) -> None:
         """ADORA2A has evidence_level=1, so TT (Elevated) → capped at Moderate."""
@@ -430,6 +452,16 @@ class TestPathwayLevel:
             _make_snp_result(MODERATE, present=False),
         ]
         assert _determine_pathway_level(results) == STANDARD
+
+    def test_indeterminate_snp_does_not_drive_pathway_level(self) -> None:
+        results = [
+            _make_snp_result(INDETERMINATE),
+            _make_snp_result(STANDARD),
+        ]
+        assert _determine_pathway_level(results) == STANDARD
+
+    def test_all_indeterminate_pathway_defaults_standard(self) -> None:
+        assert _determine_pathway_level([_make_snp_result(INDETERMINATE)]) == STANDARD
 
 
 # ── Cross-module reference tests ─────────────────────────────────────────
