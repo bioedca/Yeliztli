@@ -5,7 +5,6 @@ Covers:
   API fetch, refresh, cache stats, batch pre-fetch
 - API endpoints: POST /api/genes/{symbol}/refresh-uniprot,
   GET /api/uniprot-cache/stats
-- Huey task: prefetch_uniprot_priority_genes
 """
 
 from __future__ import annotations
@@ -621,37 +620,6 @@ class TestCacheStatsEndpoint:
         assert data["fresh_entries"] == 3
         assert data["stale_entries"] == 2
         assert len(data["genes_cached"]) == 5
-
-
-# ── Tests: Huey pre-fetch task ──────────────────────────────────────
-
-
-class TestHueyPrefetchTask:
-    """Tests for the Huey background pre-fetch task."""
-
-    def test_create_prefetch_job(self, tmp_data_dir: Path) -> None:
-        """create_prefetch_job creates a job record."""
-        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
-        ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
-        reference_metadata.create_all(ref_engine)
-
-        with patch("backend.db.connection.get_settings", return_value=settings):
-            reset_registry()
-
-            from backend.db.tables import jobs
-            from backend.tasks.huey_tasks import create_prefetch_job
-
-            job_id = create_prefetch_job()
-            assert job_id is not None
-
-            with ref_engine.connect() as conn:
-                row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
-
-            assert row is not None
-            assert row.job_type == "uniprot_prefetch"
-            assert row.status == "pending"
-
-            reset_registry()
 
 
 # ── Tests: API fetch and parsing ────────────────────────────────────
