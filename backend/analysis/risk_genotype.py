@@ -44,7 +44,7 @@ import structlog
 
 from backend.analysis.allele_match import risk_dosage
 from backend.analysis.zygosity import _NO_CALL_SENTINELS, is_no_call
-from backend.db.tables import findings, raw_variants
+from backend.db.tables import findings, raw_variants, sample_metadata_table
 
 logger = structlog.get_logger(__name__)
 
@@ -54,6 +54,19 @@ _PANELS_DIR = Path(__file__).resolve().parent.parent / "data" / "panels"
 PROBE_TYPED = "typed"
 PROBE_NO_CALL = "no_call"
 PROBE_ABSENT = "absent"
+
+# Sample file_formats whose mitochondrial positions are the GRCh37/rCRS reference
+# (NC_012920), so an MT locus's curated rCRS position can be matched directly
+# against ``raw_variants.pos`` (the #820 position fallback). DENY-by-default:
+# only formats verified to store rCRS MT coordinates are listed. 23andMe v4/v5
+# are Build 37 (rCRS MT); 23andMe v3 is Build 36 (hg18/CRS MT — positions above
+# 3107 are shifted ~1 bp vs rCRS, and MT is NOT lifted at ingest, so a position
+# match there would read a *different* variant, e.g. v3 "MT 11778 C" is not the
+# m.11778G>A locus). Any unlisted/unknown format simply falls back to rsID/alias
+# matching (current behaviour) — never a mis-positioned MT call. Add a format
+# only after verifying its MT reference is rCRS.
+_RCRS_MT_FORMATS: frozenset[str] = frozenset({"23andme_v4", "23andme_v5"})
+_MT_CHROM = "MT"
 
 # Locus allele types.
 ALLELE_TYPE_SNV = "snv"
@@ -200,6 +213,15 @@ class RiskLocus:
     # (e.g. the APOL1 G2 6-bp deletion rs71785313 ≡ rs143830837 ≡ rs1317778148);
     # an incorrect alias would mis-read a different variant as this locus. (#262)
     alias_rsids: tuple[str, ...] = ()
+    # Opt-in rCRS-position fallback (#820): for an MT locus, ``chrom="MT"`` +
+    # ``pos`` (the rCRS/NC_012920 position) lets ``read_genotypes`` match this
+    # variant by genomic position when neither the canonical rsID nor an alias
+    # yields a typed call — vendor/chip-version independent, so the locus is
+    # callable without hand-curating each chip's proprietary i-ID. Applied ONLY
+    # for samples whose file_format is in ``_RCRS_MT_FORMATS`` (v3/hg18 MT is
+    # CRS-coordinate and excluded). Loci that declare no ``pos`` are unchanged.
+    chrom: str | None = None
+    pos: int | None = None
 
 
 @dataclass(frozen=True)
@@ -340,6 +362,8 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             allow_strand_complement=loc.get("allow_strand_complement", True),
             concordant_rsids=tuple(loc.get("concordant_rsids", ())),
             alias_rsids=tuple(loc.get("alias_rsids", ())),
+            chrom=loc.get("chrom"),
+            pos=loc.get("pos"),
         )
         for loc in data["loci"]
     ]
@@ -475,6 +499,20 @@ def _validate_pmids(module: str, model_id: str, field_name: str, pmids: Any) -> 
 # ── Genotype reading + dosage ───────────────────────────────────────────────
 
 
+def _sample_uses_rcrs_mt(conn: sa.Connection) -> bool:
+    """True if the sample's file_format stores rCRS MT coordinates (#820).
+
+    Reads the single-row ``sample_metadata`` table; unknown/missing format (or a
+    missing table, in minimal test DBs) → ``False`` (deny — never risk a
+    mis-positioned MT call). See ``_RCRS_MT_FORMATS``.
+    """
+    try:
+        fmt = conn.execute(sa.select(sample_metadata_table.c.file_format)).scalar()
+    except Exception:  # noqa: BLE001 — table absent / unreadable → deny the fallback
+        return False
+    return fmt in _RCRS_MT_FORMATS
+
+
 def read_genotypes(panel: RiskPanel, sample_engine: sa.Engine) -> dict[str, ProbeReadout]:
     """Read each panel locus's genotype from ``raw_variants``.
 
@@ -484,17 +522,42 @@ def read_genotypes(panel: RiskPanel, sample_engine: sa.Engine) -> dict[str, Prob
     under-called as off-chip (#262). A probe absent from ``raw_variants``
     (off-chip) is ``PROBE_ABSENT`` and a no-call is ``PROBE_NO_CALL`` — both
     yield an indeterminate dosage downstream, never a false-negative.
+
+    **rCRS position fallback (#820).** When a locus declares ``chrom="MT"`` and a
+    rCRS ``pos`` and neither its rsID nor any alias yields a typed call, the call
+    is matched by genomic position — ``raw_variants WHERE chrom='MT' AND pos=…``
+    — so an MT variant typed only under a chip-specific i-ID (no curated alias)
+    is still read. Applied ONLY for rCRS-coordinate samples (``_RCRS_MT_FORMATS``;
+    v3/hg18 MT is excluded). Multiple probes at one position must agree on the
+    allele set, else the position is left un-called (never a false call). Loci
+    that declare no ``pos`` are unaffected — nuclear panels read exactly as before.
     """
     query_rsids: set[str] = set()
     for loc in panel.loci:
         query_rsids.add(loc.rsid)
         query_rsids.update(loc.alias_rsids)
 
+    # MT loci that opt into the rCRS-position fallback (#820), keyed by position.
+    pos_loci = {
+        loc.pos: loc for loc in panel.loci if loc.chrom == _MT_CHROM and loc.pos is not None
+    }
+
     with sample_engine.connect() as conn:
         stmt = sa.select(raw_variants.c.rsid, raw_variants.c.genotype).where(
             raw_variants.c.rsid.in_(query_rsids)
         )
         rows = {row.rsid: row.genotype for row in conn.execute(stmt)}
+
+        # Build-gated MT position rows: only for rCRS-coordinate samples, and only
+        # the positions some opt-in locus declares.
+        pos_genotypes: dict[int, list[str]] = {}
+        if pos_loci and _sample_uses_rcrs_mt(conn):
+            pos_stmt = sa.select(raw_variants.c.pos, raw_variants.c.genotype).where(
+                raw_variants.c.chrom == _MT_CHROM,
+                raw_variants.c.pos.in_(pos_loci),
+            )
+            for r in conn.execute(pos_stmt):
+                pos_genotypes.setdefault(r.pos, []).append(r.genotype)
 
     readouts: dict[str, ProbeReadout] = {}
     for loc in panel.loci:
@@ -514,6 +577,17 @@ def read_genotypes(panel: RiskPanel, sample_engine: sa.Engine) -> dict[str, Prob
             else:
                 typed_genotype = genotype
                 break
+
+        # rCRS position fallback (#820): no typed rsID/alias call, but the locus
+        # declares an MT rCRS position that the (rCRS-format) sample types under
+        # some probe. A typed positional call wins over an rsID no-call/absent.
+        if typed_genotype is None and loc.pos is not None and loc.pos in pos_genotypes:
+            pos_typed = [g for g in pos_genotypes[loc.pos] if not _locus_is_no_call(loc, g)]
+            allele_sets = {frozenset(g.strip().upper()) for g in pos_typed}
+            if len(allele_sets) == 1:  # all probes at this position agree
+                typed_genotype = pos_typed[0]
+            # discordant probes (len > 1) → ambiguous; leave the rsID-derived
+            # no-call/absent rather than risk a false positional call.
 
         if typed_genotype is not None:
             readouts[loc.rsid] = ProbeReadout(loc.rsid, typed_genotype, PROBE_TYPED)

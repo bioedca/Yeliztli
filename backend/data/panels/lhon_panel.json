@@ -10,6 +10,8 @@
   "loci": [
     {
       "rsid": "rs199476112",
+      "chrom": "MT",
+      "pos": 11778,
       "gene_symbol": "MT-ND4",
       "label": "m.11778G>A (p.Arg340His)",
       "risk_allele": "A",
@@ -21,6 +23,8 @@
     },
     {
       "rsid": "rs199476118",
+      "chrom": "MT",
+      "pos": 3460,
       "gene_symbol": "MT-ND1",
       "label": "m.3460G>A (p.Ala52Thr)",
       "risk_allele": "A",
@@ -34,6 +38,8 @@
     },
     {
       "rsid": "rs199476104",
+      "chrom": "MT",
+      "pos": 14484,
       "gene_symbol": "MT-ND6",
       "label": "m.14484T>C (p.Met64Val)",
       "risk_allele": "C",

@@ -10,6 +10,8 @@
   "loci": [
     {
       "rsid": "rs267606617",
+      "chrom": "MT",
+      "pos": 1555,
       "gene_symbol": "MT-RNR1",
       "label": "m.1555A>G",
       "risk_allele": "G",
@@ -23,6 +25,8 @@
     },
     {
       "rsid": "rs267606619",
+      "chrom": "MT",
+      "pos": 1494,
       "gene_symbol": "MT-RNR1",
       "label": "m.1494C>T",
       "risk_allele": "T",
@@ -36,6 +40,8 @@
     },
     {
       "rsid": "rs267606618",
+      "chrom": "MT",
+      "pos": 1095,
       "gene_symbol": "MT-RNR1",
       "label": "m.1095T>C",
       "risk_allele": "C",
