@@ -38,6 +38,6 @@ export function polyphen2Display(pred: string): PredictionDisplay {
     case "BENIGN":
       return { label: "Benign", colorClass: GREEN }
     default:
-      return { label: pred.replace(/_/g, " "), colorClass: NEUTRAL }
+      return { label: pred.trim().replace(/_/g, " "), colorClass: NEUTRAL }
   }
 }
