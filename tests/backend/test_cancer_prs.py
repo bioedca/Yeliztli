@@ -16,14 +16,17 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
 
+from backend.analysis import cancer_prs as cancer_prs_module
 from backend.analysis.cancer_prs import (
     CANCER_PRS_TRAITS,
     CancerPRSResult,
     load_cancer_prs_weights,
+    resolve_cancer_prs_sex_context,
     store_cancer_prs_findings,
 )
 from backend.analysis.cancer_prs import (
@@ -120,7 +123,184 @@ def sample_partial_coverage(sample_engine: sa.Engine) -> sa.Engine:
     return sample_engine
 
 
+def _patch_cancer_run_dependencies(monkeypatch: pytest.MonkeyPatch, *, sex_context: str) -> dict:
+    from backend.analysis import ancestry as ancestry_module
+    from backend.analysis import cancer as cancer_module
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cancer_module, "load_cancer_panel", lambda: object())
+    monkeypatch.setattr(
+        cancer_module,
+        "extract_cancer_variants",
+        lambda _panel, _sample_engine: SimpleNamespace(
+            panel_genes_checked=0,
+            variants_in_panel_genes=0,
+        ),
+    )
+    monkeypatch.setattr(
+        cancer_module,
+        "store_cancer_findings",
+        lambda _result, _sample_engine, _reference_engine: 2,
+    )
+    monkeypatch.setattr(cancer_prs_module, "load_cancer_prs_weights", lambda: [])
+    monkeypatch.setattr(ancestry_module, "get_inferred_ancestry", lambda _sample_engine: "EUR")
+    monkeypatch.setattr(ancestry_module, "get_top_ancestry_fraction", lambda _sample_engine: 1.0)
+
+    def fake_resolve(
+        sample_engine: sa.Engine,
+        *,
+        reference_engine: object | None = None,
+        sample_id: int | None = None,
+    ) -> str:
+        captured["resolved_sample_engine"] = sample_engine
+        captured["reference_engine"] = reference_engine
+        captured["sample_id"] = sample_id
+        return sex_context
+
+    def fake_run_cancer_prs(
+        _weight_sets: list,
+        _sample_engine: sa.Engine,
+        **kwargs: object,
+    ) -> SimpleNamespace:
+        captured["inferred_sex"] = kwargs["inferred_sex"]
+        return SimpleNamespace(results=[])
+
+    monkeypatch.setattr(cancer_prs_module, "resolve_cancer_prs_sex_context", fake_resolve)
+    monkeypatch.setattr(cancer_prs_module, "run_cancer_prs", fake_run_cancer_prs)
+    monkeypatch.setattr(cancer_prs_module, "store_cancer_prs_findings", lambda _result, _engine: 3)
+    return captured
+
+
 # ── Weight set loading tests ──────────────────────────────────────────────
+
+
+class TestCancerPRSSexContextResolution:
+    @pytest.mark.parametrize(
+        ("recorded", "inferred", "expected"),
+        [
+            ("XX", None, "XX"),
+            ("XY", "XX", "XY"),
+            (None, "XY", "XY"),
+            (None, "unknown", "unknown"),
+        ],
+    )
+    def test_resolves_recorded_before_inferred(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        recorded: str | None,
+        inferred: str | None,
+        expected: str | None,
+    ) -> None:
+        from backend.services import sex_inference
+
+        sample_engine = object()
+        reference_engine = object()
+        recorded_calls: list[tuple[object, int]] = []
+
+        def fake_recorded(reference_arg: object, sample_id_arg: int) -> str | None:
+            recorded_calls.append((reference_arg, sample_id_arg))
+            return recorded
+
+        monkeypatch.setattr(sex_inference, "infer_biological_sex", lambda _engine: inferred)
+        monkeypatch.setattr(sex_inference, "get_recorded_biological_sex", fake_recorded)
+
+        resolved = resolve_cancer_prs_sex_context(
+            sample_engine,
+            reference_engine=reference_engine,
+            sample_id=42,
+        )
+
+        assert resolved == expected
+        assert recorded_calls == [(reference_engine, 42)]
+
+    def test_skips_recorded_lookup_without_sample_id(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.services import sex_inference
+
+        monkeypatch.setattr(sex_inference, "infer_biological_sex", lambda _engine: "XY")
+        monkeypatch.setattr(
+            sex_inference,
+            "get_recorded_biological_sex",
+            lambda _reference_engine, _sample_id: pytest.fail("recorded lookup should be skipped"),
+        )
+
+        assert (
+            resolve_cancer_prs_sex_context(
+                object(),
+                reference_engine=object(),
+                sample_id=None,
+            )
+            == "XY"
+        )
+
+
+class TestCancerPRSCallSites:
+    def test_api_run_uses_resolved_sex_for_prs(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes import cancer as cancer_routes
+
+        reference_engine = object()
+        captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XY")
+
+        monkeypatch.setattr(cancer_routes, "_get_sample_engine", lambda _sample_id: sample_engine)
+        monkeypatch.setattr(
+            cancer_routes,
+            "get_registry",
+            lambda: SimpleNamespace(reference_engine=reference_engine),
+        )
+
+        response = cancer_routes.run_cancer_analysis(sample_id=42)
+
+        assert response.findings_count == 2
+        assert response.prs_findings_count == 3
+        assert captured["resolved_sample_engine"] is sample_engine
+        assert captured["reference_engine"] is reference_engine
+        assert captured["sample_id"] == 42
+        assert captured["inferred_sex"] == "XY"
+
+    def test_run_all_cancer_runner_uses_resolved_sex_for_prs(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        from backend.analysis import run_all
+
+        reference_engine = object()
+        captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XX")
+        registry = SimpleNamespace(reference_engine=reference_engine)
+
+        count = run_all._run_cancer(sample_engine, registry, sample_id=43)
+
+        assert count == 5
+        assert captured["resolved_sample_engine"] is sample_engine
+        assert captured["reference_engine"] is reference_engine
+        assert captured["sample_id"] == 43
+        assert captured["inferred_sex"] == "XX"
+
+    def test_run_all_dispatch_passes_sample_id_to_cancer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.analysis import run_all
+
+        captured: dict[str, int | None] = {}
+
+        def fake_cancer_runner(
+            _sample_engine: object,
+            _registry: object,
+            *,
+            sample_id: int | None = None,
+        ) -> int:
+            captured["sample_id"] = sample_id
+            return 7
+
+        monkeypatch.setattr(run_all, "_get_modules", lambda: [("cancer", lambda *_args: 0)])
+        monkeypatch.setattr(run_all, "_run_cancer", fake_cancer_runner)
+
+        result = run_all.run_all_analyses(object(), object(), sample_id=44)
+
+        assert result == {"cancer": 7}
+        assert captured["sample_id"] == 44
 
 
 class TestLoadCancerPRSWeights:

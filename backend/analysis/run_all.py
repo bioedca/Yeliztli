@@ -48,9 +48,11 @@ def run_all_analyses(
         if progress_callback:
             progress_callback(name, i, len(modules))
         try:
-            # Hemochromatosis is sex-stratified and prefers recorded over inferred
-            # sex (#399), so it needs sample_id; the other runners take (engine, registry).
-            if name == "hemochromatosis":
+            # Sex-stratified modules prefer recorded over inferred sex, so they
+            # need sample_id; the other runners take (engine, registry).
+            if name == "cancer":
+                count = _run_cancer(sample_engine, registry, sample_id=sample_id)
+            elif name == "hemochromatosis":
                 count = _run_hemochromatosis(sample_engine, registry, sample_id=sample_id)
             else:
                 count = runner(sample_engine, registry)
@@ -106,7 +108,9 @@ def _get_modules() -> list[tuple[str, Callable]]:
 # mirroring the POST /run endpoint but without HTTP concerns.
 
 
-def _run_cancer(sample_engine: Engine, registry: DBRegistry) -> int:
+def _run_cancer(
+    sample_engine: Engine, registry: DBRegistry, *, sample_id: int | None = None
+) -> int:
     from backend.analysis.ancestry import get_inferred_ancestry
     from backend.analysis.cancer import (
         extract_cancer_variants,
@@ -115,10 +119,10 @@ def _run_cancer(sample_engine: Engine, registry: DBRegistry) -> int:
     )
     from backend.analysis.cancer_prs import (
         load_cancer_prs_weights,
+        resolve_cancer_prs_sex_context,
         run_cancer_prs,
         store_cancer_prs_findings,
     )
-    from backend.services.sex_inference import infer_biological_sex
 
     panel = load_cancer_panel()
     result = extract_cancer_variants(panel, sample_engine)
@@ -129,13 +133,17 @@ def _run_cancer(sample_engine: Engine, registry: DBRegistry) -> int:
     weight_sets = load_cancer_prs_weights()
     inferred_ancestry = get_inferred_ancestry(sample_engine)
     top_fraction = get_top_ancestry_fraction(sample_engine)
-    inferred_sex = infer_biological_sex(sample_engine)
+    sex_context = resolve_cancer_prs_sex_context(
+        sample_engine,
+        reference_engine=registry.reference_engine,
+        sample_id=sample_id,
+    )
     prs_result = run_cancer_prs(
         weight_sets,
         sample_engine,
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
-        inferred_sex=inferred_sex,
+        inferred_sex=sex_context,
     )
     count += store_cancer_prs_findings(prs_result, sample_engine)
     return count

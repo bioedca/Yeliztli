@@ -363,18 +363,20 @@ def run_cancer_analysis(
     )
     from backend.analysis.cancer_prs import (
         load_cancer_prs_weights,
+        resolve_cancer_prs_sex_context,
         run_cancer_prs,
         store_cancer_prs_findings,
     )
 
     sample_engine = _get_sample_engine(sample_id)
+    reference_engine = get_registry().reference_engine
 
     # Monogenic extraction (P3-13)
     panel = load_cancer_panel()
     result = extract_cancer_variants(panel, sample_engine)
     # Pass the reference engine so findings gain the gnomAD gene-constraint
     # context badge (roadmap #12), matching the run_all dashboard path.
-    count = store_cancer_findings(result, sample_engine, get_registry().reference_engine)
+    count = store_cancer_findings(result, sample_engine, reference_engine)
 
     # PRS computation (P3-15) with ancestry mismatch check (P3-16)
     from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
@@ -382,15 +384,18 @@ def run_cancer_analysis(
     weight_sets = load_cancer_prs_weights()
     inferred_ancestry = get_inferred_ancestry(sample_engine)
     top_fraction = get_top_ancestry_fraction(sample_engine)
-    from backend.services.sex_inference import infer_biological_sex
 
-    inferred_sex = infer_biological_sex(sample_engine)
+    sex_context = resolve_cancer_prs_sex_context(
+        sample_engine,
+        reference_engine=reference_engine,
+        sample_id=sample_id,
+    )
     prs_result = run_cancer_prs(
         weight_sets,
         sample_engine,
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
-        inferred_sex=inferred_sex,
+        inferred_sex=sex_context,
     )
     prs_count = store_cancer_prs_findings(prs_result, sample_engine)
 

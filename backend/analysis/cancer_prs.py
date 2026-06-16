@@ -182,6 +182,28 @@ def load_cancer_prs_weights(
 # ── Cancer PRS pipeline ──────────────────────────────────────────────────
 
 
+def resolve_cancer_prs_sex_context(
+    sample_engine: sa.Engine,
+    *,
+    reference_engine: sa.Engine | None = None,
+    sample_id: int | None = None,
+) -> str | None:
+    """Return the biological-sex context used by sex-specific cancer PRS gates."""
+    from backend.services.sex_inference import (
+        get_recorded_biological_sex,
+        infer_biological_sex,
+        resolve_biological_sex,
+    )
+
+    inferred = infer_biological_sex(sample_engine)
+    recorded = (
+        get_recorded_biological_sex(reference_engine, sample_id)
+        if reference_engine is not None and sample_id is not None
+        else None
+    )
+    return resolve_biological_sex(recorded_sex=recorded, inferred_sex=inferred).sex
+
+
 def run_cancer_prs(
     weight_sets: list[PRSWeightSet],
     sample_engine: sa.Engine,
@@ -206,7 +228,7 @@ def run_cancer_prs(
         inferred_ancestry: User's inferred ancestry (e.g. "EUR"), or None.
         top_ancestry_fraction: Fraction (0.0–1.0) of the top ancestry, or
             None if unavailable.
-        inferred_sex: Inferred biological sex (``"XX"``, ``"XY"``,
+        inferred_sex: Resolved biological-sex context (``"XX"``, ``"XY"``,
             ``"manual_review"``, ``"unknown"``). ``None`` is treated as
             unknown; pass a confident matching value explicitly to emit
             sex-specific PRS output.
