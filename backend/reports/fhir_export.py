@@ -34,9 +34,8 @@ logger = structlog.get_logger(__name__)
 # ── LOINC / system constants ─────────────────────────────────────────
 
 LOINC_SYSTEM = "http://loinc.org"
-HGNC_SYSTEM = "http://www.genenames.org/geneId"
+HGNC_SYSTEM = "http://www.genenames.org"
 DBSNP_SYSTEM = "http://www.ncbi.nlm.nih.gov/snp"
-CLINVAR_SYSTEM = "http://www.ncbi.nlm.nih.gov/clinvar"
 SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
 
 # LOINC codes for genomics reporting
@@ -49,7 +48,7 @@ LOINC_VARIANT_EXACT_START = "81254-5"  # Genomic structural variant start
 LOINC_REF_ALLELE = "69547-8"  # Genomic ref allele [ID]
 LOINC_ALT_ALLELE = "69551-0"  # Genomic alt allele [ID]
 LOINC_DBSNP_ID = "81255-2"  # dbSNP [ID]
-LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic disease assessed
+LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic variation clinical significance
 LOINC_POPULATION_AF = "92821-8"  # Allelic frequency in Population
 
 # Allelic state LOINC answer codes.  Only carried zygosities are mapped:
@@ -68,6 +67,29 @@ ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
         "system": LOINC_SYSTEM,
         "code": "LA6705-3",
         "display": "Homozygous",
+    },
+}
+
+ACMG_CLINICAL_SIGNIFICANCE_MAP: dict[str, dict[str, str]] = {
+    "pathogenic": {
+        "code": "LA6668-3",
+        "display": "Pathogenic",
+    },
+    "likely pathogenic": {
+        "code": "LA26332-9",
+        "display": "Likely pathogenic",
+    },
+    "uncertain significance": {
+        "code": "LA26333-7",
+        "display": "Uncertain significance",
+    },
+    "likely benign": {
+        "code": "LA26334-5",
+        "display": "Likely benign",
+    },
+    "benign": {
+        "code": "LA6675-8",
+        "display": "Benign",
     },
 }
 
@@ -98,6 +120,11 @@ def _codeable_concept(
     return cc
 
 
+def _text_codeable_concept(text: str) -> dict[str, Any]:
+    """Build a CodeableConcept when no terminology-valid code is available."""
+    return {"text": text}
+
+
 def _component(
     code_system: str,
     code_value: str,
@@ -109,6 +136,33 @@ def _component(
         "code": _codeable_concept(code_system, code_value, code_display),
         **value,
     }
+
+
+def _normalise_clinvar_significance(significance: str) -> str:
+    return " ".join(significance.replace("_", " ").strip().lower().split())
+
+
+def _clinical_significance_value(significance: str) -> dict[str, Any]:
+    mapped = ACMG_CLINICAL_SIGNIFICANCE_MAP.get(_normalise_clinvar_significance(significance))
+    if mapped is None:
+        return {"valueCodeableConcept": _text_codeable_concept(significance)}
+
+    return {
+        "valueCodeableConcept": _codeable_concept(
+            LOINC_SYSTEM,
+            mapped["code"],
+            mapped["display"],
+            text=significance,
+        )
+    }
+
+
+def _gene_studied_value(row: dict[str, Any]) -> dict[str, Any]:
+    gene_symbol = str(row["gene_symbol"]).strip()
+    hgnc_id = str(row.get("hgnc_id") or "").strip()
+    if hgnc_id.startswith("HGNC:"):
+        return {"valueCodeableConcept": _codeable_concept(HGNC_SYSTEM, hgnc_id, gene_symbol)}
+    return {"valueString": gene_symbol}
 
 
 def _variant_to_observation(
@@ -128,11 +182,7 @@ def _variant_to_observation(
                 LOINC_SYSTEM,
                 LOINC_GENE_STUDIED,
                 "Gene studied [ID]",
-                {
-                    "valueCodeableConcept": _codeable_concept(
-                        HGNC_SYSTEM, row["gene_symbol"], row["gene_symbol"]
-                    )
-                },
+                _gene_studied_value(row),
             )
         )
 
@@ -221,15 +271,8 @@ def _variant_to_observation(
             _component(
                 LOINC_SYSTEM,
                 LOINC_CLINVAR_SIGNIFICANCE,
-                "Genetic disease assessed",
-                {
-                    "valueCodeableConcept": _codeable_concept(
-                        CLINVAR_SYSTEM,
-                        row.get("clinvar_accession") or "unknown",
-                        row["clinvar_significance"],
-                        text=row["clinvar_significance"],
-                    )
-                },
+                "Genetic variation clinical significance [Imp]",
+                _clinical_significance_value(row["clinvar_significance"]),
             )
         )
 

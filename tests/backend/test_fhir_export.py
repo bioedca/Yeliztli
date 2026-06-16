@@ -19,8 +19,12 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, reference_metadata, samples
 from backend.reports.fhir_export import (
+    HGNC_SYSTEM,
     LOINC_ALLELIC_STATE,
+    LOINC_CLINVAR_SIGNIFICANCE,
+    LOINC_GENE_STUDIED,
     LOINC_POPULATION_AF,
+    LOINC_SYSTEM,
     _variant_to_observation,
 )
 
@@ -140,6 +144,10 @@ _ALL_COLS = [col.name for col in annotated_variants.columns]
 def _normalize(variant: dict) -> dict:
     """Fill missing columns with None."""
     return {k: variant.get(k) for k in _ALL_COLS}
+
+
+def _components_by_code(resource: dict, code: str) -> list[dict]:
+    return [c for c in resource["component"] if c["code"]["coding"][0]["code"] == code]
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -347,10 +355,22 @@ class TestFhirObservations:
         bundle = resp.json()
         # First obs after DiagnosticReport (sorted by chrom/pos, so chr1 MTHFR first)
         obs = bundle["entry"][1]["resource"]
-        gene_components = [
-            c for c in obs["component"] if c["code"]["coding"][0]["code"] == "48018-6"
-        ]
+        gene_components = _components_by_code(obs, LOINC_GENE_STUDIED)
         assert len(gene_components) == 1
+        assert gene_components[0]["valueString"] == "MTHFR"
+        assert "valueCodeableConcept" not in gene_components[0]
+
+    def test_observation_codes_gene_when_hgnc_id_available(self) -> None:
+        row = {**ANNOTATED_VARIANTS[1], "hgnc_id": "HGNC:1100"}
+        _full_url, obs = _variant_to_observation(row)
+        gene_component = _components_by_code(obs, LOINC_GENE_STUDIED)[0]
+        coding = gene_component["valueCodeableConcept"]["coding"][0]
+
+        assert coding == {
+            "system": HGNC_SYSTEM,
+            "code": "HGNC:1100",
+            "display": "BRCA1",
+        }
 
     def test_observation_has_dbsnp(self, client) -> None:
         tc, sid = client
@@ -409,10 +429,38 @@ class TestFhirObservations:
                     break
         assert brca_obs is not None
         clinvar_comps = [
-            c for c in brca_obs["component"] if c["code"]["coding"][0]["code"] == "53037-8"
+            c
+            for c in brca_obs["component"]
+            if c["code"]["coding"][0]["code"] == LOINC_CLINVAR_SIGNIFICANCE
         ]
         assert len(clinvar_comps) == 1
-        assert clinvar_comps[0]["valueCodeableConcept"]["text"] == "Pathogenic"
+        value = clinvar_comps[0]["valueCodeableConcept"]
+        assert value["text"] == "Pathogenic"
+        assert value["coding"] == [
+            {
+                "system": LOINC_SYSTEM,
+                "code": "LA6668-3",
+                "display": "Pathogenic",
+            }
+        ]
+
+    def test_observation_clinvar_significance_does_not_use_accession_as_code(
+        self,
+    ) -> None:
+        row = {**ANNOTATED_VARIANTS[1], "clinvar_accession": None}
+        _full_url, obs = _variant_to_observation(row)
+        clinvar_component = _components_by_code(obs, LOINC_CLINVAR_SIGNIFICANCE)[0]
+        value = clinvar_component["valueCodeableConcept"]
+
+        assert value["coding"][0]["code"] == "LA6668-3"
+        assert "unknown" not in json.dumps(value)
+
+    def test_observation_unmapped_clinvar_significance_is_text_only(self) -> None:
+        _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
+        clinvar_component = _components_by_code(obs, LOINC_CLINVAR_SIGNIFICANCE)[0]
+        value = clinvar_component["valueCodeableConcept"]
+
+        assert value == {"text": "drug_response"}
 
     def test_observation_gnomad_af_uses_population_frequency_code(self) -> None:
         _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
