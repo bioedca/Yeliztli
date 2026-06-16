@@ -25,6 +25,7 @@ import sqlalchemy as sa
 
 from backend.annotation.clinvar import (
     REVIEW_STATUS_STARS,
+    LoadStats,
     SkipReason,
     _extract_gene_symbol,
     _normalize_chrom,
@@ -34,8 +35,6 @@ from backend.annotation.clinvar import (
     download_clinvar_vcf,
     iter_clinvar_vcf,
     load_clinvar_from_iter,
-    load_clinvar_into_db,
-    parse_clinvar_vcf,
     parse_clinvar_vcf_line,
     record_clinvar_version,
 )
@@ -43,6 +42,23 @@ from backend.db.tables import clinvar_variants, database_versions, reference_met
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 MINI_CLINVAR_VCF = FIXTURES_DIR / "mini_clinvar.vcf"
+
+
+def _materialize_clinvar_rows(
+    vcf_path: Path, *, progress_callback=None
+) -> tuple[list[dict], LoadStats]:
+    """Drain the streaming ClinVar iterator into an in-memory ``(rows, final_stats)``
+    pair — the form the (now-removed #891) eager ingest helpers used to return.
+
+    Production streams via ``iter_clinvar_vcf`` + ``load_clinvar_from_iter`` and never
+    materializes the full ~1.5M-row list; tests that assert on the whole row set just
+    collect it here.
+    """
+    rows: list[dict] = []
+    stats = LoadStats()
+    for row, stats in iter_clinvar_vcf(vcf_path, progress_callback=progress_callback):
+        rows.append(row)
+    return rows, stats
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -288,7 +304,7 @@ class TestParseClinvarVcfLine:
 class TestParseClinvarVcf:
     def test_parse_mini_fixture(self):
         """Parse the mini ClinVar VCF fixture and verify stats."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
+        rows, stats = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
 
         # 12 data lines total, 1 has no RS → 11 loaded
         assert stats.total_lines == 12
@@ -298,7 +314,7 @@ class TestParseClinvarVcf:
 
     def test_known_variant_present(self):
         """rs28897696 (HBB Pathogenic) should be in parsed output."""
-        rows, _ = parse_clinvar_vcf(MINI_CLINVAR_VCF)
+        rows, _ = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
         hbb = [r for r in rows if r["rsid"] == "rs28897696"]
         assert len(hbb) == 1
         assert hbb[0]["significance"] == "Pathogenic"
@@ -307,7 +323,7 @@ class TestParseClinvarVcf:
 
     def test_sickle_cell_4_stars(self):
         """rs334 (Sickle cell) should have 4 review stars."""
-        rows, _ = parse_clinvar_vcf(MINI_CLINVAR_VCF)
+        rows, _ = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
         scd = [r for r in rows if r["rsid"] == "rs334"]
         assert len(scd) == 1
         assert scd[0]["review_stars"] == 4
@@ -320,13 +336,13 @@ class TestParseClinvarVcf:
             with gzip.open(gz_path, "wb") as f_out:
                 f_out.write(f_in.read())
 
-        rows, stats = parse_clinvar_vcf(gz_path)
+        rows, stats = _materialize_clinvar_rows(gz_path)
         assert stats.variants_loaded == 11
 
     def test_progress_callback(self):
         """Progress callback should not raise (even if lines < 10k)."""
         cb = MagicMock()
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF, progress_callback=cb)
+        rows, stats = _materialize_clinvar_rows(MINI_CLINVAR_VCF, progress_callback=cb)
         # Mini fixture has only 12 lines — below 10k threshold
         assert stats.variants_loaded == 11
 
@@ -341,12 +357,6 @@ class TestIterClinvarVcf:
         assert count == 11
         assert stats is not None
         assert stats.variants_loaded == 11
-
-    def test_iter_matches_parse(self):
-        """Iterator output should match parse_clinvar_vcf output."""
-        rows_iter = [row for row, _ in iter_clinvar_vcf(MINI_CLINVAR_VCF)]
-        rows_parse, _ = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        assert rows_iter == rows_parse
 
 
 class TestMalformedVcfData:
@@ -379,7 +389,7 @@ class TestMalformedVcfData:
             "1\tNOTNUM\t42\tA\tG\t.\t.\tRS=99;CLNSIG=Benign\n"
             "1\t100\t42\tA\tG\t.\t.\tRS=99;CLNSIG=Benign;CLNREVSTAT=no_assertion_provided\n"
         )
-        rows, stats = parse_clinvar_vcf(vcf)
+        rows, stats = _materialize_clinvar_rows(vcf)
         assert stats.total_lines == 2
         assert stats.variants_loaded == 1
         assert stats.skipped_malformed == 1
@@ -398,26 +408,28 @@ def ref_engine() -> sa.Engine:
     return engine
 
 
-class TestLoadClinvarIntoDb:
-    def test_load_mini_fixture(self, ref_engine: sa.Engine):
-        """Load mini VCF into DB and verify row count."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_into_db(rows, ref_engine, stats=stats)
+class TestLoadClinvarFromIter:
+    """The production ingest path: stream rows from ``iter_clinvar_vcf`` straight into
+    the DB (no full-list materialization). A fresh iterator is needed per call — a
+    generator is exhausted after one pass."""
 
+    def test_stream_load(self, ref_engine: sa.Engine):
+        """Stream loading from the iterator loads every row."""
+        stats = load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
+
+        assert stats.variants_loaded == 11
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
         assert count == 11
 
-    def test_known_pathogenic_variant(self, ref_engine: sa.Engine):
-        """Verify rs28897696 is queryable after loading (T1-11 spec)."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_into_db(rows, ref_engine, stats=stats)
+    def test_stream_load_known_variant(self, ref_engine: sa.Engine):
+        """rs28897696 (HBB Pathogenic) is queryable after a stream load (T1-11 spec)."""
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
 
         with ref_engine.connect() as conn:
             row = conn.execute(
                 sa.select(clinvar_variants).where(clinvar_variants.c.rsid == "rs28897696")
             ).first()
-
         assert row is not None
         assert row.significance == "Pathogenic"
         assert row.review_stars == 3
@@ -425,10 +437,9 @@ class TestLoadClinvarIntoDb:
         assert row.gene_symbol == "HBB"
         assert row.variation_id == 5128
 
-    def test_chrom_pos_index_lookup(self, ref_engine: sa.Engine):
-        """Lookup by (chrom, pos) should work efficiently."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_into_db(rows, ref_engine, stats=stats)
+    def test_stream_load_chrom_pos_lookup(self, ref_engine: sa.Engine):
+        """Lookup by (chrom, pos) works after a stream load."""
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
 
         with ref_engine.connect() as conn:
             row = conn.execute(
@@ -439,60 +450,34 @@ class TestLoadClinvarIntoDb:
                     )
                 )
             ).first()
-
         assert row is not None
         assert row.rsid == "rs429358"
         assert row.gene_symbol == "APOE"
 
     def test_clear_existing_replaces_data(self, ref_engine: sa.Engine):
-        """Loading with clear_existing=True should replace old rows."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_into_db(rows, ref_engine, stats=stats)
-        load_clinvar_into_db(rows, ref_engine, stats=stats, clear_existing=True)
+        """clear_existing=True (the default) replaces old rows — no doubling."""
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine, clear_existing=True)
 
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-        # Should not double — old rows deleted
         assert count == 11
 
     def test_append_without_clear(self, ref_engine: sa.Engine):
-        """Loading with clear_existing=False should append."""
-        rows, stats = parse_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_into_db(rows, ref_engine, stats=stats, clear_existing=True)
-        load_clinvar_into_db(rows, ref_engine, stats=stats, clear_existing=False)
+        """clear_existing=False appends rather than replacing."""
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine, clear_existing=True)
+        load_clinvar_from_iter(
+            iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine, clear_existing=False
+        )
 
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
         assert count == 22  # doubled
 
-    def test_empty_rows(self, ref_engine: sa.Engine):
-        """Loading empty list should not error."""
-        stats = load_clinvar_into_db([], ref_engine)
+    def test_empty_iterator(self, ref_engine: sa.Engine):
+        """An empty iterator loads nothing without error."""
+        stats = load_clinvar_from_iter(iter(()), ref_engine)
         assert stats.variants_loaded == 0
-
-
-class TestLoadClinvarFromIter:
-    def test_stream_load(self, ref_engine: sa.Engine):
-        """Stream loading from iterator should match list-based loading."""
-        row_iter = iter_clinvar_vcf(MINI_CLINVAR_VCF)
-        stats = load_clinvar_from_iter(row_iter, ref_engine)
-
-        assert stats.variants_loaded == 11
-        with ref_engine.connect() as conn:
-            count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-        assert count == 11
-
-    def test_stream_load_known_variant(self, ref_engine: sa.Engine):
-        """Stream-loaded data should be queryable by rsid."""
-        row_iter = iter_clinvar_vcf(MINI_CLINVAR_VCF)
-        load_clinvar_from_iter(row_iter, ref_engine)
-
-        with ref_engine.connect() as conn:
-            row = conn.execute(
-                sa.select(clinvar_variants).where(clinvar_variants.c.rsid == "rs28897696")
-            ).first()
-        assert row is not None
-        assert row.significance == "Pathogenic"
 
 
 class TestRecordClinvarVersion:

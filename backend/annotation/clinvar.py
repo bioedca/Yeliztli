@@ -331,31 +331,6 @@ def iter_clinvar_vcf(
     stats.file_date = _extract_file_date(header_lines)
 
 
-def parse_clinvar_vcf(
-    vcf_path: Path,
-    *,
-    progress_callback: Callable[[int], None] | None = None,
-) -> tuple[list[dict], LoadStats]:
-    """Parse a ClinVar VCF file (plain or gzipped) and return rows + stats.
-
-    For small files / testing. For large files, prefer ``iter_clinvar_vcf``
-    with ``load_clinvar_from_iter`` to avoid loading all rows into memory.
-
-    Args:
-        vcf_path: Path to the VCF or VCF.gz file.
-        progress_callback: Optional callback called with the count of
-            parsed lines at regular intervals.
-
-    Returns:
-        Tuple of (list of row dicts ready for insert, LoadStats).
-    """
-    rows: list[dict] = []
-    stats = LoadStats()
-    for row, stats in iter_clinvar_vcf(vcf_path, progress_callback=progress_callback):
-        rows.append(row)
-    return rows, stats
-
-
 def _compute_sha256(path: Path) -> str:
     """Compute SHA-256 hex digest of a file."""
     h = hashlib.sha256()
@@ -382,48 +357,6 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     with engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
-
-
-def load_clinvar_into_db(
-    rows: list[dict],
-    engine: sa.Engine,
-    *,
-    stats: LoadStats | None = None,
-    clear_existing: bool = True,
-) -> LoadStats:
-    """Bulk-load parsed ClinVar rows into the clinvar_variants table.
-
-    Args:
-        rows: List of dicts matching clinvar_variants columns.
-        engine: SQLAlchemy engine for reference.db.
-        stats: Optional LoadStats to update (if None, a new one is created).
-        clear_existing: Whether to DELETE all existing rows first.
-
-    Returns:
-        Updated LoadStats with variants_loaded count.
-    """
-    if stats is None:
-        stats = LoadStats(variants_loaded=len(rows))
-
-    if clear_existing:
-        with engine.begin() as conn:
-            conn.execute(clinvar_variants.delete())
-
-    # Bulk insert in batches (per-batch transactions to avoid long locks)
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i : i + BATCH_SIZE]
-        with engine.begin() as conn:
-            conn.execute(clinvar_variants.insert(), batch)
-
-    # WAL checkpoint after bulk load (outside transaction)
-    _wal_checkpoint(engine)
-
-    logger.info(
-        "clinvar_loaded",
-        variants=stats.variants_loaded,
-    )
-
-    return stats
 
 
 def load_clinvar_from_iter(
