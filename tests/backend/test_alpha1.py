@@ -77,17 +77,25 @@ class TestGenotypes:
         assert a.calls[0].risk_classification == "PiMS (carrier)"
         assert a.calls[0].evidence_stars == 1
 
-    def test_piss(self, panel, sample_engine: sa.Engine) -> None:
-        # rs17580 risk allele is A (the Pi*S variant); "AA" is homozygous Pi*S.
+    def test_pis_homozygote_is_strand_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
+        # rs17580 (Pi*S) is the palindromic A/T SNP: a homozygous "AA" is equally the
+        # reverse-strand representation of the normal "TT", so a single sample cannot
+        # tell which. It must be reported indeterminate, NOT false-called PiSS (#844).
         _seed(sample_engine, [_z("CC"), _s("AA")])
         a = assess_alpha1(panel, sample_engine)
-        assert a.calls[0].risk_classification == "PiSS"
-        assert a.calls[0].evidence_stars == 2
+        assert a.calls == []
+        assert a.dosages["rs17580"] is None
+        assert "rs17580" in a.indeterminate_loci
 
     def test_normal_no_finding(self, panel, sample_engine: sa.Engine) -> None:
+        # The normal-looking "TT" at the palindromic Pi*S locus is itself strand-
+        # ambiguous (minus-strand "AA"), so it yields no finding and is reported
+        # indeterminate rather than a confident Pi*M call (#844).
         _seed(sample_engine, [_z("CC"), _s("TT")])
         a = assess_alpha1(panel, sample_engine)
         assert a.calls == []
+        assert a.dosages["rs17580"] is None
+        assert "rs17580" in a.indeterminate_loci
 
 
 class TestStrandAndIndeterminate:
@@ -98,7 +106,9 @@ class TestStrandAndIndeterminate:
         assert a.calls[0].risk_classification == "PiZZ (severe deficiency)"
 
     def test_off_chip_z_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
-        _seed(sample_engine, [_s("TT")])  # Z absent, S normal (T is the rs17580 reference)
+        # Z absent (off-chip) → indeterminate. The seeded S "TT" is the palindromic
+        # ref homozygote, itself strand-indeterminate (#844), so neither locus calls.
+        _seed(sample_engine, [_s("TT")])
         a = assess_alpha1(panel, sample_engine)
         assert a.calls == []
         assert "rs28929474" in a.indeterminate_loci

@@ -170,6 +170,47 @@ class TestRiskDosage:
         assert risk_dosage("CC", "A", "G") == 0
 
 
+class TestRiskDosagePalindrome:
+    """Palindromic risk loci (A/T or C/G) are strand-ambiguous: under an untrusted
+    chip strand a homozygote is strand-unknowable for a single sample and must be
+    indeterminate, while a heterozygote is strand-invariant and resolves to one
+    copy — the same zygosity discipline ``match_effect_allele_dosage`` applies (#247,
+    #353), now mirrored in the risk-genotype counter (#844)."""
+
+    def test_palindrome_homozygote_is_indeterminate(self) -> None:
+        # rs17580 (SERPINA1 Pi*S) is A/T on +; risk A, ref T. "AA" is also the
+        # reverse-strand representation of the normal "TT", so a single sample
+        # cannot tell which → indeterminate, NOT two Pi*S copies (the #844 bug).
+        assert risk_dosage("AA", "A", "T") is None
+        # The normal-looking "TT" is equally strand-ambiguous (minus-strand "AA").
+        assert risk_dosage("TT", "A", "T") is None
+        # C/G palindrome (HFE H63D rs1799945, risk G / ref C): both homozygotes drop.
+        assert risk_dosage("GG", "G", "C") is None
+        assert risk_dosage("CC", "G", "C") is None
+
+    def test_palindrome_heterozygote_resolves_to_one(self) -> None:
+        # A palindromic het reads as the same allele set on either strand → exactly
+        # one risk copy regardless of strand; recoverable, not dropped.
+        assert risk_dosage("AT", "A", "T") == 1
+        assert risk_dosage("TA", "A", "T") == 1
+        assert risk_dosage("CG", "G", "C") == 1
+
+    def test_palindrome_foreign_allele_is_indeterminate(self) -> None:
+        # A third allele (here "G" at an A/T locus) fits neither strand frame.
+        assert risk_dosage("AG", "A", "T") is None
+
+    def test_palindrome_no_call_is_indeterminate(self) -> None:
+        assert risk_dosage("--", "A", "T") is None
+        assert risk_dosage(None, "A", "T") is None
+
+    def test_trusted_strand_counts_palindrome_literally(self) -> None:
+        # allow_complement=False means the strand is trusted, so a palindromic
+        # homozygote is taken at face value rather than dropped.
+        assert risk_dosage("AA", "A", "T", allow_complement=False) == 2
+        assert risk_dosage("TT", "A", "T", allow_complement=False) == 0
+        assert risk_dosage("AT", "A", "T", allow_complement=False) == 1
+
+
 class TestRiskDosageNoComplement:
     """``allow_complement=False`` for haploid mtDNA loci (issue #30).
 

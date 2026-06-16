@@ -271,11 +271,35 @@ def risk_dosage(
     observation as indeterminate rather than a reverse-strand risk allele, so a
     literal plus-strand base that merely *complements* the risk allele does not
     fire a false-positive finding (see :class:`RiskLocus.allow_strand_complement`).
+
+    For a strand-ambiguous **palindrome** (``risk``/``ref`` are A/T or C/G) under
+    ``allow_complement`` (the chip strand is not trusted), per-sample resolution is
+    purely by **zygosity** (#247, #353) — the same discipline
+    :func:`match_effect_allele_dosage` applies, just expressed in the risk frame: a
+    **heterozygote** is strand-invariant (one risk copy on either strand) → dosage
+    1, while a **homozygote** is strand-unknowable for a single sample (an
+    opposite-strand ``AA`` is the complement ``TT``) → ``None`` (indeterminate),
+    never counted at face value. Without this, a complement-only ``AA`` at the
+    SERPINA1 Pi*S A/T locus ``rs17580`` was counted as two Pi*S copies and
+    false-called PiSS even though it is equally the reverse strand of the normal
+    ``TT`` (#844). With ``allow_complement=False`` the strand is trusted/literal
+    (mtDNA, or a strand-pinned locus), so the genotype is taken at face value below.
     """
     risk_u = risk_allele.strip().upper()
     ref_u = ref_allele.strip().upper()
     if risk_u not in COMPLEMENT or ref_u not in COMPLEMENT:
         return None
+    # Strand-ambiguous palindrome with an untrusted strand → resolve by zygosity:
+    # heterozygote is strand-invariant (dosage 1); homozygote is strand-unknowable
+    # for one sample → indeterminate. (When allow_complement is False the strand is
+    # trusted, so fall through to the literal/complemented count below.)
+    if allow_complement and ref_u == COMPLEMENT[risk_u]:
+        if is_no_call(genotype):
+            return None
+        alleles = _parse_alleles(genotype)
+        if alleles is None or not alleles <= {risk_u, ref_u}:
+            return None
+        return 1 if len(alleles) == 2 else None
     # Canonicalize into the {ref, risk} frame (ref-strand or complemented).
     resolved = canonical_alleles(genotype, ref_u, risk_u, allow_complement=allow_complement)
     if resolved is None:

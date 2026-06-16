@@ -86,7 +86,11 @@ class TestNegativeAndCombinations:
         )
         a = assess_hemochromatosis(panel, sample_engine)
         assert a.calls == []  # carriage/negative gate
-        assert a.indeterminate_loci == []  # both typed, just reference
+        # C282Y (rs1800562, A/G) is confidently reference, but H63D (rs1799945) is the
+        # palindromic C/G SNP — its "CC" homozygote is strand-ambiguous (minus-strand
+        # "GG"), so it is reported indeterminate rather than confidently reference
+        # (#844). No finding either way.
+        assert a.indeterminate_loci == ["rs1799945"]
 
     def test_compound_heterozygous(self, panel, sample_engine: sa.Engine) -> None:
         _seed(
