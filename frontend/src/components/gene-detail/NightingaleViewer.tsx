@@ -39,8 +39,8 @@ function getDomainColor(index: number): string {
 
 // Variant dot colour via the shared ClinVar tone→hex classifier, so multi-word
 // vocabulary (notably "Conflicting classifications of pathogenicity", which a raw
-// `.includes("pathogenic")` mis-coloured red — #799) maps to the same severity
-// the badges/legend use (conflicting → amber/VUS, never red).
+// `.includes("pathogenic")` mis-coloured red — #799) maps through `uncertain` to
+// this viewer's amber "VUS" legend swatch (#D97706), never the pathogenic red.
 
 /* ── Parse protein position from HGVS notation ─────────────────── */
 

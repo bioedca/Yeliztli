@@ -54,12 +54,16 @@ const TEXT_CLASS: Record<ClinvarSignificanceTone, string> = {
 }
 
 // Raw hex by tone, for SVG/canvas contexts that can't take a Tailwind class
-// (e.g. the Nightingale protein viewer). Same severity scale as the classes.
+// (e.g. the Nightingale protein viewer). Same severity *ordering* as the class
+// palettes; the hues are the protein viewer's own legend swatches, so `uncertain`
+// is amber (#D97706) to match that viewer's existing "VUS" swatch — deliberately
+// distinct from the badge/text palette's yellow. The #799 invariant is only that
+// `uncertain` (which covers conflicting) is never the pathogenic red.
 const HEX_COLOR: Record<ClinvarSignificanceTone, string> = {
   pathogenic: "#DC2626", // red-600
   "likely-pathogenic": "#EA580C", // orange-600
   benign: "#16A34A", // green-600
-  uncertain: "#D97706", // amber-600 (VUS / conflicting)
+  uncertain: "#D97706", // amber-600 — matches the Nightingale legend's VUS swatch
   neutral: "#6B7280", // gray-500
 }
 
