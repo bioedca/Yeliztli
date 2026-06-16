@@ -89,6 +89,38 @@ def _node(
     return node
 
 
+def _snp_key(snp: dict[str, Any]) -> tuple[str, int, str]:
+    """Return the identity tuple for a defining SNP record."""
+    return (snp["rsid"], snp["pos"], snp["allele"])
+
+
+def _prune_redundant_y_snps(
+    node: dict[str, Any],
+    ancestor_snps: set[tuple[str, int, str]] | None = None,
+) -> None:
+    """Remove exact ancestor-path Y SNP re-listings that do not define a node.
+
+    Some Y nodes historically repeated a parent's defining SNP alongside their
+    own independent markers. Those repeats inflate match counts and confidence,
+    so drop them when the node still has at least one non-redundant SNP. If every
+    SNP on a node is an ancestor re-listing, keep it for now: the current
+    tree-walk cannot descend through non-root nodes with zero defining SNPs, so
+    those nodes need replacement markers rather than blind deletion.
+    """
+    if ancestor_snps is None:
+        ancestor_snps = set()
+
+    snps = node.get("defining_snps", [])
+    non_redundant = [snp for snp in snps if _snp_key(snp) not in ancestor_snps]
+    if snps and non_redundant and len(non_redundant) < len(snps):
+        node["defining_snps"] = non_redundant
+        snps = non_redundant
+
+    current_path_snps = ancestor_snps | {_snp_key(snp) for snp in snps}
+    for child in node.get("children", []):
+        _prune_redundant_y_snps(child, current_path_snps)
+
+
 def build_mt_tree() -> dict[str, Any]:
     """Build the mtDNA (PhyloTree) haplogroup tree.
 
@@ -1616,7 +1648,6 @@ def build_y_tree() -> dict[str, Any]:
     a1b = _node(
         "A1b",
         [
-            _y_snp("rs2032652", 21869271, "T"),
             _y_snp("rs9786139", 15024914, "G"),
         ],
         [a1b1],
@@ -1624,14 +1655,14 @@ def build_y_tree() -> dict[str, Any]:
     a1 = _node(
         "A1",
         [
-            _y_snp("rs2032597", 2832640, "A"),
+            _y_snp("rs2032597", 2832640, "C"),
         ],
         [a1a, a1b],
     )
     a_branch = _node(
         "A",
         [
-            _y_snp("rs2032597", 2832640, "A"),
+            _y_snp("rs2032597", 2832640, "C"),
         ],
         [a0, a1],
     )
@@ -2011,7 +2042,6 @@ def build_y_tree() -> dict[str, Any]:
     i_branch = _node(
         "I",
         [
-            _y_snp("rs2032597", 2832640, "A"),
             _y_snp("rs2032670", 8307832, "T"),
             _y_snp("rs9341296", 15023650, "G"),
         ],
@@ -2475,6 +2505,7 @@ def build_y_tree() -> dict[str, Any]:
 
     # ── Root ──────────────────────────────────────────────────────
     root = _node("Y-Adam", [], [a_branch, b_branch, ct])
+    _prune_redundant_y_snps(root)
     return root
 
 

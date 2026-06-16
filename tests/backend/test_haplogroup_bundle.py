@@ -89,6 +89,11 @@ def find_node(node: dict, haplogroup: str) -> dict | None:
     return None
 
 
+def snp_key(snp: dict) -> tuple[str, int, str]:
+    """Return the identity tuple for a defining SNP record."""
+    return (snp["rsid"], snp["pos"], snp["allele"])
+
+
 def get_path_to(node: dict, target: str, path: list[str] | None = None) -> list[str] | None:
     """Get the path from root to a target haplogroup."""
     if path is None:
@@ -369,6 +374,28 @@ class TestYChromTree:
         assert bundle["stats"]["y_haplogroups"] == len(nodes)
         assert bundle["stats"]["y_defining_snps"] == len(snps)
         assert bundle["stats"]["y_unique_snps"] == len(unique_rsids)
+
+    def test_no_prunable_y_ancestor_snp_relistings(self, y_tree: dict) -> None:
+        """Y nodes should not repeat an ancestor SNP when independent SNPs remain."""
+        failures: list[str] = []
+
+        def walk(node: dict, ancestor_snps: set[tuple[str, int, str]], path: list[str]) -> None:
+            current_path = [*path, node["haplogroup"]]
+            snps = node.get("defining_snps", [])
+            duplicate_snps = [snp for snp in snps if snp_key(snp) in ancestor_snps]
+            independent_snps = [snp for snp in snps if snp_key(snp) not in ancestor_snps]
+            if duplicate_snps and independent_snps:
+                duplicate_labels = ", ".join(
+                    f"{snp['rsid']}:{snp['allele']}" for snp in duplicate_snps
+                )
+                failures.append(f"{' > '.join(current_path)} repeats {duplicate_labels}")
+
+            next_ancestor_snps = ancestor_snps | {snp_key(snp) for snp in snps}
+            for child in node.get("children", []):
+                walk(child, next_ancestor_snps, current_path)
+
+        walk(y_tree, set(), [])
+        assert not failures
 
 
 # ── Test fixture integration tests ──────────────────────────────────────
