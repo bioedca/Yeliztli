@@ -64,6 +64,15 @@ describe("useDialogFocus", () => {
     expect(document.activeElement).toBe(screen.getByText("last"))
   })
 
+  it("keeps Tab trapped when the container itself holds focus", () => {
+    render(<FocusHarness />)
+    const dialog = screen.getByRole("dialog")
+    dialog.focus()
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.keyDown(dialog, { key: "Tab" })
+    expect(document.activeElement).toBe(screen.getByText("first"))
+  })
+
   it("restores focus to the trigger when the dialog closes", () => {
     const { rerender } = render(<ControlledDialog open={false} />)
     const trigger = screen.getByTestId("trigger")

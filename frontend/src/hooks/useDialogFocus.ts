@@ -57,10 +57,13 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true
       const first = items[0]
       const last = items[items.length - 1]
       const activeEl = document.activeElement
+      // Wrap at both ends; treat the container itself (tabIndex=-1, focusable
+      // only programmatically / via click) as an edge so Tab from it stays
+      // trapped in either direction.
       if (e.shiftKey && (activeEl === first || activeEl === node)) {
         e.preventDefault()
         last.focus()
-      } else if (!e.shiftKey && activeEl === last) {
+      } else if (!e.shiftKey && (activeEl === last || activeEl === node)) {
         e.preventDefault()
         first.focus()
       }
