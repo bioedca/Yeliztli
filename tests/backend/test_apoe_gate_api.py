@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,24 +53,28 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 def _create_sample_with_apoe(
     tmp_data_dir: Path,
     settings: Settings,
-    rs429358_gt: str = "TT",
-    rs7412_gt: str = "CC",
+    rs429358_gt: str | None = "TT",
+    rs7412_gt: str | None = "CC",
 ) -> None:
-    """Create a sample DB with APOE SNPs and register it in reference.db."""
+    """Create a sample DB with APOE SNPs and register it in reference.db.
+
+    A ``None`` genotype omits that SNP row entirely (e.g. ``rs429358_gt=None``
+    models a chip that does not assay the ε4-defining SNP — the #806 case).
+    """
     # Create sample DB
     sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
     sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
     create_sample_tables(sample_engine)
 
-    # Insert APOE SNPs
-    with sample_engine.begin() as conn:
-        conn.execute(
-            sa.insert(raw_variants),
-            [
-                {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": rs429358_gt},
-                {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": rs7412_gt},
-            ],
-        )
+    # Insert APOE SNPs (omit any whose genotype is None — models an un-assayed SNP)
+    rows = []
+    if rs429358_gt is not None:
+        rows.append({"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": rs429358_gt})
+    if rs7412_gt is not None:
+        rows.append({"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": rs7412_gt})
+    if rows:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
 
     sample_engine.dispose()
 
@@ -123,6 +128,30 @@ def apoe_e4_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 
         app = create_app()
         with TestClient(app) as tc:
+            yield tc
+        reset_registry()
+
+
+@contextmanager
+def _apoe_client_for(
+    tmp_data_dir: Path, rs429358_gt: str | None, rs7412_gt: str | None
+) -> Generator[TestClient, None, None]:
+    """A TestClient over a sample seeded with the given APOE genotypes (#806).
+
+    Lets a test exercise the un-callable APOE statuses (missing SNP / no-call /
+    ambiguous) that the gated /genotype route must surface distinctly from
+    ``not_run``.
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+    _create_sample_with_apoe(tmp_data_dir, settings, rs429358_gt=rs429358_gt, rs7412_gt=rs7412_gt)
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        from backend.main import create_app
+
+        with TestClient(create_app()) as tc:
             yield tc
         reset_registry()
 
@@ -272,12 +301,48 @@ class TestAPOEGenotype:
     )
 
     def test_not_run_before_analysis(self, apoe_client: TestClient) -> None:
-        """Should return not_run status when analysis hasn't been run."""
+        """A determinable-but-unanalyzed genotype reports not_run.
+
+        The seeded sample is ε3/ε3 (rs429358 TT + rs7412 CC) — a *determinable*
+        genotype — but no APOE finding has been stored, so the route reports
+        not_run (reserved for the genuinely un-run/unpersisted case, #806).
+        """
         resp = apoe_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "not_run"
         assert data["diplotype"] is None
+
+    # #806: an analysis that ran but is un-callable must NOT collapse to not_run.
+    # These statuses carry no ε4 information, so the gated route surfaces them
+    # directly — lighting up the previously-dead missing_snps/no_call/ambiguous
+    # frontend branches. Each fails on the pre-fix route (all returned not_run).
+    def test_missing_rs429358_reports_missing_snps(self, tmp_data_dir: Path) -> None:
+        # A real build-36/older chip case: rs7412 typed, the ε4-defining
+        # rs429358 absent (the pgp_v3_build36_id300 sample from the issue).
+        with _apoe_client_for(tmp_data_dir, rs429358_gt=None, rs7412_gt="CC") as client:
+            data = client.get("/api/analysis/apoe/genotype", params={"sample_id": 1}).json()
+            assert data["status"] == "missing_snps"
+            assert data["diplotype"] is None
+
+    def test_no_call_rs429358_reports_no_call(self, tmp_data_dir: Path) -> None:
+        with _apoe_client_for(tmp_data_dir, rs429358_gt="--", rs7412_gt="CC") as client:
+            data = client.get("/api/analysis/apoe/genotype", params={"sample_id": 1}).json()
+            assert data["status"] == "no_call"
+
+    def test_ambiguous_genotype_reports_ambiguous(self, tmp_data_dir: Path) -> None:
+        # rs429358 CC + rs7412 CT is the ε1/ε4 ambiguity.
+        with _apoe_client_for(tmp_data_dir, rs429358_gt="CC", rs7412_gt="CT") as client:
+            data = client.get("/api/analysis/apoe/genotype", params={"sample_id": 1}).json()
+            assert data["status"] == "ambiguous"
+
+    def test_uncallable_status_needs_no_gate_acknowledgment(self, tmp_data_dir: Path) -> None:
+        # missing/no-call/ambiguous carry no ε4 info → surfaced WITHOUT acking the
+        # gate (no determined_but_locked), unlike a determined genotype.
+        with _apoe_client_for(tmp_data_dir, rs429358_gt=None, rs7412_gt="CC") as client:
+            data = client.get("/api/analysis/apoe/genotype", params={"sample_id": 1}).json()
+            assert data["status"] == "missing_snps"
+            assert data["has_e4"] is None and data["e4_count"] is None
 
     def test_genotype_locked_before_acknowledgment(self, apoe_client: TestClient) -> None:
         """A determined genotype must be locked (no ε4 fields) until the gate is acked."""

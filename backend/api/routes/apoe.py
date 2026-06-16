@@ -265,10 +265,13 @@ def get_apoe_genotype(
     exists precisely to let a user choose whether to learn it), so the ε4-bearing
     fields are released only after the gate is acknowledged. Before that:
 
-    - no genotype stored  → ``not_run``
-    - genotype stored      → ``determined_but_locked`` with all sensitive fields
-      (``diplotype``/``has_e4``/``e4_count``/``has_e2``/``e2_count``/raw SNPs)
-      ``None``
+    - determined genotype stored → ``determined_but_locked`` with all sensitive
+      fields (``diplotype``/``has_e4``/``e4_count``/``has_e2``/``e2_count``/raw
+      SNPs) ``None``
+    - analysis ran but the genotype is un-callable → its real
+      ``missing_snps`` / ``no_call`` / ``ambiguous`` status (these carry NO ε4
+      information, so they are surfaced un-gated; #806)
+    - a genotype is derivable but not yet analyzed/persisted → ``not_run``
 
     After acknowledgment the full genotype is returned (status ``determined``).
     This mirrors the gate on ``/findings`` so ε4 status cannot be read ahead of
@@ -287,6 +290,19 @@ def get_apoe_genotype(
         ).fetchone()
 
     if row is None:
+        # No determined genotype is stored. Distinguish a genuinely un-run
+        # analysis from one that ran but is un-callable (missing SNPs / no-call /
+        # ambiguous). Those three carry NO ε4 information, so they need no gating
+        # and are surfaced directly — only `determined` is sensitive (and lives
+        # in the stored+gated row below). `not_run` is reserved for the case
+        # where a genotype is derivable but has not yet been analyzed/persisted,
+        # so the dead `missing_snps`/`no_call`/`ambiguous` frontend branches now
+        # receive their real status instead of a false "not run yet" (#806).
+        from backend.analysis.apoe import APOEStatus, determine_apoe_genotype
+
+        result = determine_apoe_genotype(sample_engine)
+        if result.status != APOEStatus.DETERMINED:
+            return APOEGenotypeResponse(status=result.status.value)
         return APOEGenotypeResponse(status="not_run")
 
     # Gate boundary: a determined genotype exists, but ε4/diplotype must not be
