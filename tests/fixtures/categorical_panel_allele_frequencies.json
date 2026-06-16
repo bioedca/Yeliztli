@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "Ensembl GRCh37 REST: POST https://grch37.rest.ensembl.org/variation/homo_sapiens",
     "assembly": "GRCh37",
-    "fields": "minor_allele + MAF (global 1000 Genomes) + plus-strand allele_string from the primary chromosomal mapping",
+    "fields": "minor_allele + MAF (global 1000 Genomes) + plus-strand allele_string from the primary chromosomal mapping; rs7454108 frequency comes from NCBI dbSNP RefSNP 1000Genomes_30X because Ensembl returns null MAF for that rsid",
     "accessed": "2026-06-16",
     "scope": "categorical-panel HLA-proxy loci (#877): proxies tag uncommon HLA haplotypes, so the risk/tag allele must be the population-MINOR allele. Extend per the categorical_panel_ensembl_alleles.json pattern."
   },
@@ -35,6 +35,13 @@
     "maf": 0.077676,
     "allele_string": "C/T",
     "location": "6:32605884-32605884"
+  },
+  "rs7454108": {
+    "minor_allele": "C",
+    "maf": 0.084947,
+    "allele_string": "T/C",
+    "location": "6:32681483-32681483",
+    "frequency_source": "NCBI dbSNP refsnp/7454108 1000Genomes_30X C=544/6404"
   },
   "rs7775228": {
     "minor_allele": "C",
