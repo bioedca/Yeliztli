@@ -18,7 +18,11 @@ from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, reference_metadata, samples
-from backend.reports.fhir_export import LOINC_ALLELIC_STATE, _variant_to_observation
+from backend.reports.fhir_export import (
+    LOINC_ALLELIC_STATE,
+    LOINC_POPULATION_AF,
+    _variant_to_observation,
+)
 
 # ── Test data ────────────────────────────────────────────────────────
 
@@ -410,14 +414,17 @@ class TestFhirObservations:
         assert len(clinvar_comps) == 1
         assert clinvar_comps[0]["valueCodeableConcept"]["text"] == "Pathogenic"
 
-    def test_observation_gnomad_af(self, client) -> None:
-        tc, sid = client
-        resp = tc.post("/api/export/fhir", json={"sample_id": sid})
-        bundle = resp.json()
-        obs = bundle["entry"][1]["resource"]
-        af_comps = [c for c in obs["component"] if c["code"]["coding"][0]["code"] == "81258-6"]
-        assert len(af_comps) == 1
-        assert "valueQuantity" in af_comps[0]
+    def test_observation_gnomad_af_uses_population_frequency_code(self) -> None:
+        _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
+        sample_af_comps = [
+            c for c in obs["component"] if c["code"]["coding"][0]["code"] == "81258-6"
+        ]
+        population_af_comps = [
+            c for c in obs["component"] if c["code"]["coding"][0]["code"] == LOINC_POPULATION_AF
+        ]
+        assert sample_af_comps == []
+        assert len(population_af_comps) == 1
+        assert population_af_comps[0]["valueQuantity"]["value"] == pytest.approx(0.35)
 
     def test_observation_hgvs_value(self, client) -> None:
         """Observation with HGVS should include valueCodeableConcept."""

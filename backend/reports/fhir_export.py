@@ -50,7 +50,7 @@ LOINC_REF_ALLELE = "69547-8"  # Genomic ref allele [ID]
 LOINC_ALT_ALLELE = "69551-0"  # Genomic alt allele [ID]
 LOINC_DBSNP_ID = "81255-2"  # dbSNP [ID]
 LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic disease assessed
-LOINC_AF = "81258-6"  # Sample variant allelic frequency
+LOINC_POPULATION_AF = "92821-8"  # Allelic frequency in Population
 
 # Allelic state LOINC answer codes.  Only carried zygosities are mapped:
 # build_fhir_bundle carriage-gates to het / hom_alt (#890), so hom_ref never
@@ -233,13 +233,14 @@ def _variant_to_observation(
             )
         )
 
-    # gnomAD allele frequency
+    # gnomAD is external population context; do not encode it as sample VAF
+    # (LOINC 81258-6).
     if row.get("gnomad_af_global") is not None:
         components.append(
             _component(
                 LOINC_SYSTEM,
-                LOINC_AF,
-                "Sample variant allelic frequency [Presence]",
+                LOINC_POPULATION_AF,
+                "Allelic frequency in Population",
                 {
                     "valueQuantity": {
                         "value": row["gnomad_af_global"],
