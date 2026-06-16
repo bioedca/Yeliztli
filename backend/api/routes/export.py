@@ -17,6 +17,7 @@ import logging
 import re
 import sqlite3
 import time
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -46,8 +47,11 @@ _CHROM_ORDER: dict[str, int] = {
     "MT": 25,
 }
 
-# Maximum rows for SQL export (10x the console limit).
-SQL_EXPORT_MAX_ROWS = 10_000
+# Batch size for streaming SQL-export rows from the cursor (mirrors the
+# /export/query streaming loop). The SQL export streams the COMPLETE result set
+# with no row cap (#1000) — a console-truncated user is funneled here precisely
+# to obtain the full data, so silently capping it dropped up to ~99% of rows.
+_SQL_EXPORT_BATCH = 5_000
 
 # SQL console timeout in seconds.
 SQL_EXPORT_TIMEOUT = 60
@@ -198,10 +202,10 @@ def _make_filename(ext: str) -> str:
 
 def _stream_csv_from_columns(
     columns: list[str],
-    rows: list[list[Any]],
+    rows: Iterable[Sequence[Any]],
     delimiter: str = ",",
 ):
-    """Yield CSV/TSV content from column names + row arrays (SQL results)."""
+    """Yield CSV/TSV content from column names + a (possibly lazy) row iterable."""
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=delimiter)
     writer.writerow(columns)
@@ -251,8 +255,8 @@ def _stream_json_iter(rows_iter):
     yield "]"
 
 
-def _stream_json_from_columns(columns: list[str], rows: list[list[Any]]):
-    """Yield JSON array content from column names + row arrays."""
+def _stream_json_from_columns(columns: list[str], rows: Iterable[Sequence[Any]]):
+    """Yield JSON array content from column names + a (possibly lazy) row iterable."""
     yield "["
     for i, row in enumerate(rows):
         if i > 0:
@@ -355,9 +359,10 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
 def export_sql(body: ExportSqlRequest) -> StreamingResponse:
     """Export raw SQL console results in the requested format.
 
-    Executes user-provided SQL against a read-only SQLite connection
-    and streams the result. Maximum of 10,000 rows.
-    VCF is not supported for SQL exports (arbitrary column schemas).
+    Executes user-provided SQL against a read-only SQLite connection and streams
+    the COMPLETE result set (no row cap — #1000), mirroring /export/query's
+    uncapped streaming so a console-truncated user funneled here for the full
+    data actually receives all of it. VCF is not supported (arbitrary schemas).
     """
     require_fresh_sample(body.sample_id)
     _validate_read_only(body.sql)
@@ -371,26 +376,39 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
 
     ro_engine = sa.create_engine(
         "sqlite://",
-        creator=lambda: sqlite3.connect(f"file:{db_path}?mode=ro", uri=True),
+        # check_same_thread=False: the connection is read-only and used
+        # sequentially by this request's row generator, which the streaming
+        # response may iterate on a different threadpool thread.
+        creator=lambda: sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        ),
     )
 
-    try:
-        with ro_engine.connect() as conn:
-            raw_conn = conn.connection.dbapi_connection
-            raw_conn.set_progress_handler(_progress_handler, 10_000)
-            try:
-                result = conn.execute(sa.text(body.sql))
+    # Execute + fetch the first batch eagerly so a SQL syntax error or an
+    # immediate timeout surfaces as a clean HTTP status BEFORE the streaming
+    # response starts (arbitrary user SQL fails often). The connection then stays
+    # open, owned by the row generator below, which streams the remaining rows
+    # uncapped and tears everything down — including on client disconnect, via
+    # the generator's finally.
+    conn = ro_engine.connect()
+    raw_conn = conn.connection.dbapi_connection
+    raw_conn.set_progress_handler(_progress_handler, 10_000)
 
-                if result.returns_rows:
-                    columns = [col[0] for col in result.cursor.description]
-                    rows_raw = result.fetchmany(SQL_EXPORT_MAX_ROWS)
-                    rows = [list(r) for r in rows_raw]
-                else:
-                    columns = []
-                    rows = []
-            finally:
-                raw_conn.set_progress_handler(None, 0)
+    def _cleanup() -> None:
+        raw_conn.set_progress_handler(None, 0)
+        conn.close()
+        ro_engine.dispose()
+
+    try:
+        result = conn.execute(sa.text(body.sql))
+        if result.returns_rows:
+            columns = [col[0] for col in result.cursor.description]
+            first_batch = [list(r) for r in result.fetchmany(_SQL_EXPORT_BATCH)]
+        else:
+            columns = []
+            first_batch = []
     except sa.exc.OperationalError as exc:
+        _cleanup()
         msg = str(exc.orig) if exc.orig else str(exc)
         if "interrupted" in msg.lower():
             raise HTTPException(
@@ -398,8 +416,22 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
                 detail=f"Query timed out after {SQL_EXPORT_TIMEOUT} seconds.",
             ) from exc
         raise HTTPException(status_code=422, detail=f"SQL error: {msg}") from exc
-    finally:
-        ro_engine.dispose()
+    except BaseException:
+        _cleanup()
+        raise
+
+    def _row_generator():
+        try:
+            yield from first_batch
+            if columns:
+                while True:
+                    batch = result.fetchmany(_SQL_EXPORT_BATCH)
+                    if not batch:
+                        break
+                    for r in batch:
+                        yield list(r)
+        finally:
+            _cleanup()
 
     ext = body.format
     filename = _make_filename(ext)
@@ -407,17 +439,16 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
 
     if ext == "json":
         return StreamingResponse(
-            _stream_json_from_columns(columns, rows),
+            _stream_json_from_columns(columns, _row_generator()),
             media_type=content_type,
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
-    else:
-        delimiter = "\t" if ext == "tsv" else ","
-        return StreamingResponse(
-            _stream_csv_from_columns(columns, rows, delimiter=delimiter),
-            media_type=content_type,
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
+    delimiter = "\t" if ext == "tsv" else ","
+    return StreamingResponse(
+        _stream_csv_from_columns(columns, _row_generator(), delimiter=delimiter),
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ── FHIR R4 export (P4-12a) ────────────────────────────────────────

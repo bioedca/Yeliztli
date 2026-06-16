@@ -146,6 +146,17 @@ def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
 
 
+# #1000: a result set that exceeds the old 10,000-row SQL-export cap, so a
+# regression to a capped fetchmany silently drops the tail.
+_LARGE_ROW_COUNT = 10_500
+
+
+@pytest.fixture
+def large_client(tmp_data_dir: Path):
+    variants = [{"rsid": f"rs{i}", "chrom": "1", "pos": i + 1} for i in range(_LARGE_ROW_COUNT)]
+    yield from _setup_client(tmp_data_dir, variants)
+
+
 # ── Helper ───────────────────────────────────────────────────────────
 
 # Reusable filter that matches all rows.
@@ -564,3 +575,50 @@ class TestExportEmptyResults:
         assert resp.status_code == 200
         data = json.loads(resp.text)
         assert data == []
+
+
+# ══════════════════════════════════════════════════════════════════════
+# #1000: SQL export streams the complete result set (no silent row cap)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestExportSqlUncapped:
+    """/api/export/sql must stream every row, not silently truncate at 10,000.
+
+    The old `fetchmany(SQL_EXPORT_MAX_ROWS)` capped the download at 10,000 rows
+    with no warning/error/log — a console-truncated user funneled here for the
+    full data silently lost the tail. The export now streams uncapped, mirroring
+    /api/export/query (whose 'No variant silently dropped' invariant this matches).
+    """
+
+    def test_csv_export_streams_all_rows_beyond_old_cap(self, large_client) -> None:
+        tc, sid = large_client
+        resp = tc.post(
+            "/api/export/sql",
+            json={
+                "sample_id": sid,
+                "sql": "SELECT rsid, chrom, pos FROM annotated_variants",
+                "format": "csv",
+            },
+        )
+        assert resp.status_code == 200
+        rows = list(csv.reader(io.StringIO(resp.text)))
+        assert rows[0] == ["rsid", "chrom", "pos"]
+        # 1 header + every data row; a re-introduced 10,000 cap would truncate.
+        assert len(rows) - 1 == _LARGE_ROW_COUNT
+        assert len(rows) - 1 > 10_000  # explicitly past the retired cap
+
+    def test_json_export_streams_all_rows_beyond_old_cap(self, large_client) -> None:
+        tc, sid = large_client
+        resp = tc.post(
+            "/api/export/sql",
+            json={
+                "sample_id": sid,
+                "sql": "SELECT rsid FROM annotated_variants",
+                "format": "json",
+            },
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.text)
+        assert len(data) == _LARGE_ROW_COUNT
+        assert len(data) > 10_000
