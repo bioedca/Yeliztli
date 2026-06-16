@@ -788,7 +788,9 @@ class TestYABranchPolarity:
         """rs2032597 ancestral A is not evidence for haplogroup I (#805)."""
         i_node = _find_y_node(bundle.y_tree, "I")
         assert i_node is not None
-        assert "rs2032597" not in {s.rsid for s in i_node.defining_snps}
+        i_rsids = {s.rsid for s in i_node.defining_snps}
+        assert i_rsids
+        assert "rs2032597" not in i_rsids
 
         present, conflicting, total = _classify_node_match(i_node, {"rs2032597": "AA"})
         assert (present, conflicting, total) == (0, 0, len(i_node.defining_snps))
