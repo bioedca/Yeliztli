@@ -395,6 +395,43 @@ describe("RareVariantsView", () => {
     expect(screen.getByText("Previous Findings")).toBeInTheDocument()
   })
 
+  it("renders the 0★ clinvar_pathogenic_low_confidence category with a friendly label, not the raw key (#919)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          items: [
+            {
+              rsid: "rs80357906",
+              gene_symbol: "BRCA1",
+              category: "clinvar_pathogenic_low_confidence",
+              evidence_level: 2,
+              finding_text: "Carried 0-star ClinVar P/LP variant",
+              zygosity: "het",
+              clinvar_significance: "Pathogenic",
+              conditions: "Hereditary breast cancer",
+              detail: {},
+            },
+          ],
+          total: 1,
+        }),
+      text: () => Promise.resolve(""),
+    })
+    rtlRender(<RareVariantsView />, {
+      wrapper: createWrapper(["/?sample_id=1"]),
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId("findings-table")).toBeInTheDocument()
+    })
+    // Friendly label, never the raw snake_case dev key.
+    expect(screen.getByText("Pathogenic (low confidence)")).toBeInTheDocument()
+    expect(screen.queryByText("clinvar pathogenic low confidence")).not.toBeInTheDocument()
+    // Cautionary amber pill, not the neutral gray `rare`/fallback tone.
+    const pill = screen.getByText("Pathogenic (low confidence)")
+    expect(pill.className).toContain("amber")
+    expect(pill.className).not.toContain("bg-muted")
+  })
+
   it("renders filter panel with sample selected", () => {
     mockFetch.mockImplementation(() => new Promise(() => {}))
     rtlRender(<RareVariantsView />, {

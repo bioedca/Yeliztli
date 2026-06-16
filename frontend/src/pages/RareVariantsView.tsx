@@ -14,6 +14,7 @@ import { useSearchParams } from "react-router-dom"
 import { Search, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getRareVariantCategoryMeta } from "@/lib/rare-variant-category"
 import { useRareVariantFindings, useRareVariantSearch } from "@/api/rare-variants"
 import type { RareVariant, RareVariantSearchResponse } from "@/types/rare-variants"
 import FilterPanel from "@/components/rare-variants/FilterPanel"
@@ -186,15 +187,9 @@ export default function RareVariantsView() {
                       <td className="px-3 py-2">
                         <span className={cn(
                           "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          f.category === "clinvar_pathogenic"
-                            ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
-                            : f.category === "ensemble_pathogenic"
-                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300"
-                              : f.category === "novel"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
-                                : "bg-muted text-muted-foreground",
+                          getRareVariantCategoryMeta(f.category).className,
                         )}>
-                          {f.category.replace(/_/g, " ")}
+                          {getRareVariantCategoryMeta(f.category).label}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-xs">{f.clinvar_significance ?? "—"}</td>
