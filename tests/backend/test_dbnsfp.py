@@ -291,6 +291,49 @@ class TestParseDbnsfpTsvLine:
         assert reversed_record.polyphen2_hsvar_pred == record.polyphen2_hsvar_pred
         assert assess_ensemble(reversed_record) == (2, 2)
 
+    def test_comma_separated_sift4g_chooses_damaging(self):
+        """#983: when a variant matches multiple dbNSFP records, SIFT4G values are
+        joined with ',' (not ';'). The parser must split on either delimiter, else
+        a comma-joined damaging transcript is dropped (sift_score=None,
+        sift_pred='T,D') and the SIFT axis silently under-calls."""
+        fields = self._make_fields(
+            CADD_phred=".",
+            SIFT4G_score="0.2,0.01",
+            SIFT4G_pred="T,D",
+            Polyphen2_HVAR_score=".",
+            Polyphen2_HVAR_pred=".",
+            REVEL_score=".",
+            MetaSVM_score=".",
+            MetaLR_score=".",
+        )
+        record, skip = parse_dbnsfp_tsv_line(fields)
+        assert record is not None
+        assert skip is None
+        assert record.sift_score == pytest.approx(0.01)
+        assert record.sift_pred == "D"
+        # The damaging transcript must register on the SIFT axis — pre-fix this
+        # was (0, 1): one axis present (SIFT), zero damaging.
+        assert assess_ensemble(record) == (1, 1)
+
+    def test_mixed_comma_and_semicolon_sift4g_delimiters(self):
+        """Both delimiters can co-occur — ';' separates transcripts within a
+        record, ',' joins values across multiple matched records — so the worst
+        transcript must still be chosen from a mixed string."""
+        fields = self._make_fields(
+            CADD_phred=".",
+            SIFT4G_score="0.2;0.5,0.01",
+            SIFT4G_pred="T;T,D",
+            Polyphen2_HVAR_score=".",
+            Polyphen2_HVAR_pred=".",
+            REVEL_score=".",
+            MetaSVM_score=".",
+            MetaLR_score=".",
+        )
+        record, skip = parse_dbnsfp_tsv_line(fields)
+        assert record is not None
+        assert record.sift_score == pytest.approx(0.01)
+        assert record.sift_pred == "D"
+
     def test_partial_scores(self):
         """Record with only some scores should still be loaded."""
         fields = self._make_fields(

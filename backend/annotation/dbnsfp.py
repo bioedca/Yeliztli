@@ -32,6 +32,7 @@ import csv
 import gzip
 import hashlib
 import io
+import re
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -305,12 +306,31 @@ def _parse_dbnsfp_float(value: str | None) -> float | None:
     return _parse_float(value)
 
 
+# dbNSFP transcript-specific predictor fields (SIFT4G_score/pred,
+# Polyphen2_HVAR_score/pred, …) separate the per-transcript values with ``;``
+# WITHIN a single record, but when a variant matches multiple dbNSFP records the
+# matched values are joined with ``,`` (e.g. SIFT4G_score "0.2,0.01"). Both
+# delimiters can appear — even mixed — so split on either before aggregating;
+# splitting on ``;`` alone left a comma-joined damaging transcript un-parsed,
+# under-calling the in-silico axis (#983). These fields are numeric scores or
+# single-letter prediction codes, so they never carry an intra-value ``,``/``;``
+# — splitting on both is lossless.
+_DBNSFP_MULTIVALUE_DELIM = re.compile(r"[;,]")
+
+
+def _split_dbnsfp_multivalue(value: str) -> list[str]:
+    """Split a dbNSFP multi-transcript field on either delimiter (``;`` or ``,``)."""
+    return _DBNSFP_MULTIVALUE_DELIM.split(value)
+
+
 def _parse_dbnsfp_float_extreme(value: str | None, *, pick: str) -> float | None:
     """Parse a multi-transcript dbNSFP score and choose the requested extreme."""
     if value is None or value in (".", "", "-"):
         return None
     parsed = [
-        result for part in value.split(";") if (result := _parse_float(part.strip())) is not None
+        result
+        for part in _split_dbnsfp_multivalue(value)
+        if (result := _parse_float(part.strip())) is not None
     ]
     if not parsed:
         return None
@@ -349,7 +369,7 @@ def _parse_dbnsfp_pred_by_severity(
     fallback: str | None = None
     best_value: str | None = None
     best_rank = -1
-    for part in value.split(";"):
+    for part in _split_dbnsfp_multivalue(value):
         pred = part.strip()
         if not pred or pred in {".", "-"}:
             continue
