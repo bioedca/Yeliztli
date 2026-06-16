@@ -25,4 +25,11 @@ Your diplotype (e.g. ε3/ε4) and three findings:
   to your age, sex, or ancestry, and **many ε4 carriers never develop Alzheimer's**.
 - There is no preventive treatment that depends on knowing your *APOE* status, which is part
   of why the result is gated behind explicit consent.
-- The diplotype is read from just two SNPs (both reliably typed on consumer arrays).
+- The diplotype is inferred from two epsilon-defining SNPs, rs429358 and rs7412.
+- Treat consumer-array *APOE* calls as provisional: these loci are documented array
+  weak spots, and array/imputed *APOE* agrees with direct clinical genotyping at
+  only ~90% ε genotype / ~93% ε4 status. Confirm any actionable ε4 or ε2 call in a
+  CLIA/accredited lab before medical decisions
+  ([PMID 24448547](https://pubmed.ncbi.nlm.nih.gov/24448547/),
+  [PMID 22972946](https://pubmed.ncbi.nlm.nih.gov/22972946/),
+  [PMID 24903779](https://pubmed.ncbi.nlm.nih.gov/24903779/)).
