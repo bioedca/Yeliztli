@@ -1204,14 +1204,14 @@ def update_annotation_coverage_cpic(
     star_allele_results: list[StarAlleleResult],
     sample_engine: sa.Engine,
 ) -> int:
-    """OR bit 4 (CPIC, value 16) into annotation_coverage for involved variants.
+    """OR bit 6 (CPIC, value 64) into annotation_coverage for involved variants.
 
     After the pharmacogenomics module runs, every variant that participated
     in a star-allele call (i.e. its rsid appears in ``involved_rsids`` of
-    any :class:`StarAlleleResult`) gets bit 4 set in its
+    any :class:`StarAlleleResult`) gets bit 6 set in its
     ``annotation_coverage`` column in ``annotated_variants``.
 
-    Variants not involved in any CPIC gene leave bit 4 unset.
+    Variants not involved in any CPIC gene leave bit 6 unset.
 
     Args:
         star_allele_results: Output from :func:`call_all_star_alleles`.

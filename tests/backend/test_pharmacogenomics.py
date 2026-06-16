@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
@@ -34,6 +35,7 @@ from backend.analysis.pharmacogenomics import (
     store_prescribing_alerts,
     update_annotation_coverage_cpic,
 )
+from backend.analysis.run_all import _run_pharma
 from backend.annotation.engine import CPIC_BIT
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
@@ -1800,7 +1802,7 @@ class TestPrescribingAlertIntegration:
 
 
 class TestUpdateAnnotationCoverageCpic:
-    """Test that CPIC bitmask bit 4 (value 16) is ORed into annotation_coverage."""
+    """Test that CPIC bitmask bit 6 (value 64) is ORed into annotation_coverage."""
 
     def _make_sample_with_annotated(
         self,
@@ -1818,7 +1820,7 @@ class TestUpdateAnnotationCoverageCpic:
                 conn.execute(annotated_variants.insert(), annotated)
         return engine
 
-    def test_sets_bit4_on_involved_variants(self):
+    def test_sets_cpic_bit_on_involved_variants(self):
         """Variants involved in star-allele calls get the CPIC coverage bit set."""
 
         sample = self._make_sample_with_annotated(
@@ -2072,3 +2074,42 @@ class TestUpdateAnnotationCoverageCpic:
 
         updated = update_annotation_coverage_cpic(results, sample)
         assert updated == 0
+
+
+class TestRunPharmaAnnotationCoverage:
+    """Production pharmacogenomics runner updates CPIC annotation coverage."""
+
+    def test_run_pharma_sets_cpic_bit_for_involved_variant(self, pgx_reference_engine: sa.Engine):
+        sample = _make_sample_engine(
+            [
+                {"rsid": "rs4244285", "chrom": "10", "pos": 96541616, "genotype": "GA"},
+            ]
+        )
+        with sample.begin() as conn:
+            conn.execute(
+                annotated_variants.insert(),
+                [
+                    {
+                        "rsid": "rs4244285",
+                        "chrom": "10",
+                        "pos": 96541616,
+                        "genotype": "GA",
+                        "annotation_coverage": 0,
+                    },
+                ],
+            )
+
+        stored = _run_pharma(
+            sample,
+            SimpleNamespace(reference_engine=pgx_reference_engine),
+        )
+
+        assert stored >= 0
+        with sample.connect() as conn:
+            coverage = conn.execute(
+                sa.select(annotated_variants.c.annotation_coverage).where(
+                    annotated_variants.c.rsid == "rs4244285"
+                )
+            ).scalar()
+
+        assert coverage & CPIC_BIT == CPIC_BIT

@@ -170,9 +170,11 @@ def _run_pharma(sample_engine: Engine, registry: DBRegistry) -> int:
         call_all_star_alleles,
         generate_prescribing_alerts,
         store_prescribing_alerts,
+        update_annotation_coverage_cpic,
     )
 
     star_allele_results = call_all_star_alleles(registry.reference_engine, sample_engine)
+    update_annotation_coverage_cpic(star_allele_results, sample_engine)
     alerts = generate_prescribing_alerts(star_allele_results, registry.reference_engine)
     return store_prescribing_alerts(alerts, sample_engine)
 
