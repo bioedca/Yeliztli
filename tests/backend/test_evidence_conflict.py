@@ -74,7 +74,7 @@ class TestConflictFlagFires:
         v = _make_conflict_variant()
         result = detect_evidence_conflict(v)
         assert result.flag is True
-        assert result.deleterious_count >= 3
+        assert result.deleterious_count == 4
         assert result.cadd_phred == 28.4
 
     def test_vus_exactly_3_axes_deleterious(self):

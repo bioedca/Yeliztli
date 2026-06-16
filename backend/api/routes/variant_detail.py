@@ -310,7 +310,7 @@ def _build_evidence_conflict_detail(
     if has_conflict:
         sig_text = clinvar_sig or "unknown"
         stars_text = f" ({clinvar_stars}-star review)" if clinvar_stars is not None else ""
-        n_del = deleterious_count if deleterious_count else len(deleterious_tools)
+        n_del = deleterious_count if deleterious_count is not None else len(deleterious_tools)
         tools_text = f"{n_del} of {total_assessed} independent in-silico axes predict deleterious"
         cadd_text = f" (CADD: {cadd})" if cadd is not None else ""
         summary = (

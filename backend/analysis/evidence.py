@@ -120,7 +120,8 @@ def assign_clinvar_evidence_level(
             panel. When provided and review stars are 0, the result is
             capped at ``min(gene_baseline, 2)``.
         ensemble_pathogenic: Whether >=3 independent in-silico axes predict
-            deleterious. Used as fallback when no ClinVar data.
+            deleterious. Tracked for downstream reporting; this function
+            does not currently promote evidence level based on this flag.
 
     Returns:
         Evidence level integer (1-4).
