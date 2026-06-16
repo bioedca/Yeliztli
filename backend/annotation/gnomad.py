@@ -529,12 +529,16 @@ def load_gnomad_from_csv(
     *,
     clear_existing: bool = True,
 ) -> LoadStats:
-    """Load gnomAD data from a CSV seed file into the gnomad_af table.
+    """Seed the ``gnomad_af`` table from a small CSV fixture — TEST SUPPORT ONLY.
 
-    Useful for testing and for loading pre-processed data.
+    CSV is **not** a production or bundle-build input format: the real pipeline
+    loads gnomAD from its native VCF via :func:`load_gnomad_from_vcf` (see
+    ``scripts/build_gnomad_bundle.py``). This loader exists solely so tests can
+    seed the table from a compact CSV fixture instead of standing up the full
+    VCF machinery; it is on no production/build path.
 
     Args:
-        csv_path: Path to the CSV file with gnomAD data.
+        csv_path: Path to the CSV fixture with gnomAD data.
         engine: SQLAlchemy engine for gnomad_af.db.
         clear_existing: Whether to DELETE all existing rows first.
 

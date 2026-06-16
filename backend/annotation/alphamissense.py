@@ -210,7 +210,13 @@ def load_alphamissense_from_tsv(tsv_path: Path, engine: sa.Engine) -> AlphaMisse
 
 
 def load_alphamissense_from_csv(csv_path: Path, engine: sa.Engine) -> AlphaMissenseLoadStats:
-    """Load a CSV seed (chrom,pos,ref,alt,am_pathogenicity,am_class) — for fixtures/tests."""
+    """Seed the alphamissense table from a small CSV fixture — TEST SUPPORT ONLY.
+
+    CSV (chrom,pos,ref,alt,am_pathogenicity,am_class) is **not** a production or
+    build input format: production loads AlphaMissense from its native TSV via
+    :func:`load_alphamissense_from_tsv` (``download_and_load_alphamissense``).
+    Used only by tests/fixtures.
+    """
     import csv
 
     create_alphamissense_table(engine)

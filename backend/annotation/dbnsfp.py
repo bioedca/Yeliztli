@@ -15,13 +15,15 @@ Usage::
     from backend.annotation.dbnsfp import (
         download_dbnsfp,
         load_dbnsfp_from_tsv,
-        load_dbnsfp_from_csv,
         lookup_dbnsfp_by_rsids,
     )
 
     tsv_path = download_dbnsfp(dest_dir)
     stats = load_dbnsfp_from_tsv(tsv_path, dbnsfp_engine)
     matches = lookup_dbnsfp_by_rsids(["rs429358"], dbnsfp_engine)
+
+(CSV is **not** a production input — see ``load_dbnsfp_from_csv``, which is a
+test-fixture seed loader only.)
 """
 
 from __future__ import annotations
@@ -674,14 +676,18 @@ def load_dbnsfp_from_csv(
     *,
     clear_existing: bool = True,
 ) -> LoadStats:
-    """Load dbNSFP data from a CSV seed file into the dbnsfp_scores table.
+    """Seed the ``dbnsfp_scores`` table from a small CSV fixture — TEST SUPPORT ONLY.
 
-    Useful for testing and for loading pre-processed data.  The CSV is expected
-    to have columns matching the dbnsfp_scores table exactly:
+    CSV is **not** a production or bundle-build input format: the real pipeline
+    loads dbNSFP from its native academic TSV via :func:`load_dbnsfp_from_tsv`
+    (``download_and_load_dbnsfp``). This loader exists solely so tests can seed
+    the table from a compact CSV fixture instead of standing up the full TSV
+    machinery; it is on no production/build path. The CSV is expected to have
+    columns matching the dbnsfp_scores table exactly:
     rsid, chrom, pos, ref, alt, cadd_phred, ..., primateai.
 
     Args:
-        csv_path: Path to the CSV file with dbNSFP data.
+        csv_path: Path to the CSV fixture with dbNSFP data.
         engine: SQLAlchemy engine for dbnsfp.db.
         clear_existing: Whether to DELETE all existing rows first.
 
