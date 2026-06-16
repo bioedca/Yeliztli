@@ -112,19 +112,26 @@ describe("useDialogFocus", () => {
 
   it("locks and restores body plus app scroll-container overflow", () => {
     document.body.style.overflow = "auto"
-    const { rerender } = render(<ScrollContainerDialog open={false} />)
-    const scrollContainer = screen.getByTestId("scroll-container")
+    let closeDialog: (() => void) | undefined
 
-    rerender(<ScrollContainerDialog open={true} />)
+    try {
+      const { rerender } = render(<ScrollContainerDialog open={false} />)
+      closeDialog = () => rerender(<ScrollContainerDialog open={false} />)
+      const scrollContainer = screen.getByTestId("scroll-container")
 
-    expect(document.body.style.overflow).toBe("hidden")
-    expect(scrollContainer).toHaveStyle({ overflow: "hidden" })
+      rerender(<ScrollContainerDialog open={true} />)
 
-    rerender(<ScrollContainerDialog open={false} />)
+      expect(document.body.style.overflow).toBe("hidden")
+      expect(scrollContainer).toHaveStyle({ overflow: "hidden" })
 
-    expect(document.body.style.overflow).toBe("auto")
-    expect(scrollContainer).toHaveStyle({ overflow: "auto" })
-    document.body.style.overflow = ""
+      rerender(<ScrollContainerDialog open={false} />)
+
+      expect(document.body.style.overflow).toBe("auto")
+      expect(scrollContainer).toHaveStyle({ overflow: "auto" })
+    } finally {
+      closeDialog?.()
+      document.body.style.overflow = ""
+    }
   })
 })
 
