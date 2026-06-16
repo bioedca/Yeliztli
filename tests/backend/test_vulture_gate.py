@@ -54,3 +54,79 @@ def test_vulture_detects_unused_module_symbols(tmp_path: Path) -> None:
     assert result.returncode != 0, f"vulture found nothing:\n{result.stdout}\n{result.stderr}"
     assert "unused_function" in result.stdout
     assert "UNUSED_CONSTANT" in result.stdout
+
+
+def test_vulture_config_keeps_pytest_decorator_exclusion() -> None:
+    """[tool.vulture].ignore_decorators must keep a ``@pytest`` exclusion (#715).
+
+    pytest fixtures/marks are invoked by the framework, not called directly, so
+    vulture reports them as unused functions/methods. The blocking gate reddened
+    main *twice* when this exclusion was missing (#684; independently re-derived
+    in the closed duplicate #706). This config assertion fails if a future edit
+    narrows the decorator list or drops the glob, so the gate can't rot a third
+    time.
+    """
+    cfg = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    ignore_decorators = cfg["tool"]["vulture"]["ignore_decorators"]
+    assert any(d.startswith("@pytest") for d in ignore_decorators), (
+        f"vulture ignore_decorators lost its @pytest exclusion: {ignore_decorators}"
+    )
+
+
+def test_configured_ignore_decorators_suppress_pytest_fixtures(tmp_path: Path) -> None:
+    """The repo's *actual* configured ``ignore_decorators`` must suppress a pytest
+    fixture, including an ``autouse=True`` one — the exact false positive that broke
+    the gate (#684, #715).
+
+    Discriminating both ways: with no ignore, vulture flags the fixtures (positive
+    control); the configured globs must silence them. A config narrowed to patterns
+    that no longer cover ``@pytest`` fixtures fails this test before it can redden
+    the blocking gate on main.
+    """
+    module = tmp_path / "conftest_like.py"
+    module.write_text(
+        "import pytest\n\n\n"
+        "@pytest.fixture\n"
+        "def some_fixture():\n"
+        "    return 1\n\n\n"
+        "@pytest.fixture(autouse=True)\n"
+        "def _setup_complete():\n"
+        "    yield\n",
+        encoding="utf-8",
+    )
+
+    def _run(*extra: str) -> subprocess.CompletedProcess[str]:
+        # cwd=tmp_path so vulture does NOT auto-load the repo's [tool.vulture]
+        # config; the ignore set is supplied explicitly via --ignore-decorators.
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "vulture",
+                "conftest_like.py",
+                "--min-confidence",
+                "60",
+                *extra,
+            ],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    # Positive control: with no ignore, vulture DOES flag the fixtures as unused.
+    bare = _run()
+    assert "some_fixture" in bare.stdout, (
+        f"expected vulture to flag an un-ignored pytest fixture:\n{bare.stdout}\n{bare.stderr}"
+    )
+
+    # The repo's actual configured ignore_decorators must suppress them.
+    cfg = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    ignore_decorators = ",".join(cfg["tool"]["vulture"]["ignore_decorators"])
+    guarded = _run("--ignore-decorators", ignore_decorators)
+    assert guarded.returncode == 0, (
+        "configured ignore_decorators failed to suppress pytest fixtures:\n"
+        f"{guarded.stdout}\n{guarded.stderr}"
+    )
+    assert "some_fixture" not in guarded.stdout
+    assert "_setup_complete" not in guarded.stdout
