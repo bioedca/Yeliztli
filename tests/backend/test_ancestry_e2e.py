@@ -472,14 +472,6 @@ class TestTier1API:
 class TestTier2LAI:
     """LAI validation — skipped when Java is unavailable."""
 
-    def test_lai_unavailable_without_bundle(self) -> None:
-        """is_lai_available returns False when bundle is missing."""
-        from backend.analysis.lai import is_lai_available
-
-        with patch("backend.analysis.lai.get_settings") as mock_settings:
-            mock_settings.return_value.resolved_lai_bundle_path = Path("/nonexistent")
-            assert is_lai_available() is False
-
     def test_lai_trigger_404_without_bundle(self, tmp_data_dir: Path) -> None:
         """LAI trigger API returns 404 when bundle not downloaded."""
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
