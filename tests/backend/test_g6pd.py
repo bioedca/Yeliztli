@@ -342,7 +342,9 @@ class TestGsaArrayTypeability:
     content and the rest "varied by chip". The public Illumina GSA-24v3 manifest was
     checked (by rsID and GRCh37 position) and bundled as derived membership facts in
     backend/data/array_manifests/gsa_24v3_typeability.json; all G6PD deficiency loci
-    are present, so each carries gsa_v3_typed=True.
+    are present by position, but gsa_v3_typed is an ALLELE-level flag (#842): Cosenza
+    (C>G) shares Canton's rs72554665 whose probe resolves only [A/C], so Cosenza is
+    gsa_v3_typed=False while every other variant is True.
     """
 
     def _artifact(self) -> dict:
@@ -370,13 +372,35 @@ class TestGsaArrayTypeability:
             assert rsid in typed, f"{rsid} not recorded as GSA-24v3 typed"
 
     def test_locus_calls_surface_gsa_v3_typed(self) -> None:
-        # Every locus comes back gsa_v3_typed=True regardless of genotype (here a single
-        # reference A- call; the rest are no-calls but still GSA-typed).
+        # Each locus surfaces gsa_v3_typed independent of genotype (here a single
+        # reference A- call; the rest are no-calls). Typeability is allele-level (#842):
+        # every variant is typed EXCEPT Cosenza, whose C>G allele is outside the
+        # rs72554665 manifest probe's [A/C] (Canton C>A) set.
         engine = _make_sample({G6PD_A_MINUS_RSID: "C"})
         with patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"):
             result = assess_g6pd(engine)
         for v in result["variants"]:
-            assert v["gsa_v3_typed"] is True, f"{v['rsid']} should be gsa_v3_typed"
+            expected = v["name"] != "Cosenza (R459P)"
+            assert v["gsa_v3_typed"] is expected, f"{v['name']} gsa_v3_typed should be {expected}"
+
+    def test_cosenza_not_gsa_typed_despite_sharing_cantons_rsid(self) -> None:
+        # #842: typeability is an ALLELE-level fact, not rsID membership. The GSA-24v3
+        # probe at the multiallelic rs72554665 resolves [A/C] (Canton C>A), so Canton is
+        # gsa_v3_typed but Cosenza (C>G) is NOT — its G allele is not on that probe, even
+        # though both deficiency rows share the rsID. A Cosenza no-call is therefore not a
+        # confident reference/absent call. (gsa_v3_typed is genotype-independent; seed a
+        # single harmless reference call so the sample has at least one variant.)
+        engine = _make_sample({G6PD_A_MINUS_RSID: "C"})
+        with patch("backend.analysis.g6pd.infer_biological_sex", return_value="XY"):
+            result = assess_g6pd(engine)
+        canton = next(v for v in result["variants"] if v["name"] == "Canton (R459L)")
+        cosenza = next(v for v in result["variants"] if v["name"] == "Cosenza (R459P)")
+        assert canton["gsa_v3_typed"] is True
+        assert cosenza["gsa_v3_typed"] is False
+        # Seattle/Lodi is also C/G palindromic, but its probe genuinely resolves [C/G],
+        # so it stays typed — the fix keys on the allele set, not palindrome-ness.
+        seattle = next(v for v in result["variants"] if v["name"] == "Seattle/Lodi (D282H)")
+        assert seattle["gsa_v3_typed"] is True
 
     def test_non_european_lct_absentees_recorded(self) -> None:
         # The two LCT variants absent from the GSA backbone are recorded as not_typed

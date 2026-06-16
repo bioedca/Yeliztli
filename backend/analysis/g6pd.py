@@ -80,13 +80,18 @@ Southeast/South-Asian literature (Nuchprayoon 2002; Iwai 2001; Ainoon 1999):
   own; relevant only as the A− background. Forward T/C; the 376G allele is
   forward **C**. Context, never a deficiency call by itself.
 
-**Array typeability (#321).** Every CPIC deficiency variant below is present on the
-Illumina Infinium Global Screening Array-24 v3.0 backbone — the documented basis for
-23andMe v5 and AncestryDNA — verified against the public GSA-24v3 manifest by rsID and
-GRCh37 position (``backend/data/array_manifests/gsa_24v3_typeability.json``, with
-provenance). Each variant therefore carries a ``gsa_v3_typed`` flag surfaced in the
-API, so a no-call on a covered locus is a genuine reference/absent call rather than the
-locus being un-interrogated. DTC vendors add/remove custom content, so the GSA backbone
+**Array typeability (#321/#842).** Each CPIC deficiency variant below carries a
+``gsa_v3_typed`` flag (surfaced in the API) recording whether the Illumina Infinium
+Global Screening Array-24 v3.0 backbone — the documented basis for 23andMe v5 and
+AncestryDNA — actually interrogates *that variant's alleles*, verified against the
+public GSA-24v3 manifest by GRCh37 position AND allele set
+(``backend/data/array_manifests/gsa_24v3_typeability.json``, with provenance). It is an
+**allele-level** check, not rsID membership: at the multiallelic rs72554665 the manifest
+probe resolves only ``[A/C]`` (Canton C>A), so Canton is ``gsa_v3_typed=True`` but
+Cosenza (C>G) is ``False`` — the array does not assay its G allele, so a Cosenza no-call
+is *not* a confident reference/absent call. When ``True``, a no-call on a covered locus
+is a genuine reference/absent call rather than the locus being un-interrogated. DTC
+vendors add/remove custom content, so the GSA backbone
 is the best public proxy and a non-call is still never reported as a false deficiency
 call. (Adding a locus can only *raise* sensitivity for ancestries whose deficiency is
 not driven by A−/Mediterranean; SNP chips type common variants reliably yet rarer ones
@@ -141,9 +146,29 @@ _GSA_TYPEABILITY_PATH = (
     / "array_manifests"
     / "gsa_24v3_typeability.json"
 )
-_GSA_V3_TYPED_RSIDS: frozenset[str] = frozenset(
-    json.loads(_GSA_TYPEABILITY_PATH.read_text())["typed"]
-)
+
+
+def _manifest_plus_strand_alleles(entry: dict[str, Any]) -> frozenset[str]:
+    """The biallelic set a GSA probe distinguishes, normalized to the plus strand.
+
+    The manifest records each probe's ``snp`` (e.g. ``[A/C]``) on its design
+    ``ref_strand``; the curated ``forward_ref``/``forward_def`` are plus-strand, so a
+    minus-strand probe's alleles are complemented before comparison.
+    """
+    alleles = entry["snp"].strip("[]").split("/")
+    if entry.get("ref_strand") == "-":
+        alleles = [COMPLEMENT[a] for a in alleles]
+    return frozenset(alleles)
+
+
+# rsid → the plus-strand biallelic set the GSA-24v3 probe at that position resolves
+# (parsed from the manifest, #842). Typeability is an ALLELE-level fact: a multiallelic
+# position (rs72554665 = Canton C>A + Cosenza C>G) is "typed" only for the row whose
+# {ref, alt} the probe actually distinguishes — see ``_gsa_v3_typed``.
+_GSA_V3_TYPED_ALLELES: dict[str, frozenset[str]] = {
+    rsid: _manifest_plus_strand_alleles(entry)
+    for rsid, entry in json.loads(_GSA_TYPEABILITY_PATH.read_text())["typed"].items()
+}
 
 # CPIC: expanded medication guideline (primary) + the rasburicase guideline; He 2020
 # (Han-Chinese variant spectrum) backs the East/Southeast-Asian deficiency panel.
@@ -352,6 +377,18 @@ def g6pd_phenotype(
     }
 
 
+def _gsa_v3_typed(rsid: str, ref: str, deficiency_allele: str) -> bool:
+    """Whether the GSA-24v3 backbone actually interrogates THIS variant's alleles (#842).
+
+    Allele-level, not rsID-membership: the probe at the multiallelic rs72554665
+    resolves only ``[A/C]`` (Canton C>A), so Cosenza's C>G is NOT covered even though
+    it shares the rsID. A variant is typed only when the probe's plus-strand biallelic
+    set equals its ``{ref, deficiency_allele}`` pair.
+    """
+    probe = _GSA_V3_TYPED_ALLELES.get(rsid)
+    return probe is not None and frozenset({ref.upper(), deficiency_allele.upper()}) == probe
+
+
 def _locus_call(
     *, name: str, rsid: str, cdna: str, ref: str, deficiency_allele: str, genotype: str | None
 ) -> dict[str, Any]:
@@ -371,9 +408,11 @@ def _locus_call(
         "deficiency_alleles": state["deficiency"] if state else None,
         "strand_ambiguous": _strand_ambiguous_call(genotype, ref, deficiency_allele),
         # Whether the GSA-24v3 backbone (23andMe v5 / AncestryDNA) interrogates this
-        # locus (#321). When True, a no-call is a genuine reference/absent call on a
-        # covered probe; when False it would mean the array never types the locus.
-        "gsa_v3_typed": rsid in _GSA_V3_TYPED_RSIDS,
+        # variant's alleles (#321/#842). Allele-level: True only when the probe's
+        # biallelic set is this row's {ref, deficiency}. When True, a no-call is a
+        # genuine reference/absent call on a covered probe; when False the array does
+        # not assay this allele (e.g. Cosenza C>G under the Canton-only [A/C] probe).
+        "gsa_v3_typed": _gsa_v3_typed(rsid, ref, deficiency_allele),
     }
 
 
