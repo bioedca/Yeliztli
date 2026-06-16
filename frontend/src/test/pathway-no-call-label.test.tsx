@@ -20,17 +20,20 @@ vi.mock("@/api/nutrigenomics", () => ({ useNutrigenomicsPathwayDetail: vi.fn() }
 vi.mock("@/api/allergy", () => ({ useAllergyPathwayDetail: vi.fn() }))
 vi.mock("@/api/fitness", () => ({ useFitnessPathwayDetail: vi.fn() }))
 vi.mock("@/api/methylation", () => ({ useMethylationPathwayDetail: vi.fn() }))
+vi.mock("@/api/skin", () => ({ useSkinPathwayDetail: vi.fn() }))
 
 import AllergyPanel from "@/components/allergy/PathwayDetailPanel"
 import FitnessPanel from "@/components/fitness/PathwayDetailPanel"
 import GeneHealthPanel from "@/components/gene-health/PathwayDetailPanel"
 import MethylationPanel from "@/components/methylation/PathwayDetailPanel"
 import NutrigenomicsPanel from "@/components/nutrigenomics/PathwayDetailPanel"
+import SkinPanel from "@/components/skin/PathwayDetailPanel"
 import { useAllergyPathwayDetail } from "@/api/allergy"
 import { useFitnessPathwayDetail } from "@/api/fitness"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
 import { useMethylationPathwayDetail } from "@/api/methylation"
 import { useNutrigenomicsPathwayDetail } from "@/api/nutrigenomics"
+import { useSkinPathwayDetail } from "@/api/skin"
 
 const OFF_CHIP = "rs10000001"
 const NO_CALL = "rs80338939"
@@ -65,6 +68,7 @@ const MODULES: { name: string; Panel: ComponentType<PanelProps>; hook: MockedDet
   { name: "gene-health", Panel: GeneHealthPanel, hook: asMock(useGeneHealthPathwayDetail) },
   { name: "methylation", Panel: MethylationPanel, hook: asMock(useMethylationPathwayDetail) },
   { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: asMock(useNutrigenomicsPathwayDetail) },
+  { name: "skin", Panel: SkinPanel, hook: asMock(useSkinPathwayDetail) },
 ]
 
 describe.each(MODULES)(

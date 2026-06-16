@@ -139,6 +139,7 @@ class SNPResult:
     pmids: list[str]
     recommendation_text: str
     present_in_sample: bool
+    coverage_status: str | None = None  # called / no_call / not_on_array
     mc1r_allele_class: str | None = None
     coverage_note: str | None = None
     insufficient_data_flag: bool = False
@@ -731,10 +732,15 @@ def score_skin_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(
-                genotypes.get(snp.rsid), scorable_genotypes=snp.genotype_effects
-            )
+            raw_gt = genotypes.get(snp.rsid)
+            gt = _normalize_genotype(raw_gt, scorable_genotypes=snp.genotype_effects)
             result = _score_snp(snp, gt)
+            if raw_gt is None:
+                result.coverage_status = "not_on_array"
+            elif gt is None:
+                result.coverage_status = "no_call"
+            else:
+                result.coverage_status = "called"
             snp_results.append(result)
 
             # Track FLG insufficient data flag
@@ -840,6 +846,7 @@ def store_skin_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
             "snp_details": [
                 {
                     "rsid": s.rsid,

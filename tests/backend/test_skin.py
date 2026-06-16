@@ -286,6 +286,26 @@ class TestMMP1IndelScoring:
         assert _score_snp(mmp1, "ID").category == MODERATE
         assert _score_snp(mmp1, "II").category == MODERATE  # Elevated capped to Moderate (★☆)
 
+    def test_real_23andme_indel_calls_are_called_through_pipeline(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Scored I/D panel genotypes remain called in pathway coverage."""
+        _seed_variants(
+            sample_engine,
+            [("rs1799750", "11", 102799717, "DI")],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+
+        oxidative = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "oxidative_stress_aging"
+        )
+        mmp1 = next(s for s in oxidative.called_snps if s.rsid == "rs1799750")
+        assert mmp1.present_in_sample is True
+        assert mmp1.coverage_status == "called"
+
     def test_legacy_nucleotide_genotype_no_longer_matches(self, panel: SkinPanel) -> None:
         # The old nucleotide encoding is gone: a "GGG" call no longer resolves
         # (guards against accidentally re-adding the nucleotide keys).
@@ -1189,6 +1209,46 @@ class TestStoreFindingsIntegration:
         for cr in cross_rows:
             detail = json.loads(cr.detail_json)
             assert "target_module" in detail
+
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Stored skin pathway detail keeps no-calls separate from off-chip SNPs."""
+        _seed_variants(
+            sample_engine,
+            [("rs1805007", "16", 89919736, "--")],
+        )
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+
+        pigmentation = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "pigmentation_uv"
+        )
+        r151c = next(s for s in pigmentation.missing_snps if s.rsid == "rs1805007")
+        r160w = next(s for s in pigmentation.missing_snps if s.rsid == "rs1805008")
+        assert r151c.coverage_status == "no_call"
+        assert r160w.coverage_status == "not_on_array"
+
+        store_skin_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Pigmentation & UV Response",
+                    )
+                )
+            ).first()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert "rs1805007" in detail["missing_snps"]
+        assert "rs1805008" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs1805007"]
+        assert "rs1805008" not in detail["no_call_snps"]
 
     def test_store_clears_previous_findings(
         self,
