@@ -14,14 +14,14 @@
       "cross_links": ["carrier"],
       "expected_clinvar_rsids": [
         "rs80357906",
-        "rs80357713",
+        "rs80357783",
         "rs28897672",
         "rs80357914",
         "rs28897696",
         "rs28897689",
         "rs80358065",
         "rs80357973",
-        "rs80357975",
+        "rs80357867",
         "rs80358152"
       ],
       "pmids": ["20301425", "29446198"],
@@ -39,12 +39,12 @@
       "expected_clinvar_rsids": [
         "rs80359550",
         "rs80359065",
-        "rs80359585",
+        "rs80359584",
         "rs80359671",
         "rs11571833",
         "rs80359375",
         "rs80359351",
-        "rs80359716",
+        "rs80359714",
         "rs276174802",
         "rs80359688"
       ],
@@ -84,7 +84,7 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs180177102",
-        "rs515726124",
+        "rs515726123",
         "rs180177143",
         "rs180177100",
         "rs180177092"
@@ -143,7 +143,7 @@
         "rs587782318",
         "rs587783520",
         "rs730881849",
-        "rs786201732"
+        "rs746061888"
       ],
       "pmids": ["32107557", "32359370", "26261251", "33471974", "35084436", "38986768", "40875208", "41070818", "36411032"],
       "notes": "RAD51C is a moderate (intermediate) penetrance gene; both panel associations are retained. Ovarian (tubo-ovarian) is the primary, unconditional association: population OR ~5.2-5.6 and segregation RR 7.55 with ~11% lifetime risk to age 80 (PMID 26261251; 32359370; 32107557), confirmed in UK Biobank (PMID 40875208) and by ACMG/UK guidance (PMID 41070818; 36411032). Breast is a genuine general association but ATTENUATED and SUBTYPE-SKEWED: the population-scale effect is modest (overall OR ~1.5-2.0; meta-analysed OR 1.53, 95% CI 1.29-2.04, PMID 38986768; segregation RR 1.99, PMID 32107557) and concentrated in ER-negative/triple-negative disease, where the effect is much stronger (TNBC OR ~6.2, PMID 35084436; CARRIERS ER-negative/TNBC predominance, PMID 33471974). ACMG 2025 frames RAD51C breast risk as moderate and predominantly triple-negative, generally not warranting risk-reducing mastectomy (PMID 41070818). Both ovarian and breast risk are further modulated upward by family history (e.g. up to ~32-36% ovarian / ~44-46% breast with two affected first-degree relatives, PMID 32107557). Prostate and pancreatic are NOT supported as general associations and are deliberately excluded from cancer_types: the prostate signal is limited to a single recurrent missense (A126T) in a regional familial study and is not reproduced in large unbiased cohorts (PMID 40875208), and pancreatic rests on isolated case reports with no population-scale risk estimate."
@@ -216,7 +216,7 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs748452299",
+        "rs267608078",
         "rs267608090",
         "rs267608120",
         "rs267607798"
@@ -435,7 +435,7 @@
       "evidence_level": 3,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs375367521",
+        "rs5790770",
         "rs587782786"
       ],
       "pmids": ["20301715", "24344213"],

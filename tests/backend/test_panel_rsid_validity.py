@@ -38,20 +38,13 @@ VALIDITY_SNAPSHOT = (
 # lists. Baselined so the merge guard passes while it locks against *new* merges;
 # correcting each to its current refSNP id is tracked in #885 (this set shrinks to
 # ``{}``). Target = dbSNP refsnp v2 ``merged_into`` (accessed 2026-06-16).
-_KNOWN_DBSNP_MERGED = {
-    "rs33944857": "rs5820323",
-    "rs57621804": "rs618285",
-    "rs80356770": "rs77369218",
-    "rs80356773": "rs75822236",
-    "rs80357713": "rs80357783",
-    "rs80357975": "rs80357867",
-    "rs80359585": "rs80359584",
-    "rs80359716": "rs80359714",
-    "rs375367521": "rs5790770",
-    "rs515726124": "rs515726123",
-    "rs748452299": "rs267608087",
-    "rs786201732": "rs746061888",
-}
+# The #885 dbSNP-merged backlog has been cleared: all 12 retired ids were
+# swapped for their current refSNP in the cancer/carrier/cardiovascular panels
+# (verified against dbSNP refsnp v2, accessed 2026-06-16). The baseline is now
+# empty — any merged panel rsID is a fresh offender caught by
+# ``test_no_unexpected_merged_or_withdrawn_rsid`` against the regenerated
+# snapshot, so regression protection no longer needs per-id entries here.
+_KNOWN_DBSNP_MERGED: dict[str, str] = {}
 
 # rsIDs dbSNP has retired (merged) or that are not valid dbSNP records at all,
 # verified against dbSNP refsnp v2 + Ensembl GRCh37 (#645). They must never
@@ -60,7 +53,11 @@ _RETIRED_OR_INVALID_RSIDS = {
     "rs28940299": "dbSNP-merged into rs5030806 → rs104893829; use the current rs104893829",
     "rs5030806": "dbSNP-merged into rs104893829; use the current rs104893829",
     "rs6269442": "no dbSNP refsnp record / absent from Ensembl GRCh37 — invalid rsID",
-    "rs267608087": "dbSNP-merged into rs748452299; use the current rs748452299",
+    # #885: the live merge chain is rs748452299 → rs267608087 → rs267608078, so
+    # BOTH intermediates are retired and rs267608078 is the current leaf (the
+    # earlier rs267608087↔rs748452299 entry had the direction reversed, #786).
+    "rs748452299": "dbSNP-merged via rs267608087 into rs267608078; use the current rs267608078",
+    "rs267608087": "dbSNP-merged into rs267608078; use the current rs267608078",
 }
 
 _RS_FIELDS = ("rsid",)  # dict keys whose string value is a single rsID

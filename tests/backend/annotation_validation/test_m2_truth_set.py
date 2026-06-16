@@ -237,11 +237,11 @@ def test_monogenic_cancer_finding_surfaces_for_carrier(build_live_run) -> None:
             # het carrier of a BRCA1-panel P/LP variant — must surface
             {"rsid": "rs80357906", "chrom": "17", "pos": 43_094_000, "genotype": "GA"},
             # hom-ref at another BRCA1-panel P/LP variant — must NOT surface
-            {"rsid": "rs80357713", "chrom": "17", "pos": 43_095_000, "genotype": "GG"},
+            {"rsid": "rs80357783", "chrom": "17", "pos": 43_095_000, "genotype": "GG"},
         ],
         clinvar=[
             _clinvar("rs80357906", "17", 43_094_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
-            _clinvar("rs80357713", "17", 43_095_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
+            _clinvar("rs80357783", "17", 43_095_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
         ],
         vep=[
             {
@@ -254,7 +254,7 @@ def test_monogenic_cancer_finding_surfaces_for_carrier(build_live_run) -> None:
                 "consequence": "stop_gained",
             },
             {
-                "rsid": "rs80357713",
+                "rsid": "rs80357783",
                 "chrom": "17",
                 "pos": 43_095_000,
                 "ref": "G",
@@ -268,7 +268,7 @@ def test_monogenic_cancer_finding_surfaces_for_carrier(build_live_run) -> None:
     assert "rs80357906" in cancer_rsids, (
         "het carrier of a cancer-panel P/LP variant was suppressed (F6/F7)"
     )
-    assert "rs80357713" not in cancer_rsids, "hom-ref non-carrier leaked into cancer findings"
+    assert "rs80357783" not in cancer_rsids, "hom-ref non-carrier leaked into cancer findings"
 
 
 # ── F18: merged rsid resolved to its current id ───────────────────────────
