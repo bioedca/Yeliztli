@@ -16,6 +16,7 @@ import sqlalchemy as sa
 from backend.analysis.gtex import GTEX_PMID, eqtl_regulatory_context
 from backend.annotation.gtex_eqtl import (
     create_gtex_tables,
+    gtex_eqtl,
     load_gtex_eqtl,
     load_variant_rsid_lookup,
     lookup_eqtls_by_rsids,
@@ -53,6 +54,13 @@ def _write(tmp_path: Path, name: str, content: str, gz: bool = False) -> Path:
     else:
         p.write_text(content, encoding="utf-8")
     return p
+
+
+def _count_tissue_rows(engine: sa.Engine, tissue: str) -> int:
+    with engine.connect() as conn:
+        return conn.scalar(
+            sa.select(sa.func.count()).select_from(gtex_eqtl).where(gtex_eqtl.c.tissue == tissue)
+        )
 
 
 class TestParseVariantId:
@@ -110,13 +118,21 @@ class TestIngestion:
             ).scalar()
         assert n == 2  # not duplicated
 
+    def test_loading_second_tissue_preserves_existing_tissue(self, tmp_path: Path) -> None:
+        engine, _ = self._load(tmp_path)
+        lk = load_variant_rsid_lookup(_write(tmp_path, "lookup2.txt", _LOOKUP))
+        liver_sig = _write(tmp_path, "liver.txt", _SIGNIF)
+
+        load_gtex_eqtl(liver_sig, lk, "Liver", engine)
+
+        assert _count_tissue_rows(engine, "Whole_Blood") == 2
+        assert _count_tissue_rows(engine, "Liver") == 2
+
     def test_create_tables_idempotent_and_usable(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
         create_gtex_tables(engine)
         create_gtex_tables(engine)  # second call must not error
         # Table exists and is usable: an insert + count round-trips.
-        from backend.annotation.gtex_eqtl import gtex_eqtl
-
         with engine.begin() as conn:
             conn.execute(gtex_eqtl.insert().values(rsid="rsX", gene_id="ENSG", tissue="T", pos=1))
         with engine.connect() as conn:
