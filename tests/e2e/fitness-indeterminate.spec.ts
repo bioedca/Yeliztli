@@ -1,8 +1,8 @@
 /**
- * Issue #360 — the fitness PathwayCard must surface the strand-INDETERMINATE
- * caveat so an all-indeterminate "Standard" pathway (e.g. an FTO rs9939609
- * palindromic homozygote whose strand can't be resolved) no longer reads as a
- * confidently-clear "no variants of concern" result (#270/#356).
+ * Issue #360/#961 — the fitness PathwayCard must surface an indeterminate
+ * caveat so an all-indeterminate "Standard" pathway no longer reads as a
+ * confidently-clear "no variants of concern" result (#270/#356), without
+ * asserting the wrong cause for unmodeled-allele calls (#608).
  *
  * The backend exposes `indeterminate_snps` on the pathways response; here we
  * stub that one endpoint (FitnessView reads `sample_id` from the URL) and
@@ -56,8 +56,26 @@ const PATHWAYS_CLEAR = {
   ],
 }
 
-test.describe('Fitness PathwayCard strand-indeterminate caveat (#360)', () => {
-  test('an all-indeterminate Standard pathway shows the caveat, not "no concern"', async ({
+const PATHWAYS_WITH_UNMODELED_INDETERMINATE = {
+  total: 1,
+  cross_context: [],
+  items: [
+    {
+      pathway_id: 'power',
+      pathway_name: 'Power',
+      level: 'Standard',
+      evidence_level: 2,
+      called_snps: 1,
+      total_snps: 1,
+      missing_snps: [],
+      indeterminate_snps: ['rs4341'],
+      pmids: [],
+    },
+  ],
+}
+
+test.describe('Fitness PathwayCard indeterminate caveat (#360/#961)', () => {
+  test('an all-indeterminate Standard pathway shows a neutral caveat, not "no concern"', async ({
     page,
   }) => {
     await page.route('**/api/analysis/fitness/pathways**', async (route) => {
@@ -74,8 +92,25 @@ test.describe('Fitness PathwayCard strand-indeterminate caveat (#360)', () => {
     // ...but it is NOT presented as confidently clear: the neutral caveat shows.
     const caveat = page.getByTestId('pathway-indeterminate-caveat')
     await expect(caveat).toBeVisible()
-    await expect(caveat).toContainText(/strand-unresolved/i)
     await expect(caveat).toContainText(/not interpreted/i)
+    await expect(caveat).toContainText(/see details/i)
+    await expect(caveat).not.toContainText(/strand-unresolved/i)
+  })
+
+  test('an unmodeled-allele indeterminate pathway does not claim strand-unresolved', async ({
+    page,
+  }) => {
+    await page.route('**/api/analysis/fitness/pathways**', async (route) => {
+      await route.fulfill(jsonRoute(PATHWAYS_WITH_UNMODELED_INDETERMINATE))
+    })
+
+    await page.goto('/fitness?sample_id=1')
+    await waitForReactHydration(page)
+
+    await expect(page.getByText('Power')).toBeVisible()
+    const caveat = page.getByTestId('pathway-indeterminate-caveat')
+    await expect(caveat).toContainText(/1 variant observed but not interpreted/i)
+    await expect(caveat).not.toContainText(/strand-unresolved/i)
   })
 
   test('a confidently-clear Standard pathway shows no caveat', async ({ page }) => {

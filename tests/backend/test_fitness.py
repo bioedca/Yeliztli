@@ -995,10 +995,44 @@ class TestStoreFindingsIntegration:
             ).fetchone()
         assert row is not None
         assert "no variants of concern" not in row.finding_text
-        assert "strand-unresolved" in row.finding_text
+        assert "not interpreted" in row.finding_text
+        assert "strand-unresolved" not in row.finding_text
         assert "indeterminate" in row.finding_text.lower()
         detail = json.loads(row.detail_json)
         assert detail["indeterminate_snps"] == ["rs9939609"]
+
+    def test_unmodeled_allele_indeterminate_summary_is_cause_neutral(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """An unmodeled-allele indeterminate call must not be labeled as strand
+        unresolved at the pathway-summary level (#608/#961)."""
+        _seed_variants(sample_engine, [("rs4341", "17", 63488529, "CG")])
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
+        ace = next(s for s in power.snp_results if s.rsid == "rs4341")
+
+        assert ace.category == INDETERMINATE
+        assert "does not model" in ace.effect_summary
+        assert [s.rsid for s in power.indeterminate_snps] == ["rs4341"]
+
+        store_fitness_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == power.pathway_name,
+                )
+            ).fetchone()
+
+        assert row is not None
+        assert "not interpreted" in row.finding_text
+        assert "strand-unresolved" not in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["indeterminate_snps"] == ["rs4341"]
 
     def test_standard_pathway_without_indeterminate_still_no_concern(
         self,

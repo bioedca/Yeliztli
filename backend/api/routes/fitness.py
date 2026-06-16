@@ -61,9 +61,9 @@ class PathwaySummary(BaseModel):
     called_snps: int
     total_snps: int
     missing_snps: list[str] = []
-    # Called SNPs whose strand (and therefore category) is unresolved — a
+    # Called SNPs observed but withheld from pathway interpretation. A
     # "Standard" level with these is NOT a confident "no variants of concern"
-    # result (#270). Surfaced here so the caveat is visible without drilling in.
+    # result (#270/#608). Surfaced here so the caveat is visible without drilling in.
     indeterminate_snps: list[str] = []
     pmids: list[str] = []
 

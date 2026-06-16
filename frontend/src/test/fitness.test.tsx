@@ -52,9 +52,9 @@ const TRAINING_PATHWAY: PathwaySummary = {
   pmids: ["18285522"],
 }
 
-// A Standard-level pathway whose only called SNP is strand-INDETERMINATE
-// (palindromic FTO rs9939609 homozygote). Without the caveat this looks
-// identical to a confidently-clear "Standard" pathway (#270/#356/#360).
+// A Standard-level pathway whose only called SNP is INDETERMINATE. Without the
+// caveat this looks identical to a confidently-clear "Standard" pathway
+// (#270/#356/#360).
 const INDETERMINATE_PATHWAY: PathwaySummary = {
   pathway_id: "training_response",
   pathway_name: "Training Response",
@@ -186,16 +186,34 @@ describe("PathwayCard", () => {
     }
   })
 
-  // ── Strand-indeterminate caveat (#360) ──────────────────────────────
+  // ── Indeterminate caveat (#360/#608) ────────────────────────────────
 
-  it("renders the strand-indeterminate caveat when indeterminate_snps present", () => {
+  it("renders a neutral indeterminate caveat when indeterminate_snps present", () => {
     render(<PathwayCard pathway={INDETERMINATE_PATHWAY} onClick={onClick} />)
     const caveat = screen.getByTestId("pathway-indeterminate-caveat")
     expect(caveat).toBeInTheDocument()
-    expect(caveat).toHaveTextContent(/strand-unresolved/i)
     expect(caveat).toHaveTextContent(/not interpreted/i)
+    expect(caveat).toHaveTextContent(/see details/i)
+    expect(caveat).not.toHaveTextContent(/strand-unresolved/i)
     // Singular wording for exactly one indeterminate variant.
     expect(caveat).toHaveTextContent(/1 variant\b/)
+  })
+
+  it("does not call unmodeled-allele indeterminate variants strand-unresolved", () => {
+    render(
+      <PathwayCard
+        pathway={{
+          ...INDETERMINATE_PATHWAY,
+          pathway_id: "power",
+          pathway_name: "Power",
+          indeterminate_snps: ["rs4341"],
+        }}
+        onClick={onClick}
+      />,
+    )
+    const caveat = screen.getByTestId("pathway-indeterminate-caveat")
+    expect(caveat).toHaveTextContent(/1 variant observed but not interpreted/i)
+    expect(caveat).not.toHaveTextContent(/strand-unresolved/i)
   })
 
   it("does NOT render the caveat for a confidently-clear Standard pathway", () => {
@@ -217,7 +235,10 @@ describe("PathwayCard", () => {
   it("pluralizes the caveat for multiple indeterminate variants", () => {
     render(
       <PathwayCard
-        pathway={{ ...INDETERMINATE_PATHWAY, indeterminate_snps: ["rs9939609", "rs1815739"] }}
+        pathway={{
+          ...INDETERMINATE_PATHWAY,
+          indeterminate_snps: ["rs9939609", "rs1815739"],
+        }}
         onClick={onClick}
       />,
     )

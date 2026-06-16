@@ -157,12 +157,12 @@ class PathwayResult:
 
     @property
     def indeterminate_snps(self) -> list[SNPResult]:
-        """Called SNPs whose strand — and therefore category — is unresolved.
+        """Called SNPs observed but withheld from pathway interpretation.
 
-        These are palindromic (A/T or C/G) homozygotes that the panel scored
-        ``INDETERMINATE`` (#170). They neither raise nor lower the pathway level,
-        but their presence means the pathway is not a confident "no variants of
-        concern" result (#270).
+        These can be strand-unresolved palindromic homozygotes or present
+        genotypes carrying an allele outside the curated model. They neither
+        raise nor lower the pathway level, but their presence means the pathway
+        is not a confident "no variants of concern" result (#270/#608).
         """
         return [s for s in self.snp_results if s.present_in_sample and s.category == INDETERMINATE]
 
@@ -662,15 +662,14 @@ def store_fitness_findings(
         if pr.level != STANDARD:
             finding_text = f"{pr.pathway_name} — {pr.level} consideration"
         elif indeterminate:
-            # A Standard *level* with strand-unresolved calls is NOT "no variants
-            # of concern": the locus was observed but its strand (and therefore
-            # category) could not be resolved. Say so instead of implying a
-            # confident negative (#270).
+            # A Standard *level* with indeterminate calls is NOT "no variants of
+            # concern": a locus was observed but withheld from interpretation.
+            # Keep the summary cause-neutral; per-SNP details carry the reason.
             n = len(indeterminate)
             noun = "variant" if n == 1 else "variants"
             finding_text = (
                 f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
-                f"observed but strand-unresolved (indeterminate) — see SNP details"
+                f"observed but not interpreted (indeterminate) — see SNP details"
             )
         else:
             finding_text = f"{pr.pathway_name} — Standard (no variants of concern)"

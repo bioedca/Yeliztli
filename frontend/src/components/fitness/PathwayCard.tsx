@@ -60,10 +60,10 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         </span>
       </div>
 
-      {/* Strand-indeterminate caveat (#270/#356/#360): a pathway whose call(s)
-          are palindromic-strand-unresolved is NOT confidently clear. Neutral
-          styling (not Elevated amber / Moderate blue / Standard emerald) — this
-          is uncertainty, not elevated risk. */}
+      {/* Indeterminate caveat (#270/#356/#360/#608): a pathway with observed but
+          uninterpreted calls is NOT confidently clear. Neutral styling (not
+          Elevated amber / Moderate blue / Standard emerald) — this is
+          uncertainty, not elevated risk. */}
       {indeterminateCount > 0 && (
         <p
           className={cn(
@@ -75,7 +75,7 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
           <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {indeterminateCount} variant{indeterminateCount === 1 ? "" : "s"} observed but
-            strand-unresolved — not interpreted
+            not interpreted — see details
           </span>
         </p>
       )}
