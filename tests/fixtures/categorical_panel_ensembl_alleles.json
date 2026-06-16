@@ -3,20 +3,501 @@
     "source": "Ensembl GRCh37 REST: https://grch37.rest.ensembl.org/variation/human/{rsid}",
     "assembly": "GRCh37",
     "strand": "+1 (plus). allele_string is taken from the primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT, not an MHC/haplotype contig).",
-    "accessed": "2026-06-16 (rs202676 added for #750; rs144012689 added for #709; rs585800 and rs3199966 added for #717; rs2858884 added for #608 on 2026-06-14; earlier entries 2026-06-13)",
+    "accessed": "2026-06-16 (rs202676 added for #750; rs144012689 added for #709; rs585800 and rs3199966 added for #717; rs2858884 added for #608 on 2026-06-14; earlier entries 2026-06-13) | 2026-06-16: extended to full categorical-panel SNV coverage for #775 \u2014 112 loci added via one Ensembl GRCh37 batch lookup (POST /variation/human), allele_string from each variant's primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT).",
     "purpose": "Reference plus-strand alleles for the categorical-panel strand guard (tests/backend/test_categorical_panel_strand.py). Each categorical-panel locus's curated {risk_allele, ref_allele} must be strand-consistent with these real alleles: both plus-strand or both Watson-Crick complements, never mixed. A mixed pair (e.g. rs4236601 risk=A plus + ref=C=complement-of-G) drops real heterozygous carriers in lookup_by_genotype. See issues #538 / #491.",
-    "coverage_note": "Seeded with the loci verified for #538; rs2858884 added (#608) once re-keyed to its real A/C frame; rs144012689 added (#709) to guard the HLA-B*15:02 T/A frame; rs585800 and rs3199966 added (#717) to guard the methylation T/A and T/G frames. Bi-allelic-in-Ensembl loci additionally get a real-het-resolves check. Extend this map (one Ensembl GRCh37 lookup per rsid) to cover every categorical-panel locus (128 unique loci); the follow-up to #538 (#608) tracks full coverage.",
-    "blind_spot_note": "The set-based strand check is UNDECIDABLE for some multi-allelic loci: when every curated allele's Watson-Crick complement is also a real allele, a mixed-strand pair false-passes. rs9273363 (HLA-DQB1, C/A/G) was the flagship case — the old mis-stranded panel pair {C, T} complemented to {G, A}, both real, so it read 'consistent' even though T was the complement of the real A; and being tri-allelic it gets no bi-allelic het-resolves check either. #731 re-keyed it to the correct plus-strand {A, C} AND demoted it to a non-diagnostic HLA-DQ region marker (its single-SNP T1D direction was contested in the GWAS Catalog, so no risk is inferred). It is still NOT listed here — it remains tri-allelic, so the set check still cannot validate it; it is covered instead by an observed-genotype-resolves test in test_gene_health.py. rs4341 (4-allelic) has the same undecidability."
+    "coverage_note": "Full categorical-panel SNV coverage (#775): every single-base-ACGT locus across allergy/fitness/gene_health/methylation/nutrigenomics/skin/sleep/traits is seeded with its real Ensembl GRCh37 plus-strand alleles, so the strand guard (test_ref_risk_strand_consistent) and the bi-allelic real-heterozygote-resolves guard cover the whole set, not just the #538/#608/#709/#717/#750 subset. EXCLUDED (not strand-checkable from the allele set): (1) indels \u2014 rs1799750 (MMP1, CC/C), rs70991108 (DHFR), rs80338939 (GJB2 35delG, CCCCCC/CCCCC/CCCCCCC) \u2014 guarded instead by the indel-polarity guard (#508/#736); (2) rs9273363 (HLA-DQB1, tri-allelic C/A/G, demoted #731) \u2014 see blind_spot_note. 4-allelic loci (e.g. rs4341, rs1061170) are included but pass the set-based check trivially (every complement is real); they rely on per-genotype coverage. Extend with one Ensembl GRCh37 lookup per new rsid.",
+    "blind_spot_note": "The set-based strand check is UNDECIDABLE for some multi-allelic loci: when every curated allele's Watson-Crick complement is also a real allele, a mixed-strand pair false-passes. rs9273363 (HLA-DQB1, C/A/G) was the flagship case \u2014 the old mis-stranded panel pair {C, T} complemented to {G, A}, both real, so it read 'consistent' even though T was the complement of the real A; and being tri-allelic it gets no bi-allelic het-resolves check either. #731 re-keyed it to the correct plus-strand {A, C} AND demoted it to a non-diagnostic HLA-DQ region marker (its single-SNP T1D direction was contested in the GWAS Catalog, so no risk is inferred). It is still NOT listed here \u2014 it remains tri-allelic, so the set check still cannot validate it; it is covered instead by an observed-genotype-resolves test in test_gene_health.py. rs4341 (4-allelic) has the same undecidability."
   },
-  "rs4236601": {"allele_string": "G/A", "location": "7:116162729"},
-  "rs1801133": {"allele_string": "G/A/C", "location": "1:11856378"},
-  "rs7903146": {"allele_string": "C/G/T", "location": "10:114758349"},
-  "rs1061170": {"allele_string": "C/A/G/T", "location": "1:196659237"},
-  "rs4341": {"allele_string": "G/A/C/T", "location": "17:61565990"},
-  "rs1677693": {"allele_string": "G/A/T", "location": "5:79936318"},
-  "rs2858884": {"allele_string": "A/C", "location": "6:32700083"},
-  "rs144012689": {"allele_string": "T/A", "location": "6:31322780"},
-  "rs585800": {"allele_string": "T/A", "location": "5:78427208"},
-  "rs3199966": {"allele_string": "T/G", "location": "9:108147763"},
-  "rs202676": {"allele_string": "A/G", "location": "11:49227620"}
+  "rs689": {
+    "allele_string": "A/G/T",
+    "location": "11:2182224"
+  },
+  "rs1535": {
+    "allele_string": "A/G/T",
+    "location": "11:61597972"
+  },
+  "rs1695": {
+    "allele_string": "A/G/T",
+    "location": "11:67352689"
+  },
+  "rs4341": {
+    "allele_string": "G/A/C/T",
+    "location": "17:61565990"
+  },
+  "rs4680": {
+    "allele_string": "G/A",
+    "location": "22:19951271"
+  },
+  "rs4880": {
+    "allele_string": "A/G",
+    "location": "6:160113872"
+  },
+  "rs5219": {
+    "allele_string": "T/A/C/G",
+    "location": "11:17409572"
+  },
+  "rs7041": {
+    "allele_string": "A/C/G/T",
+    "location": "4:72618334"
+  },
+  "rs9001": {
+    "allele_string": "T/G",
+    "location": "3:53857917"
+  },
+  "rs12722": {
+    "allele_string": "C/T",
+    "location": "9:137734416"
+  },
+  "rs20541": {
+    "allele_string": "A/C/G/T",
+    "location": "5:131995964"
+  },
+  "rs174547": {
+    "allele_string": "T/C",
+    "location": "11:61570783"
+  },
+  "rs182549": {
+    "allele_string": "C/T",
+    "location": "2:136616754"
+  },
+  "rs202676": {
+    "allele_string": "A/G",
+    "location": "11:49227620"
+  },
+  "rs234706": {
+    "allele_string": "G/A",
+    "location": "21:44485350"
+  },
+  "rs324011": {
+    "allele_string": "C/A/T",
+    "location": "12:57502182"
+  },
+  "rs356219": {
+    "allele_string": "G/A",
+    "location": "4:90637601"
+  },
+  "rs585800": {
+    "allele_string": "T/A",
+    "location": "5:78427208"
+  },
+  "rs602662": {
+    "allele_string": "G/A",
+    "location": "19:49206985"
+  },
+  "rs738409": {
+    "allele_string": "C/A/G/T",
+    "location": "22:44324727"
+  },
+  "rs747302": {
+    "allele_string": "G/A/C/T",
+    "location": "11:636689"
+  },
+  "rs762551": {
+    "allele_string": "C/A/G",
+    "location": "15:75041917"
+  },
+  "rs819147": {
+    "allele_string": "C/A/T",
+    "location": "20:32889704"
+  },
+  "rs885479": {
+    "allele_string": "G/A/C",
+    "location": "16:89986154"
+  },
+  "rs993137": {
+    "allele_string": "C/G/T",
+    "location": "3:85499035"
+  },
+  "rs1021737": {
+    "allele_string": "G/A/T",
+    "location": "1:70904800"
+  },
+  "rs1049434": {
+    "allele_string": "A/G/T",
+    "location": "1:113456546"
+  },
+  "rs1049742": {
+    "allele_string": "C/T",
+    "location": "7:150554553"
+  },
+  "rs1049793": {
+    "allele_string": "C/G/T",
+    "location": "7:150557665"
+  },
+  "rs1050450": {
+    "allele_string": "G/A",
+    "location": "3:49394834"
+  },
+  "rs1051266": {
+    "allele_string": "T/C/G",
+    "location": "21:46957794"
+  },
+  "rs1061170": {
+    "allele_string": "C/A/G/T",
+    "location": "1:196659237"
+  },
+  "rs1061235": {
+    "allele_string": "A/T",
+    "location": "6:29913298"
+  },
+  "rs1143679": {
+    "allele_string": "G/A",
+    "location": "16:31276811"
+  },
+  "rs1396862": {
+    "allele_string": "G/A",
+    "location": "17:43902997"
+  },
+  "rs1544410": {
+    "allele_string": "C/A/G/T",
+    "location": "12:48239835"
+  },
+  "rs1677693": {
+    "allele_string": "G/A/T",
+    "location": "5:79936318"
+  },
+  "rs1799945": {
+    "allele_string": "C/G/T",
+    "location": "6:26091179"
+  },
+  "rs1800012": {
+    "allele_string": "C/A",
+    "location": "17:48277749"
+  },
+  "rs1800562": {
+    "allele_string": "G/A",
+    "location": "6:26093141"
+  },
+  "rs1801131": {
+    "allele_string": "T/G",
+    "location": "1:11854476"
+  },
+  "rs1801133": {
+    "allele_string": "G/A/C",
+    "location": "1:11856378"
+  },
+  "rs1801198": {
+    "allele_string": "G/A/C",
+    "location": "22:31011610"
+  },
+  "rs1801282": {
+    "allele_string": "C/G/T",
+    "location": "3:12393125"
+  },
+  "rs1801394": {
+    "allele_string": "A/G",
+    "location": "5:7870973"
+  },
+  "rs1805007": {
+    "allele_string": "C/A/G/T",
+    "location": "16:89986117"
+  },
+  "rs1805008": {
+    "allele_string": "C/T",
+    "location": "16:89986144"
+  },
+  "rs1805009": {
+    "allele_string": "G/A/C",
+    "location": "16:89986546"
+  },
+  "rs1805087": {
+    "allele_string": "A/G",
+    "location": "1:237048500"
+  },
+  "rs1815739": {
+    "allele_string": "T/C/A",
+    "location": "11:66328095"
+  },
+  "rs1979277": {
+    "allele_string": "G/A/T",
+    "location": "17:18232096"
+  },
+  "rs2004640": {
+    "allele_string": "G/T",
+    "location": "7:128578301"
+  },
+  "rs2052129": {
+    "allele_string": "G/A/T",
+    "location": "7:150548972"
+  },
+  "rs2066844": {
+    "allele_string": "C/T",
+    "location": "16:50745926"
+  },
+  "rs2104286": {
+    "allele_string": "T/C",
+    "location": "10:6099045"
+  },
+  "rs2157719": {
+    "allele_string": "C/T",
+    "location": "9:22033366"
+  },
+  "rs2164273": {
+    "allele_string": "A/C/G/T",
+    "location": "8:11168499"
+  },
+  "rs2187668": {
+    "allele_string": "C/T",
+    "location": "6:32605884"
+  },
+  "rs2228570": {
+    "allele_string": "A/C/G/T",
+    "location": "12:48272895"
+  },
+  "rs2228611": {
+    "allele_string": "T/A/C",
+    "location": "19:10267077"
+  },
+  "rs2230199": {
+    "allele_string": "G/A/C/T",
+    "location": "19:6718387"
+  },
+  "rs2231142": {
+    "allele_string": "G/A/C/T",
+    "location": "4:89052323"
+  },
+  "rs2236225": {
+    "allele_string": "G/A",
+    "location": "14:64908845"
+  },
+  "rs2241880": {
+    "allele_string": "A/G",
+    "location": "2:234183368"
+  },
+  "rs2266782": {
+    "allele_string": "G/A",
+    "location": "1:171076966"
+  },
+  "rs2282679": {
+    "allele_string": "T/G",
+    "location": "4:72608383"
+  },
+  "rs2300478": {
+    "allele_string": "T/G",
+    "location": "2:66781453"
+  },
+  "rs2389621": {
+    "allele_string": "G/A",
+    "location": "4:119387212"
+  },
+  "rs2395029": {
+    "allele_string": "T/G",
+    "location": "6:31431780"
+  },
+  "rs2424913": {
+    "allele_string": "C/A/G/T",
+    "location": "20:31374259"
+  },
+  "rs2476601": {
+    "allele_string": "A/G/T",
+    "location": "1:114377568"
+  },
+  "rs2572431": {
+    "allele_string": "C/G/T",
+    "location": "8:11105077"
+  },
+  "rs2858884": {
+    "allele_string": "A/C",
+    "location": "6:32700083"
+  },
+  "rs3135388": {
+    "allele_string": "A/C/G/T",
+    "location": "6:32413051"
+  },
+  "rs3199966": {
+    "allele_string": "T/G",
+    "location": "9:108147763"
+  },
+  "rs3733890": {
+    "allele_string": "G/A",
+    "location": "5:78421959"
+  },
+  "rs3746544": {
+    "allele_string": "G/A/C/T",
+    "location": "20:10287084"
+  },
+  "rs3758149": {
+    "allele_string": "G/A",
+    "location": "8:63951728"
+  },
+  "rs3761144": {
+    "allele_string": "C/G/T",
+    "location": "20:33544075"
+  },
+  "rs3764650": {
+    "allele_string": "T/G",
+    "location": "19:1046520"
+  },
+  "rs4236601": {
+    "allele_string": "G/A",
+    "location": "7:116162729"
+  },
+  "rs4654748": {
+    "allele_string": "C/A/G/T",
+    "location": "1:21786068"
+  },
+  "rs4988235": {
+    "allele_string": "G/A/C/T",
+    "location": "2:136608646"
+  },
+  "rs5751876": {
+    "allele_string": "T/C",
+    "location": "22:24837301"
+  },
+  "rs6495446": {
+    "allele_string": "C/T",
+    "location": "15:80154982"
+  },
+  "rs6822844": {
+    "allele_string": "G/C/T",
+    "location": "4:123509421"
+  },
+  "rs6897932": {
+    "allele_string": "C/A/T",
+    "location": "5:35874575"
+  },
+  "rs6910071": {
+    "allele_string": "A/G",
+    "location": "6:32282854"
+  },
+  "rs7574865": {
+    "allele_string": "T/A/G",
+    "location": "2:191964633"
+  },
+  "rs7639752": {
+    "allele_string": "G/A/C/T",
+    "location": "3:195973244"
+  },
+  "rs7775228": {
+    "allele_string": "T/A/C",
+    "location": "6:32658079"
+  },
+  "rs7903146": {
+    "allele_string": "C/G/T",
+    "location": "10:114758349"
+  },
+  "rs8007267": {
+    "allele_string": "C/T",
+    "location": "14:55378991"
+  },
+  "rs8076131": {
+    "allele_string": "G/A/C",
+    "location": "17:38080912"
+  },
+  "rs8192678": {
+    "allele_string": "C/T",
+    "location": "4:23815662"
+  },
+  "rs9263726": {
+    "allele_string": "G/A/C",
+    "location": "6:31106499"
+  },
+  "rs9357271": {
+    "allele_string": "T/A/C/G",
+    "location": "6:38365873"
+  },
+  "rs9611519": {
+    "allele_string": "C/G/T",
+    "location": "22:41613188"
+  },
+  "rs9939609": {
+    "allele_string": "T/A",
+    "location": "16:53820527"
+  },
+  "rs10156191": {
+    "allele_string": "C/T",
+    "location": "7:150553605"
+  },
+  "rs10166942": {
+    "allele_string": "T/A/C",
+    "location": "2:234825093"
+  },
+  "rs10490924": {
+    "allele_string": "G/C/T",
+    "location": "10:124214448"
+  },
+  "rs10741657": {
+    "allele_string": "A/C/G",
+    "location": "11:14914878"
+  },
+  "rs10887718": {
+    "allele_string": "C/T",
+    "location": "10:82042624"
+  },
+  "rs10955255": {
+    "allele_string": "A/G/T",
+    "location": "8:102536405"
+  },
+  "rs11136000": {
+    "allele_string": "T/A/C",
+    "location": "8:27464519"
+  },
+  "rs11209026": {
+    "allele_string": "G/A",
+    "location": "1:67705958"
+  },
+  "rs11558538": {
+    "allele_string": "C/T",
+    "location": "2:138759649"
+  },
+  "rs12325817": {
+    "allele_string": "C/A/G/T",
+    "location": "17:17486519"
+  },
+  "rs12498742": {
+    "allele_string": "A/C/G",
+    "location": "4:9944052"
+  },
+  "rs12794714": {
+    "allele_string": "G/A",
+    "location": "11:14913575"
+  },
+  "rs13266634": {
+    "allele_string": "C/A/T",
+    "location": "8:118184783"
+  },
+  "rs17602729": {
+    "allele_string": "G/A/T",
+    "location": "1:115236057"
+  },
+  "rs17782313": {
+    "allele_string": "T/A/C",
+    "location": "18:57851097"
+  },
+  "rs17883901": {
+    "allele_string": "G/A/T",
+    "location": "6:53410037"
+  },
+  "rs41303970": {
+    "allele_string": "G/A",
+    "location": "1:94375309"
+  },
+  "rs41380347": {
+    "allele_string": "A/C/G",
+    "location": "2:136608651"
+  },
+  "rs41525747": {
+    "allele_string": "G/C",
+    "location": "2:136608643"
+  },
+  "rs58542926": {
+    "allele_string": "C/A/T",
+    "location": "19:19379549"
+  },
+  "rs61816761": {
+    "allele_string": "G/A/C/T",
+    "location": "1:152285861"
+  },
+  "rs74315329": {
+    "allele_string": "G/A",
+    "location": "1:171605478"
+  },
+  "rs111033313": {
+    "allele_string": "A/G",
+    "location": "7:107323898"
+  },
+  "rs144012689": {
+    "allele_string": "T/A",
+    "location": "6:31322780"
+  }
 }
