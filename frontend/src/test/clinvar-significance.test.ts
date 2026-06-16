@@ -33,4 +33,15 @@ describe("ClinVar significance styling", () => {
       getClinvarSignificanceTextClass("Conflicting interpretations of pathogenicity"),
     ).not.toContain("red")
   })
+
+  it.each([
+    "Pathogenic/Likely benign",
+    "Likely pathogenic/Benign",
+    "VUS/Pathogenic",
+    "Pathogenic/VUS",
+  ])("keeps mixed or VUS combinations non-red: %s", (significance) => {
+    expect(getClinvarSignificanceTone(significance)).toBe("uncertain")
+    expect(getClinvarSignificanceTextClass(significance)).toContain("text-yellow")
+    expect(getClinvarSignificanceTextClass(significance)).not.toContain("red")
+  })
 })

@@ -66,8 +66,6 @@ export function getClinvarSignificanceTone(
 ): ClinvarSignificanceTone {
   const normalized = normalizeClinvarSignificance(significance)
   if (!normalized) return "neutral"
-  if (normalized.includes("conflicting")) return "uncertain"
-  if (normalized.includes("uncertain") || normalized === "vus") return "uncertain"
 
   const parts = normalized
     .split(/[/|;,]+/)
@@ -76,7 +74,11 @@ export function getClinvarSignificanceTone(
   const hasPathogenic = parts.includes("pathogenic")
   const hasLikelyPathogenic = parts.includes("likely pathogenic")
   const hasBenign = normalized.includes("benign")
+  const hasVus = parts.includes("vus")
 
+  if (normalized.includes("conflicting")) return "uncertain"
+  if (normalized.includes("uncertain") || hasVus) return "uncertain"
+  if ((hasPathogenic || hasLikelyPathogenic) && hasBenign) return "uncertain"
   if (hasPathogenic && !hasBenign) return "pathogenic"
   if (hasLikelyPathogenic && !hasBenign) return "likely-pathogenic"
   if (hasBenign) return "benign"
