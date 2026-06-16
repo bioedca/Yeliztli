@@ -51,11 +51,18 @@ def main() -> int:
     sites = load_sites(args.site_map)
     print(f"site map: {len(sites):,} sites", flush=True)
 
-    held = [
-        ln.split("\t")
-        for ln in (args.validation_dir / "held_out_validation.tsv").read_text().splitlines()[1:]
-        if ln.strip()
-    ]
+    held = []
+    labels_path = args.validation_dir / "held_out_validation.tsv"
+    for line_no, line in enumerate(labels_path.read_text().splitlines()[1:], start=2):
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2:
+            raise SystemExit(
+                f"{labels_path} line {line_no} has fewer than 2 tab-separated columns; "
+                f"upstream Phase 04 held-out output may be malformed: {line!r}"
+            )
+        held.append(parts)
     iids = [h[0] for h in held]
     region = {h[0]: h[1] for h in held}
     acc: dict[str, list[str]] = {i: [] for i in iids}

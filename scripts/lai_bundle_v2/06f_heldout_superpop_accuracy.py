@@ -32,6 +32,17 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, sample_metadata_table
 
 
+def read_accuracy_threshold(name: str, default: str = "1.0") -> float:
+    raw = os.environ.get(name, default)
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise SystemExit(f"{name} must be a number between 0.0 and 1.0; got {raw!r}") from exc
+    if not 0.0 <= value <= 1.0:
+        raise SystemExit(f"{name} must be between 0.0 and 1.0; got {value!r}")
+    return value
+
+
 def parse_fixture(path: Path) -> list[dict]:
     rows: list[dict] = []
     seen: set[str] = set()  # raw_variants.rsid is UNIQUE; dedup keep-first (real
@@ -167,8 +178,8 @@ def main() -> None:
     }
     overall = sum(per_region_correct.values()) / max(1, sum(per_region_total.values()))
     eur_acc = per_region_acc.get("EUR", 0.0)
-    min_region_accuracy = float(os.environ.get("HELDOUT_MIN_REGION_ACCURACY", "1.0"))
-    min_eur_accuracy = float(os.environ.get("HELDOUT_MIN_EUR_ACCURACY", "1.0"))
+    min_region_accuracy = read_accuracy_threshold("HELDOUT_MIN_REGION_ACCURACY")
+    min_eur_accuracy = read_accuracy_threshold("HELDOUT_MIN_EUR_ACCURACY")
     regions_below_threshold = {
         reg: round(acc, 4) for reg, acc in per_region_acc.items() if acc < min_region_accuracy
     }

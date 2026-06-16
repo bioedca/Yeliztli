@@ -544,8 +544,15 @@ class TestHeldoutSuperpopGate:
         text = (SCRIPTS_DIR / "06f_heldout_superpop_accuracy.py").read_text()
         assert "HELDOUT_MIN_REGION_ACCURACY" in text
         assert "HELDOUT_MIN_EUR_ACCURACY" in text
+        assert "read_accuracy_threshold" in text
+        assert "must be between 0.0 and 1.0" in text
         assert "HELD-OUT SUPERPOPULATION GATE FAILED" in text
         assert "raise SystemExit(1)" in text
+
+    def test_extract_heldout_labels_have_clear_format_error(self) -> None:
+        text = (SCRIPTS_DIR / "extract_heldout_fixtures.py").read_text()
+        assert "fewer than 2 tab-separated columns" in text
+        assert "upstream Phase 04 held-out output may be malformed" in text
 
 
 class TestTrioIdentification:
