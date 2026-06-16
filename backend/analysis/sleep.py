@@ -122,7 +122,7 @@ class SNPResult:
     pmids: list[str]
     recommendation_text: str
     present_in_sample: bool
-    metabolizer_state: str | None = None  # rapid/intermediate/slow for CYP1A2
+    metabolizer_state: str | None = None  # CYP1A2 full panel label, e.g. "Slow metabolizer"
     coverage_note: str | None = None  # Proxy caveat for PER3/HLA
 
 

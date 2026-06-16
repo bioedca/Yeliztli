@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/sleep/PathwayCard"
-import type { PathwaySummary } from "@/types/sleep"
+import { MetabolizerCard } from "@/pages/SleepView"
+import type { MetabolizerState, PathwaySummary } from "@/types/sleep"
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -153,5 +154,38 @@ describe("PathwayCard", () => {
       expect(screen.getByText(pathway.pathway_name)).toBeInTheDocument()
       unmount()
     }
+  })
+})
+
+describe("MetabolizerCard (#758)", () => {
+  const meta = (state: string | null): MetabolizerState => ({
+    state,
+    gene: "CYP1A2",
+    rsid: "rs762551",
+  })
+
+  // The backend (`_resolve_metabolizer_state`) returns the panel's FULL label
+  // verbatim — "Rapid metabolizer" / "Intermediate metabolizer" / "Slow
+  // metabolizer" — NOT a short code. Feed those real values (not hand-invented
+  // short codes) so the card's label→key resolution is locked against the
+  // backend contract. Before the fix the whole lowercased label was looked up in
+  // a rapid/intermediate/slow map and always missed → "Unknown" for every user.
+  it.each([
+    ["Rapid metabolizer", "Rapid Metabolizer"],
+    ["Intermediate metabolizer", "Intermediate Metabolizer"],
+    ["Slow metabolizer", "Slow Metabolizer"],
+  ])("resolves the real backend label %s to %s (not Unknown)", (backendLabel, shown) => {
+    render(<MetabolizerCard metabolizer={meta(backendLabel)} />)
+    expect(screen.getByText(shown)).toBeInTheDocument()
+    expect(screen.queryByText("Unknown")).toBeNull()
+    expect(
+      screen.queryByText(/could not be determined/i),
+    ).toBeNull()
+  })
+
+  it("falls back to Unknown only when the state is genuinely null", () => {
+    render(<MetabolizerCard metabolizer={meta(null)} />)
+    expect(screen.getByText("Unknown")).toBeInTheDocument()
+    expect(screen.getByText(/could not be determined/i)).toBeInTheDocument()
   })
 })

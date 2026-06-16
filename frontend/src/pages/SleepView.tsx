@@ -220,8 +220,12 @@ export default function SleepView() {
 }
 
 /** CYP1A2 caffeine metabolizer status card. */
-function MetabolizerCard({ metabolizer }: { metabolizer: MetabolizerState }) {
-  const state = metabolizer.state?.toLowerCase() ?? ""
+export function MetabolizerCard({ metabolizer }: { metabolizer: MetabolizerState }) {
+  // The backend returns the full panel label ("Intermediate metabolizer"), not a
+  // short code — key on the first word so it maps to rapid/intermediate/slow
+  // (#758). Reading the whole lowercased label always missed → "Unknown" for
+  // every resolved state. A null/blank state still falls through to "Unknown".
+  const state = metabolizer.state?.toLowerCase().split(" ")[0] ?? ""
   const config = METABOLIZER_LABELS[state] || {
     label: "Unknown",
     color: "text-muted-foreground",
