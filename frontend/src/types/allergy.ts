@@ -67,6 +67,8 @@ export interface PathwaySummary {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** Subset of missing_snps present on-array but failed genotype calling. */
+  no_call_snps?: string[]
   pmids: string[]
   hla_proxy_lookup: Record<string, unknown> | null
 }
@@ -123,6 +125,8 @@ export interface PathwayDetailResponse {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** Subset of missing_snps present on-array but failed genotype calling. */
+  no_call_snps?: string[]
   pmids: string[]
   snp_details: SNPDetail[]
   hla_proxy_lookup: Record<string, unknown> | null

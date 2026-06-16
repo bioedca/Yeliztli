@@ -69,6 +69,44 @@ const DRUG_DETAIL = {
   ],
 }
 
+const OFF_CHIP_RSID = 'rs8076131'
+const NO_CALL_RSID = 'rs20541'
+
+const ATOPIC_PATHWAYS = {
+  total: 1,
+  cross_module: [],
+  celiac_combined: null,
+  histamine_combined: null,
+  items: [
+    {
+      pathway_id: 'atopic_conditions',
+      pathway_name: 'Atopic Conditions',
+      level: 'Standard',
+      evidence_level: 2,
+      called_snps: 1,
+      total_snps: 3,
+      missing_snps: [OFF_CHIP_RSID, NO_CALL_RSID],
+      no_call_snps: [NO_CALL_RSID],
+      pmids: [],
+      hla_proxy_lookup: null,
+    },
+  ],
+}
+
+const ATOPIC_DETAIL = {
+  pathway_id: 'atopic_conditions',
+  pathway_name: 'Atopic Conditions',
+  level: 'Standard',
+  evidence_level: 2,
+  called_snps: 1,
+  total_snps: 3,
+  missing_snps: [OFF_CHIP_RSID, NO_CALL_RSID],
+  no_call_snps: [NO_CALL_RSID],
+  pmids: [],
+  hla_proxy_lookup: null,
+  snp_details: [],
+}
+
 test.describe('Allergy HLA proxy badge (#402)', () => {
   test('drug-hypersensitivity HLA proxy SNP renders r² without crashing', async ({ page }) => {
     await page.route('**/api/analysis/allergy/pathways**', async (route) => {
@@ -99,5 +137,33 @@ test.describe('Allergy HLA proxy badge (#402)', () => {
 
     // No render-time TypeError (undefined.toFixed) reached the console.
     expect(consoleErrors.join('\n')).not.toMatch(/toFixed|TypeError|NaN/)
+  })
+})
+
+test.describe('Allergy no-call pathway labels (#979)', () => {
+  test('pathway detail separates on-array no-calls from off-chip SNPs', async ({ page }) => {
+    await page.route('**/api/analysis/allergy/pathways**', async (route) => {
+      await route.fulfill(jsonRoute(ATOPIC_PATHWAYS))
+    })
+    await page.route('**/api/analysis/allergy/pathway/atopic_conditions**', async (route) => {
+      await route.fulfill(jsonRoute(ATOPIC_DETAIL))
+    })
+
+    await page.goto('/allergy?sample_id=1')
+    await waitForReactHydration(page)
+    await page.getByRole('button', { name: /Atopic Conditions/ }).first().click()
+
+    const panel = page.getByRole('dialog', { name: /Atopic Conditions pathway details/ })
+    await expect(panel).toBeVisible()
+    await expect(panel).toContainText('1 not on array')
+    await expect(panel).toContainText('1 no-call')
+
+    const offChipLine = panel.getByText(/^Not on array:/)
+    await expect(offChipLine).toContainText(OFF_CHIP_RSID)
+    await expect(offChipLine).not.toContainText(NO_CALL_RSID)
+
+    const noCallLine = panel.getByText(/^No call \(on the array/)
+    await expect(noCallLine).toContainText(NO_CALL_RSID)
+    await expect(noCallLine).not.toContainText(OFF_CHIP_RSID)
   })
 })

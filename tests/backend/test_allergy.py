@@ -1880,6 +1880,33 @@ class TestPanelCoverage:
         assert row is not None
         assert row.coverage_status == "no_call"
 
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Pathway detail keeps no-calls distinct from genuinely off-array SNPs."""
+        _seed_variants(sample_engine, [("rs20541", "5", 131995964, "--")])
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        store_allergy_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Atopic Conditions",
+                )
+            ).one_or_none()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert "rs20541" in detail["missing_snps"]
+        assert "rs8076131" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs20541"]
+
 
 # ── GWAS annotation_coverage bitmask tests ──────────────────────────────
 

@@ -17,9 +17,12 @@ import { render, screen } from "./test-utils"
 
 vi.mock("@/api/gene-health", () => ({ useGeneHealthPathwayDetail: vi.fn() }))
 vi.mock("@/api/nutrigenomics", () => ({ useNutrigenomicsPathwayDetail: vi.fn() }))
+vi.mock("@/api/allergy", () => ({ useAllergyPathwayDetail: vi.fn() }))
 
+import AllergyPanel from "@/components/allergy/PathwayDetailPanel"
 import GeneHealthPanel from "@/components/gene-health/PathwayDetailPanel"
 import NutrigenomicsPanel from "@/components/nutrigenomics/PathwayDetailPanel"
+import { useAllergyPathwayDetail } from "@/api/allergy"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
 import { useNutrigenomicsPathwayDetail } from "@/api/nutrigenomics"
 
@@ -51,6 +54,7 @@ type MockedDetailHook = ReturnType<typeof vi.fn>
 const asMock = (h: unknown) => h as unknown as MockedDetailHook
 
 const MODULES: { name: string; Panel: ComponentType<PanelProps>; hook: MockedDetailHook }[] = [
+  { name: "allergy", Panel: AllergyPanel, hook: asMock(useAllergyPathwayDetail) },
   { name: "gene-health", Panel: GeneHealthPanel, hook: asMock(useGeneHealthPathwayDetail) },
   { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: asMock(useNutrigenomicsPathwayDetail) },
 ]
