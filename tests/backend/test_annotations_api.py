@@ -522,6 +522,36 @@ class TestOtherFilters:
         assert all(i["rare_flag"] for i in items)
         assert len(items) == 3  # rs100, rs300, rs400
 
+    def test_filter_ultra_rare(self, client):
+        """#907: ?ultra_rare=true must select on ultra_rare_flag, not rare_flag.
+
+        rs300 is rare_flag=True but ultra_rare_flag=False — it is in the rare=true
+        result (len 3) but must be EXCLUDED here. A wrong-column mutant querying
+        rare_flag would include rs300, so the exact-set assertion kills it.
+        """
+        tc, sid = client
+        r = tc.get(f"/api/annotations?sample_id={sid}&ultra_rare=true")
+        items = r.json()["items"]
+        rsids = {i["rsid"] for i in items}
+        assert rsids == {"rs100", "rs400"}  # the two ultra_rare_flag=True rows
+        assert all(i["ultra_rare_flag"] for i in items)
+        assert "rs300" not in rsids  # rare-but-not-ultra-rare discriminator excluded
+
+    def test_filter_mane_select(self, client):
+        """#907: ?mane_select=true must select on the mane_select column.
+
+        rs600 is mane_select=False and rs300/rs400/rs500/rsX01 are NULL; only
+        rs100/rs200 are True. The exact-set assertion (non-vacuous + excludes the
+        False/NULL rows) makes a wrong-column/wrong-operator bug fail.
+        """
+        tc, sid = client
+        r = tc.get(f"/api/annotations?sample_id={sid}&mane_select=true")
+        items = r.json()["items"]
+        rsids = {i["rsid"] for i in items}
+        assert rsids == {"rs100", "rs200"}  # the two mane_select=True rows
+        assert all(i["mane_select"] for i in items)
+        assert "rs600" not in rsids  # mane_select=False row excluded
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Combined filters
