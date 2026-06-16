@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 import sqlalchemy as sa
+from fastapi.testclient import TestClient
 
 from backend.data.hla_proxy_loader import load_hla_proxy_data
 from backend.db.tables import hla_proxy_lookup, reference_metadata
@@ -232,3 +233,41 @@ class TestHLAProxyQueries:
             rows = conn.execute(sa.select(hla_proxy_lookup)).fetchall()
         for row in rows:
             assert row.pmid, f"Missing pmid for {row.hla_allele}"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Startup wiring (#868)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestStartupWiring:
+    """The loader must run on the app lifespan, so a freshly started deployment has
+    a populated table and the allergy enrichment actually resolves — not the silent
+    empty-table no-op that shipped before (the table was created by migration 003
+    but nothing ever called the loader; #868)."""
+
+    def test_lifespan_populates_table(self, test_client: TestClient) -> None:
+        # test_client triggers the app lifespan (create_app + TestClient startup).
+        from backend.db.connection import get_registry
+
+        with open(_JSON_PATH, encoding="utf-8") as fh:
+            expected = len(json.load(fh)["entries"])
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count()).select_from(hla_proxy_lookup)
+            ).scalar_one()
+        assert count == expected  # every curated entry loaded at startup, not 0
+
+    def test_lifespan_enrichment_resolves(self, test_client: TestClient) -> None:
+        # The allergy consumer returns the curated r²/ancestry record instead of the
+        # production {} once the table is populated by startup.
+        from backend.analysis.allergy import _fetch_hla_proxy_info
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        info = _fetch_hla_proxy_info(["rs2395029"], registry.reference_engine)
+        assert "rs2395029" in info  # HLA-B*57:01 / abacavir proxy
+        assert info["rs2395029"].hla_allele == "HLA-B*57:01"
+        assert info["rs2395029"].r_squared_by_pop  # ancestry-keyed r² present

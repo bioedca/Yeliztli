@@ -87,6 +87,7 @@ from backend.api.routes.warfarin import router as warfarin_router
 from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
 from backend.config import get_settings
+from backend.data.hla_proxy_loader import load_hla_proxy_data
 from backend.db.connection import get_registry, reset_registry
 from backend.db.database_registry import (
     PIPELINE_GENOME_BUILD,
@@ -121,6 +122,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # pre-existing ones. Backfill additive columns (e.g. samples.individual_id)
     # so DBs that predate a column-adding revision keep working.
     ensure_reference_schema_current(registry.reference_engine)
+    # Populate the curated HLA-proxy lookup (the allergy module's r²/ancestry
+    # enrichment). migration 003 creates the table empty and documents it as
+    # "Populated from curated JSON at application startup" — this is that step,
+    # which was never wired up, so the enrichment silently returned nothing for
+    # every user (#868). Idempotent (clear-then-insert), so it refreshes on each
+    # boot. Best-effort on the curated data file: a missing/corrupt bundle warns
+    # rather than aborting startup (a DB-layer failure still propagates, as with
+    # create_all / ensure_reference_schema_current above).
+    try:
+        hla_proxy_rows = load_hla_proxy_data(registry.reference_engine)
+        logger.info("hla_proxy_lookup populated (%d rows)", hla_proxy_rows)
+    except (OSError, ValueError, KeyError):
+        logger.warning(
+            "hla_proxy_lookup population skipped — curated JSON unavailable", exc_info=True
+        )
     # Cross-source genome-build provenance check (F30): warn — never fail — when
     # a recorded source's build deviates from its expected assembly (e.g. a
     # GRCh38 gnomAD bundle where the GRCh37 pipeline expects GRCh37). dbNSFP's
