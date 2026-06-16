@@ -505,14 +505,17 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
+              "lactase_persistence": true,
               "effect_summary": "Two copies of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood. This Arab/Middle-Eastern persistence variant acts independently of the European -13910 marker."
             },
             "AC": {
               "category": "Standard",
+              "lactase_persistence": true,
               "effect_summary": "One copy of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood (Arab/Middle-Eastern persistence variant, independent of the European -13910 marker)."
             },
             "CA": {
               "category": "Standard",
+              "lactase_persistence": true,
               "effect_summary": "One copy of the LCT -13915*G lactase-persistence allele (rs41380347). Lactase persistent — likely able to digest lactose in adulthood (Arab/Middle-Eastern persistence variant, independent of the European -13910 marker)."
             },
             "AA": {
@@ -534,10 +537,12 @@
           "genotype_effects": {
             "CG": {
               "category": "Standard",
+              "lactase_persistence": true,
               "effect_summary": "One copy of the LCT -13907*G lactase-persistence allele (rs41525747). Lactase persistent — likely able to digest lactose in adulthood (East African persistence variant, independent of the European -13910 marker). The heterozygous C/G call is strand-invariant."
             },
             "GC": {
               "category": "Standard",
+              "lactase_persistence": true,
               "effect_summary": "One copy of the LCT -13907*G lactase-persistence allele (rs41525747). Lactase persistent — likely able to digest lactose in adulthood (East African persistence variant, independent of the European -13910 marker). The heterozygous C/G call is strand-invariant."
             },
             "CC": {

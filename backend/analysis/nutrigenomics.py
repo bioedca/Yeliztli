@@ -74,6 +74,13 @@ INDETERMINATE = "Indeterminate"
 # Minimum evidence level required for Elevated category
 _ELEVATED_MIN_STARS = 2
 
+# Lactose-pathway conflict resolution (#789). A genotype_effects entry tagged with
+# this flag is a detected (non-European) LCT lactase-persistence enhancer call
+# (rs41380347 -13915*G / rs41525747 -13907*G); when present it qualifies the
+# European rs4988235/rs182549 non-persistence calls in the lactose pathway.
+_LACTOSE_PATHWAY_ID = "lactose"
+_LACTASE_PERSISTENCE_FLAG = "lactase_persistence"
+
 
 # ── Data classes ──────────────────────────────────────────────────────────
 
@@ -409,6 +416,57 @@ def _score_snp(
     )
 
 
+def _resolve_lactose_persistence(pathway: Pathway, snp_results: list[SNPResult]) -> None:
+    """Lactose-pathway conflict resolution (#789).
+
+    Lactase persistence is genetically heterogeneous: a European/South-Asian
+    rs4988235 / rs182549 *non-persistence* genotype (Elevated) must not decide
+    the pathway when the same sample carries an independent non-European LCT
+    enhancer allele that the panel itself reads as lactase-persistent —
+    rs41380347 (-13915*G, Arab/Middle-Eastern) or a strand-resolved rs41525747
+    (-13907*G, East African). Plain max-category aggregation would otherwise let
+    the Elevated European call win over the Standard persistence calls and report
+    a lactose-non-persistence finding for an assayed-persistent sample (Tishkoff
+    et al. 2007 PMID 17159977; Imtiaz et al. 2007 PMID 17911653; Liebert et al.
+    2017 PMID 29063188).
+
+    When a persistence enhancer is detected (a present, non-indeterminate SNP
+    whose called genotype maps to a ``lactase_persistence``-flagged effect),
+    downgrade this pathway's Elevated non-persistence calls to Standard with a
+    qualifying note, so the pathway level reflects the persistence evidence.
+    Mutates ``snp_results`` in place; a no-op for any other pathway / when no
+    enhancer is detected.
+    """
+    snp_by_rsid = {s.rsid: s for s in pathway.snps}
+    persistence_rsids: list[str] = []
+    for r in snp_results:
+        if not r.present_in_sample or r.category == INDETERMINATE or r.genotype is None:
+            continue
+        snp = snp_by_rsid.get(r.rsid)
+        effect = lookup_by_genotype(snp.genotype_effects, r.genotype) if snp else None
+        if effect and effect.get(_LACTASE_PERSISTENCE_FLAG):
+            persistence_rsids.append(r.rsid)
+
+    if not persistence_rsids:
+        return
+
+    note = (
+        " QUALIFIED: a non-European LCT lactase-persistence allele "
+        f"({', '.join(sorted(persistence_rsids))}) was also detected in this sample, so this "
+        "European-marker non-persistence genotype does not establish lactose intolerance — "
+        "lactase persistence is genetically heterogeneous across populations."
+    )
+    for r in snp_results:
+        if r.category == ELEVATED and r.present_in_sample:
+            r.category = STANDARD
+            r.effect_summary = r.effect_summary + note
+            logger.info(
+                "lactose_persistence_qualified",
+                rsid=r.rsid,
+                persistence_rsids=persistence_rsids,
+            )
+
+
 def _determine_pathway_level(snp_results: list[SNPResult]) -> str:
     """Determine the overall pathway category from individual SNP results.
 
@@ -477,6 +535,11 @@ def score_nutrigenomics_pathways(
             gt = _normalize_genotype(genotypes.get(snp.rsid))
             result = _score_snp(snp, gt, inferred_ancestry)
             snp_results.append(result)
+
+        # Lactose-specific conflict resolution: a detected non-European LCT
+        # persistence enhancer qualifies the European non-persistence calls (#789).
+        if pathway.id == _LACTOSE_PATHWAY_ID:
+            _resolve_lactose_persistence(pathway, snp_results)
 
         level = _determine_pathway_level(snp_results)
         pathway_results.append(

@@ -1414,3 +1414,72 @@ class TestNonEuropeanLCTVariants:
         assert "rs41380347" in cav and "rs41525747" in cav
         assert "rs145946881" in cav and "rs869051967" in cav
         assert "not on the supported consumer arrays" in cav
+
+
+class TestLactosePersistenceConflict:
+    """#789: a detected non-European LCT persistence enhancer (rs41380347 -13915*G
+    Arab/Middle-Eastern, or strand-resolved rs41525747 -13907*G East African) must
+    qualify the European rs4988235/rs182549 non-persistence calls, so the lactose
+    pathway cannot remain Elevated when the same sample is assayed lactase-persistent.
+    Lactase persistence is genetically heterogeneous (Tishkoff 2007 PMID 17159977;
+    Imtiaz 2007 PMID 17911653; Liebert 2017 PMID 29063188); plain max-category
+    aggregation previously let the Elevated European call win over the Standard
+    persistence calls.
+    """
+
+    def _lactose(self, result):
+        return next(pr for pr in result.pathway_results if pr.pathway_id == "lactose")
+
+    def test_arab_me_persistence_qualifies_european_non_persistence(
+        self, panel: NutrigenomicsPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        # European non-persistence (rs4988235 GG + rs182549 CC) but two copies of the
+        # Arab/Middle-Eastern -13915*G persistence allele (rs41380347 CC).
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs4988235", "2", 135851076, "GG"),
+                ("rs182549", "2", 135851234, "CC"),
+                ("rs41380347", "2", 135851222, "CC"),
+            ],
+        )
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        lactose = self._lactose(result)
+        assert lactose.level == STANDARD  # was Elevated under max-category aggregation
+        downgraded = {r.rsid for r in lactose.snp_results if "QUALIFIED" in r.effect_summary}
+        assert downgraded == {"rs4988235", "rs182549"}
+        # The persistence call itself is unchanged Standard.
+        rs413 = next(r for r in lactose.snp_results if r.rsid == "rs41380347")
+        assert rs413.category == STANDARD and "QUALIFIED" not in rs413.effect_summary
+
+    def test_east_african_persistence_het_qualifies(
+        self, panel: NutrigenomicsPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        # European non-persistence + one copy of the East African -13907*G allele
+        # (rs41525747 C/G heterozygote — the strand-invariant persistence call).
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs4988235", "2", 135851076, "GG"),
+                ("rs41525747", "2", 135851198, "CG"),
+            ],
+        )
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        assert self._lactose(result).level == STANDARD
+
+    def test_european_non_persistence_without_enhancer_stays_elevated(
+        self, panel: NutrigenomicsPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        # Control: the ancestral rs41380347 AA carries NO persistence allele, so the
+        # European non-persistence call must still stand (no false downgrade).
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs4988235", "2", 135851076, "GG"),
+                ("rs41380347", "2", 135851222, "AA"),
+            ],
+        )
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        lactose = self._lactose(result)
+        assert lactose.level == ELEVATED
+        assert not any("QUALIFIED" in r.effect_summary for r in lactose.snp_results)
