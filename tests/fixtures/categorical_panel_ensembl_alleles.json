@@ -3,9 +3,9 @@
     "source": "Ensembl GRCh37 REST: https://grch37.rest.ensembl.org/variation/human/{rsid}",
     "assembly": "GRCh37",
     "strand": "+1 (plus). allele_string is taken from the primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT, not an MHC/haplotype contig).",
-    "accessed": "2026-06-14 (rs2858884 added for #608; earlier entries 2026-06-13)",
+    "accessed": "2026-06-16 (rs144012689 added for #709; rs2858884 added for #608 on 2026-06-14; earlier entries 2026-06-13)",
     "purpose": "Reference plus-strand alleles for the categorical-panel strand guard (tests/backend/test_categorical_panel_strand.py). Each categorical-panel locus's curated {risk_allele, ref_allele} must be strand-consistent with these real alleles: both plus-strand or both Watson-Crick complements, never mixed. A mixed pair (e.g. rs4236601 risk=A plus + ref=C=complement-of-G) drops real heterozygous carriers in lookup_by_genotype. See issues #538 / #491.",
-    "coverage_note": "Seeded with the loci verified for #538; rs2858884 added (#608) once re-keyed to its real A/C frame. Bi-allelic-in-Ensembl loci additionally get a real-het-resolves check. Extend this map (one Ensembl GRCh37 lookup per rsid) to cover every categorical-panel locus (128 unique loci); the follow-up to #538 (#608) tracks full coverage.",
+    "coverage_note": "Seeded with the loci verified for #538; rs2858884 added (#608) once re-keyed to its real A/C frame; rs144012689 added (#709) to guard the HLA-B*15:02 T/A frame. Bi-allelic-in-Ensembl loci additionally get a real-het-resolves check. Extend this map (one Ensembl GRCh37 lookup per rsid) to cover every categorical-panel locus (128 unique loci); the follow-up to #538 (#608) tracks full coverage.",
     "blind_spot_note": "The set-based strand check is UNDECIDABLE for some multi-allelic loci: when every curated allele's Watson-Crick complement is also a real allele, a mixed-strand pair false-passes. rs9273363 (HLA-DQB1, C/A/G) is the case — panel {C, T} complements to {G, A}, both real, so it reads 'consistent' even though C is plus-strand and T is the complement of A; and being tri-allelic it gets no bi-allelic het-resolves check either. Such loci need an observed-genotype-resolves check, not the allele-set check; rs9273363 is therefore NOT listed here and is tracked separately (its T1D risk direction is also contested). rs4341 (4-allelic) has the same undecidability."
   },
   "rs4236601": {"allele_string": "G/A", "location": "7:116162729"},
@@ -14,5 +14,6 @@
   "rs1061170": {"allele_string": "C/A/G/T", "location": "1:196659237"},
   "rs4341": {"allele_string": "G/A/C/T", "location": "17:61565990"},
   "rs1677693": {"allele_string": "G/A/T", "location": "5:79936318"},
-  "rs2858884": {"allele_string": "A/C", "location": "6:32700083"}
+  "rs2858884": {"allele_string": "A/C", "location": "6:32700083"},
+  "rs144012689": {"allele_string": "T/A", "location": "6:31322780"}
 }

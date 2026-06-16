@@ -209,7 +209,7 @@ ALL_ALLERGY_VARIANTS = [
     ("rs324011", "12", 57527283, "CT"),  # STAT6 het
     # Drug Hypersensitivity
     ("rs2395029", "6", 31431272, "TG"),  # HLA-B*57:01 proxy het
-    ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 proxy het
+    ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 proxy het (T/A SNP, A=risk; #709)
     ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 proxy het (A/T SNP, T=risk; #545)
     ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 proxy het
     # Food Sensitivity
@@ -838,6 +838,61 @@ class TestHistamineCombined:
         assert "AOC1" in hc.combined_text and "HNMT" not in hc.combined_text
 
 
+# ── HLA-B*15:02 proxy allele-direction regression (#709) ────────────────────
+
+
+class TestHLAB1502ProxyAlleleDirection:
+    """#709: rs144012689 (HLA-B*15:02 / carbamazepine SJS/TEN proxy) was
+    encoded with a nonexistent C allele and the common T allele as risk
+    (risk=T/ref=C, keyed CC/CT/TC/TT). That falsely flagged common TT
+    homozygotes and dropped true heterozygous carriers.
+
+    NCBI/dbSNP and Ensembl both report rs144012689 as a T/A SNP in HLA-B
+    (GRCh37 6:31322780; GRCh38 6:31355003), with A as the minor/alternate
+    allele. The A allele is the HLA-B*15:02 proxy risk tag. Because T/A is
+    palindromic, array strand cannot be resolved for homozygotes, so the safe
+    behavior is: heterozygous carriers Elevated; both homozygotes withheld as
+    strand-Indeterminate.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs144012689")
+
+    def test_encoded_as_real_ta_snp_with_correct_direction(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        assert snp.gene == "HLA-B"
+        # Real T/A alleles, A = HLA-B*15:02 tag (risk), T = common/ref. No C.
+        assert (snp.risk_allele, snp.ref_allele) == ("A", "T")
+        assert set(snp.genotype_effects) == {"TT", "TA", "AT", "AA"}
+        assert "C" not in "".join(snp.genotype_effects)
+
+    def test_common_homozygote_is_not_a_false_carbamazepine_flag(
+        self, panel: AllergyPanel
+    ) -> None:
+        """The common TT homozygote must not be reported as an HLA-B*15:02
+        carrier. Because the locus is palindromic, it is withheld as
+        strand-Indeterminate rather than force-called Standard."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == INDETERMINATE
+        assert result.category != ELEVATED
+        assert "contraindicated" not in result.effect_summary.lower()
+        assert "palindromic" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true HLA-B*15:02 proxy carrier is heterozygous (T/A); het is
+        strand-resolvable, so it is correctly flagged Elevated."""
+        for gt in ("TA", "AT"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == ELEVATED, gt
+            assert "carrier" in result.effect_summary.lower()
+
+    def test_variant_homozygote_withheld_as_indeterminate(self, panel: AllergyPanel) -> None:
+        """The rare AA homozygote is also a palindromic homozygote and is
+        withheld because its array strand cannot be resolved from the genotype."""
+        result = _score_snp(self._snp(panel), "AA")
+        assert result.category == INDETERMINATE
+
+
 # ── HLA-A*31:01 proxy allele-direction regression (#545) ────────────────────
 
 
@@ -1119,7 +1174,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → pgx
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → pgx
                 ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 het carrier → pgx (#545)
             ],
         )
@@ -1149,7 +1204,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → carbamazepine
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → carbamazepine
                 ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 → allopurinol
             ],
         )
