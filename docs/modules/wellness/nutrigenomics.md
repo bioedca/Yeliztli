@@ -7,7 +7,7 @@ reports *tendencies*, never numeric risk scores or dietary prescriptions.
 
 ## What it looks at
 
-**15 curated SNPs** across seven pathways:
+**17 curated SNPs** across seven pathways:
 
 - **Folate metabolism** (*MTHFR* C677T/A1298C, *MTRR*)
 - **Vitamin D** (*GC*, *CYP2R1*)
