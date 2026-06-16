@@ -8,6 +8,7 @@ never carries or implies an evidence-level/significance change.
 from __future__ import annotations
 
 import pytest
+import sqlalchemy as sa
 
 from backend.analysis.array_confidence import (
     APOE_ARRAY_RELIABILITY_PMIDS,
@@ -20,8 +21,10 @@ from backend.analysis.array_confidence import (
     WEEDON_PMID,
     _is_catalogued,
     array_confidence_badge,
+    assess_pathogenic_findings,
     classify_array_reliability,
 )
+from backend.db.tables import annotated_variants, findings
 from backend.disclaimers import ARRAY_CONFIDENCE_CONTEXT_ONLY
 
 
@@ -175,3 +178,47 @@ class TestLocusSpecificLowReliability:
         from backend.analysis.apoe import APOE_RELIABILITY_PMIDS
 
         assert APOE_RELIABILITY_PMIDS == APOE_ARRAY_RELIABILITY_PMIDS
+
+
+class TestAssessPathogenicFindings:
+    def test_compound_pathogenic_finding_is_selected(self, sample_engine: sa.Engine) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert(),
+                [
+                    {
+                        "module": "rare_variants",
+                        "category": "clinvar_pathogenic",
+                        "evidence_level": 4,
+                        "gene_symbol": "CFTR",
+                        "rsid": "rs_compound_plp",
+                        "finding_text": "CFTR rs_compound_plp — Pathogenic|drug response",
+                        "clinvar_significance": "Pathogenic|drug response",
+                    },
+                    {
+                        "module": "rare_variants",
+                        "category": "rare",
+                        "evidence_level": 1,
+                        "gene_symbol": "GENE2",
+                        "rsid": "rs_conflicting",
+                        "finding_text": "GENE2 rs_conflicting — conflicting",
+                        "clinvar_significance": "Conflicting classifications of pathogenicity",
+                    },
+                ],
+            )
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_compound_plp",
+                    chrom="1",
+                    pos=1000,
+                    clinvar_significance="Pathogenic|drug response",
+                    clinvar_accession="VCV000000001",
+                    gnomad_af_popmax=1e-6,
+                )
+            )
+
+        rows = assess_pathogenic_findings(sample_engine)
+
+        assert {row["rsid"] for row in rows} == {"rs_compound_plp"}
+        assert rows[0]["clinvar_significance"] == "Pathogenic|drug response"
+        assert rows[0]["reliability"] == RELIABILITY_LOW

@@ -30,6 +30,31 @@ import sqlalchemy as sa
 PATHOGENIC_PRIMARY_CLASSIFICATIONS: tuple[str, ...] = ("Pathogenic", "Likely pathogenic")
 
 
+def primary_pathogenic_classification(significance: str | None) -> str | None:
+    """Return the primary pathogenic ClinVar classification, if present.
+
+    ClinVar compounds append secondary clauses with ``|`` or ``,``. The leading
+    token decides whether the row is clinically (likely-)pathogenic; slash
+    compounds are intentionally not matched because ingest normalizes those
+    before storage.
+    """
+    if not significance:
+        return None
+    for term in PATHOGENIC_PRIMARY_CLASSIFICATIONS:
+        if (
+            significance == term
+            or significance.startswith(f"{term}|")
+            or significance.startswith(f"{term},")
+        ):
+            return term
+    return None
+
+
+def is_pathogenic_primary(significance: str | None) -> bool:
+    """Whether ``significance`` has a Pathogenic/Likely pathogenic primary token."""
+    return primary_pathogenic_classification(significance) is not None
+
+
 def pathogenic_significance_filter(column: sa.ColumnElement) -> sa.ColumnElement:
     """A SQLAlchemy ``.where(...)`` predicate selecting rows whose primary ClinVar
     classification is (Likely) Pathogenic — exact, or a ``|``/``,`` compound such

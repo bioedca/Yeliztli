@@ -42,6 +42,10 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_significance import (
+    is_pathogenic_primary,
+    pathogenic_significance_filter,
+)
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
@@ -68,16 +72,6 @@ HIGH_IMPACT_CONSEQUENCES = frozenset(
         "protein_altering_variant",
     }
 )
-
-# ClinVar significance values considered pathogenic
-PATHOGENIC_SIGNIFICANCE = frozenset(
-    {
-        "Pathogenic",
-        "Likely pathogenic",
-        "Pathogenic/Likely pathogenic",
-    }
-)
-
 
 # ── Data classes ──────────────────────────────────────────────────────────
 
@@ -170,7 +164,7 @@ class RareVariantResult:
     @property
     def is_clinvar_pathogenic(self) -> bool:
         """Whether this variant is ClinVar Pathogenic or Likely pathogenic."""
-        return self.clinvar_significance in PATHOGENIC_SIGNIFICANCE
+        return is_pathogenic_primary(self.clinvar_significance)
 
     @property
     def consequence_severity_score(self) -> int:
@@ -336,7 +330,7 @@ def find_rare_variants(
     stmt = stmt.order_by(
         # ClinVar P/LP first (1=P/LP, 0=other)
         sa.case(
-            (av.c.clinvar_significance.in_(list(PATHOGENIC_SIGNIFICANCE)), 0),
+            (pathogenic_significance_filter(av.c.clinvar_significance), 0),
             else_=1,
         ),
         # AF ascending, NULLs (novel) after known-rare. Ordered by the same

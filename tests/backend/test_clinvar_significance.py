@@ -10,9 +10,14 @@ of pathogenicity"`` is NOT pathogenic.
 
 from __future__ import annotations
 
+import pytest
 import sqlalchemy as sa
 
-from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.clinvar_significance import (
+    is_pathogenic_primary,
+    pathogenic_significance_filter,
+    primary_pathogenic_classification,
+)
 from backend.db.tables import annotated_variants, sample_metadata_obj
 
 _PATHOGENIC = [
@@ -34,6 +39,7 @@ _NOT_PATHOGENIC = [
     "Uncertain significance",
     "drug response",  # secondary clause alone is not a pathogenic primary
     "risk factor",
+    "Pathogenic/Likely pathogenic",  # slash compounds are normalized before storage
     "",
     None,
 ]
@@ -77,3 +83,20 @@ class TestPathogenicSignificanceFilter:
         # contains "pathogenicity" but is not a pathogenic primary classification.
         matched = self._query(["Pathogenic", "Conflicting classifications of pathogenicity"])
         assert matched == {"Pathogenic"}
+
+
+class TestPathogenicPrimaryPredicate:
+    @pytest.mark.parametrize("significance", _PATHOGENIC)
+    def test_python_predicate_matches_sql_boundary(self, significance: str) -> None:
+        assert is_pathogenic_primary(significance) is True
+        assert primary_pathogenic_classification(significance) in {
+            "Pathogenic",
+            "Likely pathogenic",
+        }
+
+    @pytest.mark.parametrize("significance", _NOT_PATHOGENIC)
+    def test_python_predicate_excludes_non_primary_pathogenic(
+        self, significance: str | None
+    ) -> None:
+        assert is_pathogenic_primary(significance) is False
+        assert primary_pathogenic_classification(significance) is None

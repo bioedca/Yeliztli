@@ -694,6 +694,57 @@ class TestSorting:
         if clinvar_indices and non_clinvar_indices:
             assert max(clinvar_indices) < min(non_clinvar_indices)
 
+    def test_compound_pathogenic_sorts_and_tiers_as_clinvar_pathogenic(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    _v(
+                        rsid="rs_compound_plp",
+                        chrom="1",
+                        pos=1000,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="CFTR",
+                        consequence="missense_variant",
+                        gnomad_af_global=0.005,
+                        clinvar_significance="Pathogenic|drug response",
+                        clinvar_review_stars=2,
+                        annotation_coverage=15,
+                    ),
+                    _v(
+                        rsid="rs_lower_af_no_clinvar",
+                        chrom="1",
+                        pos=1001,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE2",
+                        consequence="missense_variant",
+                        gnomad_af_global=0.000001,
+                        annotation_coverage=15,
+                    ),
+                ],
+            )
+
+        result = find_rare_variants(RareVariantFilter(), sample_engine)
+
+        assert result.variants[0].rsid == "rs_compound_plp"
+        compound = result.variants[0]
+        assert compound.is_clinvar_pathogenic is True
+        assert compound.evidence_level == 4
+
+        store_rare_variant_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.category, findings.c.evidence_level).where(
+                    findings.c.rsid == "rs_compound_plp"
+                )
+            ).one()
+        assert row.category == "clinvar_pathogenic"
+        assert row.evidence_level == 4
+
 
 # ── Findings storage tests ───────────────────────────────────────────────
 
@@ -901,6 +952,10 @@ class TestRareVariantResultProperties:
             disease_name=None,
             inheritance_pattern=None,
         )
+        assert v.is_clinvar_pathogenic is True
+
+    def test_compound_clinvar_primary_is_pathogenic(self) -> None:
+        v = self._result(clinvar_significance="Pathogenic, low penetrance")
         assert v.is_clinvar_pathogenic is True
 
     def test_consequence_severity_score(self) -> None:

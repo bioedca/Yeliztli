@@ -63,6 +63,8 @@ Usage::
 
 from __future__ import annotations
 
+from backend.analysis.clinvar_significance import primary_pathogenic_classification
+
 # ── Evidence level constants ─────────────────────────────────────────────
 
 EVIDENCE_DEFINITIVE = 4  # ★★★★
@@ -77,15 +79,6 @@ EVIDENCE_LABELS: dict[int, str] = {
     EVIDENCE_MODERATE: "Moderate Evidence",
     EVIDENCE_PRELIMINARY: "Preliminary / Exploratory",
 }
-
-#: ClinVar significance values considered pathogenic.
-PATHOGENIC_SIGNIFICANCES: frozenset[str] = frozenset(
-    {
-        "Pathogenic",
-        "Likely pathogenic",
-        "Pathogenic/Likely pathogenic",
-    }
-)
 
 # ── CPIC classification → star mapping ───────────────────────────────────
 
@@ -126,15 +119,15 @@ def assign_clinvar_evidence_level(
     Returns:
         Evidence level integer (1-4).
     """
-    sig = clinvar_significance or ""
+    primary = primary_pathogenic_classification(clinvar_significance)
     stars = clinvar_review_stars or 0
 
-    if sig in PATHOGENIC_SIGNIFICANCES:
+    if primary is not None:
         if stars >= 2:
             return EVIDENCE_DEFINITIVE  # 4
 
         if stars == 1:
-            if sig == "Pathogenic":
+            if primary == "Pathogenic":
                 return EVIDENCE_DEFINITIVE  # 4
             return EVIDENCE_STRONG  # 3 — LP with 1 star
 

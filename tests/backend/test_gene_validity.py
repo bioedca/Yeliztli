@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import sqlalchemy as sa
+
 from backend.analysis.gene_validity import (
     CLINGEN_FRAMEWORK_PMID,
+    assess_finding_gene_validity,
     best_curation,
     classification_rank,
     gene_validity_guardrail,
     is_established,
 )
+from backend.db.tables import clingen_gene_validity, findings
 
 
 def _cur(classification: str, disease: str = "some disease") -> dict:
@@ -102,3 +106,55 @@ def test_guardrail_best_across_diseases_wins() -> None:
     assert g["best_classification"] == "Moderate"
     assert g["caution"] is False
     assert len(g["curations"]) == 2
+
+
+def test_assess_finding_gene_validity_includes_compound_pathogenic_primary(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clingen_gene_validity.insert().values(
+                gene_symbol="CFTR",
+                hgnc_id="HGNC:1884",
+                disease_label="cystic fibrosis",
+                disease_id="MONDO:0009061",
+                moi="AR",
+                sop="SOP10",
+                classification="Definitive",
+                report_url="https://example/cftr",
+                classification_date="2024-01-01T00:00:00.000Z",
+                gcep="Test GCEP",
+            )
+        )
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            findings.insert(),
+            [
+                {
+                    "module": "rare_variants",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "CFTR",
+                    "rsid": "rs_compound_plp",
+                    "finding_text": "CFTR rs_compound_plp — Pathogenic|drug response",
+                    "clinvar_significance": "Pathogenic|drug response",
+                },
+                {
+                    "module": "rare_variants",
+                    "category": "rare",
+                    "evidence_level": 1,
+                    "gene_symbol": "GENE2",
+                    "rsid": "rs_conflicting",
+                    "finding_text": "GENE2 rs_conflicting — conflicting",
+                    "clinvar_significance": "Conflicting classifications of pathogenicity",
+                },
+            ],
+        )
+
+    rows = assess_finding_gene_validity(sample_engine, reference_engine)
+
+    assert {row["rsid"] for row in rows} == {"rs_compound_plp"}
+    assert rows[0]["clinvar_significance"] == "Pathogenic|drug response"
+    assert rows[0]["gene_symbol"] == "CFTR"
+    assert rows[0]["validity_established"] is True

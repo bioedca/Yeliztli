@@ -25,7 +25,6 @@ from backend.analysis.evidence import (
     EVIDENCE_MODERATE,
     EVIDENCE_PRELIMINARY,
     EVIDENCE_STRONG,
-    PATHOGENIC_SIGNIFICANCES,
     PRS_EVIDENCE_LEVEL,
     TRAITS_EVIDENCE_CAP,
     assign_clinvar_evidence_level,
@@ -49,13 +48,6 @@ class TestConstants:
     def test_labels_defined_for_all_levels(self):
         for level in (1, 2, 3, 4):
             assert level in EVIDENCE_LABELS
-
-    def test_pathogenic_significances(self):
-        assert "Pathogenic" in PATHOGENIC_SIGNIFICANCES
-        assert "Likely pathogenic" in PATHOGENIC_SIGNIFICANCES
-        assert "Pathogenic/Likely pathogenic" in PATHOGENIC_SIGNIFICANCES
-        assert "Benign" not in PATHOGENIC_SIGNIFICANCES
-        assert "VUS" not in PATHOGENIC_SIGNIFICANCES
 
     def test_prs_level(self):
         assert PRS_EVIDENCE_LEVEL == 1
@@ -94,14 +86,24 @@ class TestAssignClinvarEvidenceLevel:
         result = assign_clinvar_evidence_level("Likely pathogenic", 2)
         assert result == 4
 
-    def test_pathogenic_likely_pathogenic_2_star(self):
-        """★★★★ — ClinVar P/LP combined classification with 2 stars."""
-        result = assign_clinvar_evidence_level("Pathogenic/Likely pathogenic", 2)
+    def test_pathogenic_compound_2_star(self):
+        """★★★★ — ClinVar P primary with a secondary clause."""
+        result = assign_clinvar_evidence_level("Pathogenic|drug response", 2)
+        assert result == 4
+
+    def test_likely_pathogenic_compound_2_star(self):
+        """★★★★ — ClinVar LP primary with a secondary clause."""
+        result = assign_clinvar_evidence_level("Likely pathogenic, low penetrance", 2)
         assert result == 4
 
     def test_pathogenic_1_star_review(self):
         """★★★★ — ClinVar Pathogenic with 1-star review still gets 4."""
         result = assign_clinvar_evidence_level("Pathogenic", 1)
+        assert result == 4
+
+    def test_pathogenic_compound_1_star_review(self):
+        """★★★★ — ClinVar Pathogenic primary with 1-star review still gets 4."""
+        result = assign_clinvar_evidence_level("Pathogenic, low penetrance", 1)
         assert result == 4
 
     def test_likely_pathogenic_1_star_review(self):
@@ -137,6 +139,11 @@ class TestAssignClinvarEvidenceLevel:
     def test_empty_clinvar_significance(self):
         """★☆☆☆ — Empty string significance."""
         result = assign_clinvar_evidence_level("", 0)
+        assert result == 1
+
+    def test_slash_compound_storage_phantom_is_not_matched(self):
+        """★☆☆☆ — slash compounds are not stored; only pipe/comma compounds match."""
+        result = assign_clinvar_evidence_level("Pathogenic/Likely pathogenic", 2)
         assert result == 1
 
     def test_vus_no_ensemble(self):

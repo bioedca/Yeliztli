@@ -23,6 +23,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from backend.analysis.clinvar_significance import pathogenic_significance_filter
 from backend.annotation.clingen import lookup_gene_validities
 from backend.disclaimers import GENE_VALIDITY_CONTEXT_ONLY
 
@@ -167,9 +168,6 @@ def assess_finding_gene_validity(
     attaches each finding's gene-level ClinGen validity guardrail (or an honest
     "not curated" placeholder). Never mutates findings.
     """
-    # Imported here to avoid a heavy import at module load and to reuse the single
-    # canonical definition of "actionable pathogenic".
-    from backend.analysis.rare_variant_finder import PATHOGENIC_SIGNIFICANCE
     from backend.db.tables import findings
 
     stmt = (
@@ -181,7 +179,7 @@ def assess_finding_gene_validity(
             findings.c.clinvar_significance,
             findings.c.finding_text,
         )
-        .where(findings.c.clinvar_significance.in_(sorted(PATHOGENIC_SIGNIFICANCE)))
+        .where(pathogenic_significance_filter(findings.c.clinvar_significance))
         .order_by(findings.c.id)
     )
     with sample_engine.connect() as conn:
