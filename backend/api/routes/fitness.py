@@ -61,6 +61,9 @@ class PathwaySummary(BaseModel):
     called_snps: int
     total_snps: int
     missing_snps: list[str] = []
+    # Subset of missing_snps that were on the array but failed genotyping.
+    # Preserve missing_snps as the historical union for compatibility.
+    no_call_snps: list[str] = []
     # Called SNPs observed but withheld from pathway interpretation. A
     # "Standard" level with these is NOT a confident "no variants of concern"
     # result (#270/#608). Surfaced here so the caveat is visible without drilling in.
@@ -98,6 +101,9 @@ class PathwayDetailResponse(BaseModel):
     called_snps: int
     total_snps: int
     missing_snps: list[str] = []
+    # Subset of missing_snps that were on the array but failed genotyping.
+    # Preserve missing_snps as the historical union for compatibility.
+    no_call_snps: list[str] = []
     indeterminate_snps: list[str] = []
     pmids: list[str] = []
     snp_details: list[SNPDetail] = []
@@ -205,6 +211,7 @@ def list_pathways(
                 called_snps=detail.get("called_snps", 0),
                 total_snps=detail.get("total_snps", 0),
                 missing_snps=detail.get("missing_snps", []),
+                no_call_snps=detail.get("no_call_snps", []),
                 indeterminate_snps=detail.get("indeterminate_snps", []),
                 pmids=ps["pmids"],
             )
@@ -313,6 +320,7 @@ def pathway_detail(
         called_snps=detail.get("called_snps", 0),
         total_snps=detail.get("total_snps", 0),
         missing_snps=detail.get("missing_snps", []),
+        no_call_snps=detail.get("no_call_snps", []),
         indeterminate_snps=detail.get("indeterminate_snps", []),
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,

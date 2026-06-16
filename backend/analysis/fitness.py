@@ -134,6 +134,7 @@ class SNPResult:
     present_in_sample: bool
     three_state_label: str | None = None  # RR/RX/XX for ACTN3
     coverage_note: str | None = None  # Proxy caveat for ACE
+    coverage_status: str | None = None  # called / no_call / not_on_array
 
 
 @dataclass
@@ -577,8 +578,15 @@ def score_fitness_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            raw_gt = genotypes.get(snp.rsid)
+            gt = _normalize_genotype(raw_gt)
             result = _score_snp(snp, gt)
+            if raw_gt is None:
+                result.coverage_status = "not_on_array"
+            elif gt is None:
+                result.coverage_status = "no_call"
+            else:
+                result.coverage_status = "called"
             snp_results.append(result)
 
         level = _determine_pathway_level(snp_results)
@@ -680,6 +688,9 @@ def store_fitness_findings(
             "total_snps": total_count,
             "indeterminate_snps": [s.rsid for s in indeterminate],
             "missing_snps": [s.rsid for s in pr.missing_snps],
+            # Preserve missing_snps as the historical union while exposing
+            # on-array failed calls separately for actionable UI labels.
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
             "snp_details": [
                 {
                     "rsid": s.rsid,

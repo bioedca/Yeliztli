@@ -1250,6 +1250,33 @@ class TestStoreFindingsIntegration:
         pmids = json.loads(row.pmid_citations)
         assert "12879365" in pmids
 
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Stored pathway detail exposes no-calls separately from off-chip SNPs."""
+        _seed_variants(sample_engine, [("rs1815739", "11", 66328095, "--")])
+
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        store_fitness_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Endurance",
+                )
+            ).one_or_none()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert "rs1815739" in detail["missing_snps"]
+        assert "rs8192678" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs1815739"]
+
 
 # ── PathwayResult properties ────────────────────────────────────────────
 
