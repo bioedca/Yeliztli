@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-15",
-    "pmid_count": 370,
+    "pmid_count": 371,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [

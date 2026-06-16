@@ -408,6 +408,9 @@ class TestListPathways:
         assert item["evidence_level"] == 2
         assert item["called_snps"] == 2
         assert item["total_snps"] == 3
+        food = next(i for i in data["items"] if i["pathway_id"] == "food_sensitivity")
+        assert food["missing_snps"] == ["rs2187668", "rs7454108"]
+        assert "rs7775228" not in food["missing_snps"]
 
     def test_celiac_combined_in_response(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1")
