@@ -91,6 +91,7 @@ export default function APOEGenotypeCard({ genotype }: APOEGenotypeCardProps) {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground" data-testid="apoe-genotype-status">
+              {genotype.status === "determined_but_locked" && "Loading your genotype…"}
               {genotype.status === "not_run" && "APOE analysis has not been run yet."}
               {genotype.status === "missing_snps" && "One or both APOE SNPs (rs429358, rs7412) are missing from this sample."}
               {genotype.status === "no_call" && "APOE SNPs are present but have no-call genotypes."}

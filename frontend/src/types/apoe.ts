@@ -16,7 +16,15 @@ export interface APOEGateStatusResponse {
 
 /** Basic APOE genotype information (not gate-protected). */
 export interface APOEGenotypeResponse {
-  status: "determined" | "missing_snps" | "no_call" | "ambiguous" | "not_run"
+  // `determined_but_locked` = a determined genotype withheld until the ε4/AD gate
+  // is acknowledged (backend apoe.py); the card shows a placeholder for it (#976).
+  status:
+    | "determined"
+    | "determined_but_locked"
+    | "missing_snps"
+    | "no_call"
+    | "ambiguous"
+    | "not_run"
   diplotype: string | null
   has_e4: boolean | null
   e4_count: number | null

@@ -1,12 +1,16 @@
 /** Tests for the APOE UI (P3-22d). */
 
+import type { ReactNode } from "react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
+import { renderHook, act } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import userEvent from "@testing-library/user-event"
 import APOEGate from "@/components/apoe-gate/APOEGate"
 import APOEGenotypeCard from "@/components/apoe-gate/APOEGenotypeCard"
 import APOEFindingCard from "@/components/apoe-gate/APOEFindingCard"
 import APOECaveats from "@/components/apoe-gate/APOECaveats"
+import { useAcknowledgeAPOEGate } from "@/api/apoe"
 import type {
   APOEGateDisclaimerResponse,
   APOEGenotypeResponse,
@@ -68,6 +72,20 @@ const GENOTYPE_NOT_RUN: APOEGenotypeResponse = {
 
 const GENOTYPE_MISSING: APOEGenotypeResponse = {
   status: "missing_snps",
+  diplotype: null,
+  has_e4: null,
+  e4_count: null,
+  has_e2: null,
+  e2_count: null,
+  rs429358_genotype: null,
+  rs7412_genotype: null,
+}
+
+// Pre-acknowledgment response: genotype is determined but withheld until the gate
+// is acknowledged, so every sensitive field is null. The card briefly sees this
+// cached response post-ack before the invalidated query refetches `determined` (#976).
+const GENOTYPE_LOCKED: APOEGenotypeResponse = {
+  status: "determined_but_locked",
   diplotype: null,
   has_e4: null,
   e4_count: null,
@@ -352,6 +370,16 @@ describe("APOEGenotypeCard", () => {
     render(<APOEGenotypeCard genotype={GENOTYPE_E3E4} />)
     expect(screen.getByTestId("apoe-genotype-card")).toBeInTheDocument()
   })
+
+  it("shows a placeholder (not a blank card) for determined_but_locked", () => {
+    // #976: the post-ack stale cache hands the card `determined_but_locked`;
+    // it must render a message, not an empty status <p> + no diplotype badge.
+    render(<APOEGenotypeCard genotype={GENOTYPE_LOCKED} />)
+    const status = screen.getByTestId("apoe-genotype-status")
+    expect(status).toHaveTextContent("Loading your genotype…")
+    expect(status).not.toBeEmptyDOMElement()
+    expect(screen.queryByTestId("apoe-diplotype-badge")).not.toBeInTheDocument()
+  })
 })
 
 // ── APOEFindingCard tests ─────────────────────────────────────────────
@@ -472,5 +500,46 @@ describe("APOECaveats", () => {
       "href",
       "https://pubmed.ncbi.nlm.nih.gov/24448547/",
     )
+  })
+})
+
+// ── useAcknowledgeAPOEGate invalidation (#976) ─────────────────────────
+
+describe("useAcknowledgeAPOEGate", () => {
+  function makeWrapper() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    }
+    return { client, Wrapper }
+  }
+
+  it("invalidates the apoe-genotype query so the post-ack card isn't stale-blank", async () => {
+    // #976: without this, the staleTime:Infinity genotype cache keeps the
+    // pre-ack `determined_but_locked` response → blank card until manual reload.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ acknowledged: true }),
+      text: () => Promise.resolve(""),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    try {
+      const { client, Wrapper } = makeWrapper()
+      const invalidateSpy = vi.spyOn(client, "invalidateQueries")
+      const { result } = renderHook(() => useAcknowledgeAPOEGate(), { wrapper: Wrapper })
+
+      await act(async () => {
+        await result.current.mutateAsync(1)
+      })
+
+      const keys = invalidateSpy.mock.calls.map((c) => c[0]?.queryKey)
+      expect(keys).toContainEqual(["apoe-gate-status", 1])
+      expect(keys).toContainEqual(["apoe-findings", 1])
+      expect(keys).toContainEqual(["apoe-genotype", 1])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

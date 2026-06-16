@@ -70,6 +70,10 @@ export function useAcknowledgeAPOEGate() {
     onSuccess: (_data, sampleId) => {
       queryClient.invalidateQueries({ queryKey: ["apoe-gate-status", sampleId] })
       queryClient.invalidateQueries({ queryKey: ["apoe-findings", sampleId] })
+      // The genotype query (staleTime: Infinity) cached the pre-ack
+      // `determined_but_locked` response; refetch it so the card shows the
+      // now-unlocked `determined` genotype instead of a blank card (#976).
+      queryClient.invalidateQueries({ queryKey: ["apoe-genotype", sampleId] })
     },
   })
 }
