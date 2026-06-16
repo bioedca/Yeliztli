@@ -472,6 +472,166 @@ class TestExtractCancerVariants:
         assert "rs_apc_homref" not in kept
         assert "rs_apc_indel" not in kept
 
+    def test_suppresses_implausible_rare_dominant_hom_alt_calls(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Rare AD cancer P/LP hom-alt calls with no gnomAD homozygotes are withheld."""
+        variants = [
+            {
+                "rsid": "rs5030814",
+                "chrom": "3",
+                "pos": 10188243,
+                "genotype": "GG",
+                "zygosity": "hom_alt",
+                "gene_symbol": "VHL",
+                "clinvar_significance": "Likely pathogenic",
+                "clinvar_review_stars": 2,
+                "clinvar_conditions": "Von Hippel-Lindau Syndrome",
+                "gnomad_af_popmax": 2e-5,
+                "gnomad_homozygous_count": 0,
+                "annotation_coverage": 2,
+            },
+            {
+                "rsid": "rs1061517",
+                "chrom": "5",
+                "pos": 218397,
+                "genotype": "GG",
+                "zygosity": "hom_alt",
+                "gene_symbol": "SDHA",
+                "clinvar_significance": "Pathogenic",
+                "clinvar_review_stars": 4,
+                "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
+                "gnomad_af_popmax": 2e-5,
+                "gnomad_homozygous_count": 0,
+                "annotation_coverage": 2,
+            },
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), variants)
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 2
+
+    def test_dominant_hom_alt_suppression_falls_back_to_global_af(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_vhl_global_af",
+                        "chrom": "3",
+                        "pos": 10188244,
+                        "genotype": "GG",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "VHL",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "Von Hippel-Lindau Syndrome",
+                        "gnomad_af_popmax": None,
+                        "gnomad_af_global": 1e-4,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 1
+
+    def test_keeps_dominant_hom_alt_when_gnomad_homozygotes_are_observed(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_vhl_observed_hom",
+                        "chrom": "3",
+                        "pos": 10188245,
+                        "genotype": "GG",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "VHL",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "Von Hippel-Lindau Syndrome",
+                        "gnomad_af_popmax": 2e-5,
+                        "gnomad_homozygous_count": 1,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_vhl_observed_hom"]
+        assert result.hom_alt_plausibility_suppressed == 0
+
+    def test_keeps_recessive_hom_alt_even_when_rare(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_mutyh_rare_hom",
+                        "chrom": "1",
+                        "pos": 45797000,
+                        "genotype": "AA",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "MUTYH",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "MUTYH-associated polyposis",
+                        "gnomad_af_popmax": 2e-5,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_mutyh_rare_hom"]
+        assert result.hom_alt_plausibility_suppressed == 0
+
+    def test_keeps_dominant_hom_alt_when_frequency_is_missing(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_vhl_missing_af",
+                        "chrom": "3",
+                        "pos": 10188246,
+                        "genotype": "GG",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "VHL",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "Von Hippel-Lindau Syndrome",
+                        "gnomad_af_popmax": None,
+                        "gnomad_af_global": None,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_vhl_missing_af"]
+        assert result.hom_alt_plausibility_suppressed == 0
+
 
 # ── Findings storage tests ───────────────────────────────────────────────
 

@@ -196,6 +196,7 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 # Policy guard for issue #837: only PMS2 exons currently modeled as
 # PMS2/PMS2CL-confounded are withheld from consumer cancer findings.
 _PMS2_PSEUDOGENE_CONFOUNDED_EXONS = frozenset({12, 13, 14, 15})
+_DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
 
 
 @dataclass
@@ -228,6 +229,7 @@ class CancerAnalysisResult:
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
     pseudogene_suppressed: int = 0
+    hom_alt_plausibility_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -314,6 +316,9 @@ def extract_cancer_variants(
                 annotated_variants.c.exon_number,
                 annotated_variants.c.revel,
                 annotated_variants.c.consequence,
+                annotated_variants.c.gnomad_af_popmax,
+                annotated_variants.c.gnomad_af_global,
+                annotated_variants.c.gnomad_homozygous_count,
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
@@ -327,6 +332,7 @@ def extract_cancer_variants(
 
     variants: list[CancerVariantResult] = []
     pseudogene_suppressed = 0
+    hom_alt_plausibility_suppressed = 0
     for row in rows:
         gene_symbol = (row.gene_symbol or "").upper()
         gene_info = gene_map.get(gene_symbol)
@@ -334,6 +340,9 @@ def extract_cancer_variants(
             continue
         if _is_pms2_pseudogene_confounded(row):
             pseudogene_suppressed += 1
+            continue
+        if _is_implausible_dominant_hom_alt(row, gene_info):
+            hom_alt_plausibility_suppressed += 1
             continue
 
         evidence = _assign_evidence_level(
@@ -369,6 +378,7 @@ def extract_cancer_variants(
         variants_in_panel_genes=total_in_panel,
         pathogenic_variants=len(variants),
         pseudogene_suppressed=pseudogene_suppressed,
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
@@ -377,6 +387,7 @@ def extract_cancer_variants(
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         pseudogene_suppressed=pseudogene_suppressed,
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
     )
 
 
@@ -384,6 +395,27 @@ def _is_pms2_pseudogene_confounded(row: sa.Row) -> bool:
     """Return true for PMS2 calls in exons that need PMS2/PMS2CL disambiguation."""
     gene_symbol = (row.gene_symbol or "").upper()
     return gene_symbol == "PMS2" and row.exon_number in _PMS2_PSEUDOGENE_CONFOUNDED_EXONS
+
+
+def _is_implausible_dominant_hom_alt(row: sa.Row, gene_info: CancerGene) -> bool:
+    """Return true for rare dominant hom-alt calls without population support."""
+    if row.zygosity != "hom_alt" or gene_info.inheritance.upper() != "AD":
+        return False
+    if row.gnomad_homozygous_count is not None and row.gnomad_homozygous_count > 0:
+        return False
+
+    af = _effective_gnomad_af(row)
+    if af is None:
+        return False
+    return af * af <= _DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX
+
+
+def _effective_gnomad_af(row: sa.Row) -> float | None:
+    """Return usable popmax AF, falling back to global AF."""
+    for af in (row.gnomad_af_popmax, row.gnomad_af_global):
+        if af is not None and 0 <= af <= 1:
+            return af
+    return None
 
 
 # ── Findings storage ─────────────────────────────────────────────────────
