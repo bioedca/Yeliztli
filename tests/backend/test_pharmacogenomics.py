@@ -658,6 +658,9 @@ class TestCallStarAllelesCYP2C19:
         result = call_star_alleles_for_gene("CYP2C19", alleles, genotypes, pgx_reference_engine)
         assert result.diplotype == "*1/*1"
         assert result.phenotype == "Normal Metabolizer"
+        assert result.involved_rsids == set()
+        assert result.assessed_rsids == {"rs4244285", "rs4986893", "rs12248560"}
+        assert result.coverage_assessed == 3
 
     def test_cyp2c19_star2_star2_hom(self, pgx_reference_engine: sa.Engine):
         """rs4244285 AA → *2/*2 → Poor Metabolizer."""
@@ -695,6 +698,7 @@ class TestCallStarAllelesCYP2C19:
         assert result.diplotype == "*1/*1"
         assert len(result.missing_rsids) > 0
         assert "rs4244285" in result.missing_rsids
+        assert result.assessed_rsids == set()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1919,6 +1923,50 @@ class TestUpdateAnnotationCoverageCpic:
             ).scalar()
         assert row == CPIC_BIT  # CPIC_BIT only (its own bit; F33 moved it off GENE_PHENOTYPE_BIT)
 
+    def test_assessed_reference_variant_gets_cpic_bit(self):
+        """Reference-state defining variants used by CPIC calls get the CPIC bit."""
+
+        sample = self._make_sample_with_annotated(
+            raw=[
+                {"rsid": "rs4244285", "chrom": "10", "pos": 96541616, "genotype": "GG"},
+            ],
+            annotated=[
+                {
+                    "rsid": "rs4244285",
+                    "chrom": "10",
+                    "pos": 96541616,
+                    "genotype": "GG",
+                    "annotation_coverage": 0,
+                },
+            ],
+        )
+
+        results = [
+            StarAlleleResult(
+                gene="CYP2C19",
+                allele1="*1",
+                allele2="*1",
+                diplotype="*1/*1",
+                phenotype="Normal Metabolizer",
+                involved_rsids=set(),
+                assessed_rsids={"rs4244285"},
+                call_confidence=CallConfidence.COMPLETE,
+                confidence_note="All defining positions assessed.",
+            ),
+        ]
+
+        updated = update_annotation_coverage_cpic(results, sample)
+        assert updated == 1
+
+        with sample.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants.c.annotation_coverage).where(
+                    annotated_variants.c.rsid == "rs4244285"
+                )
+            ).scalar()
+
+        assert row == CPIC_BIT
+
     def test_no_involved_rsids_returns_zero(self):
         """Star-allele results with no involved rsids → 0 updates."""
 
@@ -2094,6 +2142,43 @@ class TestRunPharmaAnnotationCoverage:
                         "chrom": "10",
                         "pos": 96541616,
                         "genotype": "GA",
+                        "annotation_coverage": 0,
+                    },
+                ],
+            )
+
+        stored = _run_pharma(
+            sample,
+            SimpleNamespace(reference_engine=pgx_reference_engine),
+        )
+
+        assert stored >= 0
+        with sample.connect() as conn:
+            coverage = conn.execute(
+                sa.select(annotated_variants.c.annotation_coverage).where(
+                    annotated_variants.c.rsid == "rs4244285"
+                )
+            ).scalar()
+
+        assert coverage & CPIC_BIT == CPIC_BIT
+
+    def test_run_pharma_sets_cpic_bit_for_reference_variant(self, pgx_reference_engine: sa.Engine):
+        sample = _make_sample_engine(
+            [
+                {"rsid": "rs4244285", "chrom": "10", "pos": 96541616, "genotype": "GG"},
+                {"rsid": "rs4986893", "chrom": "10", "pos": 96540410, "genotype": "GG"},
+                {"rsid": "rs12248560", "chrom": "10", "pos": 96521657, "genotype": "CC"},
+            ]
+        )
+        with sample.begin() as conn:
+            conn.execute(
+                annotated_variants.insert(),
+                [
+                    {
+                        "rsid": "rs4244285",
+                        "chrom": "10",
+                        "pos": 96541616,
+                        "genotype": "GG",
                         "annotation_coverage": 0,
                     },
                 ],

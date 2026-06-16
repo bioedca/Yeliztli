@@ -180,6 +180,7 @@ class StarAlleleResult:
     ehr_notation: str | None = None
     activity_score: float | None = None
     involved_rsids: set[str] = field(default_factory=set)
+    assessed_rsids: set[str] = field(default_factory=set)
     missing_rsids: set[str] = field(default_factory=set)
     uncalled_rsids: set[str] = field(default_factory=set)
     defining_rsid_count: int = 0
@@ -194,12 +195,12 @@ class StarAlleleResult:
     def coverage_assessed(self) -> int:
         """Number of the gene's defining SNP positions actually assayed and called.
 
-        ``defining_rsid_count`` minus the positions that were missing from the
-        array or could not be genotyped. This is *SNP defining-position* coverage
-        only — it does not (and from array data cannot) account for copy-number or
-        gene-conversion alleles, which the reference-bias disclosure covers
-        separately.
+        This is *SNP defining-position* coverage only — it does not (and from
+        array data cannot) account for copy-number or gene-conversion alleles,
+        which the reference-bias disclosure covers separately.
         """
+        if self.assessed_rsids:
+            return len(self.assessed_rsids)
         unusable = self.missing_rsids | self.uncalled_rsids
         return max(0, self.defining_rsid_count - len(unusable))
 
@@ -612,6 +613,8 @@ def call_star_alleles_for_gene(
                 remaining_alts[key] = alt_count
                 observed_alt_counts[rsid] = max(observed_alt_counts.get(rsid, 0), alt_count)
 
+    assessed_rsids = all_defining_rsids - missing_rsids - uncalled_rsids
+
     # Sort non-ref alleles: most defining variants first (most specific),
     # then alphabetically for deterministic results
     non_ref_alleles.sort(key=lambda a: (-len(a["defining_variants"]), a["allele_name"]))
@@ -745,6 +748,7 @@ def call_star_alleles_for_gene(
         ehr_notation=diplo_data["ehr_notation"] if diplo_data else None,
         activity_score=diplo_data["activity_score"] if diplo_data else None,
         involved_rsids=involved_rsids,
+        assessed_rsids=assessed_rsids,
         missing_rsids=missing_rsids,
         uncalled_rsids=uncalled_rsids,
         defining_rsid_count=len(all_defining_rsids),
@@ -1204,14 +1208,16 @@ def update_annotation_coverage_cpic(
     star_allele_results: list[StarAlleleResult],
     sample_engine: sa.Engine,
 ) -> int:
-    """OR bit 6 (CPIC, value 64) into annotation_coverage for involved variants.
+    """OR bit 6 (CPIC, value 64) into annotation_coverage for CPIC-assessed variants.
 
     After the pharmacogenomics module runs, every variant that participated
-    in a star-allele call (i.e. its rsid appears in ``involved_rsids`` of
-    any :class:`StarAlleleResult`) gets bit 6 set in its
-    ``annotation_coverage`` column in ``annotated_variants``.
+    in CPIC star-allele assessment (i.e. its rsid appears in
+    ``assessed_rsids`` of any :class:`StarAlleleResult`) gets bit 6 set in
+    its ``annotation_coverage`` column in ``annotated_variants``. Older
+    manually-constructed results without ``assessed_rsids`` fall back to
+    ``involved_rsids``.
 
-    Variants not involved in any CPIC gene leave bit 6 unset.
+    Variants not assessed for any CPIC gene leave bit 6 unset.
 
     Args:
         star_allele_results: Output from :func:`call_all_star_alleles`.
@@ -1220,15 +1226,17 @@ def update_annotation_coverage_cpic(
     Returns:
         Number of variants updated.
     """
-    # Collect all unique rsids that participated in star-allele calls
-    involved: set[str] = set()
+    # Collect all unique rsids that were assessed by star-allele calls. Keep
+    # involved_rsids as a fallback for tests or callers that construct legacy
+    # StarAlleleResult values directly.
+    cpic_rsids: set[str] = set()
     for result in star_allele_results:
-        involved.update(result.involved_rsids)
+        cpic_rsids.update(result.assessed_rsids or result.involved_rsids)
 
-    if not involved:
+    if not cpic_rsids:
         return 0
 
-    rsid_list = sorted(involved)
+    rsid_list = sorted(cpic_rsids)
     updated = 0
 
     with sample_engine.begin() as conn:
@@ -1254,7 +1262,7 @@ def update_annotation_coverage_cpic(
     logger.info(
         "pgx_annotation_coverage_updated",
         cpic_bit=CPIC_BIT,
-        involved_rsids=len(involved),
+        cpic_rsids=len(cpic_rsids),
         rows_updated=updated,
     )
     return updated
