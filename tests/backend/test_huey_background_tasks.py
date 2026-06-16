@@ -149,9 +149,15 @@ def _lai_result(global_ancestry: dict, *, chroms: int = 22) -> SimpleNamespace:
 
 class TestRunLaiTask:
     def test_completes_and_summarizes_top_ancestry(self, huey_env: dict) -> None:
-        """Success path: job → complete @ 100% with the top-ancestry summary."""
+        """Success path: job → complete @ 100% with the top-ancestry summary.
+
+        The dominant population (AFR, fraction 0.7) is alphabetically FIRST, so a
+        plain ``max()`` over the dict keys would pick EUR instead — this exercises
+        the ``key=fraction`` selector that an alphabetically-last fixture left dead
+        to the suite (#1003).
+        """
         _make_job("lai-ok", "lai", sample_id=1)
-        result = _lai_result({"EUR": {"fraction": 0.7}, "AMR": {"fraction": 0.3}}, chroms=22)
+        result = _lai_result({"AFR": {"fraction": 0.7}, "EUR": {"fraction": 0.3}}, chroms=22)
 
         with patch("backend.analysis.lai.run_lai_analysis", return_value=result):
             run_lai_task.call_local(1, "lai-ok")
@@ -160,7 +166,7 @@ class TestRunLaiTask:
         assert row.status == "complete"
         assert row.progress_pct == 100.0
         assert "22 chromosomes analyzed" in row.message
-        assert "top ancestry: EUR" in row.message
+        assert "top ancestry: AFR" in row.message  # highest fraction, NOT max(keys)=EUR
 
     def test_empty_global_ancestry_guard(self, huey_env: dict) -> None:
         """Empty global_ancestry → ``top_pop`` stays "" (no ``max()`` over empty)."""
