@@ -744,6 +744,16 @@ class TestStoreRiskFindings:
     def test_empty_rerun_clears_stale_findings(self, sample_engine: sa.Engine) -> None:
         assessment = self._assessment_with_call(sample_engine)
         assert store_risk_findings(assessment, sample_engine) == 1
+        with sample_engine.connect() as conn:
+            existing = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(
+                    findings.c.module == assessment.module,
+                    findings.c.category == assessment.category,
+                )
+            ).scalar()
+        assert existing == 1
 
         empty_assessment = RiskAssessment(
             module=assessment.module,
