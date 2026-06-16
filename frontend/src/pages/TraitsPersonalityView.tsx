@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useTraitsPathways, useTraitsPRS, useTraitsDisclaimer, useTraitsPathwayDetail } from "@/api/traits"
 import type { CrossModuleItem } from "@/types/traits"
 import PathwayCard from "@/components/traits/PathwayCard"
@@ -50,7 +51,9 @@ function CrossModuleCard({
   sampleId: number
 }) {
   const targetRoute = MODULE_ROUTES[item.to_module]
-  const moduleName = item.to_module.replaceAll("_", " ")
+  // Canonical display name from the shared registry (matches the sidebar /
+  // Command Palette), not an ad-hoc capitalize of the raw key (#699).
+  const moduleName = getModuleMeta(item.to_module).label
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -63,7 +66,7 @@ function CrossModuleCard({
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             {item.from_trait}
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}
+            {moduleName}
           </span>
         </div>
         <EvidenceStars level={item.evidence_level} />
@@ -74,7 +77,7 @@ function CrossModuleCard({
           to={`${targetRoute}?sample_id=${sampleId}`}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          View in {moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}
+          View in {moduleName}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       )}

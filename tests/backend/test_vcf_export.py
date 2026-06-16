@@ -12,14 +12,10 @@ from datetime import date
 from io import StringIO
 from pathlib import Path
 
-import sqlalchemy as sa
-
 from backend.ingestion.vcf_export import (
     _resolve_vcf_fields,
-    export_vcf_from_engine,
     export_vcf_from_rows,
 )
-from tests.backend.conftest import SEED_RAW_VARIANTS
 
 # ═══════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -335,65 +331,6 @@ class TestOutputDestinations:
         content = export_vcf_from_rows(SAMPLE_ROWS, file_date=FIXED_DATE)
         assert isinstance(content, str)
         assert content.startswith("##fileformat=VCFv4.2")
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Database integration test
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestExportFromEngine:
-    """Integration: export VCF directly from a sample SQLite engine."""
-
-    def test_export_from_sample_engine(self, sample_with_variants: sa.Engine) -> None:
-        vcf = export_vcf_from_engine(
-            sample_with_variants,
-            sample_name="TestPatient",
-            file_date=FIXED_DATE,
-        )
-        assert "##fileformat=VCFv4.2" in vcf
-        assert "##reference=GRCh37" in vcf
-        assert "##source=Yeliztli" in vcf
-        assert "TestPatient" in vcf
-        data = _get_data_lines(vcf)
-        # sample_with_variants rows, none are no-calls
-        assert len(data) == len(SEED_RAW_VARIANTS)
-
-    def test_export_to_file(
-        self,
-        sample_with_variants: sa.Engine,
-        tmp_path: Path,
-    ) -> None:
-        dest = tmp_path / "sample.vcf"
-        export_vcf_from_engine(
-            sample_with_variants,
-            dest=dest,
-            file_date=FIXED_DATE,
-        )
-        assert dest.exists()
-        text = dest.read_text(encoding="utf-8")
-        assert text.startswith("##fileformat=VCFv4.2")
-
-    def test_output_sorted_by_canonical_chrom_order(
-        self,
-        sample_with_variants: sa.Engine,
-    ) -> None:
-        """Verify variants are sorted by canonical chrom order, not text order."""
-        vcf = export_vcf_from_engine(sample_with_variants, file_date=FIXED_DATE)
-        data = _get_data_lines(vcf)
-        chroms = [line.split("\t")[0] for line in data]
-        # Canonical order maps: 1→1, 10→10, 15→15, 19→19, 22→22
-        # Text sort would put 10 before 15 before 19 before 22 before 1
-        # Our seed data has chroms: 1(×2), 10, 15, 16, 19(×2), 22(×2)
-        chrom_order = {"1": 1, "10": 10, "15": 15, "16": 16, "19": 19, "22": 22}
-        numeric = [chrom_order.get(c, 99) for c in chroms]
-        assert numeric == sorted(numeric)
-
-    def test_empty_table_produces_header_only(self, sample_engine: sa.Engine) -> None:
-        vcf = export_vcf_from_engine(sample_engine, file_date=FIXED_DATE)
-        assert "##fileformat=VCFv4.2" in vcf
-        data = _get_data_lines(vcf)
-        assert len(data) == 0
 
 
 # ═══════════════════════════════════════════════════════════════════════

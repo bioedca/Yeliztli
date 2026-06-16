@@ -344,6 +344,84 @@ class TestDefaultFilter:
         assert result.novel_count == 0
 
 
+# ── Sex/chromosome finding gate (F8, #711) ───────────────────────────────
+
+
+class TestSexChromosomeGate:
+    """End-to-end coverage for the F8 sex/chromosome gate through
+    ``find_rare_variants`` — the gate's only production wiring.
+
+    The gate (``is_surfaceable``) drops a Y-chromosome finding on a confident
+    ``"XX"`` sample (biologically impossible). Before #711 nothing exercised it:
+    no test set ``inferred_sex`` (so the caller's ``is not None`` guard was always
+    false) and every fixture was autosomal, so the one discriminating row of the
+    truth table (chrY + XX) was never built. Defeating the gate left the suite
+    fully green. These tests construct that exact row.
+    """
+
+    def _chr_y_pathogenic_row(self) -> dict:
+        # A rare, carried (het), ClinVar-Pathogenic Y-chromosome variant — the
+        # kind a chip can report at a Y probe for an XX individual. Passes the
+        # normal rare-variant filter, so only the sex gate can drop it.
+        return _v(
+            rsid="rs_y_pathogenic",
+            chrom="Y",
+            pos=2787000,
+            genotype="AG",
+            zygosity="het",
+            gene_symbol="SRY",
+            consequence="missense_variant",
+            gnomad_af_global=0.0005,
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=2,
+            clinvar_accession="VCV000000001",
+            ensemble_pathogenic=True,
+            annotation_coverage=15,
+        )
+
+    def test_chr_y_pathogenic_dropped_for_xx_sample(self, sample_engine: sa.Engine) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [self._chr_y_pathogenic_row()])
+
+        result = find_rare_variants(RareVariantFilter(inferred_sex="XX"), sample_engine)
+        rsids = {v.rsid for v in result.variants}
+        # Biologically impossible on an XX sample → suppressed by the F8 gate.
+        assert "rs_y_pathogenic" not in rsids
+
+    def test_chr_y_pathogenic_kept_for_xy_sample(self, sample_engine: sa.Engine) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [self._chr_y_pathogenic_row()])
+
+        result = find_rare_variants(RareVariantFilter(inferred_sex="XY"), sample_engine)
+        rsids = {v.rsid for v in result.variants}
+        # A Y finding on an XY sample is real — the gate must NOT drop it. This is
+        # the counterpart that proves the XX suppression is sex-specific, not a
+        # blanket drop of all chrY rows.
+        assert "rs_y_pathogenic" in rsids
+
+    def test_chr_y_pathogenic_kept_when_sex_unknown(self, sample_engine: sa.Engine) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [self._chr_y_pathogenic_row()])
+
+        # Sex not confidently known → nothing is dropped (a false drop would hide
+        # a real finding). Also covers the caller's ``inferred_sex is not None``
+        # guard firing while the gate itself returns True.
+        result = find_rare_variants(RareVariantFilter(inferred_sex="unknown"), sample_engine)
+        assert "rs_y_pathogenic" in {v.rsid for v in result.variants}
+
+    def test_autosomal_pathogenic_kept_for_xx_sample(self, sample_engine: sa.Engine) -> None:
+        # Control: the gate only touches chrY — an autosomal Pathogenic variant on
+        # an XX sample must still surface, so the gate isn't over-suppressing.
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [_v(**{**self._chr_y_pathogenic_row(), "rsid": "rs_autosomal", "chrom": "17"})],
+            )
+
+        result = find_rare_variants(RareVariantFilter(inferred_sex="XX"), sample_engine)
+        assert "rs_autosomal" in {v.rsid for v in result.variants}
+
+
 # ── AF threshold tests ───────────────────────────────────────────────────
 
 

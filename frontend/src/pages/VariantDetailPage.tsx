@@ -35,6 +35,7 @@ import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import { polyphen2Display } from "@/lib/insilico"
 
@@ -104,16 +105,11 @@ function DetailRow({
 
 function ClinVarSignificanceBadge({ significance }: { significance: string | null }) {
   if (!significance) return <span>—</span>
-  const lower = significance.toLowerCase()
   return (
     <span
       className={cn(
         "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
-        lower.includes("pathogenic") && !lower.includes("benign")
-          ? "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400"
-          : lower.includes("benign")
-            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
-            : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+        getClinvarSignificanceBadgeClass(significance),
       )}
     >
       {significance}

@@ -4,7 +4,10 @@
  * ClinVar data, syndromes, cancer types, PMIDs, and BRCA1/2 cross-link.
  */
 
+import { useRef } from "react"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { CancerVariant } from "@/types/cancer"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { Link } from "react-router-dom"
@@ -22,15 +25,21 @@ export default function VariantDetailPanel({
   onClose,
 }: VariantDetailPanelProps) {
   const hasCrossLink = variant.cross_links.includes("carrier")
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
 
   return (
     <aside
+      ref={panelRef}
       className={cn(
         "fixed right-0 top-0 bottom-0 z-40 w-full max-w-md",
         "overflow-y-auto border-l bg-background shadow-xl",
         "animate-in slide-in-from-right duration-200",
       )}
+      role="dialog"
+      aria-modal="true"
       aria-label={`${variant.gene_symbol} variant detail`}
+      tabIndex={-1}
       data-testid="variant-detail-panel"
     >
       <div className="p-6">
@@ -58,8 +67,7 @@ export default function VariantDetailPanel({
               <span className="text-sm text-muted-foreground">ClinVar Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
+                getClinvarSignificanceTextClass(variant.clinvar_significance),
               )}>
                 {variant.clinvar_significance}
               </span>

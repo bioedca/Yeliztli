@@ -15,7 +15,6 @@ import {
 } from "lucide-react"
 import ColumnPresets from "./ColumnPresets"
 import { filterLabel } from "./filterSuggestions"
-import { useTags } from "@/api/tags"
 import {
   CONCORDANCE_LABELS,
   CONCORDANCE_OPTIONS,
@@ -23,6 +22,7 @@ import {
   SOURCE_OPTIONS,
   type ConcordanceTag,
   type SourceTag,
+  type Tag as VariantTag,
 } from "@/types/variants"
 
 interface VariantToolbarProps {
@@ -40,7 +40,7 @@ interface VariantToolbarProps {
   onPresetChange: (presetName: string | null, columns: string[] | null) => void
   activeFilter?: string
   onClearFilter?: () => void
-  sampleId: number | null
+  tags?: VariantTag[]
   activeTag?: string | null
   onTagFilter?: (tagName: string | null) => void
   showGRCh38: boolean
@@ -69,7 +69,7 @@ export default function VariantToolbar({
   onPresetChange,
   activeFilter,
   onClearFilter,
-  sampleId,
+  tags,
   activeTag,
   onTagFilter,
   showGRCh38,
@@ -86,7 +86,6 @@ export default function VariantToolbar({
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const sourceDropdownRef = useRef<HTMLDivElement>(null)
   const concordanceDropdownRef = useRef<HTMLDivElement>(null)
-  const { data: tags } = useTags(sampleId)
 
   // Close dropdown on outside click
   useEffect(() => {

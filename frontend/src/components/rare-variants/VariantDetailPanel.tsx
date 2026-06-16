@@ -4,7 +4,10 @@
  * population frequencies, prediction scores, ClinVar data, and HGVS.
  */
 
+import { useRef } from "react"
 import { cn } from "@/lib/utils"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -38,15 +41,21 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
   ]
 
   const hasAnyFreq = popFreqs.some((p) => p.value != null)
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
 
   return (
     <aside
+      ref={panelRef}
       className={cn(
         "fixed right-0 top-0 bottom-0 z-40 w-full max-w-md",
         "overflow-y-auto border-l bg-background shadow-xl",
         "animate-in slide-in-from-right duration-200",
       )}
+      role="dialog"
+      aria-modal="true"
       aria-label={`${variant.gene_symbol ?? variant.rsid} variant detail`}
+      tabIndex={-1}
       data-testid="variant-detail-panel"
     >
       <div className="p-6">
@@ -127,8 +136,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               <span className="text-sm text-muted-foreground">Significance</span>
               <span className={cn(
                 "text-sm font-medium",
-                variant.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
-                variant.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
+                getClinvarSignificanceTextClass(variant.clinvar_significance),
               )}>
                 {variant.clinvar_significance ?? "—"}
               </span>

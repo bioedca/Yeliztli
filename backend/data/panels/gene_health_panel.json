@@ -1156,8 +1156,8 @@
               "effect_summary": "No GJB2 35delG variant. Normal connexin 26 gap junction function in the cochlea."
             },
             "G/delG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous carrier of GJB2 35delG. Carrier status for the most common cause of autosomal recessive non-syndromic hearing loss. Normal hearing in most carriers. Reproductive risk if partner is also a carrier."
+              "category": "Standard",
+              "effect_summary": "Heterozygous carrier of GJB2 35delG. Carrier status for the most common cause of autosomal recessive non-syndromic hearing loss. A single (heterozygous) allele does not confer elevated personal hearing-loss risk — DFNB1 requires two pathogenic GJB2 alleles — so personal risk is Standard; carrier status is relevant for reproductive counseling if a partner is also a carrier."
             },
             "delG/delG": {
               "category": "Elevated",

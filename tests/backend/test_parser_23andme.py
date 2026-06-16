@@ -33,6 +33,7 @@ from backend.ingestion.parser_23andme import (
     ParserError,
     UnrecognizedVersionError,
     UnsupportedFormatError,
+    _canonical_genotype,
     normalize_chromosome,
     parse_23andme,
 )
@@ -99,6 +100,62 @@ class TestParseV5:
         assert rs7412.chrom == "19"
         assert rs7412.pos == 44908822
         assert rs7412.genotype == "CC"
+
+    def test_heterozygous_calls_stored_in_canonical_sorted_order(self) -> None:
+        """Het calls must be stored as the cross-vendor canonical *sorted* pair.
+
+        The v5 fixture carries two unsorted heterozygous rows — rs4244285 and
+        rs3892097, both raw ``GA`` (CYP2C19 / CYP2D6 PGx SNPs) — that the parser
+        must reorder to ``AG``. Every other ``.genotype`` assertion in this file
+        is homozygous (``TT``/``CC``) or a no-call (``--``), all sort-invariant,
+        so the GA→AG canonicalization was previously exercised by the fixture
+        and verified by nothing (#688). If ``_canonical_genotype`` stopped
+        sorting, a 23andMe ``GA`` would no longer match an AncestryDNA ``AG`` for
+        the same call (cross-vendor merge/dedup, PGx star-allele calling, export).
+        """
+        result = parse_23andme(V5_FILE)
+        rsid_map = {v.rsid: v for v in result.variants}
+
+        rs4244285 = rsid_map.get("rs4244285")
+        assert rs4244285 is not None
+        assert rs4244285.genotype == "AG"  # raw fixture row is "GA"
+
+        rs3892097 = rsid_map.get("rs3892097")
+        assert rs3892097 is not None
+        assert rs3892097.genotype == "AG"  # raw fixture row is "GA"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# _canonical_genotype: the cross-vendor sorted-pair invariant (#688)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Sort-discriminating het pairs: raw order ≠ sorted order. These are the
+        # only inputs that catch a dropped/half sort — the gap #688 closes.
+        ("GA", "AG"),
+        ("TC", "CT"),
+        ("CA", "AC"),
+        ("TG", "GT"),
+        # Lowercase: uppercase *then* sort.
+        ("ga", "AG"),
+        ("tc", "CT"),
+        # Already-sorted het is idempotent (and lowercase still uppercases).
+        ("AG", "AG"),
+        ("ag", "AG"),
+        # Homozygous / no-call / hemizygous are sort-invariant but must be
+        # preserved exactly (no spurious reordering or dropping).
+        ("TT", "TT"),
+        ("cc", "CC"),
+        ("--", "--"),
+        ("A", "A"),  # single-char hemizygous (X/Y) — uppercased, not reordered
+        ("g", "G"),
+    ],
+)
+def test_canonical_genotype_uppercases_and_sorts_the_pair(raw: str, expected: str) -> None:
+    assert _canonical_genotype(raw) == expected
 
 
 # ═══════════════════════════════════════════════════════════════════════════

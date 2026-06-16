@@ -957,32 +957,32 @@
         },
         {
           "rsid": "rs585800",
-          "gene": "BHMT2",
-          "variant_name": "BHMT2 intronic",
+          "gene": "BHMT",
+          "variant_name": "BHMT 3' UTR",
           "hgvs_protein": null,
           "risk_allele": "A",
-          "ref_allele": "G",
+          "ref_allele": "T",
           "genotype_effects": {
-            "GG": {
+            "TT": {
               "category": "Standard",
-              "effect_summary": "Standard BHMT2 expression. Normal S-methylmethionine-dependent homocysteine remethylation."
+              "effect_summary": "Standard BHMT reference genotype at rs585800."
             },
-            "GA": {
+            "TA": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous BHMT2 variant. May modestly affect S-methylmethionine-dependent homocysteine remethylation."
+              "effect_summary": "Heterozygous BHMT rs585800 variant. May modestly alter betaine-dependent homocysteine remethylation."
             },
-            "AG": {
+            "AT": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous BHMT2 variant. May modestly affect S-methylmethionine-dependent homocysteine remethylation."
+              "effect_summary": "Heterozygous BHMT rs585800 variant. May modestly alter betaine-dependent homocysteine remethylation."
             },
             "AA": {
               "category": "Moderate",
-              "effect_summary": "Homozygous BHMT2 variant. May reduce S-methylmethionine-dependent homocysteine remethylation, an alternative to BHMT."
+              "effect_summary": "Homozygous BHMT rs585800 variant. May alter betaine-dependent homocysteine remethylation."
             }
           },
           "evidence_level": 1,
           "pmids": ["18457970", "20662904", "15887275"],
-          "recommendation_text": "BHMT2 uses S-methylmethionine (from plant sources) as a methyl donor for homocysteine remethylation. This provides a plant-derived backup pathway for the betaine-dependent BHMT enzyme."
+          "recommendation_text": "BHMT provides an alternative homocysteine remethylation pathway using betaine (from choline) as the methyl donor. Especially relevant when MTHFR function is reduced."
         },
         {
           "rsid": "rs3199966",
@@ -990,17 +990,17 @@
           "variant_name": "SLC44A1 missense",
           "hgvs_protein": null,
           "risk_allele": "T",
-          "ref_allele": "C",
+          "ref_allele": "G",
           "genotype_effects": {
-            "CC": {
+            "GG": {
               "category": "Standard",
               "effect_summary": "Standard choline transporter-like protein 1 function. Normal choline uptake into cells."
             },
-            "CT": {
+            "GT": {
               "category": "Moderate",
               "effect_summary": "Heterozygous SLC44A1 variant. May modestly reduce cellular choline uptake."
             },
-            "TC": {
+            "TG": {
               "category": "Moderate",
               "effect_summary": "Heterozygous SLC44A1 variant. May modestly reduce cellular choline uptake."
             },

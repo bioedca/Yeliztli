@@ -178,6 +178,22 @@ describe("Carrier VariantDetailPanel", () => {
 })
 
 describe("Carrier VariantCard genotype-line label (#540)", () => {
+  it("styles combined Pathogenic/Likely pathogenic as a red pathogenic card (#687)", () => {
+    render(
+      <VariantCard
+        variant={{
+          ...HBB_VARIANT,
+          clinvar_significance: "Pathogenic/Likely pathogenic",
+        }}
+        onClick={vi.fn()}
+        sampleId={1}
+      />,
+    )
+
+    expect(screen.getByTestId("carrier-variant-card")).toHaveClass("bg-red-50")
+    expect(screen.getByText("Pathogenic/Likely pathogenic")).toHaveClass("bg-red-100")
+  })
+
   it("keeps '(heterozygous carrier)' for autosomal-recessive genes (CFTR)", () => {
     render(<VariantCard variant={CFTR_VARIANT} onClick={vi.fn()} sampleId={1} />)
     expect(screen.getByText(/\(heterozygous carrier\)/i)).toBeInTheDocument()

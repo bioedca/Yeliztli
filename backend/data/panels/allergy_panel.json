@@ -150,22 +150,22 @@
           "gene": "HLA-B",
           "variant_name": "HLA-B*15:02 proxy",
           "hgvs_protein": null,
-          "risk_allele": "T",
-          "ref_allele": "C",
+          "risk_allele": "A",
+          "ref_allele": "T",
           "genotype_effects": {
-            "CC": {
+            "TT": {
               "category": "Standard",
               "effect_summary": "No HLA-B*15:02 proxy allele detected. Low risk of carbamazepine-induced SJS/TEN at this locus."
             },
-            "CT": {
+            "TA": {
               "category": "Elevated",
               "effect_summary": "Carrier of HLA-B*15:02 proxy allele. Associated with high risk of carbamazepine-induced Stevens-Johnson syndrome and toxic epidermal necrolysis, particularly in East/Southeast Asian populations."
             },
-            "TC": {
+            "AT": {
               "category": "Elevated",
               "effect_summary": "Carrier of HLA-B*15:02 proxy allele. Associated with high risk of carbamazepine-induced Stevens-Johnson syndrome and toxic epidermal necrolysis, particularly in East/Southeast Asian populations."
             },
-            "TT": {
+            "AA": {
               "category": "Elevated",
               "effect_summary": "Homozygous HLA-B*15:02 proxy. High probability of HLA-B*15:02 carrier status. Carbamazepine and related aromatic anticonvulsants are contraindicated pending confirmatory HLA typing."
             }

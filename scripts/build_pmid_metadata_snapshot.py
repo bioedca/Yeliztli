@@ -8,8 +8,9 @@ topic-consistency* half of the citation-provenance guard (the complement to the
 regenerate it deliberately by running this script (it needs network).
 
 It reuses the guard's PMID-extraction path (``all_panel_pmids`` /
-``all_proxy_pmids`` in ``tests/backend/test_citation_provenance_guard.py``) so the
-snapshot and the offline check cover exactly the same PMIDs (per #277/#365).
+``all_proxy_pmids`` / ``all_indel_polarity_pmids`` in
+``tests/backend/test_citation_provenance_guard.py``) so the snapshot and the
+offline check cover exactly the same PMIDs (per #277/#365/#673).
 
 Usage::
 
@@ -37,13 +38,19 @@ _BATCH = 200
 
 
 def _collect_all_pmids() -> set[str]:
-    """All panel + HLA-proxy PMIDs, via the guard's shared collectors."""
+    """All panel + HLA-proxy + indel-polarity PMIDs, via shared collectors."""
     sys.path.insert(0, str(_TESTS))
-    from test_citation_provenance_guard import all_panel_pmids, all_proxy_pmids
+    from test_citation_provenance_guard import (
+        all_indel_polarity_pmids,
+        all_panel_pmids,
+        all_proxy_pmids,
+    )
 
     pmids: set[str] = set(all_proxy_pmids())
     for panel_pmids in all_panel_pmids().values():
         pmids |= panel_pmids
+    for indel_pmids in all_indel_polarity_pmids().values():
+        pmids |= indel_pmids
     # Only real, numeric PubMed IDs can be resolved.
     return {p for p in pmids if p.isdigit()}
 
@@ -93,7 +100,7 @@ def main() -> int:
     args = parser.parse_args()
 
     pmids = sorted(_collect_all_pmids(), key=int)
-    print(f"Collected {len(pmids)} numeric panel/proxy PMIDs", file=sys.stderr)
+    print(f"Collected {len(pmids)} numeric panel/proxy/indel PMIDs", file=sys.stderr)
 
     metadata: dict[str, dict[str, str]] = {}
     for i in range(0, len(pmids), _BATCH):

@@ -19,7 +19,9 @@ import {
 import { useVariantDetail } from "@/api/variant-detail"
 import type { VariantDetail, EvidenceConflictDetail } from "@/types/variant-detail"
 import WatchButton from "@/components/variant-detail/WatchButton"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import { polyphen2Display } from "@/lib/insilico"
 
@@ -195,11 +197,7 @@ function PanelContent({
             variant.clinvar_significance ? (
               <span
                 className={cn(
-                  variant.clinvar_significance.toLowerCase().includes("pathogenic")
-                    ? "text-red-700 dark:text-red-400"
-                    : variant.clinvar_significance.toLowerCase().includes("benign")
-                      ? "text-green-700 dark:text-green-400"
-                      : "",
+                  getClinvarSignificanceTextClass(variant.clinvar_significance),
                 )}
               >
                 {variant.clinvar_significance}
@@ -336,6 +334,10 @@ export default function VariantDetailSidePanel({
   const { data: variant, isLoading, error } = useVariantDetail(rsid, sampleId)
   const isOpen = rsid != null
 
+  // Focus-in / trap / restore for the dialog (#703). The component stays mounted
+  // and renders null when closed, so the open flag drives focus entry per open.
+  useDialogFocus(panelRef, isOpen)
+
   // Close on Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -378,6 +380,7 @@ export default function VariantDetailSidePanel({
         role="dialog"
         aria-label={`Variant detail for ${rsid}`}
         aria-modal="true"
+        tabIndex={-1}
         className={cn(
           "fixed right-0 top-0 h-full w-full max-w-md bg-card border-l border-border shadow-xl",
           "flex flex-col",

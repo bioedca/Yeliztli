@@ -5,15 +5,10 @@
  */
 
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-
-const SIGNIFICANCE_COLORS: Record<string, string> = {
-  Pathogenic: "text-red-700 dark:text-red-400",
-  "Likely pathogenic": "text-orange-700 dark:text-orange-400",
-  "Uncertain significance": "text-yellow-700 dark:text-yellow-400",
-}
 
 interface ResultsTableProps {
   items: RareVariant[]
@@ -78,7 +73,12 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
                 <td className="px-3 py-2 text-xs">
                   {v.consequence?.replace(/_/g, " ") ?? "—"}
                 </td>
-                <td className={cn("px-3 py-2 text-xs", SIGNIFICANCE_COLORS[v.clinvar_significance ?? ""])}>
+                <td
+                  className={cn(
+                    "px-3 py-2 text-xs",
+                    getClinvarSignificanceTextClass(v.clinvar_significance),
+                  )}
+                >
                   {v.clinvar_significance ?? "—"}
                   {v.evidence_conflict && (
                     <span className="ml-1 text-amber-500" role="img" aria-label="Evidence conflict" title="Evidence conflict">⚠</span>

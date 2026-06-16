@@ -5,6 +5,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { FHStatusResponse } from "@/types/cardiovascular"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { HeartPulse, ShieldCheck } from "lucide-react"
@@ -114,8 +115,7 @@ export default function FHStatusCard({ fhStatus }: FHStatusCardProps) {
                         </span>
                         <span className={cn(
                           "font-medium",
-                          v.clinvar_significance === "Pathogenic" && "text-red-700 dark:text-red-400",
-                          v.clinvar_significance === "Likely pathogenic" && "text-orange-700 dark:text-orange-400",
+                          getClinvarSignificanceTextClass(v.clinvar_significance),
                         )}>
                           {v.clinvar_significance}
                         </span>

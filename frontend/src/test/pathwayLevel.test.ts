@@ -11,6 +11,7 @@ import {
   PATHWAY_LEVEL_COLORS,
   PATHWAY_LEVEL_CONFIG,
   pathwayLevelBadge,
+  pathwayLevelSvg,
   type PathwayLevel,
 } from "@/lib/pathwayLevel"
 
@@ -46,5 +47,30 @@ describe("pathwayLevel shared colour map (#613)", () => {
 
   it("falls back to Standard styling for an unrecognised level", () => {
     expect(pathwayLevelBadge("Nonexistent")).toBe(PATHWAY_LEVEL_COLORS.Standard.badge)
+  })
+})
+
+describe("pathwayLevel SVG variant — single source for PathwayFlowDiagram (#740)", () => {
+  it("exposes an svg fill/stroke/text variant for every level", () => {
+    for (const level of LEVELS) {
+      const svg = PATHWAY_LEVEL_COLORS[level].svg
+      expect(svg.bg).toContain("fill-")
+      expect(svg.border).toContain("stroke-")
+      expect(svg.text).toContain("fill-")
+    }
+  })
+
+  it("pathwayLevelSvg() returns the level's svg classes on the same severity hues", () => {
+    expect(pathwayLevelSvg("Elevated")).toBe(PATHWAY_LEVEL_COLORS.Elevated.svg)
+    expect(pathwayLevelSvg("Elevated").bg).toContain("amber")
+    expect(pathwayLevelSvg("Moderate").bg).toContain("blue")
+    expect(pathwayLevelSvg("Standard").bg).toContain("emerald")
+    // The severity scale must not invert in the SVG either (the #613 class).
+    expect(pathwayLevelSvg("Elevated").bg).not.toContain("red")
+    expect(pathwayLevelSvg("Moderate").bg).not.toContain("amber")
+  })
+
+  it("falls back to Standard svg for an unrecognised level", () => {
+    expect(pathwayLevelSvg("Nonexistent")).toBe(PATHWAY_LEVEL_COLORS.Standard.svg)
   })
 })

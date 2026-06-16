@@ -141,6 +141,21 @@ describe("VariantCard", () => {
     expect(screen.getByText("Likely pathogenic")).toBeInTheDocument()
   })
 
+  it("styles combined Pathogenic/Likely pathogenic as a red pathogenic card (#687)", () => {
+    render(
+      <VariantCard
+        variant={{
+          ...LDLR_VARIANT,
+          clinvar_significance: "Pathogenic/Likely pathogenic",
+        }}
+        onClick={onClick}
+      />,
+    )
+
+    expect(screen.getByTestId("cardiovascular-variant-card")).toHaveClass("bg-red-50")
+    expect(screen.getByText("Pathogenic/Likely pathogenic")).toHaveClass("bg-red-100")
+  })
+
   it("renders genotype and zygosity", () => {
     render(<VariantCard variant={LDLR_VARIANT} onClick={onClick} />)
     expect(screen.getByText("C/T")).toBeInTheDocument()

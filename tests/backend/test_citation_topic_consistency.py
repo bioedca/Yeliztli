@@ -38,6 +38,12 @@ import json
 import re
 from pathlib import Path
 
+from test_citation_provenance_guard import _SOURCE_PMID_RE
+from test_indel_polarity_provenance import (
+    _discover_carrier_indel_polarities,
+    _discover_panel_indel_loci,
+)
+
 _BACKEND = Path(__file__).resolve().parent.parent.parent / "backend"
 _PANELS_DIR = _BACKEND / "data" / "panels"
 _SNAPSHOT_PATH = (
@@ -136,6 +142,20 @@ _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "skin_panel.json::rs1544410": frozenset({"vitamin", "receptor", "psoriasis", "bsmi"}),
 }
 
+# Indel-polarity provenance is discovered self-consistently with
+# test_indel_polarity_provenance.py (#508/#570). Every discovered record with
+# already-snapshotted PMIDs must be listed here so title-topic matching covers
+# panel JSON and carrier_status records alike (#673).
+_INDEL_POLARITY_TOPIC_LOCKED: dict[str, frozenset[str]] = {
+    "apol1_panel.json::rs71785313": frozenset({"apol1", "trypanolytic"}),
+    "carrier_status.py::rs113993960": frozenset({"cystic", "fibrosis", "cftr"}),
+    "gene_health_panel.json::rs80338939": frozenset({"connexin26", "connexin", "dfnb1"}),
+    "methylation_panel.json::rs70991108": frozenset(
+        {"dihydrofolate", "reductase", "folic", "folate"}
+    ),
+    "skin_panel.json::rs1799750": frozenset({"mmp", "metalloproteinase", "promoter"}),
+}
+
 
 def _tokens(text: str) -> set[str]:
     """Lowercase alphanumeric tokens of length ≥ 3 (matches the snapshot generator)."""
@@ -155,7 +175,20 @@ def _entry_pmids(entry: dict) -> list[str]:
             out.extend(str(x) for x in val)
         elif isinstance(val, (str, int)):
             out.append(str(val))
-    return [p for p in out if p.isdigit()]
+    sources = entry.get("sources")
+    if isinstance(sources, str):
+        out.extend(_SOURCE_PMID_RE.findall(sources))
+    elif isinstance(sources, list):
+        for source in sources:
+            if isinstance(source, str):
+                out.extend(_SOURCE_PMID_RE.findall(source))
+    result: list[str] = []
+    seen: set[str] = set()
+    for pmid in out:
+        if pmid.isdigit() and pmid not in seen:
+            seen.add(pmid)
+            result.append(pmid)
+    return result
 
 
 def _panel_entries() -> dict[str, list[dict]]:
@@ -181,6 +214,20 @@ def _panel_entries() -> dict[str, list[dict]]:
             walk(json.loads(path.read_text(encoding="utf-8")), path.name)
         except json.JSONDecodeError:
             continue
+    return result
+
+
+def _indel_polarity_entries() -> dict[str, dict]:
+    """Map ``source::rsid`` -> discovered indel_polarity provenance records."""
+    result: dict[str, dict] = {}
+    for label, node in sorted(_discover_panel_indel_loci().items()):
+        panel, _, rsid = label.partition(":")
+        prov = node.get("indel_polarity")
+        if isinstance(prov, dict) and rsid:
+            result[f"{panel}::{rsid}"] = prov
+    for rsid, prov in sorted(_discover_carrier_indel_polarities().items()):
+        if isinstance(prov, dict):
+            result[f"carrier_status.py::{rsid}"] = prov
     return result
 
 
@@ -211,8 +258,14 @@ def test_snapshot_well_formed() -> None:
 def test_locked_registries_are_well_formed() -> None:
     """Registry keys are ``panel::rsid``; the two registries don't overlap."""
     for key in _GENE_TOPIC_LOCKED | set(_CONDITION_TOPIC_LOCKED):
-        panel, _, rsid = key.partition("::")
-        assert panel.endswith(".json") and rsid.startswith("rs"), f"malformed key {key!r}"
+        source, _, rsid = key.partition("::")
+        assert source.endswith(".json") and rsid.startswith("rs"), f"malformed key {key!r}"
+    for key, expected in _INDEL_POLARITY_TOPIC_LOCKED.items():
+        source, _, rsid = key.partition("::")
+        assert (source.endswith(".json") or source == "carrier_status.py") and rsid.startswith(
+            "rs"
+        ), f"malformed indel-polarity key {key!r}"
+        assert expected, f"{key}: expected topic terms must be non-empty"
     overlap = _GENE_TOPIC_LOCKED & set(_CONDITION_TOPIC_LOCKED)
     assert not overlap, f"keys in both gene- and condition-locked registries: {sorted(overlap)}"
 
@@ -261,3 +314,28 @@ def test_condition_topic_locked_entries_cite_condition_in_title() -> None:
                 )
     assert not failures, "condition-topic-consistency failures:\n" + "\n".join(failures)
     assert evaluated, "no condition-locked entries evaluated — registry/snapshot out of sync"
+
+
+def test_indel_polarity_entries_cite_expected_topic_in_title() -> None:
+    """Every snapshotted indel-polarity PMID must cite an expected locus topic."""
+    snapshot = _load_snapshot()
+    entries = _indel_polarity_entries()
+    evaluated = 0
+    failures: list[str] = []
+    for key, entry in sorted(entries.items()):
+        pmids = _entry_pmids(entry)
+        if not pmids or any(p not in snapshot for p in pmids):
+            continue  # no PMID / not snapshotted yet -> skip (re-snapshot to cover)
+        expected = _INDEL_POLARITY_TOPIC_LOCKED.get(key)
+        if expected is None:
+            failures.append(f"{key}: snapshotted indel-polarity PMIDs {pmids} lack a topic lock")
+            continue
+        evaluated += 1
+        if not (expected & _title_tokens(pmids, snapshot)):
+            titles = "; ".join(snapshot[p]["title"] for p in pmids)
+            failures.append(
+                f"{key}: no cited title contains an expected indel-polarity term "
+                f"{sorted(expected)} — [{titles}]"
+            )
+    assert not failures, "indel-polarity topic-consistency failures:\n" + "\n".join(failures)
+    assert evaluated, "no indel-polarity entries evaluated — registry/snapshot out of sync"

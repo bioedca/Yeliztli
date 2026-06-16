@@ -410,6 +410,48 @@ class TestQDPRThirdAllele:
         assert result.category != INDETERMINATE
 
 
+class TestCholineBetaineAlleleFrames:
+    """Issue #717: BHMT/SLC44A1 genotype keys must match real variant alleles."""
+
+    def _get_snp(self, panel: MethylationPanel, rsid: str) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found")
+
+    def test_rs585800_real_heterozygotes_resolve(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AT", "TA"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == MODERATE, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+    def test_rs585800_palindromic_homozygotes_withheld(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AA", "TT"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == INDETERMINATE, genotype
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+
+    def test_rs3199966_real_genotypes_resolve(self, panel: MethylationPanel) -> None:
+        slc44a1 = self._get_snp(panel, "rs3199966")
+        expected = {
+            "GG": STANDARD,
+            "GT": MODERATE,
+            "TG": MODERATE,
+            "TT": MODERATE,
+        }
+        for genotype, category in expected.items():
+            result = _score_snp(slc44a1, genotype)
+            assert result.category == category, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+
 # ── COMT catecholamine framing tests ─────────────────────────────────────
 
 

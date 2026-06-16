@@ -73,7 +73,6 @@ GNOMAD_BITMASK = 0b000100
 # Rare variant AF thresholds
 RARE_AF_THRESHOLD = 0.01
 ULTRA_RARE_AF_THRESHOLD = 0.001
-LOW_FREQUENCY_AF_THRESHOLD = 0.05
 
 # ── SQL for gnomad_af table creation ──────────────────────────────────────
 
@@ -162,39 +161,6 @@ class GnomADAnnotation:
     rare_flag: bool
     ultra_rare_flag: bool
     af_popmax: float | None = None
-
-
-# ── Rarity classification ────────────────────────────────────────────────
-
-
-def classify_variant_rarity(af_global: float | None) -> str:
-    """Classify a variant's rarity based on global allele frequency.
-
-    Returns one of: ``"ultra_rare"``, ``"rare"``, ``"low_frequency"``,
-    ``"common"``, or ``"unknown"`` (when AF is None/not available).
-
-    Thresholds (module-level constants):
-        - ultra_rare:    AF < ULTRA_RARE_AF_THRESHOLD (0.001)
-        - rare:          ULTRA_RARE_AF_THRESHOLD <= AF < RARE_AF_THRESHOLD (0.01)
-        - low_frequency: RARE_AF_THRESHOLD <= AF < LOW_FREQUENCY_AF_THRESHOLD (0.05)
-        - common:        AF >= LOW_FREQUENCY_AF_THRESHOLD
-        - unknown:       AF is None
-
-    Args:
-        af_global: Global allele frequency from gnomAD.
-
-    Returns:
-        Rarity category string.
-    """
-    if af_global is None:
-        return "unknown"
-    if af_global < ULTRA_RARE_AF_THRESHOLD:
-        return "ultra_rare"
-    if af_global < RARE_AF_THRESHOLD:
-        return "rare"
-    if af_global < LOW_FREQUENCY_AF_THRESHOLD:
-        return "low_frequency"
-    return "common"
 
 
 def compute_af_popmax(
@@ -529,12 +495,16 @@ def load_gnomad_from_csv(
     *,
     clear_existing: bool = True,
 ) -> LoadStats:
-    """Load gnomAD data from a CSV seed file into the gnomad_af table.
+    """Seed the ``gnomad_af`` table from a small CSV fixture — TEST SUPPORT ONLY.
 
-    Useful for testing and for loading pre-processed data.
+    CSV is **not** a production or bundle-build input format: the real pipeline
+    loads gnomAD from its native VCF via :func:`load_gnomad_from_vcf` (see
+    ``scripts/build_gnomad_bundle.py``). This loader exists solely so tests can
+    seed the table from a compact CSV fixture instead of standing up the full
+    VCF machinery; it is on no production/build path.
 
     Args:
-        csv_path: Path to the CSV file with gnomAD data.
+        csv_path: Path to the CSV fixture with gnomAD data.
         engine: SQLAlchemy engine for gnomad_af.db.
         clear_existing: Whether to DELETE all existing rows first.
 
