@@ -67,12 +67,15 @@ export default function VariantCard({ variant, onClick, selected }: VariantCardP
         </span>
       )}
 
-      {/* Genotype + zygosity */}
-      {variant.genotype && (
+      {/* Genotype + zygosity. Zygosity is a separate API field, so render it even
+          when genotype is absent rather than nesting it inside the genotype gate (#802). */}
+      {(variant.genotype || variant.zygosity) && (
         <p className="text-sm font-mono text-foreground mb-1">
           {variant.genotype}
           {variant.zygosity && (
-            <span className="text-muted-foreground ml-2">({variant.zygosity})</span>
+            <span className={variant.genotype ? "text-muted-foreground ml-2" : "text-muted-foreground"}>
+              ({variant.zygosity})
+            </span>
           )}
         </p>
       )}

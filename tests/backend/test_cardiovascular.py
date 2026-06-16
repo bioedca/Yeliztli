@@ -860,6 +860,23 @@ class TestStoreCardiovascularFindings:
         assert detail["cardiovascular_category"] == CATEGORY_FH
         assert len(detail["conditions"]) > 0
 
+    def test_detail_json_carries_genotype(
+        self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
+    ) -> None:
+        """#802: the monogenic_variant detail must include the participant's
+        genotype so the route doesn't return null and the variant cards can show
+        the allele call (the route reads it via detail.get("genotype"))."""
+        result = extract_cardiovascular_variants(panel, sample_with_cv_variants)
+        store_cardiovascular_findings(result, sample_with_cv_variants)
+
+        with sample_with_cv_variants.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs28942078")
+            ).fetchone()
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert detail["genotype"] == "CT"
+
     def test_pmid_citations_stored_as_json(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
     ) -> None:

@@ -460,6 +460,11 @@ def store_cardiovascular_findings(
         finding_text = _cardiovascular_finding_text(v, disease_status)
 
         detail = {
+            # The participant's own allele call — clinically meaningful for a
+            # monogenic P/LP finding (het carrier vs hom/affected). The route reads
+            # it back via detail.get("genotype"); omitting it dropped the genotype +
+            # zygosity from the variant cards (#802; mirrors cancer.py).
+            "genotype": v.genotype,
             "clinvar_accession": v.clinvar_accession,
             "clinvar_review_stars": v.clinvar_review_stars,
             "clinvar_conditions": v.clinvar_conditions,

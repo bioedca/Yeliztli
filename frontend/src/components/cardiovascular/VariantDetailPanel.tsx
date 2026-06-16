@@ -97,14 +97,17 @@ export default function VariantDetailPanel({
           </p>
         </section>
 
-        {/* Genotype */}
-        {variant.genotype && (
+        {/* Genotype. Zygosity is a separate API field — render it even when
+            genotype is absent rather than nesting it inside the genotype gate (#802). */}
+        {(variant.genotype || variant.zygosity) && (
           <section className="mb-5">
             <h3 className="text-sm font-semibold text-foreground mb-2">Genotype</h3>
             <p className="text-sm font-mono text-foreground">
               {variant.genotype}
               {variant.zygosity && (
-                <span className="text-muted-foreground ml-2">({variant.zygosity})</span>
+                <span className={variant.genotype ? "text-muted-foreground ml-2" : "text-muted-foreground"}>
+                  ({variant.zygosity})
+                </span>
               )}
             </p>
           </section>

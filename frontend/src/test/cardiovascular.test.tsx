@@ -162,6 +162,14 @@ describe("VariantCard", () => {
     expect(screen.getByText("(het)")).toBeInTheDocument()
   })
 
+  it("renders zygosity even when genotype is null (#802)", () => {
+    // The pre-fix real API shape: zygosity present but genotype null. The card must
+    // still surface het/hom rather than dropping it nested inside the genotype gate.
+    render(<VariantCard variant={{ ...LDLR_VARIANT, genotype: null }} onClick={onClick} />)
+    expect(screen.getByText("(het)")).toBeInTheDocument()
+    expect(screen.queryByText("C/T")).not.toBeInTheDocument()
+  })
+
   it("renders cardiovascular category badge", () => {
     render(<VariantCard variant={LDLR_VARIANT} onClick={onClick} />)
     expect(screen.getByTestId("category-badge")).toHaveTextContent(
