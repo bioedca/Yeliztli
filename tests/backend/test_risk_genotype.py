@@ -20,6 +20,7 @@ from backend.analysis.risk_genotype import (
     PROBE_TYPED,
     TOTAL_RISK_DOSAGE_KEY,
     GenotypeModel,
+    RiskAssessment,
     RiskLocus,
     RiskPanel,
     _indel_dosage,
@@ -739,6 +740,27 @@ class TestStoreRiskFindings:
                 .where(findings.c.module == "testmod")
             ).scalar()
         assert count == 1
+
+    def test_empty_rerun_clears_stale_findings(self, sample_engine: sa.Engine) -> None:
+        assessment = self._assessment_with_call(sample_engine)
+        assert store_risk_findings(assessment, sample_engine) == 1
+
+        empty_assessment = RiskAssessment(
+            module=assessment.module,
+            category=assessment.category,
+        )
+        assert store_risk_findings(empty_assessment, sample_engine) == 0
+
+        with sample_engine.connect() as conn:
+            remaining = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(
+                    findings.c.module == assessment.module,
+                    findings.c.category == assessment.category,
+                )
+            ).scalar()
+        assert remaining == 0
 
     def test_isolates_other_modules(self, sample_engine: sa.Engine) -> None:
         with sample_engine.begin() as conn:
