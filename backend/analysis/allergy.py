@@ -103,10 +103,6 @@ _HLA_PROXY_RSIDS = frozenset(
 _CELIAC_DQ2_RSID = "rs2187668"
 _CELIAC_DQ8_RSID = "rs7454108"
 
-# Histamine metabolism rsids for combined assessment
-_HISTAMINE_RSIDS = frozenset({"rs10156191", "rs11558538"})
-
-
 # ── Data classes ──────────────────────────────────────────────────────────
 
 
