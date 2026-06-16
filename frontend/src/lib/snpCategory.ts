@@ -11,20 +11,22 @@
  * "Standard" colour, which would read as a confidently-clear result.
  */
 
-export type SnpCategory = "Elevated" | "Moderate" | "Standard" | "Indeterminate"
+import { PATHWAY_LEVEL_COLORS, type PathwayLevel } from "@/lib/pathwayLevel"
+
+export type SnpCategory = PathwayLevel | "Indeterminate"
 
 /** Text colour for a per-SNP category badge. */
 export const SNP_CATEGORY_COLORS: Record<SnpCategory, string> = {
-  Elevated: "text-amber-700 dark:text-amber-400",
-  Moderate: "text-blue-700 dark:text-blue-400",
-  Standard: "text-emerald-700 dark:text-emerald-400",
+  Elevated: PATHWAY_LEVEL_COLORS.Elevated.color,
+  Moderate: PATHWAY_LEVEL_COLORS.Moderate.color,
+  Standard: PATHWAY_LEVEL_COLORS.Standard.color,
   Indeterminate: "text-slate-600 dark:text-slate-400",
 }
 
 /** Indicator-dot colour for a per-SNP category. */
 export const SNP_CATEGORY_DOT: Record<SnpCategory, string> = {
-  Elevated: "bg-amber-500",
-  Moderate: "bg-blue-500",
-  Standard: "bg-emerald-500",
+  Elevated: PATHWAY_LEVEL_COLORS.Elevated.dot,
+  Moderate: PATHWAY_LEVEL_COLORS.Moderate.dot,
+  Standard: PATHWAY_LEVEL_COLORS.Standard.dot,
   Indeterminate: "bg-slate-400",
 }

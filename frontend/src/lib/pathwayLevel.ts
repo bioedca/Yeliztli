@@ -29,6 +29,8 @@ export interface PathwayLevelColors {
   badge: string
   /** Progress-bar fill (methylation PathwayScoreBar). */
   bar: string
+  /** Small indicator dot used by per-SNP category rows. */
+  dot: string
   /** SVG node fill/stroke/text classes (methylation PathwayFlowDiagram). */
   svg: { bg: string; border: string; text: string }
 }
@@ -40,6 +42,7 @@ export const PATHWAY_LEVEL_COLORS: Record<PathwayLevel, PathwayLevelColors> = {
     border: "border-amber-200 dark:border-amber-800",
     badge: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
     bar: "bg-amber-400 dark:bg-amber-500",
+    dot: "bg-amber-500",
     svg: {
       bg: "fill-amber-100 dark:fill-amber-950",
       border: "stroke-amber-400 dark:stroke-amber-600",
@@ -52,6 +55,7 @@ export const PATHWAY_LEVEL_COLORS: Record<PathwayLevel, PathwayLevelColors> = {
     border: "border-blue-200 dark:border-blue-800",
     badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
     bar: "bg-blue-400 dark:bg-blue-500",
+    dot: "bg-blue-500",
     svg: {
       bg: "fill-blue-100 dark:fill-blue-950",
       border: "stroke-blue-400 dark:stroke-blue-600",
@@ -64,6 +68,7 @@ export const PATHWAY_LEVEL_COLORS: Record<PathwayLevel, PathwayLevelColors> = {
     border: "border-emerald-200 dark:border-emerald-800",
     badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300",
     bar: "bg-emerald-400 dark:bg-emerald-500",
+    dot: "bg-emerald-500",
     svg: {
       bg: "fill-emerald-100 dark:fill-emerald-950",
       border: "stroke-emerald-400 dark:stroke-emerald-600",

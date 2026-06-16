@@ -14,6 +14,7 @@ import {
   pathwayLevelSvg,
   type PathwayLevel,
 } from "@/lib/pathwayLevel"
+import { SNP_CATEGORY_COLORS, SNP_CATEGORY_DOT } from "@/lib/snpCategory"
 
 const LEVELS: PathwayLevel[] = ["Elevated", "Moderate", "Standard"]
 
@@ -36,6 +37,16 @@ describe("pathwayLevel shared colour map (#613)", () => {
     expect(pathwayLevelBadge("Elevated")).toContain("amber")
     expect(pathwayLevelBadge("Moderate")).toContain("blue")
     expect(pathwayLevelBadge("Standard")).toContain("emerald")
+  })
+
+  it("keeps per-SNP shared levels on the pathway-level hue source (#864)", () => {
+    for (const level of LEVELS) {
+      expect(SNP_CATEGORY_COLORS[level]).toBe(PATHWAY_LEVEL_COLORS[level].color)
+      expect(SNP_CATEGORY_DOT[level]).toBe(PATHWAY_LEVEL_COLORS[level].dot)
+    }
+
+    expect(SNP_CATEGORY_COLORS.Indeterminate).toContain("slate")
+    expect(SNP_CATEGORY_DOT.Indeterminate).toContain("slate")
   })
 
   it("amber never means Moderate and Elevated is never red (the #613 regression)", () => {
