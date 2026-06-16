@@ -115,11 +115,11 @@ const mockVariant: VariantDetail = {
     clinvar_review_stars: 3,
     clinvar_accession: "VCV000017694",
     deleterious_count: 4,
-    total_tools_assessed: 5,
-    deleterious_tools: ["SIFT", "PolyPhen-2", "MetaSVM", "REVEL"],
+    total_tools_assessed: 4,
+    deleterious_tools: ["SIFT", "PolyPhen-2", "CADD", "MetaSVM", "REVEL"],
     cadd_phred: 28.4,
     summary:
-      "ClinVar classifies this variant as Pathogenic (3-star review). 4 of 5 in-silico tools predict deleterious.",
+      "ClinVar classifies this variant as Pathogenic (3-star review). 4 of 4 independent in-silico axes predict deleterious.",
   },
 }
 
@@ -421,7 +421,9 @@ describe("VariantDetailPage (P2-21a)", () => {
     await waitFor(() => {
       expect(screen.getByText("Evidence Conflict")).toBeInTheDocument()
     })
-    expect(screen.getByText(/4 of 5 in-silico tools predict deleterious/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/4 of 4 independent in-silico axes predict deleterious/),
+    ).toBeInTheDocument()
   })
 
   it("shows ensemble pathogenic indicator in overview", async () => {

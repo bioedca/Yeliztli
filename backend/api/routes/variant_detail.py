@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
+from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -34,17 +35,6 @@ router = APIRouter(
 )
 
 # ── Response models ──────────────────────────────────────────────────
-
-# In-silico tools used for evidence conflict assessment.
-# Numeric thresholds mirror the canonical dbnsfp._meta_axis convention so the
-# displayed "N of M tools predict deleterious" list cannot drift from the
-# ensemble scorer: REVEL ≥ 0.5, MetaSVM > 0, MetaLR > 0.5.  MetaSVM is a signed
-# SVM decision score (deleterious > 0); MetaLR is a [0,1] logistic-regression
-# probability (deleterious > 0.5) — they do NOT share a threshold.
-_INSILICO_TOOLS = ["sift_pred", "polyphen2_hsvar_pred", "metasvm", "metalr", "revel"]
-_DELETERIOUS_PREDS = {"D", "probably_damaging"}
-_REVEL_THRESHOLD = 0.5
-_METALR_THRESHOLD = 0.5
 
 
 class TranscriptAnnotation(BaseModel):
@@ -308,54 +298,12 @@ def _build_evidence_conflict_detail(
     clinvar_acc = getattr(row, "clinvar_accession", None)
     cadd = getattr(row, "cadd_phred", None)
     has_conflict = bool(getattr(row, "evidence_conflict", False))
-    deleterious_count = getattr(row, "deleterious_count", None) or 0
-
-    # Determine which in-silico tools predicted deleterious
-    deleterious_tools: list[str] = []
-    total_assessed = 0
-
-    tool_display = {
-        "sift_pred": "SIFT",
-        "polyphen2_hsvar_pred": "PolyPhen-2",
-        "metasvm": "MetaSVM",
-        "metalr": "MetaLR",
-        "revel": "REVEL",
-    }
-
-    for tool_col in _INSILICO_TOOLS:
-        val = getattr(row, tool_col, None)
-        if val is None:
-            continue
-        total_assessed += 1
-        if tool_col == "revel":
-            # REVEL is a [0,1] ensemble score; ≥ 0.5 = deleterious.
-            try:
-                if float(val) >= _REVEL_THRESHOLD:
-                    deleterious_tools.append(tool_display[tool_col])
-            except (ValueError, TypeError):
-                pass
-        elif tool_col == "metasvm":
-            # MetaSVM is a signed SVM decision score (can be negative); > 0 =
-            # deleterious.
-            try:
-                if float(val) > 0:
-                    deleterious_tools.append(tool_display[tool_col])
-            except (ValueError, TypeError):
-                pass
-        elif tool_col == "metalr":
-            # MetaLR is a [0,1] logistic-regression probability — NOT signed like
-            # MetaSVM — so its deleterious cutoff is > 0.5, not > 0.  Treating it
-            # like MetaSVM (> 0) counts it deleterious for nearly every scored
-            # variant, since MetaLR scores are essentially never negative.
-            try:
-                if float(val) > _METALR_THRESHOLD:
-                    deleterious_tools.append(tool_display[tool_col])
-            except (ValueError, TypeError):
-                pass
-        else:
-            # Categorical predictions (D = deleterious)
-            if str(val) in _DELETERIOUS_PREDS:
-                deleterious_tools.append(tool_display[tool_col])
+    fallback_count, fallback_total = assess_insilico_axes(row)
+    stored_count = getattr(row, "deleterious_count", None)
+    stored_total = getattr(row, "deleterious_total_assessed", None)
+    deleterious_count = stored_count if stored_count is not None else fallback_count
+    total_assessed = stored_total if stored_total is not None else fallback_total
+    deleterious_tools = deleterious_predictor_names(row)
 
     # Build summary text for the evidence conflict section
     summary: str | None = None
@@ -363,7 +311,7 @@ def _build_evidence_conflict_detail(
         sig_text = clinvar_sig or "unknown"
         stars_text = f" ({clinvar_stars}-star review)" if clinvar_stars is not None else ""
         n_del = deleterious_count if deleterious_count else len(deleterious_tools)
-        tools_text = f"{n_del} of {total_assessed} in-silico tools predict deleterious"
+        tools_text = f"{n_del} of {total_assessed} independent in-silico axes predict deleterious"
         cadd_text = f" (CADD: {cadd})" if cadd is not None else ""
         summary = (
             f"ClinVar classifies this variant as {sig_text}{stars_text}. "

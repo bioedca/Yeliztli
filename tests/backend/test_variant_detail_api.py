@@ -110,14 +110,15 @@ SAMPLE_VARIANT_VUS = {
     "alphamissense_pathogenicity": 0.91,
     "alphamissense_class": "likely_pathogenic",
     "deleterious_count": 4,
+    "deleterious_total_assessed": 4,
     "evidence_conflict": True,
     "ensemble_pathogenic": True,
     "annotation_coverage": 0b001111,
 }
 
-# A variant whose in-silico scores are present for all 5 tools but ALL benign —
+# A variant whose in-silico scores are present for all 4 axes but ALL benign —
 # the mirror image of SAMPLE_VARIANT_VUS.  This pins the *not-deleterious* side
-# of every tool's threshold, which the all-deleterious VUS alone cannot:
+# of every axis threshold, which the all-deleterious VUS alone cannot:
 #   • sift_pred "T" / polyphen "B"  → categorical D-mapping excludes them
 #   • metasvm -1.0                  → signed score, > 0 polarity (negative = T)
 #   • metalr 0.30                   → [0,1] probability, > 0.5 cutoff.  0.30 sits
@@ -149,6 +150,7 @@ SAMPLE_VARIANT_BENIGN = {
     "metasvm": -1.0,
     "metalr": 0.30,
     "deleterious_count": 0,
+    "deleterious_total_assessed": 4,
     "evidence_conflict": False,
     "annotation_coverage": 0b001111,
 }
@@ -190,6 +192,7 @@ GENE_PHENOTYPE_DATA = [
         "inheritance": "AR",
     },
 ]
+
 
 # Reference rows that exercise the full-page hygiene path (F21/F14/F23): an
 # obsolete term that must be dropped, two real diseases that must ALL surface
@@ -558,22 +561,23 @@ class TestEvidenceConflictDetail:
         data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
         ecd = data["evidence_conflict_detail"]
         assert "Uncertain significance" in ecd["summary"]
-        assert "in-silico tools predict deleterious" in ecd["summary"]
+        assert "4 of 4 independent in-silico axes predict deleterious" in ecd["summary"]
         assert "CADD: 28.4" in ecd["summary"]
 
     def test_conflict_lists_deleterious_tools(self, client):
-        # The VUS seeds all-deleterious scores for every in-silico tool
-        # (sift=D, polyphen=D, metasvm=0.8, metalr=0.7, revel=0.75), so all five
-        # must appear by NAME — not merely a non-empty list.  An existence-only
-        # assertion (`len > 0`) survives a polarity flip, a mislabel, or a wrong
-        # threshold in the endpoint's reimplementation (#651): pin the set.
+        # The VUS seeds all-deleterious scores for every displayed predictor
+        # (sift=D, polyphen=D, CADD=28.4, metasvm=0.8, metalr=0.7, revel=0.75),
+        # so each must appear by NAME. An existence-only assertion (`len > 0`)
+        # survives a polarity flip, a mislabel, or a wrong threshold in an
+        # endpoint reimplementation (#651): pin the set.
         tc, sid = client
         data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
         ecd = data["evidence_conflict_detail"]
-        assert ecd["total_tools_assessed"] == 5
+        assert ecd["total_tools_assessed"] == 4
         assert set(ecd["deleterious_tools"]) == {
             "SIFT",
             "PolyPhen-2",
+            "CADD",
             "MetaSVM",
             "MetaLR",
             "REVEL",
@@ -589,7 +593,7 @@ class TestEvidenceConflictDetail:
         tc, sid = client
         data = tc.get(f"/api/variants/rs555555555?sample_id={sid}").json()
         ecd = data["evidence_conflict_detail"]
-        assert ecd["total_tools_assessed"] == 5
+        assert ecd["total_tools_assessed"] == 4
         assert ecd["deleterious_tools"] == []
 
     def test_conflict_detail_for_minimal_variant(self, client):

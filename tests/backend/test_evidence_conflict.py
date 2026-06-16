@@ -1,12 +1,14 @@
 """Tests for evidence conflict detection (P2-07, T2-07, T2-08).
 
 Tests the amber flag logic:
-- Flag fires: ClinVar VUS/B/LB AND ≥3 in-silico tools deleterious AND CADD > 20
-- No flag: ClinVar P/LP, ClinVar absent, or insufficient deleterious tools
+- Flag fires: ClinVar VUS/B/LB AND >=3 independent in-silico axes deleterious
+  AND CADD >= 20
+- No flag: ClinVar P/LP, ClinVar absent, or insufficient deleterious axes
 """
 
 import pytest
 
+from backend.annotation.dbnsfp import DbNSFPRecord, assess_ensemble
 from backend.annotation.evidence_conflict import (
     EvidenceConflictResult,
     apply_evidence_conflicts,
@@ -26,6 +28,7 @@ def _make_variant(
     polyphen2_hsvar_score: float | None = None,
     revel: float | None = None,
     metasvm: float | None = None,
+    metalr: float | None = None,
 ) -> dict:
     """Create a minimal variant dict for conflict testing."""
     return {
@@ -38,6 +41,7 @@ def _make_variant(
         "polyphen2_hsvar_score": polyphen2_hsvar_score,
         "revel": revel,
         "metasvm": metasvm,
+        "metalr": metalr,
     }
 
 
@@ -47,7 +51,7 @@ def _make_conflict_variant(
 ) -> dict:
     """Create a variant that should fire the conflict flag.
 
-    All 5 in-silico tools predict deleterious, CADD > 20.
+    All four independent in-silico axes predict deleterious, CADD >= 20.
     """
     return _make_variant(
         clinvar_significance=clinvar_significance,
@@ -59,22 +63,22 @@ def _make_conflict_variant(
     )
 
 
-# ── T2-07: Flag fires for VUS + ≥3 deleterious + CADD > 20 ─────────────
+# ── T2-07: Flag fires for VUS + >=3 deleterious axes + CADD >= 20 ───────
 
 
 class TestConflictFlagFires:
     """T2-07: Evidence conflict flag fires correctly."""
 
-    def test_vus_all_5_tools_deleterious(self):
-        """VUS + 5/5 tools deleterious + CADD 28.4 → flag fires."""
+    def test_vus_all_axes_deleterious(self):
+        """VUS + 4/4 axes deleterious + CADD 28.4 -> flag fires."""
         v = _make_conflict_variant()
         result = detect_evidence_conflict(v)
         assert result.flag is True
         assert result.deleterious_count >= 3
         assert result.cadd_phred == 28.4
 
-    def test_vus_exactly_3_tools_deleterious(self):
-        """VUS + exactly 3/5 tools deleterious + CADD > 20 → flag fires."""
+    def test_vus_exactly_3_axes_deleterious(self):
+        """VUS + exactly 3/4 axes deleterious + CADD >= 20 -> flag fires."""
         v = _make_variant(
             clinvar_significance="Uncertain significance",
             cadd_phred=25.0,
@@ -84,18 +88,18 @@ class TestConflictFlagFires:
             metasvm=-0.5,  # not deleterious
         )
         result = detect_evidence_conflict(v)
-        # SIFT + PolyPhen + CADD (> 20) = exactly 3 deleterious
+        # SIFT + PolyPhen + CADD (>= 20) = exactly 3 deleterious axes
         assert result.flag is True
         assert result.deleterious_count == 3
 
     def test_benign_with_deleterious_predictions(self):
-        """Benign + ≥3 tools deleterious + CADD > 20 → flag fires."""
+        """Benign + >=3 axes deleterious + CADD >= 20 -> flag fires."""
         v = _make_conflict_variant(clinvar_significance="Benign")
         result = detect_evidence_conflict(v)
         assert result.flag is True
 
     def test_likely_benign_with_deleterious_predictions(self):
-        """Likely benign + ≥3 tools deleterious + CADD > 20 → flag fires."""
+        """Likely benign + >=3 axes deleterious + CADD >= 20 -> flag fires."""
         v = _make_conflict_variant(clinvar_significance="Likely benign")
         result = detect_evidence_conflict(v)
         assert result.flag is True
@@ -120,13 +124,13 @@ class TestConflictFlagDoesNotFire:
     """T2-08: Evidence conflict flag does NOT fire for P/LP or absent."""
 
     def test_pathogenic_no_flag(self):
-        """ClinVar Pathogenic + all tools deleterious → no flag."""
+        """ClinVar Pathogenic + all axes deleterious -> no flag."""
         v = _make_conflict_variant(clinvar_significance="Pathogenic")
         result = detect_evidence_conflict(v)
         assert result.flag is False
 
     def test_likely_pathogenic_no_flag(self):
-        """ClinVar Likely pathogenic + all tools deleterious → no flag."""
+        """ClinVar Likely pathogenic + all axes deleterious -> no flag."""
         v = _make_conflict_variant(clinvar_significance="Likely pathogenic")
         result = detect_evidence_conflict(v)
         assert result.flag is False
@@ -149,8 +153,8 @@ class TestConflictFlagDoesNotFire:
         result = detect_evidence_conflict(v)
         assert result.flag is False
 
-    def test_vus_only_1_tool_deleterious(self):
-        """VUS + only 1 tool deleterious → no flag (too weak)."""
+    def test_vus_only_2_axes_deleterious(self):
+        """VUS + only 2 axes deleterious -> no flag (too weak)."""
         v = _make_variant(
             clinvar_significance="Uncertain significance",
             cadd_phred=25.0,
@@ -160,11 +164,11 @@ class TestConflictFlagDoesNotFire:
             metasvm=-1.0,  # not deleterious
         )
         result = detect_evidence_conflict(v)
-        # CADD counts as deleterious = 2 tools total, still < 3
+        # CADD counts as deleterious = 2 axes total, still < 3
         assert result.flag is False
 
     def test_vus_cadd_below_threshold(self):
-        """VUS + 4 tools deleterious but CADD ≤ 20 → no flag."""
+        """VUS + 3 non-CADD axes deleterious but CADD < 20 -> no flag."""
         v = _make_variant(
             clinvar_significance="Uncertain significance",
             cadd_phred=18.0,  # below threshold
@@ -174,7 +178,7 @@ class TestConflictFlagDoesNotFire:
             metasvm=0.5,
         )
         result = detect_evidence_conflict(v)
-        # 3 non-CADD tools are deleterious but CADD gate fails
+        # 3 non-CADD axes are deleterious but CADD gate fails
         assert result.flag is False
 
     def test_vus_no_in_silico_data(self):
@@ -205,7 +209,7 @@ class TestConflictFlagDoesNotFire:
         assert result.flag is False
 
     def test_cadd_none_no_flag(self):
-        """VUS + 3 tools deleterious but CADD is None → no flag."""
+        """VUS + 3 axes deleterious but CADD is None -> no flag."""
         v = _make_variant(
             clinvar_significance="Uncertain significance",
             cadd_phred=None,
@@ -222,7 +226,7 @@ class TestConflictFlagDoesNotFire:
 
 
 class TestCountDeleteriousTools:
-    """Unit tests for in-silico tool counting."""
+    """Unit tests for canonical in-silico axis counting."""
 
     def test_all_deleterious(self):
         v = _make_variant(
@@ -233,8 +237,8 @@ class TestCountDeleteriousTools:
             metasvm=0.5,
         )
         del_count, total = count_deleterious_tools(v)
-        assert del_count == 5
-        assert total == 5
+        assert del_count == 4
+        assert total == 4
 
     def test_none_deleterious(self):
         v = _make_variant(
@@ -246,7 +250,7 @@ class TestCountDeleteriousTools:
         )
         del_count, total = count_deleterious_tools(v)
         assert del_count == 0
-        assert total == 5
+        assert total == 4
 
     def test_no_data(self):
         v = _make_variant()
@@ -283,10 +287,10 @@ class TestCountDeleteriousTools:
         assert total == 1
 
     def test_revel_boundary(self):
-        """REVEL = 0.5 exactly → not deleterious (must be > 0.5)."""
+        """REVEL = 0.5 exactly -> deleterious in the shared F24/F25 rule."""
         v = _make_variant(revel=0.5)
         del_count, _ = count_deleterious_tools(v)
-        assert del_count == 0
+        assert del_count == 1
 
     def test_metasvm_boundary(self):
         """MetaSVM = 0 exactly → not deleterious (must be > 0)."""
@@ -295,10 +299,35 @@ class TestCountDeleteriousTools:
         assert del_count == 0
 
     def test_cadd_boundary(self):
-        """CADD = 20 exactly → not deleterious (must be > 20)."""
+        """CADD = 20 exactly -> deleterious in the shared F24/F25 rule."""
         v = _make_variant(cadd_phred=20.0)
         del_count, _ = count_deleterious_tools(v)
-        assert del_count == 0
+        assert del_count == 1
+
+    def test_count_matches_dbnsfp_assess_ensemble(self):
+        """The conflict detector cannot drift from dbNSFP F24/F25 counting."""
+        v = _make_variant(
+            cadd_phred=20.0,
+            sift_score=0.01,
+            polyphen2_hsvar_score=0.95,
+            revel=0.5,
+            metasvm=-1.0,
+            metalr=0.9,
+        )
+        annot = DbNSFPRecord(
+            rsid="rs12345",
+            chrom="1",
+            pos=12345,
+            ref="G",
+            alt="A",
+            cadd_phred=20.0,
+            sift_score=0.01,
+            polyphen2_hsvar_score=0.95,
+            revel=0.5,
+            metasvm=-1.0,
+            metalr=0.9,
+        )
+        assert count_deleterious_tools(v) == assess_ensemble(annot) == (4, 4)
 
     def test_attribute_access(self):
         """Supports attribute-style access (e.g., SQLAlchemy Row)."""
@@ -311,10 +340,11 @@ class TestCountDeleteriousTools:
             cadd_phred = 25.0
             revel = 0.8
             metasvm = 0.3
+            metalr = None
 
         del_count, total = count_deleterious_tools(FakeRow())
-        assert del_count == 5
-        assert total == 5
+        assert del_count == 4
+        assert total == 4
 
 
 # ── apply_evidence_conflicts (batch helper) ─────────────────────────────
@@ -362,7 +392,7 @@ class TestEvidenceConflictResult:
         r = EvidenceConflictResult(
             flag=True,
             deleterious_count=4,
-            total_tools_assessed=5,
+            total_tools_assessed=4,
             cadd_phred=28.4,
             clinvar_significance="Uncertain significance",
         )
@@ -373,12 +403,12 @@ class TestEvidenceConflictResult:
         r = EvidenceConflictResult(
             flag=True,
             deleterious_count=4,
-            total_tools_assessed=5,
+            total_tools_assessed=4,
             cadd_phred=28.4,
             clinvar_significance="Uncertain significance",
         )
         assert r.flag is True
         assert r.deleterious_count == 4
-        assert r.total_tools_assessed == 5
+        assert r.total_tools_assessed == 4
         assert r.cadd_phred == 28.4
         assert r.clinvar_significance == "Uncertain significance"

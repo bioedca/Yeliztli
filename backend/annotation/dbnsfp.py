@@ -53,6 +53,7 @@ from backend.annotation.http_download import (
     stream_download,
     write_validator_sidecar,
 )
+from backend.annotation.insilico_axes import assess_insilico_axes
 from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER as _SQLITE_VAR_LIMIT
 
 if TYPE_CHECKING:
@@ -228,47 +229,6 @@ class DbNSFPAnnotation(DbNSFPRecord):
 # underlying predictor is present (F25).
 
 
-def _sift_axis(annot: DbNSFPRecord) -> bool | None:
-    """SIFT4G axis: score < 0.05 → deleterious. None when no score."""
-    if annot.sift_score is None:
-        return None
-    return annot.sift_score < 0.05
-
-
-def _polyphen_axis(annot: DbNSFPRecord) -> bool | None:
-    """PolyPhen-2 HVAR axis: strict "probably damaging" > 0.909 (F38). None when absent."""
-    if annot.polyphen2_hsvar_score is None:
-        return None
-    return annot.polyphen2_hsvar_score > 0.909
-
-
-def _cadd_axis(annot: DbNSFPRecord) -> bool | None:
-    """CADD axis: PHRED ≥ 20 → deleterious. None when no score."""
-    if annot.cadd_phred is None:
-        return None
-    return annot.cadd_phred >= 20
-
-
-def _meta_axis(annot: DbNSFPRecord) -> bool | None:
-    """Collapse the correlated meta-predictor family into one vote (F24).
-
-    Deleterious iff a strict majority of the *present* meta-predictors call
-    deleterious (REVEL ≥ 0.5, MetaSVM > 0, MetaLR > 0.5); absent when none are
-    present. Requiring a majority stops a single outlier meta-predictor from
-    manufacturing an "independent" vote out of redundant signal.
-    """
-    votes: list[bool] = []
-    if annot.revel is not None:
-        votes.append(annot.revel >= 0.5)
-    if annot.metasvm is not None:
-        votes.append(annot.metasvm > 0)
-    if annot.metalr is not None:
-        votes.append(annot.metalr > 0.5)
-    if not votes:
-        return None
-    return sum(votes) * 2 > len(votes)
-
-
 def assess_ensemble(annot: DbNSFPRecord) -> tuple[int, int]:
     """Return ``(deleterious_axes, assessed_axes)`` over the four independent axes.
 
@@ -281,9 +241,7 @@ def assess_ensemble(annot: DbNSFPRecord) -> tuple[int, int]:
         ``(deleterious, assessed)`` — axes voting deleterious and axes with data,
         each 0–4.
     """
-    axes = [_sift_axis(annot), _polyphen_axis(annot), _cadd_axis(annot), _meta_axis(annot)]
-    assessed = [a for a in axes if a is not None]
-    return sum(1 for a in assessed if a), len(assessed)
+    return assess_insilico_axes(annot)
 
 
 #: Minimum independent axes that must be assessable before the ensemble flag can

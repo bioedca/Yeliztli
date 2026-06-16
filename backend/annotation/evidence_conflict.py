@@ -1,17 +1,18 @@
 """Evidence conflict detection — amber flag logic.
 
-Fires when ClinVar classifies a variant as VUS/B/LB **and** ≥3 in-silico
-tools predict deleterious **and** CADD PHRED > 20.
+Fires when ClinVar classifies a variant as VUS/B/LB **and** at least three
+independent in-silico axes predict deleterious **and** CADD PHRED >= 20.
 
-No flag when ClinVar is P/LP or absent.  No flag when fewer than 3 tools
+No flag when ClinVar is P/LP or absent.  No flag when fewer than 3 axes
 agree on deleterious.  This implements PRD §5, Sprint 2.1, P2-07.
 
 In-silico tool thresholds (standard community cutoffs):
     - SIFT:      pred == 'D' or score < 0.05
     - PolyPhen-2: pred == 'D' (probably_damaging)
-    - CADD PHRED: > 20
-    - REVEL:     > 0.5
+    - CADD PHRED: >= 20
+    - REVEL:     >= 0.5
     - MetaSVM:   > 0
+    - MetaLR:    > 0.5
 
 Usage::
 
@@ -24,6 +25,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+
+from backend.annotation.insilico_axes import CADD_PHRED_THRESHOLD, assess_insilico_axes
 
 # ClinVar significances that trigger conflict detection.
 # P/LP and absent ClinVar → no flag.
@@ -50,11 +53,11 @@ _AUTHORITATIVE_SIGNIFICANCES = frozenset(
     }
 )
 
-# CADD PHRED threshold for the CADD-specific gate
-_CADD_THRESHOLD = 20.0
+# CADD PHRED threshold for the CADD-specific gate.
+_CADD_THRESHOLD = CADD_PHRED_THRESHOLD
 
-# Minimum number of in-silico tools predicting deleterious
-_MIN_DELETERIOUS_TOOLS = 3
+# Minimum number of independent in-silico axes predicting deleterious.
+_MIN_DELETERIOUS_AXES = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,72 +71,13 @@ class EvidenceConflictResult:
     clinvar_significance: str | None
 
 
-def _is_sift_deleterious(pred: str | None, score: float | None) -> bool | None:
-    """SIFT: 'D' prediction or score < 0.05.  Returns None if no data."""
-    if pred is not None:
-        return pred.upper() == "D"
-    if score is not None:
-        return score < 0.05
-    return None
-
-
-def _is_polyphen_deleterious(pred: str | None, score: float | None) -> bool | None:
-    """PolyPhen-2: 'D' (probably_damaging).  Returns None if no data."""
-    if pred is not None:
-        return pred.upper() == "D"
-    if score is not None:
-        return score > 0.909  # standard probably_damaging threshold
-    return None
-
-
-def _is_cadd_deleterious(phred: float | None) -> bool | None:
-    """CADD PHRED > 20.  Returns None if no data."""
-    if phred is None:
-        return None
-    return phred > _CADD_THRESHOLD
-
-
-def _is_revel_deleterious(score: float | None) -> bool | None:
-    """REVEL > 0.5.  Returns None if no data."""
-    if score is None:
-        return None
-    return score > 0.5
-
-
-def _is_metasvm_deleterious(score: float | None) -> bool | None:
-    """MetaSVM > 0.  Returns None if no data."""
-    if score is None:
-        return None
-    return score > 0
-
-
 def count_deleterious_tools(variant: dict[str, Any] | Any) -> tuple[int, int]:
-    """Count how many of the 5 in-silico tools predict deleterious.
+    """Count deleterious independent axes.
 
-    Args:
-        variant: A dict or row-like object with in-silico score fields.
-
-    Returns:
-        (deleterious_count, total_assessed) — tools with data that voted.
+    The public function name is retained for compatibility with older callers,
+    but the returned values are canonical F24/F25 axis counts.
     """
-
-    # Support both dict-style and attribute-style access
-    def _get(key: str) -> Any:
-        if isinstance(variant, dict):
-            return variant.get(key)
-        return getattr(variant, key, None)
-
-    assessments: list[bool | None] = [
-        _is_sift_deleterious(_get("sift_pred"), _get("sift_score")),
-        _is_polyphen_deleterious(_get("polyphen2_hsvar_pred"), _get("polyphen2_hsvar_score")),
-        _is_cadd_deleterious(_get("cadd_phred")),
-        _is_revel_deleterious(_get("revel")),
-        _is_metasvm_deleterious(_get("metasvm")),
-    ]
-
-    assessed = [a for a in assessments if a is not None]
-    deleterious = sum(1 for a in assessed if a)
-    return deleterious, len(assessed)
+    return assess_insilico_axes(variant)
 
 
 def detect_evidence_conflict(variant: dict[str, Any] | Any) -> EvidenceConflictResult:
@@ -141,8 +85,8 @@ def detect_evidence_conflict(variant: dict[str, Any] | Any) -> EvidenceConflictR
 
     The amber flag fires when ALL three conditions are met:
         1. ClinVar significance is VUS, B, or LB
-        2. ≥3 in-silico tools predict deleterious
-        3. CADD PHRED > 20
+        2. >=3 independent in-silico axes predict deleterious
+        3. CADD PHRED >= 20
 
     Args:
         variant: A dict or row-like object with annotation fields.
@@ -196,9 +140,9 @@ def detect_evidence_conflict(variant: dict[str, Any] | Any) -> EvidenceConflictR
     del_count, total_assessed = count_deleterious_tools(variant)
 
     flag = (
-        del_count >= _MIN_DELETERIOUS_TOOLS
+        del_count >= _MIN_DELETERIOUS_AXES
         and cadd_phred is not None
-        and cadd_phred > _CADD_THRESHOLD
+        and cadd_phred >= _CADD_THRESHOLD
     )
 
     return EvidenceConflictResult(

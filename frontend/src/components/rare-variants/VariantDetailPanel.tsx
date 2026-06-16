@@ -222,7 +222,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
                 "text-sm font-medium",
                 variant.ensemble_pathogenic ? "text-red-700 dark:text-red-400" : "text-muted-foreground",
               )}>
-                {variant.ensemble_pathogenic ? "Yes (≥3 tools)" : "No"}
+                {variant.ensemble_pathogenic ? "Yes (≥3 axes)" : "No"}
               </span>
             </div>
             <div className="flex items-center justify-between">

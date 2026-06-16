@@ -248,7 +248,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       } />
       {variant.ensemble_pathogenic && (
         <div className="mt-2 px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
-          Ensemble pathogenic (≥3 tools deleterious)
+          Ensemble pathogenic (≥3 independent axes deleterious)
         </div>
       )}
 
@@ -459,7 +459,7 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
       </div>
       {variant.ensemble_pathogenic && (
         <div className="mt-3 px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
-          Ensemble pathogenic (≥3 tools deleterious)
+          Ensemble pathogenic (≥3 independent axes deleterious)
         </div>
       )}
 
