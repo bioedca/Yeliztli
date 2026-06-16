@@ -1521,6 +1521,7 @@ class TestFindingsStorage:
                 )
             ).fetchall()
         assert len(celiac) == 1
+        assert json.loads(celiac[0].pmid_citations) == ["18311140", "20190752"]
         detail = json.loads(celiac[0].detail_json)
         assert "state" in detail
 

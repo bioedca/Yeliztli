@@ -226,6 +226,11 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "bariatric surgery (gastric fistula)",
         "caught_in": "gene_health (#326)",
     },
+    "22926369": {
+        "title": "Acinetobacter baumannii as a cause of sepsis.",
+        "field": "infectious-disease sepsis microbiology",
+        "caught_in": "allergy/celiac HLA-DQ proxies (#876)",
+    },
     "24076671": {
         "title": "Anatomical study of the medial crura and nasal tip projection in rhinoplasty.",
         "field": "plastic surgery (rhinoplasty)",

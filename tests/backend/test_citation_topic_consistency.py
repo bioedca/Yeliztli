@@ -127,6 +127,8 @@ _GENE_TOPIC_LOCKED: frozenset[str] = frozenset(
 # verified against the snapshot. Demonstrates the synonym path for incremental
 # per-panel registration (extend as conditions are audited).
 _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
+    "allergy_panel.json::rs2187668": frozenset({"celiac"}),  # HLA-DQ2.5 proxy
+    "allergy_panel.json::rs7775228": frozenset({"celiac"}),  # HLA-DQ8 proxy
     "sleep_panel.json::rs2300478": frozenset(  # MEIS1 — restless legs / PLMS GWAS
         {"restless", "limb", "periodic"}
     ),

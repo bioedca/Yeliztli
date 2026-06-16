@@ -1294,7 +1294,7 @@ def store_allergy_findings(
                 "finding_text": celiac_text,
                 "pathway": "Food Sensitivity",
                 "pathway_level": None,
-                "pmid_citations": json.dumps(["18311140", "20190752", "22926369"]),
+                "pmid_citations": json.dumps(["18311140", "20190752"]),
                 "detail_json": json.dumps(
                     {
                         "state": cc.state,
