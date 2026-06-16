@@ -350,6 +350,16 @@ export default function IndividualDetail() {
     (q) => linkedSamples.length > 0 && q.isLoading,
   )
 
+  // The aggregated section is built from each sample's /findings/summary
+  // high_confidence_findings, which the backend caps at a top-N preview per
+  // sample, whereas the header `aggregated_findings_count` is the uncapped
+  // deduplicated total. Surface that gap rather than presenting two
+  // contradictory totals with the preview list silently truncated (#827).
+  const hiddenFindingsCount = Math.max(
+    0,
+    individual.aggregated_findings_count - aggregated.length,
+  )
+
   return (
     <div
       className="p-6 max-w-5xl mx-auto space-y-6"
@@ -478,7 +488,9 @@ export default function IndividualDetail() {
           </h2>
           {aggregated.length > 0 && (
             <span className="text-xs text-muted-foreground tabular-nums">
-              {aggregated.length} unique
+              {hiddenFindingsCount > 0
+                ? `showing ${aggregated.length} of ${individual.aggregated_findings_count}`
+                : `${aggregated.length} unique`}
             </span>
           )}
         </div>
@@ -502,6 +514,16 @@ export default function IndividualDetail() {
             {aggregated.map((row) => (
               <FindingRow key={row.key} row={row} />
             ))}
+            {hiddenFindingsCount > 0 && (
+              <p
+                className="px-4 py-2 text-xs text-muted-foreground"
+                data-testid="aggregated-findings-overflow"
+              >
+                and {hiddenFindingsCount} more high-confidence finding
+                {hiddenFindingsCount === 1 ? "" : "s"} not shown — this section is a
+                top-findings preview per sample; open each sample to see all.
+              </p>
+            )}
           </div>
         )}
       </section>

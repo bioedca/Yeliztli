@@ -303,6 +303,51 @@ describe("IndividualDetail page", () => {
     ).not.toBeInTheDocument()
   })
 
+  it("reconciles the header total with the capped preview via 'showing X of N' + an overflow row (#827)", async () => {
+    // The /findings/summary endpoint returns a top-5-per-sample PREVIEW, while the
+    // header aggregated_findings_count is the uncapped total. With 23 total but only
+    // 5 preview rows, the section must say "showing 5 of 23" and surface the 18
+    // hidden findings rather than presenting "5 unique" beside a header of 23.
+    installMocks({
+      id: 8,
+      display_name: "Dave",
+      aggregated_findings_count: 23,
+      linked_samples: [
+        {
+          id: 30,
+          name: "dave_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          // The backend caps the summary at 5; mirror that here.
+          highConfidenceFindings: Array.from({ length: 5 }, (_, i) => ({
+            id: i + 1,
+            module: "carrier_status",
+            rsid: `rs${1000 + i}`,
+            finding_text: `Carrier finding ${i + 1}`,
+            evidence_level: 4,
+            gene_symbol: `GENE${i + 1}`,
+          })),
+        },
+      ],
+    })
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/8"]),
+    })
+
+    // Header shows the true uncapped total.
+    expect(await screen.findByText("Dave")).toBeInTheDocument()
+    expect(screen.getByText("23")).toBeInTheDocument()
+
+    // Section badge references the total (not the misleading "5 unique"), and the
+    // 18 hidden findings are surfaced via an explicit overflow affordance.
+    expect(await screen.findByText("showing 5 of 23")).toBeInTheDocument()
+    const overflow = screen.getByTestId("aggregated-findings-overflow")
+    expect(overflow).toHaveTextContent("18 more")
+    expect(screen.queryByText("5 unique")).not.toBeInTheDocument()
+  })
+
   it("renders an empty state when the individual has no linked samples", async () => {
     installMocks({
       id: 9,
