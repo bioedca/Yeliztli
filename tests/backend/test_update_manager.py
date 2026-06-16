@@ -120,6 +120,19 @@ class TestShouldDownloadNow:
             mock_dt.now.return_value.time.return_value = dt_time(12, 0)
             assert should_download_now(200 * 1024 * 1024, "02:00-06:00") is False
 
+    @pytest.mark.parametrize(
+        ("now", "expected"),
+        [
+            (dt_time(23, 0), True),
+            (dt_time(3, 0), True),
+            (dt_time(12, 0), False),
+        ],
+    )
+    def test_large_download_with_midnight_spanning_window(self, now: dt_time, expected: bool):
+        with patch("backend.db.update_manager.datetime") as mock_dt:
+            mock_dt.now.return_value.time.return_value = now
+            assert should_download_now(200 * 1024 * 1024, "22:00-06:00") is expected
+
     def test_exactly_at_threshold_is_gated(self):
         # Exactly 100 MB is NOT under threshold (< not <=), so bandwidth window applies
         with patch("backend.db.update_manager.datetime") as mock_dt:
