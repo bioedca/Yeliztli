@@ -239,7 +239,18 @@ def _build_filters(
     if clinvar is not None:
         # Case-insensitive match: "pathogenic" matches "Pathogenic",
         # "Pathogenic/Likely pathogenic", etc.
-        clauses.append(sa.func.lower(_TABLE.c.clinvar_significance).contains(clinvar.lower()))
+        clinvar_lower = clinvar.lower()
+        sig = sa.func.lower(_TABLE.c.clinvar_significance)
+        clauses.append(sig.contains(clinvar_lower))
+        # A specific-classification query must NOT pull in ClinVar's aggregate
+        # conflict labels: "Conflicting classifications of pathogenicity" /
+        # "Conflicting interpretations of pathogenicity" both contain the
+        # substring "pathogenic", so a naive `clinvar=pathogenic` substring match
+        # buckets a classification conflict as a P/LP assertion (#971; same
+        # boundary as the #799 frontend fix). Exclude conflict rows unless the
+        # caller explicitly searches for "conflicting".
+        if "conflicting" not in clinvar_lower:
+            clauses.append(~sig.contains("conflicting"))
     if af_max is not None:
         clauses.append(_TABLE.c.gnomad_af_global <= af_max)
     if af_min is not None:

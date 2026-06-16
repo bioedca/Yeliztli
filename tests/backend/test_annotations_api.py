@@ -403,6 +403,79 @@ class TestClinvarFilter:
         assert len(items) >= 3
 
 
+# A true Pathogenic call vs. a ClinVar aggregate conflict label. The conflict
+# label contains the substring "pathogenic" ("…of pathogenicity"), so a naive
+# substring filter buckets it as P/LP (#971).
+_CONFLICTING_VARIANTS = [
+    {
+        "rsid": "rsP",
+        "chrom": "1",
+        "pos": 1000,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "AG",
+        "zygosity": "het",
+        "gene_symbol": "GENE1",
+        "consequence": "missense_variant",
+        "clinvar_significance": "Pathogenic",
+        "gnomad_af_global": 0.001,
+        "rare_flag": True,
+        "annotation_coverage": 0b001111,
+    },
+    {
+        "rsid": "rsC",
+        "chrom": "2",
+        "pos": 2000,
+        "ref": "C",
+        "alt": "T",
+        "genotype": "CT",
+        "zygosity": "het",
+        "gene_symbol": "GENE2",
+        "consequence": "missense_variant",
+        "clinvar_significance": "Conflicting classifications of pathogenicity",
+        "gnomad_af_global": 0.01,
+        "rare_flag": False,
+        "annotation_coverage": 0b001111,
+    },
+]
+
+
+@pytest.fixture
+def conflicting_client(tmp_data_dir: Path):
+    yield from _setup_client(tmp_data_dir, _CONFLICTING_VARIANTS)
+
+
+class TestClinvarConflictingExclusion:
+    """#971: a specific-classification query (e.g. clinvar=pathogenic) must
+    exclude ClinVar aggregate conflict labels, which contain the substring
+    "pathogenic" ("Conflicting classifications of pathogenicity") — across the
+    list, /count, and /chromosomes endpoints (all share _build_filters)."""
+
+    def test_pathogenic_excludes_conflicting(self, conflicting_client):
+        tc, sid = conflicting_client
+        r = tc.get(f"/api/annotations?sample_id={sid}&clinvar=pathogenic")
+        rsids = {i["rsid"] for i in r.json()["items"]}
+        assert rsids == {"rsP"}  # rsC (Conflicting…pathogenicity) excluded
+
+    def test_count_pathogenic_excludes_conflicting(self, conflicting_client):
+        tc, sid = conflicting_client
+        r = tc.get(f"/api/annotations/count?sample_id={sid}&clinvar=pathogenic")
+        assert r.json()["total"] == 1
+
+    def test_chromosomes_pathogenic_excludes_conflicting(self, conflicting_client):
+        tc, sid = conflicting_client
+        r = tc.get(f"/api/annotations/chromosomes?sample_id={sid}&clinvar=pathogenic")
+        chroms = {c["chrom"] for c in r.json()}
+        # rsP is on chr1; rsC (conflicting, chr2) must not contribute a chromosome.
+        assert chroms == {"1"}
+
+    def test_explicit_conflicting_query_still_matches(self, conflicting_client):
+        tc, sid = conflicting_client
+        r = tc.get(f"/api/annotations?sample_id={sid}&clinvar=conflicting")
+        rsids = {i["rsid"] for i in r.json()["items"]}
+        assert rsids == {"rsC"}
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Filtering — AF threshold (T2-18)
 # ═══════════════════════════════════════════════════════════════════════
