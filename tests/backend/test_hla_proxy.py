@@ -52,7 +52,8 @@ class TestHLAProxyJSON:
             "HLA-A*31:01",
             "HLA-B*58:01",
             "HLA-DQ2",
-            "HLA-DQ8",
+            # rs7775228 tags HLA-DQ2.2, not HLA-DQ8 (Monsuur 2008, #875).
+            "HLA-DQ2.2",
         }
         assert expected == alleles
 
@@ -205,20 +206,26 @@ class TestHLAProxyQueries:
         # EUR r² should be higher than AFR for HLA-B*57:01
         assert eur_row.r_squared > afr_row.r_squared
 
-    def test_celiac_dq2_dq8_present(self, reference_engine: sa.Engine) -> None:
+    def test_celiac_dq2_dq22_present(self, reference_engine: sa.Engine) -> None:
+        # rs7775228 tags HLA-DQ2.2, not HLA-DQ8 (Monsuur 2008, #875); the lookup
+        # carries the DQ2.5 (HLA-DQ2) and DQ2.2 celiac proxies, not a DQ8 proxy.
         self._seed(reference_engine)
         with reference_engine.connect() as conn:
             dq2 = conn.execute(
                 sa.select(hla_proxy_lookup).where(hla_proxy_lookup.c.hla_allele == "HLA-DQ2")
             ).fetchall()
+            dq22 = conn.execute(
+                sa.select(hla_proxy_lookup).where(hla_proxy_lookup.c.hla_allele == "HLA-DQ2.2")
+            ).fetchall()
             dq8 = conn.execute(
                 sa.select(hla_proxy_lookup).where(hla_proxy_lookup.c.hla_allele == "HLA-DQ8")
             ).fetchall()
         assert len(dq2) >= 1
-        assert len(dq8) >= 1
+        assert len(dq22) >= 1
+        assert len(dq8) == 0  # DQ8 (DQB1*03:02, tag rs7454108) is not on this panel
         # Verify celiac context
         assert any(r.clinical_context and "celiac" in r.clinical_context.lower() for r in dq2)
-        assert any(r.clinical_context and "celiac" in r.clinical_context.lower() for r in dq8)
+        assert any(r.clinical_context and "celiac" in r.clinical_context.lower() for r in dq22)
 
     def test_all_clinical_contexts_non_empty(self, reference_engine: sa.Engine) -> None:
         self._seed(reference_engine)
