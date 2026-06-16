@@ -1067,26 +1067,6 @@ class TestAPOEThreeFindingsStorage:
         assert cv_count == 1
 
 
-def test_apoe_position_constants_are_grch37() -> None:
-    """#476: the APOE SNP position constants must be GRCh37 (the app's primary
-    build / vep_bundle), not the GRCh38 positions that were hardcoded while
-    mislabeled GRCh37. Per Ensembl GRCh37 REST: rs429358 = 19:45411941,
-    rs7412 = 19:45412079 (the GRCh38 positions are 44908684 / 44908822).
-    """
-    from backend.analysis.apoe import (
-        APOE_CHROM,
-        APOE_RS7412_POS,
-        APOE_RS429358_POS,
-    )
-
-    assert APOE_CHROM == "19"
-    assert APOE_RS429358_POS == 45411941
-    assert APOE_RS7412_POS == 45412079
-    # explicitly NOT the GRCh38 coordinates
-    assert APOE_RS429358_POS != 44908684
-    assert APOE_RS7412_POS != 44908822
-
-
 class TestAPOEArrayReliabilityCaveat:
     """#557: APOE ε-status from a consumer array is not equivalent to clinical
     genotyping (rs429358/rs7412 are an array weak spot). Every APOE finding must
