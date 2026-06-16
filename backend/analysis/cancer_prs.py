@@ -60,7 +60,13 @@ CANCER_PRS_TRAITS = frozenset(
     }
 )
 
+BREAST_CANCER_TRAIT = "breast_cancer"
 PROSTATE_CANCER_TRAIT = "prostate_cancer"
+
+SEX_SPECIFIC_PRS_TRAITS = {
+    BREAST_CANCER_TRAIT: "XX",
+    PROSTATE_CANCER_TRAIT: "XY",
+}
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -68,7 +74,7 @@ PROSTATE_CANCER_TRAIT = "prostate_cancer"
 
 @dataclass
 class CancerPRSResult:
-    """Aggregated cancer PRS results for all four traits.
+    """Aggregated cancer PRS results for eligible traits.
 
     Attributes:
         results: Per-trait PRS results (one per weight set).
@@ -187,10 +193,10 @@ def run_cancer_prs(
 ) -> CancerPRSResult:
     """Run PRS computation for eligible cancer traits.
 
-    Runs the generic PRS pipeline for each eligible weight set. Prostate
-    cancer PRS output is prostate-context specific and is emitted only when the
-    caller provides a confident ``"XY"`` sex inference. Unknown/manual-review
-    sex contexts suppress that numeric score.
+    Runs the generic PRS pipeline for each eligible weight set. Sex-specific
+    PRS outputs are emitted only when the caller provides the matching confident
+    sex inference: breast cancer requires ``"XX"`` and prostate cancer requires
+    ``"XY"``. Unknown/manual-review sex contexts suppress those numeric scores.
     Each result includes raw score, z-score, percentile, bootstrap CI,
     and ancestry mismatch check.
 
@@ -202,7 +208,8 @@ def run_cancer_prs(
             None if unavailable.
         inferred_sex: Inferred biological sex (``"XX"``, ``"XY"``,
             ``"manual_review"``, ``"unknown"``). ``None`` is treated as
-            unknown; pass ``"XY"`` explicitly to emit prostate PRS output.
+            unknown; pass a confident matching value explicitly to emit
+            sex-specific PRS output.
         n_bootstrap: Bootstrap iterations (default 1000).
         rng_seed: Optional RNG seed for reproducibility.
 
@@ -213,12 +220,14 @@ def run_cancer_prs(
     skipped_traits: list[str] = []
 
     for ws in weight_sets:
-        if ws.trait == PROSTATE_CANCER_TRAIT and inferred_sex != "XY":
+        required_sex = SEX_SPECIFIC_PRS_TRAITS.get(ws.trait)
+        if required_sex is not None and inferred_sex != required_sex:
             skipped_traits.append(ws.trait)
             logger.info(
                 "cancer_prs_trait_skipped",
                 trait=ws.trait,
-                reason="sex_context_not_xy",
+                reason="sex_context_mismatch",
+                required_sex=required_sex,
                 inferred_sex=inferred_sex,
             )
             continue

@@ -41,8 +41,8 @@ WEIGHTS_PATH = (
 
 
 def run_cancer_prs(*args, **kwargs):
-    """Test helper: keep ancestry-mismatch coverage in an explicit XY context."""
-    kwargs.setdefault("inferred_sex", "XY")
+    """Test helper: keep ancestry-mismatch coverage in an explicit XX context."""
+    kwargs.setdefault("inferred_sex", "XX")
     return _run_cancer_prs(*args, **kwargs)
 
 
@@ -139,7 +139,7 @@ def _build_prs_variants() -> list[dict]:
 def sample_with_prs_snps_and_ancestry_eur(
     sample_with_ancestry_eur: sa.Engine,
 ) -> sa.Engine:
-    """Sample with both ancestry=EUR and PRS SNPs for all 4 cancer traits."""
+    """Sample with ancestry=EUR and PRS SNPs for all cancer traits."""
     with sample_with_ancestry_eur.begin() as conn:
         conn.execute(sa.insert(annotated_variants), _build_prs_variants())
     return sample_with_ancestry_eur
@@ -149,7 +149,7 @@ def sample_with_prs_snps_and_ancestry_eur(
 def sample_with_prs_snps_and_ancestry_afr(
     sample_with_ancestry_afr: sa.Engine,
 ) -> sa.Engine:
-    """Sample with ancestry=AFR and PRS SNPs for all 4 cancer traits."""
+    """Sample with ancestry=AFR and PRS SNPs for all cancer traits."""
     with sample_with_ancestry_afr.begin() as conn:
         conn.execute(sa.insert(annotated_variants), _build_prs_variants())
     return sample_with_ancestry_afr
@@ -288,7 +288,7 @@ class TestAncestryMismatchFires:
     def test_cancer_prs_all_scores_flagged_when_mismatch(
         self, sample_with_prs_snps_and_ancestry_afr: sa.Engine
     ) -> None:
-        """All 4 cancer PRS scores get individual amber warnings for AFR user."""
+        """Eligible cancer PRS scores get individual amber warnings for AFR user."""
         weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
         inferred = get_inferred_ancestry(sample_with_prs_snps_and_ancestry_afr)
         assert inferred == "AFR"

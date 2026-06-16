@@ -41,6 +41,12 @@ WEIGHTS_PATH = (
     / "panels"
     / "cancer_prs_weights.json"
 )
+XX_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"prostate_cancer"}
+XY_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"breast_cancer"}
+UNRESOLVED_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {
+    "breast_cancer",
+    "prostate_cancer",
+}
 
 
 @pytest.fixture()
@@ -50,8 +56,8 @@ def cancer_weight_sets() -> list[PRSWeightSet]:
 
 
 def run_cancer_prs(*args, **kwargs) -> CancerPRSResult:
-    """Test helper: keep legacy all-trait assertions in an explicit XY context."""
-    kwargs.setdefault("inferred_sex", "XY")
+    """Test helper: keep legacy assertions in an explicit breast-eligible context."""
+    kwargs.setdefault("inferred_sex", "XX")
     return _run_cancer_prs(*args, **kwargs)
 
 
@@ -181,9 +187,9 @@ class TestLoadCancerPRSWeights:
 
 
 class TestRunCancerPRS:
-    """Test running cancer PRS for all four traits."""
+    """Test running cancer PRS for sex-appropriate traits."""
 
-    def test_computes_all_four_traits(
+    def test_computes_xx_eligible_traits(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
         result = run_cancer_prs(
@@ -192,9 +198,9 @@ class TestRunCancerPRS:
             n_bootstrap=100,
             rng_seed=42,
         )
-        assert len(result.results) == 4
+        assert len(result.results) == len(XX_CANCER_PRS_TRAITS)
         traits = {r.trait for r in result.results}
-        assert traits == CANCER_PRS_TRAITS
+        assert traits == XX_CANCER_PRS_TRAITS
 
     def test_prostate_prs_allowed_for_xy_context(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -208,14 +214,39 @@ class TestRunCancerPRS:
         )
 
         assert "prostate_cancer" in result.trait_names
-        assert set(result.trait_names) == CANCER_PRS_TRAITS
+        assert "breast_cancer" not in result.trait_names
+        assert set(result.trait_names) == XY_CANCER_PRS_TRAITS
 
-    @pytest.mark.parametrize("inferred_sex", ["XX", "unknown", "manual_review"])
+    def test_breast_prs_allowed_for_xx_context(
+        self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
+    ) -> None:
+        result = run_cancer_prs(
+            cancer_weight_sets,
+            sample_with_prs_snps,
+            inferred_sex="XX",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+
+        assert "breast_cancer" in result.trait_names
+        assert "prostate_cancer" not in result.trait_names
+        assert set(result.trait_names) == XX_CANCER_PRS_TRAITS
+
+    @pytest.mark.parametrize(
+        ("inferred_sex", "expected_traits"),
+        [
+            ("XX", XX_CANCER_PRS_TRAITS),
+            ("unknown", UNRESOLVED_CANCER_PRS_TRAITS),
+            ("manual_review", UNRESOLVED_CANCER_PRS_TRAITS),
+            (None, UNRESOLVED_CANCER_PRS_TRAITS),
+        ],
+    )
     def test_prostate_prs_skipped_without_xy_context(
         self,
         cancer_weight_sets: list[PRSWeightSet],
         sample_with_prs_snps: sa.Engine,
-        inferred_sex: str,
+        inferred_sex: str | None,
+        expected_traits: frozenset[str],
     ) -> None:
         result = run_cancer_prs(
             cancer_weight_sets,
@@ -226,7 +257,34 @@ class TestRunCancerPRS:
         )
 
         assert "prostate_cancer" not in result.trait_names
-        assert set(result.trait_names) == CANCER_PRS_TRAITS - {"prostate_cancer"}
+        assert set(result.trait_names) == expected_traits
+
+    @pytest.mark.parametrize(
+        ("inferred_sex", "expected_traits"),
+        [
+            ("XY", XY_CANCER_PRS_TRAITS),
+            ("unknown", UNRESOLVED_CANCER_PRS_TRAITS),
+            ("manual_review", UNRESOLVED_CANCER_PRS_TRAITS),
+            (None, UNRESOLVED_CANCER_PRS_TRAITS),
+        ],
+    )
+    def test_breast_prs_skipped_without_xx_context(
+        self,
+        cancer_weight_sets: list[PRSWeightSet],
+        sample_with_prs_snps: sa.Engine,
+        inferred_sex: str | None,
+        expected_traits: frozenset[str],
+    ) -> None:
+        result = run_cancer_prs(
+            cancer_weight_sets,
+            sample_with_prs_snps,
+            inferred_sex=inferred_sex,
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+
+        assert "breast_cancer" not in result.trait_names
+        assert set(result.trait_names) == expected_traits
 
     def test_uncalibrated_sets_withhold_percentile(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -311,16 +369,16 @@ class TestRunCancerPRS:
     def test_partial_coverage_mostly_insufficient(
         self, cancer_weight_sets: list[PRSWeightSet], sample_partial_coverage: sa.Engine
     ) -> None:
-        """Only 2 SNPs present — all 4 traits should be insufficient (<50% coverage)."""
+        """Only 2 SNPs present — eligible traits should be insufficient (<50%)."""
         result = run_cancer_prs(
             cancer_weight_sets,
             sample_partial_coverage,
             n_bootstrap=100,
             rng_seed=42,
         )
-        # 2 SNPs out of 15-25 per trait is well below 50%
+        # 2 SNPs out of 15-25 per trait is well below 50%.
         assert result.sufficient_count == 0
-        assert len(result.insufficient_traits) == 4
+        assert len(result.insufficient_traits) == len(XX_CANCER_PRS_TRAITS)
         for r in result.results:
             assert r.is_sufficient is False
 
@@ -334,7 +392,7 @@ class TestRunCancerPRS:
             rng_seed=42,
         )
         assert result.sufficient_count == 0
-        assert len(result.insufficient_traits) == 4
+        assert len(result.insufficient_traits) == len(XX_CANCER_PRS_TRAITS)
 
     def test_reproducible_with_seed(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -536,7 +594,7 @@ class TestStoreCancerPRSFindings:
             assert "trait" in detail
             assert detail["trait"] in CANCER_PRS_TRAITS
 
-    def test_non_xy_rerun_clears_prostate_prs(
+    def test_xx_rerun_clears_prostate_prs(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
         xy_result = run_cancer_prs(
@@ -558,6 +616,7 @@ class TestStoreCancerPRSFindings:
 
         initial_traits = {json.loads(row.detail_json)["trait"] for row in initial_rows}
         assert "prostate_cancer" in initial_traits
+        assert "breast_cancer" not in initial_traits
 
         prs_result = run_cancer_prs(
             cancer_weight_sets,
@@ -581,6 +640,54 @@ class TestStoreCancerPRSFindings:
         assert expected_traits
         assert count == prs_result.sufficient_count
         assert "prostate_cancer" not in stored_traits
+        assert stored_traits == expected_traits
+
+    def test_xy_rerun_clears_breast_prs(
+        self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
+    ) -> None:
+        xx_result = run_cancer_prs(
+            cancer_weight_sets,
+            sample_with_prs_snps,
+            inferred_sex="XX",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        store_cancer_prs_findings(xx_result, sample_with_prs_snps)
+
+        with sample_with_prs_snps.connect() as conn:
+            initial_rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "cancer",
+                    findings.c.category == "prs",
+                )
+            ).fetchall()
+
+        initial_traits = {json.loads(row.detail_json)["trait"] for row in initial_rows}
+        assert "breast_cancer" in initial_traits
+        assert "prostate_cancer" not in initial_traits
+
+        prs_result = run_cancer_prs(
+            cancer_weight_sets,
+            sample_with_prs_snps,
+            inferred_sex="XY",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        count = store_cancer_prs_findings(prs_result, sample_with_prs_snps)
+
+        with sample_with_prs_snps.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "cancer",
+                    findings.c.category == "prs",
+                )
+            ).fetchall()
+
+        stored_traits = {json.loads(row.detail_json)["trait"] for row in rows}
+        expected_traits = {r.trait for r in prs_result.results if r.is_sufficient}
+        assert expected_traits
+        assert count == prs_result.sufficient_count
+        assert "breast_cancer" not in stored_traits
         assert stored_traits == expected_traits
 
     def test_detail_json_has_bootstrap_ci(
