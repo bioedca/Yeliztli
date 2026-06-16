@@ -16,6 +16,7 @@ import "@nightingale-elements/nightingale-sequence"
 import "@nightingale-elements/nightingale-track"
 
 import type { ProteinDomain, ProteinFeature, GeneVariantSummary } from "@/types/gene-detail"
+import { getClinvarSignificanceHexColor } from "@/lib/clinvar-significance"
 
 /* ── Domain color palette (teal/blue medical theme) ─────────────── */
 
@@ -36,16 +37,10 @@ function getDomainColor(index: number): string {
 
 /* ── Variant color by ClinVar significance ─────────────────────── */
 
-function getVariantColor(significance: string | null): string {
-  if (!significance) return "#6B7280" // gray-500
-  const sig = significance.toLowerCase()
-  // Check "likely pathogenic" before "pathogenic" to avoid substring match
-  if (sig.includes("likely_pathogenic") || sig.includes("likely pathogenic")) return "#EA580C" // orange
-  if (sig.includes("pathogenic") && !sig.includes("benign")) return "#DC2626" // red
-  if (sig.includes("uncertain") || sig.includes("vus")) return "#D97706" // amber
-  if (sig.includes("benign")) return "#16A34A" // green
-  return "#6B7280" // gray
-}
+// Variant dot colour via the shared ClinVar tone→hex classifier, so multi-word
+// vocabulary (notably "Conflicting classifications of pathogenicity", which a raw
+// `.includes("pathogenic")` mis-coloured red — #799) maps to the same severity
+// the badges/legend use (conflicting → amber/VUS, never red).
 
 /* ── Parse protein position from HGVS notation ─────────────────── */
 
@@ -127,7 +122,7 @@ export default function NightingaleViewer({
           accession: v.rsid,
           type: "variant",
           tooltipContent: `${v.rsid}: ${v.hgvs_protein ?? "unknown"} (${v.clinvar_significance ?? "no ClinVar"})`,
-          color: getVariantColor(v.clinvar_significance),
+          color: getClinvarSignificanceHexColor(v.clinvar_significance),
           shape: "circle" as const,
           start: pos,
           end: pos,
@@ -256,7 +251,7 @@ export default function NightingaleViewer({
                 >
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: getVariantColor(v.clinvar_significance) }}
+                    style={{ backgroundColor: getClinvarSignificanceHexColor(v.clinvar_significance) }}
                   />
                   <span className="font-mono text-xs">{v.rsid}</span>
                   <span className="text-muted-foreground text-xs truncate">

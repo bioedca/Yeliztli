@@ -53,6 +53,16 @@ const TEXT_CLASS: Record<ClinvarSignificanceTone, string> = {
   neutral: "text-muted-foreground",
 }
 
+// Raw hex by tone, for SVG/canvas contexts that can't take a Tailwind class
+// (e.g. the Nightingale protein viewer). Same severity scale as the classes.
+const HEX_COLOR: Record<ClinvarSignificanceTone, string> = {
+  pathogenic: "#DC2626", // red-600
+  "likely-pathogenic": "#EA580C", // orange-600
+  benign: "#16A34A", // green-600
+  uncertain: "#D97706", // amber-600 (VUS / conflicting)
+  neutral: "#6B7280", // gray-500
+}
+
 function normalizeClinvarSignificance(significance: string | null | undefined): string {
   return (significance ?? "")
     .trim()
@@ -102,4 +112,10 @@ export function getClinvarSignificanceBadgeClass(
   significance: string | null | undefined,
 ): string {
   return getClinvarSignificanceCardConfig(significance).badge
+}
+
+export function getClinvarSignificanceHexColor(
+  significance: string | null | undefined,
+): string {
+  return HEX_COLOR[getClinvarSignificanceTone(significance)]
 }

@@ -7,6 +7,7 @@
 import { Loader2 } from "lucide-react"
 import type { QueryResultPage, QueryVariantRow } from "@/types/query-builder"
 import { formatNumber } from "@/lib/format"
+import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import ExportButton from "@/components/query-builder/ExportButton"
 
 /** Columns displayed in the results table. */
@@ -178,22 +179,14 @@ export default function QueryResultsTable({
 }
 
 function ClinvarBadge({ value }: { value: string }) {
-  const lower = value.toLowerCase()
-  const isPathogenic = lower.includes("pathogenic") && !lower.includes("benign")
-  const isBenign = lower.includes("benign")
-  const isVUS = lower.includes("uncertain")
-
+  // Route severity through the shared ClinVar tone classifier so multi-word
+  // vocabulary like "Conflicting classifications of pathogenicity" is not
+  // mis-coloured red by a raw `.includes("pathogenic")` substring test (#799).
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-        isPathogenic
-          ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
-          : isBenign
-            ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
-            : isVUS
-              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
-              : "bg-muted text-muted-foreground"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getClinvarSignificanceBadgeClass(
+        value,
+      )}`}
     >
       {value}
     </span>

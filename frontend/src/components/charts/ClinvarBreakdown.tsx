@@ -21,16 +21,22 @@ const SIGNIFICANCE_COLORS: Record<string, string> = {
   'Likely benign': '#14B8A6',                                // teal-500
   Benign: '#0D9488',                                         // teal-600
   'Benign/Likely benign': '#0D9488',                         // teal-600
-  'Conflicting interpretations of pathogenicity': '#8B5CF6', // violet-500
+  'Conflicting classifications of pathogenicity': '#8B5CF6', // violet-500 (current ClinVar wording, #799)
+  'Conflicting interpretations of pathogenicity': '#8B5CF6', // violet-500 (legacy ClinVar wording)
   'Drug response': '#3B82F6',                                // blue-500
   'Risk factor': '#F97316',                                  // orange-500
   other: '#94A3B8',                                          // slate-400
 }
 
 function getBarColor(significance: string): string {
-  // Check exact match first, then normalize
+  // Check exact match first, then normalize.
   if (SIGNIFICANCE_COLORS[significance]) return SIGNIFICANCE_COLORS[significance]
   const lower = significance.toLowerCase()
+  // "Conflicting classifications of pathogenicity" contains "pathogenic" but is an
+  // aggregate of disagreeing submissions, not a pathogenic call — keep it violet,
+  // never red (#799), and ahead of the pathogenic substring test.
+  if (lower.includes('conflicting'))
+    return SIGNIFICANCE_COLORS['Conflicting classifications of pathogenicity']
   if (lower.includes('pathogenic') && !lower.includes('benign'))
     return SIGNIFICANCE_COLORS.Pathogenic
   if (lower.includes('benign')) return SIGNIFICANCE_COLORS.Benign

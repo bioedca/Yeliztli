@@ -10,10 +10,17 @@ import type { ClinvarSignificanceCount } from '@/types/variants'
 
 // Mock react-plotly.js since it requires a browser canvas
 vi.mock('react-plotly.js', () => ({
-  default: ({ data, layout }: { data: Array<{ x?: number[]; y?: string[] }>; layout: { title?: { text?: string } } }) => (
+  default: ({
+    data,
+    layout,
+  }: {
+    data: Array<{ x?: number[]; y?: string[]; marker?: { color?: string[] } }>
+    layout: { title?: { text?: string } }
+  }) => (
     <div data-testid="plotly-chart" data-title={layout?.title?.text}>
       <span data-testid="plotly-labels">{data[0]?.y?.join(',')}</span>
       <span data-testid="plotly-values">{data[0]?.x?.join(',')}</span>
+      <span data-testid="plotly-colors">{data[0]?.marker?.color?.join(',')}</span>
     </div>
   ),
 }))
@@ -64,6 +71,22 @@ describe('ClinvarBreakdown', () => {
     ]
     render(<ClinvarBreakdown items={singleItem} total={3} />)
     expect(screen.getByTestId('plotly-chart')).toBeInTheDocument()
+  })
+
+  it('colours "Conflicting classifications of pathogenicity" violet, not red (#799)', () => {
+    const items: ClinvarSignificanceCount[] = [
+      { significance: 'Pathogenic', count: 5 },
+      { significance: 'Conflicting classifications of pathogenicity', count: 15 },
+    ]
+    render(<ClinvarBreakdown items={items} total={20} />)
+    const labels = (screen.getByTestId('plotly-labels').textContent ?? '').split(',')
+    const colors = (screen.getByTestId('plotly-colors').textContent ?? '').split(',')
+    const conflictingIdx = labels.indexOf('Conflicting classifications of pathogenicity')
+    expect(conflictingIdx).toBeGreaterThanOrEqual(0)
+    expect(colors[conflictingIdx]).toBe('#8B5CF6') // violet
+    expect(colors[conflictingIdx]).not.toBe('#DC2626') // not the red pathogenic bar
+    // Sanity — a genuine pathogenic bar is still red.
+    expect(colors[labels.indexOf('Pathogenic')]).toBe('#DC2626')
   })
 
   it('renders with many significance categories', () => {
