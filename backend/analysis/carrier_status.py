@@ -47,6 +47,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_significance import pathogenic_significance_filter
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.db.tables import annotated_variants, findings
 
@@ -189,9 +190,6 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 
 
 # ── P3-36: Carrier status analysis (het P/LP filtering) ──────────────────
-
-# ClinVar significance values considered pathogenic
-_PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
 
 # Genes whose array-derived calls are too unreliable to report as carrier
 # findings because a highly homologous pseudogene confounds genotyping. GBA1's
@@ -450,7 +448,7 @@ def extract_carrier_variants(
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
-                annotated_variants.c.clinvar_significance.in_(list(_PATHOGENIC_SIGNIFICANCE)),
+                pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
             )
             .order_by(annotated_variants.c.gene_symbol, annotated_variants.c.rsid)
         )

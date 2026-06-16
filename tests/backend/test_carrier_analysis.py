@@ -258,6 +258,53 @@ class TestExtractCarrierVariants:
         assert "rs75961395" not in rsids
         assert result.homozygous_plp_skipped == 1
 
+    def test_compound_pathogenic_primary_extracted_conflicting_excluded(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """#813: a CFTR het whose ClinVar significance is a compound form with a
+        Pathogenic *primary* token ("Pathogenic|drug response" — the real
+        rs77834169 3★ record) must produce a carrier finding (the exact-match set
+        silently dropped it → a missed CF carrier). A "Conflicting classifications
+        of pathogenicity" het stays excluded (#799 boundary). The full significance
+        string is preserved (not truncated)."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs77834169",
+                        "chrom": "7",
+                        "pos": 117171028,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Pathogenic|drug response",
+                        "clinvar_review_stars": 3,
+                        "clinvar_accession": "VCV000007109",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                    {
+                        "rsid": "rs999999001",
+                        "chrom": "7",
+                        "pos": 117172000,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Conflicting classifications of pathogenicity",
+                        "clinvar_review_stars": 1,
+                        "clinvar_accession": "VCV000000999",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                ],
+            )
+        result = extract_carrier_variants(panel, sample_engine)
+        by_rsid = {v.rsid: v for v in result.variants}
+        assert "rs77834169" in by_rsid  # compound Pathogenic primary → now found
+        assert "rs999999001" not in by_rsid  # conflicting stays excluded
+        assert by_rsid["rs77834169"].clinvar_significance == "Pathogenic|drug response"
+
     def test_hom_ref_pathogenic_excluded(
         self, panel: CarrierPanel, sample_engine: sa.Engine
     ) -> None:

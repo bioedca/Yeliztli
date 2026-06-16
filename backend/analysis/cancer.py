@@ -46,6 +46,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_significance import pathogenic_significance_filter
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.inheritance import (
@@ -192,9 +193,6 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 
 # ── P3-13: Cancer predisposition analysis ─────────────────────────────────
 
-# ClinVar significance values considered pathogenic
-_PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
-
 # Genes whose short-read / array-derived calls are too unreliable to report as
 # cancer predisposition findings because a highly homologous pseudogene confounds
 # localization. PMS2 exon 12-15 calls can originate from PMS2CL; require a
@@ -320,7 +318,7 @@ def extract_cancer_variants(
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
-                annotated_variants.c.clinvar_significance.in_(list(_PATHOGENIC_SIGNIFICANCE)),
+                pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
                 # Only surface variants the individual actually carries.
                 annotated_variants.c.zygosity.in_(list(CARRIED_ZYGOSITIES)),
             )
