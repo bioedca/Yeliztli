@@ -33,7 +33,7 @@ export interface APOEArrayReliability {
   pmids?: string[]
 }
 
-export interface APOESourceDiscrepancyCall {
+interface APOESourceDiscrepancyCall {
   source: string
   genotype: string
   implied_diplotype: string | null
@@ -49,7 +49,7 @@ export interface APOESourceDiscrepancy {
   note?: string
 }
 
-export interface APOEFindingDetail extends Record<string, unknown> {
+interface APOEFindingDetail extends Record<string, unknown> {
   array_reliability?: APOEArrayReliability
   source_discrepancies?: APOESourceDiscrepancy[]
 }
