@@ -159,6 +159,18 @@ def sample_with_findings(
             ),
             "pmid_citations": json.dumps(["11111111"]),
         },
+        {
+            # #963: a GATED-module finding. The APOE gate is unacknowledged by
+            # default (no apoe_gate row), so this must not leak through any
+            # variant-card endpoint until its opt-in gate is acknowledged.
+            "id": 7,
+            "module": "apoe",
+            "category": "alzheimers_risk",
+            "evidence_level": 3,
+            "gene_symbol": "APOE",
+            "finding_text": "APOE ε3/ε4 is associated with increased Alzheimer's risk",
+            "phenotype": "Alzheimer's disease risk",
+        },
     ]
     with sample_engine.begin() as conn:
         for f in seed_findings:
@@ -726,3 +738,92 @@ class TestVariantCardAPI:
                 json={"sample_id": 999, "finding_id": 1},
             )
         assert resp.status_code == 404
+
+
+# ── #963: disclosure-gate hardening of the variant-card endpoints ─────
+
+
+class TestDisclosureGate:
+    """A gated-module finding (APOE/Parkinson's/aneuploidy) must not leak via the
+    enumerable finding_id variant-card routes before its opt-in gate is
+    acknowledged — the un-hardened twin of the findings SVG-by-id gate (#963).
+
+    The gate lives in ``_load_single_finding`` so all three routes (PDF/PNG/HTML
+    preview) inherit it. Pre-ack it raises the same not-found error as a missing
+    id → 404 (no-leak posture); post-ack the card renders normally.
+    """
+
+    # The APOE finding seeded by sample_with_findings (gated, unacknowledged).
+    GATED_FINDING_ID = 7
+    NONGATED_FINDING_ID = 1  # the cancer/BRCA1 finding
+
+    def test_load_withholds_gated_finding_pre_ack(
+        self, sample_with_findings: tuple[sa.Engine, sa.Engine, Path]
+    ) -> None:
+        _ref, sample_engine, _dir = sample_with_findings
+        # No apoe_gate row → APOE is gated → load must refuse (same error as missing).
+        with pytest.raises(ValueError, match="not found"):
+            _load_single_finding(sample_engine, finding_id=self.GATED_FINDING_ID)
+
+    def test_load_allows_nongated_finding(
+        self, sample_with_findings: tuple[sa.Engine, sa.Engine, Path]
+    ) -> None:
+        _ref, sample_engine, _dir = sample_with_findings
+        result = _load_single_finding(sample_engine, finding_id=self.NONGATED_FINDING_ID)
+        assert result["module"] == "cancer"
+
+    def test_load_allows_gated_finding_after_ack(
+        self, sample_with_findings: tuple[sa.Engine, sa.Engine, Path]
+    ) -> None:
+        from datetime import UTC, datetime
+
+        from backend.db.tables import apoe_gate
+
+        _ref, sample_engine, _dir = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                apoe_gate.insert().values(acknowledged=True, acknowledged_at=datetime.now(UTC))
+            )
+        result = _load_single_finding(sample_engine, finding_id=self.GATED_FINDING_ID)
+        assert result["module"] == "apoe"
+
+    def test_pdf_endpoint_404s_gated_finding_pre_ack(self, card_client: TestClient) -> None:
+        resp = card_client.post(
+            "/api/reports/variant-card",
+            json={"sample_id": 1, "finding_id": self.GATED_FINDING_ID},
+        )
+        assert resp.status_code == 404
+
+    def test_png_endpoint_404s_gated_finding_pre_ack(self, card_client: TestClient) -> None:
+        resp = card_client.post(
+            "/api/reports/variant-card/png",
+            json={"sample_id": 1, "finding_id": self.GATED_FINDING_ID},
+        )
+        assert resp.status_code == 404
+
+    def test_preview_endpoint_404s_gated_finding_pre_ack(self, card_client: TestClient) -> None:
+        resp = card_client.post(
+            "/api/reports/variant-card/preview",
+            json={"sample_id": 1, "finding_id": self.GATED_FINDING_ID},
+        )
+        assert resp.status_code == 404
+
+    def test_preview_endpoint_renders_nongated_finding(self, card_client: TestClient) -> None:
+        # Sanity: the gate must not over-block a non-gated finding.
+        resp = card_client.post(
+            "/api/reports/variant-card/preview",
+            json={"sample_id": 1, "finding_id": self.NONGATED_FINDING_ID},
+        )
+        assert resp.status_code == 200
+
+    def test_preview_endpoint_renders_gated_finding_after_ack(
+        self, card_client: TestClient
+    ) -> None:
+        ack = card_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+        assert ack.status_code in (200, 204)
+        resp = card_client.post(
+            "/api/reports/variant-card/preview",
+            json={"sample_id": 1, "finding_id": self.GATED_FINDING_ID},
+        )
+        assert resp.status_code == 200
+        assert "APOE" in resp.text

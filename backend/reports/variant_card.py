@@ -27,6 +27,7 @@ import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
@@ -64,6 +65,16 @@ def _load_single_finding(
         row = conn.execute(stmt).fetchone()
 
     if row is None:
+        raise ValueError(f"Finding {finding_id} not found")
+
+    # Disclosure gate (#963): the variant-card endpoints take a small, enumerable
+    # finding_id, so without this check a gated module's shareable card (APOE
+    # ε4/Alzheimer's, Parkinson's, sex-aneuploidy) leaks before its opt-in gate is
+    # acknowledged — the un-hardened twin of the findings SVG-by-id gate
+    # (findings.py). Raise the SAME not-found error as a missing id so all three
+    # routes return 404: the no-leak posture must not confirm a gated finding
+    # exists pre-acknowledgment.
+    if row.module in gated_modules_to_hide(engine):
         raise ValueError(f"Finding {finding_id} not found")
 
     pmids_raw = row.pmid_citations
