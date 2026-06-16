@@ -9,6 +9,13 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Least-privilege default for every job's GITHUB_TOKEN. These jobs only gate a
+# tagged release by checking out and testing code; they neither publish the
+# release nor upload assets (bundle-release.yml owns that, with `contents:
+# write`), so read-only is sufficient.
+permissions:
+  contents: read
+
 jobs:
   # ── Lint ────────────────────────────────────────────────
   lint:

@@ -604,9 +604,13 @@ class TestDownloadClinvarVcf:
 
         cb.assert_called_once_with(4, 4)
 
-    def test_http_error_propagates_no_temp(self, tmp_path: Path):
-        """A non-retryable HTTP error propagates and leaves no partial .tmp."""
+    def test_http_error_preserves_partial_for_resume(self, tmp_path: Path):
+        """A failed download preserves the partial .tmp so the next run resumes
+        via Range (resumable=True) instead of re-downloading from zero (#756)."""
         dl_dir = tmp_path / "downloads"
+        dl_dir.mkdir(parents=True)
+        partial = dl_dir / "clinvar_GRCh37.vcf.gz.tmp"
+        partial.write_bytes(b"partial-from-prior-run")
         err = httpx.HTTPStatusError(
             "404", request=MagicMock(), response=MagicMock(status_code=404)
         )
@@ -617,8 +621,37 @@ class TestDownloadClinvarVcf:
         ):
             download_clinvar_vcf(dl_dir)
 
-        assert not (dl_dir / "clinvar_GRCh37.vcf.gz.tmp").exists()
+        # The downloader does not delete the partial on failure (preserve-for-resume).
+        assert partial.exists()
         assert not (dl_dir / "clinvar_GRCh37.vcf.gz").exists()
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """download_clinvar_vcf opts into cross-run resume + validator sidecar (#756)."""
+        from types import SimpleNamespace
+
+        dl_dir = tmp_path / "dl"
+        dl_dir.mkdir()
+        tmp_file = dl_dir / "clinvar_GRCh37.vcf.gz.tmp"
+        sidecar = dl_dir / "clinvar_GRCh37.vcf.gz.tmp.validator"
+        tmp_file.write_bytes(b"partial")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+        captured: dict = {}
+
+        def fake(url, tmp_path_arg, **kwargs):
+            captured.update(kwargs)
+            tmp_path_arg.write_bytes(b"done")
+            return SimpleNamespace(total_bytes=4)
+
+        monkeypatch.setattr("backend.annotation.clinvar.stream_download", fake)
+        dest = download_clinvar_vcf(dl_dir)
+
+        assert dest.read_bytes() == b"done"
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        assert not sidecar.exists()  # cleared on success
 
 
 # ═══════════════════════════════════════════════════════════════════════

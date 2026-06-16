@@ -40,9 +40,13 @@ import sqlalchemy as sa
 
 from backend.analysis.run_all import run_all_analyses
 from backend.annotation.alphamissense import create_alphamissense_table
-from backend.annotation.dbnsfp import create_dbnsfp_tables, load_dbnsfp_from_tsv
+from backend.annotation.dbnsfp import (
+    _create_dbnsfp_indexes,
+    _create_dbnsfp_table,
+    load_dbnsfp_from_tsv,
+)
 from backend.annotation.engine import run_annotation
-from backend.annotation.gnomad import create_gnomad_tables
+from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -95,7 +99,7 @@ DBNSFP_REAL_COLUMNS: tuple[str, ...] = (
     "PrimateAI_score",
 )
 
-# gnomad_af column order (matches create_gnomad_tables / the e2e seeder).
+# gnomad_af column order (matches _create_gnomad_table / the e2e seeder).
 _GNOMAD_COLUMNS: tuple[str, ...] = (
     "rsid",
     "chrom",
@@ -250,7 +254,8 @@ def _build_vep_db(db_path: Path, vep: list[dict]) -> None:
 def _build_gnomad_db(db_path: Path, gnomad: list[dict]) -> None:
     engine = sa.create_engine(f"sqlite:///{db_path}")
     try:
-        create_gnomad_tables(engine)
+        _create_gnomad_table(engine)
+        _create_gnomad_indexes(engine)
         with engine.begin() as conn:
             for row in gnomad:
                 af = row.get("af_global", 0.0)
@@ -297,7 +302,8 @@ def write_dbnsfp_tsv(rows: list[dict], path: Path) -> None:
 def _build_dbnsfp_db(db_path: Path, dbnsfp_rows: list[dict]) -> None:
     engine = sa.create_engine(f"sqlite:///{db_path}")
     try:
-        create_dbnsfp_tables(engine)
+        _create_dbnsfp_table(engine)
+        _create_dbnsfp_indexes(engine)
         if dbnsfp_rows:
             tsv_path = db_path.parent / "dbnsfp_seed.tsv"
             write_dbnsfp_tsv(dbnsfp_rows, tsv_path)

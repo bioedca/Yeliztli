@@ -82,7 +82,7 @@ function PathwayNode({
       }}
       tabIndex={0}
       role="button"
-      aria-label={`${layout.label.replace("\n", " ")} — ${level}`}
+      aria-label={`${lines.join(" ")} — ${level}`}
     >
       <rect
         x={layout.x - NODE_W / 2}

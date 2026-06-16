@@ -29,9 +29,9 @@ from backend.analysis.ancestry import (
     HaplogroupResult,
     HaplogroupSNP,
     HaplogroupTraversalStep,
-    _check_node_match,
     _classify_node_match,
     _collect_rsids,
+    _haplogroup_confidence,
     _parse_tree_node,
     _tree_walk,
     assign_haplogroups,
@@ -159,6 +159,30 @@ _R1B1A_GENOTYPES = [
     {"rsid": "rs1000154", "chrom": "Y", "pos": 39970128, "genotype": "GG"},
 ]
 
+# Issue #660: a CT/M168+ male whose rs2032597 *is typed* — as the ancestral
+# allele A that every non-A man carries. Pre-fix, the A node encoded its derived
+# state as "A" (the dbSNP/Ensembl ancestral allele; ancestral_allele=A, alt=C), so
+# this man false-matched haplogroup A and the greedy walk drove him to the
+# basal-African A1b — a wrong paternal-lineage finding for the global majority of
+# men. Post-fix (A/A1 derived="C") the ancestral A now *conflicts* with the A node,
+# blocking that branch, so the man resolves into his real CT clade. Routes
+# Y-Adam → CT → C → C2.
+_CT_M168_GENOTYPES = [
+    # The bug trigger: ancestral allele A at the A-clade marker. (Diploid notation
+    # matches the other fixtures; the tree-walk's substring match treats "AA" and
+    # haploid "A" identically.)
+    {"rsid": "rs2032597", "chrom": "Y", "pos": 2832640, "genotype": "AA"},
+    # CT (M168 + rs13304168)
+    {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "TT"},
+    {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "GG"},
+    # C
+    {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "CC"},
+    {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "CC"},
+    {"rsid": "rs17250625", "chrom": "Y", "pos": 8459804, "genotype": "AA"},
+    # C2
+    {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "TT"},
+]
+
 
 def _seed_mt_h1a(engine: sa.Engine) -> None:
     """Seed H1a mtDNA genotypes into raw_variants."""
@@ -267,8 +291,8 @@ class TestParseTreeNode:
 # ── SNP matching tests ──────────────────────────────────────────────────
 
 
-class TestCheckNodeMatch:
-    """Test defining SNP matching logic."""
+class TestClassifyNodeMatchPresence:
+    """Test defining-SNP present/total counts from _classify_node_match."""
 
     def test_all_match(self) -> None:
         node = HaplogroupNode(
@@ -280,7 +304,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AA", "rs2": "GG"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 2
         assert total == 2
 
@@ -294,7 +318,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AA", "rs2": "TT"}  # rs2 doesn't have G
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 1
         assert total == 2
 
@@ -305,7 +329,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {}  # no data
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 0
         assert total == 1
 
@@ -316,7 +340,7 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "--"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 0
         assert total == 1
 
@@ -328,13 +352,13 @@ class TestCheckNodeMatch:
             children=[],
         )
         genotypes = {"rs1": "AG"}
-        present, total = _check_node_match(node, genotypes)
+        present, _conflicting, total = _classify_node_match(node, genotypes)
         assert present == 1
         assert total == 1
 
     def test_empty_defining_snps(self) -> None:
         node = HaplogroupNode(haplogroup="root", defining_snps=[], children=[])
-        present, total = _check_node_match(node, {})
+        present, _conflicting, total = _classify_node_match(node, {})
         assert present == 0
         assert total == 0
 
@@ -638,15 +662,27 @@ class TestAssignHaplogroups:
     def test_confidence_calculation(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
     ) -> None:
-        """T3-33: Confidence equals defining_snps_present / defining_snps_total."""
+        """T3-33: confidence = defining_snps_present / defining_snps_total, pinned
+        to INDEPENDENTLY-derived literals (#640).
+
+        The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
+        HV → H → H1 → H1a, with 3 + 5 + 2 + 1 + 1 + 2 + 1 + 2 = 17 defining SNPs,
+        all 17 derived in the fixture — so the expected present/total/confidence
+        are knowable offline (17 / 17 → 1.0). Asserting those literals, rather
+        than recomputing from the result's own ``defining_snps_present`` /
+        ``defining_snps_total`` (the old self-derivation tautology), means a
+        present/total miscount (e.g. an #498-class tree-walk counting a
+        conflicting/ancestral marker as derived) or a changed confidence formula
+        now fails here instead of shipping green. The formula itself is pinned
+        against a non-trivial ratio in :class:`TestHaplogroupConfidence`."""
         _seed_mt_h1a(sample_engine)
         results = assign_haplogroups(bundle, sample_engine)
 
         mt = results[0]
-        expected_confidence = mt.defining_snps_present / mt.defining_snps_total
-        assert mt.confidence == round(expected_confidence, 4)
-        assert mt.defining_snps_present > 0
-        assert mt.defining_snps_total > 0
+        assert mt.haplogroup == "H1a"
+        assert mt.defining_snps_present == 17
+        assert mt.defining_snps_total == 17
+        assert mt.confidence == 1.0
 
     def test_traversal_path_populated(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
@@ -670,6 +706,112 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.haplogroup == "mt-MRCA"
         assert len(mt.traversal_path) == 0
+
+
+# ── Y A-branch polarity / placement regression (#660) ────────────────────
+
+
+def _find_y_node(node: HaplogroupNode, haplogroup: str) -> HaplogroupNode | None:
+    """Depth-first search for a node by haplogroup name."""
+    if node.haplogroup == haplogroup:
+        return node
+    for child in node.children:
+        found = _find_y_node(child, haplogroup)
+        if found is not None:
+            return found
+    return None
+
+
+class TestYABranchPolarity:
+    """Regression for #660: a CT/M168+ male must not be mis-assigned to A1b.
+
+    The proximate cause was a mis-polarized A-clade marker: ``rs2032597`` is
+    ``ref/ancestral=A``, ``alt/derived=C`` (Ensembl: ancestral_allele=A; SPDI
+    NC_000024.10:…:A:C), but the bundle encoded the A/A1 nodes' derived state as
+    the *ancestral* allele ``A``. Because ``A`` is the common state in every
+    non-A lineage, every non-A man false-matched haplogroup A, and M168
+    (``rs2032652``, a CT-defining marker) erroneously listed under A1b let the
+    walk reach the basal-African A1b. These tests pin all three fixes.
+    """
+
+    def test_ct_m168_male_resolves_into_ct_not_a_branch(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """End-to-end: a CT/M168+ male with rs2032597 typed as the ancestral A
+        resolves into the CT subtree (its real clade), never the A branch."""
+        rows = _CT_M168_GENOTYPES + _Y_TYPED_PADDING + _NONPAR_X_HOM_GENOTYPES
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+        y = next(r for r in results if r.tree_type == "Y")
+        path = [step.haplogroup for step in y.traversal_path]
+
+        # The bug surfaced basal-African A1b (path A → A1 → A1b); the fix keeps
+        # the walk in the man's true CT clade.
+        assert path[0] == "CT", f"expected CT branch, walked into {path!r}"
+        assert not ({"A", "A0", "A1", "A1a", "A1b", "A1b1"} & set(path)), (
+            f"non-A man mis-routed through the A branch: {path!r}"
+        )
+        assert y.haplogroup not in {"A", "A0", "A1", "A1a", "A1b", "A1b1"}
+
+    def test_a_node_rs2032597_polarity_in_real_bundle(self, bundle: HaplogroupBundle) -> None:
+        """The A/A1 nodes' rs2032597 derived allele is C (alt), so the ancestral
+        A is a *conflict* (evidence against A), not a match."""
+        for name in ("A", "A1"):
+            node = _find_y_node(bundle.y_tree, name)
+            assert node is not None, f"{name} node missing from bundle"
+            snp = next(s for s in node.defining_snps if s.rsid == "rs2032597")
+            assert snp.allele == "C", f"{name} rs2032597 derived allele must be C (alt)"
+
+            # Ancestral A → conflicting; derived C → present.
+            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "A"})
+            assert (present, conflicting) == (0, 1)
+            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "C"})
+            assert (present, conflicting) == (1, 0)
+
+    def test_m168_not_an_a1b_defining_marker(self, bundle: HaplogroupBundle) -> None:
+        """M168 (rs2032652) defines CT, the sister clade of A — it must not appear
+        under A1b (where it forced a conflict for real A1b men and let mis-routed
+        non-A men reach A1b). It remains a defining marker of CT."""
+        a1b = _find_y_node(bundle.y_tree, "A1b")
+        assert a1b is not None
+        assert "rs2032652" not in {s.rsid for s in a1b.defining_snps}
+
+        ct = _find_y_node(bundle.y_tree, "CT")
+        assert ct is not None
+        assert "rs2032652" in {s.rsid for s in ct.defining_snps}
+
+
+# ── Confidence formula unit tests (#640) ─────────────────────────────────
+
+
+class TestHaplogroupConfidence:
+    """Pin the ``_haplogroup_confidence`` formula to literals (#640).
+
+    The integration fixture happens to be a full match (17 / 17 → 1.0), a ratio
+    too trivial to distinguish ``present / total`` from alternatives on its own.
+    These cases pin the formula against a NON-trivial ratio (16 / 17) and the
+    zero-denominator guard, so a Jaccard-style rewrite — ``present / (total +
+    present)`` — or any other formula change fails here. Shared by both the mt
+    and Y tree-walks, so this is the single place the arithmetic is locked.
+    """
+
+    def test_partial_path_ratio_is_present_over_total(self) -> None:
+        # 16 / 17 = 0.94117… → 0.9412 rounded. A Jaccard present/(total+present)
+        # would be 16 / 33 = 0.4848, and present/(total) inverted (total/present)
+        # would be 17 / 16 = 1.0625 — neither rounds to 0.9412.
+        assert round(_haplogroup_confidence(16, 17), 4) == 0.9412
+
+    def test_full_match_is_one(self) -> None:
+        assert _haplogroup_confidence(17, 17) == 1.0
+
+    def test_half_match(self) -> None:
+        assert _haplogroup_confidence(1, 2) == 0.5
+
+    def test_zero_total_guards_division(self) -> None:
+        # Root / empty path: no defining SNP evaluated → 0.0, not ZeroDivisionError.
+        assert _haplogroup_confidence(0, 0) == 0.0
 
 
 # ── Findings storage tests ──────────────────────────────────────────────

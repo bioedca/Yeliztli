@@ -50,12 +50,30 @@ logger = structlog.get_logger(__name__)
 # Default streaming chunk size (matches the legacy per-DB loops).
 DEFAULT_CHUNK_SIZE = 65_536  # 64 KiB
 
-# Default timeouts. ``total`` is generous because these are multi-GB files;
-# ``connect`` / ``read`` are tight enough to detect a dead socket quickly so a
-# stall becomes a retryable ReadTimeout instead of hanging for an hour.
+# Default timeouts. NOTE: httpx has **no** total/overall request timeout — only
+# ``connect`` / ``read`` / ``write`` / ``pool`` (the first positional arg is just
+# the default for any unset one). So ``DEFAULT_TOTAL_TIMEOUT`` only sets the
+# ``write`` / ``pool`` defaults; it does NOT bound how long a whole transfer may
+# take. ``read`` bounds the gap between chunks — it catches a *fully dead* socket
+# (no bytes for ``read`` seconds) but NOT a server that dribbles a few bytes
+# under the read timeout indefinitely. The minimum-throughput watchdog below is
+# what bounds that throttled-but-alive case (see ``min_throughput_bps``).
 DEFAULT_TOTAL_TIMEOUT = 3600.0
 DEFAULT_CONNECT_TIMEOUT = 30.0
 DEFAULT_READ_TIMEOUT = 120.0
+
+# Minimum-throughput watchdog. A heavily-throttled transfer that keeps delivering
+# a trickle (one small chunk every < ``read`` seconds) never trips the read
+# timeout and crawls forever — the observed AlphaMissense failure, where the
+# transfer effectively stalled and only a SIGTERM stopped it. If sustained
+# throughput over a ``DEFAULT_STALL_WINDOW``-second window falls below
+# ``DEFAULT_MIN_THROUGHPUT_BPS``, the attempt is aborted and retried (a fresh
+# connection often escapes a throttle); a persistent throttle then fails fast
+# via the no-progress budget instead of hanging. The floor is deliberately low
+# (~1 KiB/s) so a genuinely slow-but-real link is left alone. Pass
+# ``min_throughput_bps=None`` to disable.
+DEFAULT_MIN_THROUGHPUT_BPS = 1024.0
+DEFAULT_STALL_WINDOW = 60.0
 
 # Consecutive *no-progress* attempts tolerated before giving up.
 DEFAULT_MAX_RETRIES = 5
@@ -98,11 +116,27 @@ class _RetryableStatusError(Exception):
         self.status_code = status_code
 
 
+class _SlowTransferError(Exception):
+    """Internal: throughput fell below the floor — abort this attempt and retry.
+
+    Retryable (a fresh connection often escapes a throttle), but deliberately
+    *not* counted as forward progress by the retry budget even though the window
+    appended bytes — otherwise a server that always throttles would reset the
+    no-progress counter every window and the download would crawl indefinitely.
+    """
+
+    def __init__(self, rate_bps: float, floor_bps: float) -> None:
+        super().__init__(f"throughput {rate_bps:,.0f} B/s below floor {floor_bps:,.0f} B/s")
+        self.rate_bps = rate_bps
+        self.floor_bps = floor_bps
+
+
 # Exceptions that trigger a backoff-and-resume retry (flattened for ``except``).
 _RETRY_TRIGGERS: tuple[type[BaseException], ...] = (
     *RETRYABLE_EXCEPTIONS,
     _RetryableStatusError,
     IncompleteDownloadError,
+    _SlowTransferError,
 )
 
 
@@ -121,6 +155,10 @@ class DownloadOutcome:
     """Number of HTTP attempts made (>1 means at least one resume happened)."""
     resumed: bool = False
     """Whether any ``Range`` resume / restart occurred."""
+    validator: str | None = None
+    """The ETag / Last-Modified the transfer settled on (for a durable ``If-Range``
+    on a later cross-process resume). On a 200 restart this is the *new* resource's
+    validator, so persisting it keeps subsequent resumes honest about rotations."""
 
 
 def compute_backoff(
@@ -159,6 +197,58 @@ def _validator(response: httpx.Response) -> str | None:
     return response.headers.get("ETag") or response.headers.get("Last-Modified")
 
 
+def _validator_sidecar_path(tmp_path: Path) -> Path:
+    """Path of the sidecar that persists a partial's ``If-Range`` validator."""
+    return tmp_path.with_name(tmp_path.name + ".validator")
+
+
+def read_validator_sidecar(tmp_path: Path) -> str | None:
+    """Recover the persisted ``If-Range`` validator for a resumable partial.
+
+    ``stream_download`` itself has no cross-run storage: a caller that wants a
+    partial ``.tmp`` to survive a process restart (``resumable=True``) must also
+    persist the validator the partial was associated with, so the next run can
+    send ``If-Range`` and detect a rotated upstream instead of splicing new
+    bytes onto a stale prefix. This reads that sidecar.
+
+    Returns the stored ETag/Last-Modified only when **both** the sidecar and the
+    ``tmp_path`` partial exist — a sidecar with no partial is meaningless (the
+    next download starts at offset 0 and sends no ``If-Range``), so it is
+    ignored rather than seeding a stale validator. Any read error degrades to
+    ``None`` (a fresh, validator-less attempt), never a crash.
+    """
+    sidecar = _validator_sidecar_path(tmp_path)
+    try:
+        if not (tmp_path.exists() and sidecar.exists()):
+            return None
+        return sidecar.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def write_validator_sidecar(tmp_path: Path, validator: str) -> None:
+    """Persist a partial's ``If-Range`` validator next to its ``.tmp``.
+
+    Pass as ``on_validator`` to :func:`stream_download`: it fires the moment the
+    validator is (re)captured, so a transfer that dies mid-stream still leaves
+    the token on disk for the next process to validate its resume against.
+    Persisting the validator must never break a live download, so any write
+    error is logged and swallowed.
+    """
+    try:
+        _validator_sidecar_path(tmp_path).write_text(validator, encoding="utf-8")
+    except OSError as exc:
+        logger.warning("validator_sidecar_write_failed", path=str(tmp_path), error=str(exc))
+
+
+def clear_validator_sidecar(tmp_path: Path) -> None:
+    """Remove a partial's validator sidecar (after the ``.tmp`` has been finalized)."""
+    try:
+        _validator_sidecar_path(tmp_path).unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("validator_sidecar_clear_failed", path=str(tmp_path), error=str(exc))
+
+
 def stream_download(
     url: str,
     tmp_path: Path,
@@ -171,10 +261,15 @@ def stream_download(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     max_retries: int = DEFAULT_MAX_RETRIES,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    min_throughput_bps: float | None = DEFAULT_MIN_THROUGHPUT_BPS,
+    stall_window: float = DEFAULT_STALL_WINDOW,
     extra_headers: Mapping[str, str] | None = None,
     resumable: bool = False,
+    validator: str | None = None,
+    on_validator: Callable[[str], None] | None = None,
     client_factory: Callable[[], httpx.Client] | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
 ) -> DownloadOutcome:
     """Stream ``url`` to ``tmp_path`` with retry + ``Range`` resume.
 
@@ -201,17 +296,40 @@ def stream_download(
             true bytes-on-disk, which is what resume and checkpointing rely on.
         on_chunk: Optional lighter hook called with ``cumulative_bytes`` after
             each chunk (used by :class:`DownloadManager` for DB checkpointing).
-        timeout: Total per-request timeout (seconds).
+        timeout: Default for httpx's ``write`` / ``pool`` timeouts (seconds).
+            NOT an overall transfer cap — httpx has no total timeout, so a slow
+            transfer is bounded by ``read_timeout`` (a fully dead socket) and the
+            ``min_throughput_bps`` watchdog (a throttle), not by this value.
         connect_timeout: Connect timeout (seconds).
-        read_timeout: Per-read timeout (seconds) — bounds a stalled socket.
+        read_timeout: Per-read timeout (seconds) — bounds a *fully stalled*
+            socket (no bytes at all for this long), not a slow trickle.
         chunk_size: Streaming chunk size (bytes).
         max_retries: Consecutive no-progress attempts tolerated before failing.
+            A throttle abort counts as no-progress, so a persistent throttle
+            fails after ~``max_retries`` windows instead of crawling.
         max_attempts: Absolute attempt ceiling regardless of progress.
+        min_throughput_bps: Floor (bytes/sec) on sustained throughput over a
+            ``stall_window``. Below it, the attempt is aborted and retried (a
+            fresh connection often escapes a throttle). ``None`` disables the
+            watchdog. Catches the throttled-but-alive case the read timeout
+            can't (a trickle that keeps the socket technically alive).
+        stall_window: Window (seconds) over which throughput is measured for the
+            ``min_throughput_bps`` watchdog.
         extra_headers: Extra request headers (merged; ``Range`` / ``If-Range`` /
             ``Accept-Encoding`` are managed internally).
+        validator: A previously-captured ``If-Range`` validator (ETag /
+            Last-Modified) to seed a cross-process resume, so the first ``Range``
+            request is guarded against an upstream that rotated since the partial
+            was written. Returned (possibly re-captured) on the outcome.
+        on_validator: Called with the validator the moment it is first captured
+            (or re-captured after a 200 restart), so the caller can persist it
+            mid-transfer — an interrupted download that never returns is exactly
+            the case a later cross-process resume needs the validator for.
         client_factory: Optional factory returning an ``httpx.Client`` (for
             tests / custom transports).  Defaults to a sensible client.
         sleep: Injectable sleep (tests pass a no-op to avoid real backoff waits).
+        monotonic: Injectable monotonic clock (tests drive it to simulate a
+            throttle deterministically; defaults to :func:`time.monotonic`).
 
     Returns:
         :class:`DownloadOutcome` describing the completed transfer.
@@ -236,7 +354,11 @@ def stream_download(
 
     expected_total: int | None = None
     first_headers: Mapping[str, str] | None = None
-    validator: str | None = None  # ETag / Last-Modified for If-Range
+    # ``validator`` is seeded from the param: on a cross-process resume the caller
+    # passes the ETag/Last-Modified it persisted, so the FIRST Range request can
+    # carry ``If-Range`` and the server forces a clean 200 restart if the upstream
+    # rotated (instead of splicing new bytes onto a stale partial). A 200 below
+    # re-captures the current validator; a 206 only learns one if still unset.
     no_progress_failures = 0
     attempt = 0
     resumed = False
@@ -280,6 +402,7 @@ def stream_download(
                                 headers=first_headers,
                                 attempts=attempt,
                                 resumed=True,
+                                validator=validator,
                             )
                         # Bogus/oversized partial — truncate, restart next attempt.
                         tmp_path.unlink(missing_ok=True)
@@ -301,6 +424,8 @@ def stream_download(
                             first_headers = response.headers
                         if validator is None:
                             validator = _validator(response)
+                            if on_validator is not None and validator is not None:
+                                on_validator(validator)
                     elif status == 200:
                         # Fresh body, or server ignored Range (resource changed /
                         # no Range support) — restart from scratch.
@@ -317,7 +442,14 @@ def stream_download(
                         # we must adopt the new version's validator or every later
                         # resume would mismatch and force yet another full restart.
                         first_headers = response.headers
-                        validator = _validator(response)
+                        new_validator = _validator(response)
+                        if (
+                            on_validator is not None
+                            and new_validator is not None
+                            and new_validator != validator
+                        ):
+                            on_validator(new_validator)
+                        validator = new_validator
                     elif status in RETRYABLE_STATUS_CODES:
                         raise _RetryableStatusError(status)
                     else:
@@ -327,6 +459,17 @@ def stream_download(
 
                     # ── Stream the body ──
                     written = offset if mode == "ab" else 0
+                    # Minimum-throughput watchdog state: bytes/time at the start of
+                    # the current measurement window. ``read_timeout`` only catches
+                    # a socket that goes fully silent; this catches one that keeps
+                    # dribbling below the floor (the throttle that hangs forever).
+                    watchdog_on = (
+                        min_throughput_bps is not None
+                        and min_throughput_bps > 0
+                        and stall_window > 0
+                    )
+                    win_bytes = written
+                    win_start = monotonic() if watchdog_on else 0.0
                     with open(tmp_path, mode) as f:
                         for chunk in response.iter_raw(chunk_size):
                             f.write(chunk)
@@ -335,6 +478,15 @@ def stream_download(
                                 progress_callback(written, expected_total)
                             if on_chunk is not None:
                                 on_chunk(written)
+                            if watchdog_on:
+                                elapsed = monotonic() - win_start
+                                if elapsed >= stall_window:
+                                    rate = (written - win_bytes) / elapsed if elapsed > 0 else 0.0
+                                    if rate < min_throughput_bps:
+                                        raise _SlowTransferError(rate, min_throughput_bps)
+                                    # Window met the floor — start a fresh window.
+                                    win_bytes = written
+                                    win_start = monotonic()
 
                 # ── Stream ended cleanly — verify completeness ──
                 final_size = tmp_path.stat().st_size if tmp_path.exists() else 0
@@ -350,6 +502,7 @@ def stream_download(
                     headers=first_headers,
                     attempts=attempt,
                     resumed=resumed or attempt > 1,
+                    validator=validator,
                 )
 
             except _RETRY_TRIGGERS as exc:
@@ -357,7 +510,17 @@ def stream_download(
                 # Real progress = the file grew beyond where this attempt started.
                 # (A 200 restart that re-fetches the same prefix is NOT progress,
                 # so a Range-ignoring server that keeps dropping fails fast.)
-                made_progress = new_offset > attempt_start_offset
+                #
+                # A throttle abort is the exception: it DID append a (sub-floor)
+                # window of bytes, but counting that as progress would let a
+                # server that always throttles reset the budget every window and
+                # crawl forever. Treat it as no-progress so a persistent throttle
+                # exhausts ``max_retries`` and fails fast — while an *intermittent*
+                # throttle is still rescued, because any later attempt that makes
+                # genuine forward progress resets the counter.
+                made_progress = new_offset > attempt_start_offset and not isinstance(
+                    exc, _SlowTransferError
+                )
                 no_progress_failures = 0 if made_progress else no_progress_failures + 1
                 resumed = True
 

@@ -32,7 +32,12 @@ import sqlalchemy as sa
 import structlog
 
 from backend.annotation.bulk_load import bulk_write_connection, execute_write, insert_batch
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -205,7 +210,13 @@ def load_alphamissense_from_tsv(tsv_path: Path, engine: sa.Engine) -> AlphaMisse
 
 
 def load_alphamissense_from_csv(csv_path: Path, engine: sa.Engine) -> AlphaMissenseLoadStats:
-    """Load a CSV seed (chrom,pos,ref,alt,am_pathogenicity,am_class) — for fixtures/tests."""
+    """Seed the alphamissense table from a small CSV fixture — TEST SUPPORT ONLY.
+
+    CSV (chrom,pos,ref,alt,am_pathogenicity,am_class) is **not** a production or
+    build input format: production loads AlphaMissense from its native TSV via
+    :func:`load_alphamissense_from_tsv` (``download_and_load_alphamissense``).
+    Used only by tests/fixtures.
+    """
     import csv
 
     create_alphamissense_table(engine)
@@ -252,10 +263,19 @@ def download_alphamissense(
     dest_path = dest_dir / "AlphaMissense_hg19.tsv.gz"
     tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
     logger.info("alphamissense_download_start", url=url)
+    # Already resumable; add validator-sidecar persistence so a cross-run resume
+    # validates the partial (If-Range) instead of risking a stale splice.
     stream_download(
-        url, tmp_path, progress_callback=progress_callback, timeout=timeout, resumable=True
+        url,
+        tmp_path,
+        progress_callback=progress_callback,
+        timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
     tmp_path.rename(dest_path)
+    clear_validator_sidecar(tmp_path)
     return dest_path
 
 

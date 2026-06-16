@@ -99,6 +99,17 @@ function GaugeSVG({
 export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
 
+  // Build the "(ancestry, n=…)" source detail conditionally. Shared adapters that
+  // lack these fields (FH/eBMD via toGaugePrs) pass source_ancestry="" and
+  // sample_size=0, which previously rendered a broken "(, n=0)" footer — a stray
+  // comma plus a false "0 samples" claim. Include each part only when present;
+  // drop the parenthetical entirely when neither is. (#589)
+  const sourceDetailParts = [
+    prs.source_ancestry || null,
+    prs.sample_size > 0 ? `n=${prs.sample_size.toLocaleString()}` : null,
+  ].filter((part): part is string => part !== null)
+  const sourceDetail = sourceDetailParts.length > 0 ? ` (${sourceDetailParts.join(", ")})` : ""
+
   return (
     <article
       className={cn(
@@ -184,7 +195,8 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
       {/* Source study */}
       <div className="mt-2 pt-2 border-t border-border/50">
         <p className="text-xs text-muted-foreground">
-          Source: {prs.source_study} ({prs.source_ancestry}, n={prs.sample_size.toLocaleString()})
+          Source: {prs.source_study}
+          {sourceDetail}
         </p>
       </div>
 

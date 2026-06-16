@@ -94,6 +94,35 @@ class TestScreen:
         assert r.x_evaluable and r.y_evaluable
         assert r.x_nonpar_het == 0
 
+    def test_normal_male_xhet_noise_no_signal(self, sample_engine: sa.Engine) -> None:
+        """issue #633 — a normal 46,XY male carries a few non-PAR chrX het calls as
+        genotyping noise (the real AncestryDNA male in the issue: 91 het / 27411
+        typed ≈ 0.33%). His X-het *rate* is far below the diploid-X cutoff, so the
+        screen must report NO_SIGNAL. Under the old ``>= 2`` count threshold this
+        same sample (5 het calls) falsely screened as possible_xxy."""
+        _seed(sample_engine, _x_probes(5, 500) + _y_probes(60))
+        r = screen_aneuploidy(sample_engine)
+        assert r.outcome == NO_SIGNAL
+        assert r.x_evaluable and r.y_evaluable
+        assert r.x_nonpar_het == 5  # noise present (>2), but the rate is ~0.01
+
+    def test_two_x_decided_on_rate_not_count(self, sample_engine: sa.Engine) -> None:
+        """Even a sizable absolute het count stays NO_SIGNAL when the *rate* is
+        below the diploid-X cutoff — confirming the decision is rate-based, not a
+        count. Here 20 het / 220 typed ≈ 9.1% < 15%, with chrY present."""
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(60))
+        r = screen_aneuploidy(sample_engine)
+        assert r.outcome == NO_SIGNAL
+        assert r.x_nonpar_het == 20
+
+    def test_diploid_rate_xhet_with_y_is_possible_xxy(self, sample_engine: sa.Engine) -> None:
+        """A female-level X-het rate (above the diploid-X cutoff) co-occurring with
+        a present chrY is the XXY signature → possible_xxy. 40 het / 160 typed =
+        25%."""
+        _seed(sample_engine, _x_probes(40, 120) + _y_probes(60))
+        r = screen_aneuploidy(sample_engine)
+        assert r.outcome == POSSIBLE_XXY
+
     def test_single_stray_y_probe_is_indeterminate(self, sample_engine: sa.Engine) -> None:
         # The golden-fixture shape: XX-like X het + ONE Y probe → must NOT call XXY.
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(1))

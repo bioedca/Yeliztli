@@ -1,7 +1,7 @@
 /** Types for the query builder UI (P4-02). */
 
 /** A single rule from react-querybuilder. */
-export interface RuleModel {
+interface RuleModel {
   field: string
   operator: string
   value?: unknown
@@ -13,15 +13,6 @@ export interface RuleGroupModel {
   combinator: string
   rules: Array<RuleGroupModel | RuleModel>
   not?: boolean
-}
-
-/** POST /api/query request body. */
-export interface QueryRequest {
-  sample_id: number
-  filter: RuleGroupModel
-  cursor_chrom?: string | null
-  cursor_pos?: number | null
-  limit?: number
 }
 
 /** Single variant row in query results. */
@@ -108,31 +99,10 @@ export type QueryExportFormat = "vcf" | "tsv" | "json" | "csv"
 /** Supported export formats for SQL console results (no VCF). */
 export type SqlExportFormat = "tsv" | "json" | "csv"
 
-/** POST /api/export/query request body. */
-export interface ExportQueryRequest {
-  sample_id: number
-  filter: RuleGroupModel
-  format: QueryExportFormat
-}
-
-/** POST /api/export/sql request body. */
-export interface ExportSqlRequest {
-  sample_id: number
-  sql: string
-  format: SqlExportFormat
-}
-
 // ── SQL Console types (P4-04) ────────────────────────────────────────
 
-/** POST /api/query/sql request body. */
-export interface SqlRequest {
-  sample_id: number
-  sql: string
-  limit?: number
-}
-
 /** Column metadata returned from SQL console. */
-export interface SqlResultColumn {
+interface SqlResultColumn {
   name: string
   type: string | null
 }

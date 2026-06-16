@@ -273,6 +273,68 @@ describe("AdmixtureBar", () => {
     expect(traces).toHaveLength(1)
     expect(traces[0].name).toBe("European")
   })
+
+  // ── #631: narrow-segment labels must not be forced inside (rotated/clipped) ──
+
+  it("suppresses in-bar labels on narrow segments but keeps them on wide ones", () => {
+    // Realistic admixed profile from the issue: four wide ~23.5% slices plus two
+    // small components (MID 4.2%, AMR 1.8%) that previously rendered as illegible
+    // rotated/clipped vertical text.
+    render(
+      <AdmixtureBar
+        admixture_fractions={{
+          AFR: 0.235,
+          CSA: 0.235,
+          EAS: 0.235,
+          EUR: 0.235,
+          MID: 0.042,
+          AMR: 0.018,
+        }}
+        ci_low={{ AFR: 0.18, CSA: 0.18, EAS: 0.18, EUR: 0.18, MID: 0.025, AMR: 0.003 }}
+        ci_high={{ AFR: 0.29, CSA: 0.29, EAS: 0.29, EUR: 0.29, MID: 0.077, AMR: 0.048 }}
+      />,
+    )
+    const chart = screen.getByTestId("plotly-chart")
+    const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
+    const byName: Record<string, { text: string[]; textposition: string; cliponaxis: boolean }> =
+      Object.fromEntries(traces.map((t: { name: string }) => [t.name, t]))
+    for (const name of ["African", "Middle Eastern", "Admixed American"]) {
+      expect(byName[name]).toBeDefined()
+    }
+
+    // Wide slices keep a label with the ±CI suffix.
+    expect(byName["African"].text[0]).toMatch(/23\.5% .*\d/)
+    expect(byName["African"].text[0]).toContain("±")
+
+    // Narrow slices get NO in-bar label (hover + legend convey them instead),
+    // so Plotly never rotates/clips text into the sliver.
+    expect(byName["Middle Eastern"].text[0]).toBe("")
+    expect(byName["Admixed American"].text[0]).toBe("")
+
+    // Every trace uses auto placement (never forced "inside") and disables axis
+    // clipping so any shown label can sit outside without being cut off.
+    for (const t of traces) {
+      expect(t.textposition).toBe("auto")
+      expect(t.cliponaxis).toBe(false)
+    }
+  })
+
+  it("shows a bare % (no ±CI) on mid-width segments", () => {
+    // A ~6% slice is wide enough for "6.0%" but not the wider "6.0% ±x%" suffix.
+    render(
+      <AdmixtureBar
+        admixture_fractions={{ EUR: 0.8, EAS: 0.14, MID: 0.06 }}
+        ci_low={{ EUR: 0.75, EAS: 0.1, MID: 0.03 }}
+        ci_high={{ EUR: 0.85, EAS: 0.18, MID: 0.09 }}
+      />,
+    )
+    const chart = screen.getByTestId("plotly-chart")
+    const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
+    const mid = traces.find((t: { name: string }) => t.name === "Middle Eastern")
+    expect(mid).toBeDefined()
+    expect(mid.text[0]).toBe("6.0%")
+    expect(mid.text[0]).not.toContain("±")
+  })
 })
 
 // ── PCAScatter tests ────────────────────────────────────────────────

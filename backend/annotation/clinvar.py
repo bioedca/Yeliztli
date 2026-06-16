@@ -35,7 +35,12 @@ import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 from backend.db.tables import annotated_variants, clinvar_variants, raw_variants
 
 if TYPE_CHECKING:
@@ -517,15 +522,22 @@ def download_clinvar_vcf(
 
     logger.info("clinvar_download_start", url=url)
 
+    # Resumable so a partial survives a failed/restarted build and the next run
+    # continues via HTTP Range; the validator sidecar persists the If-Range token
+    # across runs so a rotated upstream restarts clean instead of splicing.
     outcome = stream_download(
         url,
         tmp_path,
         progress_callback=progress_callback,
         timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
 
-    # Atomic rename on success (stream_download cleans up the .tmp on failure).
+    # Atomic rename on success; drop the now-stale validator sidecar.
     tmp_path.replace(dest_path)
+    clear_validator_sidecar(tmp_path)
 
     logger.info("clinvar_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
     return dest_path

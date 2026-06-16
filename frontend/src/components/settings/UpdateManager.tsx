@@ -6,8 +6,10 @@
  * re-annotation prompt banner.
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
+  DB_STATUS_KEY,
   useAppUpdate,
   useDatabaseStatuses,
   useUpdateCheck,
@@ -24,6 +26,12 @@ import {
   type ReannotationPrompt,
   type TriggerUpdateVariables,
 } from '@/api/updates'
+import {
+  busyLabel,
+  isDatabaseBusy,
+  useDatabaseHealth,
+  type DatabaseHealth,
+} from '@/api/db-health'
 import { cn } from '@/lib/utils'
 import {
   RefreshCw,
@@ -313,6 +321,7 @@ export function FindingChangesPanel({ sampleId }: { sampleId: number }) {
 interface DatabaseRowProps {
   status: DatabaseStatus
   updateInfo: UpdateAvailable | undefined
+  dbHealth: DatabaseHealth | undefined
   checkedAt: string | null
   onTriggerUpdate: (dbName: string, force: boolean) => void
   onToggleAutoUpdate: (dbName: string, enabled: boolean) => void
@@ -323,6 +332,7 @@ interface DatabaseRowProps {
 function DatabaseRow({
   status,
   updateInfo,
+  dbHealth,
   checkedAt,
   onTriggerUpdate,
   onToggleAutoUpdate,
@@ -330,6 +340,13 @@ function DatabaseRow({
   isTogglingAutoUpdate,
 }: DatabaseRowProps) {
   const hasUpdate = status.update_available || updateInfo != null
+  // Live health, not the (cached) status list, decides whether this DB is
+  // already being provisioned — a wizard download, an auto-update, or a manual
+  // update already in flight. Offering "Update now" then would race that work.
+  const isBusy = isDatabaseBusy(dbHealth)
+  // ``isUpdating`` is THIS row's just-clicked update; ``isBusy`` is any in-flight
+  // provisioning (possibly from elsewhere). Either disables the controls.
+  const disableUpdate = isUpdating || isBusy
   const outsideWindow = isOutsideBandwidthWindow(status.update_download_window)
   const windowTooltip = status.update_download_window
     ? `Outside bandwidth window (${formatWindow(status.update_download_window)}). Update will run in window or click Force update.`
@@ -363,7 +380,7 @@ function DatabaseRow({
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {updateInfo ? (
-          <span className="text-amber-600 dark:text-amber-400 font-medium">
+          <span className="text-amber-700 dark:text-amber-400 font-medium">
             {updateInfo.latest_version}
           </span>
         ) : (
@@ -432,11 +449,20 @@ function DatabaseRow({
             <button
               type="button"
               onClick={() => onTriggerUpdate(status.db_name, false)}
-              disabled={isUpdating}
-              title={outsideWindow ? windowTooltip : undefined}
-              aria-describedby={
-                outsideWindow ? `${status.db_name}-window-hint` : undefined
+              disabled={disableUpdate}
+              title={
+                isBusy
+                  ? 'A download or build is already in progress for this database.'
+                  : outsideWindow
+                    ? windowTooltip
+                    : undefined
               }
+              aria-describedby={
+                outsideWindow && !isBusy
+                  ? `${status.db_name}-window-hint`
+                  : undefined
+              }
+              data-testid={`db-update-${status.db_name}`}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium',
                 'bg-primary text-primary-foreground',
@@ -445,10 +471,10 @@ function DatabaseRow({
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
               )}
             >
-              {isUpdating ? (
+              {disableUpdate ? (
                 <>
                   <RefreshCw className="h-3 w-3 animate-spin" />
-                  Updating…
+                  {isUpdating ? 'Updating…' : busyLabel(dbHealth)}
                 </>
               ) : (
                 <>
@@ -472,7 +498,7 @@ function DatabaseRow({
                     )
                     if (ok) onTriggerUpdate(status.db_name, true)
                   }}
-                  disabled={isUpdating}
+                  disabled={disableUpdate}
                   title="Force update — bypasses the bandwidth window."
                   aria-label={`Force update ${status.display_name}`}
                   className={cn(
@@ -530,7 +556,7 @@ function AppVersionRow() {
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {hasUpdate ? (
-          <span className="text-amber-600 dark:text-amber-400 font-medium">
+          <span className="text-amber-700 dark:text-amber-400 font-medium">
             v{appUpdate.latest_version}
           </span>
         ) : (
@@ -684,7 +710,7 @@ function HistorySection({
                 {entry.previous_version ?? '(none)'} → {entry.new_version}
               </span>
               {entry.variants_reclassified != null && entry.variants_reclassified > 0 && (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-amber-700 dark:text-amber-400">
                   {entry.variants_reclassified} reclassified
                 </span>
               )}
@@ -706,15 +732,42 @@ function HistorySection({
 // ── Main Component ───────────────────────────────────────────────────
 
 export default function UpdateManager() {
+  const queryClient = useQueryClient()
   const { data: statuses, isLoading: statusLoading } = useDatabaseStatuses()
   const { data: updateCheck, isLoading: checkLoading, refetch: recheckUpdates } = useUpdateCheck(true)
   const { data: prompts } = useReannotationPrompts()
+  const { data: health } = useDatabaseHealth()
   const triggerMutation = useTriggerUpdate()
   const autoUpdateMutation = useToggleAutoUpdate()
 
   const updatesMap = new Map(
     updateCheck?.available?.map((u) => [u.db_name, u]) ?? [],
   )
+
+  // Live health is the single source of truth for whether a DB is mid-flight.
+  const healthMap = new Map(
+    (health?.databases ?? []).map((h) => [h.name, h]),
+  )
+
+  // When a DB finishes a download/build (its health leaves the busy set), its
+  // version stamp has just changed — refetch the (short-cached) status list so
+  // the version/"update available" columns can't lag behind reality.
+  const prevBusy = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const busyNow = new Set(
+      (health?.databases ?? [])
+        .filter((h) => isDatabaseBusy(h))
+        .map((h) => h.name),
+    )
+    let cleared = false
+    for (const name of prevBusy.current) {
+      if (!busyNow.has(name)) cleared = true
+    }
+    if (cleared) {
+      queryClient.invalidateQueries({ queryKey: DB_STATUS_KEY })
+    }
+    prevBusy.current = busyNow
+  }, [health, queryClient])
 
   const isLoading = statusLoading || checkLoading
 
@@ -747,18 +800,18 @@ export default function UpdateManager() {
       {updateCheck && (
         <div className="flex flex-wrap gap-4 text-sm">
           {updateCheck.available.length > 0 ? (
-            <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
               <AlertTriangle className="h-4 w-4" />
               {updateCheck.available.length} update{updateCheck.available.length !== 1 ? 's' : ''} available
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+            <span className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
               All databases up to date
             </span>
           )}
           {updateCheck.errors.length > 0 && (
-            <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+            <span className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
               <XCircle className="h-4 w-4" />
               {updateCheck.errors.length} check error{updateCheck.errors.length !== 1 ? 's' : ''}
             </span>
@@ -827,6 +880,7 @@ export default function UpdateManager() {
                     update_available: s.update_available || updatesMap.has(s.db_name),
                   }}
                   updateInfo={updatesMap.get(s.db_name)}
+                  dbHealth={healthMap.get(s.db_name)}
                   checkedAt={updateCheck?.checked_at ?? null}
                   onTriggerUpdate={(dbName, force) =>
                     triggerMutation.mutate({ dbName, force })

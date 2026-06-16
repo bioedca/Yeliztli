@@ -36,7 +36,9 @@ from backend.analysis.allergy import (
     SNPResult,
     _determine_pathway_level,
     _normalize_genotype,
+    _positive_hla_proxy_specificity_caveat,
     _score_snp,
+    _stored_snp_detail,
     load_allergy_panel,
     score_allergy_pathways,
     store_allergy_findings,
@@ -207,7 +209,7 @@ ALL_ALLERGY_VARIANTS = [
     ("rs324011", "12", 57527283, "CT"),  # STAT6 het
     # Drug Hypersensitivity
     ("rs2395029", "6", 31431272, "TG"),  # HLA-B*57:01 proxy het
-    ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 proxy het
+    ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 proxy het (T/A SNP, A=risk; #709)
     ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 proxy het (A/T SNP, T=risk; #545)
     ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 proxy het
     # Food Sensitivity
@@ -417,6 +419,22 @@ class TestSNPScoring:
         result = _score_snp(snp, "XY")
         assert result.category == STANDARD
         assert result.present_in_sample is True
+
+    def test_unmodeled_allele_genotype_withheld_as_indeterminate(
+        self, panel: AllergyPanel
+    ) -> None:
+        """#608: a present, real-nucleotide genotype carrying an allele the locus
+        does not model (IL13 rs20541 is A/G; observed ``GT`` carries an unmodeled
+        ``T``) is withheld as Indeterminate, not silently scored Standard (which
+        would hide the carrier as 'no effect'). A non-nucleotide no-call is not an
+        unmodeled allele and still falls through to Standard."""
+        snp = self._get_snp(panel, "rs20541")
+        for gt in ("GT", "TG"):
+            result = _score_snp(snp, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        assert _score_snp(snp, "--").category == STANDARD
 
     def test_reversed_genotype_lookup(self, panel: AllergyPanel) -> None:
         """Reversed genotype (AG vs GA) still works."""
@@ -820,6 +838,61 @@ class TestHistamineCombined:
         assert "AOC1" in hc.combined_text and "HNMT" not in hc.combined_text
 
 
+# ── HLA-B*15:02 proxy allele-direction regression (#709) ────────────────────
+
+
+class TestHLAB1502ProxyAlleleDirection:
+    """#709: rs144012689 (HLA-B*15:02 / carbamazepine SJS/TEN proxy) was
+    encoded with a nonexistent C allele and the common T allele as risk
+    (risk=T/ref=C, keyed CC/CT/TC/TT). That falsely flagged common TT
+    homozygotes and dropped true heterozygous carriers.
+
+    NCBI/dbSNP and Ensembl both report rs144012689 as a T/A SNP in HLA-B
+    (GRCh37 6:31322780; GRCh38 6:31355003), with A as the minor/alternate
+    allele. The A allele is the HLA-B*15:02 proxy risk tag. Because T/A is
+    palindromic, array strand cannot be resolved for homozygotes, so the safe
+    behavior is: heterozygous carriers Elevated; both homozygotes withheld as
+    strand-Indeterminate.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs144012689")
+
+    def test_encoded_as_real_ta_snp_with_correct_direction(self, panel: AllergyPanel) -> None:
+        snp = self._snp(panel)
+        assert snp.gene == "HLA-B"
+        # Real T/A alleles, A = HLA-B*15:02 tag (risk), T = common/ref. No C.
+        assert (snp.risk_allele, snp.ref_allele) == ("A", "T")
+        assert set(snp.genotype_effects) == {"TT", "TA", "AT", "AA"}
+        assert "C" not in "".join(snp.genotype_effects)
+
+    def test_common_homozygote_is_not_a_false_carbamazepine_flag(
+        self, panel: AllergyPanel
+    ) -> None:
+        """The common TT homozygote must not be reported as an HLA-B*15:02
+        carrier. Because the locus is palindromic, it is withheld as
+        strand-Indeterminate rather than force-called Standard."""
+        result = _score_snp(self._snp(panel), "TT")
+        assert result.category == INDETERMINATE
+        assert result.category != ELEVATED
+        assert "contraindicated" not in result.effect_summary.lower()
+        assert "palindromic" in result.effect_summary.lower()
+
+    def test_heterozygous_carrier_is_elevated(self, panel: AllergyPanel) -> None:
+        """The true HLA-B*15:02 proxy carrier is heterozygous (T/A); het is
+        strand-resolvable, so it is correctly flagged Elevated."""
+        for gt in ("TA", "AT"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == ELEVATED, gt
+            assert "carrier" in result.effect_summary.lower()
+
+    def test_variant_homozygote_withheld_as_indeterminate(self, panel: AllergyPanel) -> None:
+        """The rare AA homozygote is also a palindromic homozygote and is
+        withheld because its array strand cannot be resolved from the genotype."""
+        result = _score_snp(self._snp(panel), "AA")
+        assert result.category == INDETERMINATE
+
+
 # ── HLA-A*31:01 proxy allele-direction regression (#545) ────────────────────
 
 
@@ -874,6 +947,76 @@ class TestHLAA31ProxyAlleleDirection:
         (cannot distinguish plus-strand TT carrier from minus-strand AA)."""
         result = _score_snp(self._snp(panel), "TT")
         assert result.category == INDETERMINATE
+
+
+# ── HLA-A*31:01 proxy specificity caveat (#611) ─────────────────────────────
+
+
+class TestHLAA31ProxySpecificityCaveat:
+    """#611 (follow-up to #545): rs1061235 is an imperfect HLA-A*31:01 tag SNP — it
+    cross-reacts with HLA-A*33 (false positives) and is less reliable in Native
+    American ancestry. With the direction fixed (#545), surface that specificity
+    caveat alongside a positive (carrier) call so it isn't read as a confirmed
+    HLA-A*31:01 result.
+    """
+
+    def _snp(self, panel: AllergyPanel) -> PanelSNP:
+        return next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1061235")
+
+    def test_panel_records_specificity_metadata(self, panel: AllergyPanel) -> None:
+        proxy = self._snp(panel).hla_proxy
+        assert proxy is not None
+        assert proxy["false_positive_mechanism"] == "HLA-A*33 cross-reactivity"
+        assert proxy["reduced_ancestry"] == "Native American"
+        assert proxy["better_proxy_for_reduced_ancestry"] == "rs17179220"
+
+    def test_coverage_note_surfaces_caveat_with_citations(self, panel: AllergyPanel) -> None:
+        note = (self._snp(panel).coverage_note or "").lower()
+        assert "hla-a*33" in note
+        assert "native american" in note
+        assert "confirmatory" in note
+        # The scientific claim carries its citation with it (user-facing).
+        for cite in ("krause", "buchner", "fernandes"):
+            assert cite in note, cite
+
+    def test_caveat_surfaced_for_heterozygous_carrier(self, panel: AllergyPanel) -> None:
+        carrier = _score_snp(self._snp(panel), "AT")
+        assert carrier.category == ELEVATED
+        caveat = _positive_hla_proxy_specificity_caveat(carrier)
+        assert caveat is not None
+        assert "HLA-A*33 cross-reactivity" in caveat
+        assert "confirmatory" in caveat.lower()
+        assert "Native American" in caveat
+        # And it lands in the stored SNP detail JSON.
+        detail = _stored_snp_detail(carrier, {})
+        assert detail["hla_proxy_specificity_caveat"] == caveat
+
+    def test_caveat_not_surfaced_for_indeterminate_homozygote(self, panel: AllergyPanel) -> None:
+        # The palindromic AA/TT homozygotes are withheld (Indeterminate), not a
+        # positive carrier call — they must NOT get a "this positive result" caveat.
+        for gt in ("AA", "TT"):
+            result = _score_snp(self._snp(panel), gt)
+            assert result.category == INDETERMINATE, gt
+            assert _positive_hla_proxy_specificity_caveat(result) is None, gt
+            assert "hla_proxy_specificity_caveat" not in _stored_snp_detail(result, {}), gt
+
+    def test_caveat_not_surfaced_for_proxy_without_mechanism(self) -> None:
+        # A positive HLA-proxy call whose panel records no false_positive_mechanism
+        # (e.g. the clinical-grade HLA-B*57:01 proxy) gets no specificity caveat.
+        result = SNPResult(
+            rsid="rs2395029",
+            gene="HLA-B",
+            variant_name="HLA-B*57:01 proxy",
+            genotype="GT",
+            category=ELEVATED,
+            effect_summary="carrier",
+            evidence_level=4,
+            pmids=[],
+            recommendation_text="",
+            present_in_sample=True,
+            hla_proxy={"hla_allele": "HLA-B*57:01", "clinical_grade": True},
+        )
+        assert _positive_hla_proxy_specificity_caveat(result) is None
 
 
 # ── HLA proxy lookup tests ──────────────────────────────────────────────
@@ -1031,7 +1174,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → pgx
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → pgx
                 ("rs1061235", "6", 29910670, "AT"),  # HLA-A*31:01 het carrier → pgx (#545)
             ],
         )
@@ -1061,7 +1204,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs144012689", "6", 31356397, "CT"),  # HLA-B*15:02 → carbamazepine
+                ("rs144012689", "6", 31322780, "TA"),  # HLA-B*15:02 → carbamazepine
                 ("rs9263726", "6", 31355848, "CT"),  # HLA-B*58:01 → allopurinol
             ],
         )

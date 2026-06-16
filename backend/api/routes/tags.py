@@ -340,7 +340,7 @@ def delete_tag(
     tag_id: int,
     sample_id: int = Query(..., description="Sample ID"),
 ) -> None:
-    """Delete a custom tag. CASCADE removes variant_tags entries."""
+    """Delete a custom tag and its variant associations."""
     engine = _get_sample_engine(sample_id)
 
     with engine.begin() as conn:
@@ -352,4 +352,5 @@ def delete_tag(
         if row.is_predefined:
             raise HTTPException(status_code=403, detail="Cannot delete predefined tags.")
 
+        conn.execute(variant_tags.delete().where(variant_tags.c.tag_id == tag_id))
         conn.execute(tags.delete().where(tags.c.id == tag_id))

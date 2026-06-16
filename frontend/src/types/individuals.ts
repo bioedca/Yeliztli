@@ -1,7 +1,7 @@
 /** Individual / linked-sample types matching backend Pydantic models
  * (Step 47 / IND-03; Plan §9.2, §9.3). */
 
-export type BiologicalSex = "XX" | "XY"
+type BiologicalSex = "XX" | "XY"
 
 export interface LinkedSample {
   id: number
@@ -112,7 +112,7 @@ export interface MergeProvenanceResponse {
  * §10.7). The backend LEFT-JOINs `annotated_variants` for gene context — any
  * of `gene_symbol` / `consequence` / `clinvar_significance` may be `null`
  * when annotation hasn't populated the locus yet. */
-export interface DiscordantLocus {
+interface DiscordantLocus {
   rsid: string
   chrom: string
   pos: number

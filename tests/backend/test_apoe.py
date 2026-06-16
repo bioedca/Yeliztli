@@ -1168,3 +1168,188 @@ class TestAPOEArrayReliabilityCaveat:
         detail = json.loads(row.detail_json)
         assert detail["array_reliability"]["confirm_in_clia_recommended"] is True
         assert "clia" in detail["array_reliability"]["caveat"].lower()
+
+
+class TestSourceDiscordanceNotes:
+    """#637: a merged sample with `discordant` provenance at the ε-defining SNPs
+    (rs429358/rs7412) gets a structured per-sample discrepancy note naming both
+    source calls and the ε-status each implies; concordant or single-source
+    samples get none."""
+
+    def _seed(
+        self,
+        engine: sa.Engine,
+        rs429358: dict[str, str],
+        rs7412: dict[str, str],
+    ) -> None:
+        """Seed both ε-SNPs with explicit merge-provenance columns.
+
+        Each spec dict carries ``genotype`` and optional ``source`` /
+        ``concordance`` / ``alt`` (→ ``discordant_alt_genotype``).
+        """
+        rows = []
+        for rsid, pos, spec in (
+            (APOE_RS429358, 44908684, rs429358),
+            (APOE_RS7412, 44908822, rs7412),
+        ):
+            rows.append(
+                {
+                    "rsid": rsid,
+                    "chrom": "19",
+                    "pos": pos,
+                    "genotype": spec["genotype"],
+                    "source": spec.get("source", ""),
+                    "concordance": spec.get("concordance", ""),
+                    "discordant_alt_genotype": spec.get("alt", ""),
+                }
+            )
+        with engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
+
+    def test_discordant_rs429358_flips_e4_status(self, sample_engine: sa.Engine) -> None:
+        # Winner kept CT (S1), rejected TT (S2) at rs429358; rs7412 concordant CC.
+        # CT → ε3/ε4 (ε4 present); TT → ε3/ε3 (ε4 absent).
+        self._seed(
+            sample_engine,
+            rs429358={
+                "genotype": "CT",
+                "source": "both",
+                "concordance": "discordant",
+                "alt": "S2=TT",
+            },
+            rs7412={"genotype": "CC", "source": "both", "concordance": "match"},
+        )
+        result = determine_apoe_genotype(sample_engine)
+
+        assert result.is_determined
+        assert result.diplotype == "ε3/ε4"
+        assert len(result.discordance_notes) == 1
+        note = result.discordance_notes[0]
+        assert note["rsid"] == APOE_RS429358
+        assert note["gene"] == "APOE"
+        assert note["affects_e4_status"] is True
+
+        by_source = {c["source"]: c for c in note["calls"]}
+        assert by_source["S1"]["genotype"] == "CT"
+        assert by_source["S1"]["implied_diplotype"] == "ε3/ε4"
+        assert by_source["S1"]["e4_present"] is True
+        assert by_source["S2"]["genotype"] == "TT"
+        assert by_source["S2"]["implied_diplotype"] == "ε3/ε3"
+        assert by_source["S2"]["e4_present"] is False
+
+        text = note["note"]
+        assert "rs429358" in text
+        assert "CT" in text and "TT" in text
+        assert "ε4 present" in text and "ε4 absent" in text
+        assert "CLIA" in text
+
+    def test_flag_only_strategy_both_calls_recovered_from_alt(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Flag-only merge keeps a no-call and records both calls in the alt string.
+        self._seed(
+            sample_engine,
+            rs429358={
+                "genotype": "??",
+                "source": "both",
+                "concordance": "discordant",
+                "alt": "S1=CT;S2=TT",
+            },
+            rs7412={"genotype": "CC", "source": "both", "concordance": "match"},
+        )
+        result = determine_apoe_genotype(sample_engine)
+
+        # Kept rs429358 is a no-call → not determined, but the discordance still surfaces.
+        assert len(result.discordance_notes) == 1
+        note = result.discordance_notes[0]
+        by_source = {c["source"]: c for c in note["calls"]}
+        assert by_source["S1"]["genotype"] == "CT"
+        assert by_source["S2"]["genotype"] == "TT"
+        assert note["affects_e4_status"] is True
+
+    def test_discordant_rs7412_not_affecting_e4(self, sample_engine: sa.Engine) -> None:
+        # rs429358 concordant CT (one ε4-bearing copy); rs7412 discordant CC vs CT.
+        # (CT,CC)→ε3/ε4 ε4 present; (CT,CT)→ε2/ε4 ε4 present → ε4 status unchanged
+        # (the disagreement flips ε2 status, not ε4). Both are valid diplotypes.
+        self._seed(
+            sample_engine,
+            rs429358={"genotype": "CT", "source": "both", "concordance": "match"},
+            rs7412={
+                "genotype": "CC",
+                "source": "both",
+                "concordance": "discordant",
+                "alt": "S2=CT",
+            },
+        )
+        result = determine_apoe_genotype(sample_engine)
+
+        assert len(result.discordance_notes) == 1
+        note = result.discordance_notes[0]
+        assert note["rsid"] == APOE_RS7412
+        assert note["affects_e4_status"] is False
+        by_source = {c["source"]: c for c in note["calls"]}
+        assert by_source["S1"]["implied_diplotype"] == "ε3/ε4"
+        assert by_source["S2"]["implied_diplotype"] == "ε2/ε4"
+        assert by_source["S1"]["e4_present"] is True
+        assert by_source["S2"]["e4_present"] is True
+        assert "does not change ε4 status" in note["note"]
+
+    def test_concordant_sample_has_no_note(self, sample_engine: sa.Engine) -> None:
+        self._seed(
+            sample_engine,
+            rs429358={"genotype": "CT", "source": "both", "concordance": "match"},
+            rs7412={"genotype": "CC", "source": "both", "concordance": "match"},
+        )
+        result = determine_apoe_genotype(sample_engine)
+        assert result.discordance_notes == []
+
+    def test_single_source_sample_has_no_note(self, sample_engine: sa.Engine) -> None:
+        # Unmerged sample: provenance columns default to "" → no discordance.
+        _seed_apoe_variants(sample_engine, rs429358_genotype="CT", rs7412_genotype="CC")
+        result = determine_apoe_genotype(sample_engine)
+        assert result.discordance_notes == []
+
+    def test_note_persisted_in_genotype_finding_detail(self, sample_engine: sa.Engine) -> None:
+        self._seed(
+            sample_engine,
+            rs429358={
+                "genotype": "CT",
+                "source": "both",
+                "concordance": "discordant",
+                "alt": "S2=TT",
+            },
+            rs7412={"genotype": "CC", "source": "both", "concordance": "match"},
+        )
+        result = determine_apoe_genotype(sample_engine)
+        store_apoe_finding(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "apoe",
+                    findings.c.category == "genotype",
+                )
+            ).fetchone()
+        detail = json.loads(row.detail_json)
+        assert len(detail["source_discrepancies"]) == 1
+        assert detail["source_discrepancies"][0]["affects_e4_status"] is True
+
+    def test_note_in_every_generated_finding_detail(self, sample_engine: sa.Engine) -> None:
+        self._seed(
+            sample_engine,
+            rs429358={
+                "genotype": "CT",
+                "source": "both",
+                "concordance": "discordant",
+                "alt": "S2=TT",
+            },
+            rs7412={"genotype": "CC", "source": "both", "concordance": "match"},
+        )
+        result = determine_apoe_genotype(sample_engine)
+        generated = generate_apoe_findings(result)
+
+        assert len(generated) == 3
+        for finding in generated:
+            discrepancies = finding.detail_json["source_discrepancies"]
+            assert len(discrepancies) == 1
+            assert discrepancies[0]["rsid"] == APOE_RS429358

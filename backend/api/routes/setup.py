@@ -123,6 +123,10 @@ class StorageInfoResponse(BaseModel):
     message: str
     path_exists: bool
     path_writable: bool
+    # Independent of disk-space ``status``: a path can have ample free space yet
+    # be on a volatile filesystem (e.g. /tmp) that is wiped on reboot.
+    volatile: bool = False
+    volatile_message: str | None = None
 
 
 class SetStoragePathRequest(BaseModel):
@@ -144,6 +148,11 @@ class SetStoragePathResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
+# Bump when the disclaimer text materially changes — a stored flag with an older
+# (or missing/corrupt) version is treated as not-accepted, forcing re-acceptance.
+_DISCLAIMER_VERSION = "1.0"
+
+
 def _disclaimer_flag_path() -> Path:
     """Path to the disclaimer acceptance flag file."""
     settings = get_settings()
@@ -151,8 +160,31 @@ def _disclaimer_flag_path() -> Path:
 
 
 def _is_disclaimer_accepted() -> bool:
-    """Check if the global disclaimer has been accepted."""
-    return _disclaimer_flag_path().exists()
+    """Whether the current global disclaimer has been accepted.
+
+    Parses the flag file rather than checking mere existence: a truncated or
+    corrupt flag (e.g. a crash mid-write) no longer counts as accepted, and a
+    flag written for an older disclaimer version forces re-acceptance.
+    """
+    try:
+        data = json.loads(_disclaimer_flag_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("version") == _DISCLAIMER_VERSION
+
+
+def _is_writable(path: Path) -> bool:
+    """Whether ``path`` (an existing directory) accepts a new file.
+
+    Uses a uniquely-named temp file rather than a fixed ``.write_test`` name, so
+    concurrent probes can't race on the same path and a crash never leaves a
+    stray file behind.
+    """
+    try:
+        with tempfile.NamedTemporaryFile(dir=path, prefix=".write_test_"):
+            return True
+    except OSError:
+        return False
 
 
 def _has_any_databases() -> bool:
@@ -298,10 +330,14 @@ async def accept_disclaimer() -> AcceptDisclaimerResponse:
     flag_path = _disclaimer_flag_path()
     accepted_at = datetime.now(UTC).isoformat()
 
-    flag_path.write_text(
-        json.dumps({"accepted_at": accepted_at, "version": "1.0"}),
+    # Atomic write: a crash mid-write must not leave a partial flag (and
+    # _is_disclaimer_accepted now also parse-validates it).
+    tmp_path = flag_path.parent / (flag_path.name + ".tmp")
+    tmp_path.write_text(
+        json.dumps({"accepted_at": accepted_at, "version": _DISCLAIMER_VERSION}),
         encoding="utf-8",
     )
+    os.replace(tmp_path, flag_path)
 
     logger.info("global_disclaimer_accepted", accepted_at=accepted_at)
 
@@ -788,6 +824,80 @@ def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "block
     return "ok", f"{free_gb:.1f} GB free — sufficient for Yeliztli."
 
 
+# Roots whose contents are conventionally wiped on reboot. A data dir here (or
+# below it) loses downloaded databases on restart. The /private/* entries are the
+# macOS canonical targets of /tmp and /var/tmp (both are symlinks into /private),
+# so a resolved path matches there too.
+_VOLATILE_PATH_ROOTS = ("/tmp", "/var/tmp", "/dev/shm", "/private/tmp", "/private/var/tmp")
+# Filesystem types that do not survive a reboot (RAM-backed).
+_VOLATILE_FS_TYPES = frozenset({"tmpfs", "ramfs"})
+_VOLATILE_PATH_MESSAGE = (
+    "This location is on a volatile filesystem (e.g. /tmp) that is typically "
+    "erased when the machine restarts. Downloaded databases could be lost, "
+    "forcing a full re-download. Choose a persistent location (such as your "
+    "home directory) for a permanent install."
+)
+
+
+def _is_volatile_path(path: Path) -> bool:
+    """Whether ``path`` lives on a filesystem that is wiped on reboot.
+
+    Catches the well-known volatile roots (``/tmp``, ``/var/tmp``, ``/dev/shm``)
+    by path component, and — on Linux — any ``tmpfs``/``ramfs`` mount via the
+    longest matching ``/proc/mounts`` entry. Best-effort and side-effect free: an
+    unreadable ``/proc/mounts`` (non-Linux, restricted) degrades to the
+    root-prefix check, and a path resolution error never raises.
+
+    The root check runs against BOTH the absolute path with symlinks intact AND
+    the fully-resolved form. This matters on macOS, where ``/tmp`` is itself a
+    symlink to ``/private/tmp``: ``.resolve()`` alone would rewrite ``/tmp`` to
+    ``/private/tmp`` and miss the ``/tmp`` root, while ``.absolute()`` keeps the
+    symlink so ``/tmp`` still matches. Checking the resolved form too catches a
+    symlink that points *into* a volatile root.
+    """
+
+    def _safe(getter) -> Path | None:
+        try:
+            return getter()
+        except (OSError, RuntimeError):
+            return None
+
+    expanded = _safe(path.expanduser) or path
+    candidates = {p for p in (_safe(expanded.absolute), _safe(expanded.resolve)) if p is not None}
+    if not candidates:
+        candidates = {expanded}
+
+    for cand in candidates:
+        parents = set(cand.parents)
+        for root in _VOLATILE_PATH_ROOTS:
+            r = Path(root)
+            if cand == r or r in parents:
+                return True
+
+    # tmpfs/ramfs mount detection (Linux) against the resolved/canonical form.
+    resolved = _safe(expanded.resolve) or expanded
+    try:
+        mounts = Path("/proc/mounts").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    resolved_parents = set(resolved.parents)
+    best_mount_len = -1
+    best_fstype = ""
+    for line in mounts.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        # /proc/mounts octal-escapes spaces in mount points (e.g. "\040").
+        mount_point = parts[1].replace("\\040", " ")
+        fstype = parts[2]
+        mp = Path(mount_point)
+        if (resolved == mp or mp in resolved_parents) and len(mount_point) > best_mount_len:
+            best_mount_len = len(mount_point)
+            best_fstype = fstype
+    return best_fstype in _VOLATILE_FS_TYPES
+
+
 def _resolve_storage_path(raw_path: str) -> Path:
     """Resolve a user-provided storage path, expanding ~ and env vars."""
     return Path(raw_path).expanduser().resolve()
@@ -807,17 +917,13 @@ async def storage_info() -> StorageInfoResponse:
     free_gb = free_bytes / (1024**3)
     total_gb = total_bytes / (1024**3)
     status, message = _assess_disk_space(free_bytes)
+    volatile = _is_volatile_path(data_dir)
+    volatile_message = _VOLATILE_PATH_MESSAGE if volatile else None
 
     path_exists = data_dir.exists()
     path_writable = False
     if path_exists:
-        try:
-            test_file = data_dir / ".write_test"
-            test_file.write_text("test")
-            test_file.unlink()
-            path_writable = True
-        except OSError:
-            pass
+        path_writable = _is_writable(data_dir)
     else:
         # Check if the parent is writable (for creating the directory)
         parent = data_dir.parent
@@ -835,6 +941,8 @@ async def storage_info() -> StorageInfoResponse:
         message=message,
         path_exists=path_exists,
         path_writable=path_writable,
+        volatile=volatile,
+        volatile_message=volatile_message,
     )
 
 
@@ -876,15 +984,11 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
         ) from exc
 
     # Verify writability
-    try:
-        test_file = resolved / ".write_test"
-        test_file.write_text("test")
-        test_file.unlink()
-    except OSError as exc:
+    if not _is_writable(resolved):
         raise HTTPException(
             status_code=400,
             detail=f"Directory at {resolved} is not writable.",
-        ) from exc
+        )
 
     # Check disk space
     free_bytes, _ = _get_disk_space(resolved)

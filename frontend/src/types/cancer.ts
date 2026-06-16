@@ -74,7 +74,7 @@ export interface CancerDisclaimerResponse {
 }
 
 /** Breast absolute-risk overlay (SW-B8, opt-in). Shape varies by consent. */
-export interface AbsoluteRiskMonogenic {
+interface AbsoluteRiskMonogenic {
   gene: string
   cumulative_risk_to_80_pct: number | null
   ci: string | null

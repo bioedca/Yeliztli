@@ -99,7 +99,7 @@ export default function WatchingSidebar({
         {watchedVariants && watchedVariants.length > 0 && (
           <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
             {reclassifiedCount > 0 && (
-              <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3 w-3" />
                 {reclassifiedCount}
               </span>
@@ -170,7 +170,7 @@ export default function WatchingSidebar({
                             <span>
                               <span className="line-through">{formatSignificance(v.clinvar_significance_at_watch)}</span>
                               {" → "}
-                              <span className="text-amber-600 dark:text-amber-400 font-medium">
+                              <span className="text-amber-700 dark:text-amber-400 font-medium">
                                 {formatSignificance(v.clinvar_significance_current)}
                               </span>
                             </span>

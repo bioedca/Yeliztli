@@ -24,6 +24,9 @@ const BIG_FIVE_DIMENSIONS = [
   { key: "neuroticism", label: "Neuroticism" },
 ] as const
 
+const SVG_SIZE = 300
+const LABEL_EDGE_PADDING = 8
+
 /** Map category levels to numeric values for radar display. */
 function categoryToValue(category: string): number {
   switch (category) {
@@ -61,8 +64,8 @@ export default function BigFiveRadarChart({
   const n = BIG_FIVE_DIMENSIONS.length
 
   // SVG dimensions
-  const cx = 150
-  const cy = 150
+  const cx = SVG_SIZE / 2
+  const cy = SVG_SIZE / 2
   const maxR = 100
 
   // Helper: polar to cartesian (top = 0°)
@@ -84,7 +87,7 @@ export default function BigFiveRadarChart({
   return (
     <div className={cn("w-full max-w-[320px] mx-auto", className)}>
       <svg
-        viewBox="0 0 300 300"
+        viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
         className="w-full"
         role="img"
         aria-label="Big Five personality trait associations radar chart. Visual representation only — no numeric claims."
@@ -150,12 +153,23 @@ export default function BigFiveRadarChart({
         {BIG_FIVE_DIMENSIONS.map((dim, i) => {
           const labelR = maxR + 24
           const p = toXY(i, labelR)
+          const isRightEdgeLabel = p.x > cx + maxR * 0.75
+          const isLeftEdgeLabel = p.x < cx - maxR * 0.5
+          let x = p.x
+          let textAnchor: "start" | "middle" | "end" = "middle"
+          if (isRightEdgeLabel) {
+            x = SVG_SIZE - LABEL_EDGE_PADDING
+            textAnchor = "end"
+          } else if (isLeftEdgeLabel) {
+            x = LABEL_EDGE_PADDING
+            textAnchor = "start"
+          }
           return (
             <text
               key={dim.key}
-              x={p.x}
+              x={x}
               y={p.y}
-              textAnchor="middle"
+              textAnchor={textAnchor}
               dominantBaseline="central"
               className="fill-foreground text-[11px] font-medium"
             >

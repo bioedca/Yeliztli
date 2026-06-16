@@ -1,10 +1,10 @@
 /** Setup wizard types. */
 
 /** How a database is provisioned (matches backend DatabaseInfo.build_mode). */
-export type BuildMode = 'pipeline' | 'download' | 'manual' | 'bundled'
+type BuildMode = 'pipeline' | 'download' | 'manual' | 'bundled'
 
 /** Health/readiness of one database that gates the dashboard. */
-export interface DbReadiness {
+interface DbReadiness {
   name: string
   /** Mirrors backend DatabaseHealth.state (ready | partial | corrupt | …). */
   state: string
@@ -62,6 +62,10 @@ export interface StorageInfoResult {
   message: string
   path_exists: boolean
   path_writable: boolean
+  // Independent of disk-space `status`: true when the path is on a volatile
+  // filesystem (e.g. /tmp) that may be erased on reboot.
+  volatile: boolean
+  volatile_message: string | null
 }
 
 export interface SetStoragePathResult {
@@ -87,7 +91,7 @@ export interface SaveCredentialsResult {
 
 // ── P1-19f: Download databases ──────────────────────────────────
 
-export interface DatabaseStatus {
+interface DatabaseStatus {
   name: string
   display_name: string
   description: string
@@ -107,7 +111,7 @@ export interface DatabaseListResult {
   total_count: number
 }
 
-export interface DownloadJobInfo {
+interface DownloadJobInfo {
   db_name: string
   job_id: string
 }
@@ -124,11 +128,35 @@ export interface DatabaseProgressEvent {
   progress_pct: number
   message: string
   error: string | null
+  /** Known artifact size in bytes, or null when the size is unknown. */
+  total_bytes: number | null
+  /** Bytes transferred so far (derived from progress_pct × total_bytes). */
+  downloaded_bytes: number | null
+  /** Smoothed (EWMA) transfer rate in bytes/sec; null when not progressing. */
+  speed_bps: number | null
+  /** Estimated seconds remaining for this DB; null when unknown. */
+  eta_seconds: number | null
+}
+
+export interface DownloadAggregateProgress {
+  /** Sum of known total_bytes across the session, or null if none are known. */
+  total_bytes: number | null
+  downloaded_bytes: number
+  remaining_bytes: number
+  /** Overall percent across sized DBs, or null while no total is known. */
+  overall_pct: number | null
+  /** Combined transfer rate in bytes/sec; null when nothing is in flight. */
+  speed_bps: number | null
+  /** Estimated seconds until the whole session completes; null when unknown. */
+  eta_seconds: number | null
+  /** Number of DBs whose size is unknown (excluded from the byte totals). */
+  size_unknown_count: number
 }
 
 export interface DownloadProgressData {
   session_id: string
   databases: DatabaseProgressEvent[]
+  aggregate: DownloadAggregateProgress
 }
 
 // ── P1-19g: Upload sample file ──────────────────────────────────

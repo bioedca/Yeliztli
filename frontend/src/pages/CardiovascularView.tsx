@@ -12,12 +12,13 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { HeartPulse, ChevronDown, ChevronUp } from "lucide-react"
+import { HeartPulse, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import SectionError from "@/components/ui/SectionError"
 import {
   useCardiovascularVariants,
   useFHStatus,
@@ -60,8 +61,12 @@ export default function CardiovascularView() {
     )
   }
 
-  const isLoading = variantsQuery.isLoading || fhStatusQuery.isLoading
-  const hasError = variantsQuery.isError || fhStatusQuery.isError
+  // Gate the page on the PRIMARY query (the 16-gene monogenic variants) only.
+  // The FH-status card is a secondary section that degrades to a localized
+  // inline error/spinner, so an FH-status 500 no longer hides the
+  // successfully-computed monogenic variant results (#642).
+  const isLoading = variantsQuery.isLoading
+  const hasError = variantsQuery.isError
 
   return (
     <div className="p-6">
@@ -112,30 +117,40 @@ export default function CardiovascularView() {
       {/* Loading state */}
       {isLoading && <PageLoading message="Loading cardiovascular data..." />}
 
-      {/* Error state */}
+      {/* Error state — only when the PRIMARY variants query fails. */}
       {hasError && !isLoading && (
         <PageError
           message={
             variantsQuery.error instanceof Error
               ? variantsQuery.error.message
-              : fhStatusQuery.error instanceof Error
-                ? fhStatusQuery.error.message
-                : "An unexpected error occurred."
+              : "An unexpected error occurred."
           }
-          onRetry={() => {
-            variantsQuery.refetch()
-            fhStatusQuery.refetch()
-          }}
+          onRetry={() => variantsQuery.refetch()}
         />
       )}
 
       {/* Main content */}
       {!isLoading && !hasError && (
         <>
-          {/* ── FH Status Card ── */}
-          {fhStatusQuery.data && (
+          {/* ── FH Status Card — secondary section: render its own
+              error/spinner so an FH-status failure or slow load never hides
+              the monogenic variant results below (#642). Hidden entirely only
+              when it resolved with no data. ── */}
+          {(fhStatusQuery.isError || fhStatusQuery.isLoading || fhStatusQuery.data) && (
             <section aria-label="Familial hypercholesterolemia status" className="mb-8">
-              <FHStatusCard fhStatus={fhStatusQuery.data} />
+              {fhStatusQuery.isError ? (
+                <SectionError
+                  label="familial hypercholesterolemia status"
+                  message={fhStatusQuery.error instanceof Error ? fhStatusQuery.error.message : undefined}
+                  onRetry={() => fhStatusQuery.refetch()}
+                />
+              ) : fhStatusQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
+                </div>
+              ) : (
+                fhStatusQuery.data && <FHStatusCard fhStatus={fhStatusQuery.data} />
+              )}
             </section>
           )}
 

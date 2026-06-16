@@ -29,10 +29,24 @@ _CHAIN_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "chains" / "hg19ToHg38.over.chain.gz"
 )
 
-# Thread-safe singleton for the LiftOver instance (chain file is ~222 KB,
+# Vendored UCSC hg18→hg19 chain (~140 KB) — converts NCBI build 36 (23andMe v3)
+# to GRCh37 at ingest (#562). See backend/data/chains/README.md for provenance.
+_CHAIN_PATH_HG18 = (
+    Path(__file__).resolve().parent.parent / "data" / "chains" / "hg18ToHg19.over.chain.gz"
+)
+
+# Thread-safe singletons for the LiftOver instances (chain files are small,
 # loaded once and reused across all liftover calls).
 _lock = threading.Lock()
 _liftover: LiftOver | None = None
+_lock_hg18 = threading.Lock()
+_liftover_hg18: LiftOver | None = None
+
+# Plus-strand base complement. Only A/C/G/T (both cases) are translated; indel
+# tokens (I/D), no-calls (-, 0) and 23andMe internal markers pass through
+# unchanged — they must NOT be complemented.
+_BASE_COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
+_ACGT = frozenset("ACGT")
 
 
 def _get_liftover() -> LiftOver:
@@ -115,6 +129,103 @@ def convert_coordinate(
     return (out_chrom, new_pos_0based + 1)
 
 
+def _get_liftover_hg18() -> LiftOver:
+    """Return (or lazily initialise) the hg18→hg19 LiftOver instance.
+
+    Mirrors :func:`_get_liftover`: loads the vendored hg18→hg19 chain directly
+    (no network), falling back to pyliftover's UCSC download only if the bundled
+    file is missing.
+    """
+    global _liftover_hg18
+    with _lock_hg18:
+        if _liftover_hg18 is None:
+            if _CHAIN_PATH_HG18.exists():
+                logger.info(
+                    "liftover_init",
+                    extra={"from": "hg18", "to": "hg19", "source": "vendored"},
+                )
+                _liftover_hg18 = LiftOver(str(_CHAIN_PATH_HG18))
+            else:
+                logger.warning(
+                    "liftover_hg18_chain_missing_fallback_to_web",
+                    extra={"expected_path": str(_CHAIN_PATH_HG18)},
+                )
+                _liftover_hg18 = LiftOver("hg18", "hg19")
+    return _liftover_hg18
+
+
+def lift_build36_to_grch37(
+    chrom: str,
+    pos: int,
+    genotype: str,
+) -> tuple[str, int, str] | None:
+    """Lift a single NCBI build-36 (hg18) variant to GRCh37 (hg19).
+
+    23andMe v3 exports are build 36, but every position-dependent path in the
+    pipeline assumes the stored ``(chrom, pos)`` are GRCh37 (#480/#562). hg18→hg19
+    conversion is chain-driven and **non-uniform**: positions shift by varying
+    amounts, a few even change chromosome, and on inverted/rearranged segments the
+    target strand flips (Ormond 2021, *Brief Bioinform*; Sheng 2022, *HGG Adv* —
+    inverted regions cause allelic-conversion errors if strand is ignored).
+
+    When the lifted strand is ``-``, the genotype's A/C/G/T alleles are
+    **complemented** so the stored call stays plus-strand-relative on GRCh37
+    (otherwise positional PRS joins, which expect plus-strand GRCh37 effect
+    alleles, silently mismatch). Indel tokens (``I``/``D``), no-calls and 23andMe
+    internal ``i``-marker genotypes are passed through unchanged — they must not
+    be complemented. Palindromic genotypes (A/T, C/G) are naturally invariant
+    under complement, so no special-casing is needed here.
+
+    Args:
+        chrom: build-36 chromosome ("1".."22", "X", "Y", "MT"); ``chr`` optional.
+        pos: 1-based build-36 position.
+        genotype: the canonical called genotype (e.g. ``"AG"``, ``"II"``, ``"--"``,
+            or a single char for haploid X/Y).
+
+    Returns:
+        ``(chrom_grch37, pos_grch37, genotype_grch37)`` with a 1-based position and
+        no ``chr`` prefix, or ``None`` if the variant does not lift — deleted or
+        rearranged out in hg19, unknown chromosome, or mitochondrial (see below).
+
+    Mitochondrial inputs return ``None``: UCSC hg18 ``chrM`` is the old (non-rCRS)
+    reference, so a lifted MT coordinate would be wrong — the same rationale that
+    makes :func:`convert_coordinate` decline MT for hg19→hg38. 23andMe MT calls are
+    matched by rsID/position downstream, not via this positional lift.
+    """
+    clean = chrom.removeprefix("chr")
+
+    # MT short-circuit: hg18 chrM is not rCRS, so any lifted MT coordinate is wrong.
+    if clean in ("MT", "M"):
+        return None
+
+    lo = _get_liftover_hg18()
+    ucsc_chrom = f"chr{clean}"
+
+    # pyliftover uses 0-based coordinates; our positions are 1-based.
+    results = lo.convert_coordinate(ucsc_chrom, pos - 1)
+    if not results:
+        return None
+
+    # Take the best (first) result: (chrom, pos_0based, strand, score).
+    new_chrom, new_pos_0based, strand, _score = results[0]
+    out_chrom = new_chrom.removeprefix("chr")
+
+    out_genotype = genotype
+    if strand == "-":
+        # Complement A/C/G/T alleles so the call stays plus-strand-relative on
+        # GRCh37, then restore the parser's canonical uppercased+sorted-pair form.
+        # str.translate preserves allele order, so a sorted het "AG" would
+        # otherwise become "TC" rather than the canonical "CT" — silently breaking
+        # sorted-pair lookups for exactly these minus-strand v3 calls. Only re-sort
+        # 2-char A/C/G/T pairs; indel tokens (I/D), no-calls and single-char
+        # haploid calls are left as-is (their set is not ⊆ {A,C,G,T}).
+        out_genotype = genotype.translate(_BASE_COMPLEMENT)
+        if len(out_genotype) == 2 and set(out_genotype) <= _ACGT:
+            out_genotype = "".join(sorted(out_genotype))
+
+    return (out_chrom, new_pos_0based + 1, out_genotype)
+
+
 def batch_convert(
     variants: list[tuple[str, str, int]],
 ) -> dict[str, tuple[str, int] | None]:
@@ -151,7 +262,9 @@ def batch_convert(
 
 
 def reset_liftover() -> None:
-    """Reset the cached LiftOver instance (for testing)."""
-    global _liftover
+    """Reset the cached LiftOver instances (for testing)."""
+    global _liftover, _liftover_hg18
     with _lock:
         _liftover = None
+    with _lock_hg18:
+        _liftover_hg18 = None

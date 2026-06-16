@@ -184,19 +184,19 @@
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "Normal type V collagen expression. Standard connective tissue composition."
+              "effect_summary": "Normal type V collagen expression. Associated with greater musculotendinous flexibility (higher range of motion) and lower tendon/ligament injury risk — the protective genotype at this locus."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Modestly altered type V collagen expression. Mildly increased range of motion and potentially increased soft tissue injury susceptibility."
+              "effect_summary": "One copy of the T allele. Modestly altered type V collagen expression, associated with reduced flexibility (lower range of motion) and increased soft-tissue injury susceptibility."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Modestly altered type V collagen expression. Mildly increased range of motion and potentially increased soft tissue injury susceptibility."
+              "effect_summary": "One copy of the T allele. Modestly altered type V collagen expression, associated with reduced flexibility (lower range of motion) and increased soft-tissue injury susceptibility."
             },
             "TT": {
               "category": "Elevated",
-              "effect_summary": "Homozygous T allele. Altered type V collagen expression associated with increased range of motion and higher susceptibility to Achilles tendon and other soft tissue injuries."
+              "effect_summary": "Homozygous T allele. Altered type V collagen expression associated with reduced flexibility (lower range of motion) and higher susceptibility to Achilles tendon and other soft tissue injuries."
             }
           },
           "evidence_level": 1,

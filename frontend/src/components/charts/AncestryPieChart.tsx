@@ -4,7 +4,7 @@
  * Uses react-plotly.js for consistent styling with other charts.
  */
 
-import Plot from "react-plotly.js"
+import Plot from "@/components/charts/Plot"
 import type { LAIGlobalAncestryEntry } from "@/types/ancestry"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"

@@ -10,7 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.ingestion import liftover as liftover_module
-from backend.ingestion.liftover import batch_convert, convert_coordinate, reset_liftover
+from backend.ingestion.liftover import (
+    batch_convert,
+    convert_coordinate,
+    lift_build36_to_grch37,
+    reset_liftover,
+)
 
 # ── Unit tests: convert_coordinate ────────────────────────────────────
 
@@ -116,6 +121,78 @@ class TestBatchConvert:
         variants = [("rs123", "1", 100000)]
         results = batch_convert(variants)
         assert "rs123" in results
+
+
+# ── Unit tests: lift_build36_to_grch37 (#562) ─────────────────────────
+
+
+class TestLiftBuild36ToGrch37:
+    """hg18 (NCBI build 36, 23andMe v3) → GRCh37 lift, with strand-aware alleles."""
+
+    def test_rs7412_known_coordinate_plus_strand(self) -> None:
+        """rs7412 build36 19:50103919 → GRCh37 19:45412079 (+ strand, no complement).
+
+        Verified via UCSC liftOver; pins the vendored hg18→hg19 chain.
+        """
+        result = lift_build36_to_grch37("19", 50103919, "CC")
+        assert result == ("19", 45412079, "CC")
+
+    def test_plus_strand_genotype_unchanged(self) -> None:
+        """On a +-strand lift the alleles are passed through verbatim."""
+        result = lift_build36_to_grch37("19", 50103919, "CT")
+        assert result is not None
+        assert result[2] == "CT"
+
+    def test_minus_strand_complements_snv_alleles(self) -> None:
+        """On a strand-flipped (−) segment, A/C/G/T alleles are complemented so the
+        stored call is plus-strand-relative on GRCh37 (hg18 chr1:2480001 lifts −).
+        The result keeps the parser's canonical uppercased+SORTED-pair form: the
+        complement of sorted "AG" is "TC" in place, re-sorted to canonical "CT"."""
+        result = lift_build36_to_grch37("1", 2480001, "AG")
+        assert result is not None
+        out_chrom, out_pos, out_genotype = result
+        assert out_chrom == "1"
+        assert out_pos == 2494417
+        assert out_genotype == "CT"  # complement(A,G)=(T,C) → sorted "CT"
+
+    def test_minus_strand_output_is_canonical_sorted_pair(self) -> None:
+        """Every minus-strand SNV lift returns a canonical sorted pair (matching a
+        fresh parse), so sorted-pair lookups can't silently miss these calls."""
+        for gt in ("AG", "AC", "CT", "GT", "AT", "CG"):
+            out = lift_build36_to_grch37("1", 2480001, gt)
+            assert out is not None
+            assert out[2] == "".join(sorted(out[2])), f"{gt} → {out[2]} not sorted"
+
+    def test_minus_strand_does_not_complement_indels(self) -> None:
+        """Indel tokens I/D must NOT be complemented on a strand flip."""
+        assert lift_build36_to_grch37("1", 2480001, "II")[2] == "II"
+        assert lift_build36_to_grch37("1", 2480001, "DD")[2] == "DD"
+        assert lift_build36_to_grch37("1", 2480001, "DI")[2] == "DI"
+
+    def test_minus_strand_does_not_complement_nocall(self) -> None:
+        """No-call sentinels pass through unchanged on a strand flip."""
+        assert lift_build36_to_grch37("1", 2480001, "--")[2] == "--"
+
+    def test_palindromic_genotype_invariant_under_complement(self) -> None:
+        """A palindromic genotype (A/T or C/G) is invariant under complement, so a
+        strand flip leaves its allele set unchanged."""
+        # complement(A)=T, complement(T)=A → "AT" → "TA" (same allele set)
+        assert sorted(lift_build36_to_grch37("1", 2480001, "AT")[2]) == ["A", "T"]
+        assert sorted(lift_build36_to_grch37("1", 2480001, "CG")[2]) == ["C", "G"]
+
+    def test_mt_declined(self) -> None:
+        """Mitochondrial inputs return None (hg18 chrM is not rCRS)."""
+        assert lift_build36_to_grch37("MT", 100, "A") is None
+        assert lift_build36_to_grch37("chrM", 7028, "G") is None
+
+    def test_unliftable_returns_none(self) -> None:
+        """A position deleted/rearranged out of hg19 (or unknown chrom) → None."""
+        assert lift_build36_to_grch37("1", 247_000_000, "AG") is None
+        assert lift_build36_to_grch37("99", 100, "AG") is None
+
+    def test_chr_prefix_accepted(self) -> None:
+        """The ``chr`` prefix is optional, mirroring convert_coordinate."""
+        assert lift_build36_to_grch37("chr19", 50103919, "CC") == ("19", 45412079, "CC")
 
 
 # ── Reset helper ──────────────────────────────────────────────────────

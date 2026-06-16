@@ -484,3 +484,38 @@ class TestBulkLoading:
             symbols = [r.gene_symbol for r in rows]
             assert "NEW" in symbols
             assert "OLD" not in symbols
+
+
+class TestMondoHpoZeroRowGuard:
+    """A destructive clear with 0 rows to load must never wipe gene_phenotype.
+
+    Mirrors the cpic/clingen guard: a zero-row external fetch/parse (empty or
+    truncated MONDO/HPO download, an upstream format change) must not silently
+    empty the curated mondo_hpo rows (#753).
+    """
+
+    @staticmethod
+    def _count(engine: sa.Engine) -> int:
+        with engine.connect() as conn:
+            return conn.execute(sa.select(sa.func.count()).select_from(gene_phenotype)).scalar()
+
+    def test_load_rows_refuses_to_wipe(self, loaded_engine: sa.Engine) -> None:
+        before = self._count(loaded_engine)
+        assert before > 0
+        with pytest.raises(ValueError, match="0 rows"):
+            load_mondo_hpo_rows([], loaded_engine, clear_existing=True)
+        assert self._count(loaded_engine) == before  # curated rows preserved
+
+    def test_load_rows_empty_no_clear_is_noop(self, loaded_engine: sa.Engine) -> None:
+        before = self._count(loaded_engine)
+        load_mondo_hpo_rows([], loaded_engine, clear_existing=False)
+        assert self._count(loaded_engine) == before
+
+    def test_load_from_csv_refuses_to_wipe(self, loaded_engine: sa.Engine, tmp_path: Path) -> None:
+        before = self._count(loaded_engine)
+        assert before > 0
+        empty_csv = tmp_path / "empty.csv"
+        empty_csv.write_text("gene_symbol,disease_name,disease_id,hpo_terms,source,inheritance\n")
+        with pytest.raises(ValueError, match="0 rows"):
+            load_mondo_hpo_from_csv(empty_csv, loaded_engine, clear_existing=True)
+        assert self._count(loaded_engine) == before

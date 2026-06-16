@@ -19,19 +19,16 @@ import {
 import { useVariantDetail } from "@/api/variant-detail"
 import type { VariantDetail, EvidenceConflictDetail } from "@/types/variant-detail"
 import WatchButton from "@/components/variant-detail/WatchButton"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
+import { formatAlleleFrequency } from "@/lib/format"
+import { polyphen2Display } from "@/lib/insilico"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
   sampleId: number | null
   onClose: () => void
-}
-
-/** Format allele frequency for display. */
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
 }
 
 /** Render ClinVar review stars as filled/empty unicode stars. */
@@ -200,11 +197,7 @@ function PanelContent({
             variant.clinvar_significance ? (
               <span
                 className={cn(
-                  variant.clinvar_significance.toLowerCase().includes("pathogenic")
-                    ? "text-red-600 dark:text-red-400"
-                    : variant.clinvar_significance.toLowerCase().includes("benign")
-                      ? "text-green-600 dark:text-green-400"
-                      : "",
+                  getClinvarSignificanceTextClass(variant.clinvar_significance),
                 )}
               >
                 {variant.clinvar_significance}
@@ -225,7 +218,7 @@ function PanelContent({
           label="gnomAD AF"
           value={
             <span className="flex items-center gap-1.5">
-              {formatAF(variant.gnomad_af_global)}
+              {formatAlleleFrequency(variant.gnomad_af_global)}
               {rareLabel && (
                 <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                   {rareLabel}
@@ -246,8 +239,8 @@ function PanelContent({
                 <span
                   className={cn(
                     variant.sift_pred === "D"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-green-600 dark:text-green-400",
+                      ? "text-red-700 dark:text-red-400"
+                      : "text-green-700 dark:text-green-400",
                   )}
                 >
                   {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}
@@ -263,16 +256,10 @@ function PanelContent({
           label="PolyPhen-2"
           value={
             variant.polyphen2_hsvar_pred ? (
-              <span
-                className={cn(
-                  variant.polyphen2_hsvar_pred === "probably_damaging"
-                    ? "text-red-600 dark:text-red-400"
-                    : variant.polyphen2_hsvar_pred === "possibly_damaging"
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-green-600 dark:text-green-400",
-                )}
-              >
-                {variant.polyphen2_hsvar_pred.replace(/_/g, " ")}
+              <span className={polyphen2Display(variant.polyphen2_hsvar_pred).colorClass}>
+                {polyphen2Display(variant.polyphen2_hsvar_pred).label}
+                {variant.polyphen2_hsvar_score != null &&
+                  ` (${variant.polyphen2_hsvar_score.toFixed(3)})`}
               </span>
             ) : null
           }
@@ -347,6 +334,10 @@ export default function VariantDetailSidePanel({
   const { data: variant, isLoading, error } = useVariantDetail(rsid, sampleId)
   const isOpen = rsid != null
 
+  // Focus-in / trap / restore for the dialog (#703). The component stays mounted
+  // and renders null when closed, so the open flag drives focus entry per open.
+  useDialogFocus(panelRef, isOpen)
+
   // Close on Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -389,6 +380,7 @@ export default function VariantDetailSidePanel({
         role="dialog"
         aria-label={`Variant detail for ${rsid}`}
         aria-modal="true"
+        tabIndex={-1}
         className={cn(
           "fixed right-0 top-0 h-full w-full max-w-md bg-card border-l border-border shadow-xl",
           "flex flex-col",

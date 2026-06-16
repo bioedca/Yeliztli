@@ -79,7 +79,7 @@ EXPECTED_RSIDS = {
     # Choline & Betaine (6)
     "rs12325817",  # PEMT
     "rs9001",  # CHDH
-    "rs585800",  # BHMT2
+    "rs585800",  # BHMT
     "rs3199966",  # SLC44A1
     "rs2266782",  # FMO3
     "rs7639752",  # PCYT1A
@@ -115,7 +115,6 @@ EXPECTED_GENES = {
     "QDPR",
     "PEMT",
     "CHDH",
-    "BHMT2",
     "SLC44A1",
     "FMO3",
     "PCYT1A",
@@ -296,6 +295,30 @@ class TestGenotypeEffects:
                             f"{snp['rsid']}:{gt} has Elevated with evidence_level=1 "
                             f"(violates star_1_cap=Moderate)"
                         )
+
+
+class TestCholineBetaineAlleleFrames:
+    """Issue #717: the BHMT/SLC44A1 rows must use real dbSNP/Ensembl alleles."""
+
+    def _get_snp(self, panel_data: dict, rsid: str) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found in panel")
+
+    def test_rs585800_uses_real_t_a_frame(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs585800")
+        assert snp["gene"] == "BHMT"
+        assert (snp["risk_allele"], snp["ref_allele"]) == ("A", "T")
+        assert set(snp["genotype_effects"]) == {"TT", "TA", "AT", "AA"}
+        assert "G" not in "".join(snp["genotype_effects"])
+
+    def test_rs3199966_uses_real_t_g_frame(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs3199966")
+        assert (snp["risk_allele"], snp["ref_allele"]) == ("T", "G")
+        assert set(snp["genotype_effects"]) == {"GG", "GT", "TG", "TT"}
+        assert "C" not in "".join(snp["genotype_effects"])
 
 
 # ── MTHFR flagship variant tests ────────────────────────────────────────
@@ -633,7 +656,7 @@ class TestPathwayAllocation:
         rsids = {s["rsid"] for s in pw["snps"]}
         assert "rs12325817" in rsids  # PEMT
         assert "rs9001" in rsids  # CHDH
-        assert "rs585800" in rsids  # BHMT2
+        assert "rs585800" in rsids  # BHMT
         assert "rs3199966" in rsids  # SLC44A1
         assert "rs2266782" in rsids  # FMO3
         assert "rs7639752" in rsids  # PCYT1A
@@ -771,7 +794,7 @@ class TestDHFRCitationProvenance:
     )
     # Off-topic PMIDs that were exclusive to the DHFR row -> safe to ban panel-wide.
     _DHFR_EXCLUSIVE_BANNED = frozenset({"20162554"})
-    # Off-topic for DHFR, but BHMT/BHMT2 rows also cite 18175331 -> ban from the DHFR row only.
+    # Off-topic for DHFR, but BHMT rows also cite 18175331 -> ban from the DHFR row only.
     _DHFR_ROW_BANNED = frozenset({"18175331", "20162554"})
 
     def _get_dhfr(self, panel_data: dict) -> dict:
@@ -790,7 +813,7 @@ class TestDHFRCitationProvenance:
 
     def test_dhfr_exclusive_banned_pmid_absent_from_panel(self, panel_data: dict) -> None:
         # 20162554 was exclusive to the DHFR row -> must not appear anywhere in
-        # the panel. (18175331 is NOT asserted panel-wide: BHMT/BHMT2 rows still
+        # the panel. (18175331 is NOT asserted panel-wide: BHMT rows still
         # carry it as a separate concern tracked by #314.)
         leaked = self._DHFR_EXCLUSIVE_BANNED & set(_all_pmids(panel_data))
         assert not leaked, f"DHFR-exclusive unrelated PMID(s) still in panel: {sorted(leaked)}"
@@ -886,7 +909,7 @@ class TestMethylationCitationRemediation:
     choline-betaine / vitamin-D references — each PMID title verified via NCBI
     esummary and the association verified with the Consensus connector. rsIDs with
     little/no PubMed footprint (MTHFS rs6495446, MAT1A rs10887718, AHCY rs819147,
-    GSS rs3761144, QDPR rs1677693, BHMT2 rs585800) cite the gene's
+    GSS rs3761144, QDPR rs1677693, BHMT rs585800) cite the gene's
     functional/discovery papers rather than a fabricated variant-specific one. The
     TCN2 row also drops the dead PMID 19187342 (#417).
     """
@@ -920,7 +943,7 @@ class TestMethylationCitationRemediation:
         "rs2228570": {"9797477", "17274004", "15899948"},  # VDR FokI
         "rs1544410": {"23134477", "33238893"},  # VDR BsmI
         "rs3733890": {"18457970", "27578989", "12818402"},  # BHMT R239Q
-        "rs585800": {"18457970", "20662904", "15887275"},  # BHMT2 (gene-level)
+        "rs585800": {"18457970", "20662904", "15887275"},  # BHMT (gene-level)
         "rs12325817": {"16816108", "20861172", "21059658"},  # PEMT
         "rs9001": {"16816108", "28134761", "24671709"},  # CHDH A119S
         "rs3199966": {"24671709", "28134761", "22483272"},  # SLC44A1

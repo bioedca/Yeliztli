@@ -1,4 +1,90 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
+
+const WIZARD_DATA_DIR = '/tmp/.yeliztli'
+
+/**
+ * Mock the *static* setup-wizard chrome endpoints (auth, disclaimer, detect,
+ * storage, credentials) so a spec can drive the wizard to the Databases step
+ * without a real backend. The dynamic endpoints — `/api/setup/status`,
+ * `/api/databases`, `/api/databases/download`, `/api/databases/progress/**`,
+ * `/api/databases/health` — stay the caller's responsibility because each spec
+ * stages them differently. `disclaimer_accepted` is reported true so the wizard
+ * starts on the Import step.
+ */
+export async function mockWizardChrome(page: Page): Promise<void> {
+  const json = (body: unknown) => ({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  })
+  await page.route('**/api/auth/status', (route) =>
+    route.fulfill(json({ auth_enabled: false, has_password: false, authenticated: true })),
+  )
+  await page.route('**/api/setup/disclaimer', (route) =>
+    route.fulfill(
+      json({
+        title: 'Disclaimer',
+        text: 'For research / educational use only.',
+        accept_label: 'I Understand and Accept',
+      }),
+    ),
+  )
+  await page.route('**/api/setup/detect-existing', (route) =>
+    route.fulfill(
+      json({
+        existing_found: false,
+        has_config: false,
+        has_samples: false,
+        has_databases: false,
+        data_dir: WIZARD_DATA_DIR,
+      }),
+    ),
+  )
+  await page.route('**/api/setup/storage-info', (route) =>
+    route.fulfill(
+      json({
+        data_dir: WIZARD_DATA_DIR,
+        free_space_bytes: 100_000_000_000,
+        free_space_gb: 100,
+        total_space_bytes: 500_000_000_000,
+        total_space_gb: 500,
+        status: 'ok',
+        message: 'Storage looks good.',
+        path_exists: true,
+        path_writable: true,
+      }),
+    ),
+  )
+  await page.route('**/api/setup/set-storage-path', (route) =>
+    route.fulfill(
+      json({
+        success: true,
+        data_dir: WIZARD_DATA_DIR,
+        free_space_gb: 100,
+        status: 'ok',
+        message: 'Storage path saved.',
+      }),
+    ),
+  )
+  await page.route('**/api/setup/credentials', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill(json({ success: true, message: 'Saved.' }))
+      : route.fulfill(json({ pubmed_email: '', ncbi_api_key: '', omim_api_key: '' })),
+  )
+}
+
+/** Drive the wizard from /setup through to the Databases step. */
+export async function walkWizardToDatabases(page: Page): Promise<void> {
+  await page.goto('/setup')
+  await page.waitForLoadState('domcontentloaded')
+  await page.getByRole('button', { name: /Skip — Start Fresh/i }).click()
+  await expect(page.getByRole('heading', { name: /Storage Location/i })).toBeVisible()
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await expect(page.getByRole('heading', { name: 'External Services' })).toBeVisible()
+  await page.getByLabel(/PubMed email address/i).fill('e2e@example.com')
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await expect(page.getByRole('heading', { name: /Reference Databases/i })).toBeVisible()
+}
 
 /**
  * Stub `/api/setup/status` so AuthGuard treats the install as fully set up.

@@ -231,14 +231,11 @@ class TestExpiredSession:
         assert resp.status_code == 200
         session_cookie = resp.cookies.get("gi_session")
 
-        # Backdate the session
+        # Backdate the session (the login cookie is already on the client jar).
         _sessions[session_cookie] = _sessions[session_cookie] - 5 * 3600
 
         # Attempt to access a protected endpoint
-        resp = auth_client.get(
-            "/api/samples",
-            cookies={"gi_session": session_cookie},
-        )
+        resp = auth_client.get("/api/samples")
         assert resp.status_code == 401
 
 
@@ -273,15 +270,17 @@ class TestAuthEnforcement:
         assert resp.status_code == 200
 
     def test_authenticated_request_passes(self, auth_client: TestClient) -> None:
-        # Login first
+        # Login persists the session cookie on the client instance (the login
+        # response's Set-Cookie is captured by the client jar), so subsequent
+        # requests are authenticated without a per-request cookies= (#594).
         login_resp = auth_client.post("/api/auth/login", json={"password": "testpin"})
-        cookies = {"gi_session": login_resp.cookies.get("gi_session")}
+        assert "gi_session" in login_resp.cookies
 
         # Access protected endpoint — a valid session must succeed, not merely
         # avoid 401. Asserting == 200 (the documented success for /api/samples,
         # see TestAuthDisabled::test_no_auth_needed_when_disabled) also catches a
         # 500 / 403 that `!= 401` would silently pass.
-        resp = auth_client.get("/api/samples", cookies=cookies)
+        resp = auth_client.get("/api/samples")
         assert resp.status_code == 200
 
 
@@ -315,17 +314,20 @@ class TestLogout:
     """Test logout destroys session."""
 
     def test_logout_clears_session(self, auth_client: TestClient) -> None:
-        # Login
+        # Login (the session cookie is now on the client jar).
         login_resp = auth_client.post("/api/auth/login", json={"password": "testpin"})
-        cookies = {"gi_session": login_resp.cookies.get("gi_session")}
+        session_cookie = login_resp.cookies.get("gi_session")
 
-        # Logout
-        resp = auth_client.post("/api/auth/logout", cookies=cookies)
+        # Logout — its response deletes the cookie, so the client jar drops it.
+        resp = auth_client.post("/api/auth/logout")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
-        # Old session should no longer work
-        resp = auth_client.get("/api/samples", cookies=cookies)
+        # The OLD session value must be rejected server-side: re-set it explicitly
+        # (logout cleared it from the jar) so this proves the server destroyed the
+        # session, not merely that no cookie was sent (#594).
+        auth_client.cookies.set("gi_session", session_cookie)
+        resp = auth_client.get("/api/samples")
         assert resp.status_code == 401
 
 
@@ -337,7 +339,9 @@ class TestLogout:
 class TestSetPassword:
     """Test password set/update flows."""
 
-    def test_set_initial_password(self, noauth_client: TestClient) -> None:
+    def test_set_initial_password(self, noauth_client: TestClient, tmp_data_dir: Path) -> None:
+        import tomllib
+
         resp = noauth_client.post(
             "/api/auth/set-password",
             json={"password": "newpin123"},
@@ -345,6 +349,12 @@ class TestSetPassword:
         assert resp.status_code == 200
         assert resp.json()["success"] is True
         assert "gi_session" in resp.cookies
+
+        cfg = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        persisted_hash = cfg["yeliztli"]["auth_password_hash"]
+        assert cfg["yeliztli"]["auth_enabled"] is True
+        assert persisted_hash != "newpin123"
+        assert verify_password("newpin123", persisted_hash) is True
 
     def test_set_password_too_short(self, noauth_client: TestClient) -> None:
         resp = noauth_client.post(
@@ -354,15 +364,14 @@ class TestSetPassword:
         assert resp.status_code == 422
 
     def test_change_password_requires_current(self, auth_client: TestClient) -> None:
-        # Login first
+        # Login (the session cookie is now on the client jar).
         login_resp = auth_client.post("/api/auth/login", json={"password": "testpin"})
-        cookies = {"gi_session": login_resp.cookies.get("gi_session")}
+        assert "gi_session" in login_resp.cookies
 
         # Try to change without current password
         resp = auth_client.post(
             "/api/auth/set-password",
             json={"password": "newpin"},
-            cookies=cookies,
         )
         assert resp.status_code == 400
 
@@ -425,12 +434,10 @@ class TestRemovePassword:
         from backend.auth import _get_session_count
 
         login = auth_client.post("/api/auth/login", json={"password": "testpin"})
-        cookies = {"gi_session": login.cookies.get("gi_session")}
+        assert "gi_session" in login.cookies  # session cookie now on the client jar
         assert _get_session_count() == 1
 
-        resp = auth_client.post(
-            "/api/auth/remove-password", json={"password": "wrongpin"}, cookies=cookies
-        )
+        resp = auth_client.post("/api/auth/remove-password", json={"password": "wrongpin"})
         assert resp.status_code == 401
         assert resp.json()["detail"] == "Password is incorrect."
         # The auth-disabling side effects must NOT have run: the handler raised
@@ -449,12 +456,10 @@ class TestRemovePassword:
         from backend.auth import _get_session_count
 
         login = auth_client.post("/api/auth/login", json={"password": "testpin"})
-        cookies = {"gi_session": login.cookies.get("gi_session")}
+        assert "gi_session" in login.cookies  # session cookie now on the client jar
         assert _get_session_count() == 1
 
-        resp = auth_client.post(
-            "/api/auth/remove-password", json={"password": "testpin"}, cookies=cookies
-        )
+        resp = auth_client.post("/api/auth/remove-password", json={"password": "testpin"})
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 

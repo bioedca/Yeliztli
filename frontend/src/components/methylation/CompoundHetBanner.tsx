@@ -34,7 +34,7 @@ export default function CompoundHetBanner({ compoundHet }: CompoundHetBannerProp
               {compoundHet.finding_text}
             </p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-xs text-amber-600 dark:text-amber-500">
+          <div className="flex items-center gap-4 mt-2 text-xs text-amber-700 dark:text-amber-500">
             {compoundHet.c677t_genotype && (
               <span>
                 C677T: <span className="font-mono font-medium">{compoundHet.c677t_genotype}</span>

@@ -1625,27 +1625,6 @@ def _classify_node_match(
     return snps_present, snps_conflicting, snps_total
 
 
-def _check_node_match(
-    node: HaplogroupNode,
-    genotype_map: dict[str, str | None],
-) -> tuple[int, int]:
-    """Check how many defining SNPs match for a node.
-
-    A defining SNP matches if the sample's genotype at that rsid
-    contains the derived allele (heterozygous or homozygous). Back-compatible
-    shim over :func:`_classify_node_match` (drops the conflicting count).
-
-    Args:
-        node: Tree node to check.
-        genotype_map: Mapping rsid → genotype string.
-
-    Returns:
-        Tuple of (snps_present, snps_total).
-    """
-    snps_present, _snps_conflicting, snps_total = _classify_node_match(node, genotype_map)
-    return snps_present, snps_total
-
-
 def _tree_walk(
     node: HaplogroupNode,
     genotype_map: dict[str, str | None],
@@ -1714,6 +1693,20 @@ def _tree_walk(
 
 
 # ── Main haplogroup assignment ───────────────────────────────────────
+
+
+def _haplogroup_confidence(present: int, total: int) -> float:
+    """Confidence that a haplogroup call is correct: the fraction of defining
+    SNPs along the assigned path that are present (derived) in the sample.
+
+    ``present / total`` (T3-33), or ``0.0`` when no defining SNP was evaluated
+    (``total == 0``, e.g. the root with an empty path) to avoid division by
+    zero. Single source of truth for both the mt and Y tree-walk confidence so
+    the two cannot diverge; pinned to a literal by ``test_haplogroup`` so a
+    formula change (e.g. a Jaccard-style ``present / (total + present)``) or a
+    present/total miscount fails CI. The caller rounds for storage/display.
+    """
+    return present / total if total > 0 else 0.0
 
 
 def assign_haplogroups(
@@ -1786,7 +1779,7 @@ def assign_haplogroups(
     # Accumulate total defining SNPs along the path for confidence
     mt_total_present = sum(step.snps_present for step in mt_path)
     mt_total_snps = sum(step.snps_total for step in mt_path)
-    mt_confidence = mt_total_present / mt_total_snps if mt_total_snps > 0 else 0.0
+    mt_confidence = _haplogroup_confidence(mt_total_present, mt_total_snps)
     mt_time = (time.perf_counter() - t0) * 1000.0
 
     mt_result = HaplogroupResult(
@@ -1825,7 +1818,7 @@ def assign_haplogroups(
 
         y_total_present = sum(step.snps_present for step in y_path)
         y_total_snps = sum(step.snps_total for step in y_path)
-        y_confidence = y_total_present / y_total_snps if y_total_snps > 0 else 0.0
+        y_confidence = _haplogroup_confidence(y_total_present, y_total_snps)
         y_time = (time.perf_counter() - t0) * 1000.0
 
         y_result = HaplogroupResult(

@@ -9,6 +9,8 @@ Covers:
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 
 from backend.analysis.ebmd_prs import (
@@ -97,6 +99,10 @@ class TestByoAvailability:
         assert prs is not None
         assert prs.pgs_id == EBMD_PGS_ID
         assert prs.calibrated is False  # uncalibrated (percentile withheld)
+        # The Forgetta 2020 PMID reaches the result via the PGS registry's
+        # source_pmid for PGS000657 (the single source of truth), not a
+        # module-level constant — a dead duplicate of it was removed in #671.
+        assert prs.source_pmid == "32614825"
 
 
 class TestStore:
@@ -111,6 +117,11 @@ class TestStore:
                 )
             ).fetchall()
         assert len(rows) == 1
+        # The stored finding's machine-readable citations still carry the Forgetta
+        # 2020 PMID, sourced from the PGS registry (source_pmid for PGS000657) —
+        # not from the dead module-level constant removed in #671. Deletion is
+        # behaviour-preserving for the user-facing citation.
+        assert "32614825" in json.loads(rows[0].pmid_citations)
 
     def test_absence_clears_stale(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine)

@@ -27,7 +27,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import raw_variants, reference_metadata, samples
+from backend.db.tables import raw_variants, reference_metadata, samples, tags, variant_tags
 
 # ── Test data ────────────────────────────────────────────────────────
 
@@ -44,6 +44,19 @@ PREDEFINED_TAG_NAMES = [
     "Actionable",
     "Benign override",
 ]
+
+
+def _variant_tag_count(db_path: Path, tag_id: int) -> int:
+    engine = sa.create_engine(f"sqlite:///{db_path}")
+    try:
+        with engine.connect() as conn:
+            return conn.execute(
+                sa.select(sa.func.count())
+                .select_from(variant_tags)
+                .where(variant_tags.c.tag_id == tag_id)
+            ).scalar_one()
+    finally:
+        engine.dispose()
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -275,7 +288,41 @@ class TestDeleteTag:
         resp = tags_client.delete(f"/api/tags/{tag_id}", params={"sample_id": 1})
         assert resp.status_code == 403
 
-    def test_delete_tag_cascades(self, tags_client: TestClient) -> None:
+    def test_delete_tag_removes_variant_tags_directly(self, sample_db_path: Path) -> None:
+        """delete_tag removes join rows even when SQLite FK cascades are disabled."""
+        from backend.api.routes import tags as tag_routes
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with engine.begin() as conn:
+                tag_id = conn.execute(
+                    tags.insert().values(
+                        name="Cascade Direct",
+                        color="#6B7280",
+                        is_predefined=False,
+                    )
+                ).inserted_primary_key[0]
+                conn.execute(variant_tags.insert().values(rsid="rs12345", tag_id=tag_id))
+
+            assert _variant_tag_count(sample_db_path, tag_id) == 1
+
+            with patch.object(tag_routes, "_get_sample_engine", return_value=engine):
+                tag_routes.delete_tag(tag_id=tag_id, sample_id=1)
+
+            assert _variant_tag_count(sample_db_path, tag_id) == 0
+            with engine.connect() as conn:
+                assert (
+                    conn.execute(sa.select(tags.c.id).where(tags.c.id == tag_id)).fetchone()
+                    is None
+                )
+        finally:
+            engine.dispose()
+
+    def test_delete_tag_cascades(
+        self,
+        tags_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
         """Deleting a tag removes its variant_tags entries."""
         # Create custom tag
         resp = tags_client.post(
@@ -296,10 +343,14 @@ class TestDeleteTag:
         resp = tags_client.get("/api/tags/variant/rs12345", params={"sample_id": 1})
         tag_names = [t["name"] for t in resp.json()]
         assert "Cascade Test" in tag_names
+        assert _variant_tag_count(sample_db_path, tag_id) == 1
 
         # Delete the tag
         resp = tags_client.delete(f"/api/tags/{tag_id}", params={"sample_id": 1})
         assert resp.status_code == 204
+
+        # Verify the association row is gone directly; the joined read path masks orphans.
+        assert _variant_tag_count(sample_db_path, tag_id) == 0
 
         # Verify tag is removed from variant
         resp = tags_client.get("/api/tags/variant/rs12345", params={"sample_id": 1})

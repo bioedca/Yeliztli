@@ -272,12 +272,18 @@ class TestDRD4Proxy:
         assert drd4.cross_module is not None
         assert drd4.cross_module["module"] == "gene_health"
 
-    def test_drd4_t_containing_genotype_is_not_curated(self, panel: TraitsPanel) -> None:
+    def test_drd4_t_containing_genotype_is_indeterminate(self, panel: TraitsPanel) -> None:
+        """DRD4 rs747302 models the C/G contrast; an observed ``CT`` carries a ``T``
+        the locus does not model, so it is withheld as Indeterminate rather than
+        silently scored Standard (which would hide a carrier as 'no effect') — #608."""
         drd4 = self._get_drd4(panel)
-        result = _score_snp(drd4, "CT")
-        assert result.category == STANDARD
-        assert result.present_in_sample is True
-        assert "not in curated panel definitions" in result.effect_summary
+        for gt in ("CT", "TC"):
+            result = _score_snp(drd4, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        # A non-nucleotide no-call is not an unmodeled allele — it stays Standard.
+        assert _score_snp(drd4, "--").category == STANDARD
 
     def test_drd4_finding_preserves_coverage_note(self, panel: TraitsPanel) -> None:
         drd4 = self._get_drd4(panel)
@@ -451,7 +457,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -483,7 +488,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -510,7 +514,6 @@ class TestCrossModuleFindings:
         behavioral_pr = PathwayResult(
             pathway_id="behavioral_traits",
             pathway_name="Behavioral Traits",
-            pathway_description="",
             level=STANDARD,
         )
         results = [behavioral_pr]
@@ -920,7 +923,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

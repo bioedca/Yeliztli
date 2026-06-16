@@ -9,12 +9,13 @@
 
 import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Pill } from "lucide-react"
+import { Loader2, Pill } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import SectionError from "@/components/ui/SectionError"
 import { usePharmaGenes, usePharmaDrugs } from "@/api/pharmacogenomics"
 import MetabolizerCard from "@/components/pharmacogenomics/MetabolizerCard"
 import DrugTable from "@/components/pharmacogenomics/DrugTable"
@@ -40,8 +41,13 @@ export default function PharmacogenomicsView() {
     )
   }
 
-  const isLoading = genesQuery.isLoading || drugsQuery.isLoading
-  const hasError = genesQuery.isError || drugsQuery.isError
+  // Gate the page on the PRIMARY query (the sample's gene metabolizer
+  // phenotypes) only. The drug-interaction list is shared, non-sample-specific
+  // CPIC reference data; it degrades to a localized inline error/spinner in its
+  // own section, so a drugs 500 no longer blanks the user's successfully-called
+  // gene results (#642).
+  const isLoading = genesQuery.isLoading
+  const hasError = genesQuery.isError
 
   return (
     <div className="p-6">
@@ -66,20 +72,15 @@ export default function PharmacogenomicsView() {
       {/* Loading state */}
       {isLoading && <PageLoading message="Loading pharmacogenomics data..." />}
 
-      {/* Error state */}
+      {/* Error state — only when the PRIMARY genes query fails. */}
       {hasError && !isLoading && (
         <PageError
           message={
             genesQuery.error instanceof Error
               ? genesQuery.error.message
-              : drugsQuery.error instanceof Error
-                ? drugsQuery.error.message
-                : "An unexpected error occurred."
+              : "An unexpected error occurred."
           }
-          onRetry={() => {
-            genesQuery.refetch()
-            drugsQuery.refetch()
-          }}
+          onRetry={() => genesQuery.refetch()}
         />
       )}
 
@@ -112,15 +113,32 @@ export default function PharmacogenomicsView() {
             </div>
           )}
 
-          {/* Drug interaction table */}
-          {drugsQuery.data && (
+          {/* Drug interaction table — secondary section: render its own
+              error/spinner so a failure or slow load of the shared CPIC drug
+              reference never hides the gene results above (#642). Hidden
+              entirely only when it resolved with no items. */}
+          {(drugsQuery.isError ||
+            drugsQuery.isLoading ||
+            (drugsQuery.data && drugsQuery.data.items.length > 0)) && (
             <section aria-label="Drug interactions" className="mb-6">
               <h2 className="text-lg font-semibold mb-3">Drug Interactions</h2>
-              <DrugTable
-                drugs={drugsQuery.data.items}
-                onSelectDrug={setSelectedDrug}
-                selectedDrug={selectedDrug}
-              />
+              {drugsQuery.isError ? (
+                <SectionError
+                  label="the drug interaction reference"
+                  message={drugsQuery.error instanceof Error ? drugsQuery.error.message : undefined}
+                  onRetry={() => drugsQuery.refetch()}
+                />
+              ) : drugsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
+                </div>
+              ) : (
+                <DrugTable
+                  drugs={drugsQuery.data?.items ?? []}
+                  onSelectDrug={setSelectedDrug}
+                  selectedDrug={selectedDrug}
+                />
+              )}
             </section>
           )}
         </>

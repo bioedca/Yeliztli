@@ -30,8 +30,6 @@ import sqlalchemy as sa
 from backend.annotation.gwas import (
     EFO_MODULES,
     EFO_WHITELIST,
-    GWASAnnotation,
-    GWASAnnotationSet,
     _extract_risk_allele,
     _extract_rsid,
     _is_odds_ratio,
@@ -45,8 +43,6 @@ from backend.annotation.gwas import (
     iter_gwas_tsv,
     load_gwas_from_iter,
     load_gwas_into_db,
-    lookup_gwas_by_rsids,
-    lookup_gwas_traits_for_rsids,
     parse_gwas_tsv,
     parse_gwas_tsv_row,
     record_gwas_version,
@@ -903,8 +899,10 @@ class TestDownloadGwasCatalog:
         # ZIP should be cleaned up
         assert not (tmp_path / "gwas_catalog_associations.zip").exists()
 
-    def test_download_cleanup_on_failure(self, tmp_path: Path):
-        """A download error propagates and leaves no partial .tmp."""
+    def test_download_preserves_partial_for_resume(self, tmp_path: Path):
+        """A failed download preserves the partial ZIP for cross-run resume (#756)."""
+        partial = tmp_path / "gwas_catalog_associations.zip.tmp"
+        partial.write_bytes(b"partial-from-prior-run")
         err = httpx.HTTPStatusError("404", request=MagicMock(), response=MagicMock())
         with (
             patch("backend.annotation.gwas.stream_download", _fake_stream_download(exc=err)),
@@ -912,8 +910,36 @@ class TestDownloadGwasCatalog:
         ):
             download_gwas_catalog(tmp_path, url="http://test/gwas.zip")
 
-        # Temp file should not exist
-        assert not (tmp_path / "gwas_catalog_associations.zip.tmp").exists()
+        assert partial.exists()  # preserve-for-resume, not deleted on failure
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """download_gwas_catalog opts into cross-run resume + validator sidecar (#756)."""
+        from types import SimpleNamespace
+
+        zip_tmp = tmp_path / "gwas_catalog_associations.zip.tmp"
+        sidecar = tmp_path / "gwas_catalog_associations.zip.tmp.validator"
+        zip_tmp.write_bytes(b"partial")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+        captured: dict = {}
+
+        def fake(url, tmp_path_arg, **kwargs):
+            captured.update(kwargs)
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as zf:
+                zf.writestr("assoc.tsv", b"SNPS\ttrait\nrs1\tx\n")
+            tmp_path_arg.write_bytes(buf.getvalue())
+            return SimpleNamespace(headers={})
+
+        monkeypatch.setattr("backend.annotation.gwas.stream_download", fake)
+        result = download_gwas_catalog(tmp_path, url="http://test/gwas.zip")
+
+        assert result.name == "gwas_catalog_associations.tsv"
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        assert not sidecar.exists()  # cleared on success
 
     def test_progress_callback(self, tmp_path: Path):
         """Progress callback should be called with byte counts."""
@@ -975,112 +1001,6 @@ class TestDownloadAndLoadGwas:
             assert row.checksum_sha256 == "fake_sha256"
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# Integration tests — Annotation lookup
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestLookupGwasByRsids:
-    def test_single_match(self, seeded_reference_engine: sa.Engine):
-        """Single rsid with one trait association."""
-        results = lookup_gwas_by_rsids(["rs7903146"], seeded_reference_engine)
-        assert "rs7903146" in results
-        aset = results["rs7903146"]
-        assert len(aset.associations) == 1
-        assert aset.associations[0].trait == "Type 2 diabetes"
-        assert aset.associations[0].odds_ratio == 1.37
-
-    def test_multi_trait_variant(self, seeded_reference_engine: sa.Engine):
-        """rs429358 has two trait associations (Alzheimer + CAD)."""
-        results = lookup_gwas_by_rsids(["rs429358"], seeded_reference_engine)
-        assert "rs429358" in results
-        aset = results["rs429358"]
-        assert len(aset.associations) == 2
-        traits = aset.traits
-        assert "Alzheimer disease" in traits
-        assert "Coronary artery disease" in traits
-
-    def test_best_p_value(self, seeded_reference_engine: sa.Engine):
-        """best_p_value should return the most significant p-value."""
-        results = lookup_gwas_by_rsids(["rs429358"], seeded_reference_engine)
-        aset = results["rs429358"]
-        assert aset.best_p_value == 1e-200
-
-    def test_no_match(self, seeded_reference_engine: sa.Engine):
-        """Unknown rsid should not be in results."""
-        results = lookup_gwas_by_rsids(["rs999999999"], seeded_reference_engine)
-        assert "rs999999999" not in results
-
-    def test_empty_input(self, seeded_reference_engine: sa.Engine):
-        results = lookup_gwas_by_rsids([], seeded_reference_engine)
-        assert results == {}
-
-    def test_batch_lookup(self, seeded_reference_engine: sa.Engine):
-        """Multiple rsids in one call."""
-        results = lookup_gwas_by_rsids(
-            ["rs429358", "rs1801133", "rs7903146", "rs999"],
-            seeded_reference_engine,
-        )
-        assert len(results) == 3
-        assert "rs999" not in results
-
-    def test_beta_value(self, seeded_reference_engine: sa.Engine):
-        """rs1801133 should have beta (not OR)."""
-        results = lookup_gwas_by_rsids(["rs1801133"], seeded_reference_engine)
-        annot = results["rs1801133"].associations[0]
-        assert annot.beta == 1.73
-        assert annot.odds_ratio is None
-
-
-class TestLookupGwasTraitsForRsids:
-    def test_traits_only(self, seeded_reference_engine: sa.Engine):
-        """Simplified lookup should return trait names only."""
-        results = lookup_gwas_traits_for_rsids(
-            ["rs429358", "rs7903146"],
-            seeded_reference_engine,
-        )
-        assert "rs429358" in results
-        assert "Alzheimer disease" in results["rs429358"]
-        assert results["rs7903146"] == ["Type 2 diabetes"]
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Dataclass tests
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestGWASAnnotationSet:
-    def test_traits_unique(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", 1e-10, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait A", 1e-8, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait B", 1e-5, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.traits == ["Trait A", "Trait B"]
-
-    def test_best_p_value_none(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", None, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.best_p_value is None
-
-    def test_best_p_value(self):
-        aset = GWASAnnotationSet(
-            rsid="rs1",
-            associations=[
-                GWASAnnotation("rs1", "Trait A", 1e-5, None, None, None, None, None, None),
-                GWASAnnotation("rs1", "Trait B", 1e-10, None, None, None, None, None, None),
-            ],
-        )
-        assert aset.best_p_value == 1e-10
-
-
 class TestGwasSeedVitaminDDirection:
     """Guard the CYP2R1 rs10741657 GWAS seed direction (#335 / #340).
 
@@ -1113,3 +1033,38 @@ class TestGwasSeedVitaminDDirection:
             f"rs10741657 seed beta {beta} encodes A-lowers-vitamin-D (inverted); "
             "G is the lower-25(OH)D allele (#242/#335)"
         )
+
+
+class TestGwasZeroRowGuard:
+    """A destructive clear with 0 rows to load must never wipe gwas_associations.
+
+    Mirrors the cpic/clingen guard: a zero-row external fetch/parse (empty or
+    truncated download, an upstream format change that drops every row) must not
+    silently empty the curated table (#753).
+    """
+
+    @staticmethod
+    def _count(engine: sa.Engine) -> int:
+        with engine.connect() as conn:
+            return conn.execute(sa.select(sa.func.count()).select_from(gwas_associations)).scalar()
+
+    def test_load_into_db_refuses_to_wipe(self, seeded_reference_engine: sa.Engine):
+        assert self._count(seeded_reference_engine) == 5
+        with pytest.raises(ValueError, match="0 rows"):
+            load_gwas_into_db([], seeded_reference_engine, clear_existing=True)
+        assert self._count(seeded_reference_engine) == 5  # curated rows preserved
+
+    def test_load_into_db_empty_no_clear_is_noop(self, seeded_reference_engine: sa.Engine):
+        # A non-destructive empty load is a safe no-op (no raise, no wipe).
+        load_gwas_into_db([], seeded_reference_engine, clear_existing=False)
+        assert self._count(seeded_reference_engine) == 5
+
+    def test_load_from_iter_refuses_to_wipe(self, seeded_reference_engine: sa.Engine):
+        # The streaming loader peeks the first batch before any DELETE.
+        with pytest.raises(ValueError, match="0 rows"):
+            load_gwas_from_iter(iter([]), seeded_reference_engine, clear_existing=True)
+        assert self._count(seeded_reference_engine) == 5
+
+    def test_load_from_iter_empty_no_clear_is_noop(self, seeded_reference_engine: sa.Engine):
+        load_gwas_from_iter(iter([]), seeded_reference_engine, clear_existing=False)
+        assert self._count(seeded_reference_engine) == 5

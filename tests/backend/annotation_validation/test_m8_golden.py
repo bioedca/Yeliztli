@@ -7,10 +7,13 @@ live path*, it is the standing backstop that makes the orphaned-code defect
 class (F1/F17/F18) impossible to reintroduce: any regression to a
 genotype-agnostic engine shifts the carriage table and the diff fails.
 
-The golden file is generated/refreshed with ``YELIZTLI_UPDATE_GOLDEN=1``
-**after** the remediation lands (Phase G). Until then the golden encodes the
-*correct* post-fix expectation, so the snapshot diff is ``xfail(strict=True)``.
-The snapshot-builder itself is exercised on every run (it must not error).
+The committed golden file is live and active: ``test_golden_snapshot_matches``
+is a hard ``assert snapshot == golden`` with **no** ``xfail`` marker, so a diff
+is a *real* regression — typically a slide back to a genotype-agnostic engine,
+which shifts the carriage table — and must never be waved off as an expected
+failure. Regenerate the golden with ``YELIZTLI_UPDATE_GOLDEN=1`` only as the
+intentional refresh after a *verified* behavior change. The snapshot-builder
+itself is also exercised on every run (it must not error).
 """
 
 from __future__ import annotations
@@ -72,8 +75,8 @@ def test_snapshot_builder_runs(build_live_run) -> None:
     assert "findings_counts" in snapshot
     assert "carriage_table" in snapshot
     # Guard the snapshot *shape*, not just key presence — a malformed builder
-    # (e.g. counts as a list) would otherwise pass and then fail opaquely on the
-    # golden diff once the snapshot is locked in Phase G.
+    # (e.g. counts as a list) would otherwise pass here and then fail opaquely on
+    # the golden diff in test_golden_snapshot_matches.
     assert isinstance(snapshot["findings_counts"], dict)
     assert isinstance(snapshot["carriage_table"], dict)
 
@@ -87,7 +90,10 @@ def test_golden_snapshot_matches(build_live_run) -> None:
 
     assert GOLDEN_PATH.exists(), (
         "golden snapshot missing — regenerate with YELIZTLI_UPDATE_GOLDEN=1 "
-        "once the remediation has landed (Phase G)"
+        "after a verified behavior change"
     )
     golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+    # A diff here is a REAL regression (not an expected xfail): the live snapshot
+    # drifted from the committed golden. Investigate before regenerating — only
+    # refresh the golden once the new behavior is verified correct.
     assert snapshot == golden

@@ -94,8 +94,6 @@ export const CHROMOSOMES = [
   "21", "22", "X", "Y", "MT",
 ] as const
 
-export type Chromosome = (typeof CHROMOSOMES)[number]
-
 /** Per-chromosome QC breakdown (P1-21). */
 export interface ChromosomeQCStats {
   chrom: string
@@ -129,12 +127,6 @@ export interface DensityBin {
   total: number
 }
 
-/** Variant density response (P2-23). */
-export interface DensityResponse {
-  bins: DensityBin[]
-  bin_size: number
-}
-
 /** Single consequence type with count and tier (P2-25). */
 export interface ConsequenceCount {
   consequence: string
@@ -142,22 +134,10 @@ export interface ConsequenceCount {
   tier: string
 }
 
-/** Per-consequence-type variant counts for the donut chart (P2-25). */
-export interface ConsequenceSummaryResponse {
-  items: ConsequenceCount[]
-  total: number
-}
-
 /** Single ClinVar significance category with count (P2-26). */
 export interface ClinvarSignificanceCount {
   significance: string
   count: number
-}
-
-/** ClinVar significance breakdown for bar chart (P2-26). */
-export interface ClinvarSummaryResponse {
-  items: ClinvarSignificanceCount[]
-  total: number
 }
 
 /** Lightweight variant search result for the command palette (P4-26e). */

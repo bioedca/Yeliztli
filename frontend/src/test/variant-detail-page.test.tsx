@@ -52,7 +52,7 @@ const mockVariant: VariantDetail = {
   sift_score: 0.001,
   sift_pred: "D",
   polyphen2_hsvar_score: 0.99,
-  polyphen2_hsvar_pred: "probably_damaging",
+  polyphen2_hsvar_pred: "D",
   revel: 0.85,
   mutpred2: 0.72,
   vest4: 0.88,
@@ -258,6 +258,15 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByTestId("pop-bar-global")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-afr")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-eur")).toBeInTheDocument()
+
+    // Per-population AF must render as a raw FRACTION (the shared
+    // formatAlleleFrequency unit), not a percentage — matching the other
+    // per-population views (#664). Existence alone was blind to the unit:
+    // under the old formatPercent, eur=0.0004 rendered "0.0400%".
+    expect(screen.getByTestId("pop-bar-eur")).toHaveTextContent("0.0004")
+    expect(screen.getByTestId("pop-bar-global")).toHaveTextContent("0.0003")
+    expect(screen.getByTestId("pop-bar-eur")).not.toHaveTextContent("%")
+    expect(screen.getByTestId("pop-bar-afr")).not.toHaveTextContent("%")
   })
 
   it("shows rare variant note in Population tab", async () => {
@@ -320,6 +329,10 @@ describe("VariantDetailPage (P2-21a)", () => {
     // All in-silico scores
     expect(screen.getByText("28.4")).toBeInTheDocument() // CADD
     expect(screen.getByText("0.850")).toBeInTheDocument() // REVEL
+    // PolyPhen-2: the raw dbNSFP code "D" maps to a readable "Probably Damaging"
+    // label in the damaging colour (#680), not a bare "D" in the benign green.
+    const polyphen = screen.getByText(/Probably Damaging/)
+    expect(polyphen).toHaveClass("text-red-700")
   })
 
   it("shows disease associations in Clinical tab", async () => {

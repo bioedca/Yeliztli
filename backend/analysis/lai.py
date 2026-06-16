@@ -35,18 +35,6 @@ class LAIResult:
     global_ancestry: dict[str, dict]
     chromosome_painting: dict[str, list[dict]]
     metadata: dict
-    is_available: bool = True
-
-
-def is_lai_available() -> bool:
-    """Check whether LAI analysis can be run.
-
-    Returns True only if both the LAI bundle is downloaded/extracted
-    AND Java 8+ is available on PATH.
-    """
-    settings = get_settings()
-    bundle_path = settings.resolved_lai_bundle_path
-    return validate_lai_bundle(bundle_path) and detect_java()
 
 
 def run_lai_analysis(

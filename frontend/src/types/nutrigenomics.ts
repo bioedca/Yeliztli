@@ -3,7 +3,7 @@
 import type { SnpCategory } from "@/lib/snpCategory"
 
 /** Categorical consideration level for a nutrient pathway. */
-export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
+type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
 /** Per-SNP result within a pathway. */
 export interface SNPDetail {

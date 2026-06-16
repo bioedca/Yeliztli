@@ -311,7 +311,6 @@
         {"rsid": "rs9320913", "effect_allele": "A", "weight": 0.033},
         {"rsid": "rs2964197", "effect_allele": "G", "weight": 0.026},
         {"rsid": "rs11191193", "effect_allele": "C", "weight": 0.023},
-        {"rsid": "rs6269442", "effect_allele": "T", "weight": 0.020},
         {"rsid": "rs2268894", "effect_allele": "C", "weight": 0.021},
         {"rsid": "rs17824247", "effect_allele": "G", "weight": 0.019},
         {"rsid": "rs72738786", "effect_allele": "A", "weight": 0.018}

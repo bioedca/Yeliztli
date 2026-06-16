@@ -31,9 +31,10 @@ from backend.annotation.gnomad import (
     ULTRA_RARE_AF_THRESHOLD,
     GnomADAnnotation,
     LoadStats,
+    _create_gnomad_indexes,
+    _create_gnomad_table,
     compute_af_popmax,
     compute_rare_flags,
-    create_gnomad_tables,
     iter_gnomad_vcf,
     load_gnomad_from_csv,
     load_gnomad_from_vcf,
@@ -58,7 +59,8 @@ def gnomad_engine() -> sa.Engine:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    create_gnomad_tables(engine)
+    _create_gnomad_table(engine)
+    _create_gnomad_indexes(engine)
     return engine
 
 
@@ -264,8 +266,9 @@ class TestCreateGnomadTables:
         assert "idx_gnomad_chrom_pos_ref_alt" in index_names
 
     def test_idempotent(self, gnomad_engine: sa.Engine):
-        """Calling create_gnomad_tables twice doesn't error."""
-        create_gnomad_tables(gnomad_engine)  # second call
+        """Calling table + index creation twice doesn't error."""
+        _create_gnomad_table(gnomad_engine)  # second call
+        _create_gnomad_indexes(gnomad_engine)
         with gnomad_engine.connect() as conn:
             result = conn.execute(sa.text("SELECT COUNT(*) FROM gnomad_af")).scalar()
         assert result == 0

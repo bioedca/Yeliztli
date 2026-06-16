@@ -745,6 +745,38 @@ def run_update_check_task(job_id: str) -> None:
 def run_database_update_task(job_id: str, db_name: str) -> None:
     """Huey background task: run a specific database update.
 
+    Thin wrapper that takes the cross-process build claim — so a setup-wizard
+    build in the API process cannot race this update of the *same* SQLite file
+    (the in-process ``build_lock`` cannot span processes) — then delegates to
+    :func:`_execute_database_update`. If another process already holds the claim
+    the update is skipped with a clear, retryable job error rather than racing.
+    """
+    from backend.db.build_guard import build_claim
+    from backend.db.connection import get_registry
+
+    settings = get_registry().settings
+    with build_claim(db_name, settings.data_dir) as acquired:
+        if not acquired:
+            _update_job(
+                job_id,
+                status="failed",
+                message=f"{db_name}: another process is updating it",
+                error=(
+                    "Another process is currently updating this database; "
+                    "it will be available shortly."
+                ),
+            )
+            logger.info(
+                "database_update_skipped_claimed",
+                extra={"job_id": job_id, "db_name": db_name},
+            )
+            return
+        _execute_database_update(job_id, db_name)
+
+
+def _execute_database_update(job_id: str, db_name: str) -> None:
+    """Run a specific database update (the cross-process claim is already held).
+
     Uses the same build function that the setup wizard uses
     (via database_registry.get_build_fn) so all databases are
     updated through a single, tested code path.

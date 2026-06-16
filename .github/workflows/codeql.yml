@@ -1,0 +1,57 @@
+name: CodeQL
+
+# Advanced code-scanning setup, replacing GitHub's "default setup" so the
+# analysis can read .github/codeql/codeql-config.yml (security-extended queries +
+# test/build/docs exclusions). The matching repo-admin step is to disable default
+# setup once this workflow is live, otherwise the two conflict on SARIF upload.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, matching the old default-setup cadence. Offset from nightly.yml
+    # (04:00 UTC) to avoid scheduler pile-up.
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload SARIF results to the Security tab
+      actions: read # read workflow run metadata (needed for the `actions` language)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions # GitHub Actions workflow YAML
+            build-mode: none
+          - language: javascript-typescript # frontend/ (covers both JS and TS)
+            build-mode: none
+          - language: python # backend/
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 from backend.analysis.inheritance import (
     DISEASE_AFFECTED,
     DISEASE_CARRIER,
@@ -65,3 +67,38 @@ class TestClassifyDiseaseStatus:
     def test_recessive_three_hets_same_gene_is_possible_biallelic(self) -> None:
         vs = [_V("AR", ZYG_HET, "MUTYH") for _ in range(3)]
         assert classify_disease_status(vs[0], vs) == DISEASE_POSSIBLE_BIALLELIC
+
+
+class TestInheritanceNormalizationAndValidation:
+    """#616: a non-exact-"AR" recessive value must NOT silently flip a het carrier
+    to ``DISEASE_AFFECTED``. The classifier normalizes case/whitespace, accepts the
+    full-text autosomal forms, and *raises* on any unrecognized mode rather than
+    defaulting an unknown value to affected (over-claiming a diagnosis)."""
+
+    @pytest.mark.parametrize("recessive", ["ar", "AR ", " ar ", "Ar", "autosomal recessive"])
+    def test_recessive_synonyms_het_is_carrier_not_affected(self, recessive: str) -> None:
+        v = _V(recessive, ZYG_HET, "MUTYH")
+        result = classify_disease_status(v, [v])
+        assert result == DISEASE_CARRIER
+        assert result != DISEASE_AFFECTED  # the #616 over-claim must not happen
+
+    @pytest.mark.parametrize("recessive", ["ar", "autosomal recessive"])
+    def test_recessive_synonyms_hom_alt_is_affected(self, recessive: str) -> None:
+        # Normalization must not break the legitimate biallelic→affected path.
+        v = _V(recessive, ZYG_HOM_ALT, "MUTYH")
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    @pytest.mark.parametrize("dominant", ["ad", "AD ", "autosomal dominant"])
+    def test_dominant_synonyms_het_is_affected(self, dominant: str) -> None:
+        v = _V(dominant, ZYG_HET, "BRCA1")
+        assert classify_disease_status(v, [v]) == DISEASE_AFFECTED
+
+    @pytest.mark.parametrize(
+        "unknown",
+        ["XLR", "XL", "X-linked recessive", "SD", "MT", "UD", "recessive", "", "AR/AD"],
+    )
+    def test_unrecognized_inheritance_raises_rather_than_overclaiming(self, unknown: str) -> None:
+        # Must fail loud, never default to affected for a het carrier.
+        v = _V(unknown, ZYG_HET, "MUTYH")
+        with pytest.raises(ValueError, match="unrecognized inheritance"):
+            classify_disease_status(v, [v])

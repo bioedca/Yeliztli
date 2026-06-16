@@ -3002,7 +3002,7 @@
             {
               "rsid": "rs2032597",
               "pos": 2832640,
-              "allele": "A"
+              "allele": "C"
             }
           ],
           "children": [
@@ -3032,7 +3032,7 @@
                 {
                   "rsid": "rs2032597",
                   "pos": 2832640,
-                  "allele": "A"
+                  "allele": "C"
                 }
               ],
               "children": [
@@ -3054,11 +3054,6 @@
                 {
                   "haplogroup": "A1b",
                   "defining_snps": [
-                    {
-                      "rsid": "rs2032652",
-                      "pos": 21869271,
-                      "allele": "T"
-                    },
                     {
                       "rsid": "rs9786139",
                       "pos": 15024914,
@@ -4776,11 +4771,11 @@
     "mt_unique_snps": 288,
     "mt_max_depth": 9,
     "y_haplogroups": 129,
-    "y_defining_snps": 199,
+    "y_defining_snps": 198,
     "y_unique_snps": 99,
     "y_max_depth": 12,
     "total_haplogroups": 321,
-    "total_defining_snps": 574,
+    "total_defining_snps": 573,
     "total_unique_snps": 387
   }
 }

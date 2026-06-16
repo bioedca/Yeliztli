@@ -51,7 +51,7 @@ interface StateMeta {
 const STATE_META: Record<DatabaseHealthState, StateMeta> = {
   ready: {
     label: 'Ready',
-    className: 'text-green-600 dark:text-green-400',
+    className: 'text-green-700 dark:text-green-400',
     icon: CheckCircle2,
   },
   downloading: {
@@ -68,17 +68,17 @@ const STATE_META: Record<DatabaseHealthState, StateMeta> = {
   },
   partial: {
     label: 'Partial',
-    className: 'text-amber-600 dark:text-amber-400',
+    className: 'text-amber-700 dark:text-amber-400',
     icon: AlertTriangle,
   },
   corrupt: {
     label: 'Corrupt',
-    className: 'text-red-600 dark:text-red-400',
+    className: 'text-red-700 dark:text-red-400',
     icon: ShieldAlert,
   },
   failed: {
     label: 'Failed',
-    className: 'text-red-600 dark:text-red-400',
+    className: 'text-red-700 dark:text-red-400',
     icon: XCircle,
   },
   not_installed: {
@@ -147,11 +147,11 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
           {db.integrity_ok == null ? (
             <span className="text-muted-foreground">—</span>
           ) : db.integrity_ok ? (
-            <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+            <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
               <ShieldCheck className="h-3 w-3" /> OK
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-red-500">
+            <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400">
               <AlertTriangle className="h-3 w-3" /> Failed
             </span>
           )}
@@ -214,15 +214,15 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
         <tr>
           <td colSpan={5} className="pb-2 pr-4" aria-live="polite">
             {integrityNote && (
-              <p className="text-[11px] text-red-500 break-words">{integrityNote}</p>
+              <p className="text-[11px] text-red-700 dark:text-red-400 break-words">{integrityNote}</p>
             )}
             {verifyResult && (
               <p
                 className={cn(
                   'text-[11px] break-words',
                   verifyResult.startsWith('Integrity OK')
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-500',
+                    ? 'text-green-700 dark:text-green-400'
+                    : 'text-red-700 dark:text-red-400',
                 )}
               >
                 {verifyResult}
@@ -260,7 +260,7 @@ function ActionButton({
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         variant === 'danger'
-          ? 'border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30'
+          ? 'border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30'
           : 'border-border text-foreground hover:bg-muted',
       )}
     >
@@ -316,7 +316,7 @@ export default function DatabaseHealthPanel() {
       {isLoading ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading database health…</p>
       ) : error ? (
-        <p className="py-6 text-center text-sm text-red-500">
+        <p className="py-6 text-center text-sm text-red-700 dark:text-red-400">
           {error instanceof Error ? error.message : 'Failed to load database health.'}
         </p>
       ) : !data || data.databases.length === 0 ? (

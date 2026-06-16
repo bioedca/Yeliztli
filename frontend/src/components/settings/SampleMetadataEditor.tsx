@@ -280,12 +280,12 @@ function SampleEditForm({
           Close
         </button>
         {saved && (
-          <span className="text-sm text-green-600 dark:text-green-400" data-testid="save-success">
+          <span className="text-sm text-green-700 dark:text-green-400" data-testid="save-success">
             Saved!
           </span>
         )}
         {updateSample.isError && (
-          <span className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <span className="text-sm text-red-700 dark:text-red-400" role="alert">
             Error: {updateSample.error.message}
           </span>
         )}
@@ -391,7 +391,7 @@ function DeleteSampleConfirm({
         </button>
       </div>
       {deleteSample.isError && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           Delete failed: {deleteSample.error.message}
         </p>
       )}
@@ -572,7 +572,7 @@ function AssignIndividualControl({
       {error && (
         <span
           role="alert"
-          className="text-xs text-red-600 dark:text-red-400"
+          className="text-xs text-red-700 dark:text-red-400"
           data-testid={`assign-error-${sampleId}`}
         >
           {error}

@@ -25,21 +25,13 @@ import {
 } from "lucide-react"
 
 import { useGeneDetail } from "@/api/gene-detail"
-import { parseSampleId } from "@/lib/format"
+import { parseSampleId, formatAlleleFrequency } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import { cn } from "@/lib/utils"
 import { NightingaleViewer, PopulationAFChart } from "@/components/gene-detail"
 import type { GeneVariantSummary, PubMedArticle } from "@/types/gene-detail"
-
-/* ── Helpers ───────────────────────────────────────────────────── */
-
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
-}
 
 function renderStars(stars: number | null): string {
   if (stars == null) return ""
@@ -110,7 +102,7 @@ function LiteratureCard({ article }: { article: PubMedArticle }) {
         </>
       )}
       {article.is_stale && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
           Cached — may not reflect latest publications.
         </p>
       )}
@@ -211,7 +203,7 @@ export default function GeneDetailPage() {
             </p>
           )}
           {data.uniprot_error && !data.uniprot && (
-            <p className="text-sm text-amber-600 dark:text-amber-400">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
               {data.uniprot_error}
             </p>
           )}
@@ -308,7 +300,7 @@ export default function GeneDetailPage() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
-                      {formatAF(v.gnomad_af_global)}
+                      {formatAlleleFrequency(v.gnomad_af_global)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
                       {v.cadd_phred != null ? v.cadd_phred.toFixed(1) : "—"}
@@ -400,7 +392,7 @@ export default function GeneDetailPage() {
         <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
           No literature found for this gene.
           {data.literature_errors.length > 0 && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
               {data.literature_errors[0]}
             </p>
           )}

@@ -302,7 +302,22 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
         with sample_engine.connect() as conn:
             rows_raw = conn.execute(query).fetchall()
         rows = [_row_to_dict(r) for r in rows_raw]
-        variants = [(r["rsid"], r["chrom"], r["pos"], r.get("genotype") or "") for r in rows]
+        # Thread the annotation-resolved ref/alt/zygosity through so the VCF is
+        # emitted reference-aligned (GT indexed against the reference allele),
+        # not inferred from the raw genotype string — a true hom-alt call must
+        # not be written as hom-ref 0/0 (#560, same class as #471).
+        variants = [
+            (
+                r["rsid"],
+                r["chrom"],
+                r["pos"],
+                r.get("genotype") or "",
+                r.get("ref"),
+                r.get("alt"),
+                r.get("zygosity"),
+            )
+            for r in rows
+        ]
         vcf_content = export_vcf_from_rows(variants)
         return StreamingResponse(
             iter([vcf_content]),

@@ -7,7 +7,7 @@
  * Uses react-plotly.js for interactive hover, responsive sizing, and dark mode support.
  */
 
-import Plot from 'react-plotly.js'
+import Plot from '@/components/charts/Plot'
 import type { ClinvarSignificanceCount } from '@/types/variants'
 import { useThemeContext } from '@/lib/ThemeContext'
 import { getPlotlyTheme } from '@/lib/plotly-theme'

@@ -36,7 +36,12 @@ from starlette.responses import StreamingResponse
 
 from backend.api.sse import _format_sse, get_job_progress
 from backend.config import Settings, get_settings
-from backend.db.build_guard import build_lock, try_acquire_build_lock
+from backend.db.build_guard import (
+    build_claim,
+    cross_process_build_claim,
+    is_cross_process_build_claimed,
+    try_acquire_build_lock,
+)
 from backend.db.connection import get_registry
 from backend.db.database_registry import (
     DATABASES,
@@ -254,8 +259,14 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
     # Deduplicate requested names (preserving order)
     db_names = list(dict.fromkeys(db_names))
 
-    # Skip already-completed, non-buildable, and in-flight databases
+    # Skip already-completed, non-buildable, and in-flight databases. A DB
+    # claimed by another process (a Huey update of the same file) counts as
+    # in-flight too, so the wizard never launches a competing build/download
+    # across processes (the in-process build_lock cannot see it).
     in_flight = _get_in_flight_db_names(engine)
+    in_flight |= {
+        name for name in db_names if is_cross_process_build_claimed(name, settings.data_dir)
+    }
     to_download: list[str] = []
     for name in db_names:
         db_info = get_database(name)
@@ -354,6 +365,58 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
 # ── GET /api/databases/progress ──────────────────────────────────────
 
 
+# Smoothing factor for the per-DB download-speed EWMA (higher = more reactive).
+_SPEED_EWMA_ALPHA = 0.3
+
+# Ceiling on a reported ETA. A throttled transfer drives the smoothed speed
+# toward zero, so a naive ``remaining / speed`` explodes toward infinity and the
+# wizard renders an ever-growing "~999h" estimate (the symptom that made a
+# throttled AlphaMissense download look hung). Past this ceiling we report no
+# ETA so the UI shows "estimating…"/omits it instead of a bogus number. The
+# ceiling also adapts to file size: ``eta > MAX`` ⇔ ``speed < remaining / MAX``,
+# i.e. a built-in, size-aware floor on the rate we are willing to extrapolate.
+_MAX_ETA_SECONDS = 24 * 3600
+
+
+def _eta_seconds(speed_bps: float | None, remaining_bytes: int) -> int | None:
+    """Honest ETA from a smoothed rate, or ``None`` when it can't be trusted.
+
+    Returns ``0`` when nothing remains (done), ``None`` when the rate is
+    non-positive (stalled — no honest estimate) or when the extrapolation would
+    exceed :data:`_MAX_ETA_SECONDS` (a throttled trickle, where ``remaining /
+    speed`` would otherwise climb without bound). Otherwise the rounded seconds.
+    """
+    if remaining_bytes <= 0:
+        return 0
+    if not speed_bps or speed_bps <= 0:
+        return None
+    eta = round(remaining_bytes / speed_bps)
+    return eta if eta <= _MAX_ETA_SECONDS else None
+
+
+def _aggregate_progress(db_statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    """Roll per-database byte progress up into one session-level summary.
+
+    Only databases with a known ``total_bytes`` contribute to the byte totals;
+    the rest are surfaced via ``size_unknown_count`` so the UI can say
+    "estimating…" honestly instead of implying a precise overall percentage.
+    """
+    sized = [d for d in db_statuses if d.get("total_bytes")]
+    total = sum(d["total_bytes"] for d in sized)
+    downloaded = sum(d.get("downloaded_bytes") or 0 for d in sized)
+    remaining = max(0, total - downloaded)
+    speed = sum(d.get("speed_bps") or 0 for d in db_statuses)
+    return {
+        "total_bytes": total or None,
+        "downloaded_bytes": downloaded,
+        "remaining_bytes": remaining,
+        "overall_pct": round(downloaded / total * 100.0, 1) if total else None,
+        "speed_bps": round(speed) if speed else None,
+        "eta_seconds": _eta_seconds(speed, remaining) if total else None,
+        "size_unknown_count": sum(1 for d in db_statuses if not d.get("total_bytes")),
+    }
+
+
 @router.get("/progress/{session_id}")
 async def download_progress(session_id: str) -> StreamingResponse:
     """SSE stream reporting per-database download progress.
@@ -376,13 +439,20 @@ async def download_progress(session_id: str) -> StreamingResponse:
     async def event_stream():
         terminal_states = {"complete", "failed", "cancelled"}
         poll_interval = 0.5
+        # Per-DB resume state for the speed EWMA: db_name -> (downloaded_bytes, ts).
+        prev_bytes: dict[str, tuple[int, float]] = {}
+        ewma_speed: dict[str, float] = {}
 
         while True:
             all_terminal = True
             db_statuses: list[dict[str, Any]] = []
+            now = time.monotonic()
 
             for db_name, job_id in entries:
                 status = await asyncio.to_thread(get_job_progress, engine, job_id)
+                db_info = get_database(db_name)
+                total_bytes = db_info.expected_size_bytes if db_info else None
+
                 if status is None:
                     db_statuses.append(
                         {
@@ -392,28 +462,94 @@ async def download_progress(session_id: str) -> StreamingResponse:
                             "progress_pct": 0.0,
                             "message": "Job not found",
                             "error": None,
+                            "total_bytes": total_bytes,
+                            "downloaded_bytes": None,
+                            "speed_bps": None,
+                            "eta_seconds": None,
                         }
                     )
                     all_terminal = False
-                else:
-                    db_statuses.append(
-                        {
-                            "db_name": db_name,
-                            "job_id": status.job_id,
-                            "status": status.status,
-                            "progress_pct": status.progress_pct,
-                            "message": status.message,
-                            "error": status.error,
-                        }
+                    continue
+
+                is_terminal = status.status in terminal_states
+                is_complete = status.status == "complete"
+                pct = status.progress_pct or 0.0
+                # progress_pct is byte-accurate for downloads and the best signal
+                # for builds; derive bytes from it against the known artifact size
+                # so build- and download-mode DBs report uniformly.
+                if total_bytes:
+                    downloaded_bytes = (
+                        total_bytes if is_complete else round(total_bytes * pct / 100.0)
                     )
-                    if status.status not in terminal_states:
-                        all_terminal = False
+                else:
+                    downloaded_bytes = None
+
+                # Speed = EWMA of the byte delta between polls, updated only on a
+                # real byte advance. A forced restart (bytes regress) resets the
+                # estimate rather than emitting a negative rate.
+                #
+                # Crucially, a poll that sees NO change leaves both the estimate
+                # and the prev marker untouched: ``downloaded_bytes`` is derived
+                # from ``progress_pct``, which the downloader refreshes only every
+                # ~2s, while this loop polls every 0.5s — so most polls see no
+                # change. Feeding those as zero-rate samples would decay the EWMA
+                # toward zero and make the ETA climb without bound during a
+                # throttle. Holding state instead means the next real delta is
+                # measured over the true elapsed interval.
+                speed_bps = ewma_speed.get(db_name)
+                if downloaded_bytes is not None and not is_terminal:
+                    prev = prev_bytes.get(db_name)
+                    if prev is None:
+                        prev_bytes[db_name] = (downloaded_bytes, now)
+                    else:
+                        prev_b, prev_t = prev
+                        dt = now - prev_t
+                        if downloaded_bytes > prev_b and dt > 0:
+                            inst = (downloaded_bytes - prev_b) / dt
+                            speed_bps = (
+                                inst
+                                if speed_bps is None
+                                else _SPEED_EWMA_ALPHA * inst + (1 - _SPEED_EWMA_ALPHA) * speed_bps
+                            )
+                            ewma_speed[db_name] = speed_bps
+                            prev_bytes[db_name] = (downloaded_bytes, now)
+                        elif downloaded_bytes < prev_b:
+                            speed_bps = None
+                            ewma_speed.pop(db_name, None)
+                            prev_bytes[db_name] = (downloaded_bytes, now)
+                if is_terminal:
+                    speed_bps = 0.0  # nothing in flight
+
+                if is_complete:
+                    eta_seconds: int | None = 0
+                elif total_bytes is not None and downloaded_bytes is not None:
+                    eta_seconds = _eta_seconds(speed_bps, max(0, total_bytes - downloaded_bytes))
+                else:
+                    eta_seconds = None
+
+                db_statuses.append(
+                    {
+                        "db_name": db_name,
+                        "job_id": status.job_id,
+                        "status": status.status,
+                        "progress_pct": status.progress_pct,
+                        "message": status.message,
+                        "error": status.error,
+                        "total_bytes": total_bytes,
+                        "downloaded_bytes": downloaded_bytes,
+                        "speed_bps": round(speed_bps) if speed_bps is not None else None,
+                        "eta_seconds": eta_seconds,
+                    }
+                )
+                if not is_terminal:
+                    all_terminal = False
 
             yield _format_sse(
                 "progress",
                 {
                     "session_id": session_id,
                     "databases": db_statuses,
+                    "aggregate": _aggregate_progress(db_statuses),
                 },
             )
 
@@ -655,7 +791,26 @@ def _run_build(
     still build in parallel); once we hold the lock we re-check whether a
     concurrent build already finished this DB to avoid a redundant rebuild.
     """
-    with build_lock(db_info.name):
+    with build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            # A Huey update is already building this DB in another process; don't
+            # race it. Surface a retryable failure so the wizard's readiness gate
+            # keeps the user on the Databases step until the DB becomes ready.
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "database_build_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
         if get_database_status(db_info, settings)["downloaded"]:
             _update_job(
                 engine,
@@ -867,6 +1022,44 @@ def _run_download(
     engine: sa.Engine,
     settings: Settings,
 ) -> None:
+    """Download a single database under the cross-process file claim.
+
+    Thin wrapper around :func:`_execute_download` so a wizard download cannot
+    race a Huey update of the same file across processes. Uses the per-DB
+    ``flock`` directly (not :func:`build_claim`): a download holds the claim for
+    its whole network phase, and the ``flock`` is keyed to this ``data_dir`` —
+    unlike the process-global, db-name-keyed ``build_lock``, which would let a
+    slow/failing download of one DB stall an unrelated install elsewhere. Skips
+    with a retryable job failure if another process already holds the claim.
+    """
+    with cross_process_build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "database_download_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
+        _execute_download(dm=dm, db_info=db_info, job_id=job_id, engine=engine, settings=settings)
+
+
+def _execute_download(
+    *,
+    dm: DownloadManager,
+    db_info: DatabaseInfo,
+    job_id: str,
+    engine: sa.Engine,
+    settings: Settings,
+) -> None:
     """Execute a single database download in a background thread.
 
     Uses the DownloadManager for resumable HTTP downloads. On success,
@@ -879,10 +1072,47 @@ def _run_download(
         msg = f"Downloading {db_info.display_name}..."
         _update_job(engine, job_id, status="running", message=msg)
 
+        # Forward byte-level progress to THIS (wizard ``dbdl-``) job. Without
+        # this, a download-mode DB's bar sits frozen until the file jumps to
+        # 100%, because DownloadManager writes progress to its own internal job,
+        # not the one the wizard's SSE stream tracks. Throttled to ~2s and capped
+        # at 99% so the final move/transform step owns 100%.
+        _last_progress_write = 0.0
+        _last_pct = 0.0
+        _PROGRESS_THROTTLE_S = 2.0
+
+        def on_download_progress(downloaded: int, total: int | None) -> None:
+            nonlocal _last_progress_write, _last_pct
+            now = time.monotonic()
+            if now - _last_progress_write < _PROGRESS_THROTTLE_S:
+                return
+            if total and total > 0:
+                _last_pct = min(99.0, downloaded / total * 100.0)
+                progress_msg = (
+                    f"Downloading {db_info.display_name}... "
+                    f"{downloaded:,} / {total:,} bytes ({_last_pct:.0f}%)"
+                )
+            else:
+                # No advertised total — hold the bar, report bytes so the user
+                # still sees forward motion.
+                progress_msg = f"Downloading {db_info.display_name}... {downloaded:,} bytes"
+            try:
+                _update_job(
+                    engine,
+                    job_id,
+                    status="running",
+                    progress_pct=_last_pct,
+                    message=progress_msg,
+                )
+                _last_progress_write = now
+            except sa.exc.OperationalError:
+                _last_progress_write = now  # back off even on a transient write failure
+
         result = dm.start(
             url=db_info.url,
             filename=db_info.filename,
             expected_sha256=db_info.sha256,
+            progress_callback=on_download_progress,
         )
 
         if result.error:
@@ -910,6 +1140,10 @@ def _run_download(
             )
             db_info.post_download(result.dest_path, final_dest)
         elif result.dest_path != final_dest:
+            # Staging (downloads_dir) may live on a different filesystem than
+            # data_dir (download_staging_dir override), so this must stay
+            # shutil.move (copy+delete fallback) — never os.replace/Path.replace,
+            # which raise EXDEV across filesystems.
             shutil.move(str(result.dest_path), str(final_dest))
 
         _update_job(
@@ -969,6 +1203,43 @@ def _bundle_install_needed(db_info: DatabaseInfo, engine: sa.Engine) -> bool:
 
 
 def _run_bundle_install(
+    *,
+    db_info: DatabaseInfo,
+    job_id: str,
+    engine: sa.Engine,
+    settings: Settings,
+) -> None:
+    """Install a pre-built bundle under the cross-process file claim.
+
+    Thin wrapper around :func:`_execute_bundle_install` so a wizard install
+    cannot race a Huey bundle update of the same artifact across processes. Uses
+    the per-DB ``flock`` directly (not :func:`build_claim`) for the same reason
+    as :func:`_run_download` — the claim is held across a network phase, and the
+    ``flock`` is keyed to this ``data_dir`` rather than the process-global
+    ``build_lock``. Skips with a retryable job failure if another process holds
+    the claim.
+    """
+    with cross_process_build_claim(db_info.name, settings.data_dir) as acquired:
+        if not acquired:
+            _update_job(
+                engine,
+                job_id,
+                status="failed",
+                progress_pct=0.0,
+                error=(
+                    f"Another process is updating {db_info.display_name}; retry once it completes."
+                ),
+            )
+            logger.info(
+                "bundle_install_skipped_claimed",
+                db_name=db_info.name,
+                job_id=job_id,
+            )
+            return
+        _execute_bundle_install(db_info=db_info, job_id=job_id, engine=engine, settings=settings)
+
+
+def _execute_bundle_install(
     *,
     db_info: DatabaseInfo,
     job_id: str,
@@ -1130,7 +1401,9 @@ async def resume_download(body: ResumeRequest) -> DownloadResponse:
             detail=f"No resumable partial download for '{body.db_name}'.",
         )
 
-    if body.db_name in _get_in_flight_db_names(engine):
+    if body.db_name in _get_in_flight_db_names(engine) or is_cross_process_build_claimed(
+        body.db_name, settings.data_dir
+    ):
         raise HTTPException(
             status_code=409,
             detail=f"A download/build for '{body.db_name}' is already in progress.",

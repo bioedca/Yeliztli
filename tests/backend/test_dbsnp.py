@@ -315,9 +315,12 @@ class TestDownloadRsmergeArch:
             download_rsmerge_arch(tmp_path, url="https://example.com/test.bcp.gz", meta=meta)
         assert meta["version"] == "20151021"
 
-    def test_download_error_propagates_no_temp(self, tmp_path: Path):
+    def test_download_error_preserves_partial_for_resume(self, tmp_path: Path):
+        """A failed download preserves the partial .tmp for cross-run resume (#756)."""
         import httpx
 
+        partial = tmp_path / "RsMergeArch.bcp.gz.tmp"
+        partial.write_bytes(b"partial-from-prior-run")
         err = httpx.HTTPError("fail")
         with (
             patch("backend.annotation.dbsnp.stream_download", _fake_stream_download(exc=err)),
@@ -325,7 +328,33 @@ class TestDownloadRsmergeArch:
         ):
             download_rsmerge_arch(tmp_path, url="https://example.com/test.bcp.gz")
 
-        assert not (tmp_path / "RsMergeArch.bcp.gz.tmp").exists()
+        assert partial.exists()  # preserve-for-resume, not deleted on failure
+
+    def test_wires_resumable_and_validator_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """download_rsmerge_arch opts into cross-run resume + validator sidecar (#756)."""
+        from types import SimpleNamespace
+
+        tmp_file = tmp_path / "RsMergeArch.bcp.gz.tmp"
+        sidecar = tmp_path / "RsMergeArch.bcp.gz.tmp.validator"
+        tmp_file.write_bytes(b"partial")
+        sidecar.write_text('"etag-v1"', encoding="utf-8")
+        captured: dict = {}
+
+        def fake(url, tmp_path_arg, **kwargs):
+            captured.update(kwargs)
+            tmp_path_arg.write_bytes(b"done")
+            return SimpleNamespace(headers={})
+
+        monkeypatch.setattr("backend.annotation.dbsnp.stream_download", fake)
+        dest = download_rsmerge_arch(tmp_path, url="https://example.com/test.bcp.gz")
+
+        assert dest.read_bytes() == b"done"
+        assert captured["resumable"] is True
+        assert captured["validator"] == '"etag-v1"'
+        assert callable(captured["on_validator"])
+        assert not sidecar.exists()
 
     def test_progress_callback_called(self, tmp_path: Path):
         content = b"data"

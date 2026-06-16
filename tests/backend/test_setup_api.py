@@ -382,7 +382,7 @@ class TestAcceptDisclaimer:
     """Tests for the disclaimer acceptance endpoint."""
 
     def test_accept_creates_flag_file(self, setup_client: TestClient, tmp_data_dir: Path) -> None:
-        """Accepting the disclaimer should persist a flag file."""
+        """Accepting the disclaimer should persist a flag file atomically."""
         resp = setup_client.post("/api/setup/accept-disclaimer")
         assert resp.status_code == 200
         data = resp.json()
@@ -394,6 +394,24 @@ class TestAcceptDisclaimer:
         flag_data = json.loads(flag_path.read_text())
         assert "accepted_at" in flag_data
         assert flag_data["version"] == "1.0"
+        # Atomic write leaves no temp file behind.
+        assert not (tmp_data_dir / ".disclaimer_accepted.tmp").exists()
+
+    def test_corrupt_flag_is_not_accepted(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A truncated/garbage flag (e.g. crash mid-write) must not count as accepted."""
+        (tmp_data_dir / ".disclaimer_accepted").write_text('{"accepted_at": "x"')  # truncated JSON
+        assert setup_client.get("/api/setup/status").json()["disclaimer_accepted"] is False
+
+    def test_old_version_flag_forces_reacceptance(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A flag written for an older disclaimer version is treated as not-accepted."""
+        (tmp_data_dir / ".disclaimer_accepted").write_text(
+            '{"accepted_at": "2020-01-01T00:00:00", "version": "0.9"}'
+        )
+        assert setup_client.get("/api/setup/status").json()["disclaimer_accepted"] is False
 
     def test_accept_idempotent(
         self,
@@ -984,6 +1002,14 @@ class TestStorageInfo:
         assert isinstance(data["path_exists"], bool)
         assert isinstance(data["path_writable"], bool)
 
+    def test_writability_probe_leaves_no_stray_file(
+        self, setup_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The writability probe must report True and leave no temp file behind."""
+        data = setup_client.get("/api/setup/storage-info").json()
+        assert data["path_writable"] is True
+        assert not list(tmp_data_dir.glob(".write_test*"))
+
     def test_free_space_positive(self, setup_client: TestClient) -> None:
         """Free and total space should be positive values."""
         resp = setup_client.get("/api/setup/storage-info")
@@ -1033,6 +1059,101 @@ class TestStorageInfo:
         data = resp.json()
         assert data["status"] == "ok"
         assert "sufficient" in data["message"].lower()
+
+    def test_includes_volatile_fields(self, setup_client: TestClient) -> None:
+        """Response always carries the volatile signal (bool + optional message)."""
+        data = setup_client.get("/api/setup/storage-info").json()
+        assert isinstance(data["volatile"], bool)
+        assert data["volatile_message"] is None or isinstance(data["volatile_message"], str)
+
+    def test_warns_on_volatile_path(self, setup_client: TestClient) -> None:
+        """A volatile data_dir surfaces volatile=True + a reboot-loss message."""
+        with patch("backend.api.routes.setup._is_volatile_path", return_value=True):
+            data = setup_client.get("/api/setup/storage-info").json()
+        assert data["volatile"] is True
+        assert data["volatile_message"]
+        assert "restart" in data["volatile_message"].lower()
+
+    def test_no_volatile_warning_on_persistent_path(self, setup_client: TestClient) -> None:
+        """A persistent data_dir reports volatile=False with no message."""
+        with patch("backend.api.routes.setup._is_volatile_path", return_value=False):
+            data = setup_client.get("/api/setup/storage-info").json()
+        assert data["volatile"] is False
+        assert data["volatile_message"] is None
+
+
+class TestIsVolatilePath:
+    """Volatile-filesystem detection for the storage-path warning (#754)."""
+
+    def test_tmp_roots_are_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        assert _is_volatile_path(Path("/tmp")) is True
+        assert _is_volatile_path(Path("/tmp/yeliztli")) is True
+        assert _is_volatile_path(Path("/var/tmp/foo")) is True
+        assert _is_volatile_path(Path("/dev/shm/foo")) is True
+
+    def test_similarly_named_sibling_is_not_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        # Component-wise match, not string prefix: /tmpfoo is NOT under /tmp.
+        assert _is_volatile_path(Path("/tmpfoo/data")) is False
+
+    def test_persistent_path_is_not_volatile(self) -> None:
+        from backend.api.routes.setup import _is_volatile_path
+
+        assert _is_volatile_path(Path("/opt/yeliztli/data")) is False
+
+    def test_tmpfs_mount_detected_via_proc_mounts(self, monkeypatch) -> None:
+        from backend.api.routes import setup as setup_module
+
+        fake_mounts = "/dev/sda1 / ext4 rw 0 0\ntmpfs /mnt/ram tmpfs rw 0 0\n"
+        real_read_text = Path.read_text
+
+        def fake_read_text(self, *args, **kwargs):
+            if str(self) == "/proc/mounts":
+                return fake_mounts
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", fake_read_text)
+        assert setup_module._is_volatile_path(Path("/mnt/ram/yeliztli")) is True
+        assert setup_module._is_volatile_path(Path("/mnt/other/yeliztli")) is False
+
+    def test_macos_tmp_symlink_still_volatile(self, monkeypatch) -> None:
+        """Regression: on macOS /tmp (and /var/tmp) are symlinks into /private, so
+        Path.resolve() rewrites them — the detector must still flag them. It checks
+        the symlink-intact absolute form AND includes the /private/* roots."""
+        from backend.api.routes import setup as setup_module
+
+        real_resolve = Path.resolve
+        mapped = {
+            "/tmp": "/private/tmp",
+            "/var/tmp": "/private/var/tmp",
+            # A user symlink whose absolute() name is NOT under any root but which
+            # RESOLVES into macOS temp — exercises the resolved-form check + the
+            # /private/* roots (which the /tmp/var-tmp cases alone never reach,
+            # since their absolute() form already matches the original roots).
+            "/data/scratch": "/private/tmp/scratch",
+        }
+
+        def fake_resolve(self, *args, **kwargs):
+            s = str(self)
+            for src, dst in mapped.items():
+                if s == src:
+                    return Path(dst)
+                if s.startswith(src + "/"):
+                    return Path(dst + s[len(src) :])
+            return real_resolve(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", fake_resolve)
+        # Symlink-intact absolute() form keeps the volatile root match:
+        assert setup_module._is_volatile_path(Path("/tmp")) is True
+        assert setup_module._is_volatile_path(Path("/tmp/yeliztli")) is True
+        assert setup_module._is_volatile_path(Path("/var/tmp/foo")) is True
+        # Resolved-form match via the /private/* roots (absolute() doesn't match):
+        assert setup_module._is_volatile_path(Path("/data/scratch")) is True
+        # A persistent path is unaffected by the symlink mapping.
+        assert setup_module._is_volatile_path(Path("/opt/yeliztli/data")) is False
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -10,12 +10,17 @@ import {
   type SourceTag,
   type VariantRow,
 } from "@/types/variants"
+import { coverageTooltip, decodeCoverageSources } from "./annotation-coverage"
 
 const col = createColumnHelper<VariantRow>()
 
+interface VariantTableMeta {
+  tagColors?: ReadonlyMap<string, string>
+}
+
 /** Pinned conflict flag column — non-hideable per PRD (P2-07, P2-22).
  *  Amber indicator when ClinVar vs in-silico disagreement fires. */
-export const conflictColumn = col.accessor("evidence_conflict", {
+const conflictColumn = col.accessor("evidence_conflict", {
   id: "evidence_conflict",
   header: "",
   size: 36,
@@ -57,6 +62,7 @@ export const allColumns = [
     cell: (info) => {
       const tags = info.getValue()
       if (!tags || tags.length === 0) return ""
+      const tagColors = (info.table.options.meta as VariantTableMeta | undefined)?.tagColors
       return createElement(
         "div",
         { className: "flex items-center gap-1 overflow-hidden" },
@@ -67,7 +73,9 @@ export const allColumns = [
               key: tag,
               className:
                 "inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium rounded-full text-white truncate max-w-[80px]",
-              style: { backgroundColor: TAG_DEFAULT_COLOR },
+              style: {
+                backgroundColor: tagColors?.get(tag) ?? TAG_DEFAULT_COLOR,
+              },
               title: tag,
             },
             tag,
@@ -176,13 +184,21 @@ export const allColumns = [
     cell: (info) => info.getValue()?.toFixed(3) ?? "",
   }),
   col.accessor("annotation_coverage", {
-    header: "Coverage",
-    size: 80,
+    // "Annotations" (count of annotation sources), not "Coverage" — the latter
+    // reads as sequencing depth-of-coverage and clashes with the merge Source
+    // column. The raw value is a bitmask; decode it to a readable count + the
+    // per-source list in a tooltip rather than showing raw binary (#580).
+    header: "Annotations",
+    size: 90,
     cell: (info) => {
       const val = info.getValue()
       if (val == null) return ""
-      // 6-bit bitmask — show as binary for now
-      return val.toString(2).padStart(6, "0")
+      const sources = decodeCoverageSources(val)
+      return createElement(
+        "span",
+        { title: coverageTooltip(val), className: "tabular-nums" },
+        String(sources.length),
+      )
     },
   }),
   col.accessor("ensemble_pathogenic", {

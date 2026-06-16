@@ -39,7 +39,7 @@ from backend.analysis import (
 from backend.analysis.ancestry import (
     HaplogroupNode,
     HaplogroupSNP,
-    _check_node_match,
+    _classify_node_match,
 )
 from backend.analysis.apoe import (
     APOE_RS7412,
@@ -48,7 +48,13 @@ from backend.analysis.apoe import (
     determine_apoe_genotype,
 )
 from backend.analysis.lai_runner import LAIRunner
-from backend.analysis.pharmacogenomics import _count_alt_alleles
+from backend.analysis.pharmacogenomics import (
+    _TRUE_NO_CALLS as _PHARMA_TRUE_NO_CALLS,
+)
+from backend.analysis.pharmacogenomics import (
+    _count_alt_alleles,
+    _count_indel_alt_alleles,
+)
 from backend.analysis.prs import _count_effect_allele
 from backend.analysis.risk_genotype import (
     _TRUE_NO_CALLS as _RISK_GENOTYPE_TRUE_NO_CALLS,
@@ -164,7 +170,7 @@ def test_apoe_determine_genotype_parity() -> None:
     assert result_dash.status == result_q.status
 
 
-# ── ancestry._check_node_match (haplogroup tree-walk) ────────────────────────
+# ── ancestry._classify_node_match (haplogroup tree-walk) ─────────────────────
 
 
 def test_ancestry_haplogroup_tree_walk_parity() -> None:
@@ -176,8 +182,8 @@ def test_ancestry_haplogroup_tree_walk_parity() -> None:
     snp = HaplogroupSNP(rsid="rs123", pos=1000, allele="A")
     node = HaplogroupNode(haplogroup="H1", defining_snps=[snp], children=[])
 
-    present_dash, total_dash = _check_node_match(node, {"rs123": "--"})
-    present_q, total_q = _check_node_match(node, {"rs123": "??"})
+    present_dash, _conf_dash, total_dash = _classify_node_match(node, {"rs123": "--"})
+    present_q, _conf_q, total_q = _classify_node_match(node, {"rs123": "??"})
 
     assert present_dash == 0
     assert present_q == 0
@@ -305,3 +311,46 @@ def test_risk_genotype_true_no_calls_match_shared_sentinels_minus_indels() -> No
     assert _RISK_GENOTYPE_TRUE_NO_CALLS <= _NO_CALL_SENTINELS
     # …and the shared set differs from it by exactly the indel codes.
     assert _NO_CALL_SENTINELS - _RISK_GENOTYPE_TRUE_NO_CALLS == _INDEL_NO_CALL_CODES
+
+
+# ── pharmacogenomics._TRUE_NO_CALLS (third hand-maintained sentinel set) ──────
+#
+# Like risk_genotype, the pharmacogenomics indel star-allele counter
+# (_count_indel_alt_alleles) keeps its OWN no-call set rather than delegating to
+# is_no_call, because it must *score* I/D tokens at simple-indel PGx loci. So it
+# is the shared sentinel set EXCEPT the indel codes. It is now derived from
+# _NO_CALL_SENTINELS so it cannot drift; this guard pins the invariant with an
+# INDEPENDENT indel-code literal (#582, the sibling #525 ruled out by mistake).
+
+
+def test_pharmacogenomics_true_no_calls_match_shared_sentinels_minus_indels() -> None:
+    """``pharmacogenomics._TRUE_NO_CALLS`` == shared sentinels minus indel codes.
+
+    Every genuine no-call recognised by ``is_no_call`` must also short-circuit
+    the indel star-allele counter; the only intended difference is the four
+    indel codes, which it scores at simple-indel loci. If a new sentinel is
+    added to the shared set but not propagated here, this fails — preventing a
+    no-call from being mis-counted as a real I/D dosage feeding star-allele →
+    diplotype → CPIC prescribing.
+    """
+    assert _PHARMA_TRUE_NO_CALLS == _NO_CALL_SENTINELS - _INDEL_NO_CALL_CODES
+    assert _PHARMA_TRUE_NO_CALLS <= _NO_CALL_SENTINELS
+    assert _NO_CALL_SENTINELS - _PHARMA_TRUE_NO_CALLS == _INDEL_NO_CALL_CODES
+
+
+@pytest.mark.parametrize("genotype", ["", "-", "--", "??", "0", "00", "  ", None])
+def test_count_indel_alt_alleles_no_call_returns_none(genotype: str | None) -> None:
+    """The indel star-allele counter must return ``None`` (indeterminate) for a
+    genuine no-call rather than mis-count it as an I/D dosage. ``_count_indel_alt_alleles``
+    had zero test coverage (#582). Uses a simple deletion locus (ref ``AT`` →
+    alt ``A``, so the ALT maps to the ``D`` token)."""
+    assert _count_indel_alt_alleles(genotype, ref="AT", alt="A") is None
+
+
+def test_count_indel_alt_alleles_counts_real_dosage() -> None:
+    """Positive control: a real I/D genotype IS counted, so the no-call cases
+    above aren't trivially always-None."""
+    # ref AT → alt A is a deletion → ALT token "D", reference token "I".
+    assert _count_indel_alt_alleles("DD", ref="AT", alt="A") == 2
+    assert _count_indel_alt_alleles("DI", ref="AT", alt="A") == 1
+    assert _count_indel_alt_alleles("II", ref="AT", alt="A") == 0

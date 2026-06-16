@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import sqlalchemy as sa
 
 from backend.db.tables import auto_update_settings
@@ -28,6 +29,24 @@ from backend.db.update_manager import (
     run_scheduled_update_check,
     set_auto_update,
 )
+
+
+@pytest.fixture(autouse=True)
+def _setup_complete():
+    """Treat first-run setup as finished for every dispatch test in this module.
+
+    ``run_scheduled_update_check`` now no-ops while first-run setup is active
+    (the suppress-during-setup guard, ``_first_run_setup_active``). That guard
+    reads global ``~/.yeliztli`` state via the setup-status predicates, so
+    without this these dispatch tests would pass only on a box with a
+    provisioned install and redden on a clean CI runner. Forcing the guard to
+    ``False`` keeps them exercising the dispatch path. The guard itself is
+    covered hermetically in
+    ``test_update_manager.py::TestSuppressAutoUpdateDuringSetup``.
+    """
+    with patch("backend.db.update_manager._first_run_setup_active", return_value=False):
+        yield
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers

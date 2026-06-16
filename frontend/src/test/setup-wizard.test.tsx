@@ -1787,6 +1787,256 @@ describe('DatabasesStep', () => {
     expect(toastInfoMock).not.toHaveBeenCalled()
     expect(onNext).toHaveBeenCalledOnce()
   })
+
+  // ── PR-19: observability UI (aggregate bar, integrity, failure map) ──
+
+  function stubEventSource() {
+    let progressHandler: ((event: MessageEvent) => void) | null = null
+    class MockEventSource {
+      addEventListener(event: string, handler: (event: MessageEvent) => void) {
+        if (event === 'progress') progressHandler = handler
+      }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', MockEventSource)
+    return () => progressHandler
+  }
+
+  async function startDownloadAndEmit(payload: unknown) {
+    routeDatabasesFetch({
+      list: mockDatabaseList(),
+      download: {
+        body: { session_id: 's1', downloads: [{ db_name: 'clinvar', job_id: 'j1' }] },
+      },
+    })
+    const getHandler = stubEventSource()
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByText('Download Selected')).toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByText('Download Selected'))
+    await waitFor(() => expect(getHandler()).not.toBeNull())
+    act(() => {
+      getHandler()!(new MessageEvent('progress', { data: JSON.stringify(payload) }))
+    })
+  }
+
+  it('renders the aggregate bar with overall %, speed and ETA', async () => {
+    await startDownloadAndEmit({
+      session_id: 's1',
+      databases: [
+        {
+          db_name: 'clinvar',
+          job_id: 'j1',
+          status: 'running',
+          progress_pct: 42,
+          message: 'Downloading...',
+          error: null,
+          total_bytes: 250_000_000,
+          downloaded_bytes: 105_000_000,
+          speed_bps: 5_000_000,
+          eta_seconds: 29,
+        },
+      ],
+      aggregate: {
+        total_bytes: 250_000_000,
+        downloaded_bytes: 105_000_000,
+        remaining_bytes: 145_000_000,
+        overall_pct: 42,
+        speed_bps: 5_000_000,
+        eta_seconds: 29,
+        size_unknown_count: 0,
+      },
+    })
+    const agg = await screen.findByTestId('download-aggregate')
+    expect(agg).toHaveTextContent('42%')
+    expect(agg).toHaveTextContent('5.0 MB/s')
+    expect(agg).toHaveTextContent('~29s')
+    expect(screen.getByTestId('db-rate-clinvar')).toHaveTextContent('5.0 MB/s')
+    vi.unstubAllGlobals()
+  })
+
+  it('shows "estimating…" in the aggregate bar when no size is known', async () => {
+    await startDownloadAndEmit({
+      session_id: 's1',
+      databases: [
+        {
+          db_name: 'clinvar',
+          job_id: 'j1',
+          status: 'running',
+          progress_pct: 0,
+          message: 'Starting…',
+          error: null,
+          total_bytes: null,
+          downloaded_bytes: null,
+          speed_bps: null,
+          eta_seconds: null,
+        },
+      ],
+      aggregate: {
+        total_bytes: null,
+        downloaded_bytes: 0,
+        remaining_bytes: 0,
+        overall_pct: null,
+        speed_bps: null,
+        eta_seconds: null,
+        size_unknown_count: 1,
+      },
+    })
+    const agg = await screen.findByTestId('download-aggregate')
+    expect(agg).toHaveTextContent('estimating')
+    vi.unstubAllGlobals()
+  })
+
+  function downloadedClinvar(overrides: Record<string, unknown> = {}) {
+    return mockDatabaseList({
+      databases: [
+        {
+          name: 'clinvar',
+          display_name: 'ClinVar',
+          description: 'd',
+          filename: 'clinvar.db',
+          expected_size_bytes: 250_000_000,
+          required: true,
+          phase: 1,
+          downloaded: true,
+          file_size_bytes: 250_000_000,
+          ...overrides,
+        },
+      ],
+      downloaded_count: 1,
+      total_count: 1,
+    })
+  }
+
+  it('shows a Verified badge for a downloaded, integrity-passing DB', async () => {
+    routeDatabasesFetch({
+      list: downloadedClinvar(),
+      health: {
+        databases: [{ name: 'clinvar', integrity_ok: true, version: '20260101' }],
+      },
+    })
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    expect(await screen.findByTestId('db-verified-clinvar')).toHaveTextContent(
+      'Verified',
+    )
+  })
+
+  it('surfaces an integrity failure with a Clean & re-download action', async () => {
+    routeDatabasesFetch({
+      list: downloadedClinvar(),
+      health: {
+        databases: [
+          {
+            name: 'clinvar',
+            integrity_ok: false,
+            integrity_detail: 'malformed image',
+            can_clean: true,
+            can_verify: true,
+          },
+        ],
+      },
+    })
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    expect(
+      await screen.findByTestId('db-integrity-failed-clinvar'),
+    ).toHaveTextContent('malformed image')
+    expect(screen.getByTestId('db-clean-clinvar')).toBeInTheDocument()
+  })
+
+  it('Clean & re-download re-downloads only the cleaned DB (not the stale set)', async () => {
+    routeDatabasesFetch({
+      list: downloadedClinvar(),
+      download: {
+        body: { session_id: 's1', downloads: [{ db_name: 'clinvar', job_id: 'j1' }] },
+      },
+      health: {
+        databases: [
+          {
+            name: 'clinvar',
+            integrity_ok: false,
+            integrity_detail: 'malformed image',
+            can_clean: true,
+          },
+        ],
+      },
+    })
+    const _restore = stubEventSource()
+    void _restore
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('db-clean-clinvar'))
+
+    // The cleaned DB's list entry still reads downloaded:true, so the re-download
+    // must target it EXPLICITLY rather than re-deriving from the selected set.
+    await waitFor(() => {
+      const dl = mockFetch.mock.calls.find((call: unknown[]) =>
+        String(call[0]).includes('/api/databases/download'),
+      )
+      expect(dl).toBeTruthy()
+      expect(JSON.parse((dl![1] as { body: string }).body)).toEqual({
+        databases: ['clinvar'],
+      })
+    })
+    vi.unstubAllGlobals()
+  })
+
+  it('offers Resume on a failed download with a resumable partial', async () => {
+    routeDatabasesFetch({
+      list: mockDatabaseList(),
+      download: {
+        body: { session_id: 's1', downloads: [{ db_name: 'clinvar', job_id: 'j1' }] },
+      },
+      health: {
+        databases: [
+          { name: 'clinvar', resumable: true, can_resume: true, progress_pct: 30 },
+        ],
+      },
+    })
+    const getHandler = stubEventSource()
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByText('Download Selected')).toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByText('Download Selected'))
+    await waitFor(() => expect(getHandler()).not.toBeNull())
+    act(() => {
+      getHandler()!(
+        new MessageEvent('progress', {
+          data: JSON.stringify({
+            session_id: 's1',
+            databases: [
+              {
+                db_name: 'clinvar',
+                job_id: 'j1',
+                status: 'failed',
+                progress_pct: 0,
+                message: 'Failed',
+                error: 'Connection reset',
+                total_bytes: 250_000_000,
+                downloaded_bytes: 75_000_000,
+                speed_bps: null,
+                eta_seconds: null,
+              },
+            ],
+            aggregate: {
+              total_bytes: 250_000_000,
+              downloaded_bytes: 75_000_000,
+              remaining_bytes: 175_000_000,
+              overall_pct: 30,
+              speed_bps: null,
+              eta_seconds: null,
+              size_unknown_count: 0,
+            },
+          }),
+        }),
+      )
+    })
+    expect(await screen.findByTestId('db-error-clinvar')).toHaveTextContent(
+      'Connection reset',
+    )
+    expect(screen.getByTestId('db-fail-resume-clinvar')).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
 })
 
 // ─── UploadStep tests ─────────────────────────────────────────────

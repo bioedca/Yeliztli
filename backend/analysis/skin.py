@@ -33,6 +33,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from collections.abc import Container
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,7 +41,9 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.genotype_lookup import (
+    SCORABLE_PANEL_INDELS,
     genotype_candidates,
+    is_acgt_genotype,
     is_strand_ambiguous,
     lookup_by_genotype,
 )
@@ -146,7 +149,6 @@ class PathwayResult:
 
     pathway_id: str
     pathway_name: str
-    pathway_description: str
     level: str  # Elevated / Moderate / Standard
     snp_results: list[SNPResult] = field(default_factory=list)
 
@@ -264,15 +266,36 @@ def load_skin_panel(panel_path: Path | None = None) -> SkinPanel:
 # ── Genotype scoring ─────────────────────────────────────────────────────
 
 
-def _normalize_genotype(genotype: str | None) -> str | None:
+def _normalize_genotype(
+    genotype: str | None,
+    *,
+    scorable_genotypes: Container[str] | None = None,
+) -> str | None:
     """Normalize genotype string for lookup.
 
-    Handles common formats: 'CT', 'TC', '--' (no-call).
-    Returns None for no-calls or missing data.
+    Handles common formats: 'CT', 'TC', '--' (no-call). Returns None for no-calls
+    or missing data.
+
+    Insertion/deletion loci are reported by 23andMe as literal ``I``/``D`` tokens
+    (e.g. MMP1 rs1799750 = ``II``/``DI``/``DD``), which the generic ``is_no_call``
+    check would otherwise discard as no-calls — silently dropping a genotyped indel
+    (#610). So when the locus's ``genotype_effects`` actually keys on these tokens
+    (``scorable_genotypes``), preserve them; mirrors the methylation normalizer.
     """
+    if genotype is None:
+        return None
+
+    normalized = genotype.strip().upper()
+    if (
+        normalized in SCORABLE_PANEL_INDELS
+        and scorable_genotypes is not None
+        and normalized in scorable_genotypes
+    ):
+        return normalized
+
     if is_no_call(genotype):
         return None
-    return genotype.strip().upper()
+    return normalized
 
 
 def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
@@ -342,19 +365,37 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             gene=snp.gene,
             genotype=genotype,
         )
+        # A present, real-nucleotide genotype that resolves to no curated entry is
+        # NOT baseline: it carries an allele this locus does not model (a third/rare
+        # allele or an unkeyed pair), so it is withheld as Indeterminate rather than
+        # silently scored Standard (which would hide a carrier as "no effect"). Only
+        # non-nucleotide tokens (indels, no-calls) fall through to the Standard
+        # default. (#608, mirroring the fitness/methylation fix in #730.)
+        unmodeled = is_acgt_genotype(genotype)
         return SNPResult(
             rsid=snp.rsid,
             gene=snp.gene,
             variant_name=snp.variant_name,
             genotype=genotype,
-            category=STANDARD,
-            effect_summary=f"Genotype {genotype} not in curated panel definitions.",
+            category=INDETERMINATE if unmodeled else STANDARD,
+            effect_summary=(
+                f"Genotype {genotype} carries an allele this locus does not model "
+                f"(it matches no curated genotype), so it is reported as indeterminate "
+                f"rather than assumed baseline."
+                if unmodeled
+                else f"Genotype {genotype} not in curated panel definitions."
+            ),
             evidence_level=snp.evidence_level,
             pmids=snp.pmids,
             recommendation_text=snp.recommendation_text,
             present_in_sample=True,
             mc1r_allele_class=snp.mc1r_allele_class,
-            coverage_note=snp.coverage_note,
+            coverage_note=(
+                "Observed genotype includes an allele outside this locus's curated "
+                "model; not interpretable from the panel."
+                if unmodeled
+                else snp.coverage_note
+            ),
             insufficient_data_flag=snp.insufficient_data_flag,
         )
 
@@ -683,7 +724,9 @@ def score_skin_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            gt = _normalize_genotype(
+                genotypes.get(snp.rsid), scorable_genotypes=snp.genotype_effects
+            )
             result = _score_snp(snp, gt)
             snp_results.append(result)
 
@@ -696,7 +739,6 @@ def score_skin_pathways(
             PathwayResult(
                 pathway_id=pathway.id,
                 pathway_name=pathway.name,
-                pathway_description=pathway.description,
                 level=level,
                 snp_results=snp_results,
             )

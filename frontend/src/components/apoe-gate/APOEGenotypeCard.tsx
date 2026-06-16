@@ -37,7 +37,7 @@ export default function APOEGenotypeCard({ genotype }: APOEGenotypeCardProps) {
             </h3>
             {isDetermined && genotype.diplotype && (
               <span
-                className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-0.5 text-sm font-semibold"
+                className="inline-flex items-center rounded-full bg-teal-100 px-3 py-0.5 text-sm font-semibold text-teal-800 dark:bg-teal-900/30 dark:text-teal-300"
                 data-testid="apoe-diplotype-badge"
               >
                 {formatDiplotype(genotype.diplotype)}

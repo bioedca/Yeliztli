@@ -223,23 +223,43 @@
           "gene": "MMP1",
           "variant_name": "1G/2G promoter",
           "hgvs_protein": null,
-          "risk_allele": "G",
-          "ref_allele": "GG",
+          "risk_allele": "I",
+          "ref_allele": "D",
+          "indel_polarity": {
+            "variant_class": "deletion",
+            "variant_allele_token": "D",
+            "reference_allele_token": "I",
+            "d_token_meaning": "deletion — the 1G promoter allele (a single guanine; the shorter -1607 allele, lacking the extra G)",
+            "i_token_meaning": "insertion / reference — the 2G promoter allele (two guanines; the longer reference allele whose extra G creates the ETS binding site)",
+            "risk_polarity_note": "Unlike the deletion-is-risk indel loci (GJB2/CFTR/APOL1/DHFR), here the INSERTION/reference allele I (2G) is the RISK allele: the extra guanine creates an ETS site that raises MMP1 transcription, so risk_allele=I, ref_allele=D. The D=deletion / I=reference TOKEN convention is unchanged; only which allele carries elevated risk differs.",
+            "hgvs": "MMP1 promoter -1607 1G/2G insertion-deletion (rs1799750); GRCh37 11:102670496-102670497",
+            "dbsnp": "rs1799750",
+            "vendor_id_convention": "23andMe encodes this indel with literal I/D tokens where I = the 2G (longer, extra-guanine) allele and D = the 1G (shorter) allele; PGP 23andMe files report e.g. II (2G/2G) and DI (1G/2G), passed through unchanged by parser_23andme.py. Ensembl GRCh37 gives allele_string CC/C at 11:102670496-102670497 (MMP1 is minus-strand): the longer CC = 2G = I, the shorter C = 1G = D.",
+            "sources": [
+              "Ensembl REST grch37.rest.ensembl.org/variation/human/rs1799750 — allele_string CC/C at 11:102670496-102670497 (longer CC = 2G = I; shorter C = 1G = D)",
+              "Tower et al. 2002 (Biochim Biophys Acta) & 2003 (Eur J Biochem; Breast Cancer Res Treat); Coon et al. 2009 (Matrix Biol); Liu et al. 2011 (Cancer) — the 2G allele inserts a guanine creating an ETS binding site and increases MMP-1 transcription (2G/2G > 1G/1G), establishing 2G (= I, insertion) as the higher-expression risk allele"
+            ],
+            "accessed": "2026-06-14"
+          },
           "genotype_effects": {
-            "GG": {
+            "DD": {
               "category": "Standard",
-              "effect_summary": "1G/1G promoter genotype. Lower MMP1 (collagenase-1) transcription. Standard rate of type I collagen degradation in skin."
+              "effect_summary": "1G/1G promoter genotype (D/D, the shorter allele). Lower MMP1 (collagenase-1) transcription. Standard rate of type I collagen degradation in skin."
             },
-            "GGGG": {
-              "category": "Elevated",
-              "effect_summary": "2G/2G promoter genotype. Higher MMP1 transcription. Increased collagenase activity leads to accelerated type I collagen degradation. Associated with more pronounced photoaging and wrinkle formation."
-            },
-            "GGG": {
+            "DI": {
               "category": "Moderate",
-              "effect_summary": "1G/2G heterozygous promoter. Intermediate MMP1 expression. Mildly increased collagen degradation rate compared to 1G/1G."
+              "effect_summary": "1G/2G heterozygous promoter (one 2G insertion allele). Intermediate MMP1 expression. Mildly increased collagen degradation rate compared to 1G/1G."
+            },
+            "ID": {
+              "category": "Moderate",
+              "effect_summary": "1G/2G heterozygous promoter (one 2G insertion allele). Intermediate MMP1 expression. Mildly increased collagen degradation rate compared to 1G/1G."
+            },
+            "II": {
+              "category": "Elevated",
+              "effect_summary": "2G/2G promoter genotype (I/I, the extra-guanine allele). Higher MMP1 transcription via the created ETS binding site. Increased collagenase activity accelerates type I collagen degradation, associated with more pronounced photoaging and wrinkle formation."
             }
           },
-          "coverage_note": "The MMP1 -1607 1G/2G polymorphism involves a guanine insertion creating an ETS binding site. On SNP arrays, this is typically captured as rs1799750 with alleles reported as a single G vs GG insertion. Genotype representation may vary by platform.",
+          "coverage_note": "The MMP1 -1607 1G/2G polymorphism (rs1799750) is an insertion/deletion: the 2G allele inserts a guanine that creates an ETS binding site and raises MMP1 transcription. 23andMe reports it as I/D indel tokens (I = 2G longer/insertion, D = 1G shorter), which this row keys directly as II/ID/DI/DD (see indel_polarity). Not all arrays genotype this variant, and representation may vary by platform.",
           "evidence_level": 1,
           "pmids": ["25599395", "14519134", "36914001"],
           "recommendation_text": "MMP1 2G allele carriers have higher collagenase expression, which may accelerate collagen breakdown and photoaging. Consistent sunscreen use and topical retinoids (under dermatologist guidance) can help counteract collagen degradation."

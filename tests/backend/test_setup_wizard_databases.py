@@ -151,11 +151,19 @@ class _StartCapture:
         self.dest_path = dest_path
         self.captured: dict[str, object] = {}
 
-    def start(self, *, url: str, filename: str, expected_sha256: str | None) -> DownloadResult:
+    def start(
+        self,
+        *,
+        url: str,
+        filename: str,
+        expected_sha256: str | None,
+        progress_callback: object = None,
+    ) -> DownloadResult:
         self.captured = {
             "url": url,
             "filename": filename,
             "expected_sha256": expected_sha256,
+            "progress_callback": progress_callback,
         }
         # Simulate a successful download landing at dest_path
         self.dest_path.parent.mkdir(parents=True, exist_ok=True)

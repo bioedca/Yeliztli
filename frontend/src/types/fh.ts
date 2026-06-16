@@ -1,6 +1,6 @@
 /** Familial hypercholesterolemia (FH) view API types (SW-B6). */
 
-export interface FhMonogenic {
+interface FhMonogenic {
   gene: string
   rsid: string | null
   clinvar_significance: string | null
@@ -8,7 +8,7 @@ export interface FhMonogenic {
   evidence_level: number
 }
 
-export interface ApobFdb {
+interface ApobFdb {
   rsid: string
   gene: string
   protein: string
@@ -17,7 +17,7 @@ export interface ApobFdb {
   is_pathogenic: boolean
 }
 
-export interface FhLdlPrs {
+interface FhLdlPrs {
   name: string
   calibrated: boolean
   percentile: number | null

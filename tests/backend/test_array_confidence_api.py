@@ -37,6 +37,8 @@ _SEED = {
     "rs9999001": ("GENEM", "Likely pathogenic", 5e-4, "moderate"),  # rare
     "rs80357906": ("BRCA1", "Pathogenic", 1e-6, "low"),  # very rare — Weedon ~16%
     "rs9999002": ("GENEU", "Pathogenic", None, "unknown"),  # no annotation row
+    # Common AF (0.15) but a locus-specific array weak spot → locus_low, not high (#636).
+    "rs429358": ("APOE", "Pathogenic", 0.15, "locus_low"),
 }
 
 # Non-P/LP ClinVar codes that must be filtered out of the endpoint.
@@ -181,6 +183,26 @@ class TestArrayConfidenceEndpoint:
             assert d["context_only"] is True
             assert d["note"]
             assert WEEDON_PMID in d["pmid_citations"]
+
+    def test_locus_low_override_surfaces_via_api(self, ac_client: TestClient) -> None:
+        """#636: a common-AF locus-specific weak spot (APOE rs429358) comes back
+        rated ``locus_low`` with CLIA confirmation recommended, the override flag,
+        the frequency band it would otherwise have had, and APOE citations."""
+        from backend.analysis.array_confidence import APOE_ARRAY_RELIABILITY_PMIDS
+
+        by_rsid = {
+            d["rsid"]: d
+            for d in ac_client.get("/api/analysis/array-confidence?sample_id=1").json()
+        }
+        apoe = by_rsid["rs429358"]
+        assert apoe["reliability"] == "locus_low"
+        assert apoe["confirm_in_clia_recommended"] is True
+        assert apoe["locus_low_reliability"] is True
+        # Frequency alone (AF 0.15) would have rated it "high" — recorded for transparency.
+        assert apoe["frequency_band"] == "high"
+        assert apoe["is_novel"] is False
+        for pmid in APOE_ARRAY_RELIABILITY_PMIDS:
+            assert pmid in apoe["pmid_citations"]
 
     def test_invalid_sample_returns_404(self, ac_client: TestClient) -> None:
         resp = ac_client.get("/api/analysis/array-confidence?sample_id=999")

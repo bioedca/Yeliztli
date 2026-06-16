@@ -193,6 +193,12 @@ async function setupWizardRoutes(page: Page, state: WizardState): Promise<void> 
         ...SETUP_BASE,
         needs_setup: !state.uploaded,
         has_databases: true,
+        // All required DBs in DB_LIST_READY are downloaded, so the backend's
+        // health gate reports ready. The Databases-step Continue button and the
+        // post-upload dashboard hand-off both gate on this field (it mirrors the
+        // backend's needs_setup truth); omitting it leaves Continue permanently
+        // disabled and the wizard walk stalls.
+        required_dbs_ready: true,
         has_samples: state.uploaded,
       }),
     })

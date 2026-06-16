@@ -758,11 +758,6 @@ _CONSEQUENCE_TIER: dict[str, str] = {
     "coding_sequence_variant": "LOW",
 }
 
-# Anything not listed above (intron_variant, intergenic, upstream, downstream, etc.)
-# is classified as MODIFIER.
-
-_TIER_ORDER = {"HIGH": 0, "MODERATE": 1, "LOW": 2, "MODIFIER": 3}
-
 # 1 Mb bin size in base pairs.
 BIN_SIZE = 1_000_000
 

@@ -31,6 +31,7 @@ a future legitimate citation. See #277 for the per-panel topic/allow-list layer.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 _BACKEND = Path(__file__).resolve().parent.parent.parent / "backend"
@@ -299,6 +300,7 @@ _GENE_SCOPED_NOT_REPO_BANNED: frozenset[str] = frozenset(
 # test_all_pmid_bearing_keys_are_covered() fails if a panel introduces a new
 # PMID-bearing key not listed here, so the scan can't silently miss a citation.
 _PMID_KEYS = ("pmids", "pmid_citations", "pmid", "source_pmid")
+_SOURCE_PMID_RE = re.compile(r"\bPMID\s*:?\s*(\d+)\b", re.IGNORECASE)
 
 
 def _iter_pmids(obj) -> list[str]:
@@ -316,6 +318,19 @@ def _iter_pmids(obj) -> list[str]:
     elif isinstance(obj, list):
         for item in obj:
             out.extend(_iter_pmids(item))
+    return out
+
+
+def _iter_indel_polarity_pmids(prov: dict) -> list[str]:
+    """Collect structured PMIDs plus ``PMID 123`` mentions in provenance sources."""
+    out = _iter_pmids(prov)
+    sources = prov.get("sources")
+    if isinstance(sources, str):
+        out.extend(_SOURCE_PMID_RE.findall(sources))
+    elif isinstance(sources, list):
+        for source in sources:
+            if isinstance(source, str):
+                out.extend(_SOURCE_PMID_RE.findall(source))
     return out
 
 
@@ -349,6 +364,29 @@ def all_proxy_pmids() -> set[str]:
     if not _PROXY_LOOKUP.exists():
         return set()
     return set(_iter_pmids(json.loads(_PROXY_LOOKUP.read_text(encoding="utf-8"))))
+
+
+def all_indel_polarity_pmids() -> dict[str, set[str]]:
+    """Map each discovered indel-polarity provenance record -> cited PMIDs.
+
+    Panel JSON indel provenance is already covered by ``all_panel_pmids`` when it
+    uses structured ``pmids`` lists. This collector makes the carrier-status
+    module visible to the snapshot generator and also scans source strings for
+    explicit ``PMID`` mentions.
+    """
+    from test_indel_polarity_provenance import (  # noqa: PLC0415
+        _discover_carrier_indel_polarities,
+        _discover_panel_indel_loci,
+    )
+
+    result: dict[str, set[str]] = {}
+    for label, node in sorted(_discover_panel_indel_loci().items()):
+        prov = node.get("indel_polarity")
+        if isinstance(prov, dict):
+            result[label] = set(_iter_indel_polarity_pmids(prov))
+    for rsid, prov in sorted(_discover_carrier_indel_polarities().items()):
+        result[f"carrier_status:{rsid}"] = set(_iter_indel_polarity_pmids(prov))
+    return result
 
 
 def test_registry_is_well_formed() -> None:
@@ -431,6 +469,20 @@ def test_iter_pmids_collects_all_key_shapes() -> None:
         "ignored": {"note": "999", "gene_symbol": "888"},  # non-citation keys skipped
     }
     assert set(_iter_pmids(doc)) == {"111", "222", "333", "444", "555"}
+
+
+def test_indel_polarity_collector_finds_known_provenance_pmids() -> None:
+    by_locus = all_indel_polarity_pmids()
+    assert {
+        "apol1_panel.json:rs71785313",
+        "gene_health_panel.json:rs80338939",
+        "methylation_panel.json:rs70991108",
+        "skin_panel.json:rs1799750",
+        "carrier_status:rs113993960",
+    } <= set(by_locus), f"indel-polarity discovery regressed: {sorted(by_locus)}"
+    assert by_locus["carrier_status:rs113993960"] == {"2570460"}
+    assert {"9285800", "20647424", "19022952"} <= set().union(*by_locus.values())
+    assert set(_iter_indel_polarity_pmids({"sources": ["PubMed PMID: 12345"]})) == {"12345"}
 
 
 def test_every_curated_panel_is_covered_by_the_shared_collector() -> None:

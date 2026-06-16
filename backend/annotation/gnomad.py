@@ -67,17 +67,6 @@ POSITION_LOOKUP_BATCH_SIZE = max(250, (_SQLITE_VAR_LIMIT - 10) // 4)
 # Chromosomes we accept (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 
-# Population AF INFO field suffixes (gnomAD v2.1.1 exomes)
-_POP_FIELDS = {
-    "AF": "af_global",
-    "AF_afr": "af_afr",
-    "AF_amr": "af_amr",
-    "AF_eas": "af_eas",
-    "AF_nfe": "af_eur",  # gnomAD "Non-Finnish European" → our af_eur
-    "AF_fin": "af_fin",
-    "AF_sas": "af_sas",
-}
-
 # gnomAD annotation bitmask bit (bit 2, value 4)
 GNOMAD_BITMASK = 0b000100
 
@@ -444,18 +433,6 @@ def _create_gnomad_indexes(engine: sa.Engine) -> None:
     retry_on_locked(_do)
 
 
-def create_gnomad_tables(engine: sa.Engine) -> None:
-    """Create the gnomad_af table and indexes in the target database.
-
-    Safe to call multiple times (uses IF NOT EXISTS).
-
-    Args:
-        engine: SQLAlchemy engine for the gnomad_af.db file.
-    """
-    _create_gnomad_table(engine)
-    _create_gnomad_indexes(engine)
-
-
 def load_gnomad_from_vcf(
     vcf_path: Path,
     engine: sa.Engine,
@@ -518,12 +495,16 @@ def load_gnomad_from_csv(
     *,
     clear_existing: bool = True,
 ) -> LoadStats:
-    """Load gnomAD data from a CSV seed file into the gnomad_af table.
+    """Seed the ``gnomad_af`` table from a small CSV fixture — TEST SUPPORT ONLY.
 
-    Useful for testing and for loading pre-processed data.
+    CSV is **not** a production or bundle-build input format: the real pipeline
+    loads gnomAD from its native VCF via :func:`load_gnomad_from_vcf` (see
+    ``scripts/build_gnomad_bundle.py``). This loader exists solely so tests can
+    seed the table from a compact CSV fixture instead of standing up the full
+    VCF machinery; it is on no production/build path.
 
     Args:
-        csv_path: Path to the CSV file with gnomAD data.
+        csv_path: Path to the CSV fixture with gnomAD data.
         engine: SQLAlchemy engine for gnomad_af.db.
         clear_existing: Whether to DELETE all existing rows first.
 

@@ -17,23 +17,34 @@ import {
 } from '@/api/setup'
 import {
   DB_HEALTH_KEY,
+  useCleanDatabase,
   useDatabaseHealth,
   useResumeDownload,
+  useVerifyDatabase,
   type DatabaseHealth,
 } from '@/api/db-health'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { DatabaseProgressEvent, DownloadProgressData } from '@/types/setup'
+import type {
+  DatabaseProgressEvent,
+  DownloadAggregateProgress,
+  DownloadProgressData,
+} from '@/types/setup'
 import { cn } from '@/lib/utils'
 import {
   AlertCircle,
   CheckCircle2,
+  Clock,
   Database,
   Download,
+  Gauge,
   HardDrive,
   Loader2,
   PackageCheck,
   RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
   Wrench,
 } from 'lucide-react'
 
@@ -60,6 +71,35 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`
 }
 
+/** Format a transfer rate, or null when no rate is available. */
+function formatSpeed(bps: number | null): string | null {
+  if (!bps || bps <= 0) return null
+  return `${formatBytes(bps)}/s`
+}
+
+/** Format a remaining-time estimate as "~Xm Ys" / "~Xs", or null when unknown. */
+function formatEta(seconds: number | null): string | null {
+  if (seconds == null || seconds < 0) return null
+  if (seconds < 60) return `~${Math.round(seconds)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  if (mins < 60) return secs ? `~${mins}m ${secs}s` : `~${mins}m`
+  const hrs = Math.floor(mins / 60)
+  return `~${hrs}h ${mins % 60}m`
+}
+
+/** Classify a download failure into the most useful recovery action. */
+type FailureAction = 'resume' | 'clean' | 'window' | 'retry'
+function classifyFailure(
+  error: string | null,
+  health: DatabaseHealth | undefined,
+): FailureAction {
+  if (health?.can_resume || health?.resumable) return 'resume'
+  if (health?.state === 'corrupt' || health?.can_clean) return 'clean'
+  if (error && /bandwidth window|outside.*window/i.test(error)) return 'window'
+  return 'retry'
+}
+
 export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
   const queryClient = useQueryClient()
   const { data: dbList, isLoading, isError, error } = useDatabaseList()
@@ -67,6 +107,8 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
   const { data: health } = useDatabaseHealth()
   const triggerDownload = useTriggerDownload()
   const resumeDownload = useResumeDownload()
+  const verifyDatabase = useVerifyDatabase()
+  const cleanDatabase = useCleanDatabase()
 
   // Map db_name → health record so we can surface resumable partials and
   // integrity problems mid-setup (the most common crash/disconnect point).
@@ -80,6 +122,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
   const [dbProgress, setDbProgress] = useState<
     Record<string, DatabaseProgressEvent>
   >({})
+  // Session-level roll-up (overall %, remaining bytes, combined speed, ETA).
+  const [aggregate, setAggregate] = useState<DownloadAggregateProgress | null>(
+    null,
+  )
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -144,6 +190,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
           progress_pct: 0,
           message: 'Queued...',
           error: null,
+          total_bytes: null,
+          downloaded_bytes: null,
+          speed_bps: null,
+          eta_seconds: null,
         }
       }
       setDbProgress((prev) => ({ ...prev, ...initial }))
@@ -170,6 +220,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
           for (const db of data.databases) updated[db.db_name] = db
           return updated
         })
+        setAggregate(data.aggregate ?? null)
 
         const allTerminal = data.databases.every(
           (db) => db.status === 'complete' || db.status === 'failed',
@@ -210,6 +261,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
     setIsDownloading(true)
     setDownloadError(null)
     setDbProgress({})
+    setAggregate(null)
 
     triggerDownload.mutate(toDownload, {
       onSuccess: (result) => connectToSession(result.downloads, result.session_id),
@@ -243,6 +295,56 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
     setDownloadError(null)
     handleStartDownload()
   }, [handleStartDownload])
+
+  const handleVerify = useCallback(
+    (dbName: string) => {
+      verifyDatabase.mutate(dbName, {
+        onSuccess: (res) =>
+          res.ok
+            ? toast.success(`${dbName}: integrity verified`)
+            : toast.error(`${dbName}: ${res.detail}`),
+        onError: (err) =>
+          toast.error(
+            err instanceof Error ? err.message : `Failed to verify ${dbName}`,
+          ),
+      })
+    },
+    [verifyDatabase],
+  )
+
+  const handleCleanAndRetry = useCallback(
+    (dbName: string) => {
+      cleanDatabase.mutate(dbName, {
+        onSuccess: () => {
+          toast.info(`${dbName}: removed the partial/corrupt artifact`)
+          setDownloadError(null)
+          // Re-download ONLY this DB. We must not re-derive from `selectedDbs`
+          // (built from the dbList cache): the cleaned DB's list entry still
+          // reads downloaded:true until the list refetches, so it would be
+          // filtered out of the selection and never re-downloaded.
+          setIsDownloading(true)
+          setAggregate(null)
+          triggerDownload.mutate([dbName], {
+            onSuccess: (result) =>
+              connectToSession(result.downloads, result.session_id),
+            onError: (err) => {
+              setIsDownloading(false)
+              setDownloadError(
+                err instanceof Error
+                  ? err.message
+                  : `Failed to re-download ${dbName}`,
+              )
+            },
+          })
+        },
+        onError: (err) =>
+          toast.error(
+            err instanceof Error ? err.message : `Failed to clean ${dbName}`,
+          ),
+      })
+    },
+    [cleanDatabase, triggerDownload, connectToSession],
+  )
 
   // Whether the user may proceed past the Databases step. This is the SAME
   // health-verified gate the backend uses for needs_setup (required_dbs_ready):
@@ -348,6 +450,60 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
         </p>
       </div>
 
+      {/* Aggregate progress — overall %, bytes, combined speed, ETA */}
+      {isDownloading && aggregate && (
+        <div
+          className="rounded-lg border border-primary/30 bg-primary/5 p-4"
+          data-testid="download-aggregate"
+        >
+          <div className="flex items-center justify-between text-sm font-medium text-foreground">
+            <span>Downloading databases…</span>
+            <span data-testid="aggregate-pct">
+              {aggregate.overall_pct != null
+                ? `${aggregate.overall_pct.toFixed(0)}%`
+                : 'estimating…'}
+            </span>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${Math.min(aggregate.overall_pct ?? 0, 100)}%` }}
+              role="progressbar"
+              aria-valuenow={Math.round(aggregate.overall_pct ?? 0)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Overall download progress"
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {aggregate.total_bytes != null && (
+              <span>
+                {formatBytes(aggregate.downloaded_bytes)} /{' '}
+                {formatBytes(aggregate.total_bytes)}
+                {aggregate.remaining_bytes > 0 &&
+                  ` · ${formatBytes(aggregate.remaining_bytes)} left`}
+              </span>
+            )}
+            {formatSpeed(aggregate.speed_bps) && (
+              <span className="inline-flex items-center gap-1">
+                <Gauge className="h-3 w-3" />
+                {formatSpeed(aggregate.speed_bps)}
+              </span>
+            )}
+            <span
+              className="inline-flex items-center gap-1"
+              data-testid="aggregate-eta"
+            >
+              <Clock className="h-3 w-3" />
+              {formatEta(aggregate.eta_seconds) ?? 'estimating…'}
+            </span>
+            {aggregate.size_unknown_count > 0 && (
+              <span>{aggregate.size_unknown_count} of unknown size</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Database list */}
       {dbList && (
         <div className="space-y-3">
@@ -375,6 +531,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
               !isRunning &&
               !isPending &&
               !isComplete
+            // The most useful recovery action for a failed download.
+            const failAction = isFailed
+              ? classifyFailure(progress?.error ?? null, dbHealth)
+              : null
 
             return (
               <div
@@ -436,12 +596,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         {formatBytes(db.expected_size_bytes)}
                       </span>
                       {isBundled && (
-                        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+                        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">
                           Included
                         </span>
                       )}
                       {isManual && (
-                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
                           Manual Build
                         </span>
                       )}
@@ -486,20 +646,100 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           {progress?.message || 'Waiting...'}
                         </p>
+                        {progress &&
+                          (progress.downloaded_bytes != null ||
+                            progress.speed_bps != null) && (
+                            <p
+                              className="mt-0.5 text-[11px] text-muted-foreground"
+                              data-testid={`db-rate-${db.name}`}
+                            >
+                              {progress.total_bytes != null &&
+                                progress.downloaded_bytes != null && (
+                                  <span>
+                                    {formatBytes(progress.downloaded_bytes)} /{' '}
+                                    {formatBytes(progress.total_bytes)}
+                                  </span>
+                                )}
+                              {formatSpeed(progress.speed_bps) && (
+                                <span> · {formatSpeed(progress.speed_bps)}</span>
+                              )}
+                              {formatEta(progress.eta_seconds) && (
+                                <span> · {formatEta(progress.eta_seconds)} left</span>
+                              )}
+                            </p>
+                          )}
                       </div>
                     )}
 
-                    {/* Error message */}
-                    {isFailed && progress?.error && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {progress.error}
-                      </p>
+                    {/* Failure: verbatim error + the most useful next action */}
+                    {isFailed && (
+                      <div className="mt-1 space-y-1.5">
+                        {progress?.error && (
+                          <p
+                            className="text-xs text-destructive"
+                            data-testid={`db-error-${db.name}`}
+                          >
+                            {progress.error}
+                          </p>
+                        )}
+                        {failAction === 'window' && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                            Outside the scheduled bandwidth window — it retries
+                            in-window, or retry now.
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {failAction === 'resume' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleResume(db.name)}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md border border-amber-400 px-2 py-1 text-xs font-medium',
+                                'text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30',
+                                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              )}
+                              data-testid={`db-fail-resume-${db.name}`}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Resume
+                            </button>
+                          ) : failAction === 'clean' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleCleanAndRetry(db.name)}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2 py-1 text-xs font-medium',
+                                'text-destructive hover:bg-destructive/10',
+                                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              )}
+                              data-testid={`db-fail-clean-${db.name}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Clean &amp; retry
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleRetry}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium',
+                                'text-foreground hover:bg-accent',
+                                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              )}
+                              data-testid={`db-fail-retry-${db.name}`}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Retry
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     {/* Resumable partial — surface progress + explicit resume */}
                     {showResume && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
                           Partial download
                           {dbHealth?.progress_pct != null &&
                             ` — ${dbHealth.progress_pct}% saved`}
@@ -521,18 +761,72 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                       </div>
                     )}
 
-                    {/* Downloaded status */}
+                    {/* Downloaded status + integrity verdict */}
                     {isComplete && !isBundled && (
-                      <p className="mt-0.5 text-xs text-green-600 dark:text-green-400">
-                        Downloaded
-                        {db.file_size_bytes != null &&
-                          ` (${formatBytes(db.file_size_bytes)})`}
-                      </p>
+                      <div className="mt-0.5 space-y-1">
+                        <p className="text-xs text-green-700 dark:text-green-400">
+                          Downloaded
+                          {db.file_size_bytes != null &&
+                            ` (${formatBytes(db.file_size_bytes)})`}
+                        </p>
+                        {dbHealth?.integrity_ok === true && dbHealth.version && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400"
+                            data-testid={`db-verified-${db.name}`}
+                          >
+                            <ShieldCheck className="h-3 w-3" />
+                            Verified
+                          </span>
+                        )}
+                        {dbHealth?.integrity_ok === false && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] text-destructive"
+                              data-testid={`db-integrity-failed-${db.name}`}
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              Integrity failed
+                              {dbHealth.integrity_detail &&
+                                ` — ${dbHealth.integrity_detail}`}
+                            </span>
+                            {dbHealth.can_clean && (
+                              <button
+                                type="button"
+                                onClick={() => handleCleanAndRetry(db.name)}
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2 py-1 text-[11px] font-medium',
+                                  'text-destructive hover:bg-destructive/10',
+                                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                )}
+                                data-testid={`db-clean-${db.name}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Clean &amp; re-download
+                              </button>
+                            )}
+                            {dbHealth.can_verify && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerify(db.name)}
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium',
+                                  'text-foreground hover:bg-accent',
+                                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                )}
+                                data-testid={`db-verify-${db.name}`}
+                              >
+                                <ShieldCheck className="h-3 w-3" />
+                                Re-check
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Bundled status */}
                     {isBundled && (
-                      <p className="mt-0.5 text-xs text-green-600 dark:text-green-400">
+                      <p className="mt-0.5 text-xs text-green-700 dark:text-green-400">
                         Ships with Yeliztli
                       </p>
                     )}

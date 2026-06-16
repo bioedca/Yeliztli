@@ -22,6 +22,7 @@ from backend.analysis.mt_rnr1 import (
     load_mt_rnr1_panel,
     store_mt_rnr1_findings,
 )
+from backend.analysis.risk_genotype import PROBE_NO_CALL, PROBE_TYPED, read_genotypes
 from backend.db.tables import findings, raw_variants
 
 # Phrases that would turn CPIC decision-support into a direct personal medical
@@ -55,12 +56,50 @@ def _m1555(genotype: str) -> dict:  # ref A / risk G
     return _mt("rs267606617", genotype, 1555)
 
 
+def _m1555_alias(genotype: str) -> dict:  # 23andMe internal ID for m.1555A>G
+    return _mt("i5050994", genotype, 1555)
+
+
 def _m1494(genotype: str) -> dict:  # ref C / risk T
     return _mt("rs267606619", genotype, 1494)
 
 
+def _m1494_alias(genotype: str) -> dict:  # 23andMe internal ID for m.1494C>T
+    return _mt("i704695", genotype, 1494)
+
+
 def _m1095(genotype: str) -> dict:  # ref T / risk C
     return _mt("rs267606618", genotype, 1095)
+
+
+class TestPanelAliases:
+    def test_panel_declares_23andme_mt_aliases(self, panel) -> None:
+        m1555 = panel.locus("rs267606617")
+        m1494 = panel.locus("rs267606619")
+        assert m1555 is not None
+        assert m1494 is not None
+        assert m1555.alias_rsids == ("i5050994",)
+        assert m1494.alias_rsids == ("i704695",)
+
+    def test_m1494_alias_readout_is_keyed_to_canonical_rsid(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [_m1494_alias("T")])
+        readouts = read_genotypes(panel, sample_engine)
+        m1494 = readouts["rs267606619"]
+        assert m1494.rsid == "rs267606619"
+        assert m1494.status == PROBE_TYPED
+        assert m1494.genotype == "T"
+
+    def test_m1494_alias_no_call_is_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [_m1494_alias("--")])
+        readouts = read_genotypes(panel, sample_engine)
+        m1494 = readouts["rs267606619"]
+        assert m1494.status == PROBE_NO_CALL
+
+        a = assess_mt_rnr1(panel, sample_engine)
+        assert "rs267606619" in a.indeterminate_loci
+        assert not any(c.detail["model_id"] == "m1494ct" for c in a.calls)
 
 
 class TestHighEvidenceVariants:
@@ -98,6 +137,22 @@ class TestHighEvidenceVariants:
         calls = [c for c in a.calls if c.detail["model_id"] == "m1494ct"]
         assert len(calls) == 1
         assert calls[0].evidence_stars == 3
+
+    def test_m1494_23andme_alias_fires_three_star(self, panel, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [_m1494_alias("T")])
+        a = assess_mt_rnr1(panel, sample_engine)
+        calls = [c for c in a.calls if c.detail["model_id"] == "m1494ct"]
+        assert len(calls) == 1
+        assert calls[0].rsid == "rs267606619"
+        assert calls[0].evidence_stars == 3
+        assert calls[0].detail["genotype_calls"]["rs267606619"] == "T"
+
+    def test_m1555_23andme_alias_fires(self, panel, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, [_m1555_alias("G")])
+        a = assess_mt_rnr1(panel, sample_engine)
+        calls = [c for c in a.calls if c.detail["model_id"] == "m1555ag"]
+        assert len(calls) == 1
+        assert calls[0].rsid == "rs267606617"
 
     def test_reference_call_no_finding(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_m1555("A"), _m1494("C"), _m1095("T")])

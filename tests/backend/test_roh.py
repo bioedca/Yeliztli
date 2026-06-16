@@ -63,6 +63,33 @@ class TestGenotypeState:
             assert _genotype_state(gt) == "miss"
 
 
+class TestFrohDenominator:
+    """Pin the FROH denominator so a wrong genome-size constant fails loudly.
+
+    ``AUTOSOMAL_GENOME_KB`` is the ~2.77 Gb ungapped autosomal (chr1–22) genome
+    length used as the FROH denominator: FROH (the fraction of the autosomal
+    genome in runs of homozygosity) is the module's autozygosity/consanguinity
+    metric, and this constant sets the magnitude of every FROH value
+    (``FROH = Σ ROH length / AUTOSOMAL_GENOME_KB``; McQuillan et al. 2008, AJHG;
+    Ceballos et al. 2018, Nat Rev Genet). A digit typo — e.g. ``277_000`` (10×)
+    — would scale every sample's autozygosity estimate with green CI, because
+    the magnitude assertion in ``TestDetection`` used to re-divide by this same
+    imported constant (it cancelled on both sides). These tests anchor the value
+    to an independent literal instead.
+    """
+
+    def test_constant_pinned_to_literal(self) -> None:
+        # 2.77 Gb = the ungapped autosomal sequence length (GRCh37 chr1–22 total
+        # is ~2.88 Gb including N-gaps; ~2.77 Gb of called sequence). Maintained
+        # by hand as an independent reference — do NOT derive it from the module.
+        assert AUTOSOMAL_GENOME_KB == 2_770_000
+
+    def test_denominator_is_gigabase_scale_autosomal_length(self) -> None:
+        # Guard against an order-of-magnitude regression independent of the exact
+        # literal: the autosomal genome is ~2.6–2.9 Gb of called sequence.
+        assert 2_600_000 <= AUTOSOMAL_GENOME_KB <= 2_900_000
+
+
 class TestDetection:
     def test_clean_long_run_detected(self, sample_engine: sa.Engine) -> None:
         # 200 hom SNPs, 10 kb spacing → ~1990 kb span, 200 SNPs (≥1500 kb, ≥100).
@@ -73,8 +100,13 @@ class TestDetection:
         assert seg.chrom == "1"
         assert seg.n_snps == 200
         assert seg.length_kb == pytest.approx(1990.0, abs=1.0)
-        # FROH = total ROH length / fixed autosomal denominator (rounded to 5 dp).
-        assert result.froh == pytest.approx(seg.length_kb / AUTOSOMAL_GENOME_KB, abs=5e-5)
+        # FROH magnitude is pinned to a LITERAL denominator written here, NOT the
+        # imported production constant — otherwise AUTOSOMAL_GENOME_KB cancels on
+        # both sides and a wrong genome-size denominator passes (see
+        # TestFrohDenominator). The 1990 kb single segment over the 2.77 Gb
+        # autosomal genome gives FROH = round(1990.0 / 2_770_000, 5) = 0.00072.
+        assert seg.length_kb == 1990.0
+        assert result.froh == pytest.approx(0.00072, abs=5e-6)
 
     def test_short_run_not_detected(self, sample_engine: sa.Engine) -> None:
         # 50 hom SNPs over ~490 kb — below both thresholds.

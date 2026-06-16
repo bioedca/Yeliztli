@@ -13,10 +13,13 @@
  * PRS finding's `detail_json`). This card is the **reader-facing register** of
  * that same content — the substantive claims (h²_twin > h²_SNP > h²_PRS; Ding
  * 2023 r≈−0.95; calibration ≠ accuracy) and the Ding citation are kept identical
- * to the backend block by hand; only the surrounding prose is friendlier. The
- * card is section-level (not per-finding), so it intentionally renders the static
- * copy rather than threading per-finding detail_json through the API/types. If
- * you edit either side, update the other to keep them in sync.
+ * to the backend block; only the surrounding prose is friendlier. The card is
+ * section-level (not per-finding), so it intentionally renders the static copy
+ * rather than threading per-finding detail_json through the API/types. The
+ * citation line below embeds the canonical `PRS_TRAIT_ARCHITECTURE["citation"]`
+ * string verbatim, and `tests/backend/test_trait_architecture_parity.py` is a
+ * cross-stack guard that fails if this card drifts from the backend block (#574),
+ * so the two copies can no longer silently diverge.
  */
 
 import { BookOpen } from "lucide-react"
@@ -50,7 +53,8 @@ export default function TraitArchitectureCard() {
           trait variation is environmental and non-PRS genetic.
         </p>
         <p className="text-[11px] italic">
-          Ding et al., Nature 618:774–781 (2023). Educational context only.
+          Ding et al., Nature 618:774-781 (2023); doi:10.1038/s41586-023-06079-4 — educational
+          context only.
         </p>
       </div>
     </details>

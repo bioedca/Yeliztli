@@ -23,6 +23,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job's GITHUB_TOKEN. CI here only checks out
+# and tests code (no PR comments, releases, or issue filing — those live in
+# nightly.yml / bundle-release.yml, which set their own scopes), so read-only is
+# sufficient. A job that needs more should override `permissions` on itself.
+permissions:
+  contents: read
+
 jobs:
   # ── Change detection (path filters drive PR-tier scoping) ───────────────
   changes:
@@ -38,7 +45,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false  # paths-filter needs no git creds
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           # Keep filters broad: the Docker image bundles backend + a frontend
@@ -92,6 +99,16 @@ jobs:
       - name: Ruff format check
         run: ruff format --check backend/ tests/
 
+      # Python dead-code detector (#579) — backend sibling of the frontend knip
+      # gate below. ruff (E/F/I/UP) flags unused locals/imports but NOT unused
+      # module-level constants/functions/methods, so they ship CI-invisible (the
+      # #527/#535/#553/#561 cluster). The committed vulture_whitelist.py baseline
+      # makes the current tree report clean, so this is BLOCKING: any NEW dead
+      # code (a symbol nothing references) fails here. Config: [tool.vulture] in
+      # pyproject.toml. Regenerate the baseline: scripts/make_vulture_whitelist.sh.
+      - name: Vulture (dead code)
+        run: vulture
+
       - name: Install frontend deps
         run: cd frontend && npm ci
 
@@ -100,12 +117,12 @@ jobs:
 
       # Dead-export / dead-file / unused-dependency detector (#555). ESLint and
       # `tsc -b` cannot see exported-but-unused members, so dead exports ship
-      # green. Advisory (continue-on-error) while the existing baseline is
-      # cleared by the per-symbol dead-code issues; flip to blocking once knip
-      # reports clean. See frontend/knip.jsonc.
-      - name: Knip (dead exports — advisory)
+      # green. BLOCKING as of #634: the historical backlog has been cleared, so
+      # any newly-introduced dead export / file / unused dependency now fails CI
+      # (annotate a genuinely-intentional public export with knip's `@public`
+      # JSDoc tag rather than re-adding it to a baseline). See frontend/knip.jsonc.
+      - name: Knip (dead exports)
         run: cd frontend && npm run knip
-        continue-on-error: true
 
   # ── Backend tests — Tier 1 (Linux, PR-blocking) ─────────────────────────
   test-backend:
@@ -403,7 +420,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: reviewdog/action-actionlint@v1
+      - uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
         with:
           # fail_level: error == the deprecated `fail_on_error: true` (level defaults to error)
           fail_level: error

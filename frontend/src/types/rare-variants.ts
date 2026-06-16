@@ -55,7 +55,7 @@ export interface RareVariantSearchResponse {
 }
 
 /** A stored finding from the findings table. */
-export interface RareVariantFinding {
+interface RareVariantFinding {
   rsid: string | null
   gene_symbol: string | null
   category: string

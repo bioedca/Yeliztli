@@ -1,11 +1,9 @@
 """Tests for LAI (Local Ancestry Inference) module — AMv2 Step 4.
 
 Covers:
-  T-LAI-01: is_lai_available() returns False when bundle missing
-  T-LAI-02: is_lai_available() returns False when Java missing
+  T-LAI-01/T-LAI-04: LAI API returns 404 when bundle not downloaded
+  T-LAI-02/T-LAI-05: LAI API returns 503 when Java unavailable
   T-LAI-03: LAI results JSON schema matches expected format
-  T-LAI-04: LAI API returns 404 when bundle not downloaded
-  T-LAI-05: LAI API returns 503 when Java unavailable
   T-LAI-06: Progress callback maps to job table updates
   T-LAI-07: rsID lookup correctly maps GRCh37 -> GRCh38
   T-LAI-08: Genotype encoding handles REF/REF, REF/ALT, ALT/ALT
@@ -332,31 +330,6 @@ class TestChromosomePainting:
                 assert seg["end"] == (i + 1) * 1000
 
 
-# ── T-LAI: LAI availability checks ──────────────────────────────────────
-
-
-class TestLAIAvailability:
-    """T-LAI-01, T-LAI-02: is_lai_available checks."""
-
-    def test_unavailable_when_bundle_missing(self, tmp_path):
-        from backend.analysis.lai import is_lai_available
-
-        with patch("backend.analysis.lai.get_settings") as mock_settings:
-            mock_settings.return_value.resolved_lai_bundle_path = tmp_path / "nonexistent_bundle"
-            assert is_lai_available() is False
-
-    def test_unavailable_when_java_missing(self, tmp_path):
-        from backend.analysis.lai import is_lai_available
-
-        with (
-            patch("backend.analysis.lai.get_settings") as mock_settings,
-            patch("backend.analysis.lai.validate_lai_bundle", return_value=True),
-            patch("backend.analysis.lai.detect_java", return_value=False),
-        ):
-            mock_settings.return_value.resolved_lai_bundle_path = tmp_path
-            assert is_lai_available() is False
-
-
 # ── T-LAI: LAI results storage ───────────────────────────────────────────
 
 
@@ -503,7 +476,7 @@ class TestLAIResultsStorage:
 
 
 class TestLAIAPIStatus:
-    """T-LAI-04, T-LAI-05: LAI API status checks."""
+    """T-LAI-01, T-LAI-02, T-LAI-04, T-LAI-05: LAI API status checks."""
 
     def test_trigger_returns_404_no_bundle(self, test_client):
         resp = test_client.post("/api/analysis/ancestry/lai/1")

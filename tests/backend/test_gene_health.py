@@ -35,6 +35,7 @@ from backend.analysis.gene_health import (
     SNPResult,
     _determine_pathway_level,
     _generate_cross_module_findings,
+    _is_standard_carrier_context,
     _map_indel_genotype,
     _normalize_genotype,
     _score_snp,
@@ -409,6 +410,32 @@ class TestSNPScoring:
         result = _score_snp(snp, "CC")
         assert result.category == STANDARD
 
+    def test_clu_rs11136000_direction(self, panel: GeneHealthPanel) -> None:
+        """#581: CLU rs11136000 — C is the AD risk allele, T is protective.
+
+        Literature is unanimous (the panel-cited Harold 2009 GWAS gives the T
+        minor allele OR ~0.86; Braskie 2011: the C allele confers 1.16 greater
+        odds than T): CC is the highest-risk genotype, TT the lowest (protective).
+        Regression for the inverted entry that had ``risk_allele="T"`` and
+        scored the protective TT homozygote (a real Harvard PGP genotype) as a
+        "homozygous T risk allele" with "increased Alzheimer's risk".
+        """
+        snp = self._get_snp(panel, "rs11136000")
+        assert snp.risk_allele == "C"
+        assert snp.ref_allele == "T"
+
+        # The protective T homozygote must NOT be flagged as risk-elevated.
+        assert _score_snp(snp, "TT").category == STANDARD
+        # One / two copies of the C risk allele.
+        assert _score_snp(snp, "CT").category == MODERATE
+        assert _score_snp(snp, "TC").category == MODERATE
+        assert _score_snp(snp, "CC").category == MODERATE
+
+        # Effect summaries point the right way (T protective, C risk).
+        assert "protective" in snp.genotype_effects["TT"]["effect_summary"].lower()
+        assert "risk allele" in snp.genotype_effects["CC"]["effect_summary"].lower()
+        assert "protective" not in snp.genotype_effects["CC"]["effect_summary"].lower()
+
     def test_pparg_ala12_genotypes_not_risk_elevating(self, panel: GeneHealthPanel) -> None:
         """PPARG Pro12Ala (rs1801282): the protective Ala12 (G) allele must not be
         scored as risk. All genotypes map to Standard so a protective genotype
@@ -554,18 +581,30 @@ class TestSNPScoring:
         assert _score_snp(snp, "AT").category == MODERATE
         assert _score_snp(snp, "TA").category == MODERATE
 
-    def test_drd4_t_containing_genotype_is_not_curated(self, panel: GeneHealthPanel) -> None:
+    def test_drd4_t_containing_genotype_is_indeterminate(self, panel: GeneHealthPanel) -> None:
+        """DRD4 rs747302 models the C/G contrast; an observed ``CT`` carries a ``T``
+        the locus does not model, so it is withheld as Indeterminate rather than
+        silently scored Standard (which would hide a carrier as 'no effect') — #608."""
         snp = self._get_snp(panel, "rs747302")
-        result = _score_snp(snp, "CT")
-        assert result.category == STANDARD
-        assert result.present_in_sample is True
-        assert "not in curated panel definitions" in result.effect_summary
+        for gt in ("CT", "TC"):
+            result = _score_snp(snp, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+        # A non-nucleotide no-call is not an unmodeled allele — it stays Standard.
+        assert _score_snp(snp, "--").category == STANDARD
 
-    def test_gjb2_het_moderate(self, panel: GeneHealthPanel) -> None:
-        """GJB2 35delG het (G/delG) -> Moderate."""
+    def test_gjb2_het_carrier_standard(self, panel: GeneHealthPanel) -> None:
+        """GJB2 35delG het (G/delG) -> Standard (#700).
+
+        DFNB1/GJB2 hearing loss is autosomal recessive and requires biallelic
+        pathogenic variants; a single 35delG allele is an unaffected carrier, so
+        its *personal* risk is Standard (not Moderate), matching the sibling
+        recessive carrier SLC26A4. The variant is still present in the sample.
+        """
         snp = self._get_snp(panel, "rs80338939")
         result = _score_snp(snp, "G/delG")
-        assert result.category == MODERATE
+        assert result.category == STANDARD
         assert result.present_in_sample is True
 
     def test_gjb2_hom_elevated(self, panel: GeneHealthPanel) -> None:
@@ -575,10 +614,10 @@ class TestSNPScoring:
         assert result.category == ELEVATED
 
     def test_gjb2_reversed_slash_genotype(self, panel: GeneHealthPanel) -> None:
-        """GJB2 reversed slash genotype (delG/G) -> matches G/delG -> Moderate."""
+        """GJB2 reversed slash genotype (delG/G) -> matches G/delG -> Standard (#700)."""
         snp = self._get_snp(panel, "rs80338939")
         result = _score_snp(snp, "delG/G")
-        assert result.category == MODERATE
+        assert result.category == STANDARD
         assert result.present_in_sample is True
 
     def test_gjb2_indel_map_translates_vendor_id_codes(self, panel: GeneHealthPanel) -> None:
@@ -650,15 +689,21 @@ class TestGJB2IndelEndToEnd:
         assert gjb2.category == ELEVATED
         assert "homozygous" in gjb2.effect_summary.lower()
 
-    def test_heterozygous_di_is_carrier_moderate(
+    def test_heterozygous_di_is_carrier_standard(
         self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
     ) -> None:
+        """#700: a heterozygous 35delG (vendor DI) carrier scores Standard — not
+        Moderate — because DFNB1 is autosomal recessive (biallelic required). The
+        carrier is still surfaced (present + carrier-display context), so dropping
+        the personal-risk category does not hide the reproductive-relevant status."""
         _seed_variants(sample_engine, [("rs80338939", "13", 20763612, "DI")])
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         gjb2 = self._gjb2(result)
         assert gjb2.present_in_sample is True
-        assert gjb2.category == MODERATE
+        assert gjb2.category == STANDARD
         assert "carrier" in gjb2.effect_summary.lower()
+        # Standard ≠ hidden: still surfaced as a reproductive-relevant carrier.
+        assert _is_standard_carrier_context(gjb2) is True
 
     def test_homozygous_reference_ii_is_standard_present(
         self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
@@ -679,6 +724,30 @@ class TestGJB2IndelEndToEnd:
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         cov = next(r for r in result.panel_coverage_rows if r["rsid"] == "rs80338939")
         assert cov["coverage_status"] == "called"
+
+    def test_recessive_deafness_het_carriers_consistent_and_no_pathway_inflation(
+        self, panel: GeneHealthPanel, sample_engine: sa.Engine, reference_engine: sa.Engine
+    ) -> None:
+        """#700: heterozygous carriers of the recessive deafness genes GJB2 (35delG)
+        and SLC26A4 must both score Standard, so a lone carrier does not inflate the
+        max-category 'Sensory Conditions' pathway above Standard. Locks GJB2 and
+        SLC26A4 to consistent recessive-carrier handling."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs80338939", "13", 20763612, "DI"),  # GJB2 35delG het carrier
+                ("rs111033313", "7", 107683453, "AG"),  # SLC26A4 het carrier
+            ],
+        )
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        by_rsid = {s.rsid: s for pr in result.pathway_results for s in pr.snp_results}
+        assert by_rsid["rs80338939"].category == STANDARD
+        assert by_rsid["rs111033313"].category == STANDARD
+
+        sensory = next(
+            pr for pr in result.pathway_results if pr.pathway_name == "Sensory Conditions"
+        )
+        assert sensory.level == STANDARD
 
 
 # -- Pathway level determination tests ----------------------------------------
@@ -929,7 +998,6 @@ class TestCrossModuleFindings:
             PathwayResult(
                 pathway_id="p1",
                 pathway_name="P1",
-                pathway_description="",
                 level=MODERATE,
                 snp_results=[_snp_result("rs2228570"), _snp_result("rs1544410")],
             )

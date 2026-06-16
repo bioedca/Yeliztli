@@ -28,8 +28,12 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.annotation.dbnsfp import create_dbnsfp_tables, load_dbnsfp_from_csv
-from backend.annotation.gnomad import create_gnomad_tables
+from backend.annotation.dbnsfp import (
+    _create_dbnsfp_indexes,
+    _create_dbnsfp_table,
+    load_dbnsfp_from_csv,
+)
+from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -123,7 +127,8 @@ def _create_gnomad_db(db_path: Path) -> None:
     """Build a mini gnomAD SQLite from the seed CSV."""
     engine = sa.create_engine(f"sqlite:///{db_path}")
     try:
-        create_gnomad_tables(engine)
+        _create_gnomad_table(engine)
+        _create_gnomad_indexes(engine)
         with engine.begin() as conn:
             with open(GNOMAD_SEED_CSV, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
@@ -159,7 +164,8 @@ def _create_dbnsfp_db(db_path: Path) -> None:
     """Build a mini dbNSFP SQLite from the seed CSV."""
     engine = sa.create_engine(f"sqlite:///{db_path}")
     try:
-        create_dbnsfp_tables(engine)
+        _create_dbnsfp_table(engine)
+        _create_dbnsfp_indexes(engine)
         load_dbnsfp_from_csv(DBNSFP_SEED_CSV, engine, clear_existing=False)
     finally:
         engine.dispose()

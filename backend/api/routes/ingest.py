@@ -22,7 +22,9 @@ from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, jobs, raw_variants, sample_metadata_table, samples
+from backend.ingestion.base import ParsedVariant, ParseResult
 from backend.ingestion.dispatcher import ParserError, parse
+from backend.ingestion.liftover import lift_build36_to_grch37
 
 logger = logging.getLogger(__name__)
 
@@ -34,19 +36,20 @@ _INSERT_BATCH = 10_000
 # Minimum vep_bundle semver required to accept AncestryDNA uploads (Plan §5.4).
 _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA = Version("2.0.0")
 
-# The only genome build the analysis pipeline can process. Vendor parsers tag
-# each ``ParseResult`` with its source reference assembly (parser_23andme:
-# v3→GRCh36 — the parser's label for NCBI Build 36 / hg18, which predates the
-# GRC — v4/v5→GRCh37; AncestryDNA→GRCh37). Every position-dependent path —
-# GRCh38 liftover (backend/ingestion/liftover.py), positional PRS/annotation
-# joins (backend/analysis/prs.py, backend/annotation/engine.py), VCF/FHIR export
-# — assumes the stored (chrom, pos) are GRCh37, and there is no build-36→37
-# (hg18→hg19) liftover. A 23andMe v3 file is build 36 (hg18); stored verbatim it
-# would be silently mis-placed by up to several megabases at the wrong build,
-# producing wrong polygenic scores with no error (issue #480). Until an
-# hg18→hg19 lift lands, reject non-GRCh37 builds at ingest rather than emit
-# silently-wrong coordinates and scores.
+# The genome build every position-dependent path assumes for the stored
+# (chrom, pos): GRCh38 liftover (backend/ingestion/liftover.py), positional
+# PRS/annotation joins (backend/analysis/prs.py, backend/annotation/engine.py),
+# VCF/FHIR export. Vendor parsers tag each ``ParseResult`` with its source
+# assembly (parser_23andme: v3→GRCh36 — the parser's label for NCBI Build 36 /
+# hg18, which predates the GRC — v4/v5→GRCh37; AncestryDNA→GRCh37).
 _SUPPORTED_BUILD = "GRCh37"
+
+# NCBI Build 36 / hg18 — the build 23andMe v3 exports use. Stored verbatim its
+# coordinates would be silently mis-placed by up to several megabases, producing
+# wrong polygenic scores with no error (#480). Rather than reject v3 (the #547
+# stop-gap gate), we now lift build-36 → GRCh37 at ingest (#562) so the GRCh37
+# invariant holds and v3 uploads are analysable again.
+_BUILD36 = "GRCh36"
 
 
 def _coerce_semver(raw: str | None) -> Version | None:
@@ -111,6 +114,40 @@ def _vep_bundle_blocks_ancestrydna(reference_engine: sa.Engine) -> tuple[bool, s
     return installed < _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA, installed_raw
 
 
+def _lift_result_build36(result: ParseResult) -> dict[str, int]:
+    """Lift a build-36 (hg18) ``ParseResult`` in place to GRCh37 (#562).
+
+    Replaces ``result.variants`` with their hg18→hg19-lifted equivalents (alleles
+    complemented on strand-flipped segments), drops variants that do not lift
+    (deleted/rearranged in hg19 — counted, not guessed), and sets ``result.build``
+    to GRCh37 so the rest of the pipeline treats the sample as build 37. Returns a
+    ``{"total", "lifted", "dropped"}`` stat dict for logging.
+    """
+    lifted: list[ParsedVariant] = []
+    dropped = 0
+    nocall = 0
+    for v in result.variants:
+        out = lift_build36_to_grch37(v.chrom, v.pos, v.genotype)
+        if out is None:
+            dropped += 1
+            continue
+        new_chrom, new_pos, new_genotype = out
+        if new_genotype == "--":  # parser's no-call sentinel
+            nocall += 1
+        lifted.append(
+            ParsedVariant(rsid=v.rsid, chrom=new_chrom, pos=new_pos, genotype=new_genotype)
+        )
+
+    stats = {"total": len(result.variants), "lifted": len(lifted), "dropped": dropped}
+    result.variants = lifted
+    # Re-derive the no-call count for the *stored* (post-drop) set so the upload
+    # response's variant_count and nocall_count describe the same variants; the
+    # parser's pre-lift count would over-count dropped no-calls.
+    result.nocall_count = nocall
+    result.build = _SUPPORTED_BUILD
+    return stats
+
+
 def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     """Parse a vendor raw-data file (23andMe or AncestryDNA) and persist it.
 
@@ -134,17 +171,28 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
         logger.warning("File %s contains invalid UTF-8 sequences that were replaced", filename)
     result = parse(io.StringIO(text))
 
-    # Genome-build gate (issue #480), keyed off the *parsed* build so it cannot
-    # be bypassed by an unusual header. The pipeline treats every sample's
-    # (chrom, pos) as GRCh37 and there is no build-36→37 liftover, so a build-36
-    # (23andMe v3 / hg18) file accepted here would be silently processed ~Mb off
-    # at the wrong build — corrupting the genome browser, GRCh38 liftover, and
-    # polygenic scores (a clinical-tier result) with no error. rsID-keyed paths
-    # would still work, but shipping silently-wrong positional results is not
-    # worth it: refuse before any sample/job rows are written. The detail is a
-    # plain string so the upload UI renders it verbatim (api/setup.ts only shows
-    # string ``detail``; an object falls back to a generic "Upload failed").
-    if result.build != _SUPPORTED_BUILD:
+    # Genome-build handling (issues #480 / #547 / #562), keyed off the *parsed*
+    # build so it cannot be bypassed by an unusual header. The pipeline treats
+    # every sample's (chrom, pos) as GRCh37.
+    #   - Build 36 (23andMe v3 / hg18): lift to GRCh37 before any rows are written
+    #     so the invariant holds (#562, replacing the #547 reject gate). Alleles on
+    #     strand-flipped segments are complemented; variants that do not lift are
+    #     dropped (counted), not guessed.
+    #   - Any other non-GRCh37 build: reject — there is no chain to lift it and
+    #     storing it verbatim would silently mis-place positions and corrupt
+    #     polygenic scores. The detail is a plain string so the upload UI renders
+    #     it verbatim (api/setup.ts only shows string ``detail``).
+    if result.build == _BUILD36:
+        lift_stats = _lift_result_build36(result)
+        logger.info(
+            "build36_liftover vendor=%s version=%s total=%d lifted=%d dropped=%d",
+            result.vendor.value,
+            result.version,
+            lift_stats["total"],
+            lift_stats["lifted"],
+            lift_stats["dropped"],
+        )
+    elif result.build != _SUPPORTED_BUILD:
         logger.info(
             "genome_build_gate vendor=%s version=%s build=%s",
             result.vendor.value,
@@ -155,11 +203,10 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
             status_code=422,
             detail=(
                 f"This file is reported on genome build {result.build}, but analysis "
-                f"requires build 37 ({_SUPPORTED_BUILD}). 23andMe v3 exports use NCBI "
-                "build 36 (hg18); processing build-36 coordinates as GRCh37 would "
-                "silently shift variant positions — by up to several megabases in "
-                "affected regions — and produce incorrect polygenic scores, so the "
-                "upload was refused. "
+                f"requires build 37 ({_SUPPORTED_BUILD}). Only NCBI build 36 (23andMe "
+                "v3) can be lifted to GRCh37 at ingest; this build has no supported "
+                "liftover, so the upload was refused to avoid silently shifting variant "
+                "positions and producing incorrect polygenic scores. "
                 "Please upload a build-37 export (23andMe v4/v5 or AncestryDNA)."
             ),
         )

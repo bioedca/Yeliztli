@@ -23,11 +23,11 @@ from backend.services.sex_inference import (
     _PAR1,
     _PAR2,
     _THRESHOLD_PAR_NOISE,
-    _THRESHOLD_X_HET_DIPLOID,
     _THRESHOLD_X_HET_HEMIZYGOUS,
     _THRESHOLD_XY_CONFIRM,
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
+    THRESHOLD_X_HET_DIPLOID,
     Classification,
     _classify,
     compute_sex_signals,
@@ -131,12 +131,12 @@ class TestValidatedConstants:
     def test_x_het_rate_thresholds(self) -> None:
         # issue #519 — X dosage is decided on the non-PAR chrX het *rate*.
         assert _THRESHOLD_X_HET_HEMIZYGOUS == 0.05
-        assert _THRESHOLD_X_HET_DIPLOID == 0.15
+        assert THRESHOLD_X_HET_DIPLOID == 0.15
 
     def test_x_het_hemizygous_below_diploid(self) -> None:
         # Defensive: the ambiguous X-dosage band must be non-empty, and the
         # hemizygous (one-X) cutoff must sit below the diploid (two-X) cutoff.
-        assert _THRESHOLD_X_HET_HEMIZYGOUS < _THRESHOLD_X_HET_DIPLOID
+        assert _THRESHOLD_X_HET_HEMIZYGOUS < THRESHOLD_X_HET_DIPLOID
 
     def test_minimum_evidence_floors(self) -> None:
         # issue #363 — shared with the sex-aneuploidy screen; calibrated to real
@@ -815,7 +815,7 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     assert "0.10" in text and str(_THRESHOLD_PAR_NOISE) in text
     # issue #519 — X-het rate cutoffs must be documented too.
     assert "0.05" in text and str(_THRESHOLD_X_HET_HEMIZYGOUS) in text
-    assert "0.15" in text and str(_THRESHOLD_X_HET_DIPLOID) in text
+    assert "0.15" in text and str(THRESHOLD_X_HET_DIPLOID) in text
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command

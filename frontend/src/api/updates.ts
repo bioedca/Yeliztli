@@ -29,7 +29,7 @@ export interface UpdateAvailable {
   release_date: string | null
 }
 
-export interface UpdateCheckResult {
+interface UpdateCheckResult {
   available: UpdateAvailable[]
   up_to_date: string[]
   errors: string[]
@@ -59,19 +59,19 @@ export interface ReannotationPrompt {
 
 // ── Finding-level change diff (SW-A4b) ───────────────────────────────
 
-export interface FindingFieldChange {
+interface FindingFieldChange {
   field: string
   before: string | null
   after: string | null
 }
 
-export interface ReleaseDelta {
+interface ReleaseDelta {
   db_name: string
   before: string | null
   after: string | null
 }
 
-export interface ChangedFinding {
+interface ChangedFinding {
   module: string
   category: string | null
   gene_symbol: string | null
@@ -82,7 +82,7 @@ export interface ChangedFinding {
   changes: FindingFieldChange[]
 }
 
-export interface DiffFinding {
+interface DiffFinding {
   module: string
   category: string | null
   gene_symbol: string | null
@@ -120,7 +120,7 @@ export interface JobStatus {
   error: string | null
 }
 
-export interface AppUpdateInfo {
+interface AppUpdateInfo {
   update_available: boolean
   current_version: string
   latest_version: string | null
@@ -132,11 +132,11 @@ export interface AppUpdateInfo {
 // ── Query keys ───────────────────────────────────────────────────────
 
 export const DB_STATUS_KEY = ['updates', 'status'] as const
-export const UPDATE_CHECK_KEY = ['updates', 'check'] as const
-export const UPDATE_HISTORY_KEY = ['updates', 'history'] as const
-export const REANNOTATION_PROMPTS_KEY = ['updates', 'prompts'] as const
-export const APP_UPDATE_KEY = ['updates', 'app'] as const
-export const FINDING_CHANGES_KEY = ['updates', 'finding-changes'] as const
+const UPDATE_CHECK_KEY = ['updates', 'check'] as const
+const UPDATE_HISTORY_KEY = ['updates', 'history'] as const
+const REANNOTATION_PROMPTS_KEY = ['updates', 'prompts'] as const
+const APP_UPDATE_KEY = ['updates', 'app'] as const
+const FINDING_CHANGES_KEY = ['updates', 'finding-changes'] as const
 
 // ── Fetchers ─────────────────────────────────────────────────────────
 
@@ -283,12 +283,18 @@ async function fetchAppUpdate(): Promise<AppUpdateInfo> {
 
 // ── Hooks ────────────────────────────────────────────────────────────
 
-/** Fetch per-DB version stamps and auto-update status. staleTime=1h. */
+/** Fetch per-DB version stamps and auto-update status.
+ *
+ * staleTime is short (30s): the previous 1-hour cache let the Update Manager
+ * keep showing a stale version/"update available" long after a download/build
+ * changed it. The Update Manager also invalidates DB_STATUS_KEY when a DB's
+ * health transitions out of an active state, so the stamp refreshes promptly
+ * once a build/download finishes. */
 export function useDatabaseStatuses() {
   return useQuery({
     queryKey: DB_STATUS_KEY,
     queryFn: fetchDatabaseStatuses,
-    staleTime: 60 * 60 * 1000, // 1 hour
+    staleTime: 30 * 1000, // 30 seconds
   })
 }
 

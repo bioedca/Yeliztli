@@ -19,8 +19,8 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   if (pct === 0) return null
   const isHigh = pct >= 90
   const color = isHigh
-    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+    : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
   const label = isHigh ? "High confidence" : "Moderate confidence"
   return (
     <span
@@ -41,7 +41,7 @@ function MissingAimIndicator({ rate }: { rate: number }) {
       className={cn(
         "text-xs",
         isHigh
-          ? "text-amber-600 dark:text-amber-400 font-medium"
+          ? "text-amber-700 dark:text-amber-400 font-medium"
           : "text-muted-foreground",
       )}
       data-testid="missing-aim-indicator"
@@ -69,7 +69,7 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                "bg-primary/10 text-primary",
+                "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
               )}
               data-testid="top-population-badge"
             >
@@ -91,7 +91,7 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
             </span>
             <MissingAimIndicator rate={finding.missing_aim_rate} />
             {!finding.is_sufficient && (
-              <span className="text-amber-600 dark:text-amber-400 font-medium">
+              <span className="text-amber-700 dark:text-amber-400 font-medium">
                 Low coverage — results may be unreliable
               </span>
             )}

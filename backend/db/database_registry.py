@@ -580,44 +580,41 @@ def _record_db_version(
     """
     from datetime import UTC, datetime
 
-    import sqlalchemy as sa
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
     from backend.db.tables import database_versions
 
     if genome_build is None:
         genome_build = EXPECTED_GENOME_BUILD.get(db_name)
 
+    now = datetime.now(UTC)
+    values = {
+        "db_name": db_name,
+        "version": version,
+        "file_path": file_path,
+        "file_size_bytes": file_size_bytes,
+        "downloaded_at": now,
+        "checksum_sha256": sha256,
+        "genome_build": genome_build,
+    }
+    # Single atomic upsert on the db_name primary key. The previous
+    # SELECT-then-INSERT/UPDATE raced: two finalizers (e.g. a wizard build and an
+    # update-manager run, or two workers) both saw "no row" and both INSERTed,
+    # and the loser hit an IntegrityError on the db_name PK.
+    stmt = sqlite_insert(database_versions).values(**values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[database_versions.c.db_name],
+        set_={
+            "version": stmt.excluded.version,
+            "file_path": stmt.excluded.file_path,
+            "file_size_bytes": stmt.excluded.file_size_bytes,
+            "downloaded_at": stmt.excluded.downloaded_at,
+            "checksum_sha256": stmt.excluded.checksum_sha256,
+            "genome_build": stmt.excluded.genome_build,
+        },
+    )
     with engine.begin() as conn:
-        existing = conn.execute(
-            sa.select(database_versions.c.db_name).where(database_versions.c.db_name == db_name)
-        ).fetchone()
-
-        now = datetime.now(UTC)
-        if existing:
-            conn.execute(
-                database_versions.update()
-                .where(database_versions.c.db_name == db_name)
-                .values(
-                    version=version,
-                    file_path=file_path,
-                    file_size_bytes=file_size_bytes,
-                    downloaded_at=now,
-                    checksum_sha256=sha256,
-                    genome_build=genome_build,
-                )
-            )
-        else:
-            conn.execute(
-                database_versions.insert().values(
-                    db_name=db_name,
-                    version=version,
-                    file_path=file_path,
-                    file_size_bytes=file_size_bytes,
-                    downloaded_at=now,
-                    checksum_sha256=sha256,
-                    genome_build=genome_build,
-                )
-            )
+        conn.execute(stmt)
 
 
 def check_genome_build_consistency(reference_engine: Engine) -> list[str]:

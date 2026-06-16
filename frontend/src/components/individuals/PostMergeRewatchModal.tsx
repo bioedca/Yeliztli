@@ -384,7 +384,7 @@ function CandidateTable({
               <td className="py-1.5 text-right">
                 {status.state === "success" ? (
                   <span
-                    className="text-xs text-emerald-600 dark:text-emerald-400"
+                    className="text-xs text-emerald-700 dark:text-emerald-400"
                     data-testid={`rewatch-row-${key}-success`}
                   >
                     Re-watched

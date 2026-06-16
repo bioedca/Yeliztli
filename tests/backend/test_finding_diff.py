@@ -34,6 +34,7 @@ def _record(**overrides) -> dict:
         "rsid": "rs80357906",
         "drug": None,
         "diplotype": None,
+        "pathway": None,
         "finding_text": "BRCA1 variant",
         "clinvar_significance": "Uncertain_significance",
         "evidence_level": 2,
@@ -241,6 +242,99 @@ class TestComputeFindingDiff:
         assert diff["release_deltas"] == [
             {"db_name": "clinvar", "before": "2024-01", "after": "2024-06"}
         ]
+
+
+def _pw(pathway: str, level: str, module: str = "methylation") -> dict:
+    """A categorical ``pathway_summary`` finding: NULL gene/rsid/drug/diplotype,
+    distinguished only by ``pathway``; its meaning field is ``pathway_level``."""
+    return _record(
+        module=module,
+        category="pathway_summary",
+        gene_symbol=None,
+        rsid=None,
+        drug=None,
+        diplotype=None,
+        pathway=pathway,
+        pathway_level=level,
+        clinvar_significance=None,
+        metabolizer_status=None,
+        finding_text=f"{pathway} — {level} consideration",
+    )
+
+
+class TestPathwaySummaryDiff:
+    """Pathway summaries share ``category='pathway_summary'`` with NULL
+    gene/rsid/drug/diplotype, so only ``pathway`` distinguishes them. The identity
+    key must include ``pathway`` (#575) — otherwise simultaneous per-pathway
+    changes in one module mis-pair (wrong "before") or cancel out and are missed.
+    """
+
+    def test_offsetting_swap_detects_both_changes(self) -> None:
+        # Folate Standard→Elevated AND Methionine Elevated→Standard. The multiset of
+        # pathway_level values is unchanged, so without ``pathway`` in the identity
+        # key both real changes were silently lost (#575 Case 1).
+        prior = [_pw("Folate & MTHFR", "Standard"), _pw("Methionine Cycle", "Elevated")]
+        current = [_pw("Folate & MTHFR", "Elevated"), _pw("Methionine Cycle", "Standard")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 2, "added": 0, "removed": 0}
+        by_pathway = {e["pathway"]: e for e in diff["changed"]}
+        assert by_pathway["Folate & MTHFR"]["changes"] == [
+            {"field": "pathway_level", "before": "Standard", "after": "Elevated"}
+        ]
+        assert by_pathway["Methionine Cycle"]["changes"] == [
+            {"field": "pathway_level", "before": "Elevated", "after": "Standard"}
+        ]
+
+    def test_simultaneous_changes_attribute_correct_before_value(self) -> None:
+        # Folate Moderate→Standard, Methionine Standard→Elevated. Without ``pathway``
+        # these mis-paired, reporting Methionine's "before" as Moderate (Folate's old
+        # value) and dropping Folate's change entirely (#575 Case 2).
+        prior = [_pw("Folate & MTHFR", "Moderate"), _pw("Methionine Cycle", "Standard")]
+        current = [_pw("Folate & MTHFR", "Standard"), _pw("Methionine Cycle", "Elevated")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 2, "added": 0, "removed": 0}
+        by_pathway = {e["pathway"]: e for e in diff["changed"]}
+        assert by_pathway["Methionine Cycle"]["changes"] == [
+            {"field": "pathway_level", "before": "Standard", "after": "Elevated"}
+        ]
+        assert by_pathway["Folate & MTHFR"]["changes"] == [
+            {"field": "pathway_level", "before": "Moderate", "after": "Standard"}
+        ]
+
+    def test_one_pathway_changes_others_stable(self) -> None:
+        prior = [_pw("Folate & MTHFR", "Moderate"), _pw("Transsulfuration", "Standard")]
+        current = [_pw("Folate & MTHFR", "Elevated"), _pw("Transsulfuration", "Standard")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 1, "added": 0, "removed": 0}
+        assert diff["changed"][0]["pathway"] == "Folate & MTHFR"
+
+    def test_distinct_pathways_are_separate_identities(self) -> None:
+        # A pathway only in current is "added", only in prior is "removed" — not
+        # silently matched to a different pathway with the same level (which the
+        # pre-#575 collapsed key did, reporting no change at all).
+        prior = [_pw("Folate & MTHFR", "Moderate")]
+        current = [_pw("Choline & Betaine", "Moderate")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 1, "removed": 1}
+        assert diff["added"][0]["pathway"] == "Choline & Betaine"
+        assert diff["removed"][0]["pathway"] == "Folate & MTHFR"
+
+    def test_same_pathway_same_module_is_unchanged(self) -> None:
+        # Control: an unchanged pathway summary stays unchanged.
+        prior = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
+        current = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 0, "removed": 0}
+
+    def test_same_pathway_different_modules_do_not_match(self) -> None:
+        # ``module`` is part of the identity key, so the same pathway name + level
+        # in different modules must not cross-match — it is a removal + an addition.
+        prior = [_pw("Folate & MTHFR", "Moderate", module="methylation")]
+        current = [_pw("Folate & MTHFR", "Moderate", module="nutrigenomics")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 1, "removed": 1}
+        assert diff["added"][0]["module"] == "nutrigenomics"
+        assert diff["removed"][0]["module"] == "methylation"
 
 
 class TestHasChanges:

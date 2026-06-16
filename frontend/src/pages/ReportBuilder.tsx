@@ -30,14 +30,20 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import type { FindingSummaryItem } from "@/types/findings"
 
-/** Module display names matching backend MODULE_DISPLAY_NAMES. */
+/** Human-readable labels for finding module keys. Note the key is "carrier"
+ * (the value `carrier_status.py` writes), not "carrier_status". This map is for
+ * *labels only* — it never gates which modules appear (see `availableModules`),
+ * so a module missing here still renders with a humanized fallback. */
 const MODULE_DISPLAY_NAMES: Record<string, string> = {
   cancer: "Cancer Predisposition",
   cardiovascular: "Cardiovascular Genetics",
+  metabolic: "Metabolic (T2D & Obesity)",
+  fh: "Familial Hypercholesterolemia",
+  ebmd: "Bone Density (eBMD)",
   apoe: "APOE Genotype",
   pharmacogenomics: "Pharmacogenomics",
   nutrigenomics: "Nutrigenomics",
-  carrier_status: "Carrier Status",
+  carrier: "Carrier Status",
   ancestry: "Ancestry & Haplogroups",
   gene_health: "Gene Health",
   fitness: "Gene Fitness",
@@ -49,14 +55,19 @@ const MODULE_DISPLAY_NAMES: Record<string, string> = {
   rare_variants: "Rare Variant Finder",
 }
 
-/** Module display order (matches backend MODULE_ORDER). */
+/** Preferred display order. Only orders the cards — modules absent here are
+ * still shown (sorted after the known ones), so this list can never silently
+ * drop a finding module (#596). */
 const MODULE_ORDER = [
   "cancer",
   "cardiovascular",
+  "metabolic",
+  "fh",
+  "ebmd",
   "apoe",
   "pharmacogenomics",
   "nutrigenomics",
-  "carrier_status",
+  "carrier",
   "ancestry",
   "gene_health",
   "fitness",
@@ -67,6 +78,15 @@ const MODULE_ORDER = [
   "traits",
   "rare_variants",
 ]
+
+/** Title-case an unknown module key as a last-resort label, e.g.
+ * "thrombophilia" → "Thrombophilia". */
+function humanizeModule(key: string): string {
+  return key
+    .split("_")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ")
+}
 
 export default function ReportBuilder() {
   const [searchParams] = useSearchParams()
@@ -85,11 +105,19 @@ export default function ReportBuilder() {
   const generateMutation = useGenerateReport()
   const fhirMutation = useExportFhir()
 
-  // Build ordered list of modules that have findings
+  // Every module that actually has findings, ordered by MODULE_ORDER where known
+  // and appended (alphabetically) otherwise. Driving this off the summary data —
+  // not off MODULE_ORDER membership — is what keeps a new or mis-keyed finding
+  // module from being silently dropped from the report (#596).
   const availableModules: FindingSummaryItem[] = useMemo(() => {
-    if (!summaryQuery.data?.modules) return []
-    const moduleMap = new Map(summaryQuery.data.modules.map((m) => [m.module, m]))
-    return MODULE_ORDER.filter((key) => moduleMap.has(key)).map((key) => moduleMap.get(key)!)
+    const modules = summaryQuery.data?.modules
+    if (!modules) return []
+    const orderIndex = new Map(MODULE_ORDER.map((key, i) => [key, i]))
+    return [...modules].sort((a, b) => {
+      const ai = orderIndex.get(a.module) ?? Number.MAX_SAFE_INTEGER
+      const bi = orderIndex.get(b.module) ?? Number.MAX_SAFE_INTEGER
+      return ai !== bi ? ai - bi : a.module.localeCompare(b.module)
+    })
   }, [summaryQuery.data])
 
   // Auto-select all modules with findings on first load
@@ -323,7 +351,7 @@ export default function ReportBuilder() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label="Module selection">
             {availableModules.map((mod) => {
               const isSelected = selectedModules.has(mod.module)
-              const displayName = MODULE_DISPLAY_NAMES[mod.module] || mod.module
+              const displayName = MODULE_DISPLAY_NAMES[mod.module] || humanizeModule(mod.module)
               return (
                 <button
                   key={mod.module}

@@ -573,5 +573,3 @@ function ConfirmStep({
     </div>
   )
 }
-
-export default MergeWizard

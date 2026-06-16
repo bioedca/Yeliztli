@@ -435,7 +435,7 @@ class TestRunScoring:
         assert resp.status_code == 200
         data = resp.json()
         assert data["findings_count"] > 0
-        assert data["pathways_scored"] == 6  # Always 6 pathways
+        assert data["pathways_scored"] == 7  # Always 7 pathways
 
     def test_run_then_list(self, client_with_variants: tuple[TestClient, int]) -> None:
         """After running, pathways endpoint returns scored results."""
@@ -448,7 +448,7 @@ class TestRunScoring:
         resp = tc.get(f"/api/analysis/nutrigenomics/pathways?sample_id={sample_id}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 6  # 6 pathways
+        assert data["total"] == 7  # 7 pathways
 
         # Check folate pathway is Elevated (MTHFR AA)
         folate = next(

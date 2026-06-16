@@ -18,6 +18,7 @@ genes) **or** ``pli > 0.9`` (Karczewski 2020, *Nature*; PMID 32461654).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 import sqlalchemy as sa
@@ -50,21 +51,8 @@ def _badge(loeuf: float | None, pli: float | None, constrained: bool) -> str | N
     return f"LoF-constrained gene (pLI {pli:.2f})"
 
 
-def lookup_gene_constraint(
-    reference_engine: sa.Engine, gene_symbol: str | None
-) -> dict[str, Any] | None:
-    """Look up one gene's constraint context, or ``None`` if unknown/missing.
-
-    Returns ``None`` (no error) for an unknown gene or a ``None`` input, so callers
-    can treat "no curation" as "not evaluated", never as "unconstrained/benign".
-    """
-    if not gene_symbol:
-        return None
-    return lookup_gene_constraints(reference_engine, [gene_symbol]).get(gene_symbol)
-
-
 def lookup_gene_constraints(
-    reference_engine: sa.Engine, gene_symbols: list[str]
+    reference_engine: sa.Engine, gene_symbols: Iterable[str | None]
 ) -> dict[str, dict[str, Any]]:
     """Batch lookup → ``{gene_symbol: constraint_context}`` for the genes found."""
     wanted = sorted({g for g in gene_symbols if g})

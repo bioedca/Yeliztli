@@ -19,8 +19,11 @@ from backend.annotation.http_download import (
     DownloadError,
     DownloadOutcome,
     _content_range_total,
+    clear_validator_sidecar,
     compute_backoff,
+    read_validator_sidecar,
     stream_download,
+    write_validator_sidecar,
 )
 
 # 256 KiB of structured data so byte offsets are meaningful and resumes
@@ -569,6 +572,94 @@ def test_max_attempts_ceiling_enforced(tmp_path: Path) -> None:
     assert "max_attempts" in str(exc_info.value)
 
 
+# ── Minimum-throughput watchdog (throttle / stall guard) ─────────────
+
+
+def _fake_clock(step: float, start: float = 0.0):
+    """A monotonic stub that advances ``step`` seconds on every call."""
+    state = {"now": start}
+
+    def clock() -> float:
+        state["now"] += step
+        return state["now"]
+
+    return clock
+
+
+def test_throttle_below_floor_aborts_and_fails_as_no_progress(tmp_path: Path) -> None:
+    """A trickle below the throughput floor aborts each attempt and fails fast.
+
+    The watchdog raises mid-stream; the abort is deliberately counted as
+    no-progress (even though a window of bytes landed), so a persistent throttle
+    exhausts ``max_retries`` instead of crawling all the way to the much higher
+    ``max_attempts`` ceiling (the AlphaMissense hang). Without the watchdog the
+    transfer would never raise at all.
+    """
+    sink: list[dict[str, str]] = []
+    total = 1_000_000
+    # One byte lands per attempt (real forward progress), but the clock makes
+    # each window's throughput ~0, so the watchdog aborts every attempt.
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, [bytes(1)])]
+    for start in range(1, 6):
+        responses.append(
+            _FakeResponse(206, {"Content-Range": f"bytes {start}-{total - 1}/{total}"}, [bytes(1)])
+        )
+    tmp = tmp_path / "throttle.bin.tmp"
+    with pytest.raises(DownloadError) as exc_info:
+        stream_download(
+            "http://fake/file.bin",
+            tmp,
+            client_factory=_client_factory(responses, sink),
+            max_retries=2,
+            max_attempts=50,  # high → the failure must come from the throughput budget
+            stall_window=60.0,
+            min_throughput_bps=1024.0,
+            sleep=NOOP_SLEEP,
+            monotonic=_fake_clock(step=100.0),  # 100s between calls » 60s window, ~0 B/s
+        )
+    msg = str(exc_info.value)
+    assert "max_retries" in msg  # the no-progress budget tripped, not max_attempts
+    assert "throughput" in msg  # the SlowTransferError cause was surfaced
+    assert not tmp.exists()  # non-resumable → partial cleaned up on permanent failure
+
+
+def test_throughput_above_floor_completes_and_resets_window(tmp_path: Path) -> None:
+    """A transfer that meets the floor each window is left alone and completes."""
+    sink: list[dict[str, str]] = []
+    body = [bytes(1000)] * 4
+    total = 4000
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, body)]
+    tmp = tmp_path / "steady.bin.tmp"
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        client_factory=_client_factory(responses, sink),
+        stall_window=10.0,
+        min_throughput_bps=1.0,  # 1 B/s floor; 1000 B/chunk clears it with room to spare
+        sleep=NOOP_SLEEP,
+        monotonic=_fake_clock(step=5.0),  # a window closes every 2 chunks, all above floor
+    )
+    assert outcome.total_bytes == total
+    assert tmp.stat().st_size == total
+
+
+def test_watchdog_disabled_allows_arbitrarily_slow_transfer(tmp_path: Path) -> None:
+    """``min_throughput_bps=None`` disables the guard — no abort however slow."""
+    sink: list[dict[str, str]] = []
+    total = 10
+    responses = [_FakeResponse(200, {"Content-Length": str(total)}, [bytes(total)])]
+    tmp = tmp_path / "slow-ok.bin.tmp"
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        client_factory=_client_factory(responses, sink),
+        min_throughput_bps=None,  # watchdog off
+        sleep=NOOP_SLEEP,
+        monotonic=_fake_clock(step=10_000.0),  # absurdly slow clock, but ignored
+    )
+    assert outcome.total_bytes == total
+
+
 def test_206_unknown_total_completes_without_false_incomplete(tmp_path: Path) -> None:
     """A 206 with an unknown total (bytes X-Y/*) completes without a bogus check."""
     sink: list[dict[str, str]] = []
@@ -584,3 +675,217 @@ def test_206_unknown_total_completes_without_false_incomplete(tmp_path: Path) ->
     )
     assert outcome.expected_total is None
     assert outcome.total_bytes == 100
+
+
+# ── Durable If-Range validator (PR-15) ───────────────────────────────
+
+
+def test_on_validator_fires_on_fresh_download(tmp_path: Path) -> None:
+    """A fresh download captures the server's ETag and reports it both via the
+    on_validator callback (for mid-transfer persistence) and on the outcome."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("ETag", '"v2"')
+            self.send_header("Content-Length", str(len(TEST_DATA)))
+            self.end_headers()
+            self.wfile.write(TEST_DATA)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        captured: list[str] = []
+        outcome = stream_download(
+            url, tmp_path / "out.tmp", on_validator=captured.append, sleep=NOOP_SLEEP
+        )
+        assert outcome.validator == '"v2"'
+        assert captured == ['"v2"']
+    finally:
+        server.shutdown()
+
+
+def test_seeded_validator_resumes_via_range_when_unchanged(tmp_path: Path) -> None:
+    """A seeded validator matching the live resource lets the first Range request
+    resume the existing partial (206) instead of restarting."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            if_range = self.headers.get("If-Range")
+            # Unchanged resource: honor the conditional Range.
+            if range_header and if_range == '"v1"':
+                start = _parse_range_start(range_header)
+                self.send_response(206)
+                self.send_header("ETag", '"v1"')
+                self.send_header(
+                    "Content-Range", f"bytes {start}-{len(TEST_DATA) - 1}/{len(TEST_DATA)}"
+                )
+                self.send_header("Content-Length", str(len(TEST_DATA) - start))
+                self.end_headers()
+                self.wfile.write(TEST_DATA[start:])
+                return
+            self.send_response(200)
+            self.send_header("ETag", '"v1"')
+            self.send_header("Content-Length", str(len(TEST_DATA)))
+            self.end_headers()
+            self.wfile.write(TEST_DATA)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        tmp = tmp_path / "out.tmp"
+        tmp.write_bytes(TEST_DATA[:50_000])  # a genuine prefix of the live body
+        outcome = stream_download(url, tmp, resumable=True, validator='"v1"', sleep=NOOP_SLEEP)
+        assert tmp.read_bytes() == TEST_DATA
+        assert outcome.resumed is True
+    finally:
+        server.shutdown()
+
+
+def test_seeded_validator_forces_clean_restart_on_rotation(tmp_path: Path) -> None:
+    """The core guard: a STALE seeded validator makes the server reject the
+    conditional Range (If-Range mismatch → full 200), so the rotated body fully
+    replaces the stale partial instead of being spliced onto it."""
+
+    new_body = bytes(((i + 7) % 256) for i in range(120_000))
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            if_range = self.headers.get("If-Range")
+            # Resource has rotated to ETag "v2"; a stale If-Range ("v1") must NOT
+            # be honored — return the full current body.
+            if range_header and if_range == '"v2"':
+                start = _parse_range_start(range_header)
+                self.send_response(206)
+                self.send_header("ETag", '"v2"')
+                self.send_header(
+                    "Content-Range", f"bytes {start}-{len(new_body) - 1}/{len(new_body)}"
+                )
+                self.send_header("Content-Length", str(len(new_body) - start))
+                self.end_headers()
+                self.wfile.write(new_body[start:])
+                return
+            self.send_response(200)
+            self.send_header("ETag", '"v2"')
+            self.send_header("Content-Length", str(len(new_body)))
+            self.end_headers()
+            self.wfile.write(new_body)
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        tmp = tmp_path / "out.tmp"
+        tmp.write_bytes(b"STALE-PARTIAL-FROM-OLD-RESOURCE" * 100)  # not a prefix of new_body
+        captured: list[str] = []
+        outcome = stream_download(
+            url,
+            tmp,
+            resumable=True,
+            validator='"v1"',  # stale — server will reject the conditional Range
+            on_validator=captured.append,
+            sleep=NOOP_SLEEP,
+        )
+        # Clean replacement, byte-for-byte — no splice corruption.
+        assert tmp.read_bytes() == new_body
+        # The new resource's validator is re-captured + surfaced for persistence.
+        assert outcome.validator == '"v2"'
+        assert captured == ['"v2"']
+    finally:
+        server.shutdown()
+
+
+# ── Cross-run validator sidecar (issue #756) ─────────────────────────
+# stream_download has no cross-run storage of its own. These cover the sidecar
+# helpers that let a caller (e.g. download_dbnsfp) persist a partial's If-Range
+# validator next to its .tmp so a SEPARATE process run can resume via Range
+# instead of re-downloading a ~47 GB archive from zero.
+
+
+def test_validator_sidecar_round_trip(tmp_path: Path) -> None:
+    """read/write/clear, and the rule that a sidecar without a partial is ignored."""
+    tmp = tmp_path / "archive.zip.tmp"
+
+    # A sidecar with no partial is meaningless: the next download starts at
+    # offset 0 and sends no If-Range, so read must ignore it (return None).
+    write_validator_sidecar(tmp, '"v1"')
+    assert read_validator_sidecar(tmp) is None
+
+    # With a partial present, the persisted validator is recovered.
+    tmp.write_bytes(b"partial")
+    assert read_validator_sidecar(tmp) == '"v1"'
+
+    # Clearing removes it.
+    clear_validator_sidecar(tmp)
+    assert read_validator_sidecar(tmp) is None
+    # Clearing again is a safe no-op.
+    clear_validator_sidecar(tmp)
+
+
+def test_cross_run_resume_uses_persisted_sidecar_validator(tmp_path: Path) -> None:
+    """A partial .tmp + persisted sidecar from a prior run resumes via Range+If-Range
+    on the FIRST request of the next run — the cross-process gap #756 closes."""
+    tmp = tmp_path / "archive.zip.tmp"
+    tmp.write_bytes(bytes(40))  # partial left by a prior, interrupted run
+    write_validator_sidecar(tmp, '"v1"')  # its persisted validator
+
+    sink: list[dict[str, str]] = []
+    total = 100
+    responses = [
+        _FakeResponse(206, {"Content-Range": f"bytes 40-{total - 1}/{total}"}, [bytes(60)]),
+    ]
+    outcome = stream_download(
+        "http://fake/file.bin",
+        tmp,
+        resumable=True,
+        validator=read_validator_sidecar(tmp),
+        on_validator=lambda v: write_validator_sidecar(tmp, v),
+        client_factory=_client_factory(responses, sink),
+        sleep=NOOP_SLEEP,
+    )
+    assert outcome.total_bytes == total
+    assert tmp.stat().st_size == total
+    # First request of THIS run resumed from byte 40 with the persisted validator —
+    # no full re-fetch.
+    assert sink[0].get("Range") == "bytes=40-"
+    assert sink[0].get("If-Range") == '"v1"'
+
+
+def test_cross_run_rotation_updates_sidecar(tmp_path: Path) -> None:
+    """A rotated upstream (200 ignoring the conditional Range) restarts clean and
+    the sidecar is rewritten to the new validator for the next run."""
+    tmp = tmp_path / "archive.zip.tmp"
+    tmp.write_bytes(bytes(40))
+    write_validator_sidecar(tmp, '"v1"')
+
+    sink: list[dict[str, str]] = []
+    total = 100
+    responses = [
+        # Range+If-Range:"v1" sent, but the resource rotated -> 200 full body, "v2".
+        _FakeResponse(200, {"Content-Length": str(total), "ETag": '"v2"'}, [bytes(total)]),
+    ]
+    stream_download(
+        "http://fake/file.bin",
+        tmp,
+        resumable=True,
+        validator=read_validator_sidecar(tmp),
+        on_validator=lambda v: write_validator_sidecar(tmp, v),
+        client_factory=_client_factory(responses, sink),
+        sleep=NOOP_SLEEP,
+    )
+    assert tmp.stat().st_size == total
+    assert sink[0].get("If-Range") == '"v1"'  # attempted conditional resume
+    assert read_validator_sidecar(tmp) == '"v2"'  # sidecar refreshed for the next run

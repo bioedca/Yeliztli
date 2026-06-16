@@ -71,6 +71,60 @@ def test_env_override(monkeypatch):
     assert settings.debug is True
 
 
+def test_download_staging_dir_defaults_under_data_dir():
+    """Unset download_staging_dir keeps downloads_dir at data_dir/'downloads'.
+
+    Backward-compat contract: with no override the staging dir is identical to
+    the historical location, so every existing consumer is unaffected.
+    """
+    settings = Settings(data_dir=Path("/tmp/ylzt-test"))
+    assert settings.download_staging_dir is None
+    assert settings.downloads_dir == Path("/tmp/ylzt-test/downloads")
+
+
+def test_download_staging_dir_override_respected():
+    """An explicit download_staging_dir overrides only the staging dir.
+
+    The persistent databases stay under data_dir — the whole point is to let a
+    big transient archive stage on a roomy/disposable volume without moving the
+    built DBs.
+    """
+    settings = Settings(
+        data_dir=Path("/tmp/ylzt-test"),
+        download_staging_dir=Path("/mnt/scratch/staging"),
+    )
+    assert settings.downloads_dir == Path("/mnt/scratch/staging")
+    assert settings.data_dir == Path("/tmp/ylzt-test")
+    assert settings.reference_db_path == Path("/tmp/ylzt-test/reference.db")
+    assert settings.dbnsfp_db_path == Path("/tmp/ylzt-test/dbnsfp.db")
+
+
+def test_download_staging_dir_env_override(tmp_path, monkeypatch):
+    """YELIZTLI_DOWNLOAD_STAGING_DIR sets the staging dir via environment."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    monkeypatch.setenv("YELIZTLI_DOWNLOAD_STAGING_DIR", "/mnt/scratch/staging")
+    settings = get_settings()
+    assert settings.download_staging_dir == Path("/mnt/scratch/staging")
+    assert settings.downloads_dir == Path("/mnt/scratch/staging")
+
+
+def test_download_staging_dir_from_config_toml(tmp_path, monkeypatch):
+    """download_staging_dir is settable via the [yeliztli] config.toml table.
+
+    Unlike data_dir it is NOT location-defining for config.toml, so it is
+    deliberately not excluded from the toml source.
+    """
+    monkeypatch.setattr("backend.config.DEFAULT_DATA_DIR", tmp_path)
+    scratch = tmp_path / "scratch"
+    _write_toml(
+        tmp_path / "config.toml",
+        f'[yeliztli]\ndownload_staging_dir = "{scratch}"\n',
+    )
+    settings = get_settings()
+    assert settings.download_staging_dir == scratch
+    assert settings.downloads_dir == scratch
+
+
 def test_get_settings_caching():
     """get_settings should return the same instance on repeated calls."""
     s1 = get_settings()

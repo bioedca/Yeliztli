@@ -112,6 +112,7 @@ function setupFetchMocks(options: {
   triggerResponse?: unknown
   autoUpdateResponse?: unknown
   appUpdate?: unknown
+  health?: { databases: unknown[] }
 } = {}) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     if (typeof url === 'string') {
@@ -145,6 +146,12 @@ function setupFetchMocks(options: {
               release_notes: null,
               error: null,
             },
+        })
+      if (url.includes('/api/databases/health'))
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => options.health ?? { databases: [] },
         })
       if (url.includes('/api/updates/status'))
         return Promise.resolve(mockStatusResponse(options.statuses))
@@ -305,6 +312,53 @@ describe('UpdateManager', () => {
     })
     render(<UpdateManager />, { wrapper: createWrapper() })
     expect(await screen.findByText('Update now')).toBeInTheDocument()
+  })
+
+  const clinvarUpdate = {
+    available: [
+      {
+        db_name: 'clinvar',
+        latest_version: '20260320',
+        download_size_bytes: 5242880,
+        release_date: '2026-03-20',
+      },
+    ],
+  }
+
+  it('disables and relabels "Update now" while the DB is building', async () => {
+    setupFetchMocks({
+      ...clinvarUpdate,
+      health: { databases: [{ name: 'clinvar', state: 'building', active_job_id: null }] },
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const btn = await screen.findByTestId('db-update-clinvar')
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveTextContent('Building…')
+    expect(btn).not.toHaveTextContent('Update now')
+  })
+
+  it('disables "Update now" while the DB has an active job', async () => {
+    setupFetchMocks({
+      ...clinvarUpdate,
+      health: {
+        databases: [{ name: 'clinvar', state: 'ready', active_job_id: 'dbdl-clinvar-1' }],
+      },
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const btn = await screen.findByTestId('db-update-clinvar')
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveTextContent('In progress…')
+  })
+
+  it('keeps "Update now" enabled when the DB is idle', async () => {
+    setupFetchMocks({
+      ...clinvarUpdate,
+      health: { databases: [{ name: 'clinvar', state: 'ready', active_job_id: null }] },
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const btn = await screen.findByTestId('db-update-clinvar')
+    expect(btn).toBeEnabled()
+    expect(btn).toHaveTextContent('Update now')
   })
 
   it('shows auto-update toggle for each database', async () => {

@@ -24,6 +24,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 import sqlalchemy as sa
 import structlog
@@ -377,9 +378,13 @@ class UniProtCacheFetcher:
         import httpx
 
         try:
+            # URL-encode the user-supplied symbol so it cannot inject extra
+            # query params or alter the request (host is a fixed constant —
+            # addresses the CodeQL py/partial-ssrf finding).
+            encoded_symbol = quote(gene_symbol, safe="")
             search_url = (
                 f"{_UNIPROT_API_BASE}/search"
-                f"?query=gene_exact:{gene_symbol}+AND+organism_id:9606+AND+reviewed:true"
+                f"?query=gene_exact:{encoded_symbol}+AND+organism_id:9606+AND+reviewed:true"
                 f"&format=json&size=1"
                 f"&fields=accession,gene_names,sequence,features"
             )

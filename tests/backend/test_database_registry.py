@@ -121,6 +121,46 @@ def test_record_db_version_independent_rows(reference_engine: sa.Engine) -> None
     assert [r.version for r in rows] == ["20260301", "v4.1"]
 
 
+def test_record_db_version_concurrent_stamps_one_row(tmp_path: Path) -> None:
+    """Concurrent stamps for the same DB upsert to a single row, no IntegrityError.
+
+    The old SELECT-then-INSERT/UPDATE raced: two finalizers (a wizard build and an
+    update-manager run, or two workers) both saw "no row" and both INSERTed, and
+    the loser hit an IntegrityError on the db_name primary key. The atomic
+    ON CONFLICT DO UPDATE upsert can't.
+    """
+    import threading
+
+    ref = tmp_path / "reference.db"
+    engine = sa.create_engine(f"sqlite:///{ref}")
+    reference_metadata.create_all(engine)
+
+    errors: list[Exception] = []
+    n = 8
+    barrier = threading.Barrier(n)
+
+    def worker(i: int) -> None:
+        try:
+            barrier.wait()  # release all writers at once to maximize contention
+            _record_db_version(engine, db_name="clinvar", version=f"v{i}", file_size_bytes=i)
+        except Exception as exc:  # an IntegrityError would surface here
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(database_versions.c.db_name).where(database_versions.c.db_name == "clinvar")
+        ).fetchall()
+    assert len(rows) == 1  # exactly one row, not one-per-writer
+    engine.dispose()
+
+
 def test_record_db_version_persists_file_path(reference_engine: sa.Engine) -> None:
     """``file_path`` is stored on insert and refreshed on update."""
     _record_db_version(

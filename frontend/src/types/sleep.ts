@@ -1,7 +1,7 @@
 /** Gene Sleep API types (P3-50). */
 
 /** Categorical level for a sleep pathway. */
-export type PathwayLevel = "Elevated" | "Moderate" | "Standard"
+type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
 /** Per-SNP result within a sleep pathway. */
 export interface SNPDetail {

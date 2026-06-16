@@ -1,0 +1,37 @@
+# CodeQL configuration for Yeliztli's advanced code-scanning setup.
+#
+# Replaces GitHub's zero-config "default setup" (which cannot read this file) so
+# the analysis is tailored to the repo: broader real security coverage, with the
+# test/build/docs noise that produced false positives excluded.
+#
+# Languages + triggers + permissions live in .github/workflows/codeql.yml.
+name: "Yeliztli CodeQL"
+
+# Broaden security recall beyond the stock `default` suite — we want CodeQL to
+# actually surface variants, not just the highest-precision subset. Code QUALITY
+# is already covered by ruff + ESLint + vulture + knip, so we deliberately do NOT
+# add `security-and-quality` (it would duplicate those and add maintainability
+# noise). Threat model stays at CodeQL's default ("remote"); the app's local
+# file-parsing surface can be layered in later via the init step's `threat-models`
+# input if we want `local` taint too.
+queries:
+  - uses: security-extended
+
+# Scan first-party source (backend/, frontend/src, scripts/, .github/) but skip
+# paths that only generate noise:
+#   - tests/**            — Python + Playwright test code. Source of the 28
+#     `py/incomplete-url-substring-sanitization` false positives (each is an
+#     `assert "<domain>" in <text>` disclaimer-link check, not a sanitizer sink).
+#   - colocated unit/spec files under frontend/src.
+#   - docs/**             — MkDocs content, no executable code worth analyzing.
+#   - frontend/dist/**    — build output (node_modules is excluded automatically).
+paths-ignore:
+  - tests
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/__tests__/**"
+  - "**/__mocks__/**"
+  - docs
+  - frontend/dist

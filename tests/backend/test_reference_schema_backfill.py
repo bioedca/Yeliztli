@@ -102,6 +102,7 @@ def test_noop_on_fresh_create_all_schema(tmp_path: Path) -> None:
 
     assert "individual_id" in _columns(engine, "samples")
     assert "genome_build" in _columns(engine, "database_versions")
+    assert "validator" in _columns(engine, "downloads")
     assert ensure_reference_schema_current(engine) is False
 
 
@@ -148,6 +149,59 @@ def test_backfills_missing_genome_build(tmp_path: Path) -> None:
 def test_genome_build_backfill_idempotent(tmp_path: Path) -> None:
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
     _make_pre011_database_versions(engine)
+
+    assert ensure_reference_schema_current(engine) is True
+    assert ensure_reference_schema_current(engine) is False
+
+
+def _make_pre_validator_downloads(engine: sa.Engine) -> None:
+    """Create a ``downloads`` table lacking ``validator`` (pre-PR-15)."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE downloads ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  url TEXT NOT NULL,"
+                "  dest_path TEXT NOT NULL,"
+                "  total_bytes INTEGER,"
+                "  downloaded_bytes INTEGER DEFAULT 0,"
+                "  checksum_sha256 TEXT,"
+                "  status TEXT DEFAULT 'pending',"
+                "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                "  updated_at DATETIME"
+                ")"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO downloads (url, dest_path, downloaded_bytes, status) "
+                "VALUES ('http://x/clinvar.db', '/d/clinvar.db', 4096, 'downloading')"
+            )
+        )
+
+
+def test_backfills_missing_downloads_validator(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    _make_pre_validator_downloads(engine)
+
+    assert "validator" not in _columns(engine, "downloads")
+
+    changed = ensure_reference_schema_current(engine)
+
+    assert changed is True
+    assert "validator" in _columns(engine, "downloads")
+    # An in-flight partial survives and reads NULL for the new validator, so a
+    # SELECT that seeds If-Range on resume cannot crash on the missing column.
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("SELECT downloaded_bytes, validator FROM downloads LIMIT 1")
+        ).fetchone()
+    assert row == (4096, None)
+
+
+def test_downloads_validator_backfill_idempotent(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    _make_pre_validator_downloads(engine)
 
     assert ensure_reference_schema_current(engine) is True
     assert ensure_reference_schema_current(engine) is False

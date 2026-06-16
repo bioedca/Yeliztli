@@ -35,6 +35,7 @@ from backend.db.tables import findings
 from backend.services.sex_inference import (
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
+    THRESHOLD_X_HET_DIPLOID,
     compute_sex_signals,
 )
 
@@ -49,9 +50,15 @@ CATEGORY = "aneuploidy_screen"
 # single source of truth lives in ``backend.services.sex_inference`` (re-exported
 # above): both this screen and the sex-inference classifier judge the same
 # ``compute_sex_signals`` denominators, so they gate on the same floors.
-# ≥2 heterozygous non-PAR X calls indicates ≥2 X chromosomes (1 tolerates a
-# single genotyping error).
-MIN_X_HET_FOR_TWO_X = 2
+#
+# "Two X" is decided on the non-PAR chrX heterozygosity *rate*, not a raw het
+# count: a normal 46,XY male's X is hemizygous (rate ≈0, only genotyping noise —
+# a lone non-PAR chrX het occurs even in males, Chen et al. PMID 38073250), while
+# 47,XXY carries two X's and is heterozygous at a large fraction of non-PAR chrX
+# markers (female-level, tens of percent; seXY PMID 28035028). A count threshold
+# (e.g. ≥2) sits deep inside the male-noise range and fires on essentially every
+# male export, so the screen reuses the classifier's diploid-X rate cutoff
+# (``THRESHOLD_X_HET_DIPLOID``) — the same "two X" definition issue #519 adopted.
 # chrY non-no-call rate above which a Y chromosome is considered present.
 Y_PRESENT_RATE = 0.30
 
@@ -81,7 +88,10 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
     if not x_evaluable or not y_evaluable:
         outcome = INDETERMINATE
     else:
-        two_x = s.x_nonpar_het >= MIN_X_HET_FOR_TWO_X
+        # x_evaluable guarantees x_nonpar_typed >= MIN_X_NONPAR_TYPED (>0), so the
+        # rate is well-defined.
+        x_het_rate = s.x_nonpar_het / s.x_nonpar_typed
+        two_x = x_het_rate >= THRESHOLD_X_HET_DIPLOID
         y_present = s.y_rate > Y_PRESENT_RATE
         outcome = POSSIBLE_XXY if (two_x and y_present) else NO_SIGNAL
 

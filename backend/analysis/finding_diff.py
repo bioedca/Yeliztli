@@ -22,9 +22,9 @@ provenance, the diff is computed against that snapshot and stored as a JSON blob
 in the per-sample ``annotation_state`` kv table under ``last_finding_diff_json``.
 
 A finding's identity across runs is the stable composite key
-``(module, category, gene_symbol, rsid, drug, diplotype)`` — the columns that pin
-"the same biological statement," excluding the volatile ``id`` / ``created_at`` /
-``provenance`` and the free-text ``finding_text``.
+``(module, category, gene_symbol, rsid, drug, diplotype, pathway)`` — the columns
+that pin "the same biological statement," excluding the volatile ``id`` /
+``created_at`` / ``provenance`` and the free-text ``finding_text``.
 """
 
 from __future__ import annotations
@@ -48,7 +48,12 @@ DIFF_SCHEMA_VERSION = 1
 
 # Columns that identify "the same biological statement" across runs. A finding's
 # id/created_at/provenance are volatile and finding_text is free-text, so neither
-# pins identity.
+# pins identity. ``pathway`` is included because the categorical modules emit one
+# ``pathway_summary`` finding per pathway, all sharing ``category="pathway_summary"``
+# with NULL gene_symbol/rsid/drug/diplotype — only ``pathway`` distinguishes them.
+# Omitting it collapsed every pathway summary of a module onto one identity key, so
+# simultaneous per-pathway changes were mis-paired (wrong "before") or cancelled
+# out and missed entirely (#575).
 _IDENTITY_FIELDS: tuple[str, ...] = (
     "module",
     "category",
@@ -56,6 +61,7 @@ _IDENTITY_FIELDS: tuple[str, ...] = (
     "rsid",
     "drug",
     "diplotype",
+    "pathway",
 )
 
 # Source-driven fields whose change constitutes a finding "meaning shift."
@@ -234,6 +240,7 @@ def _sort_key(entry: dict[str, Any]) -> tuple[str, ...]:
         entry.get("rsid") or "",
         entry.get("drug") or "",
         entry.get("diplotype") or "",
+        entry.get("pathway") or "",
         entry.get("finding_text") or "",
     )
 

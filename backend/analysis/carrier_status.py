@@ -211,7 +211,7 @@ _DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
 # (gene_health_panel.json) and APOL1 G2 (apol1_panel.json) — kept here as a
 # traceable datum so a future manifest/code change can't silently invert a
 # clinical carrier call. Locked by tests/backend/test_indel_polarity_provenance.py.
-_CFTR_F508DEL_INDEL_POLARITY: dict[str, str] = {
+_CFTR_F508DEL_INDEL_POLARITY: dict[str, str | list[str]] = {
     "variant_class": "deletion",
     "variant_allele_token": "D",
     "reference_allele_token": "I",
@@ -226,7 +226,9 @@ _CFTR_F508DEL_INDEL_POLARITY: dict[str, str] = {
         "allele; the ingested-array parsers pass these tokens through unchanged, so "
         "DD resolves to hom_alt (F508del/F508del), II to hom_ref, and DI/ID to het."
     ),
-    "pmids": "2570460",  # Kerem et al. 1989, Science — CFTR gene + F508del deletion
+    # List form, matching the three panel indel_polarity records (#570) — a future
+    # consumer iterating pmids must get whole PMIDs, not characters of a string.
+    "pmids": ["2570460"],  # Kerem et al. 1989, Science — CFTR gene + F508del deletion
     "accessed": "2026-06-13",
 }
 

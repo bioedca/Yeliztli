@@ -14,12 +14,13 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { ShieldAlert, ChevronDown, ChevronUp } from "lucide-react"
+import { ShieldAlert, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import SectionError from "@/components/ui/SectionError"
 import { useCancerVariants, useCancerPRS, useCancerDisclaimer } from "@/api/cancer"
 import type { CancerVariant } from "@/types/cancer"
 import VariantCard from "@/components/cancer/VariantCard"
@@ -61,8 +62,12 @@ export default function CancerView() {
     )
   }
 
-  const isLoading = variantsQuery.isLoading || prsQuery.isLoading
-  const hasError = variantsQuery.isError || prsQuery.isError
+  // Gate the page on the PRIMARY query (monogenic variants) only. The PRS query
+  // is a secondary "Research Use Only" feature that degrades to a localized
+  // inline error/spinner in its own section, so a PRS 500 no longer blanks the
+  // successfully-computed monogenic results (#642).
+  const isLoading = variantsQuery.isLoading
+  const hasError = variantsQuery.isError
 
   return (
     <div className="p-6">
@@ -113,20 +118,15 @@ export default function CancerView() {
       {/* Loading state */}
       {isLoading && <PageLoading message="Loading cancer data..." />}
 
-      {/* Error state */}
+      {/* Error state — only when the PRIMARY variants query fails. */}
       {hasError && !isLoading && (
         <PageError
           message={
             variantsQuery.error instanceof Error
               ? variantsQuery.error.message
-              : prsQuery.error instanceof Error
-                ? prsQuery.error.message
-                : "An unexpected error occurred."
+              : "An unexpected error occurred."
           }
-          onRetry={() => {
-            variantsQuery.refetch()
-            prsQuery.refetch()
-          }}
+          onRetry={() => variantsQuery.refetch()}
         />
       )}
 
@@ -168,8 +168,13 @@ export default function CancerView() {
             )}
           </section>
 
-          {/* ── Secondary Tier: PRS Results ── */}
-          {prsQuery.data && prsQuery.data.items.length > 0 && (
+          {/* ── Secondary Tier: PRS Results ── secondary section: render its own
+              error/spinner so a PRS failure or slow load never hides the
+              monogenic results above (#642). Hidden entirely only when it
+              resolved with no items. */}
+          {(prsQuery.isError ||
+            prsQuery.isLoading ||
+            (prsQuery.data && prsQuery.data.items.length > 0)) && (
             <section aria-label="Cancer polygenic risk scores" data-testid="prs-tier">
               <div className="flex items-center gap-3 mb-3">
                 <h2 className="text-lg font-semibold">Polygenic Risk Scores</h2>
@@ -184,25 +189,39 @@ export default function CancerView() {
                 Population percentile estimates derived from published GWAS with bootstrap confidence intervals
               </p>
 
-              {prsQuery.data.insufficient_traits.length > 0 && (
-                <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
-                  Insufficient SNP coverage for: {prsQuery.data.insufficient_traits.join(", ")}
-                </p>
-              )}
+              {prsQuery.isError ? (
+                <SectionError
+                  label="polygenic risk scores"
+                  message={prsQuery.error instanceof Error ? prsQuery.error.message : undefined}
+                  onRetry={() => prsQuery.refetch()}
+                />
+              ) : prsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
+                </div>
+              ) : (
+                <>
+                  {prsQuery.data && prsQuery.data.insufficient_traits.length > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
+                      Insufficient SNP coverage for: {prsQuery.data.insufficient_traits.join(", ")}
+                    </p>
+                  )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {prsQuery.data.items.map((prs) => (
-                  <PRSGaugeCard key={prs.trait} prs={prs} />
-                ))}
-              </div>
-              <TraitArchitectureCard />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {prsQuery.data?.items.map((prs) => (
+                      <PRSGaugeCard key={prs.trait} prs={prs} />
+                    ))}
+                  </div>
+                  <TraitArchitectureCard />
+                </>
+              )}
             </section>
           )}
 
           {/* Opt-in breast absolute-risk overlay (SW-B8) */}
           <AbsoluteRiskOverlay sampleId={sampleId} />
 
-          {/* Empty state for PRS */}
+          {/* Empty state for PRS — only when it resolved with no items (not on error). */}
           {prsQuery.data && prsQuery.data.items.length === 0 && (
             <section aria-label="Cancer polygenic risk scores">
               <h2 className="text-lg font-semibold mb-3">Polygenic Risk Scores</h2>

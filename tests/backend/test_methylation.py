@@ -373,6 +373,85 @@ class TestCBSProxy:
         assert result.category == STANDARD
 
 
+class TestQDPRThirdAllele:
+    """rs1677693 (QDPR) is tri-allelic in Ensembl (G/A/T); the panel models only
+    the G/A contrast. A genotype carrying the unmodeled third allele (the issue's
+    observed ``GT``) must be withheld as Indeterminate, not silently scored Standard
+    — which would hide the carrier as baseline 'no effect' (#608)."""
+
+    def _get_qdpr(self, panel: MethylationPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs1677693":
+                    return snp
+        pytest.fail("QDPR rs1677693 not found")
+
+    def test_third_allele_genotype_indeterminate(self, panel: MethylationPanel) -> None:
+        qdpr = self._get_qdpr(panel)
+        for gt in ("GT", "TG"):
+            result = _score_snp(qdpr, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert "does not model" in result.effect_summary, gt
+
+    def test_modeled_genotypes_unaffected(self, panel: MethylationPanel) -> None:
+        """Sanity: the modeled G/A genotypes are untouched by the #608 change."""
+        qdpr = self._get_qdpr(panel)
+        assert _score_snp(qdpr, "GG").category == STANDARD
+        assert _score_snp(qdpr, "GA").category == MODERATE
+        assert _score_snp(qdpr, "AA").category == MODERATE
+
+    def test_no_call_still_standard_not_indeterminate(self, panel: MethylationPanel) -> None:
+        """A non-nucleotide no-call must NOT become Indeterminate via the #608 path —
+        it is handled as not-present/baseline, since the Indeterminate branch is
+        gated on a real A/C/G/T genotype."""
+        qdpr = self._get_qdpr(panel)
+        result = _score_snp(qdpr, "--")
+        assert result.category != INDETERMINATE
+
+
+class TestCholineBetaineAlleleFrames:
+    """Issue #717: BHMT/SLC44A1 genotype keys must match real variant alleles."""
+
+    def _get_snp(self, panel: MethylationPanel, rsid: str) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found")
+
+    def test_rs585800_real_heterozygotes_resolve(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AT", "TA"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == MODERATE, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+    def test_rs585800_palindromic_homozygotes_withheld(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_snp(panel, "rs585800")
+        for genotype in ("AA", "TT"):
+            result = _score_snp(bhmt, genotype)
+            assert result.category == INDETERMINATE, genotype
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+
+    def test_rs3199966_real_genotypes_resolve(self, panel: MethylationPanel) -> None:
+        slc44a1 = self._get_snp(panel, "rs3199966")
+        expected = {
+            "GG": STANDARD,
+            "GT": MODERATE,
+            "TG": MODERATE,
+            "TT": MODERATE,
+        }
+        for genotype, category in expected.items():
+            result = _score_snp(slc44a1, genotype)
+            assert result.category == category, genotype
+            assert result.present_in_sample is True
+            assert "does not model" not in result.effect_summary
+
+
 # ── COMT catecholamine framing tests ─────────────────────────────────────
 
 
@@ -1063,7 +1142,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

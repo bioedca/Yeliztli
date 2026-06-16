@@ -36,6 +36,7 @@ from backend.db.tables import (
     auto_update_settings,
     clinvar_variants,
     database_versions,
+    download_sessions,
     reannotation_prompts,
     samples,
     update_history,
@@ -98,7 +99,6 @@ class PreCheckResult:
     """Result of comparing updated reference data against a sample."""
 
     sample_id: int
-    sample_name: str
     db_name: str
     candidate_count: int
     reclassified_variants: list[dict] = field(default_factory=list)
@@ -116,7 +116,6 @@ class UpdateResult:
     variants_reclassified: int = 0
     download_size_bytes: int = 0
     duration_seconds: int = 0
-    pre_check_results: list[PreCheckResult] = field(default_factory=list)
 
 
 # ── Bandwidth window ─────────────────────────────────────────────────
@@ -247,14 +246,21 @@ def check_clinvar_update(
         last_modified = resp.headers.get("Last-Modified", "")
         content_length = int(resp.headers.get("Content-Length", "0"))
 
-        # Parse Last-Modified into a version string (YYYYMMDD)
-        if last_modified:
-            from email.utils import parsedate_to_datetime
+        # Without Last-Modified the remote version is undeterminable. Don't
+        # fabricate "today": today is always newer than the recorded (past)
+        # version, so the check would offer an update on every run and an
+        # auto-updater would re-download the full ClinVar VCF for no new data.
+        # Withhold the offer instead (#590). A Last-Modified header can be
+        # realistically absent (a CDN/mirror/proxy in front of NCBI strips it).
+        if not last_modified:
+            logger.warning("clinvar_update_check_no_last_modified", url=CLINVAR_VCF_URL)
+            return None
 
-            dt = parsedate_to_datetime(last_modified)
-            remote_version = dt.strftime("%Y%m%d")
-        else:
-            remote_version = datetime.now(UTC).strftime("%Y%m%d")
+        # Parse Last-Modified into a version string (YYYYMMDD)
+        from email.utils import parsedate_to_datetime
+
+        dt = parsedate_to_datetime(last_modified)
+        remote_version = dt.strftime("%Y%m%d")
 
         if current and current >= remote_version:
             return None  # Already up to date
@@ -1191,7 +1197,6 @@ def run_clinvar_update(
         variants_reclassified=variants_reclassified,
         download_size_bytes=download_size,
         duration_seconds=duration,
-        pre_check_results=pre_check_results,
     )
 
 
@@ -1203,7 +1208,6 @@ def run_precheck_single_sample(
     reference_engine: Engine,
     *,
     sample_id: int,
-    sample_name: str,
     db_name: str,
     old_significances: dict[str, str | None] | None = None,
     new_significances: dict[str, str | None] | None = None,
@@ -1216,7 +1220,6 @@ def run_precheck_single_sample(
     """
     result = PreCheckResult(
         sample_id=sample_id,
-        sample_name=sample_name,
         db_name=db_name,
         candidate_count=0,
     )
@@ -1226,7 +1229,6 @@ def run_precheck_single_sample(
             sample_engine,
             reference_engine,
             sample_id=sample_id,
-            sample_name=sample_name,
             old_significances=old_significances,
             new_significances=new_significances,
         )
@@ -1239,14 +1241,12 @@ def _precheck_clinvar(
     reference_engine: Engine,
     *,
     sample_id: int,
-    sample_name: str,
     old_significances: dict[str, str | None] | None = None,
     new_significances: dict[str, str | None] | None = None,
 ) -> PreCheckResult:
     """ClinVar-specific pre-check: detect significance changes."""
     result = PreCheckResult(
         sample_id=sample_id,
-        sample_name=sample_name,
         db_name="clinvar",
         candidate_count=0,
     )
@@ -1397,7 +1397,6 @@ def run_precheck_all_samples(
                 sample_engine,
                 engine,
                 sample_id=sample_row.id,
-                sample_name=sample_row.name,
                 db_name=db_name,
                 old_significances=old_significances,
                 new_significances=new_significances,
@@ -1684,8 +1683,19 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     """
     settings = registry.settings
 
+    # Serialize the synchronous auto-update paths (ClinVar + bundles) against a
+    # concurrent wizard install/build of the same file in the API process — the
+    # in-process build_lock cannot span the two processes. The pipeline branch
+    # below delegates to run_database_update_task, which already takes the claim
+    # itself, so it is not wrapped here (claim is reentrant per thread anyway).
+    from backend.db.build_guard import build_claim
+
     if db_name == "clinvar":
-        run_clinvar_update(registry)
+        with build_claim(db_name, settings.data_dir) as acquired:
+            if not acquired:
+                logger.info("auto_update_skipped_claimed", db_name=db_name)
+                return
+            run_clinvar_update(registry)
         return
 
     if db_name in _BUNDLE_DBS:
@@ -1697,9 +1707,13 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
             "gnomad": "run_gnomad_bundle_update",
         }[db_name]
         runner = globals()[runner_name]
-        result = runner(settings)
-        if result is None:
-            raise RuntimeError(f"{db_name} auto-update failed")
+        with build_claim(db_name, settings.data_dir) as acquired:
+            if not acquired:
+                logger.info("auto_update_skipped_claimed", db_name=db_name)
+                return
+            result = runner(settings)
+            if result is None:
+                raise RuntimeError(f"{db_name} auto-update failed")
         return
 
     from backend.db.database_registry import get_build_fn
@@ -1717,6 +1731,45 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     run_database_update_task(job_id, db_name)
 
 
+def _first_run_setup_active(engine: Engine) -> bool:
+    """Whether first-run setup is still in progress (or a wizard download is live).
+
+    Auto-updates must not fire while the setup wizard is still fetching/building
+    the required databases: a scheduler-driven update of the same DB would race
+    the wizard's build on a second write connection — the in-process
+    :func:`backend.db.build_guard.build_lock` cannot serialize the API and Huey
+    processes — and a background version change mid-setup is a surprising state
+    change under the user's feet.
+
+    Reuses the exact ``GET /api/setup/status`` predicates (one definition) so
+    "is setup done" cannot drift between the readiness gate and the scheduler.
+    The import is lazy because :mod:`backend.api.routes.setup` is an API-route
+    module; importing it at db-module load time would invert layering and risk a
+    circular import (the dispatch path uses lazy imports for the same reason).
+    """
+    from backend.api.routes.setup import (
+        _is_disclaimer_accepted,
+        _required_dbs_ready,
+    )
+
+    if not _is_disclaimer_accepted():
+        return True
+    required_ready, _ = _required_dbs_ready()
+    if not required_ready:
+        return True
+    # Post-setup safety: a user-triggered wizard download still streaming. The
+    # needs_setup predicates above already cover the during-setup case (required
+    # DBs aren't ready yet); this also blocks the rarer post-setup manual
+    # download racing the scheduler.
+    with engine.connect() as conn:
+        active = conn.execute(
+            sa.select(download_sessions.c.session_id)
+            .where(download_sessions.c.status == "in_progress")
+            .limit(1)
+        ).first()
+    return active is not None
+
+
 def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
     """Run a scheduled update check and apply auto-updates.
 
@@ -1725,9 +1778,19 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
     available result that satisfies both the per-DB :func:`get_auto_update`
     toggle and the :func:`should_download_now` bandwidth-window check.
     Dispatch is centralized in :func:`_dispatch_auto_update`.
+
+    No-ops entirely while first-run setup is active (see
+    :func:`_first_run_setup_active`) so the scheduler never races the wizard.
     """
     settings = registry.settings
     engine = registry.reference_engine
+
+    # 0. Never run auto-updates while the setup wizard is still provisioning the
+    #    required databases (or a wizard download is mid-flight). Returning an
+    #    empty result keeps the on-demand/periodic callers' messaging correct.
+    if _first_run_setup_active(engine):
+        logger.info("update_check_skipped_setup_active")
+        return UpdateCheckResult()
 
     # 1. Check for updates across all registered databases.
     check_result = check_all_updates(engine, settings=settings)

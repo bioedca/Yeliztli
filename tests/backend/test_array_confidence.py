@@ -10,7 +10,9 @@ from __future__ import annotations
 import pytest
 
 from backend.analysis.array_confidence import (
+    APOE_ARRAY_RELIABILITY_PMIDS,
     RELIABILITY_HIGH,
+    RELIABILITY_LOCUS_LOW,
     RELIABILITY_LOW,
     RELIABILITY_MODERATE,
     RELIABILITY_UNKNOWN,
@@ -115,3 +117,61 @@ class TestArrayConfidenceBadge:
         assert "evidence_level" not in badge
         assert "clinvar_significance" not in badge
         assert badge["gnomad_af_popmax"] == 5e-4
+
+
+class TestLocusSpecificLowReliability:
+    """#636: a locus that is a documented genotyping-array weak spot is rated
+    ``locus_low`` regardless of allele frequency. The leading case is the APOE
+    ε-defining pair rs429358/rs7412 — common (ε4 ~15%), so a frequency-only model
+    rates them ``high`` and hides that they are array weak spots."""
+
+    @pytest.mark.parametrize("rsid", ["rs429358", "rs7412"])
+    def test_listed_locus_is_locus_low_despite_common_af(self, rsid: str) -> None:
+        # popmax AF ~15% would map to HIGH on frequency alone.
+        assert (
+            classify_array_reliability(0.15, is_catalogued=True, rsid=rsid)
+            == RELIABILITY_LOCUS_LOW
+        )
+
+    @pytest.mark.parametrize("rsid", ["RS429358", "Rs7412", "rs7412"])
+    def test_locus_match_is_case_insensitive(self, rsid: str) -> None:
+        assert (
+            classify_array_reliability(0.15, is_catalogued=True, rsid=rsid)
+            == RELIABILITY_LOCUS_LOW
+        )
+
+    def test_unlisted_rsid_keeps_frequency_band(self) -> None:
+        assert (
+            classify_array_reliability(0.15, is_catalogued=True, rsid="rs1801133")
+            == RELIABILITY_HIGH
+        )
+        # No rsid passed → unchanged frequency behaviour (back-compatible default).
+        assert classify_array_reliability(0.15, is_catalogued=True) == RELIABILITY_HIGH
+
+    def test_badge_for_locus_low_recommends_confirmation_and_cites(self) -> None:
+        badge = array_confidence_badge(0.15, is_catalogued=True, rsid="rs429358")
+        assert badge["reliability"] == RELIABILITY_LOCUS_LOW
+        assert badge["confirm_in_clia_recommended"] is True
+        assert badge["locus_low_reliability"] is True
+        # Transparency: frequency alone would have rated this common SNP HIGH.
+        assert badge["frequency_band"] == RELIABILITY_HIGH
+        # Locus-specific reason + APOE concordance citations, plus the Weedon anchor.
+        assert "APOE" in badge["detail"]
+        for pmid in APOE_ARRAY_RELIABILITY_PMIDS:
+            assert pmid in badge["pmid_citations"]
+        assert WEEDON_PMID in badge["pmid_citations"]
+        assert badge["is_novel"] is False
+
+    def test_unlisted_badge_is_unchanged(self) -> None:
+        badge = array_confidence_badge(0.15, is_catalogued=True, rsid="rs1801133")
+        assert badge["reliability"] == RELIABILITY_HIGH
+        assert badge["locus_low_reliability"] is False
+        assert badge["frequency_band"] is None
+        assert badge["pmid_citations"] == [WEEDON_PMID]
+
+    def test_apoe_module_shares_the_same_citations(self) -> None:
+        """The APOE reliability caveat (#557/#625) sources its PMIDs from this
+        shared model (#636), so the two can never drift apart."""
+        from backend.analysis.apoe import APOE_RELIABILITY_PMIDS
+
+        assert APOE_RELIABILITY_PMIDS == APOE_ARRAY_RELIABILITY_PMIDS

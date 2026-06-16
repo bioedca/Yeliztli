@@ -15,7 +15,7 @@ from backend.analysis.cancer import (
 )
 from backend.analysis.gene_constraint import (
     is_lof_constrained,
-    lookup_gene_constraint,
+    lookup_gene_constraints,
 )
 from backend.db.tables import (
     annotated_variants,
@@ -59,7 +59,7 @@ class TestThreshold:
 
 class TestLookup:
     def test_constrained_gene(self, reference_engine: sa.Engine) -> None:
-        info = lookup_gene_constraint(reference_engine, "APC")
+        info = lookup_gene_constraints(reference_engine, ["APC"])["APC"]
         assert info["lof_constrained"] is True
         assert "LoF-constrained" in info["badge"]
         assert "0.16" in info["badge"]
@@ -67,15 +67,19 @@ class TestLookup:
         assert "does not change" in info["note"].lower()
 
     def test_unconstrained_gene(self, reference_engine: sa.Engine) -> None:
-        info = lookup_gene_constraint(reference_engine, "PCSK9")
+        info = lookup_gene_constraints(reference_engine, ["PCSK9"])["PCSK9"]
         assert info["lof_constrained"] is False
         assert info["badge"] is None
 
-    def test_unknown_gene_returns_none(self, reference_engine: sa.Engine) -> None:
-        assert lookup_gene_constraint(reference_engine, "NOT_A_GENE") is None
+    def test_unknown_gene_is_omitted(self, reference_engine: sa.Engine) -> None:
+        assert lookup_gene_constraints(reference_engine, ["NOT_A_GENE"]) == {}
 
-    def test_none_input_returns_none(self, reference_engine: sa.Engine) -> None:
-        assert lookup_gene_constraint(reference_engine, None) is None
+    def test_ignores_duplicates_and_falsy_symbols(self, reference_engine: sa.Engine) -> None:
+        info = lookup_gene_constraints(reference_engine, ["APC", "APC", "", None])
+        assert list(info) == ["APC"]
+
+    def test_empty_input_returns_empty_mapping(self, reference_engine: sa.Engine) -> None:
+        assert lookup_gene_constraints(reference_engine, []) == {}
 
 
 def _seed_apc_variant(sample_engine: sa.Engine) -> None:

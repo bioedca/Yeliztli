@@ -383,6 +383,18 @@ describe("BigFiveRadarChart", () => {
     expect(screen.getByText("Neuroticism")).toBeInTheDocument()
   })
 
+  it("keeps edge dimension labels inside the SVG viewport", () => {
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+
+    const rightLabel = screen.getByText("Conscientiousness")
+    expect(rightLabel).toHaveAttribute("text-anchor", "end")
+    expect(rightLabel).toHaveAttribute("x", "292")
+
+    const leftLabel = screen.getByText("Neuroticism")
+    expect(leftLabel).toHaveAttribute("text-anchor", "start")
+    expect(leftLabel).toHaveAttribute("x", "8")
+  })
+
   it("renders visual-only disclaimer", () => {
     render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
     expect(

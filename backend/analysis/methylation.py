@@ -41,7 +41,9 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.genotype_lookup import (
+    SCORABLE_PANEL_INDELS,
     genotype_candidates,
+    is_acgt_genotype,
     is_strand_ambiguous,
     lookup_by_genotype,
 )
@@ -75,8 +77,9 @@ _MULTIPLE_MODERATE_FINDINGS_THRESHOLD = 3
 MODULE_NAME = "methylation"
 
 # Some methylation panel entries intentionally use insertion/deletion genotype
-# vocabulary that other trait modules treat as unscoreable raw no-calls.
-_SCORABLE_PANEL_INDELS = frozenset({"II", "ID", "DI", "DD"})
+# vocabulary that other trait modules treat as unscoreable raw no-calls. Shared
+# definition lives in genotype_lookup so skin and methylation stay in sync (#610).
+_SCORABLE_PANEL_INDELS = SCORABLE_PANEL_INDELS
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -160,7 +163,6 @@ class PathwayResult:
 
     pathway_id: str
     pathway_name: str
-    pathway_description: str
     level: str  # Elevated / Moderate / Standard
     snp_results: list[SNPResult] = field(default_factory=list)
     # Legacy storage flag retained for compatibility; generic additive promotion is disabled.
@@ -338,18 +340,35 @@ def _score_snp(snp: PanelSNP, genotype: str | None) -> SNPResult:
             gene=snp.gene,
             genotype=genotype,
         )
+        # A present, real-nucleotide genotype that resolves to no curated entry is
+        # NOT baseline: it carries an allele this locus does not model (a third/rare
+        # allele — e.g. QDPR rs1677693 `G/A/T` observed `GT`, #608) or an unkeyed
+        # pair, so it is withheld as Indeterminate rather than silently scored
+        # Standard. Only non-nucleotide tokens (indels, no-calls) fall through.
+        unmodeled = is_acgt_genotype(genotype)
         return SNPResult(
             rsid=snp.rsid,
             gene=snp.gene,
             variant_name=snp.variant_name,
             genotype=genotype,
-            category=STANDARD,
-            effect_summary=f"Genotype {genotype} not in curated panel definitions.",
+            category=INDETERMINATE if unmodeled else STANDARD,
+            effect_summary=(
+                f"Genotype {genotype} carries an allele this locus does not model "
+                f"(it matches no curated genotype), so it is reported as indeterminate "
+                f"rather than assumed baseline."
+                if unmodeled
+                else f"Genotype {genotype} not in curated panel definitions."
+            ),
             evidence_level=snp.evidence_level,
             pmids=snp.pmids,
             recommendation_text=snp.recommendation_text,
             present_in_sample=True,
-            coverage_note=snp.coverage_note,
+            coverage_note=(
+                "Observed genotype includes an allele outside this locus's curated "
+                "model; not interpretable from the panel."
+                if unmodeled
+                else snp.coverage_note
+            ),
         )
 
     category = effect.get("category", STANDARD)
@@ -564,7 +583,6 @@ def score_methylation_pathways(
             PathwayResult(
                 pathway_id=pathway.id,
                 pathway_name=pathway.name,
-                pathway_description=pathway.description,
                 level=level,
                 snp_results=snp_results,
                 additive_promoted=additive_promoted,

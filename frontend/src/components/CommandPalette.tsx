@@ -14,60 +14,13 @@ import { useState, useCallback, useDeferredValue } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Command } from "cmdk"
 import * as Dialog from "@radix-ui/react-dialog"
-import {
-  LayoutDashboard,
-  Table2,
-  Pill,
-  Apple,
-  ShieldAlert,
-  HeartPulse,
-  Brain,
-  Baby,
-  Globe,
-  Dna,
-  FileText,
-  Settings,
-  MapPin,
-  Dumbbell,
-  Moon,
-  FlaskConical as Flask,
-  Sun,
-  Flower2,
-  Fingerprint,
-  Activity,
-  SlidersHorizontal,
-  Layers,
-  ArrowRightLeft,
-} from "lucide-react"
+import { Dna, MapPin, ArrowRightLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isGenomicQuery } from "@/lib/genomic-query"
+import { navRoutes } from "@/lib/nav-routes"
 import { useVariantSearch } from "@/api/variants"
 import { useSamples } from "@/api/samples"
 import { parseSampleId } from "@/lib/format"
-
-const pages = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/variants", icon: Table2, label: "Variant Explorer" },
-  { to: "/pharmacogenomics", icon: Pill, label: "Pharmacogenomics" },
-  { to: "/nutrigenomics", icon: Apple, label: "Nutrigenomics" },
-  { to: "/cancer", icon: ShieldAlert, label: "Cancer" },
-  { to: "/cardiovascular", icon: HeartPulse, label: "Cardiovascular" },
-  { to: "/apoe", icon: Brain, label: "APOE" },
-  { to: "/carrier-status", icon: Baby, label: "Carrier Status" },
-  { to: "/fitness", icon: Dumbbell, label: "Gene Fitness" },
-  { to: "/sleep", icon: Moon, label: "Gene Sleep" },
-  { to: "/methylation", icon: Flask, label: "Methylation" },
-  { to: "/skin", icon: Sun, label: "Gene Skin" },
-  { to: "/allergy", icon: Flower2, label: "Gene Allergy" },
-  { to: "/traits", icon: Fingerprint, label: "Traits & Personality" },
-  { to: "/gene-health", icon: Activity, label: "Gene Health" },
-  { to: "/ancestry", icon: Globe, label: "Ancestry" },
-  { to: "/genome-browser", icon: Dna, label: "Genome Browser" },
-  { to: "/query-builder", icon: SlidersHorizontal, label: "Query Builder" },
-  { to: "/overlays", icon: Layers, label: "Annotation Overlays" },
-  { to: "/reports", icon: FileText, label: "Reports" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-]
 
 export interface CommandPaletteProps {
   open: boolean
@@ -207,7 +160,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             )}
 
             <Command.Group heading="Pages">
-              {pages.map(({ to, icon: Icon, label }) => (
+              {navRoutes.map(({ to, icon: Icon, label }) => (
                 <Command.Item
                   key={to}
                   value={label}

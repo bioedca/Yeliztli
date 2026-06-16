@@ -34,6 +34,7 @@ invert and no ``indel_polarity`` record is required.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import backend.analysis.carrier_status as carrier_mod
@@ -42,6 +43,10 @@ from backend.analysis.apol1 import load_apol1_panel
 from backend.analysis.gene_health import load_gene_health_panel
 
 _PANELS = Path(gene_health_mod.__file__).resolve().parent.parent / "data" / "panels"
+
+# A PMID is a bare digit string; the citation tooling iterates these, so the
+# convention is a list of such strings (a bare string would iterate as chars).
+_PMID_RE = re.compile(r"^\d+$")
 
 
 def _assert_canonical_polarity(prov: dict, *, where: str) -> None:
@@ -55,7 +60,27 @@ def _assert_canonical_polarity(prov: dict, *, where: str) -> None:
     assert "reference" in prov["i_token_meaning"].lower(), where
     assert prov.get("dbsnp", "").startswith("rs"), where
     assert prov.get("accessed"), where
-    assert prov.get("sources") or prov.get("pmids"), where
+    # At least one citation, AND a consistent shape across every record (#570).
+    # Before this was truthiness-only, so CFTR's bare string "2570460" slipped
+    # through and would have iterated as the characters '2','5','7',… for any
+    # consumer walking the PMIDs.
+    pmids = prov.get("pmids")
+    sources = prov.get("sources")
+    assert pmids or sources, f"{where}: must cite at least one of pmids/sources"
+    if pmids is not None:
+        assert isinstance(pmids, list) and pmids, (
+            f"{where}: pmids must be a non-empty list[str], got {pmids!r}"
+        )
+        assert all(isinstance(p, str) and _PMID_RE.match(p) for p in pmids), (
+            f"{where}: every pmid must be a numeric PMID string, got {pmids!r}"
+        )
+    if sources is not None:
+        assert isinstance(sources, list) and sources, (
+            f"{where}: sources must be a non-empty list[str], got {sources!r}"
+        )
+        assert all(isinstance(s, str) and s for s in sources), (
+            f"{where}: every source must be a non-empty string, got {sources!r}"
+        )
 
 
 def _raw_panel(name: str) -> dict:
@@ -145,6 +170,44 @@ class TestDHFRPolarity:
         )
 
 
+class TestMMP1Polarity:
+    """MMP1 -1607 1G/2G promoter indel (rs1799750) — skin_panel.json (#610).
+
+    The unusual locus where the INSERTION/reference allele (I = 2G) is the *risk*
+    allele — the extra guanine creates an ETS site that raises MMP1 transcription —
+    yet the D=deletion / I=reference TOKEN convention is unchanged.
+    """
+
+    def _snp(self) -> dict:
+        raw = _raw_panel("skin_panel.json")
+        return next(
+            s for pw in raw["pathways"] for s in pw["snps"] if s.get("rsid") == "rs1799750"
+        )
+
+    def test_provenance_is_canonical(self) -> None:
+        snp = self._snp()
+        _assert_canonical_polarity(snp["indel_polarity"], where="MMP1 rs1799750")
+        assert snp["indel_polarity"]["dbsnp"] == "rs1799750"
+
+    def test_keys_are_id_tokens_not_nucleotides(self) -> None:
+        """Regression for #610: the row must key on the vendor I/D tokens 23andMe
+        emits, not the nucleotide strings GG/GGG/GGGG (which never matched, so the
+        variant was silently dropped as 'not genotyped' for every 23andMe user)."""
+        snp = self._snp()
+        assert set(snp["genotype_effects"]) == {"DD", "DI", "ID", "II"}
+        assert snp["risk_allele"] == "I"
+        assert snp["ref_allele"] == "D"
+
+    def test_live_effects_match_polarity(self) -> None:
+        eff = self._snp()["genotype_effects"]
+        # I=2G (insertion) is the higher-MMP1 risk allele; D=1G (deletion) is baseline.
+        assert eff["DD"]["category"] == "Standard", "MMP1: DD (1G/1G) must be Standard"
+        assert eff["II"]["category"] == "Elevated", "MMP1: II (2G/2G) must be Elevated"
+        assert eff["ID"]["category"] == eff["DI"]["category"] == "Moderate", (
+            "MMP1: one I (1G/2G heterozygote) must be Moderate"
+        )
+
+
 # --- Self-discovering guards: no indel locus can escape provenance (#508) -----
 
 
@@ -211,6 +274,7 @@ def test_every_panel_indel_locus_has_canonical_polarity() -> None:
         "gene_health_panel.json:rs80338939",
         "apol1_panel.json:rs71785313",
         "methylation_panel.json:rs70991108",
+        "skin_panel.json:rs1799750",
     } <= set(loci), f"indel-locus discovery regressed; found only {sorted(loci)}"
     for label, node in sorted(loci.items()):
         prov = node.get("indel_polarity")

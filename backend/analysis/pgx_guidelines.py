@@ -41,9 +41,6 @@ PGX_SOURCES_PMID = "34216021"
 
 _CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "pgx" / "pgx_guideline_sources.csv"
 
-# PharmGKB LoE ordering (strongest first) for any best-of aggregation downstream.
-_LOE_RANK = {"1A": 0, "1B": 1, "2A": 2, "2B": 3, "3": 4, "4": 5}
-
 
 @lru_cache(maxsize=1)
 def _load_sources() -> dict[tuple[str, str], dict[str, Any]]:
@@ -74,11 +71,6 @@ def lookup_guideline_sources(gene: str | None, drug: str | None) -> dict[str, An
     if not gene or not drug:
         return None
     return _load_sources().get((gene.strip(), drug.strip().lower()))
-
-
-def loe_rank(loe: str | None) -> int:
-    """Rank a PharmGKB LoE (lower is stronger); unknown sorts last."""
-    return _LOE_RANK.get((loe or "").strip(), 99)
 
 
 def assess_sample_pgx_guidelines(sample_engine: sa.Engine) -> dict[str, Any]:

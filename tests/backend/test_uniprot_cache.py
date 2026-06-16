@@ -307,6 +307,39 @@ class TestUniProtCacheFetcher:
         assert result.domains == []
         assert result.features == []
 
+    def test_fetch_from_api_url_encodes_gene_symbol(self, fetcher: UniProtCacheFetcher) -> None:
+        """A gene symbol carrying URL metacharacters is percent-encoded into the
+        outbound request, so it cannot inject extra query params or alter the
+        request (CodeQL py/partial-ssrf)."""
+        captured: dict[str, str] = {}
+
+        class _Resp:
+            def raise_for_status(self) -> None: ...
+
+            def json(self) -> dict[str, list]:
+                return {"results": []}
+
+        class _Client:
+            def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+            def __enter__(self) -> _Client:
+                return self
+
+            def __exit__(self, *args: object) -> bool:
+                return False
+
+            def get(self, url: str) -> _Resp:
+                captured["url"] = url
+                return _Resp()
+
+        with patch("httpx.Client", _Client):
+            result = fetcher._fetch_from_api("BRCA1&size=500")
+
+        assert result is None
+        # The injected `&size=500` must survive only in encoded form.
+        assert "BRCA1%26size%3D500" in captured["url"]
+        assert "BRCA1&size=500" not in captured["url"]
+
 
 # ── Tests: Cache statistics ─────────────────────────────────────────
 

@@ -6,6 +6,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceCardConfig } from "@/lib/clinvar-significance"
 import type { CarrierVariant } from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { INHERITANCE_LABELS } from "@/types/carrier"
@@ -19,33 +20,8 @@ interface VariantCardProps {
   sampleId: number
 }
 
-const SIGNIFICANCE_CONFIG: Record<
-  string,
-  { color: string; bg: string; border: string; badge: string }
-> = {
-  Pathogenic: {
-    color: "text-red-700 dark:text-red-400",
-    bg: "bg-red-50 dark:bg-red-950/30",
-    border: "border-red-200 dark:border-red-800",
-    badge: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300",
-  },
-  "Likely pathogenic": {
-    color: "text-orange-700 dark:text-orange-400",
-    bg: "bg-orange-50 dark:bg-orange-950/30",
-    border: "border-orange-200 dark:border-orange-800",
-    badge: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300",
-  },
-}
-
-const DEFAULT_CONFIG = {
-  color: "text-muted-foreground",
-  bg: "bg-card",
-  border: "border-border",
-  badge: "bg-muted text-muted-foreground",
-}
-
 export default function VariantCard({ variant, onClick, selected, sampleId }: VariantCardProps) {
-  const config = SIGNIFICANCE_CONFIG[variant.clinvar_significance] || DEFAULT_CONFIG
+  const config = getClinvarSignificanceCardConfig(variant.clinvar_significance)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
   // A heterozygous P/LP variant means different things by inheritance mode: for
   // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is

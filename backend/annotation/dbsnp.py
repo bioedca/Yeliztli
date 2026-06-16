@@ -42,7 +42,12 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 from backend.db.tables import (
     annotated_variants,
     dbsnp_merges,
@@ -482,11 +487,17 @@ def download_rsmerge_arch(
 
     logger.info("dbsnp_download_start", url=url)
 
+    # Resumable so a partial survives a failed/restarted build and the next run
+    # continues via HTTP Range; the validator sidecar persists the If-Range token
+    # across runs so a rotated upstream restarts clean instead of splicing.
     outcome = stream_download(
         url,
         tmp_path,
         progress_callback=progress_callback,
         timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
 
     if meta is not None:
@@ -499,8 +510,9 @@ def download_rsmerge_arch(
             except (TypeError, ValueError) as exc:
                 logger.warning("dbsnp_download_bad_last_modified", error=str(exc))
 
-    # Atomic rename on success (stream_download cleans up the .tmp on failure).
+    # Atomic rename on success; drop the now-stale validator sidecar.
     tmp_path.replace(dest_path)
+    clear_validator_sidecar(tmp_path)
 
     logger.info("dbsnp_download_complete", path=str(dest_path))
     return dest_path

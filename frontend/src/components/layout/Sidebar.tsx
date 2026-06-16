@@ -1,65 +1,8 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Table2,
-  Pill,
-  Apple,
-  ShieldAlert,
-  HeartPulse,
-  Droplet,
-  Heart,
-  Bone,
-  Brain,
-  Baby,
-  Dumbbell,
-  Moon,
-  FlaskConical,
-  Sun,
-  Flower2,
-  Fingerprint,
-  Activity,
-  Globe,
-  Dna,
-  SlidersHorizontal,
-  Layers,
-  FileText,
-  Settings,
-  SearchCheck,
-  ClipboardList,
-  PanelLeftClose,
-  PanelLeft,
-} from 'lucide-react'
+import { PanelLeftClose, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/findings', icon: ClipboardList, label: 'All Findings' },
-  { to: '/variants', icon: Table2, label: 'Variant Explorer' },
-  { to: '/pharmacogenomics', icon: Pill, label: 'Pharmacogenomics' },
-  { to: '/nutrigenomics', icon: Apple, label: 'Nutrigenomics' },
-  { to: '/cancer', icon: ShieldAlert, label: 'Cancer' },
-  { to: '/cardiovascular', icon: HeartPulse, label: 'Cardiovascular' },
-  { to: '/metabolic', icon: Droplet, label: 'Metabolic (T2D & Obesity)' },
-  { to: '/fh', icon: Heart, label: 'Familial Hypercholesterolemia' },
-  { to: '/ebmd', icon: Bone, label: 'Bone Density (eBMD)' },
-  { to: '/apoe', icon: Brain, label: 'APOE' },
-  { to: '/carrier-status', icon: Baby, label: 'Carrier Status' },
-  { to: '/fitness', icon: Dumbbell, label: 'Gene Fitness' },
-  { to: '/sleep', icon: Moon, label: 'Gene Sleep' },
-  { to: '/methylation', icon: FlaskConical, label: 'Methylation' },
-  { to: '/skin', icon: Sun, label: 'Gene Skin' },
-  { to: '/allergy', icon: Flower2, label: 'Gene Allergy' },
-  { to: '/traits', icon: Fingerprint, label: 'Traits & Personality' },
-  { to: '/gene-health', icon: Activity, label: 'Gene Health' },
-  { to: '/ancestry', icon: Globe, label: 'Ancestry' },
-  { to: '/rare-variants', icon: SearchCheck, label: 'Rare Variants' },
-  { to: '/genome-browser', icon: Dna, label: 'Genome Browser' },
-  { to: '/query-builder', icon: SlidersHorizontal, label: 'Query Builder' },
-  { to: '/overlays', icon: Layers, label: 'Annotation Overlays' },
-  { to: '/reports', icon: FileText, label: 'Reports' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-]
+import { navRoutes } from '@/lib/nav-routes'
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
@@ -73,7 +16,7 @@ export default function Sidebar() {
     >
       <div className="flex-1 py-2 overflow-y-auto">
         <nav aria-label="Main navigation" className="flex flex-col gap-0.5 px-2">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navRoutes.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}

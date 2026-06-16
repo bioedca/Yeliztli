@@ -15,13 +15,15 @@ Usage::
     from backend.annotation.dbnsfp import (
         download_dbnsfp,
         load_dbnsfp_from_tsv,
-        load_dbnsfp_from_csv,
         lookup_dbnsfp_by_rsids,
     )
 
     tsv_path = download_dbnsfp(dest_dir)
     stats = load_dbnsfp_from_tsv(tsv_path, dbnsfp_engine)
     matches = lookup_dbnsfp_by_rsids(["rs429358"], dbnsfp_engine)
+
+(CSV is **not** a production input — see ``load_dbnsfp_from_csv``, which is a
+test-fixture seed loader only.)
 """
 
 from __future__ import annotations
@@ -45,7 +47,12 @@ from backend.annotation.bulk_load import (
     insert_batch,
     retry_on_locked,
 )
-from backend.annotation.http_download import stream_download
+from backend.annotation.http_download import (
+    clear_validator_sidecar,
+    read_validator_sidecar,
+    stream_download,
+    write_validator_sidecar,
+)
 from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER as _SQLITE_VAR_LIMIT
 
 if TYPE_CHECKING:
@@ -277,12 +284,6 @@ def assess_ensemble(annot: DbNSFPRecord) -> tuple[int, int]:
     axes = [_sift_axis(annot), _polyphen_axis(annot), _cadd_axis(annot), _meta_axis(annot)]
     assessed = [a for a in axes if a is not None]
     return sum(1 for a in assessed if a), len(assessed)
-
-
-def count_deleterious(annot: DbNSFPRecord) -> int:
-    """Number of independent in-silico axes voting deleterious (0–4, F24)."""
-    deleterious, _ = assess_ensemble(annot)
-    return deleterious
 
 
 #: Minimum independent axes that must be assessable before the ensemble flag can
@@ -612,18 +613,6 @@ def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
     retry_on_locked(_do)
 
 
-def create_dbnsfp_tables(engine: sa.Engine) -> None:
-    """Create the dbnsfp_scores table and indexes in the target database.
-
-    Safe to call multiple times (uses IF NOT EXISTS).
-
-    Args:
-        engine: SQLAlchemy engine for the dbnsfp.db file.
-    """
-    _create_dbnsfp_table(engine)
-    _create_dbnsfp_indexes(engine)
-
-
 def load_dbnsfp_from_tsv(
     tsv_path: Path,
     engine: sa.Engine,
@@ -687,14 +676,18 @@ def load_dbnsfp_from_csv(
     *,
     clear_existing: bool = True,
 ) -> LoadStats:
-    """Load dbNSFP data from a CSV seed file into the dbnsfp_scores table.
+    """Seed the ``dbnsfp_scores`` table from a small CSV fixture — TEST SUPPORT ONLY.
 
-    Useful for testing and for loading pre-processed data.  The CSV is expected
-    to have columns matching the dbnsfp_scores table exactly:
+    CSV is **not** a production or bundle-build input format: the real pipeline
+    loads dbNSFP from its native academic TSV via :func:`load_dbnsfp_from_tsv`
+    (``download_and_load_dbnsfp``). This loader exists solely so tests can seed
+    the table from a compact CSV fixture instead of standing up the full TSV
+    machinery; it is on no production/build path. The CSV is expected to have
+    columns matching the dbnsfp_scores table exactly:
     rsid, chrom, pos, ref, alt, cadd_phred, ..., primateai.
 
     Args:
-        csv_path: Path to the CSV file with dbNSFP data.
+        csv_path: Path to the CSV fixture with dbNSFP data.
         engine: SQLAlchemy engine for dbnsfp.db.
         clear_existing: Whether to DELETE all existing rows first.
 
@@ -788,15 +781,23 @@ def download_dbnsfp(
 
     logger.info("dbnsfp_download_start", url=url)
 
+    # Resumable so a partial ~47 GB archive survives a failed/restarted build and
+    # the next run continues via HTTP Range instead of re-downloading from zero.
+    # The validator sidecar persists the partial's If-Range token across runs so
+    # a rotated upstream forces a clean restart rather than a corrupt splice.
     outcome = stream_download(
         url,
         tmp_path,
         progress_callback=progress_callback,
         timeout=timeout,
+        resumable=True,
+        validator=read_validator_sidecar(tmp_path),
+        on_validator=lambda v: write_validator_sidecar(tmp_path, v),
     )
 
-    # Atomic rename on success (stream_download cleans up the .tmp on failure).
+    # Atomic rename on success; drop the now-stale validator sidecar.
     tmp_path.replace(dest_path)
+    clear_validator_sidecar(tmp_path)
 
     logger.info("dbnsfp_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
     return dest_path

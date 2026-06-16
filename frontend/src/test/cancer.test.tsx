@@ -187,6 +187,24 @@ describe("VariantCard", () => {
     expect(screen.getByText("Likely pathogenic")).toBeInTheDocument()
   })
 
+  it("styles combined Pathogenic/Likely pathogenic as a red pathogenic card (#687)", () => {
+    render(
+      <VariantCard
+        variant={{
+          ...BRCA1_VARIANT,
+          clinvar_significance: "Pathogenic/Likely pathogenic",
+        }}
+        onClick={onClick}
+        sampleId={1}
+      />,
+    )
+
+    const cardShell = screen.getByTestId("cancer-variant-card").parentElement
+    if (!cardShell) throw new Error("Expected cancer card shell")
+    expect(cardShell).toHaveClass("bg-red-50")
+    expect(screen.getByText("Pathogenic/Likely pathogenic")).toHaveClass("bg-red-100")
+  })
+
   it("renders genotype and zygosity", () => {
     render(<VariantCard variant={BRCA1_VARIANT} onClick={onClick} sampleId={1} />)
     expect(screen.getByText("C/T")).toBeInTheDocument()
@@ -294,6 +312,27 @@ describe("PRSGaugeCard", () => {
   it("renders source study info", () => {
     render(<PRSGaugeCard prs={BREAST_PRS} />)
     expect(screen.getByText(/BCAC.*EUR.*228,951/)).toBeInTheDocument()
+  })
+
+  it("omits the source parenthetical entirely when ancestry + sample size are absent (#589)", () => {
+    // FH/eBMD adapt to the gauge with source_ancestry="" + sample_size=0, which
+    // previously rendered a broken "Source: … (, n=0)" (stray comma + false n=0).
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, source_ancestry: "", sample_size: 0 }} />)
+    expect(screen.getByText(/Source:\s*BCAC/)).toBeInTheDocument()
+    expect(screen.queryByText(/n=0/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\(,/)).not.toBeInTheDocument()
+  })
+
+  it("drops the empty ancestry but keeps n when only sample size is present (#589)", () => {
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, source_ancestry: "" }} />)
+    // No leading comma — just "(n=228,951)".
+    expect(screen.getByText(/Source:\s*BCAC\s*\(n=228,951\)/)).toBeInTheDocument()
+  })
+
+  it("keeps ancestry but drops n when sample size is zero (#589)", () => {
+    render(<PRSGaugeCard prs={{ ...BREAST_PRS, sample_size: 0 }} />)
+    expect(screen.getByText(/Source:\s*BCAC\s*\(EUR\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/n=0/)).not.toBeInTheDocument()
   })
 
   it("renders evidence stars", () => {

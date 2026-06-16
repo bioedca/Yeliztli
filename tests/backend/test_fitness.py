@@ -314,6 +314,19 @@ class TestACEProxy:
         result = _score_snp(ace, "GG")
         assert result.three_state_label is None
 
+    def test_ace_third_allele_genotype_indeterminate(self, panel: FitnessPanel) -> None:
+        """rs4341 is 4-allelic (G/A/C/T) but the panel models only the A/G I/D-proxy
+        contrast. A genotype carrying the unmodeled third allele (the issue's
+        observed ``CG``) must be withheld as Indeterminate — never silently scored
+        Standard, which would hide the carrier as 'no effect' (#608)."""
+        ace = self._get_ace(panel)
+        for gt in ("CG", "GC"):
+            result = _score_snp(ace, gt)
+            assert result.category == INDETERMINATE, gt
+            assert result.present_in_sample is True
+            assert result.three_state_label is None
+            assert "does not model" in result.effect_summary, gt
+
 
 # ── COL1A1 rs1800012 soft-tissue direction tests (issue #144) ──────────────
 
@@ -371,6 +384,65 @@ class TestCOL1A1Injury:
         snp = self._get_col1a1(panel)
         assert "28206959" in snp.pmids  # Wang 2017 soft-tissue meta-analysis
         assert "38787354" in snp.pmids  # Guo 2024 soft-tissue meta-analysis
+
+
+# ── COL5A1 rs12722 range-of-motion direction tests (issue #622) ────────────
+
+
+class TestCOL5A1RangeOfMotion:
+    """COL5A1 rs12722 in the Recovery & Injury (soft-tissue) pathway.
+
+    The literature is consistent that the CC genotype confers the GREATEST
+    musculotendinous flexibility / range of motion and the LOWEST soft-tissue
+    injury risk, while the T allele is associated with REDUCED flexibility
+    (lower ROM) and HIGHER tendon/ligament injury susceptibility (Collins &
+    Posthumus 2011; Brown 2011; September 2009). The effect text must tie lower
+    ROM — not higher — to the T allele; the inverted framing is the bug.
+    """
+
+    def _get_col5a1(self, panel: FitnessPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs12722":
+                    return snp
+        pytest.fail("COL5A1 rs12722 not found")
+
+    def test_cc_is_higher_rom_protective(self, panel: FitnessPanel) -> None:
+        """CC is the high-flexibility / high-ROM, lower-injury genotype → Standard."""
+        snp = self._get_col5a1(panel)
+        result = _score_snp(snp, "CC")
+        assert result.category == STANDARD
+        text = result.effect_summary.lower()
+        assert "higher range of motion" in text or "greater" in text
+        assert "flexibility" in text
+        # CC must never be framed as the reduced-flexibility / lower-ROM genotype.
+        assert "reduced flexibility" not in text
+        assert "lower range of motion" not in text
+
+    def test_t_allele_ties_to_lower_rom_not_higher(self, panel: FitnessPanel) -> None:
+        """Every T-allele genotype must tie LOWER ROM / reduced flexibility to T."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            text = _score_snp(snp, gt).effect_summary.lower()
+            assert "reduced flexibility" in text or "lower range of motion" in text, gt
+            # The inverted framing (T → more flexible) must be gone.
+            assert "higher range of motion" not in text, gt
+            assert "increased range of motion" not in text, gt
+            assert "greater flexibility" not in text, gt
+
+    def test_t_allele_is_the_higher_injury_genotype(self, panel: FitnessPanel) -> None:
+        """T-allele genotypes carry the higher soft-tissue injury susceptibility."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            text = _score_snp(snp, gt).effect_summary.lower()
+            assert "injury" in text or "injuries" in text, gt
+            assert "increased" in text or "higher" in text, gt
+
+    def test_t_allele_not_standard(self, panel: FitnessPanel) -> None:
+        """Carrying the T (reduced-flexibility) allele is never the baseline genotype."""
+        snp = self._get_col5a1(panel)
+        for gt in ("CT", "TC", "TT"):
+            assert _score_snp(snp, gt).category != STANDARD, gt
 
 
 # ── SNP scoring tests ────────────────────────────────────────────────────
@@ -491,7 +563,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -512,7 +583,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -531,7 +601,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -552,7 +621,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
@@ -567,7 +635,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=MODERATE,
             snp_results=[
                 SNPResult(
@@ -588,7 +655,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -625,7 +691,6 @@ class TestCrossContextFindings:
             power_pr = PathwayResult(
                 pathway_id="power",
                 pathway_name="Power",
-                pathway_description="",
                 level=category,
                 snp_results=[
                     SNPResult(
@@ -646,7 +711,6 @@ class TestCrossContextFindings:
             endurance_pr = PathwayResult(
                 pathway_id="endurance",
                 pathway_name="Endurance",
-                pathway_description="",
                 level=STANDARD,
             )
             cross = _generate_cross_context_findings([endurance_pr, power_pr], panel)
@@ -665,7 +729,6 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -686,7 +749,6 @@ class TestCrossContextFindings:
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
             snp_results=[
                 SNPResult(
@@ -712,13 +774,11 @@ class TestCrossContextFindings:
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
-            pathway_description="",
             level=STANDARD,
         )
         power_pr = PathwayResult(
             pathway_id="power",
             pathway_name="Power",
-            pathway_description="",
             level=STANDARD,
         )
         results = [endurance_pr, power_pr]
@@ -1165,7 +1225,6 @@ class TestPathwayResultProperties:
         pr = PathwayResult(
             pathway_id="test",
             pathway_name="Test",
-            pathway_description="Test pathway",
             level=MODERATE,
             snp_results=[
                 _make_snp_result(MODERATE, present=True),

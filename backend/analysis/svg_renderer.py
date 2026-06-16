@@ -118,7 +118,7 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
     if module == "ancestry" and category == "admixture":
         return _render_admixture_bar(finding, detail)
 
-    if module == "carrier_status":
+    if module == "carrier":
         return _render_carrier_card(finding, detail)
 
     if module == "apoe":
@@ -155,8 +155,23 @@ def _render_prs_gauge(
     percentile = max(0.0, min(100.0, float(percentile or 50.0)))
 
     z_score = detail.get("z_score") or finding.get("prs_score")
-    ci_lower = detail.get("ci_lower_percentile", percentile)
-    ci_upper = detail.get("ci_upper_percentile", percentile)
+    ci_lower_raw = detail.get("bootstrap_ci_lower")
+    ci_upper_raw = detail.get("bootstrap_ci_upper")
+    ci_lower = percentile
+    ci_upper = percentile
+    has_ci = False
+    if ci_lower_raw is not None and ci_upper_raw is not None:
+        try:
+            ci_lower = float(ci_lower_raw)
+            ci_upper = float(ci_upper_raw)
+        except (TypeError, ValueError):
+            has_ci = False
+        else:
+            ci_lower = max(0.0, min(100.0, ci_lower))
+            ci_upper = max(0.0, min(100.0, ci_upper))
+            if ci_lower > ci_upper:
+                ci_lower, ci_upper = ci_upper, ci_lower
+            has_ci = ci_lower != ci_upper
     trait_name = finding.get("phenotype") or detail.get("trait_name", "Trait")
 
     parts: list[str] = []
@@ -188,20 +203,21 @@ def _render_prs_gauge(
     )
 
     # CI shaded region (lighter teal, semi-transparent)
-    ci_start_angle = _percentile_to_angle(ci_lower)
-    ci_end_angle = _percentile_to_angle(ci_upper)
-    parts.append(
-        _arc_path(
-            cx,
-            cy,
-            radius,
-            ci_start_angle,
-            ci_end_angle,
-            stroke=TEAL_LIGHT,
-            stroke_width=track_width,
-            opacity=0.35,
+    if has_ci:
+        ci_start_angle = _percentile_to_angle(ci_lower)
+        ci_end_angle = _percentile_to_angle(ci_upper)
+        parts.append(
+            _arc_path(
+                cx,
+                cy,
+                radius,
+                ci_start_angle,
+                ci_end_angle,
+                stroke=TEAL_LIGHT,
+                stroke_width=track_width,
+                opacity=0.35,
+            )
         )
-    )
 
     # Filled arc to percentile position (teal)
     pct_angle = _percentile_to_angle(percentile)
@@ -252,9 +268,7 @@ def _render_prs_gauge(
     # Z-score and CI line
     footer_y = height - 30
     z_str = f"z = {float(z_score):.2f}" if z_score is not None else ""
-    ci_str = (
-        f"95% CI: {float(ci_lower):.0f} – {float(ci_upper):.0f}" if ci_lower != ci_upper else ""
-    )
+    ci_str = f"95% CI: {ci_lower:.0f} – {ci_upper:.0f}" if has_ci else ""
     footer_parts = [s for s in (z_str, ci_str) if s]
     if footer_parts:
         parts.append(

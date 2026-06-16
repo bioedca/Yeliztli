@@ -3,7 +3,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   OverlayListResponse,
-  OverlayConfig,
   OverlayUploadResponse,
   OverlayParsePreviewResponse,
   OverlayApplyResponse,
@@ -23,23 +22,6 @@ export function useOverlays() {
       return res.json()
     },
     staleTime: 1000 * 60 * 60, // 1 hour
-  })
-}
-
-/** Get a single overlay config by ID. */
-export function useOverlay(overlayId: number | null) {
-  return useQuery({
-    queryKey: ["overlay", overlayId],
-    queryFn: async (): Promise<OverlayConfig> => {
-      const res = await fetch(`/api/overlays/${overlayId}`)
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to load overlay: ${res.status}${text ? ` - ${text}` : ""}`)
-      }
-      return res.json()
-    },
-    enabled: overlayId != null,
-    staleTime: Infinity,
   })
 }
 

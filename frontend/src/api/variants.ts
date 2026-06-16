@@ -7,9 +7,6 @@ import type {
   VariantCursor,
   ChromosomeSummary,
   QCStats,
-  DensityResponse,
-  ConsequenceSummaryResponse,
-  ClinvarSummaryResponse,
   VariantSearchResult,
 } from "@/types/variants"
 
@@ -169,70 +166,6 @@ export function useQCStats(sampleId: number | null) {
       if (!res.ok) {
         const text = await res.text().catch(() => "")
         throw new Error(`QC stats failed: ${res.status}${text ? ` - ${text}` : ""}`)
-      }
-      return res.json()
-    },
-    enabled: sampleId != null,
-    staleTime: Infinity,
-  })
-}
-
-/**
- * Variant density histogram data — counts per 1 Mb genomic bin,
- * grouped by consequence tier (P2-23).
- * Cached with staleTime: Infinity since variant data doesn't change.
- */
-export function useVariantDensity(sampleId: number | null) {
-  return useQuery({
-    queryKey: ["variants-density", sampleId],
-    queryFn: async (): Promise<DensityResponse> => {
-      const params = new URLSearchParams({ sample_id: String(sampleId!) })
-      const res = await fetch(`/api/variants/density?${params}`)
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Variant density failed: ${res.status}${text ? ` - ${text}` : ""}`)
-      }
-      return res.json()
-    },
-    enabled: sampleId != null,
-    staleTime: Infinity,
-  })
-}
-
-/**
- * Consequence type summary — per-consequence-type counts for the donut chart (P2-25).
- * Cached with staleTime: Infinity since variant data doesn't change.
- */
-export function useConsequenceSummary(sampleId: number | null) {
-  return useQuery({
-    queryKey: ["variants-consequence-summary", sampleId],
-    queryFn: async (): Promise<ConsequenceSummaryResponse> => {
-      const params = new URLSearchParams({ sample_id: String(sampleId!) })
-      const res = await fetch(`/api/variants/consequence-summary?${params}`)
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Consequence summary failed: ${res.status}${text ? ` - ${text}` : ""}`)
-      }
-      return res.json()
-    },
-    enabled: sampleId != null,
-    staleTime: Infinity,
-  })
-}
-
-/**
- * ClinVar significance breakdown — per-significance counts for the bar chart (P2-26).
- * Cached with staleTime: Infinity since variant data doesn't change.
- */
-export function useClinvarSummary(sampleId: number | null) {
-  return useQuery({
-    queryKey: ["variants-clinvar-summary", sampleId],
-    queryFn: async (): Promise<ClinvarSummaryResponse> => {
-      const params = new URLSearchParams({ sample_id: String(sampleId!) })
-      const res = await fetch(`/api/variants/clinvar-summary?${params}`)
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`ClinVar summary failed: ${res.status}${text ? ` - ${text}` : ""}`)
       }
       return res.json()
     },

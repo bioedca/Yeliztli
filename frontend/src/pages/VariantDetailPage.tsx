@@ -35,16 +35,13 @@ import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import { cn } from "@/lib/utils"
+import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
+import { formatAlleleFrequency } from "@/lib/format"
+import { polyphen2Display } from "@/lib/insilico"
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers (reused from side panel)                           */
 /* ------------------------------------------------------------------ */
-
-function formatAF(af: number | null): string {
-  if (af == null) return "—"
-  if (af < 0.0001) return af.toExponential(2)
-  return af.toFixed(4)
-}
 
 function renderStars(stars: number | null): string {
   if (stars == null) return ""
@@ -55,11 +52,6 @@ function renderStars(stars: number | null): string {
 function formatConsequence(consequence: string | null): string {
   if (!consequence) return "—"
   return consequence.replace(/_/g, " ")
-}
-
-function formatPercent(af: number | null): string {
-  if (af == null) return "—"
-  return (af * 100).toFixed(4) + "%"
 }
 
 /* ------------------------------------------------------------------ */
@@ -113,16 +105,11 @@ function DetailRow({
 
 function ClinVarSignificanceBadge({ significance }: { significance: string | null }) {
   if (!significance) return <span>—</span>
-  const lower = significance.toLowerCase()
   return (
     <span
       className={cn(
         "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
-        lower.includes("pathogenic") && !lower.includes("benign")
-          ? "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400"
-          : lower.includes("benign")
-            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
-            : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+        getClinvarSignificanceBadgeClass(significance),
       )}
     >
       {significance}
@@ -168,7 +155,10 @@ function PopulationBar({ label, code, af, maxAF, highlighted }: PopulationBarPro
         "text-sm w-24 text-right font-mono tabular-nums",
         highlighted ? "font-semibold text-foreground" : "text-muted-foreground",
       )}>
-        {formatPercent(af)}
+        {/* Per-population AF as a raw fraction — the shared single source of
+            truth (#564/#664). The bar *width* above stays proportional; only the
+            printed value is unified so it cannot drift to a percentage again. */}
+        {formatAlleleFrequency(af)}
       </span>
     </div>
   )
@@ -236,7 +226,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <SectionHeader icon={Activity} label="Key Scores" />
       <DetailRow label="gnomAD AF" value={
         <span className="flex items-center gap-1.5">
-          {formatAF(variant.gnomad_af_global)}
+          {formatAlleleFrequency(variant.gnomad_af_global)}
           {rareLabel && (
             <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {rareLabel}
@@ -253,7 +243,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       } />
       <DetailRow label="PolyPhen-2" value={
         variant.polyphen2_hsvar_pred
-          ? variant.polyphen2_hsvar_pred.replace(/_/g, " ")
+          ? `${polyphen2Display(variant.polyphen2_hsvar_pred).label}${variant.polyphen2_hsvar_score != null ? ` (${variant.polyphen2_hsvar_score.toFixed(3)})` : ""}`
           : null
       } />
       {variant.ensemble_pathogenic && (
@@ -442,7 +432,7 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <DetailRow label="SIFT" value={
           variant.sift_pred ? (
             <span className={cn(
-              variant.sift_pred === "D" ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400",
+              variant.sift_pred === "D" ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400",
             )}>
               {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}
               {variant.sift_score != null && ` (${variant.sift_score.toFixed(3)})`}
@@ -451,14 +441,8 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         } />
         <DetailRow label="PolyPhen-2" value={
           variant.polyphen2_hsvar_pred ? (
-            <span className={cn(
-              variant.polyphen2_hsvar_pred === "probably_damaging"
-                ? "text-red-600 dark:text-red-400"
-                : variant.polyphen2_hsvar_pred === "possibly_damaging"
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-green-600 dark:text-green-400",
-            )}>
-              {variant.polyphen2_hsvar_pred.replace(/_/g, " ")}
+            <span className={polyphen2Display(variant.polyphen2_hsvar_pred).colorClass}>
+              {polyphen2Display(variant.polyphen2_hsvar_pred).label}
               {variant.polyphen2_hsvar_score != null && ` (${variant.polyphen2_hsvar_score.toFixed(3)})`}
             </span>
           ) : null
@@ -546,7 +530,7 @@ function GenomeTab({ variant, sampleId }: { variant: VariantDetail; sampleId: nu
       </div>
       <div className="mt-3">
         <Link
-          to={`/genome-browser?locus=chr${variant.chrom}:${variant.pos}${sampleId != null ? `&sampleId=${sampleId}` : ""}`}
+          to={`/genome-browser?locus=chr${variant.chrom}:${variant.pos}${sampleId != null ? `&sample_id=${sampleId}` : ""}`}
           className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
         >
           Open full browser <ExternalLink className="h-3.5 w-3.5" />

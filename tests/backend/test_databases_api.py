@@ -16,7 +16,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -736,8 +736,22 @@ class TestDownloadProgress:
             payload = json.loads(data_line.split("data: ", 1)[1])
             assert payload["session_id"] == session_id
             assert len(payload["databases"]) == 1
-            assert payload["databases"][0]["db_name"] == "clinvar"
-            assert payload["databases"][0]["status"] == "complete"
+            db0 = payload["databases"][0]
+            assert db0["db_name"] == "clinvar"
+            assert db0["status"] == "complete"
+            # PR-18: per-DB byte/speed/ETA fields.
+            expected_total = get_database("clinvar").expected_size_bytes
+            assert db0["total_bytes"] == expected_total
+            assert db0["downloaded_bytes"] == expected_total  # complete → full
+            assert db0["speed_bps"] == 0
+            assert db0["eta_seconds"] == 0
+            # PR-18: session aggregate block.
+            agg = payload["aggregate"]
+            assert agg["total_bytes"] == expected_total
+            assert agg["downloaded_bytes"] == expected_total
+            assert agg["remaining_bytes"] == 0
+            assert agg["overall_pct"] == 100.0
+            assert agg["size_unknown_count"] == 0
 
     def test_progress_cleans_up_session(
         self,
@@ -880,3 +894,158 @@ class TestDownloadIntegration:
         # Only cpic should be downloaded (clinvar already exists)
         assert len(data["downloads"]) == 1
         assert data["downloads"][0]["db_name"] == "cpic"
+
+
+class TestDownloadProgressForwarding:
+    """A download-mode DB's byte progress must reach the wizard's own
+    ``dbdl-`` job, not just DownloadManager's internal job (PR-17) — otherwise
+    the wizard bar sits frozen until the file jumps to 100%."""
+
+    def test_execute_download_forwards_progress_to_wizard_job(
+        self, reference_engine: sa.Engine, tmp_data_dir: Path
+    ) -> None:
+        from backend.api.routes.databases import _execute_download
+        from backend.db.download_manager import DownloadResult
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        test_db = DatabaseInfo(
+            name="test_dl_db",
+            display_name="Test DL",
+            description="t",
+            url="http://example/test_dl.db",
+            filename="test_dl.db",
+            expected_size_bytes=1000,
+            build_mode="download",
+            target_db="standalone",
+        )
+        job_id = "dbdl-testdl"
+        _create_job_record(reference_engine, job_id, test_db.name)
+        final_dest = test_db.dest_path(settings)
+
+        def fake_start(*, url, filename, expected_sha256, progress_callback):
+            # Mimic a successful transfer; no progress emitted from here.
+            final_dest.parent.mkdir(parents=True, exist_ok=True)
+            final_dest.write_bytes(b"db-bytes")
+            return DownloadResult(
+                download_id=1, job_id=job_id, dest_path=final_dest, total_bytes=1000
+            )
+
+        dm = MagicMock()
+        dm.start.side_effect = fake_start
+
+        with patch(
+            "backend.api.routes.databases._apply_manifest_overrides", side_effect=lambda d: d
+        ):
+            _execute_download(
+                dm=dm,
+                db_info=test_db,
+                job_id=job_id,
+                engine=reference_engine,
+                settings=settings,
+            )
+
+        # The wizard job's callback was handed to DownloadManager.
+        cb = dm.start.call_args.kwargs["progress_callback"]
+        assert cb is not None
+
+        # Invoking it writes byte-aware mid-progress to THIS (dbdl-) job.
+        cb(500, 1000)
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.progress_pct, jobs.c.message).where(jobs.c.job_id == job_id)
+            ).fetchone()
+        assert row.progress_pct == 50.0
+        assert "500" in row.message
+        assert "50%" in row.message
+
+
+class TestAggregateProgress:
+    """The session-level roll-up that drives the wizard's overall bar/ETA (PR-18)."""
+
+    def test_rolls_up_bytes_speed_and_eta(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        rows = [
+            {"total_bytes": 1000, "downloaded_bytes": 500, "speed_bps": 100},
+            {"total_bytes": 3000, "downloaded_bytes": 0, "speed_bps": 50},
+            {"total_bytes": None, "downloaded_bytes": None, "speed_bps": None},
+        ]
+        agg = _aggregate_progress(rows)
+        assert agg["total_bytes"] == 4000
+        assert agg["downloaded_bytes"] == 500
+        assert agg["remaining_bytes"] == 3500
+        assert agg["overall_pct"] == 12.5
+        assert agg["speed_bps"] == 150
+        assert agg["eta_seconds"] == round(3500 / 150)
+        assert agg["size_unknown_count"] == 1
+
+    def test_no_known_sizes_is_estimating(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress(
+            [{"total_bytes": None, "downloaded_bytes": None, "speed_bps": None}]
+        )
+        assert agg["total_bytes"] is None
+        assert agg["overall_pct"] is None
+        assert agg["eta_seconds"] is None
+        assert agg["remaining_bytes"] == 0
+        assert agg["size_unknown_count"] == 1
+
+    def test_zero_speed_yields_no_eta(self) -> None:
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress([{"total_bytes": 1000, "downloaded_bytes": 200, "speed_bps": 0}])
+        assert agg["speed_bps"] is None
+        assert agg["eta_seconds"] is None
+        assert agg["overall_pct"] == 20.0
+
+    def test_throttled_trickle_suppresses_runaway_eta(self) -> None:
+        """A throttled trickle must not surface an ever-growing ETA (the bug).
+
+        With ~600 MB still to go at a few bytes/sec, ``remaining / speed`` is
+        days — the wizard used to render a climbing "~999h". The aggregate now
+        reports no ETA (UI shows "estimating…") past the ceiling.
+        """
+        from backend.api.routes.databases import _aggregate_progress
+
+        agg = _aggregate_progress(
+            [{"total_bytes": 622_000_000, "downloaded_bytes": 20_000_000, "speed_bps": 8}]
+        )
+        # Speed is still reported honestly; the ETA is suppressed, not inflated.
+        assert agg["speed_bps"] == 8
+        assert agg["eta_seconds"] is None
+        assert agg["remaining_bytes"] == 602_000_000
+
+
+class TestEtaSeconds:
+    """The pure ETA helper that both the per-DB and aggregate paths share."""
+
+    def test_done_is_zero(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(1_000_000, 0) == 0
+        # Even with no rate, nothing-remaining means done, not "unknown".
+        assert _eta_seconds(0, 0) == 0
+        assert _eta_seconds(None, 0) == 0
+
+    def test_no_rate_is_unknown(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(0, 1_000) is None
+        assert _eta_seconds(None, 1_000) is None
+        assert _eta_seconds(-5, 1_000) is None
+
+    def test_normal_rate_extrapolates(self) -> None:
+        from backend.api.routes.databases import _eta_seconds
+
+        assert _eta_seconds(100, 3_500) == 35
+        assert _eta_seconds(8_000_000, 720_000_000) == 90
+
+    def test_runaway_eta_is_capped_to_none(self) -> None:
+        from backend.api.routes.databases import _MAX_ETA_SECONDS, _eta_seconds
+
+        # Just under the ceiling → still a number; a hair over → suppressed.
+        assert _eta_seconds(1, _MAX_ETA_SECONDS) == _MAX_ETA_SECONDS
+        assert _eta_seconds(1, _MAX_ETA_SECONDS + 1) is None
+        # A throttled trickle against a multi-hundred-MB remainder → suppressed.
+        assert _eta_seconds(8, 602_000_000) is None

@@ -82,4 +82,21 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
                 column="genome_build",
             )
 
+    # ── downloads.validator (PR-15 — durable If-Range across cross-process resume)
+    # Nullable TEXT holding the ETag/Last-Modified captured on the first response.
+    # Existing in-flight rows keep NULL until their next attempt recaptures it, so
+    # the worst case for a pre-existing partial is one extra full restart — never a
+    # spliced/corrupt artifact.
+    if "downloads" in table_names:
+        dl_cols = {c["name"] for c in inspector.get_columns("downloads")}
+        if "validator" not in dl_cols:
+            with engine.begin() as conn:
+                conn.execute(sa.text("ALTER TABLE downloads ADD COLUMN validator TEXT"))
+            changed = True
+            logger.info(
+                "reference_schema_backfilled",
+                table="downloads",
+                column="validator",
+            )
+
     return changed

@@ -30,7 +30,6 @@ logger = structlog.get_logger(__name__)
 MODULE_NAME = "ebmd"
 EBMD_TRAIT = "heel_ebmd"
 EBMD_PGS_ID = "PGS000657"
-EBMD_PMIDS = ["32614825"]  # Forgetta et al., PLoS Med 2020 — gSOS fracture screening
 
 EBMD_CONTEXT: dict[str, str] = {
     "not_a_substitute": (

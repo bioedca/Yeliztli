@@ -178,6 +178,314 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     }
   })
 
+  // ── axe-core on data-rich rendered states (#573) ─────────
+  // The audits above visit pages with no sample_id, so they only check the
+  // empty "Select a sample…" states + app shell — contrast regressions in real
+  // content (cards, badges, status labels) slip through. Render a data-rich
+  // pharmacogenomics/ancestry/APOE states (route-stubbed) and axe them in light
+  // mode, exercising the small status-label colours that are absent from empty
+  // states and previously used weak -600 foreground tokens.
+  test.describe('axe-core on data-rich content (#573)', () => {
+    function jsonRoute(payload: unknown) {
+      return { status: 200, contentType: 'application/json', body: JSON.stringify(payload) }
+    }
+
+    const GENES = {
+      items: [
+        {
+          gene: 'CYP2C19', diplotype: '*1/*2', phenotype: 'Intermediate Metabolizer',
+          call_confidence: 'Complete', confidence_note: null, activity_score: 1.0,
+          ehr_notation: 'CYP2C19 *1/*2', evidence_level: 4, involved_rsids: ['rs4244285'],
+          drugs: ['clopidogrel', 'omeprazole'], gene_caveat: null,
+        },
+        {
+          gene: 'CYP2D6', diplotype: '*1/*4', phenotype: 'Intermediate Metabolizer',
+          call_confidence: 'Partial',
+          confidence_note: 'SNP-based alleles called, but structural variants cannot be excluded.',
+          activity_score: 1.0, ehr_notation: 'CYP2D6 *1/*4', evidence_level: 3,
+          involved_rsids: ['rs3892097'], drugs: ['codeine'], gene_caveat: null,
+        },
+        {
+          gene: 'CYP2B6', diplotype: null, phenotype: null, call_confidence: 'Insufficient',
+          confidence_note: 'Key defining rsids not on the array.', activity_score: null,
+          ehr_notation: null, evidence_level: null, involved_rsids: [], drugs: ['efavirenz'],
+          gene_caveat: null,
+        },
+      ],
+    }
+
+    const DRUGS = {
+      items: [
+        { drug: 'clopidogrel', genes: ['CYP2C19'], classification: 'A' },
+        { drug: 'codeine', genes: ['CYP2D6'], classification: 'A' },
+      ],
+    }
+
+    const geneCoverage = (g: (typeof GENES.items)[number]) => ({
+      gene: g.gene, diplotype: g.diplotype, phenotype: g.phenotype,
+      call_confidence: g.call_confidence, confidence_note: g.confidence_note,
+      coverage: { assessed: 1, total: 2 }, activity_score: g.activity_score,
+      ehr_notation: g.ehr_notation, evidence_level: g.evidence_level, gene_caveat: null,
+    })
+
+    const REPORT = {
+      reference_bias_disclosure: 'Calls are relative to the reference genome.',
+      genes_assessed: 3, drugs_assessed: 2, actionable_drug_count: 1,
+      gene_coverage: GENES.items.map(geneCoverage),
+      drugs: [
+        {
+          drug: 'clopidogrel', actionable: true,
+          gene_effects: [{
+            gene: 'CYP2C19', diplotype: '*1/*2', phenotype: 'Intermediate Metabolizer',
+            recommendation: 'Consider an alternative antiplatelet agent.', classification: 'A',
+            guideline_url: null, call_confidence: 'Complete', confidence_note: null,
+            evidence_level: 4, activity_score: 1.0, ehr_notation: 'CYP2C19 *1/*2',
+            coverage: { assessed: 1, total: 2 }, actionability: 'actionable', gene_caveat: null,
+          }],
+        },
+      ],
+    }
+
+    const ANCESTRY_FINDING = {
+      top_population: 'AMR',
+      pc_scores: [35.2, -6.1, 42.9, 31.8, 2.3, 0.4, 0.9, 0.7],
+      population_distances: {
+        AMR: 12.3456,
+        EUR: 38.7012,
+        CSA: 39.1234,
+        EAS: 40.0021,
+        AFR: 41.2345,
+        MID: 44.5678,
+        OCE: 88.0102,
+      },
+      admixture_fractions: { AMR: 0.62, EUR: 0.28, MID: 0.10 },
+      population_ranking: [
+        { population: 'AMR', distance: 12.3456 },
+        { population: 'EUR', distance: 38.7012 },
+        { population: 'CSA', distance: 39.1234 },
+        { population: 'EAS', distance: 40.0021 },
+      ],
+      snps_used: 3600,
+      snps_total: 5000,
+      coverage_fraction: 0.72,
+      projection_time_ms: 42.0,
+      is_sufficient: false,
+      evidence_level: 3,
+      finding_text: 'Top inferred population: Admixed American, with reduced coverage.',
+      confidence: 0.68,
+      missing_aim_rate: 0.28,
+      admixture_method: 'nnls',
+      n_pcs_used: 8,
+      nnls_fractions: { AMR: 0.62, EUR: 0.28, MID: 0.10 },
+      knn_fractions: { AMR: 0.58, EUR: 0.32, MID: 0.10 },
+      nnls_ci_low: { AMR: 0.56, EUR: 0.22, MID: 0.06 },
+      nnls_ci_high: { AMR: 0.68, EUR: 0.34, MID: 0.14 },
+    }
+
+    const LAI_RESULTS = {
+      global_ancestry: {
+        AMR: {
+          fraction: 0.58,
+          percentage: 58,
+          display_name: 'Admixed American',
+          color: '#EF4444',
+          confidence: 0.91,
+        },
+        EUR: {
+          fraction: 0.31,
+          percentage: 31,
+          display_name: 'European',
+          color: '#3B82F6',
+          confidence: 0.88,
+        },
+        MID: {
+          fraction: 0.11,
+          percentage: 11,
+          display_name: 'Middle Eastern',
+          color: '#14B8A6',
+          confidence: 0.74,
+        },
+      },
+      chromosome_painting: {
+        chr1: [
+          {
+            start: 0,
+            end: 85_000_000,
+            n_snps: 312,
+            hap0: 'AMR',
+            hap1: 'EUR',
+            hap0_color: '#EF4444',
+            hap1_color: '#3B82F6',
+          },
+          {
+            start: 85_000_000,
+            end: 170_000_000,
+            n_snps: 287,
+            hap0: 'MID',
+            hap1: 'AMR',
+            hap0_color: '#14B8A6',
+            hap1_color: '#EF4444',
+          },
+        ],
+      },
+      metadata: { windows: 2, source: 'e2e fixture' },
+      created_at: '2026-06-15T00:00:00Z',
+      coverage_telemetry: null,
+    }
+
+    const APOE_DISCLAIMER = {
+      title: 'APOE disclosure',
+      text: 'APOE results can include sensitive health information.',
+      accept_label: 'Show Results',
+      decline_label: 'Skip',
+    }
+
+    const APOE_GENOTYPE = {
+      status: 'determined',
+      diplotype: 'e3/e4',
+      has_e4: true,
+      e4_count: 1,
+      has_e2: false,
+      e2_count: 0,
+      rs429358_genotype: 'CT',
+      rs7412_genotype: 'CC',
+    }
+
+    const APOE_FINDINGS = {
+      items: [
+        {
+          category: 'cardiovascular_risk',
+          evidence_level: 4,
+          finding_text: 'APOE e4 can affect cardiovascular risk interpretation.',
+          phenotype: 'APOE e4 carrier',
+          conditions: 'Cardiovascular risk',
+          diplotype: 'e3/e4',
+          pmid_citations: ['12345678'],
+          detail_json: { risk_level: 'markedly elevated' },
+        },
+        {
+          category: 'alzheimers_risk',
+          evidence_level: 4,
+          finding_text: 'Late-onset Alzheimer risk context is elevated.',
+          phenotype: 'APOE e4 carrier',
+          conditions: "Alzheimer's disease",
+          diplotype: 'e3/e4',
+          pmid_citations: ['23456789'],
+          detail_json: { risk_level: 'elevated' },
+        },
+        {
+          category: 'lipid_dietary',
+          evidence_level: 3,
+          finding_text: 'Lipid and dietary response interpretation is typical.',
+          phenotype: 'Typical lipid response',
+          conditions: 'Lipid metabolism',
+          diplotype: 'e3/e4',
+          pmid_citations: ['34567890'],
+          detail_json: { risk_level: 'typical' },
+        },
+      ],
+      total: 3,
+    }
+
+    test('pharmacogenomics data-rich state passes axe-core in light mode', async ({ page }) => {
+      await page.route('**/api/analysis/pharma/genes**', (r) => r.fulfill(jsonRoute(GENES)))
+      await page.route('**/api/analysis/pharma/drugs**', (r) => r.fulfill(jsonRoute(DRUGS)))
+      await page.route('**/api/analysis/pharma/report**', (r) => r.fulfill(jsonRoute(REPORT)))
+
+      await page.goto('/pharmacogenomics?sample_id=1')
+      await waitForReactHydration(page)
+      // Wait for the data-rich content (confidence labels) to render.
+      await expect(page.getByText('Partial').first()).toBeVisible()
+
+      let builder = new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      for (const sel of THIRD_PARTY_EXCLUDES) {
+        builder = builder.exclude(sel)
+      }
+      const results = await builder.analyze()
+      const violations = results.violations.map((v) => ({
+        id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
+        targets: v.nodes.map((n) => n.target),
+        html: v.nodes.map((n) => n.html),
+        failureSummary: v.nodes.map((n) => n.failureSummary),
+      }))
+      expect(
+        violations,
+        `axe-core violations on data-rich /pharmacogenomics:\n${JSON.stringify(violations, null, 2)}`,
+      ).toEqual([])
+    })
+
+    test('ancestry data-rich state passes axe-core in light mode', async ({ page }) => {
+      await page.route('**/api/analysis/ancestry/findings**', (r) => r.fulfill(jsonRoute(ANCESTRY_FINDING)))
+      await page.route('**/api/analysis/ancestry/pca-coordinates**', (r) => r.fulfill(jsonRoute(null)))
+      await page.route('**/api/analysis/ancestry/haplogroups**', (r) => r.fulfill(jsonRoute({ assignments: [] })))
+      await page.route('**/api/analysis/ancestry/lai/status**', (r) => r.fulfill(jsonRoute({
+        bundle_downloaded: true,
+        java_available: true,
+        lai_available: true,
+        message: 'Ready',
+      })))
+      await page.route('**/api/analysis/ancestry/lai/*/results**', (r) => r.fulfill(jsonRoute(LAI_RESULTS)))
+      await page.route('**/api/analysis/ancestry/lai/*/progress**', (r) => r.fulfill(jsonRoute(null)))
+
+      await page.goto('/ancestry?sample_id=1')
+      await waitForReactHydration(page)
+      await expect(page.getByTestId('missing-aim-indicator')).toBeVisible()
+      await expect(page.getByText('Chromosome painting complete')).toBeVisible()
+      await expect(page.getByTestId('ancestry-pie-chart')).toBeVisible()
+      await expect(page.locator('[data-testid="painting-chr1"] rect[fill="#EF4444"]').first()).toBeVisible()
+
+      let builder = new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      for (const sel of THIRD_PARTY_EXCLUDES) {
+        builder = builder.exclude(sel)
+      }
+      const results = await builder.analyze()
+      const violations = results.violations.map((v) => ({
+        id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
+        targets: v.nodes.map((n) => n.target),
+        html: v.nodes.map((n) => n.html),
+        failureSummary: v.nodes.map((n) => n.failureSummary),
+      }))
+      expect(
+        violations,
+        `axe-core violations on data-rich /ancestry:\n${JSON.stringify(violations, null, 2)}`,
+      ).toEqual([])
+    })
+
+    test('APOE data-rich state passes axe-core in light mode', async ({ page }) => {
+      await page.route('**/api/analysis/apoe/disclaimer', (r) => r.fulfill(jsonRoute(APOE_DISCLAIMER)))
+      await page.route('**/api/analysis/apoe/gate-status**', (r) => r.fulfill(jsonRoute({
+        acknowledged: true,
+        acknowledged_at: '2026-06-15T00:00:00Z',
+      })))
+      await page.route('**/api/analysis/apoe/genotype**', (r) => r.fulfill(jsonRoute(APOE_GENOTYPE)))
+      await page.route('**/api/analysis/apoe/findings**', (r) => r.fulfill(jsonRoute(APOE_FINDINGS)))
+
+      await page.goto('/apoe?sample_id=1')
+      await waitForReactHydration(page)
+      await expect(page.getByTestId('apoe-findings-list')).toBeVisible()
+      await expect(page.getByText('markedly elevated')).toBeVisible()
+
+      let builder = new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      for (const sel of THIRD_PARTY_EXCLUDES) {
+        builder = builder.exclude(sel)
+      }
+      const results = await builder.analyze()
+      const violations = results.violations.map((v) => ({
+        id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
+        targets: v.nodes.map((n) => n.target),
+        html: v.nodes.map((n) => n.html),
+        failureSummary: v.nodes.map((n) => n.failureSummary),
+      }))
+      expect(
+        violations,
+        `axe-core violations on data-rich /apoe:\n${JSON.stringify(violations, null, 2)}`,
+      ).toEqual([])
+    })
+  })
+
   // ── Heading hierarchy ────────────────────────────────────
   test.describe('Heading hierarchy (no skipped levels)', () => {
     for (const page of APP_PAGES) {
