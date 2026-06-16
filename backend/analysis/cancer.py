@@ -195,6 +195,12 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 # ClinVar significance values considered pathogenic
 _PATHOGENIC_SIGNIFICANCE = {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}
 
+# Genes whose short-read / array-derived calls are too unreliable to report as
+# cancer predisposition findings because a highly homologous pseudogene confounds
+# localization. PMS2 exon 12-15 calls can originate from PMS2CL; require a
+# PMS2-specific clinical assay rather than surfacing a possible false Lynch call.
+_PSEUDOGENE_UNRELIABLE_GENES = frozenset({"PMS2"})
+
 
 @dataclass
 class CancerVariantResult:
@@ -225,6 +231,7 @@ class CancerAnalysisResult:
     variants: list[CancerVariantResult] = field(default_factory=list)
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
+    pseudogene_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -322,9 +329,14 @@ def extract_cancer_variants(
         rows = conn.execute(stmt).fetchall()
 
     variants: list[CancerVariantResult] = []
+    pseudogene_suppressed = 0
     for row in rows:
-        gene_info = gene_map.get((row.gene_symbol or "").upper())
+        gene_symbol = (row.gene_symbol or "").upper()
+        gene_info = gene_map.get(gene_symbol)
         if gene_info is None:
+            continue
+        if gene_symbol in _PSEUDOGENE_UNRELIABLE_GENES:
+            pseudogene_suppressed += 1
             continue
 
         evidence = _assign_evidence_level(
@@ -359,6 +371,7 @@ def extract_cancer_variants(
         panel_genes=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         pathogenic_variants=len(variants),
+        pseudogene_suppressed=pseudogene_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
@@ -366,6 +379,7 @@ def extract_cancer_variants(
         variants=variants,
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
+        pseudogene_suppressed=pseudogene_suppressed,
     )
 
 
