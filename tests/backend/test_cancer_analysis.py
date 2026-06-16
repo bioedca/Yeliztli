@@ -119,20 +119,6 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
             "annotation_coverage": 2,
         },
-        # PMS2 Pathogenic — suppressed because PMS2CL can confound localization
-        {
-            "rsid": "rs_pms2_pseudogene_confounded",
-            "chrom": "7",
-            "pos": 60487632,
-            "genotype": "AG",
-            "zygosity": "het",
-            "gene_symbol": "PMS2",
-            "clinvar_significance": "Pathogenic",
-            "clinvar_review_stars": 2,
-            "clinvar_accession": "VCV000PMS2",
-            "clinvar_conditions": "Lynch syndrome",
-            "annotation_coverage": 2,
-        },
         # APC Benign — should NOT appear in results
         {
             "rsid": "rs1801155",
@@ -176,8 +162,23 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "annotation_coverage": 2,
         },
     ]
+    pms2_variant = {
+        "rsid": "rs_pms2_pseudogene_confounded",
+        "chrom": "7",
+        "pos": 60487632,
+        "genotype": "AG",
+        "zygosity": "het",
+        "gene_symbol": "PMS2",
+        "exon_number": 13,
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 2,
+        "clinvar_accession": "VCV000PMS2",
+        "clinvar_conditions": "Lynch syndrome",
+        "annotation_coverage": 2,
+    }
     with sample_engine.begin() as conn:
         conn.execute(sa.insert(annotated_variants), variants)
+        conn.execute(sa.insert(annotated_variants), pms2_variant)
     return sample_engine
 
 
@@ -251,13 +252,44 @@ class TestExtractCancerVariants:
         rsids = {v.rsid for v in result.variants}
         assert "rs999888" not in rsids  # VUS
 
-    def test_suppresses_pms2_pseudogene_confounded_calls(
+    def test_suppresses_pms2_pseudogene_confounded_exon_calls(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:
         result = extract_cancer_variants(panel, sample_with_cancer_variants)
         rsids = {v.rsid for v in result.variants}
         assert "rs_pms2_pseudogene_confounded" not in rsids
         assert result.pseudogene_suppressed == 1
+
+    def test_reports_pms2_exon_11_calls(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """PMS2 suppression is scoped to the configured confounded exon set."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_pms2_exon11_reportable",
+                        "chrom": "7",
+                        "pos": 60470000,
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "PMS2",
+                        "exon_number": 11,
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000PMS2EXON11",
+                        "clinvar_conditions": "Lynch syndrome",
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        rsids = {v.rsid for v in result.variants}
+        assert "rs_pms2_exon11_reportable" in rsids
+        assert result.pseudogene_suppressed == 0
 
     def test_brca1_golden_fixture(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine

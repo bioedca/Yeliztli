@@ -193,11 +193,9 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 
 # ── P3-13: Cancer predisposition analysis ─────────────────────────────────
 
-# Genes whose short-read / array-derived calls are too unreliable to report as
-# cancer predisposition findings because a highly homologous pseudogene confounds
-# localization. PMS2 exon 12-15 calls can originate from PMS2CL; require a
-# PMS2-specific clinical assay rather than surfacing a possible false Lynch call.
-_PSEUDOGENE_UNRELIABLE_GENES = frozenset({"PMS2"})
+# Policy guard for issue #837: only PMS2 exons currently modeled as
+# PMS2/PMS2CL-confounded are withheld from consumer cancer findings.
+_PMS2_PSEUDOGENE_CONFOUNDED_EXONS = frozenset({12, 13, 14, 15})
 
 
 @dataclass
@@ -313,6 +311,7 @@ def extract_cancer_variants(
                 annotated_variants.c.clinvar_review_stars,
                 annotated_variants.c.clinvar_accession,
                 annotated_variants.c.clinvar_conditions,
+                annotated_variants.c.exon_number,
                 annotated_variants.c.revel,
                 annotated_variants.c.consequence,
             )
@@ -333,7 +332,7 @@ def extract_cancer_variants(
         gene_info = gene_map.get(gene_symbol)
         if gene_info is None:
             continue
-        if gene_symbol in _PSEUDOGENE_UNRELIABLE_GENES:
+        if _is_pms2_pseudogene_confounded(row):
             pseudogene_suppressed += 1
             continue
 
@@ -379,6 +378,12 @@ def extract_cancer_variants(
         variants_in_panel_genes=total_in_panel,
         pseudogene_suppressed=pseudogene_suppressed,
     )
+
+
+def _is_pms2_pseudogene_confounded(row: sa.Row) -> bool:
+    """Return true for PMS2 calls in exons that need PMS2/PMS2CL disambiguation."""
+    gene_symbol = (row.gene_symbol or "").upper()
+    return gene_symbol == "PMS2" and row.exon_number in _PMS2_PSEUDOGENE_CONFOUNDED_EXONS
 
 
 # ── Findings storage ─────────────────────────────────────────────────────
