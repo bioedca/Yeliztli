@@ -142,28 +142,29 @@ def test_nat2_homozygous_slow_is_slow(reference_engine: sa.Engine) -> None:
     assert "unphased" not in result.confidence_note
 
 
-def test_nat2_slow_emits_isoniazid_alert(reference_engine: sa.Engine) -> None:
+def test_nat2_slow_has_no_cpic_isoniazid_alert(reference_engine: sa.Engine) -> None:
     sample = _make_sample(_nat2_geno(rs1799930="AA"))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NAT2"}))
+    result = results[0]
+    assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.COMPLETE
+
     alerts = generate_prescribing_alerts(results, reference_engine)
-    iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
-    assert iso and iso[0].phenotype == "Slow Acetylator"
+    assert not [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
 
 
-def test_nat2_compound_het_isoniazid_alert_carries_phase_caveat(
+def test_nat2_compound_het_no_isoniazid_alert_retains_phase_caveat(
     reference_engine: sa.Engine,
 ) -> None:
-    # The compound-het slow call still fires the isoniazid alert (PARTIAL is not
-    # suppressed), but the alert carries the phase-inference caveat so it is not an
-    # unqualified Slow Acetylator result (#40).
     sample = _make_sample(_nat2_geno(rs1801280="TC", rs1799930="GA"))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"NAT2"}))
+    result = results[0]
+    assert result.phenotype == "Slow Acetylator"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "unphased" in result.confidence_note
+
     alerts = generate_prescribing_alerts(results, reference_engine)
-    iso = [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
-    assert iso, "compound-het slow acetylator must still emit the isoniazid alert"
-    assert iso[0].phenotype == "Slow Acetylator"
-    assert iso[0].call_confidence == CallConfidence.PARTIAL
-    assert "unphased" in iso[0].confidence_note
+    assert not [a for a in alerts if a.gene == "NAT2" and a.drug == "isoniazid"]
 
 
 # ── CYP2B6 efavirenz (structural-variant gene → PARTIAL) ──────────────────────
