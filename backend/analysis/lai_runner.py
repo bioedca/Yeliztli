@@ -184,7 +184,7 @@ class LAIRunner:
         report("Writing per-chromosome VCFs...", 0.05)
         vcf_paths, matched, per_source_counts = self._write_per_chrom_vcfs(filtered, out)
         report(
-            f"Mapped {matched} variants to GRCh38 across {len(vcf_paths)} chromosomes",
+            f"Wrote {matched} variants to VCF across {len(vcf_paths)} chromosomes",
             0.10,
         )
         coverage_telemetry = self._build_coverage_telemetry(per_source_counts, file_format)
@@ -379,9 +379,9 @@ class LAIRunner:
 
         Returns a ``(vcf_paths, total_sites, per_source_counts)`` triple. The
         third element accumulates per-source ``{"hits", "drops"}`` counts over
-        the input ``genotypes`` — a hit is an rsID present in the LAI bundle
-        liftover map on an autosomal contig; everything else is a drop
-        (Plan §6.6).
+        the input ``genotypes`` — a hit is a site that is actually emitted into
+        a VCF after liftover, REF/ALT lookup, and genotype encoding; everything
+        else is a drop (Plan §6.6).
         """
         vcf_dir = out / "unphased_vcfs"
         vcf_dir.mkdir(exist_ok=True)
@@ -400,7 +400,6 @@ class LAIRunner:
             if chrom not in autosomal_chroms:
                 counts["drops"] += 1
                 continue
-            counts["hits"] += 1
             chrom_genotypes[chrom].append(
                 {
                     "chrom": chrom,
@@ -408,6 +407,7 @@ class LAIRunner:
                     "rsid": rsid,
                     "allele1": gt["allele1"],
                     "allele2": gt["allele2"],
+                    "source": src,
                 }
             )
 
@@ -416,17 +416,28 @@ class LAIRunner:
         for chrom in sorted(chrom_genotypes.keys(), key=lambda x: int(x.removeprefix("chr"))):
             sites = sorted(chrom_genotypes[chrom], key=lambda x: x["pos"])
             vcf_path = vcf_dir / f"user_{chrom}.vcf.gz"
-            self._write_single_vcf(chrom, sites, vcf_path)
-            vcf_paths[chrom] = vcf_path
-            total_sites += len(sites)
+            write_counts = self._write_single_vcf(chrom, sites, vcf_path)
+            emitted_sites = 0
+            for src, counts in write_counts.items():
+                target = per_source.setdefault(src, {"hits": 0, "drops": 0})
+                target["hits"] += counts["hits"]
+                target["drops"] += counts["drops"]
+                emitted_sites += counts["hits"]
+
+            if emitted_sites:
+                vcf_paths[chrom] = vcf_path
+                total_sites += emitted_sites
 
         return vcf_paths, total_sites, per_source
 
-    def _write_single_vcf(self, chrom: str, sites: list[dict], vcf_path: Path) -> None:
-        """Write a single-sample VCF for one chromosome using pysam."""
+    def _write_single_vcf(
+        self, chrom: str, sites: list[dict], vcf_path: Path
+    ) -> dict[str, dict[str, int]]:
+        """Write one chromosome VCF and return emitted/drop counts by source."""
         import pysam
 
         ref_alleles = self._get_ref_alleles_pysam(chrom)
+        per_source: dict[str, dict[str, int]] = {}
 
         # Build VCF text in memory, then compress with pysam
         lines: list[str] = [
@@ -440,17 +451,25 @@ class LAIRunner:
             pos = site["pos"]
             rsid = site["rsid"]
             a1, a2 = site["allele1"], site["allele2"]
+            src = site.get("source", "") or ""
+            counts = per_source.setdefault(src, {"hits": 0, "drops": 0})
 
             if pos not in ref_alleles:
+                counts["drops"] += 1
                 continue
             ref = ref_alleles[pos]["ref"]
             alt = ref_alleles[pos]["alt"]
 
             gt = self._encode_genotype(a1, a2, ref, alt)
             if gt is None:
+                counts["drops"] += 1
                 continue
 
             lines.append(f"{chrom}\t{pos}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t.\tGT\t{gt}\n")
+            counts["hits"] += 1
+
+        if not any(counts["hits"] for counts in per_source.values()):
+            return per_source
 
         # Write compressed VCF using pysam's BGZFile
         with pysam.BGZFile(str(vcf_path), "wb") as bgz:
@@ -458,6 +477,7 @@ class LAIRunner:
 
         # Index with tabix
         pysam.tabix_index(str(vcf_path), preset="vcf", force=True)
+        return per_source
 
     def _get_ref_alleles_pysam(self, chrom: str) -> dict[int, dict[str, str]]:
         """Extract REF/ALT alleles from the reference panel using pysam."""

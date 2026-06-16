@@ -91,6 +91,14 @@ def runner() -> LAIRunner:
     return instance
 
 
+def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    counts: dict[str, dict[str, int]] = {}
+    for site in sites:
+        src = site.get("source", "") or ""
+        counts.setdefault(src, {"hits": 0, "drops": 0})["hits"] += 1
+    return counts
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────
 
 
@@ -113,7 +121,7 @@ class TestAncestryDNARunnerTelemetry:
     def test_non_zero_autosomal_variant_count(self, runner, ancestrydna_sample_engine, tmp_path):
         genotypes = _read_sample_genotypes(ancestrydna_sample_engine)
         filtered = runner._filter_genotypes(genotypes)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             vcf_paths, total, _ = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         assert total > 0  # non-zero variant count
@@ -130,7 +138,7 @@ class TestAncestryDNARunnerTelemetry:
         file_format = _read_sample_file_format(ancestrydna_sample_engine)
         genotypes = _read_sample_genotypes(ancestrydna_sample_engine)
         filtered = runner._filter_genotypes(genotypes)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, _, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         telemetry = LAIRunner._build_coverage_telemetry(per_source, file_format)
@@ -148,7 +156,7 @@ class TestAncestryDNARunnerTelemetry:
         """Single empty-source bucket — no S1/S2/both leakage on unmerged DB."""
         genotypes = _read_sample_genotypes(ancestrydna_sample_engine)
         filtered = runner._filter_genotypes(genotypes)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, _, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         # Only the empty-source bucket should exist on a pre-Phase-3 DB

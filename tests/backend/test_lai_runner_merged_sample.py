@@ -45,6 +45,14 @@ def runner() -> LAIRunner:
     return instance
 
 
+def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    counts: dict[str, dict[str, int]] = {}
+    for site in sites:
+        src = site.get("source", "") or ""
+        counts.setdefault(src, {"hits": 0, "drops": 0})["hits"] += 1
+    return counts
+
+
 # ── Merged-sample payload ────────────────────────────────────────────────
 
 
@@ -73,7 +81,7 @@ class TestMergedThreeKeyTelemetry:
 
     def test_merged_v1_with_all_three_source_keys(self, runner, tmp_path):
         filtered = runner._filter_genotypes(_MERGED_GENOTYPES)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, total, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         # Six autosomal hits across the three source buckets; rs_s2_chrx is
@@ -91,7 +99,7 @@ class TestMergedThreeKeyTelemetry:
 
     def test_per_source_counts_sum_to_matched_and_dropped_totals(self, runner, tmp_path):
         filtered = runner._filter_genotypes(_MERGED_GENOTYPES)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, total, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         telemetry = LAIRunner._build_coverage_telemetry(per_source, "merged_v1")
@@ -106,7 +114,7 @@ class TestMergedThreeKeyTelemetry:
 
     def test_no_empty_source_bucket_leaks_into_three_key_payload(self, runner, tmp_path):
         filtered = runner._filter_genotypes(_MERGED_GENOTYPES)
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, _, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         telemetry = LAIRunner._build_coverage_telemetry(per_source, "merged_v1")

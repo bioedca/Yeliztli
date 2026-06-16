@@ -16,7 +16,9 @@ Locks two contracts:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -60,6 +62,14 @@ def _with_source(rows: list[dict], source: str) -> list[dict]:
     return [{**r, "source": source} for r in rows]
 
 
+def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    counts: dict[str, dict[str, int]] = {}
+    for site in sites:
+        src = site.get("source", "") or ""
+        counts.setdefault(src, {"hits": 0, "drops": 0})["hits"] += 1
+    return counts
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────
 
 
@@ -68,7 +78,7 @@ class TestPerSourceAccumulator:
 
     def test_unmerged_23andme_counts(self, runner, tmp_path):
         filtered = runner._filter_genotypes(_with_source(_BASE_23ANDME_GENOTYPES, ""))
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, total, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
         # Hits: rs1, rs2, rs3, rs4. Drop: rs_unknown (autosomal but missing
         # from the lookup). rs_chrx + rs_nocall are filtered upstream by
@@ -84,11 +94,66 @@ class TestPerSourceAccumulator:
             {"rsid": "rs_off_bundle", "chrom": "5", "pos": 7777, "genotype": "GA"},
         ]
         filtered = runner._filter_genotypes(_with_source(rows, ""))
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, total, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
         assert total == 4
         assert per_source[""]["hits"] == 4
         assert per_source[""]["drops"] == 2
+
+    def test_ref_alt_encoding_skips_count_as_drops(self, runner, tmp_path, monkeypatch):
+        """Mapped rsIDs count as hits only after REF/ALT encoding emits a VCF row."""
+
+        class FakeBGZFile:
+            def __init__(self, path: str, mode: str) -> None:
+                self.path = Path(path)
+                self.mode = mode
+                self.handle = None
+
+            def __enter__(self):
+                self.handle = self.path.open(self.mode)
+                return self
+
+            def __exit__(self, *exc_info):
+                assert self.handle is not None
+                self.handle.close()
+
+            def write(self, data: bytes) -> int:
+                assert self.handle is not None
+                return self.handle.write(data)
+
+        def fake_tabix_index(path: str, *, preset: str, force: bool) -> None:
+            assert preset == "vcf"
+            assert force is True
+            Path(f"{path}.tbi").write_text("index", encoding="utf-8")
+
+        monkeypatch.setitem(
+            sys.modules,
+            "pysam",
+            SimpleNamespace(BGZFile=FakeBGZFile, tabix_index=fake_tabix_index),
+        )
+        runner.rsid_lookup = {
+            "rs_emit": ("chr1", 1001),
+            "rs_missing_ref": ("chr1", 1002),
+            "rs_mismatch": ("chr1", 1003),
+        }
+        rows = [
+            {"rsid": "rs_emit", "chrom": "1", "pos": 1001, "genotype": "AG"},
+            {"rsid": "rs_missing_ref", "chrom": "1", "pos": 1002, "genotype": "AA"},
+            {"rsid": "rs_mismatch", "chrom": "1", "pos": 1003, "genotype": "CT"},
+            {"rsid": "rs_off_bundle", "chrom": "1", "pos": 1004, "genotype": "AA"},
+        ]
+        with patch.object(
+            LAIRunner,
+            "_get_ref_alleles_pysam",
+            return_value={1001: {"ref": "A", "alt": "G"}, 1003: {"ref": "A", "alt": "G"}},
+        ):
+            vcf_paths, total, per_source = runner._write_per_chrom_vcfs(
+                runner._filter_genotypes(rows), tmp_path
+            )
+
+        assert set(vcf_paths) == {"chr1"}
+        assert total == 1
+        assert per_source == {"": {"hits": 1, "drops": 3}}
 
 
 class TestByteIdenticalWriteSurface:
@@ -105,6 +170,7 @@ class TestByteIdenticalWriteSurface:
                 (s["chrom"], s["pos"], s["rsid"], s["allele1"], s["allele2"]) for s in sites
             )
             calls.append((chrom, str(vcf_path), site_tuples))
+            return _emit_all_sites(self, chrom, sites, vcf_path)
 
         filtered = runner._filter_genotypes(rows)
         with patch.object(LAIRunner, "_write_single_vcf", fake_write):
@@ -158,7 +224,7 @@ class TestTelemetryEmission:
 
     def test_emits_lai_coverage_telemetry_event(self, runner, tmp_path, caplog):
         filtered = runner._filter_genotypes(_with_source(_BASE_23ANDME_GENOTYPES, ""))
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, matched, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
         telemetry = LAIRunner._build_coverage_telemetry(per_source, "23andme_v5")
         # The runner calls _emit_coverage_telemetry inside run(); call it

@@ -60,6 +60,14 @@ def runner() -> LAIRunner:
     return instance
 
 
+def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
+    counts: dict[str, dict[str, int]] = {}
+    for site in sites:
+        src = site.get("source", "") or ""
+        counts.setdefault(src, {"hits": 0, "drops": 0})["hits"] += 1
+    return counts
+
+
 def _build_pre_phase3_engine(file_format: str) -> sa.Engine:
     """Build an in-memory sample DB on the v7 (pre-step-63) raw_variants schema.
 
@@ -152,7 +160,7 @@ class TestPrePhase3SingleKeyTelemetry:
         genotypes = _read_sample_genotypes(engine)
         filtered = runner._filter_genotypes(genotypes)
 
-        with patch.object(LAIRunner, "_write_single_vcf", lambda *a, **k: None):
+        with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):
             _, total, per_source = runner._write_per_chrom_vcfs(filtered, tmp_path)
 
         # Accumulator only sees the empty-source bucket — no S1/S2/both leakage
