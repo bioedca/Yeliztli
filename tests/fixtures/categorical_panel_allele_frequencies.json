@@ -1,0 +1,45 @@
+{
+  "_provenance": {
+    "source": "Ensembl GRCh37 REST: POST https://grch37.rest.ensembl.org/variation/homo_sapiens",
+    "assembly": "GRCh37",
+    "fields": "minor_allele + MAF (global 1000 Genomes) + plus-strand allele_string from the primary chromosomal mapping",
+    "accessed": "2026-06-16",
+    "scope": "categorical-panel HLA-proxy loci (#877): proxies tag uncommon HLA haplotypes, so the risk/tag allele must be the population-MINOR allele. Extend per the categorical_panel_ensembl_alleles.json pattern."
+  },
+  "rs2395029": {
+    "minor_allele": "G",
+    "maf": 0.033347,
+    "allele_string": "T/G",
+    "location": "6:31431780-31431780"
+  },
+  "rs144012689": {
+    "minor_allele": "A",
+    "maf": 0.018171,
+    "allele_string": "T/A",
+    "location": "6:31322780-31322780"
+  },
+  "rs1061235": {
+    "minor_allele": "T",
+    "maf": 0.085064,
+    "allele_string": "A/T",
+    "location": "6:29913298-29913298"
+  },
+  "rs9263726": {
+    "minor_allele": "A",
+    "maf": 0.112021,
+    "allele_string": "G/A/C",
+    "location": "6:31106499-31106499"
+  },
+  "rs2187668": {
+    "minor_allele": "T",
+    "maf": 0.077676,
+    "allele_string": "C/T",
+    "location": "6:32605884-32605884"
+  },
+  "rs7775228": {
+    "minor_allele": "C",
+    "maf": 0.213858,
+    "allele_string": "T/A/C",
+    "location": "6:32658079-32658079"
+  }
+}
