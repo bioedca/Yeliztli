@@ -73,7 +73,7 @@ export interface PathwaySummary {
 
 /** Celiac DQ2/DQ8 combined assessment result. */
 export interface CeliacCombinedItem {
-  state: "neither" | "dq2_only" | "dq8_only" | "both"
+  state: "neither" | "dq2_only" | "dq8_only" | "both" | "indeterminate"
   label: string
   dq2_genotype: string | null
   dq8_genotype: string | null

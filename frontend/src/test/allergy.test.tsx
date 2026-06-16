@@ -5,11 +5,30 @@ import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/allergy/PathwayCard"
 import PathwayDetailPanel from "@/components/allergy/PathwayDetailPanel"
-import { useAllergyPathwayDetail } from "@/api/allergy"
-import type { PathwaySummary, SNPDetail, PathwayDetailResponse } from "@/types/allergy"
+import AllergyView from "@/pages/AllergyView"
+import { useAllergyPathwayDetail, useAllergyPathways } from "@/api/allergy"
+import type {
+  CeliacCombinedItem,
+  PathwaySummary,
+  SNPDetail,
+  PathwayDetailResponse,
+} from "@/types/allergy"
 
-vi.mock("@/api/allergy", () => ({ useAllergyPathwayDetail: vi.fn() }))
+const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>()
+  return {
+    ...actual,
+    useSearchParams: () => [new URLSearchParams(routerMock.search), vi.fn()] as const,
+  }
+})
+
+vi.mock("@/api/allergy", () => ({
+  useAllergyPathwayDetail: vi.fn(),
+  useAllergyPathways: vi.fn(),
+}))
 const mockUseDetail = vi.mocked(useAllergyPathwayDetail)
+const mockUsePathways = vi.mocked(useAllergyPathways)
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -59,6 +78,33 @@ const HISTAMINE_PATHWAY: PathwaySummary = {
   missing_snps: [],
   pmids: [],
   hla_proxy_lookup: null,
+}
+
+const CELIAC_INDETERMINATE: CeliacCombinedItem = {
+  state: "indeterminate",
+  label: "Celiac Risk Undetermined (Insufficient HLA Coverage)",
+  dq2_genotype: null,
+  dq8_genotype: null,
+  description:
+    "The HLA-DQ2 and/or DQ8 proxy markers were not genotyped in this sample, so celiac disease cannot be excluded.",
+  evidence_level: 3,
+  pmids: [],
+}
+
+function pathwaysWith(celiac: CeliacCombinedItem) {
+  mockUsePathways.mockReturnValue({
+    data: {
+      items: [FOOD_PATHWAY],
+      total: 1,
+      celiac_combined: celiac,
+      histamine_combined: null,
+      cross_module: [],
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useAllergyPathways>)
 }
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
@@ -178,6 +224,28 @@ describe("PathwayCard", () => {
       expect(screen.getByText(pathway.pathway_name)).toBeInTheDocument()
       unmount()
     }
+  })
+})
+
+// ── Celiac combined-card state colors (#847) ──────────────────────────
+
+describe("CeliacCombinedCard indeterminate state (#847)", () => {
+  beforeEach(() => {
+    routerMock.search = "sample_id=1"
+    mockUsePathways.mockReset()
+  })
+
+  it("renders insufficient HLA coverage as neutral slate, not blue positive susceptibility", () => {
+    pathwaysWith(CELIAC_INDETERMINATE)
+    render(<AllergyView />)
+
+    expect(screen.getByText(CELIAC_INDETERMINATE.label)).toBeInTheDocument()
+    expect(screen.getByTestId("celiac-combined-card")).toHaveClass("bg-slate-50")
+    expect(screen.getByTestId("celiac-combined-label")).toHaveClass("bg-slate-100")
+    expect(screen.getByTestId("celiac-combined-description")).toHaveClass("bg-slate-100/50")
+    expect(screen.getByTestId("celiac-combined-card")).not.toHaveClass("bg-blue-50")
+    expect(screen.getByTestId("celiac-combined-label")).not.toHaveClass("bg-blue-100")
+    expect(screen.getByTestId("celiac-combined-description")).not.toHaveClass("bg-blue-100/50")
   })
 })
 
