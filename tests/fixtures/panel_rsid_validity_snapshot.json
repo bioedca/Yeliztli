@@ -845,10 +845,10 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/7679673"
     },
-    "rs7775228": {
+    "rs7454108": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/7775228"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/7454108"
     },
     "rs7903146": {
       "status": "current",

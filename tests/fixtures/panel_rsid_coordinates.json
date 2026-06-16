@@ -1848,16 +1848,16 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs7679673"
     },
-    "rs7775228": {
+    "rs7454108": {
       "assembly": "GRCh37",
       "chrom": "6",
-      "start": 32658079,
-      "end": 32658079,
-      "location": "6:32658079",
+      "start": 32681483,
+      "end": 32681483,
+      "location": "6:32681483",
       "strand": 1,
-      "allele_string": "T/A/C",
+      "allele_string": "T/C",
       "variant_class": "SNP",
-      "source": "https://grch37.rest.ensembl.org/variation/human/rs7775228"
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs7454108"
     },
     "rs7903146": {
       "assembly": "GRCh37",

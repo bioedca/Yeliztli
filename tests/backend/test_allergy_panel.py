@@ -45,7 +45,7 @@ EXPECTED_RSIDS = {
     "rs1061235",  # HLA-A*31:01 carbamazepine DRESS
     "rs9263726",  # HLA-B*58:01 allopurinol
     "rs2187668",  # HLA-DQ2 celiac
-    "rs7775228",  # HLA-DQ8 celiac
+    "rs7454108",  # HLA-DQ8 celiac
     "rs10156191",  # AOC1 DAO histamine (Thr16Met)
     "rs1049742",  # AOC1 DAO histamine (Ser332Phe, #386)
     "rs2052129",  # AOC1 DAO histamine (c.-691G>T promoter, #386)
@@ -288,6 +288,35 @@ class TestSNPFields:
             assert entry["pmid"] in proxy_validation, entry
             assert entry["pmid"] not in {"15057820", "21248726", "22286173"}, entry
 
+    def test_celiac_dq8_proxy_lookup_uses_canonical_marker(self, panel_data: dict) -> None:
+        # Monsuur 2008 (18509540) reports rs7454108 as the DQ8 tag SNP
+        # (r2=0.935). rs7775228 belongs to the DQ2.2/DQ4 haplotype marker set
+        # and must not be used as a DQ8 substitute.
+        dq8_snp = next(
+            s for pw in panel_data["pathways"] for s in pw["snps"] if s["rsid"] == "rs7454108"
+        )
+        assert dq8_snp["hla_proxy"]["hla_allele"] == "HLA-DQ8"
+        assert dq8_snp["hla_proxy"]["r_squared_eur"] == 0.935
+        assert dq8_snp["risk_allele"] == "C"
+        assert "18509540" in dq8_snp["pmids"]
+
+        proxy = json.loads(PROXY_PATH.read_text(encoding="utf-8"))
+        dq8_entries = [e for e in proxy["entries"] if e["hla_allele"] == "HLA-DQ8"]
+        assert dq8_entries == [
+            {
+                "hla_allele": "HLA-DQ8",
+                "proxy_rsid": "rs7454108",
+                "r_squared": 0.935,
+                "ancestry_pop": "EUR",
+                "clinical_context": "Celiac disease susceptibility (HLA-DQ8 haplotype)",
+                "pmid": "18509540",
+            }
+        ]
+
+        all_panel_rsids = {s["rsid"] for pw in panel_data["pathways"] for s in pw["snps"]}
+        all_proxy_rsids = {e["proxy_rsid"] for e in proxy["entries"]}
+        assert "rs7775228" not in all_panel_rsids | all_proxy_rsids
+
     def test_hla_a3101_row_cites_curated_pmids(self, panel_data: dict) -> None:
         # HLA-A*31:01 / carbamazepine (rs1061235 proxy) is a pharmacogenomic safety
         # row; its citations must support HLA-A*31:01/carbamazepine hypersensitivity,
@@ -423,10 +452,10 @@ class TestHLAProxyCalling:
         "rs1061235",
         "rs9263726",
         "rs2187668",
-        "rs7775228",
+        "rs7454108",
     }
     DRUG_PROXY_RSIDS = {"rs2395029", "rs144012689", "rs1061235", "rs9263726"}
-    CELIAC_PROXY_RSIDS = {"rs2187668", "rs7775228"}
+    CELIAC_PROXY_RSIDS = {"rs2187668", "rs7454108"}
 
     def _get_hla_snps(self, panel_data: dict) -> list[dict]:
         snps = []
@@ -571,7 +600,7 @@ class TestCeliacCombined:
 
     def test_celiac_combined_rsids(self, panel_data: dict) -> None:
         sc = panel_data["special_calling"]["celiac_DQ2_DQ8_combined"]
-        assert set(sc["rsids"]) == {"rs2187668", "rs7775228"}
+        assert set(sc["rsids"]) == {"rs2187668", "rs7454108"}
 
 
 # ── Abacavir/HLA-B*57:01 bi-directional cross-link tests ───────────────
@@ -715,7 +744,7 @@ class TestAtopicCrossModule:
 class TestCeliacNutrigenomicsCrossLink:
     """Celiac DQ2/DQ8 should cross-link to Nutrigenomics."""
 
-    CELIAC_RSIDS = {"rs2187668", "rs7775228"}
+    CELIAC_RSIDS = {"rs2187668", "rs7454108"}
 
     def test_celiac_nutrigenomics_cross_link(self, panel_data: dict) -> None:
         for pathway in panel_data["pathways"]:
@@ -819,7 +848,7 @@ class TestPathwayAllocation:
         pw = self._get_pathway(panel_data, "food_sensitivity")
         rsids = {s["rsid"] for s in pw["snps"]}
         assert "rs2187668" in rsids  # HLA-DQ2
-        assert "rs7775228" in rsids  # HLA-DQ8
+        assert "rs7454108" in rsids  # HLA-DQ8
 
     def test_histamine_metabolism_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "histamine_metabolism")

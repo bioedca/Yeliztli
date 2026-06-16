@@ -95,13 +95,13 @@ _HLA_PROXY_RSIDS = frozenset(
         "rs1061235",
         "rs9263726",
         "rs2187668",
-        "rs7775228",
+        "rs7454108",
     }
 )
 
 # Celiac DQ2/DQ8 rsids for combined assessment
 _CELIAC_DQ2_RSID = "rs2187668"
-_CELIAC_DQ8_RSID = "rs7775228"
+_CELIAC_DQ8_RSID = "rs7454108"
 
 # Histamine metabolism rsids for combined assessment
 _HISTAMINE_RSIDS = frozenset({"rs10156191", "rs11558538"})
@@ -527,7 +527,7 @@ def _compute_celiac_combined(
 ) -> CeliacCombinedResult | None:
     """Compute celiac DQ2/DQ8 combined assessment.
 
-    Combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7775228) results.
+    Combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7454108) results.
     Key clinical utility is negative predictive value: absence of both
     DQ2 and DQ8 essentially rules out celiac disease (NPV >99%).
     """

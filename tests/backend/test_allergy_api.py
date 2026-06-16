@@ -192,7 +192,7 @@ PATHWAY_SUMMARY_FINDINGS = [
                 "pathway_id": "food_sensitivity",
                 "called_snps": 0,
                 "total_snps": 2,
-                "missing_snps": ["rs2187668", "rs7775228"],
+                "missing_snps": ["rs2187668", "rs7454108"],
                 "snp_details": [],
             }
         ),

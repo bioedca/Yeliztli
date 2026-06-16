@@ -318,7 +318,7 @@
           }
         },
         {
-          "rsid": "rs7775228",
+          "rsid": "rs7454108",
           "gene": "HLA-DQB1",
           "variant_name": "HLA-DQ8 proxy",
           "hgvs_protein": null,
@@ -344,13 +344,13 @@
           },
           "hla_proxy": {
             "hla_allele": "HLA-DQ8",
-            "r_squared_eur": 0.89,
+            "r_squared_eur": 0.935,
             "clinical_grade": false,
             "confirmatory_test_required": true
           },
           "evidence_level": 3,
-          "pmids": ["18311140", "20190752"],
-          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.89 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation.",
+          "pmids": ["18509540", "20190752"],
+          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.935 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation.",
           "cross_module": {
             "module": "nutrigenomics",
             "note": "Celiac-related HLA-DQ8 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
@@ -514,7 +514,7 @@
   "special_calling": {
     "HLA_proxy_calling": {
       "description": "HLA allele predictions use tag SNPs from the hla_proxy_lookup table. Each proxy has an ancestry-specific linkage disequilibrium (LD) r² value indicating prediction accuracy. r² values vary by ancestry population — EUR values are typically highest for these proxies. All HLA proxy results require confirmatory high-resolution HLA typing before clinical action. Drug hypersensitivity HLA proxies are clinical-grade only for population contexts with r²>=0.85; negative proxy calls are not exclusionary when ancestry is unknown or the relevant lookup r² is lower. Celiac DQ2/DQ8 proxies provide high negative predictive value but lower positive predictive value.",
-      "proxy_rsids": ["rs2395029", "rs144012689", "rs1061235", "rs9263726", "rs2187668", "rs7775228"],
+      "proxy_rsids": ["rs2395029", "rs144012689", "rs1061235", "rs9263726", "rs2187668", "rs7454108"],
       "drug_hypersensitivity_proxies": {
         "rs2395029": "HLA-B*57:01 (abacavir)",
         "rs144012689": "HLA-B*15:02 (carbamazepine SJS/TEN)",
@@ -523,13 +523,13 @@
       },
       "celiac_proxies": {
         "rs2187668": "HLA-DQ2.5",
-        "rs7775228": "HLA-DQ8"
+        "rs7454108": "HLA-DQ8"
       },
       "confirmatory_test_required": true
     },
     "celiac_DQ2_DQ8_combined": {
-      "description": "Celiac disease risk assessment combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7775228) results. DQ2 accounts for ~90–95% of celiac patients, DQ8 for ~5–10%. The key clinical utility is negative predictive value: absence of both DQ2 and DQ8 essentially rules out celiac disease (NPV >99%). Positive results indicate genetic susceptibility only — ~30–40% of the general population carries DQ2/DQ8 but only ~1% develops celiac disease.",
-      "rsids": ["rs2187668", "rs7775228"],
+      "description": "Celiac disease risk assessment combines HLA-DQ2 (rs2187668) and HLA-DQ8 (rs7454108) results. DQ2 accounts for ~90–95% of celiac patients, DQ8 for ~5–10%. The key clinical utility is negative predictive value: absence of both DQ2 and DQ8 essentially rules out celiac disease (NPV >99%). Positive results indicate genetic susceptibility only — ~30–40% of the general population carries DQ2/DQ8 but only ~1% develops celiac disease.",
+      "rsids": ["rs2187668", "rs7454108"],
       "combined_states": {
         "neither": {
           "label": "Low Celiac Risk",
@@ -549,7 +549,7 @@
         },
         "indeterminate": {
           "label": "Celiac Risk Undetermined (Insufficient HLA Coverage)",
-          "description": "The HLA-DQ2 (rs2187668) and/or DQ8 (rs7775228) proxy markers were not genotyped in this sample, so celiac disease cannot be excluded. The >99% negative predictive value of HLA-DQ typing applies only to an observed non-risk result, not to missing data. If gluten-related symptoms are present, HLA-DQ typing and/or serology (tTG-IgA) via a clinician is recommended."
+          "description": "The HLA-DQ2 (rs2187668) and/or DQ8 (rs7454108) proxy markers were not genotyped in this sample, so celiac disease cannot be excluded. The >99% negative predictive value of HLA-DQ typing applies only to an observed non-risk result, not to missing data. If gluten-related symptoms are present, HLA-DQ typing and/or serology (tTG-IgA) via a clinician is recommended."
         }
       }
     },
