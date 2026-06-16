@@ -283,14 +283,31 @@ describe("VariantDetailPanel", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("shows novel variant state when no gnomAD data", () => {
+  it("shows neutral 'Not found in gnomAD' for a catalogued AF-absent variant (is_novel=false) (#951)", () => {
+    // gnomAD-absent but catalogued (rsID + ClinVar) ⇒ is_novel=false: absence is
+    // a database-coverage statement, not novelty, so it must NOT be called novel.
     const variant = makeMockVariant({
       gnomad_af_global: null,
       gnomad_af_afr: null,
       gnomad_af_eur: null,
+      is_novel: false,
     })
     render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
-    expect(screen.getByText("Not found in gnomAD (novel variant)")).toBeInTheDocument()
+    expect(screen.getByText("Not found in gnomAD")).toBeInTheDocument()
+    expect(screen.queryByText(/Novel/i)).not.toBeInTheDocument()
+  })
+
+  it("shows 'Novel' only for a genuinely uncatalogued AF-absent variant (is_novel=true) (#951)", () => {
+    const variant = makeMockVariant({
+      gnomad_af_global: null,
+      gnomad_af_afr: null,
+      gnomad_af_eur: null,
+      is_novel: true,
+    })
+    render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
+    expect(
+      screen.getByText("Novel — absent from gnomAD and not catalogued in dbSNP/ClinVar"),
+    ).toBeInTheDocument()
   })
 
   it("shows evidence conflict warning", () => {

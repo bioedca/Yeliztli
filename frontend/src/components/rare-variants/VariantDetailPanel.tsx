@@ -257,8 +257,15 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
         {!hasAnyFreq && (
           <section className="mb-5">
             <h3 className="text-sm font-semibold text-foreground mb-2">Population Frequencies</h3>
+            {/* Absence from gnomAD is a database-coverage statement, not novelty.
+                Only the backend is_novel (absent from gnomAD AND uncatalogued in
+                dbSNP/ClinVar) means novel — a catalogued variant missing from the
+                exome-biased gnomAD bundle is "Not found in gnomAD", not novel
+                (#951; matches ResultsTable + the SearchSummary novel_count, #866). */}
             <p className="text-sm text-muted-foreground">
-              Not found in gnomAD (novel variant)
+              {variant.is_novel
+                ? "Novel — absent from gnomAD and not catalogued in dbSNP/ClinVar"
+                : "Not found in gnomAD"}
             </p>
           </section>
         )}
