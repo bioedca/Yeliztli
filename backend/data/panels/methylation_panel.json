@@ -146,12 +146,12 @@
         {
           "rsid": "rs202676",
           "gene": "FOLH1",
-          "variant_name": "T484S",
-          "hgvs_protein": "p.Thr484Ser",
-          "risk_allele": "A",
-          "ref_allele": "G",
+          "variant_name": "Y60H",
+          "hgvs_protein": "p.Tyr60His",
+          "risk_allele": "G",
+          "ref_allele": "A",
           "genotype_effects": {
-            "GG": {
+            "AA": {
               "category": "Standard",
               "effect_summary": "Standard folylpolyglutamate hydrolase activity. Normal intestinal folate absorption."
             },
@@ -163,7 +163,7 @@
               "category": "Moderate",
               "effect_summary": "Heterozygous FOLH1 variant. May modestly affect intestinal folate absorption."
             },
-            "AA": {
+            "GG": {
               "category": "Moderate",
               "effect_summary": "Homozygous FOLH1 variant. Reduced folylpolyglutamate hydrolase activity may decrease intestinal absorption of dietary folate polyglutamates."
             }
