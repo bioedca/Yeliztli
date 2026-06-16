@@ -372,5 +372,6 @@ class TestGenerateSvgsForSample:
         # Both findings should have svg_path set
         with sample_engine.connect() as conn:
             rows = conn.execute(sa.select(findings)).fetchall()
+            assert len(rows) == 2
             for row in rows:
                 assert row.svg_path is not None
