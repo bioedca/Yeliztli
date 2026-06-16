@@ -421,6 +421,38 @@ class TestSetPassword:
         )
         assert resp.status_code == 400
 
+    def test_change_password_wrong_current_returns_401_and_keeps_password(
+        self, auth_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """With a valid session but a non-empty WRONG current_password, the verify
+        gate (auth.py: ``verify_password`` check) rejects with 401 and the password
+        is left unchanged — the handler raised before ``_persist_auth_settings`` /
+        session invalidation.
+
+        This is the missing half of the set-password/remove-password verify-twin
+        (#984): ``test_change_password_requires_current`` only covers the 400
+        empty-current branch, and ``test_set_password_requires_auth_when_password_exists``
+        is stopped by the middleware (no session) with the *correct* password — so
+        the handler's wrong-password 401 branch was never exercised. Mirrors
+        ``test_remove_password_wrong_password_returns_401_and_keeps_auth``.
+        """
+        from backend.auth import _get_session_count
+
+        login = auth_client.post("/api/auth/login", json={"password": "testpin"})
+        assert "gi_session" in login.cookies  # valid session → passes middleware
+        assert _get_session_count() == 1
+
+        resp = auth_client.post(
+            "/api/auth/set-password",
+            json={"password": "newpin", "current_password": "wrongpin"},  # non-empty, WRONG
+        )
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Current password is incorrect."
+        # The change must NOT have run: the handler raised before persisting the
+        # new hash and before invalidating sessions.
+        assert not (tmp_data_dir / "config.toml").exists()
+        assert _get_session_count() == 1
+
     def test_login_no_password_set_returns_400(self, noauth_client: TestClient) -> None:
         resp = noauth_client.post("/api/auth/login", json={"password": "anything"})
         assert resp.status_code == 400
