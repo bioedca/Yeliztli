@@ -11,8 +11,11 @@ row of its small truth table, especially the one row that matters (Y + XX).
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
+from backend.analysis import finding_gate
 from backend.analysis.finding_gate import is_surfaceable
 
 
@@ -47,3 +50,25 @@ from backend.analysis.finding_gate import is_surfaceable
 )
 def test_is_surfaceable(chrom: str | None, inferred_sex: str | None, expected: bool) -> None:
     assert is_surfaceable(chrom, inferred_sex) is expected
+
+
+def test_caller_set_matches_documented_scope() -> None:
+    """#851: the docstring states only ``rare_variant_finder`` wires the gate today.
+
+    Lock that doc↔code agreement: scan ``backend/analysis/*.py`` for ``is_surfaceable``
+    references and assert the caller set is exactly the documented one. If a new
+    generator opts in (or the sole caller is removed) without updating the
+    finding_gate docstring's scope note, this fails — closing the drift the issue
+    reported (a "single predicate every generator consults" doc beside one caller).
+    ``sex_aneuploidy`` / ``kinship`` are exempt by design (see the module docstring).
+    """
+    analysis_dir = pathlib.Path(finding_gate.__file__).resolve().parent
+    callers = {
+        py.name
+        for py in analysis_dir.glob("*.py")
+        if py.name != "finding_gate.py" and "is_surfaceable" in py.read_text(encoding="utf-8")
+    }
+    assert callers == {"rare_variant_finder.py"}, (
+        "is_surfaceable caller set drifted from the documented scope (#851) — update "
+        f"finding_gate.py's docstring and this guard together. Found: {sorted(callers)}"
+    )

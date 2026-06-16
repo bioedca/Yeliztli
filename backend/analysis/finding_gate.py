@@ -3,9 +3,22 @@
 A genotyping chip reports a call at *every* probe regardless of biology, so a
 finding can be surfaced that is impossible for the individual — most starkly a
 Y-chromosome "Pathogenic SRY" finding on a female (XX) sample. ``is_surfaceable``
-is the single predicate every finding generator consults before emitting a
-finding, so the chromosome/sex rule lives in one place rather than being
-re-derived (or forgotten) per module.
+is the shared predicate a finding generator consults before emitting a finding
+that carries a chromosome, so the chromosome/sex rule lives in one place rather
+than being re-derived (or forgotten) per module.
+
+**Scope today (#851).** Only ``rare_variant_finder`` — the one generator that
+works directly on raw variants carrying a ``chrom`` — currently wires this gate;
+any other generator that could emit a sex-chromosome finding must opt in
+explicitly with the same ``is_surfaceable(chrom, inferred_sex)`` filter. The
+practical surface is empty for now: the curated panels carry only autosomal / X /
+MT loci (no chrY), the Y-haplogroup call is itself gated to ``inferred_sex == "XY"``
+(:func:`backend.analysis.ancestry.assign_haplogroups`), and ``sex_aneuploidy`` /
+``kinship`` are *intentionally* about the sex chromosomes / relatedness and are
+exempt by design (gating them on ``"XX"`` would defeat their purpose). Wiring a
+new chrY-capable generator needs the same per-module chrY×XX-dropped / XY-kept
+test (#711). A guard in ``tests/backend/test_finding_gate.py`` pins this caller
+set so the doc and code can't drift apart again.
 
 Biological sex is inferred once per run via
 :func:`backend.services.sex_inference.infer_biological_sex` and threaded in, so
