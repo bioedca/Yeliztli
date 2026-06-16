@@ -707,31 +707,32 @@
         {
           "rsid": "rs9273363",
           "gene": "HLA-DQB1",
-          "variant_name": "HLA-DQ risk proxy (T1D)",
+          "variant_name": "HLA-DQ region marker (rs9273363) — not a validated single-SNP T1D proxy",
           "hgvs_protein": null,
-          "risk_allele": "C",
-          "ref_allele": "T",
+          "risk_allele": "A",
+          "ref_allele": "C",
           "genotype_effects": {
-            "TT": {
-              "category": "Standard",
-              "effect_summary": "No HLA-DQ T1D risk proxy allele detected. Baseline population risk for type 1 diabetes at this locus."
-            },
-            "TC": {
-              "category": "Elevated",
-              "effect_summary": "One copy of HLA-DQ T1D risk proxy allele. HLA class II alleles account for ~50% of the genetic risk for type 1 diabetes. Associated with aberrant presentation of pancreatic beta-cell autoantigens."
-            },
-            "CT": {
-              "category": "Elevated",
-              "effect_summary": "One copy of HLA-DQ T1D risk proxy allele. HLA class II alleles account for ~50% of the genetic risk for type 1 diabetes. Associated with aberrant presentation of pancreatic beta-cell autoantigens."
-            },
             "CC": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous HLA-DQ T1D risk proxy. Strongly elevated type 1 diabetes risk. HLA-DQ2/DQ8 haplotypes are the primary genetic determinants of T1D susceptibility, driving autoimmune destruction of pancreatic beta cells."
+              "category": "Standard",
+              "effect_summary": "HLA-DQ region marker (rs9273363). This is a non-causal tag SNP near HLA-DQB1; a single SNP cannot faithfully represent the DR3-DQ2 / DR4-DQ8 (risk) vs DQB1*06:02 (protective) haplotype structure that drives type 1 diabetes risk, and its single-allele direction is contested in the GWAS Catalog. No type 1 diabetes risk is inferred from this genotype; HLA-DQ T1D risk requires direct HLA-DQ typing."
+            },
+            "CA": {
+              "category": "Standard",
+              "effect_summary": "HLA-DQ region marker (rs9273363). This is a non-causal tag SNP near HLA-DQB1; a single SNP cannot faithfully represent the DR3-DQ2 / DR4-DQ8 (risk) vs DQB1*06:02 (protective) haplotype structure that drives type 1 diabetes risk, and its single-allele direction is contested in the GWAS Catalog. No type 1 diabetes risk is inferred from this genotype; HLA-DQ T1D risk requires direct HLA-DQ typing."
+            },
+            "AC": {
+              "category": "Standard",
+              "effect_summary": "HLA-DQ region marker (rs9273363). This is a non-causal tag SNP near HLA-DQB1; a single SNP cannot faithfully represent the DR3-DQ2 / DR4-DQ8 (risk) vs DQB1*06:02 (protective) haplotype structure that drives type 1 diabetes risk, and its single-allele direction is contested in the GWAS Catalog. No type 1 diabetes risk is inferred from this genotype; HLA-DQ T1D risk requires direct HLA-DQ typing."
+            },
+            "AA": {
+              "category": "Standard",
+              "effect_summary": "HLA-DQ region marker (rs9273363). This is a non-causal tag SNP near HLA-DQB1; a single SNP cannot faithfully represent the DR3-DQ2 / DR4-DQ8 (risk) vs DQB1*06:02 (protective) haplotype structure that drives type 1 diabetes risk, and its single-allele direction is contested in the GWAS Catalog. No type 1 diabetes risk is inferred from this genotype; HLA-DQ T1D risk requires direct HLA-DQ typing."
             }
           },
-          "evidence_level": 3,
+          "evidence_level": 1,
           "pmids": ["17554260", "19430480", "25751624"],
-          "recommendation_text": "HLA-DQ alleles are the strongest genetic determinants of type 1 diabetes, accounting for approximately half of genetic risk. This proxy SNP tags high-risk HLA-DQ haplotypes. Family members of T1D patients who carry risk alleles may benefit from autoantibody screening (GAD65, IA-2, ZnT8). Early detection can guide monitoring and enable enrollment in prevention trials."
+          "coverage_note": "rs9273363 was previously curated as an HLA-DQ T1D risk proxy with the 0.76-major plus-strand allele C as the risk allele — so the majority CC genotype was called 'strongly elevated' for a ~0.3%-prevalence disease, which is epidemiologically incoherent — and with ref_allele 'T', the minus-strand complement of the real minor allele A, so a real A/C heterozygote did not resolve. Ensembl GRCh37 (6:32626272) gives plus-strand alleles C/A/G (MAF 0.237, minor allele A); the EBI GWAS Catalog reports a contested T1D direction — rs9273363-A (OR 5.48, freq 0.13, p 5e-138) alongside multiple rs9273363-C effect-allele entries (freq ~0.75) for type 1 diabetes / diabetic ketoacidosis. Because the single-SNP direction is not robustly establishable and a tag SNP cannot capture the dominant protective DQB1*06:02 haplotype, this locus is retained as a non-diagnostic HLA-DQ region marker only (mirroring rs2858884 in the sleep panel, #608); no T1D risk is inferred from any genotype (#731). Allele/frequency facts from Ensembl GRCh37 REST and the EBI GWAS Catalog REST, accessed 2026-06-16.",
+          "recommendation_text": "HLA-DQ alleles are the strongest genetic determinants of type 1 diabetes, but a single array tag SNP (rs9273363) cannot faithfully represent the DR-DQ risk/protective haplotype structure and its single-allele T1D direction is contested, so no T1D risk is inferred from this marker. If type 1 diabetes is a clinical concern (for example a first-degree relative with T1D), HLA-DQ risk assessment requires direct HLA-DQ typing and, where indicated, islet-autoantibody screening (GAD65, IA-2, ZnT8) — discuss with a clinician."
         },
         {
           "rsid": "rs689",

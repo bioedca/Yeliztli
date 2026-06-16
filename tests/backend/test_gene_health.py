@@ -156,7 +156,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs6910071", "6", 32574073, "GA"),  # HLA-DRB1 shared epitope het -> Elevated
     ("rs2476601", "1", 114377568, "GA"),  # PTPN22 R620W het -> Moderate
     ("rs7574865", "2", 191964633, "GT"),  # STAT4 het -> Moderate
-    ("rs9273363", "6", 32658525, "TC"),  # HLA-DQB1 T1D proxy het -> Elevated
+    ("rs9273363", "6", 32626272, "CA"),  # HLA-DQB1 non-diagnostic HLA-DQ marker (#731) -> Standard
     ("rs689", "11", 2159842, "TA"),  # INS VNTR proxy het -> Moderate
     ("rs2066844", "16", 50745926, "CT"),  # NOD2 R702W het -> Moderate
     ("rs11209026", "1", 67705958, "GA"),  # IL23R R381Q het -> Standard/protective
@@ -459,6 +459,49 @@ class TestSNPScoring:
         for genotype in ("AA", "AG", "GA", "GG"):
             result = _score_snp(snp, genotype)
             assert result.category == STANDARD, f"{genotype} should be Standard, not risk"
+
+    def test_hla_dqb1_rs9273363_demoted_to_non_diagnostic_marker(
+        self, panel: GeneHealthPanel
+    ) -> None:
+        """HLA-DQB1 rs9273363 (#731): re-keyed to the real plus-strand C/A alleles
+        and demoted to a non-diagnostic HLA-DQ region marker.
+
+        Two bugs were fixed together:
+          - Strand mis-key: the panel keyed ``ref_allele="T"`` (the minus-strand
+            complement of the real minor allele ``A``), so a real ``A/C``
+            heterozygote matched no curated row and dropped to *Indeterminate*
+            (#608's unmodeled-allele path) — the carrier was hidden. The
+            observed-genotype-resolves assertions below (real ``CA``/``AC`` now
+            score, ``present_in_sample`` true) are the tri-allelic locus's coverage
+            that the set-based strand guard structurally cannot provide.
+          - Contested/incoherent direction: the old panel made the 0.76-major allele
+            ``C`` the risk allele, scoring the majority ``CC`` genotype "Elevated /
+            strongly elevated T1D risk" for a ~0.3%-prevalence disease. The GWAS
+            Catalog reports a contested single-SNP direction (A: OR 5.48; C also an
+            effect allele), and a tag SNP cannot capture the protective DQB1*06:02
+            haplotype, so NO T1D risk is inferred from any genotype now.
+        """
+        snp = self._get_snp(panel, "rs9273363")
+        # Re-keyed to the real Ensembl GRCh37 plus-strand alleles (no impossible T).
+        assert snp.risk_allele == "A"
+        assert snp.ref_allele == "C"
+
+        # Every real genotype resolves to the curated non-diagnostic entry (Standard,
+        # present_in_sample) — NOT Indeterminate (the old mis-strand result for a real
+        # A/C het) and NOT Elevated (the old major-CC call).
+        for genotype in ("CC", "CA", "AC", "AA"):
+            result = _score_snp(snp, genotype)
+            assert result.category == STANDARD, f"{genotype} must be Standard (non-diagnostic)"
+            assert result.present_in_sample is True
+
+        # The framing infers no T1D risk and labels it a marker, not a risk call.
+        for effect in snp.genotype_effects.values():
+            summary = effect["effect_summary"].lower()
+            assert "no type 1 diabetes risk is inferred" in summary
+            assert "elevated" not in summary
+        # variant_name reads as a non-diagnostic marker, not a "risk proxy".
+        assert "marker" in snp.variant_name.lower()
+        assert "not a validated" in snp.variant_name.lower()
 
     def test_cdkn2b_as1_plus_strand_and_protective_direction(self, panel: GeneHealthPanel) -> None:
         """CDKN2B-AS1/9p21 (rs2157719): the entry must be on the plus strand (C/T,
