@@ -23,6 +23,22 @@ const COMPLETE_GENE: GeneSummary = {
   gene_caveat: null,
 }
 
+const NORMAL_GENE: GeneSummary = {
+  ...COMPLETE_GENE,
+  diplotype: "*1/*1",
+  phenotype: "Normal Metabolizer",
+  activity_score: 2.0,
+  ehr_notation: "CYP2C19 *1/*1",
+}
+
+const POOR_GENE: GeneSummary = {
+  ...COMPLETE_GENE,
+  diplotype: "*2/*2",
+  phenotype: "Poor Metabolizer",
+  activity_score: 0.0,
+  ehr_notation: "CYP2C19 *2/*2",
+}
+
 const PARTIAL_GENE: GeneSummary = {
   gene: "CYP2D6",
   diplotype: "*1/*4",
@@ -93,6 +109,23 @@ describe("MetabolizerCard", () => {
   it("shows Complete confidence indicator", () => {
     render(<MetabolizerCard gene={COMPLETE_GENE} />)
     expect(screen.getByText("Complete")).toBeInTheDocument()
+  })
+
+  it("colors the card by phenotype rather than Complete confidence", () => {
+    const { rerender } = render(<MetabolizerCard gene={POOR_GENE} />)
+    const poorCard = screen.getByRole("article", {
+      name: "CYP2C19 metabolizer status",
+    })
+    expect(poorCard).toHaveClass("bg-amber-50/70")
+    expect(poorCard).not.toHaveClass("bg-emerald-50/60")
+    expect(screen.getByText("Complete")).toHaveClass("text-emerald-700")
+
+    rerender(<MetabolizerCard gene={NORMAL_GENE} />)
+    const normalCard = screen.getByRole("article", {
+      name: "CYP2C19 metabolizer status",
+    })
+    expect(normalCard).toHaveClass("bg-emerald-50/60")
+    expect(normalCard).not.toHaveClass("bg-amber-50/70")
   })
 
   it("shows Partial confidence indicator with note", () => {
