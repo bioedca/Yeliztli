@@ -96,6 +96,13 @@ def findings_client(
             "finding_text": "CYP2C19 *1/*2 IM",
         },
         {
+            "module": "cardiovascular",
+            "category": "monogenic_variant",
+            "evidence_level": 4,
+            "gene_symbol": "LDLR",
+            "finding_text": "LDLR pathogenic",
+        },
+        {
             "module": "nutrigenomics",
             "category": "pathway_summary",
             "evidence_level": 2,
@@ -115,6 +122,13 @@ def findings_client(
             "evidence_level": 3,
             "gene_symbol": "CFTR",
             "finding_text": "CFTR carrier",
+        },
+        {
+            "module": "allergy",
+            "category": "drug_hypersensitivity",
+            "evidence_level": 3,
+            "gene_symbol": "HLA-B",
+            "finding_text": "HLA-B hypersensitivity alert",
         },
         {
             "module": "gene_health",
@@ -156,7 +170,7 @@ class TestListFindings:
         resp = findings_client.get("/api/analysis/findings?sample_id=1")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 6
+        assert len(data) == 8
 
     def test_sorted_by_evidence_level_desc(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1")
@@ -173,7 +187,7 @@ class TestListFindings:
     def test_filter_by_min_stars(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1&min_stars=3")
         data = resp.json()
-        assert len(data) == 4
+        assert len(data) == 6
         for f in data:
             assert f["evidence_level"] >= 3
 
@@ -240,7 +254,7 @@ class TestFindingsSummary:
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total_findings"] == 6
+        assert data["total_findings"] == 8
         modules = {m["module"] for m in data["modules"]}
         assert "cancer" in modules
         assert "pharmacogenomics" in modules
@@ -250,9 +264,64 @@ class TestFindingsSummary:
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
         data = resp.json()
         high_conf = data["high_confidence_findings"]
-        assert len(high_conf) <= 5
-        for f in high_conf:
-            assert f["evidence_level"] >= 3
+        assert len(high_conf) == 5
+        assert [f["module"] for f in high_conf] == [
+            "cancer",
+            "cardiovascular",
+            "pharmacogenomics",
+            "allergy",
+            "carrier_status",
+        ]
+        assert [f["evidence_level"] for f in high_conf] == [4, 4, 4, 3, 3]
+        assert all(f["evidence_level"] >= 3 for f in high_conf)
+        assert all(f["module"] != "gene_health" for f in high_conf)
+
+    async def test_summary_high_confidence_selects_strongest_top_five(self, monkeypatch, tmp_path):
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'summary_sample.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            rows = [
+                ("cancer", 4, "BRCA1 Pathogenic"),
+                ("cardiovascular", 4, "LDLR pathogenic"),
+                ("pharmacogenomics", 4, "CYP2C19 *1/*2 IM"),
+                ("allergy", 3, "HLA-B hypersensitivity alert"),
+                ("carrier_status", 3, "CFTR carrier"),
+                ("gene_health", 3, "Alzheimer's disease risk (APOE ε4)"),
+                ("ancestry", 2, "82% European ancestry"),
+            ]
+            with sample_engine.begin() as conn:
+                for module, evidence_level, finding_text in rows:
+                    conn.execute(
+                        findings.insert().values(
+                            module=module,
+                            category="summary_regression",
+                            evidence_level=evidence_level,
+                            finding_text=finding_text,
+                        )
+                    )
+
+            monkeypatch.setattr(
+                findings_route, "_get_sample_engine", lambda sample_id: sample_engine
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            summary = await findings_route.findings_summary(sample_id=1)
+            high_conf = summary.high_confidence_findings
+
+            assert len(high_conf) == 5
+            assert [f.module for f in high_conf] == [
+                "cancer",
+                "cardiovascular",
+                "pharmacogenomics",
+                "allergy",
+                "carrier_status",
+            ]
+            assert [f.evidence_level for f in high_conf] == [4, 4, 4, 3, 3]
+            assert all(f.module != "gene_health" for f in high_conf)
+        finally:
+            sample_engine.dispose()
 
     def test_summary_module_counts(self, findings_client):
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
