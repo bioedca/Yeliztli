@@ -16,7 +16,7 @@ from backend.disclaimers import (
 )
 
 
-def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
+def _runner(sample_engine: sa.Engine) -> tuple[int, list[str], dict[str, str]]:
     from backend.analysis.thrombophilia import (
         assess_thrombophilia,
         load_thrombophilia_panel,
@@ -26,7 +26,7 @@ def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
     panel = load_thrombophilia_panel()
     assessment = assess_thrombophilia(panel, sample_engine)
     count = store_thrombophilia_findings(assessment, sample_engine)
-    return count, assessment.indeterminate_loci
+    return count, assessment.indeterminate_loci, assessment.indeterminate_reasons
 
 
 router = make_risk_router(

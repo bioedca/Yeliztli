@@ -15,6 +15,10 @@ import sqlalchemy as sa
 
 from backend.analysis.risk_genotype import (
     ALLELE_TYPE_INDEL,
+    INDETERMINATE_NO_CALL,
+    INDETERMINATE_OFF_CHIP,
+    INDETERMINATE_PALINDROME_STRAND_AMBIGUOUS,
+    INDETERMINATE_UNRESOLVED,
     PROBE_ABSENT,
     PROBE_NO_CALL,
     PROBE_TYPED,
@@ -30,6 +34,7 @@ from backend.analysis.risk_genotype import (
     read_genotypes,
     store_risk_findings,
 )
+from backend.api.routes.risk_common import fetch_risk_findings
 from backend.db.tables import findings, raw_variants
 
 
@@ -145,6 +150,59 @@ class TestClassify:
         assessment = classify(panel, dosages, readouts)
         assert "rsB" in assessment.indeterminate_loci
         assert "rsA" not in assessment.indeterminate_loci
+        assert assessment.indeterminate_reasons == {"rsB": INDETERMINATE_OFF_CHIP}
+
+    def test_indeterminate_reasons_distinguish_no_call_unresolved_and_palindrome(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        _seed(
+            sample_engine,
+            [
+                {"rsid": "rsPAL", "chrom": "6", "pos": 1, "genotype": "AA"},
+                {"rsid": "rsNC", "chrom": "6", "pos": 2, "genotype": "--"},
+                {"rsid": "rsUN", "chrom": "6", "pos": 3, "genotype": "AC"},
+            ],
+        )
+        panel = RiskPanel(
+            module="testmod",
+            version="1.0.0",
+            description="",
+            category="risk_genotype",
+            loci=[
+                RiskLocus(
+                    rsid="rsPAL",
+                    gene_symbol="GENE",
+                    label="Pal",
+                    risk_allele="A",
+                    ref_allele="T",
+                ),
+                RiskLocus(
+                    rsid="rsNC",
+                    gene_symbol="GENE",
+                    label="No call",
+                    risk_allele="A",
+                    ref_allele="G",
+                ),
+                RiskLocus(
+                    rsid="rsUN",
+                    gene_symbol="GENE",
+                    label="Unresolved",
+                    risk_allele="A",
+                    ref_allele="T",
+                ),
+            ],
+            genotype_models=[],
+        )
+        readouts = read_genotypes(panel, sample_engine)
+        dosages = compute_dosages(panel, readouts)
+        assessment = classify(panel, dosages, readouts)
+
+        assert assessment.indeterminate_reasons == {
+            "rsPAL": INDETERMINATE_PALINDROME_STRAND_AMBIGUOUS,
+            "rsNC": INDETERMINATE_NO_CALL,
+            "rsUN": INDETERMINATE_UNRESOLVED,
+        }
 
 
 class TestAncestryGate:
@@ -806,3 +864,15 @@ class TestStoreRiskFindings:
         assert row.clinvar_significance is None
         detail = json.loads(row.detail_json)
         assert detail["model_id"] == "hom_a"
+
+    def test_fetch_risk_findings_exposes_indeterminate_reasons(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        assessment = self._assessment_with_call(sample_engine)
+        store_risk_findings(assessment, sample_engine)
+
+        items = fetch_risk_findings(sample_engine, "testmod")
+
+        assert items[0]["indeterminate_loci"] == ["rsB"]
+        assert items[0]["indeterminate_reasons"] == {"rsB": INDETERMINATE_OFF_CHIP}

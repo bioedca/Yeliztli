@@ -13,13 +13,13 @@ from backend.api.routes.risk_common import make_risk_router
 from backend.disclaimers import LHON_DISCLAIMER_TEXT, LHON_DISCLAIMER_TITLE
 
 
-def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
+def _runner(sample_engine: sa.Engine) -> tuple[int, list[str], dict[str, str]]:
     from backend.analysis.lhon import assess_lhon, load_lhon_panel, store_lhon_findings
 
     panel = load_lhon_panel()
     assessment = assess_lhon(panel, sample_engine)
     count = store_lhon_findings(assessment, sample_engine)
-    return count, assessment.indeterminate_loci
+    return count, assessment.indeterminate_loci, assessment.indeterminate_reasons
 
 
 router = make_risk_router(

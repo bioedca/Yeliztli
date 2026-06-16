@@ -37,6 +37,38 @@ function evidenceLabel(level: number | null): string {
   }
 }
 
+function indeterminateReasonLabel(reason: string): string {
+  switch (reason) {
+    case "off_chip":
+      return "not typed on this array"
+    case "no_call":
+      return "no-call in this sample"
+    case "palindrome_strand_ambiguous":
+      return "strand-ambiguous palindromic homozygote"
+    case "discordant_haplotype":
+      return "discordant haplotype markers"
+    case "unresolved":
+      return "alleles could not be resolved"
+    default:
+      return reason.replace(/_/g, " ")
+  }
+}
+
+function indeterminateReasonItems(
+  detail: Record<string, unknown> | null,
+): Array<{ rsid: string; reason: string }> {
+  const raw = detail?.indeterminate_reasons
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return []
+  }
+  return Object.entries(raw)
+    .filter(
+      (entry): entry is [string, string] =>
+        typeof entry[0] === "string" && typeof entry[1] === "string",
+    )
+    .map(([rsid, reason]) => ({ rsid, reason }))
+}
+
 // ── Components ───────────────────────────────────────────────────────
 
 function ModuleSummaryChip({
@@ -83,6 +115,7 @@ function FindingRow({ finding }: { finding: Finding }) {
       ? `${meta.route}?sample_id=${sampleParam}`
       : meta.route
     : null
+  const reasonItems = indeterminateReasonItems(finding.detail)
 
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -176,6 +209,23 @@ function FindingRow({ finding }: { finding: Finding }) {
             </span>
           )}
         </div>
+
+        {reasonItems.length > 0 && (
+          <p
+            className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400"
+            data-testid="finding-indeterminate-reasons"
+          >
+            Indeterminate{" "}
+            {reasonItems.length === 1 ? "variant" : "variants"}:{" "}
+            {reasonItems.map((item, index) => (
+              <span key={item.rsid}>
+                <span className="font-mono">{item.rsid}</span>{" "}
+                {indeterminateReasonLabel(item.reason)}
+                {index < reasonItems.length - 1 ? "; " : ""}
+              </span>
+            ))}
+          </p>
+        )}
       </div>
     </div>
   )

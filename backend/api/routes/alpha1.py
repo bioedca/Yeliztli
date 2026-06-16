@@ -13,7 +13,7 @@ from backend.api.routes.risk_common import make_risk_router
 from backend.disclaimers import ALPHA1_DISCLAIMER_TEXT, ALPHA1_DISCLAIMER_TITLE
 
 
-def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
+def _runner(sample_engine: sa.Engine) -> tuple[int, list[str], dict[str, str]]:
     from backend.analysis.alpha1 import (
         assess_alpha1,
         load_alpha1_panel,
@@ -23,7 +23,7 @@ def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
     panel = load_alpha1_panel()
     assessment = assess_alpha1(panel, sample_engine)
     count = store_alpha1_findings(assessment, sample_engine)
-    return count, assessment.indeterminate_loci
+    return count, assessment.indeterminate_loci, assessment.indeterminate_reasons
 
 
 router = make_risk_router(

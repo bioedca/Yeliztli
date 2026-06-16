@@ -61,6 +61,7 @@ class GateAcknowledgeResponse(BaseModel):
 class RunResponse(BaseModel):
     findings_count: int
     indeterminate_loci: list[str]
+    indeterminate_reasons: dict[str, str] = {}
 
 
 def _gate_status(sample_engine: sa.Engine) -> tuple[bool, str | None]:
@@ -156,4 +157,8 @@ def run(sample_id: int = Query(..., description="Sample ID")) -> RunResponse:
     panel = load_parkinsons_panel()
     assessment = assess_parkinsons(panel, engine)
     count = store_parkinsons_findings(assessment, engine)
-    return RunResponse(findings_count=count, indeterminate_loci=assessment.indeterminate_loci)
+    return RunResponse(
+        findings_count=count,
+        indeterminate_loci=assessment.indeterminate_loci,
+        indeterminate_reasons=assessment.indeterminate_reasons,
+    )

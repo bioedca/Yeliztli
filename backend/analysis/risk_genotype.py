@@ -43,7 +43,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.allele_match import risk_dosage
-from backend.analysis.zygosity import _NO_CALL_SENTINELS, is_no_call
+from backend.analysis.zygosity import _NO_CALL_SENTINELS, COMPLEMENT, is_no_call
 from backend.db.tables import findings, raw_variants, sample_metadata_table
 
 logger = structlog.get_logger(__name__)
@@ -54,6 +54,13 @@ _PANELS_DIR = Path(__file__).resolve().parent.parent / "data" / "panels"
 PROBE_TYPED = "typed"
 PROBE_NO_CALL = "no_call"
 PROBE_ABSENT = "absent"
+
+# Per-locus reasons for an indeterminate risk dosage.
+INDETERMINATE_OFF_CHIP = "off_chip"
+INDETERMINATE_NO_CALL = "no_call"
+INDETERMINATE_PALINDROME_STRAND_AMBIGUOUS = "palindrome_strand_ambiguous"
+INDETERMINATE_UNRESOLVED = "unresolved"
+INDETERMINATE_DISCORDANT_HAPLOTYPE = "discordant_haplotype"
 
 # Sample file_formats whose mitochondrial positions are the GRCh37/rCRS reference
 # (NC_012920), so an MT locus's curated rCRS position can be matched directly
@@ -328,6 +335,7 @@ class RiskAssessment:
     dosages: dict[str, int | None] = field(default_factory=dict)
     readouts: dict[str, ProbeReadout] = field(default_factory=dict)
     indeterminate_loci: list[str] = field(default_factory=list)
+    indeterminate_reasons: dict[str, str] = field(default_factory=dict)
     # Tag loci whose risk dosage was vetoed to indeterminate by a discordant cis
     # partner (haplotype-concordance QC, e.g. APOL1 G1; #160).
     discordant_loci: list[str] = field(default_factory=list)
@@ -688,6 +696,61 @@ def reconcile_concordance(
             adjusted[loc.rsid] = None
             discordant.append(loc.rsid)
     return adjusted, discordant
+
+
+def _is_palindromic_homozygote(locus: RiskLocus, genotype: str | None) -> bool:
+    """True when a typed SNV call is a strand-ambiguous A/T or C/G homozygote."""
+    if locus.allele_type != ALLELE_TYPE_SNV or not locus.allow_strand_complement:
+        return False
+    risk = locus.risk_allele.strip().upper()
+    ref = locus.ref_allele.strip().upper()
+    if risk not in COMPLEMENT or ref not in COMPLEMENT or ref != COMPLEMENT[risk]:
+        return False
+    if is_no_call(genotype) or genotype is None:
+        return False
+    gt = genotype.strip().upper()
+    if len(gt) != 2:
+        return False
+    alleles = set(gt)
+    return len(alleles) == 1 and alleles <= {risk, ref}
+
+
+def _indeterminate_reason_for_locus(
+    locus: RiskLocus,
+    readout: ProbeReadout | None,
+    *,
+    discordant: bool,
+) -> str:
+    """Classify why a locus has no final dosage."""
+    if discordant:
+        return INDETERMINATE_DISCORDANT_HAPLOTYPE
+    if readout is None or readout.status == PROBE_ABSENT:
+        return INDETERMINATE_OFF_CHIP
+    if readout.status == PROBE_NO_CALL:
+        return INDETERMINATE_NO_CALL
+    if _is_palindromic_homozygote(locus, readout.genotype):
+        return INDETERMINATE_PALINDROME_STRAND_AMBIGUOUS
+    return INDETERMINATE_UNRESOLVED
+
+
+def indeterminate_reasons(
+    panel: RiskPanel,
+    dosages: dict[str, int | None],
+    readouts: dict[str, ProbeReadout],
+    discordant_loci: list[str] | None = None,
+) -> dict[str, str]:
+    """Per-rsID reason map for loci whose final dosage is indeterminate."""
+    discordant = set(discordant_loci or [])
+    reasons: dict[str, str] = {}
+    for loc in panel.loci:
+        if dosages.get(loc.rsid) is not None:
+            continue
+        reasons[loc.rsid] = _indeterminate_reason_for_locus(
+            loc,
+            readouts.get(loc.rsid),
+            discordant=loc.rsid in discordant,
+        )
+    return reasons
 
 
 # ── Classification ──────────────────────────────────────────────────────────
@@ -1155,6 +1218,7 @@ def classify(
     assessment.indeterminate_loci = [
         loc.rsid for loc in panel.loci if dosages.get(loc.rsid) is None
     ]
+    assessment.indeterminate_reasons = indeterminate_reasons(panel, dosages, readouts, discordant)
     assessment.discordant_loci = discordant
 
     matched = [m for m in panel.genotype_models if _model_matches(m, dosages)]
@@ -1247,6 +1311,7 @@ def store_risk_findings(assessment: RiskAssessment, sample_engine: sa.Engine) ->
     for call in assessment.calls:
         detail = dict(call.detail)
         detail["indeterminate_loci"] = assessment.indeterminate_loci
+        detail["indeterminate_reasons"] = assessment.indeterminate_reasons
         rows.append(
             {
                 "module": assessment.module,

@@ -40,6 +40,7 @@ class RiskFindingResponse(BaseModel):
     absolute_risk_context: str | None = None
     caveats: list[str] = []
     indeterminate_loci: list[str] = []
+    indeterminate_reasons: dict[str, str] = {}
     phase_inferred: bool = False
     call_confidence: str | None = None
     confidence_note: str | None = None
@@ -59,6 +60,7 @@ class RiskDisclaimerResponse(BaseModel):
 class RiskRunResponse(BaseModel):
     findings_count: int
     indeterminate_loci: list[str]
+    indeterminate_reasons: dict[str, str] = {}
 
 
 def resolve_sample_engine(sample_id: int) -> sa.Engine:
@@ -120,6 +122,7 @@ def fetch_risk_findings(sample_engine: sa.Engine, module: str) -> list[dict[str,
                 "absolute_risk_context": detail.get("absolute_risk_context"),
                 "caveats": detail.get("caveats", []),
                 "indeterminate_loci": detail.get("indeterminate_loci", []),
+                "indeterminate_reasons": detail.get("indeterminate_reasons", {}),
                 "phase_inferred": detail.get("phase_inferred", False),
                 "call_confidence": detail.get("call_confidence"),
                 "confidence_note": detail.get("confidence_note"),
@@ -136,7 +139,7 @@ def make_risk_router(
     tags: list[str],
     disclaimer_title: str,
     disclaimer_text: str,
-    runner: Callable[[sa.Engine], tuple[int, list[str]]],
+    runner: Callable[[sa.Engine], tuple[int, list[str]] | tuple[int, list[str], dict[str, str]]],
 ) -> APIRouter:
     """Build a disclaimer / findings / run router for a risk-genotype module.
 
@@ -161,7 +164,16 @@ def make_risk_router(
     @router.post("/run", dependencies=[Depends(require_fresh_sample)])
     def run(sample_id: int = Query(..., description="Sample ID")) -> RiskRunResponse:
         engine = resolve_sample_engine(sample_id)
-        count, indeterminate = runner(engine)
-        return RiskRunResponse(findings_count=count, indeterminate_loci=indeterminate)
+        result = runner(engine)
+        if len(result) == 3:
+            count, indeterminate, indeterminate_reasons = result
+        else:
+            count, indeterminate = result
+            indeterminate_reasons = {}
+        return RiskRunResponse(
+            findings_count=count,
+            indeterminate_loci=indeterminate,
+            indeterminate_reasons=indeterminate_reasons,
+        )
 
     return router

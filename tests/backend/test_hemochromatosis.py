@@ -91,6 +91,7 @@ class TestNegativeAndCombinations:
         # "GG"), so it is reported indeterminate rather than confidently reference
         # (#844). No finding either way.
         assert a.indeterminate_loci == ["rs1799945"]
+        assert a.indeterminate_reasons == {"rs1799945": "palindrome_strand_ambiguous"}
 
     def test_compound_heterozygous(self, panel, sample_engine: sa.Engine) -> None:
         _seed(

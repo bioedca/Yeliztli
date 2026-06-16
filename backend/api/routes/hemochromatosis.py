@@ -46,6 +46,7 @@ class HemochromatosisFindingResponse(BaseModel):
     penetrance_text: str = ""
     caveats: list[str] = []
     indeterminate_loci: list[str] = []
+    indeterminate_reasons: dict[str, str] = {}
     sex_used: str | None = None
     pmids: list[str] = []
 
@@ -63,6 +64,7 @@ class HemochromatosisDisclaimerResponse(BaseModel):
 class HemochromatosisRunResponse(BaseModel):
     findings_count: int
     indeterminate_loci: list[str]
+    indeterminate_reasons: dict[str, str] = {}
 
 
 # ── Helpers ──────────────────────────────────────────────────────
@@ -123,6 +125,7 @@ def _fetch_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
                 "penetrance_text": detail.get("penetrance_text", ""),
                 "caveats": detail.get("caveats", []),
                 "indeterminate_loci": detail.get("indeterminate_loci", []),
+                "indeterminate_reasons": detail.get("indeterminate_reasons", {}),
                 "sex_used": detail.get("sex_used"),
                 "pmids": pmids,
             }
@@ -178,4 +181,5 @@ def run_hemochromatosis_analysis(
     return HemochromatosisRunResponse(
         findings_count=count,
         indeterminate_loci=assessment.indeterminate_loci,
+        indeterminate_reasons=assessment.indeterminate_reasons,
     )

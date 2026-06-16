@@ -272,6 +272,42 @@ describe("FindingsExplorer", () => {
     expect(await screen.findByText("Poor Metabolizer")).toBeInTheDocument()
   })
 
+  it("renders risk-genotype indeterminate reasons from finding detail", async () => {
+    const alpha1Finding: Finding = {
+      ...SAMPLE_FINDINGS[0],
+      id: 10,
+      module: "alpha1",
+      category: "risk_genotype",
+      gene_symbol: "SERPINA1",
+      rsid: "rs28929474",
+      finding_text: "SERPINA1 PiZZ (severe deficiency).",
+      clinvar_significance: null,
+      detail: {
+        indeterminate_loci: ["rs17580"],
+        indeterminate_reasons: {
+          rs17580: "palindrome_strand_ambiguous",
+        },
+      },
+    }
+    setupFetchMock([alpha1Finding], {
+      total_findings: 1,
+      modules: [
+        {
+          module: "alpha1",
+          count: 1,
+          max_evidence_level: 4,
+          top_finding_text: alpha1Finding.finding_text,
+        },
+      ],
+      high_confidence_findings: [alpha1Finding],
+    })
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    const note = await screen.findByTestId("finding-indeterminate-reasons")
+    expect(note).toHaveTextContent("rs17580")
+    expect(note).toHaveTextContent("strand-ambiguous palindromic homozygote")
+  })
+
   // ── Module links / labels (issue #544) ──────────────────────────────
 
   function makeFinding(id: number, module: string, finding_text: string): Finding {

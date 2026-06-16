@@ -86,6 +86,7 @@ class TestGenotypes:
         assert a.calls == []
         assert a.dosages["rs17580"] is None
         assert "rs17580" in a.indeterminate_loci
+        assert a.indeterminate_reasons["rs17580"] == "palindrome_strand_ambiguous"
 
     def test_normal_no_finding(self, panel, sample_engine: sa.Engine) -> None:
         # The normal-looking "TT" at the palindromic Pi*S locus is itself strand-
@@ -96,6 +97,7 @@ class TestGenotypes:
         assert a.calls == []
         assert a.dosages["rs17580"] is None
         assert "rs17580" in a.indeterminate_loci
+        assert a.indeterminate_reasons["rs17580"] == "palindrome_strand_ambiguous"
 
 
 class TestStrandAndIndeterminate:

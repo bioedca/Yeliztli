@@ -13,13 +13,13 @@ from backend.api.routes.risk_common import make_risk_router
 from backend.disclaimers import GOUT_DISCLAIMER_TEXT, GOUT_DISCLAIMER_TITLE
 
 
-def _runner(sample_engine: sa.Engine) -> tuple[int, list[str]]:
+def _runner(sample_engine: sa.Engine) -> tuple[int, list[str], dict[str, str]]:
     from backend.analysis.gout import assess_gout, load_gout_panel, store_gout_findings
 
     panel = load_gout_panel()
     assessment = assess_gout(panel, sample_engine)
     count = store_gout_findings(assessment, sample_engine)
-    return count, assessment.indeterminate_loci
+    return count, assessment.indeterminate_loci, assessment.indeterminate_reasons
 
 
 router = make_risk_router(
