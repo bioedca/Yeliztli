@@ -30,6 +30,8 @@ export interface PathwaySummary {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** On-chip no-calls within missing_snps (#900); off-chip = missing_snps minus this. */
+  no_call_snps?: string[]
   pmids: string[]
 }
 
@@ -61,6 +63,8 @@ export interface PathwayDetailResponse {
   called_snps: number
   total_snps: number
   missing_snps: string[]
+  /** On-chip no-calls within missing_snps (#900); off-chip = missing_snps minus this. */
+  no_call_snps?: string[]
   pmids: string[]
   snp_details: SNPDetail[]
 }

@@ -1771,6 +1771,45 @@ class TestPanelCoverage:
         assert row is not None
         assert row.coverage_status == "no_call"
 
+    def test_pathway_summary_separates_no_call_from_off_chip(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#900: the served pathway-summary detail must distinguish an on-chip
+        no-call from a genuinely off-chip SNP. Both land in ``missing_snps`` (the
+        union), but only the on-chip no-call belongs in ``no_call_snps`` — the
+        frontend renders the off-chip remainder as 'not on array' and must not
+        mislabel a no-call (which has the opposite remediation) that way."""
+        # rs7903146 is on the chip but failed to read (--); every other panel SNP
+        # is absent (off-chip), including rs3764650.
+        _seed_variants(sample_engine, [("rs7903146", "10", 112998590, "--")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        store_gene_health_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            pathway_rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                )
+            ).fetchall()
+
+        no_call_union: set[str] = set()
+        missing_union: set[str] = set()
+        for row in pathway_rows:
+            detail = json.loads(row.detail_json)
+            no_call_union.update(detail.get("no_call_snps", []))
+            missing_union.update(detail.get("missing_snps", []))
+
+        # On-chip no-call: in both the union and the no-call subset.
+        assert "rs7903146" in missing_union
+        assert "rs7903146" in no_call_union
+        # Genuinely off-chip: in the union but NOT the no-call subset.
+        assert "rs3764650" in missing_union
+        assert "rs3764650" not in no_call_union
+
 
 # -- GWAS annotation_coverage bitmask tests -----------------------------------
 

@@ -126,6 +126,16 @@ export default function PathwayDetailPanel({
   const panelRef = useRef<HTMLElement>(null)
   useDialogFocus(panelRef)
 
+  // Distinguish on-chip no-calls from genuinely off-chip SNPs within the missing
+  // set (#900): they have opposite remediations (a no-call may be re-testable; an
+  // off-chip SNP is an inherent coverage gap), so they must not share the "not on
+  // array" label. Findings predating the split omit no_call_snps, in which case
+  // everything is treated as off-chip (prior behavior).
+  const noCallSnps = detailQuery.data?.no_call_snps ?? []
+  const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
+    (rs) => !noCallSnps.includes(rs),
+  )
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -155,10 +165,11 @@ export default function PathwayDetailPanel({
           {detailQuery.data && (
             <p className="text-sm text-muted-foreground">
               {detailQuery.data.called_snps}/{detailQuery.data.total_snps} SNPs called
-              {detailQuery.data.missing_snps.length > 0 && (
-                <span className="ml-1">
-                  ({detailQuery.data.missing_snps.length} not on array)
-                </span>
+              {offChipSnps.length > 0 && (
+                <span className="ml-1">({offChipSnps.length} not on array)</span>
+              )}
+              {noCallSnps.length > 0 && (
+                <span className="ml-1">({noCallSnps.length} no-call)</span>
               )}
             </p>
           )}
@@ -241,12 +252,20 @@ export default function PathwayDetailPanel({
               )}
             </section>
 
-            {/* Missing SNPs note */}
-            {detailQuery.data.missing_snps.length > 0 && (
+            {/* Missing SNPs note (#900): off-chip and on-chip no-call are distinct */}
+            {(offChipSnps.length > 0 || noCallSnps.length > 0) && (
               <section className="mt-4" aria-label="Missing SNPs">
-                <p className="text-xs text-muted-foreground italic">
-                  Not on array: {detailQuery.data.missing_snps.join(", ")}
-                </p>
+                {offChipSnps.length > 0 && (
+                  <p className="text-xs text-muted-foreground italic">
+                    Not on array: {offChipSnps.join(", ")}
+                  </p>
+                )}
+                {noCallSnps.length > 0 && (
+                  <p className="text-xs text-muted-foreground italic">
+                    No call (on the array but the genotype read failed — may be
+                    recoverable by re-testing): {noCallSnps.join(", ")}
+                  </p>
+                )}
               </section>
             )}
           </>

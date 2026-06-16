@@ -157,6 +157,11 @@ class SNPResult:
     present_in_sample: bool
     coverage_note: str | None = None
     ancestry_caveated: bool = False
+    # Array-coverage state for a not-present SNP, distinguishing an on-chip
+    # no-call (probe present, read failed — possibly recoverable) from a SNP
+    # that is genuinely off-chip (#900). One of "called" / "no_call" /
+    # "not_on_array"; mirrors _compute_panel_coverage's classification.
+    coverage_status: str | None = None
 
 
 @dataclass
@@ -662,6 +667,16 @@ def score_gene_health_pathways(
             mapped = _map_indel_genotype(snp, raw)
             gt = mapped if mapped is not None else _normalize_genotype(raw)
             result = _score_snp(snp, gt, inferred_ancestry)
+            # Classify array coverage (#900) so the missing set can distinguish an
+            # on-chip no-call from a genuinely off-chip SNP. Same rule as
+            # _compute_panel_coverage: absent → off-chip; present but unresolved
+            # (a no-call token that no indel map rescued) → on-chip no-call.
+            if raw is None:
+                result.coverage_status = "not_on_array"
+            elif gt is None:
+                result.coverage_status = "no_call"
+            else:
+                result.coverage_status = "called"
             snp_results.append(result)
 
         level = _determine_pathway_level(snp_results)
@@ -771,6 +786,10 @@ def store_gene_health_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
+            # On-chip no-calls within the missing set (#900): rendered distinctly
+            # from genuinely off-chip SNPs, which have opposite remediations. The
+            # off-chip subset is missing_snps minus this list.
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
             "snp_details": [
                 {
                     "rsid": s.rsid,

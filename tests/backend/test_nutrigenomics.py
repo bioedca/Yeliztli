@@ -863,6 +863,44 @@ class TestStoreFindingsIntegration:
         assert len(snp_findings) == 1
         assert snp_findings[0].pathway_level == ELEVATED
 
+    def test_pathway_summary_separates_no_call_from_off_chip(
+        self,
+        panel: NutrigenomicsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#900: the served pathway-summary detail distinguishes an on-chip no-call
+        from a genuinely off-chip SNP. Both land in ``missing_snps`` (the union),
+        but only the on-chip no-call belongs in ``no_call_snps`` — so the frontend
+        does not mislabel a no-call (opposite remediation) as 'not on array'."""
+        # rs1801133 is on the chip but failed to read (--); rs1801131 (same folate
+        # pathway) is absent (off-chip).
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "--")])
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        store_nutrigenomics_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            pathway_rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "nutrigenomics",
+                    findings.c.category == "pathway_summary",
+                )
+            ).fetchall()
+
+        no_call_union: set[str] = set()
+        missing_union: set[str] = set()
+        for row in pathway_rows:
+            detail = json.loads(row.detail_json)
+            no_call_union.update(detail.get("no_call_snps", []))
+            missing_union.update(detail.get("missing_snps", []))
+
+        # On-chip no-call: in both the union and the no-call subset.
+        assert "rs1801133" in missing_union
+        assert "rs1801133" in no_call_union
+        # Genuinely off-chip: in the union but NOT the no-call subset.
+        assert "rs1801131" in missing_union
+        assert "rs1801131" not in no_call_union
+
     def test_findings_include_pmids(
         self,
         panel: NutrigenomicsPanel,

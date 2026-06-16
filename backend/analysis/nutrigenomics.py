@@ -150,6 +150,11 @@ class SNPResult:
     # True when an ancestry-conditional caveat was applied because the sample's
     # inferred ancestry does not support this marker's model (see #181).
     ancestry_caveated: bool = False
+    # Array-coverage state for a not-present SNP, distinguishing an on-chip
+    # no-call (probe present, read failed — possibly recoverable) from a SNP
+    # that is genuinely off-chip (#900). One of "called" / "no_call" /
+    # "not_on_array".
+    coverage_status: str | None = None
 
 
 @dataclass
@@ -533,8 +538,17 @@ def score_nutrigenomics_pathways(
     for pathway in panel.pathways:
         snp_results: list[SNPResult] = []
         for snp in pathway.snps:
-            gt = _normalize_genotype(genotypes.get(snp.rsid))
+            raw = genotypes.get(snp.rsid)
+            gt = _normalize_genotype(raw)
             result = _score_snp(snp, gt, inferred_ancestry)
+            # Classify array coverage (#900): absent → off-chip; present but a
+            # no-call token (normalized to None) → on-chip no-call.
+            if raw is None:
+                result.coverage_status = "not_on_array"
+            elif gt is None:
+                result.coverage_status = "no_call"
+            else:
+                result.coverage_status = "called"
             snp_results.append(result)
 
         # Lactose-specific conflict resolution: a detected non-European LCT
@@ -627,6 +641,10 @@ def store_nutrigenomics_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "missing_snps": [s.rsid for s in pr.missing_snps],
+            # On-chip no-calls within the missing set (#900): rendered distinctly
+            # from genuinely off-chip SNPs, which have opposite remediations. The
+            # off-chip subset is missing_snps minus this list.
+            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
             "snp_details": [
                 {
                     "rsid": s.rsid,
