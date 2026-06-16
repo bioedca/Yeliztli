@@ -90,7 +90,7 @@ def carrier_finding() -> dict:
     """A carrier status finding dict."""
     return {
         "id": 4,
-        "module": "carrier_status",
+        "module": "carrier",
         "category": "monogenic_variant",
         "evidence_level": 4,
         "gene_symbol": "CFTR",
@@ -357,7 +357,7 @@ class TestGenerateSvgsForSample:
             )
             conn.execute(
                 findings.insert().values(
-                    module="carrier_status",
+                    module="carrier",
                     category="monogenic_variant",
                     evidence_level=4,
                     gene_symbol="CFTR",

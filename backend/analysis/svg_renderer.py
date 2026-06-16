@@ -118,7 +118,7 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
     if module == "ancestry" and category == "admixture":
         return _render_admixture_bar(finding, detail)
 
-    if module == "carrier_status":
+    if module == "carrier":
         return _render_carrier_card(finding, detail)
 
     if module == "apoe":
