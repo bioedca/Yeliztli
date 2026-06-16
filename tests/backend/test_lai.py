@@ -388,6 +388,46 @@ class TestLAIResultsStorage:
             detail = json.loads(finding.detail_json)
             assert detail["top_population"] == "EUR"
 
+    def test_store_lai_results_exposes_top_ancestry_fraction(self, sample_engine):
+        """#899: a real LAI store must surface its top fraction to the shared
+        ancestry consumers, not drop it to None.
+
+        ``get_top_ancestry_fraction``/``get_ancestry_fractions`` read a flat
+        ``admixture_fractions`` map, but the LAI finding only carried the nested
+        ``global_ancestry`` shape — so after an LAI run (which
+        ``_get_latest_ancestry_finding`` prefers) the dominant fraction was
+        dropped to ``None``, suppressing fraction-aware PRS/ancestry context.
+        """
+        from backend.analysis.ancestry import (
+            get_inferred_ancestry,
+            get_top_ancestry_fraction,
+        )
+        from backend.analysis.lai import _ensure_lai_tables, _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+        from backend.analysis.prs_calibration import get_ancestry_fractions
+
+        _ensure_lai_tables(sample_engine)
+        result = LAIRunnerResult(
+            global_ancestry={
+                "AFR": {"fraction": 0.3, "percentage": 30.0, "display_name": "African"},
+                "EUR": {"fraction": 0.5, "percentage": 50.0, "display_name": "European"},
+                "EAS": {"fraction": 0.2, "percentage": 20.0, "display_name": "East Asian"},
+            },
+            chromosome_painting={},
+            metadata={"chromosomes_analyzed": 22, "runtime_seconds": 900.0},
+        )
+        _store_lai_results(sample_engine, result)
+
+        # Top population + its fraction both resolve from the LAI finding.
+        assert get_inferred_ancestry(sample_engine) == "EUR"
+        assert get_top_ancestry_fraction(sample_engine) == pytest.approx(0.5)
+
+        # The broader consumer (PRS calibration) recovers the full normalized map.
+        fracs = get_ancestry_fractions(sample_engine)
+        assert fracs is not None
+        assert fracs["EUR"] == pytest.approx(0.5)
+        assert set(fracs) == {"AFR", "EUR", "EAS"}
+
     def test_rerun_replaces_rather_than_duplicates(self, sample_engine):
         # #494: _store_lai_results inserted without clearing prior rows, so every rerun
         # duplicated the lai_results row AND the local_ancestry finding. After the fix a

@@ -218,6 +218,15 @@ def _store_lai_results(
         detail = {
             "top_population": top_pop,
             "global_ancestry": runner_result.global_ancestry,
+            # Flat {population: fraction} map mirroring the nnls/pca/knn ancestry
+            # findings' schema. The shared ancestry consumers — get_top_ancestry_fraction,
+            # prs_calibration.get_ancestry_fractions, and the admixture-bar SVG renderer —
+            # read a flat "admixture_fractions"; without it a real LAI run (which
+            # _get_latest_ancestry_finding prefers) dropped the dominant fraction to None
+            # (#899), suppressing fraction-aware PRS/ancestry context.
+            "admixture_fractions": {
+                pop: info["fraction"] for pop, info in runner_result.global_ancestry.items()
+            },
             "chromosomes_analyzed": runner_result.metadata.get("chromosomes_analyzed", 0),
             "runtime_seconds": runner_result.metadata.get("runtime_seconds", 0),
         }
