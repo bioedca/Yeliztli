@@ -245,6 +245,100 @@ class TestDbStats:
             assert db["display_name"]
 
 
+def _make_lai_bundle(data_dir: Path) -> None:
+    """Create a structurally-valid extracted LAI bundle directory."""
+    for chrom in range(1, 23):
+        model_dir = data_dir / "lai_bundle" / "gnomix_models" / f"chr{chrom}"
+        model_dir.mkdir(parents=True, exist_ok=True)
+        for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
+            (model_dir / fname).write_bytes(b"")
+
+
+class TestDbStatsPresence:
+    """Regression: installed reference-resident / directory DBs report present.
+
+    The previous ``exists = dest_path().exists()`` check looked for a standalone
+    ``data_dir/<filename>`` file, which never exists for reference.db-resident
+    DBs (clinvar/cpic/clingen, whose data is a table inside reference.db) nor for
+    the LAI bundle (the tarball is deleted after extraction), so they rendered as
+    "Missing" even when installed. Presence now comes from the readability probe
+    the Database Health panel uses.
+    """
+
+    def _seed(self, tmp_data_dir: Path) -> None:
+        from backend.db.tables import clinvar_variants, cpic_alleles, database_versions
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(clinvar_variants),
+                [
+                    {"chrom": "1", "pos": 100, "ref": "A", "alt": "G", "rsid": "rs1"},
+                    {"chrom": "2", "pos": 200, "ref": "C", "alt": "T", "rsid": "rs2"},
+                ],
+            )
+            conn.execute(
+                sa.insert(cpic_alleles),
+                [{"gene": "CYP2D6", "allele_name": "*1"}],
+            )
+            # ClinGen schema exists but is intentionally left empty.
+            conn.execute(
+                sa.insert(database_versions),
+                [
+                    {
+                        "db_name": "clinvar",
+                        "version": "20260301",
+                        "file_size_bytes": 30_000_000,
+                        "downloaded_at": datetime.now(UTC),
+                    },
+                ],
+            )
+        engine.dispose()
+        _make_lai_bundle(tmp_data_dir)
+
+    def test_reference_resident_and_directory_dbs_report_present(
+        self, admin_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        self._seed(tmp_data_dir)
+
+        resp = admin_client.get("/api/admin/db-stats")
+        assert resp.status_code == 200
+        by_name = {d["name"]: d for d in resp.json()}
+
+        # Reference-resident DB with data → present, counted against reference.db,
+        # version + last_updated surfaced from the version stamp.
+        clinvar = by_name["clinvar"]
+        assert clinvar["exists"] is True
+        assert clinvar["row_count"] == 2
+        assert clinvar["version"] == "20260301"
+        assert clinvar["last_updated"] is not None
+        # The reported artifact is reference.db, not a phantom data_dir/clinvar.db.
+        assert clinvar["file_path"].endswith("reference.db")
+
+        # A second reference-resident DB with data.
+        assert by_name["cpic"]["exists"] is True
+        assert by_name["cpic"]["row_count"] == 1
+
+        # The LAI directory bundle (no standalone tarball) is present.
+        assert by_name["lai_bundle"]["exists"] is True
+
+    def test_empty_reference_resident_db_reports_missing(
+        self, admin_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """No false positive: a reference-resident DB whose table is empty is Missing.
+
+        reference.db exists (schema created), but ClinGen was never loaded — bare
+        file presence would wrongly read "Available"; the readability probe must
+        report it Missing.
+        """
+        self._seed(tmp_data_dir)
+
+        resp = admin_client.get("/api/admin/db-stats")
+        by_name = {d["name"]: d for d in resp.json()}
+        assert by_name["clingen"]["exists"] is False
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/admin/sample-stats
 # ═══════════════════════════════════════════════════════════════════════

@@ -21,7 +21,14 @@ from sqlalchemy.pool import NullPool
 
 from backend.config import get_settings
 from backend.db.connection import get_registry
-from backend.db.database_registry import DATABASES
+from backend.db.database_registry import DATABASES, DatabaseInfo
+from backend.db.db_health import (
+    _REFERENCE_TABLE_SPEC,
+    _STANDALONE_TABLE_SPEC,
+    _artifact_path,
+    _file_size,
+    validate_database,
+)
 from backend.db.tables import (
     database_versions,
     jobs,
@@ -203,14 +210,46 @@ def _count_rows(engine: sa.Engine, table_name: str) -> int | None:
         return None
 
 
+def _primary_data_table(db_info: DatabaseInfo) -> str | None:
+    """Return the data-bearing table whose row count represents this DB, or None.
+
+    Reuses db_health's per-DB table specs — the single source of truth for which
+    tables each consumer reads — picking the required (data-bearing) table, then
+    falling back to the first listed. Databases with no SQL table (the LAI
+    directory bundle, the ancestry_pca npz) return ``None``. Centralizing here
+    avoids the drift the previous local map had (it omitted cpic/clingen/etc.).
+    """
+    spec = (
+        _REFERENCE_TABLE_SPEC.get(db_info.name)
+        if db_info.target_db == "reference"
+        else _STANDALONE_TABLE_SPEC.get(db_info.name)
+    )
+    if not spec:
+        return None
+    for table, must_have_rows in spec:
+        if must_have_rows:
+            return table
+    return spec[0][0]
+
+
 @router.get("/db-stats", response_model=list[DatabaseStat])
 def get_db_stats() -> list[DatabaseStat]:
-    """Return stats for all reference databases."""
+    """Return stats for all reference databases.
+
+    Presence (``exists``) is decided by :func:`backend.db.db_health.validate_database`,
+    the same readability probe the Database Health panel uses, so the answer is
+    correct for every artifact class: reference-resident DBs (clinvar / cpic /
+    clingen — data lives in reference.db, no standalone ``<name>.db`` file ever
+    exists), the LAI directory bundle (the tarball is deleted post-extract), the
+    ancestry_pca npz, and standalone SQLite files. The previous
+    ``dest_path().exists()`` check reported the first three as "Missing" even
+    when installed.
+    """
     settings = get_settings()
     registry = get_registry()
 
-    # Gather version info from database_versions table
-    versions: dict[str, tuple[str | None, str | None]] = {}
+    # Gather version + recorded artifact size from the database_versions table.
+    versions: dict[str, tuple[str | None, str | None, int | None]] = {}
     try:
         with registry.reference_engine.connect() as conn:
             rows = conn.execute(sa.select(database_versions)).mappings().all()
@@ -220,7 +259,7 @@ def get_db_stats() -> list[DatabaseStat]:
                     downloaded_at = downloaded_at.isoformat()
                 elif downloaded_at is not None:
                     downloaded_at = str(downloaded_at)
-                versions[r["db_name"]] = (r["version"], downloaded_at)
+                versions[r["db_name"]] = (r["version"], downloaded_at, r["file_size_bytes"])
     except Exception:
         pass
 
@@ -242,41 +281,50 @@ def get_db_stats() -> list[DatabaseStat]:
         )
     )
 
-    # Row count table names for each DB
-    db_main_tables = {
-        "clinvar": "clinvar_variants",
-        "vep_bundle": "vep_annotations",
-        "gnomad": "gnomad_af",
-        "dbnsfp": "dbnsfp_scores",
-        "encode_ccres": "encode_ccres",
-    }
-
     for db_info in DATABASES.values():
         db_name = db_info.name
-        db_path = db_info.dest_path(settings)
-        exists = db_path.exists()
-        file_size = _get_file_size(db_path) if exists else db_info.expected_size_bytes
-        version_info = versions.get(db_name, (None, None))
+        artifact_path = _artifact_path(db_info, settings)
+        version, downloaded_at, stamp_size = versions.get(db_name, (None, None, None))
 
+        # Readable-by-its-consumer presence, correct for reference-resident /
+        # directory / npz / standalone artifacts alike.
+        exists = validate_database(db_name, settings, engine=registry.reference_engine).ok
+
+        # Size: reference-resident DBs share reference.db, so a per-DB on-disk size
+        # is not meaningful — use the recorded artifact size from the version
+        # stamp. Standalone files and the LAI directory report their real size.
+        if exists:
+            file_size = (
+                stamp_size if db_info.target_db == "reference" else _file_size(db_info, settings)
+            )
+        else:
+            file_size = db_info.expected_size_bytes
+
+        # Row count from the data-bearing table, counted against the engine that
+        # actually holds it (reference.db for reference-resident DBs).
         row_count = None
-        if exists and db_name in db_main_tables:
-            try:
-                tmp_engine = sa.create_engine(f"sqlite:///{db_path}", poolclass=NullPool)
-                row_count = _count_rows(tmp_engine, db_main_tables[db_name])
-                tmp_engine.dispose()
-            except Exception:
-                pass
+        if exists:
+            table = _primary_data_table(db_info)
+            if table is not None:
+                if db_info.target_db == "reference":
+                    row_count = _count_rows(registry.reference_engine, table)
+                else:
+                    tmp_engine = sa.create_engine(f"sqlite:///{artifact_path}", poolclass=NullPool)
+                    try:
+                        row_count = _count_rows(tmp_engine, table)
+                    finally:
+                        tmp_engine.dispose()
 
         stats.append(
             DatabaseStat(
                 name=db_name,
                 display_name=db_info.display_name,
-                file_path=str(db_path),
+                file_path=str(artifact_path),
                 file_size_bytes=file_size,
                 exists=exists,
                 row_count=row_count,
-                last_updated=version_info[1],
-                version=version_info[0],
+                last_updated=downloaded_at,
+                version=version,
             )
         )
 
