@@ -921,9 +921,15 @@ class TestStoreCancerFindings:
 
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs_mutyh_plp")).one()
+            low_pen_row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_mutyh_low_penetrance")
+            ).one()
         detail = json.loads(row.detail_json)
+        low_pen_detail = json.loads(low_pen_row.detail_json)
         assert detail["disease_status"] == DISEASE_CARRIER
         assert "possible but unconfirmed" not in row.finding_text
+        assert low_pen_row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert low_pen_detail["clinvar_low_penetrance_or_risk_allele"] is True
 
 
 # ── Result dataclass tests ───────────────────────────────────────────────
