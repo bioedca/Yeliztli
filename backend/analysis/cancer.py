@@ -495,11 +495,17 @@ def store_cancer_findings(
             reference_engine, [v.gene_symbol for v in result.variants]
         )
 
+    high_penetrance_variants = [
+        v for v in result.variants if not v.clinvar_low_penetrance_or_risk_allele
+    ]
     for v in result.variants:
         # Build human-readable finding text, gating autosomal-recessive conditions
         # (MUTYH-Associated Polyposis) so a single heterozygous P/LP allele is framed
         # as a carrier rather than an affected diagnosis (issue #86, mirroring #36).
-        disease_status = classify_disease_status(v, result.variants)
+        disease_status_scope = (
+            high_penetrance_variants if not v.clinvar_low_penetrance_or_risk_allele else [v]
+        )
+        disease_status = classify_disease_status(v, disease_status_scope)
         finding_text = _cancer_finding_text(v, disease_status)
 
         detail = {

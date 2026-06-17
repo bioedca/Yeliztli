@@ -27,6 +27,7 @@ from backend.analysis.cancer import (
     store_cancer_findings,
 )
 from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+from backend.analysis.inheritance import DISEASE_CARRIER
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -874,6 +875,55 @@ class TestStoreCancerFindings:
 
         fetched = _fetch_cancer_findings(sample_engine)
         assert fetched[0]["clinvar_low_penetrance_or_risk_allele"] is True
+
+    def test_low_penetrance_risk_allele_peer_does_not_make_ar_plp_biallelic(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        result = CancerAnalysisResult(
+            variants=[
+                CancerVariantResult(
+                    rsid="rs_mutyh_plp",
+                    gene_symbol="MUTYH",
+                    genotype="AG",
+                    zygosity="het",
+                    clinvar_significance="Pathogenic",
+                    clinvar_review_stars=2,
+                    clinvar_accession=None,
+                    clinvar_conditions="MUTYH-associated polyposis",
+                    syndromes=["MUTYH-Associated Polyposis"],
+                    cancer_types=["Colorectal Cancer"],
+                    inheritance="AR",
+                    evidence_level=4,
+                    cross_links=[],
+                    pmids=[],
+                ),
+                CancerVariantResult(
+                    rsid="rs_mutyh_low_penetrance",
+                    gene_symbol="MUTYH",
+                    genotype="AG",
+                    zygosity="het",
+                    clinvar_significance="Pathogenic/Established risk allele",
+                    clinvar_review_stars=4,
+                    clinvar_accession=None,
+                    clinvar_conditions="MUTYH-associated polyposis",
+                    syndromes=["MUTYH-Associated Polyposis"],
+                    cancer_types=["Colorectal Cancer"],
+                    inheritance="AR",
+                    evidence_level=2,
+                    cross_links=[],
+                    pmids=[],
+                    clinvar_low_penetrance_or_risk_allele=True,
+                ),
+            ]
+        )
+
+        store_cancer_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs_mutyh_plp")).one()
+        detail = json.loads(row.detail_json)
+        assert detail["disease_status"] == DISEASE_CARRIER
+        assert "possible but unconfirmed" not in row.finding_text
 
 
 # ── Result dataclass tests ───────────────────────────────────────────────
