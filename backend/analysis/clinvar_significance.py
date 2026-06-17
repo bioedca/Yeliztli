@@ -12,20 +12,22 @@ that, while still excluding ``"Conflicting classifications of pathogenicity"`` �
 aggregate of disagreeing submissions, not a confident call (the same boundary as
 the frontend #799 fix).
 
-**Low-penetrance / risk-allele modifiers are the exception (#987).** ClinVar/ClinGen
-treat ``"Pathogenic, low penetrance"`` / ``"Likely pathogenic, low penetrance"`` and
-the risk-allele classifications (``"Established risk allele"`` etc.) as a *distinct*
-category from ordinary high-penetrance Mendelian P/LP, requiring their own
-classification/reporting considerations (ClinGen Low Penetrance & Risk Allele Working
-Group, Schmidt et al. 2024, PMID 38054408; the ACMG/AMP five-tier is for Mendelian
-disorders, Richards et al. 2015, PMID 25741868). So a ``low penetrance`` / ``risk
-allele`` modifier is NOT just an extra clinical-impact clause — it must NOT be
-promoted into the ordinary ``clinvar_pathogenic`` / high-evidence path, else a
+**Low-penetrance / risk-allele modifiers are the exception (#987/#1027).**
+ClinVar/ClinGen treat ``"Pathogenic, low penetrance"`` /
+``"Likely pathogenic, low penetrance"`` and the risk-allele classifications
+(``"Established risk allele"`` etc.) as a *distinct* category from ordinary
+high-penetrance Mendelian P/LP, requiring their own classification/reporting
+considerations (ClinGen Low Penetrance & Risk Allele Working Group, Schmidt
+et al. 2024, PMID 38054408; the ACMG/AMP five-tier is for Mendelian disorders,
+Richards et al. 2015, PMID 25741868). So a ``low penetrance`` / ``risk allele``
+modifier is NOT just an extra clinical-impact clause — it must NOT be promoted
+into the ordinary ``clinvar_pathogenic`` / high-evidence path, else a
 decreased-penetrance assertion reads as a standard high-penetrance P/LP result.
 
-The ClinVar ingest already splits ``/``-combined values to their first token
-(``clinvar.py``), so ``"Pathogenic/Likely pathogenic"`` never reaches storage —
-only ``|``/``,`` compounds do, and only those need the primary-token match here.
+ClinVar aggregate values can use ``/`` to join ACMG/ClinGen germline terms (e.g.
+``"Pathogenic/Established risk allele"``). Ingest preserves slash compounds when
+one term carries a lower-penetrance / risk-allele modifier so this classifier can
+route them to the distinct tier instead of erasing the modifier (#1027).
 
 Single source of truth so cancer / carrier_status / cardiovascular cannot drift.
 """
@@ -48,11 +50,28 @@ PATHOGENIC_PRIMARY_CLASSIFICATIONS: tuple[str, ...] = ("Pathogenic", "Likely pat
 # (a separate clinical-impact clause) is deliberately NOT included.
 _NON_MENDELIAN_MODIFIERS: tuple[str, ...] = ("low penetrance", "risk allele")
 
+# Storage category used when these lower-penetrance/risk-allele assertions are
+# surfaced as findings rather than promoted to ordinary high-penetrance P/LP.
+LOWER_PENETRANCE_RISK_ALLELE_CATEGORY = "clinvar_low_penetrance_or_risk_allele"
+LOWER_PENETRANCE_RISK_ALLELE_PMIDS: tuple[str, ...] = ("38054408",)
+
 
 def _has_non_mendelian_modifier(significance: str) -> bool:
     """Whether a low-penetrance / risk-allele modifier downgrades this value (#987)."""
     lowered = significance.lower()
     return any(modifier in lowered for modifier in _NON_MENDELIAN_MODIFIERS)
+
+
+def is_low_penetrance_or_risk_allele(significance: str | None) -> bool:
+    """Whether ``significance`` is a ClinGen lower-penetrance / risk-allele term.
+
+    This is the public Python counterpart to
+    :func:`low_penetrance_or_risk_allele_filter`, used anywhere the value needs to
+    be surfaced distinctly rather than treated as ordinary high-penetrance P/LP.
+    """
+    if not significance:
+        return False
+    return _has_non_mendelian_modifier(significance)
 
 
 def primary_pathogenic_classification(significance: str | None) -> str | None:
@@ -83,6 +102,19 @@ def primary_pathogenic_classification(significance: str | None) -> str | None:
 def is_pathogenic_primary(significance: str | None) -> bool:
     """Whether ``significance`` has a Pathogenic/Likely pathogenic primary token."""
     return primary_pathogenic_classification(significance) is not None
+
+
+def low_penetrance_or_risk_allele_filter(column: sa.ColumnElement) -> sa.ColumnElement:
+    """A SQLAlchemy predicate selecting lower-penetrance/risk-allele assertions.
+
+    Mirrors :func:`is_low_penetrance_or_risk_allele` for database queries. It
+    deliberately matches ``risk allele`` but not ClinVar's separate ``risk factor``
+    clinical-impact clause.
+    """
+    return sa.and_(
+        column.isnot(None),
+        sa.or_(*(column.ilike(f"%{m}%") for m in _NON_MENDELIAN_MODIFIERS)),
+    )
 
 
 def pathogenic_significance_filter(column: sa.ColumnElement) -> sa.ColumnElement:

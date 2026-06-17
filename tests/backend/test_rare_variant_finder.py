@@ -23,6 +23,7 @@ from _carriage_fixtures import het_pathogenic_row, hom_ref_pathogenic_row
 
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
+    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
     RareVariantFilter,
     RareVariantFinderResult,
     RareVariantResult,
@@ -675,6 +676,15 @@ class TestEvidenceLevelAssignment:
         v = self._make_variant()
         assert _assign_evidence_level(v) == 1
 
+    def test_low_penetrance_or_risk_allele_caps_at_moderate(self) -> None:
+        v = self._make_variant(
+            clinvar_significance="Pathogenic/Established risk allele",
+            clinvar_review_stars=4,
+        )
+        assert v.is_clinvar_pathogenic is False
+        assert v.is_clinvar_low_penetrance_or_risk_allele is True
+        assert _assign_evidence_level(v) == 2
+
 
 # ── Sorting tests ─────────────────────────────────────────────────────────
 
@@ -743,6 +753,78 @@ class TestSorting:
             ).one()
         assert row.category == "clinvar_pathogenic"
         assert row.evidence_level == 4
+
+    def test_low_penetrance_risk_allele_sorts_after_regular_plp(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    _v(
+                        rsid="rs_regular_plp",
+                        chrom="1",
+                        pos=1000,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE1",
+                        consequence="missense_variant",
+                        gnomad_af_global=0.005,
+                        clinvar_significance="Pathogenic",
+                        clinvar_review_stars=2,
+                        annotation_coverage=15,
+                    ),
+                    _v(
+                        rsid="rs_low_penetrance",
+                        chrom="1",
+                        pos=1001,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE2",
+                        consequence="missense_variant",
+                        gnomad_af_global=0.000001,
+                        clinvar_significance="Pathogenic/Established risk allele",
+                        clinvar_review_stars=4,
+                        annotation_coverage=15,
+                    ),
+                    _v(
+                        rsid="rs_rare_only",
+                        chrom="1",
+                        pos=1002,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE3",
+                        consequence="missense_variant",
+                        gnomad_af_global=0.0000001,
+                        annotation_coverage=15,
+                    ),
+                ],
+            )
+
+        result = find_rare_variants(RareVariantFilter(), sample_engine)
+
+        assert [v.rsid for v in result.variants] == [
+            "rs_regular_plp",
+            "rs_low_penetrance",
+            "rs_rare_only",
+        ]
+
+        store_rare_variant_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(
+                    findings.c.category,
+                    findings.c.evidence_level,
+                    findings.c.finding_text,
+                    findings.c.detail_json,
+                    findings.c.pmid_citations,
+                ).where(findings.c.rsid == "rs_low_penetrance")
+            ).one()
+        assert row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert row.evidence_level == 2
+        assert "lower-penetrance/risk-allele" in row.finding_text
+        assert json.loads(row.detail_json)["clinvar_low_penetrance_or_risk_allele"] is True
+        assert json.loads(row.pmid_citations) == ["38054408"]
 
 
 # ── Findings storage tests ───────────────────────────────────────────────

@@ -12,6 +12,7 @@ export interface CarrierVariant {
   clinvar_conditions: string | null
   conditions: string[]
   inheritance: string
+  clinvar_low_penetrance_or_risk_allele?: boolean
   evidence_level: number
   cross_links: string[]
   pmids: string[]

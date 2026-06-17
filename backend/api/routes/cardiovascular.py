@@ -21,6 +21,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -50,6 +51,7 @@ class CardiovascularVariantResponse(BaseModel):
     clinvar_conditions: str | None = None
     conditions: list[str] = []
     cardiovascular_category: str = ""
+    clinvar_low_penetrance_or_risk_allele: bool = False
     inheritance: str = "AD"
     evidence_level: int = 1
     cross_links: list[str] = []
@@ -137,7 +139,9 @@ def _fetch_cardiovascular_findings(
             sa.select(findings)
             .where(
                 findings.c.module == "cardiovascular",
-                findings.c.category == "monogenic_variant",
+                findings.c.category.in_(
+                    ["monogenic_variant", LOWER_PENETRANCE_RISK_ALLELE_CATEGORY]
+                ),
             )
             .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol)
         )
@@ -174,6 +178,9 @@ def _fetch_cardiovascular_findings(
                 "clinvar_conditions": row.conditions,
                 "conditions": detail.get("conditions", []),
                 "cardiovascular_category": detail.get("cardiovascular_category", ""),
+                "clinvar_low_penetrance_or_risk_allele": bool(
+                    detail.get("clinvar_low_penetrance_or_risk_allele", False)
+                ),
                 "inheritance": detail.get("inheritance", "AD"),
                 "evidence_level": row.evidence_level or 1,
                 "cross_links": detail.get("cross_links", []),

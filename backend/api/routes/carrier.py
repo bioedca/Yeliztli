@@ -49,6 +49,7 @@ class CarrierVariantResponse(BaseModel):
     clinvar_conditions: str | None = None
     conditions: list[str] = []
     inheritance: str = "AR"
+    clinvar_low_penetrance_or_risk_allele: bool = False
     evidence_level: int = 1
     cross_links: list[str] = []
     pmids: list[str] = []
@@ -146,6 +147,9 @@ def _fetch_carrier_findings(
                 "clinvar_conditions": row.conditions,
                 "conditions": detail.get("conditions", []),
                 "inheritance": detail.get("inheritance", "AR"),
+                "clinvar_low_penetrance_or_risk_allele": bool(
+                    detail.get("clinvar_low_penetrance_or_risk_allele", False)
+                ),
                 "evidence_level": row.evidence_level or 1,
                 "cross_links": detail.get("cross_links", []),
                 "pmids": pmids,

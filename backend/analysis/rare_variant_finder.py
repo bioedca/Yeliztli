@@ -43,7 +43,11 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.clinvar_significance import (
+    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
+    is_low_penetrance_or_risk_allele,
     is_pathogenic_primary,
+    low_penetrance_or_risk_allele_filter,
     pathogenic_significance_filter,
 )
 from backend.analysis.evidence import assign_clinvar_evidence_level
@@ -148,6 +152,11 @@ class RareVariantResult:
     def is_clinvar_pathogenic(self) -> bool:
         """Whether this variant is ClinVar Pathogenic or Likely pathogenic."""
         return is_pathogenic_primary(self.clinvar_significance)
+
+    @property
+    def is_clinvar_low_penetrance_or_risk_allele(self) -> bool:
+        """Whether ClinVar marks this as lower penetrance / risk-allele."""
+        return is_low_penetrance_or_risk_allele(self.clinvar_significance)
 
     @property
     def consequence_severity_score(self) -> int:
@@ -309,12 +318,14 @@ def find_rare_variants(
     if conditions:
         stmt = stmt.where(sa.and_(*conditions))
 
-    # Order: ClinVar P/LP first, then AF ascending (NULLs last), then severity
+    # Order: ClinVar P/LP first, then lower-penetrance/risk-allele assertions,
+    # then AF ascending (NULLs last), then genomic position.
     stmt = stmt.order_by(
-        # ClinVar P/LP first (1=P/LP, 0=other)
+        # 0=ordinary P/LP, 1=lower-penetrance/risk-allele, 2=other.
         sa.case(
             (pathogenic_significance_filter(av.c.clinvar_significance), 0),
-            else_=1,
+            (low_penetrance_or_risk_allele_filter(av.c.clinvar_significance), 1),
+            else_=2,
         ),
         # AF ascending, NULLs (novel) after known-rare. Ordered by the same
         # popmax-or-global rarity measure used for filtering (F15).
@@ -437,6 +448,8 @@ def store_rare_variant_findings(
                 category = "clinvar_pathogenic_low_confidence"
             else:
                 category = "clinvar_pathogenic"
+        elif v.is_clinvar_low_penetrance_or_risk_allele:
+            category = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
         elif v.ensemble_pathogenic:
             category = "ensemble_pathogenic"
         elif v.is_novel:
@@ -460,6 +473,12 @@ def store_rare_variant_findings(
             finding_text = (
                 f"{gene_text} {v.rsid} — {v.clinvar_significance} ({cons_text}, {af_text})"
             )
+        elif v.is_clinvar_low_penetrance_or_risk_allele:
+            finding_text = (
+                f"{gene_text} {v.rsid} — {v.clinvar_significance} ({cons_text}, "
+                f"{af_text}); ClinVar marks this as lower-penetrance/risk-allele, "
+                "so it is reported separately from high-penetrance P/LP variants."
+            )
         else:
             finding_text = f"{gene_text} {v.rsid} — {cons_text} ({af_text})"
 
@@ -482,9 +501,15 @@ def store_rare_variant_findings(
             "evidence_conflict": v.evidence_conflict,
             "clinvar_accession": v.clinvar_accession,
             "clinvar_review_stars": v.clinvar_review_stars,
+            "clinvar_low_penetrance_or_risk_allele": (v.is_clinvar_low_penetrance_or_risk_allele),
             "disease_name": v.disease_name,
             "inheritance_pattern": v.inheritance_pattern,
         }
+        pmid_citations = (
+            json.dumps(list(LOWER_PENETRANCE_RISK_ALLELE_PMIDS))
+            if v.is_clinvar_low_penetrance_or_risk_allele
+            else None
+        )
 
         rows.append(
             {
@@ -497,6 +522,7 @@ def store_rare_variant_findings(
                 "conditions": v.clinvar_conditions,
                 "zygosity": v.zygosity,
                 "clinvar_significance": v.clinvar_significance,
+                "pmid_citations": pmid_citations,
                 "detail_json": json.dumps(detail),
             }
         )

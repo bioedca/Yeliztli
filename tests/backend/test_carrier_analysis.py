@@ -31,6 +31,7 @@ from backend.analysis.carrier_status import (
     load_carrier_panel,
     store_carrier_findings,
 )
+from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -547,6 +548,34 @@ class TestExtractCarrierVariants:
         assert result.panel_genes_checked == 7
         assert result.homozygous_plp_skipped == 0
 
+    def test_low_penetrance_risk_allele_surfaces_as_distinct_tier(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_cftr_low_penetrance",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000007105",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        variant = result.variants[0]
+        assert variant.clinvar_low_penetrance_or_risk_allele is True
+        assert variant.evidence_level == 2
+
 
 # ── Findings storage tests ───────────────────────────────────────────────
 
@@ -859,6 +888,47 @@ class TestStoreCarrierFindings:
             ).scalar()
         assert cancer_count == 1  # Cancer finding preserved
         assert carrier_count == 4  # Carrier findings stored independently (GBA suppressed)
+
+    def test_low_penetrance_risk_allele_storage_and_route_fetch(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.carrier import _fetch_carrier_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_cftr_low_penetrance",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000007105",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "annotation_coverage": 2,
+                },
+            )
+        result = extract_carrier_variants(panel, sample_engine)
+        store_carrier_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_cftr_low_penetrance")
+            ).one()
+
+        detail = json.loads(row.detail_json)
+        pmids = json.loads(row.pmid_citations)
+        assert row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert row.evidence_level == 2
+        assert "lower-penetrance/risk-allele" in row.finding_text
+        assert detail["clinvar_low_penetrance_or_risk_allele"] is True
+        assert "38054408" in pmids
+
+        fetched = _fetch_carrier_findings(sample_engine)
+        assert fetched[0]["clinvar_low_penetrance_or_risk_allele"] is True
 
 
 # ── Result dataclass tests ───────────────────────────────────────────────

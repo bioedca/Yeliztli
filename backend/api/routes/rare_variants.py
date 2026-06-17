@@ -94,6 +94,7 @@ class RareVariantResponse(BaseModel):
     # gnomad_af_global == null (which mislabels catalogued, gnomAD-absent variants).
     is_novel: bool = False
     clinvar_significance: str | None = None
+    clinvar_low_penetrance_or_risk_allele: bool = False
     clinvar_review_stars: int | None = None
     clinvar_accession: str | None = None
     clinvar_conditions: str | None = None
@@ -128,6 +129,7 @@ class RareVariantFindingResponse(BaseModel):
     finding_text: str
     zygosity: str | None = None
     clinvar_significance: str | None = None
+    clinvar_low_penetrance_or_risk_allele: bool = False
     conditions: str | None = None
     detail: dict[str, Any] = {}
 
@@ -248,6 +250,7 @@ def search_rare_variants(
             gnomad_af_sas=v.gnomad_af_sas,
             is_novel=v.is_novel,
             clinvar_significance=v.clinvar_significance,
+            clinvar_low_penetrance_or_risk_allele=(v.is_clinvar_low_penetrance_or_risk_allele),
             clinvar_review_stars=v.clinvar_review_stars,
             clinvar_accession=v.clinvar_accession,
             clinvar_conditions=v.clinvar_conditions,
@@ -305,6 +308,9 @@ def list_rare_variant_findings(
                 finding_text=row.finding_text or "",
                 zygosity=row.zygosity,
                 clinvar_significance=row.clinvar_significance,
+                clinvar_low_penetrance_or_risk_allele=bool(
+                    detail.get("clinvar_low_penetrance_or_risk_allele", False)
+                ),
                 conditions=row.conditions,
                 detail=detail,
             )

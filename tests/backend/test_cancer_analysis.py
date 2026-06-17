@@ -26,6 +26,7 @@ from backend.analysis.cancer import (
     load_cancer_panel,
     store_cancer_findings,
 )
+from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -389,6 +390,35 @@ class TestExtractCancerVariants:
         assert result.variants == []
         assert result.panel_genes_checked == 28
         assert result.pseudogene_suppressed == 0
+
+    def test_low_penetrance_risk_allele_surfaces_as_distinct_tier(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_brca1_low_penetrance",
+                    "chrom": "17",
+                    "pos": 43091983,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "BRCA1",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000017661",
+                    "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert len(result.variants) == 1
+        assert result.pathogenic_count == 0
+        variant = result.variants[0]
+        assert variant.clinvar_low_penetrance_or_risk_allele is True
+        assert variant.evidence_level == 2
 
     def test_excludes_non_carried_zygosity(
         self, panel: CancerPanel, sample_engine: sa.Engine
@@ -803,6 +833,47 @@ class TestStoreCancerFindings:
         assert evidence_map["rs63751710"] == 4  # MLH1 Pathogenic 1-star
         assert evidence_map["rs587779317"] == 3  # ATM LP 1-star
         assert evidence_map["rs80359550"] == 2  # BRCA2 Pathogenic 0-star
+
+    def test_low_penetrance_risk_allele_storage_and_route_fetch(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.cancer import _fetch_cancer_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_brca1_low_penetrance",
+                    "chrom": "17",
+                    "pos": 43091983,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "BRCA1",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000017661",
+                    "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
+                    "annotation_coverage": 2,
+                },
+            )
+        result = extract_cancer_variants(panel, sample_engine)
+        store_cancer_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_brca1_low_penetrance")
+            ).one()
+
+        detail = json.loads(row.detail_json)
+        pmids = json.loads(row.pmid_citations)
+        assert row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert row.evidence_level == 2
+        assert "lower-penetrance/risk-allele" in row.finding_text
+        assert detail["clinvar_low_penetrance_or_risk_allele"] is True
+        assert "38054408" in pmids
+
+        fetched = _fetch_cancer_findings(sample_engine)
+        assert fetched[0]["clinvar_low_penetrance_or_risk_allele"] is True
 
 
 # ── Result dataclass tests ───────────────────────────────────────────────

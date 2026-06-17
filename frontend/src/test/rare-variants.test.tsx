@@ -449,6 +449,42 @@ describe("RareVariantsView", () => {
     expect(pill.className).not.toContain("bg-muted")
   })
 
+  it("renders the low-penetrance/risk-allele ClinVar category as a friendly amber tier", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          items: [
+            {
+              rsid: "rs_low_penetrance",
+              gene_symbol: "BRCA1",
+              category: "clinvar_low_penetrance_or_risk_allele",
+              evidence_level: 2,
+              finding_text:
+                "BRCA1 rs_low_penetrance — Pathogenic/Established risk allele; ClinVar marks this as lower-penetrance/risk-allele.",
+              zygosity: "het",
+              clinvar_significance: "Pathogenic/Established risk allele",
+              conditions: "Hereditary breast cancer",
+              detail: { clinvar_low_penetrance_or_risk_allele: true },
+            },
+          ],
+          total: 1,
+        }),
+      text: () => Promise.resolve(""),
+    })
+    rtlRender(<RareVariantsView />, {
+      wrapper: createWrapper(["/?sample_id=1"]),
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId("findings-table")).toBeInTheDocument()
+    })
+    expect(screen.getByText("Low-penetrance / risk allele")).toBeInTheDocument()
+    expect(screen.queryByText("clinvar low penetrance or risk allele")).not.toBeInTheDocument()
+    const pill = screen.getByText("Low-penetrance / risk allele")
+    expect(pill.className).toContain("amber")
+    expect(pill.className).not.toContain("red")
+  })
+
   it("renders filter panel with sample selected", () => {
     mockFetch.mockImplementation(() => new Promise(() => {}))
     rtlRender(<RareVariantsView />, {

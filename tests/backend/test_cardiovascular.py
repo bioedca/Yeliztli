@@ -44,6 +44,7 @@ from backend.analysis.cardiovascular import (
     store_cardiovascular_findings,
     store_fh_status_finding,
 )
+from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
 from backend.analysis.inheritance import (
     DISEASE_AFFECTED,
     DISEASE_CARRIER,
@@ -798,6 +799,36 @@ class TestExtractCardiovascularVariants:
         assert result.variants == []
         assert result.panel_genes_checked == 16
 
+    def test_low_penetrance_risk_allele_surfaces_without_fh_positive(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_ldlr_low_penetrance",
+                    "chrom": "19",
+                    "pos": 11200089,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "LDLR",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000018390",
+                    "clinvar_conditions": "Familial hypercholesterolemia",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert len(result.variants) == 1
+        assert result.pathogenic_count == 0
+        assert result.variants[0].clinvar_low_penetrance_or_risk_allele is True
+        assert result.variants[0].evidence_level == 2
+        assert fh.status == FH_STATUS_NEGATIVE
+
 
 # ── Findings storage tests ───────────────────────────────────────────────
 
@@ -977,6 +1008,47 @@ class TestStoreCardiovascularFindings:
         assert evidence_map["rs28937318"] == 3  # SCN5A LP 1-star
         assert evidence_map["rs28362286"] == 2  # PCSK9 Pathogenic 0-star
 
+    def test_low_penetrance_risk_allele_storage_and_route_fetch(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.cardiovascular import _fetch_cardiovascular_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_ldlr_low_penetrance",
+                    "chrom": "19",
+                    "pos": 11200089,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "LDLR",
+                    "clinvar_significance": "Pathogenic/Established risk allele",
+                    "clinvar_review_stars": 4,
+                    "clinvar_accession": "VCV000018390",
+                    "clinvar_conditions": "Familial hypercholesterolemia",
+                    "annotation_coverage": 2,
+                },
+            )
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        store_cardiovascular_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_ldlr_low_penetrance")
+            ).one()
+
+        detail = json.loads(row.detail_json)
+        pmids = json.loads(row.pmid_citations)
+        assert row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert row.evidence_level == 2
+        assert "lower-penetrance/risk-allele" in row.finding_text
+        assert detail["clinvar_low_penetrance_or_risk_allele"] is True
+        assert "38054408" in pmids
+
+        fetched = _fetch_cardiovascular_findings(sample_engine)
+        assert fetched[0]["clinvar_low_penetrance_or_risk_allele"] is True
+
 
 # ── Result dataclass tests ───────────────────────────────────────────────
 
@@ -1078,6 +1150,18 @@ class TestDetermineFHStatus:
         fh = determine_fh_status(result)
         assert fh.status == FH_STATUS_POSITIVE
         assert fh.is_positive is True
+
+    def test_low_penetrance_risk_allele_fh_variant_is_not_positive(self) -> None:
+        variant = self._make_fh_variant(
+            significance="Pathogenic/Established risk allele",
+            review_stars=4,
+            evidence=2,
+        )
+        variant.clinvar_low_penetrance_or_risk_allele = True
+        result = CardiovascularAnalysisResult(variants=[variant])
+        fh = determine_fh_status(result)
+        assert fh.status == FH_STATUS_NEGATIVE
+        assert fh.variant_count == 0
 
     def test_negative_with_no_fh_variants(self) -> None:
         """Non-FH cardiovascular variants do not trigger FH positive."""

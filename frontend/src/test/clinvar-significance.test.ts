@@ -23,6 +23,24 @@ describe("ClinVar significance styling", () => {
     expect(getClinvarSignificanceTextClass("Likely pathogenic")).toContain("text-orange")
   })
 
+  it.each([
+    "Pathogenic, low penetrance",
+    "Pathogenic/Established risk allele",
+    "Established risk allele",
+    "Uncertain risk allele",
+  ])("styles lower-penetrance/risk-allele terms as a distinct amber tier: %s", (significance) => {
+    expect(getClinvarSignificanceTone(significance)).toBe("low-penetrance")
+    expect(getClinvarSignificanceTextClass(significance)).toContain("text-amber")
+    expect(getClinvarSignificanceCardConfig(significance).bg).toContain("bg-amber")
+    expect(getClinvarSignificanceBadgeClass(significance)).toContain("bg-amber")
+    expect(getClinvarSignificanceBadgeClass(significance)).not.toContain("bg-red")
+  })
+
+  it("keeps risk factor distinct from risk allele", () => {
+    expect(getClinvarSignificanceTone("Pathogenic|risk factor")).toBe("pathogenic")
+    expect(getClinvarSignificanceBadgeClass("Pathogenic|risk factor")).toContain("bg-red")
+  })
+
   it("keeps benign and uncertain forms non-red", () => {
     expect(getClinvarSignificanceTone("Benign/Likely benign")).toBe("benign")
     expect(getClinvarSignificanceTextClass("Benign/Likely benign")).toContain("text-green")

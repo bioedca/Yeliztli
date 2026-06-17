@@ -46,7 +46,13 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.clinvar_significance import (
+    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
+    is_low_penetrance_or_risk_allele,
+    low_penetrance_or_risk_allele_filter,
+    pathogenic_significance_filter,
+)
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.inheritance import (
@@ -219,6 +225,7 @@ class CancerVariantResult:
     pmids: list[str]
     revel: float | None = None
     consequence: str | None = None
+    clinvar_low_penetrance_or_risk_allele: bool = False
 
 
 @dataclass
@@ -234,7 +241,7 @@ class CancerAnalysisResult:
     @property
     def pathogenic_count(self) -> int:
         """Number of P/LP variants found."""
-        return len(self.variants)
+        return sum(1 for v in self.variants if not v.clinvar_low_penetrance_or_risk_allele)
 
     @property
     def dual_role_variants(self) -> list[CancerVariantResult]:
@@ -322,7 +329,12 @@ def extract_cancer_variants(
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
-                pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                sa.or_(
+                    pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                    low_penetrance_or_risk_allele_filter(
+                        annotated_variants.c.clinvar_significance
+                    ),
+                ),
                 # Only surface variants the individual actually carries.
                 annotated_variants.c.zygosity.in_(list(CARRIED_ZYGOSITIES)),
             )
@@ -350,6 +362,7 @@ def extract_cancer_variants(
             row.clinvar_review_stars or 0,
             gene_info.evidence_level,
         )
+        lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
 
         variants.append(
             CancerVariantResult(
@@ -369,6 +382,7 @@ def extract_cancer_variants(
                 pmids=gene_info.pmids,
                 revel=row.revel,
                 consequence=row.consequence,
+                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
             )
         )
 
@@ -426,6 +440,12 @@ def _cancer_finding_text(variant: CancerVariantResult, status: str) -> str:
     syndrome_text = ", ".join(variant.syndromes) if variant.syndromes else "Cancer predisposition"
     sig = variant.clinvar_significance
     head = f"{variant.gene_symbol} {variant.rsid} ({variant.genotype})"
+    if variant.clinvar_low_penetrance_or_risk_allele:
+        return (
+            f"{head} — {sig} for {syndrome_text}. ClinVar marks this as "
+            "lower-penetrance/risk-allele, so it is reported separately from "
+            "high-penetrance P/LP cancer predisposition variants."
+        )
     if status == DISEASE_CARRIER:
         return (
             f"{head} — {sig}, heterozygous carrier. {syndrome_text} is autosomal "
@@ -492,6 +512,7 @@ def store_cancer_findings(
             "inheritance": v.inheritance,
             "disease_status": disease_status,
             "cross_links": v.cross_links,
+            "clinvar_low_penetrance_or_risk_allele": (v.clinvar_low_penetrance_or_risk_allele),
             # Additive, DRAFT in-silico evidence tag (Pejaver 2022, REVEL-only).
             # Never mutates evidence_level / clinvar_significance below.
             "insilico": insilico_block(v.revel, v.consequence),
@@ -503,7 +524,11 @@ def store_cancer_findings(
         rows.append(
             {
                 "module": "cancer",
-                "category": "monogenic_variant",
+                "category": (
+                    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+                    if v.clinvar_low_penetrance_or_risk_allele
+                    else "monogenic_variant"
+                ),
                 "evidence_level": v.evidence_level,
                 "gene_symbol": v.gene_symbol,
                 "rsid": v.rsid,
@@ -511,7 +536,16 @@ def store_cancer_findings(
                 "conditions": v.clinvar_conditions,
                 "zygosity": v.zygosity,
                 "clinvar_significance": v.clinvar_significance,
-                "pmid_citations": json.dumps(v.pmids),
+                "pmid_citations": json.dumps(
+                    [
+                        *v.pmids,
+                        *(
+                            p
+                            for p in LOWER_PENETRANCE_RISK_ALLELE_PMIDS
+                            if v.clinvar_low_penetrance_or_risk_allele and p not in v.pmids
+                        ),
+                    ]
+                ),
                 "detail_json": json.dumps(detail),
             }
         )

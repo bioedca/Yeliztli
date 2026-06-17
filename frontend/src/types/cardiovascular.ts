@@ -12,6 +12,7 @@ export interface CardiovascularVariant {
   clinvar_conditions: string | null
   conditions: string[]
   cardiovascular_category: string
+  clinvar_low_penetrance_or_risk_allele?: boolean
   inheritance: string
   evidence_level: number
   cross_links: string[]

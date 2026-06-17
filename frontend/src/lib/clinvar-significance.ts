@@ -1,6 +1,7 @@
 export type ClinvarSignificanceTone =
   | "pathogenic"
   | "likely-pathogenic"
+  | "low-penetrance"
   | "benign"
   | "uncertain"
   | "neutral"
@@ -25,6 +26,12 @@ const CARD_CONFIG: Record<ClinvarSignificanceTone, ClinvarCardConfig> = {
     border: "border-orange-200 dark:border-orange-800",
     badge: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300",
   },
+  "low-penetrance": {
+    color: "text-amber-700 dark:text-amber-400",
+    bg: "bg-amber-50 dark:bg-amber-950/30",
+    border: "border-amber-200 dark:border-amber-800",
+    badge: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
+  },
   benign: {
     color: "text-green-700 dark:text-green-400",
     bg: "bg-green-50 dark:bg-green-950/30",
@@ -48,6 +55,7 @@ const CARD_CONFIG: Record<ClinvarSignificanceTone, ClinvarCardConfig> = {
 const TEXT_CLASS: Record<ClinvarSignificanceTone, string> = {
   pathogenic: "text-red-600 dark:text-red-400",
   "likely-pathogenic": "text-orange-600 dark:text-orange-400",
+  "low-penetrance": "text-amber-600 dark:text-amber-400",
   benign: "text-green-600 dark:text-green-400",
   uncertain: "text-yellow-600 dark:text-yellow-400",
   neutral: "text-muted-foreground",
@@ -62,6 +70,7 @@ const TEXT_CLASS: Record<ClinvarSignificanceTone, string> = {
 const HEX_COLOR: Record<ClinvarSignificanceTone, string> = {
   pathogenic: "#DC2626", // red-600
   "likely-pathogenic": "#EA580C", // orange-600
+  "low-penetrance": "#D97706", // amber-600
   benign: "#16A34A", // green-600
   uncertain: "#D97706", // amber-600 — matches the Nightingale legend's VUS swatch
   neutral: "#6B7280", // gray-500
@@ -89,8 +98,11 @@ export function getClinvarSignificanceTone(
   const hasLikelyPathogenic = parts.includes("likely pathogenic")
   const hasBenign = normalized.includes("benign")
   const hasVus = parts.includes("vus")
+  const hasLowPenetranceOrRiskAllele =
+    normalized.includes("low penetrance") || normalized.includes("risk allele")
 
   if (normalized.includes("conflicting")) return "uncertain"
+  if (hasLowPenetranceOrRiskAllele) return "low-penetrance"
   if (normalized.includes("uncertain") || hasVus) return "uncertain"
   if ((hasPathogenic || hasLikelyPathogenic) && hasBenign) return "uncertain"
   if (hasPathogenic && !hasBenign) return "pathogenic"

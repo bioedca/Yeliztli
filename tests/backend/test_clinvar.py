@@ -175,6 +175,19 @@ class TestParseClinvarVcfLine:
         assert rec.gene_symbol == "BRCA1"
         assert rec.variation_id == 17661
 
+    def test_preserves_low_penetrance_risk_allele_slash_compound(self):
+        line = (
+            "17\t43091983\t17661\tCTC\tC\t.\t.\t"
+            "RS=80357906;CLNSIG=Pathogenic/Established_risk_allele;"
+            "CLNREVSTAT=reviewed_by_expert_panel;"
+            "CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;"
+            "GENEINFO=BRCA1:672;CLNVCID=17661"
+        )
+        rec, skip = parse_clinvar_vcf_line(line)
+        assert skip is None
+        assert rec is not None
+        assert rec.significance == "Pathogenic/Established risk allele"
+
     def test_benign_variant(self):
         line = (
             "22\t19963748\t16312\tG\tA\t.\t.\t"

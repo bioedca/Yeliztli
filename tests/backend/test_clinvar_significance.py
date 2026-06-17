@@ -14,7 +14,9 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.clinvar_significance import (
+    is_low_penetrance_or_risk_allele,
     is_pathogenic_primary,
+    low_penetrance_or_risk_allele_filter,
     pathogenic_significance_filter,
     primary_pathogenic_classification,
 )
@@ -105,6 +107,60 @@ class TestPathogenicSignificanceFilter:
             ["Pathogenic", "Pathogenic|drug response", "Pathogenic|risk factor", *_NON_MENDELIAN]
         )
         assert matched == {"Pathogenic", "Pathogenic|drug response", "Pathogenic|risk factor"}
+
+
+class TestLowPenetranceRiskAlleleFilter:
+    """The lower-penetrance/risk-allele tier is distinct from ordinary P/LP."""
+
+    def _query(self, significances: list[str]) -> set[str]:
+        engine = sa.create_engine("sqlite://")
+        sample_metadata_obj.create_all(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": f"rs_lp_{i}",
+                        "chrom": "1",
+                        "pos": 2000 + i,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "clinvar_significance": sig,
+                        "annotation_coverage": 0,
+                    }
+                    for i, sig in enumerate(significances)
+                ],
+            )
+            rows = conn.execute(
+                sa.select(annotated_variants.c.clinvar_significance).where(
+                    low_penetrance_or_risk_allele_filter(annotated_variants.c.clinvar_significance)
+                )
+            ).fetchall()
+        return {r.clinvar_significance for r in rows}
+
+    def test_selects_low_penetrance_and_risk_allele_terms(self) -> None:
+        matched = self._query(
+            [
+                "Pathogenic, low penetrance",
+                "Pathogenic/Established risk allele",
+                "Established risk allele",
+                "Pathogenic|risk factor",
+                "Pathogenic",
+            ]
+        )
+        assert matched == {
+            "Pathogenic, low penetrance",
+            "Pathogenic/Established risk allele",
+            "Established risk allele",
+        }
+
+    @pytest.mark.parametrize("significance", _NON_MENDELIAN + ["Established risk allele"])
+    def test_python_predicate_identifies_distinct_tier(self, significance: str) -> None:
+        assert is_low_penetrance_or_risk_allele(significance) is True
+
+    @pytest.mark.parametrize("significance", ["Pathogenic|risk factor", "Pathogenic", None])
+    def test_python_predicate_keeps_risk_factor_out(self, significance: str | None) -> None:
+        assert is_low_penetrance_or_risk_allele(significance) is False
 
 
 class TestPathogenicPrimaryPredicate:

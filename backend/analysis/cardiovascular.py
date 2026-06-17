@@ -48,7 +48,13 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.clinvar_significance import (
+    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
+    is_low_penetrance_or_risk_allele,
+    low_penetrance_or_risk_allele_filter,
+    pathogenic_significance_filter,
+)
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.inheritance import (
@@ -220,6 +226,7 @@ class CardiovascularVariantResult:
     pmids: list[str]
     revel: float | None = None
     consequence: str | None = None
+    clinvar_low_penetrance_or_risk_allele: bool = False
 
 
 @dataclass
@@ -233,7 +240,7 @@ class CardiovascularAnalysisResult:
     @property
     def pathogenic_count(self) -> int:
         """Number of P/LP variants found."""
-        return len(self.variants)
+        return sum(1 for v in self.variants if not v.clinvar_low_penetrance_or_risk_allele)
 
     @property
     def fh_variants(self) -> list[CardiovascularVariantResult]:
@@ -329,7 +336,12 @@ def extract_cardiovascular_variants(
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
-                pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                sa.or_(
+                    pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                    low_penetrance_or_risk_allele_filter(
+                        annotated_variants.c.clinvar_significance
+                    ),
+                ),
                 # Only surface variants the individual actually carries.
                 annotated_variants.c.zygosity.in_(list(CARRIED_ZYGOSITIES)),
             )
@@ -348,6 +360,7 @@ def extract_cardiovascular_variants(
             row.clinvar_review_stars or 0,
             gene_info.evidence_level,
         )
+        lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
 
         variants.append(
             CardiovascularVariantResult(
@@ -367,6 +380,7 @@ def extract_cardiovascular_variants(
                 pmids=gene_info.pmids,
                 revel=row.revel,
                 consequence=row.consequence,
+                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
             )
         )
 
@@ -401,6 +415,12 @@ def _cardiovascular_finding_text(variant: CardiovascularVariantResult, status: s
     )
     sig = variant.clinvar_significance
     head = f"{variant.gene_symbol} {variant.rsid} ({variant.genotype})"
+    if variant.clinvar_low_penetrance_or_risk_allele:
+        return (
+            f"{head} — {sig} for {condition_text}. ClinVar marks this as "
+            "lower-penetrance/risk-allele, so it is reported separately from "
+            "high-penetrance P/LP cardiovascular variants."
+        )
     if status == DISEASE_CARRIER:
         return (
             f"{head} — {sig}, heterozygous carrier. {condition_text} is autosomal "
@@ -471,6 +491,7 @@ def store_cardiovascular_findings(
             "inheritance": v.inheritance,
             "disease_status": disease_status,
             "cross_links": v.cross_links,
+            "clinvar_low_penetrance_or_risk_allele": (v.clinvar_low_penetrance_or_risk_allele),
             # Additive, DRAFT in-silico evidence tag (Pejaver 2022, REVEL-only).
             # Never mutates evidence_level / clinvar_significance below.
             "insilico": insilico_block(v.revel, v.consequence),
@@ -482,7 +503,11 @@ def store_cardiovascular_findings(
         rows.append(
             {
                 "module": "cardiovascular",
-                "category": "monogenic_variant",
+                "category": (
+                    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+                    if v.clinvar_low_penetrance_or_risk_allele
+                    else "monogenic_variant"
+                ),
                 "evidence_level": v.evidence_level,
                 "gene_symbol": v.gene_symbol,
                 "rsid": v.rsid,
@@ -490,7 +515,16 @@ def store_cardiovascular_findings(
                 "conditions": v.clinvar_conditions,
                 "zygosity": v.zygosity,
                 "clinvar_significance": v.clinvar_significance,
-                "pmid_citations": json.dumps(v.pmids),
+                "pmid_citations": json.dumps(
+                    [
+                        *v.pmids,
+                        *(
+                            p
+                            for p in LOWER_PENETRANCE_RISK_ALLELE_PMIDS
+                            if v.clinvar_low_penetrance_or_risk_allele and p not in v.pmids
+                        ),
+                    ]
+                ),
                 "detail_json": json.dumps(detail),
             }
         )
@@ -500,7 +534,9 @@ def store_cardiovascular_findings(
         conn.execute(
             sa.delete(findings).where(
                 findings.c.module == "cardiovascular",
-                findings.c.category == "monogenic_variant",
+                findings.c.category.in_(
+                    ["monogenic_variant", LOWER_PENETRANCE_RISK_ALLELE_CATEGORY]
+                ),
             )
         )
         if rows:
@@ -569,7 +605,7 @@ def determine_fh_status(result: CardiovascularAnalysisResult) -> FHStatus:
     Returns:
         FHStatus with status determination and affected gene details.
     """
-    fh_vars = result.fh_variants
+    fh_vars = [v for v in result.fh_variants if not v.clinvar_low_penetrance_or_risk_allele]
 
     if not fh_vars:
         return FHStatus(

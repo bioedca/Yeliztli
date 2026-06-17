@@ -34,6 +34,7 @@ export interface RareVariant {
   // is not novelty — render "Novel" from this, not from gnomad_af_global == null.
   is_novel: boolean
   clinvar_significance: string | null
+  clinvar_low_penetrance_or_risk_allele?: boolean
   clinvar_review_stars: number | null
   clinvar_accession: string | null
   clinvar_conditions: string | null
@@ -66,6 +67,7 @@ interface RareVariantFinding {
   finding_text: string
   zygosity: string | null
   clinvar_significance: string | null
+  clinvar_low_penetrance_or_risk_allele?: boolean
   conditions: string | null
   detail: Record<string, unknown>
 }

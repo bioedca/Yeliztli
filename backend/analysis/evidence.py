@@ -63,7 +63,10 @@ Usage::
 
 from __future__ import annotations
 
-from backend.analysis.clinvar_significance import primary_pathogenic_classification
+from backend.analysis.clinvar_significance import (
+    is_low_penetrance_or_risk_allele,
+    primary_pathogenic_classification,
+)
 
 # ── Evidence level constants ─────────────────────────────────────────────
 
@@ -121,6 +124,9 @@ def assign_clinvar_evidence_level(
     """
     primary = primary_pathogenic_classification(clinvar_significance)
     stars = clinvar_review_stars or 0
+
+    if is_low_penetrance_or_risk_allele(clinvar_significance):
+        return EVIDENCE_MODERATE
 
     if primary is not None:
         if stars >= 2:

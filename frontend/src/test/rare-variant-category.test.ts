@@ -5,6 +5,7 @@ import { getRareVariantCategoryMeta } from "@/lib/rare-variant-category"
 const BACKEND_CATEGORIES = [
   "clinvar_pathogenic",
   "clinvar_pathogenic_low_confidence",
+  "clinvar_low_penetrance_or_risk_allele",
   "ensemble_pathogenic",
   "novel",
   "rare",
@@ -30,8 +31,18 @@ describe("getRareVariantCategoryMeta", () => {
     expect(lowConf.className).not.toBe(getRareVariantCategoryMeta("clinvar_pathogenic").className)
   })
 
+  it("gives low-penetrance/risk-allele ClinVar findings a friendly cautionary tier", () => {
+    const meta = getRareVariantCategoryMeta("clinvar_low_penetrance_or_risk_allele")
+    expect(meta.label).toBe("Low-penetrance / risk allele")
+    expect(meta.className).toContain("amber")
+    expect(meta.className).not.toContain("red")
+  })
+
   it("styles the handled tiers with their established tones", () => {
     expect(getRareVariantCategoryMeta("clinvar_pathogenic").className).toContain("red")
+    expect(getRareVariantCategoryMeta("clinvar_low_penetrance_or_risk_allele").className).toContain(
+      "amber",
+    )
     expect(getRareVariantCategoryMeta("ensemble_pathogenic").className).toContain("orange")
     expect(getRareVariantCategoryMeta("novel").className).toContain("blue")
     expect(getRareVariantCategoryMeta("rare").className).toContain("muted")
@@ -39,6 +50,9 @@ describe("getRareVariantCategoryMeta", () => {
 
   it("gives friendly labels for the handled tiers", () => {
     expect(getRareVariantCategoryMeta("clinvar_pathogenic").label).toBe("ClinVar Pathogenic")
+    expect(getRareVariantCategoryMeta("clinvar_low_penetrance_or_risk_allele").label).toBe(
+      "Low-penetrance / risk allele",
+    )
     expect(getRareVariantCategoryMeta("ensemble_pathogenic").label).toBe("Predicted Pathogenic")
     expect(getRareVariantCategoryMeta("novel").label).toBe("Novel")
     expect(getRareVariantCategoryMeta("rare").label).toBe("Rare")

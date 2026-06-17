@@ -30,6 +30,10 @@ const _CATEGORY_META: Record<string, RareVariantCategoryMeta> = {
     label: "Pathogenic (low confidence)",
     className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
   },
+  clinvar_low_penetrance_or_risk_allele: {
+    label: "Low-penetrance / risk allele",
+    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
+  },
   ensemble_pathogenic: {
     label: "Predicted Pathogenic",
     className: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300",

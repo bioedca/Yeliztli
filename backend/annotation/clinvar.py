@@ -34,6 +34,7 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.analysis.clinvar_significance import is_low_penetrance_or_risk_allele
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
 from backend.annotation.http_download import (
     clear_validator_sidecar,
@@ -210,9 +211,10 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
         # Replace underscores with spaces for readability,
         # but keep the standard ClinVar casing
         significance = significance.replace("_", " ").strip()
-        # Use first significance if multiple separated by /
-        # (multi-allelic sites)
-        if "/" in significance:
+        # Historically this loader kept the first slash-separated term. Preserve
+        # slash compounds that carry lower-penetrance/risk-allele terms so those
+        # ClinGen modifiers are not erased before classification (#1027).
+        if "/" in significance and not is_low_penetrance_or_risk_allele(significance):
             significance = significance.split("/")[0].strip()
 
     # Review stars

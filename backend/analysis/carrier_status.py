@@ -47,7 +47,13 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.clinvar_significance import (
+    LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
+    is_low_penetrance_or_risk_allele,
+    low_penetrance_or_risk_allele_filter,
+    pathogenic_significance_filter,
+)
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.db.tables import annotated_variants, findings
 
@@ -264,6 +270,7 @@ class CarrierVariantResult:
     cross_links: list[str]
     pmids: list[str]
     notes: str
+    clinvar_low_penetrance_or_risk_allele: bool = False
 
 
 @dataclass
@@ -328,6 +335,8 @@ def _has_personal_risk_context(variant: CarrierVariantResult) -> bool:
 
 def _carrier_finding_category(variant: CarrierVariantResult) -> str:
     """Return the storage category for a carrier finding."""
+    if variant.clinvar_low_penetrance_or_risk_allele:
+        return LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
     if _has_personal_risk_context(variant):
         return _DUAL_ROLE_CARRIER_CATEGORY
     return _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY
@@ -341,6 +350,12 @@ def _carrier_finding_text(variant: CarrierVariantResult) -> str:
         f"{variant.clinvar_significance.lower()} variant ({variant.rsid}) "
         f"associated with {condition_text}. "
     )
+    if variant.clinvar_low_penetrance_or_risk_allele:
+        return (
+            base + "ClinVar marks this as lower-penetrance/risk-allele, so it is "
+            "reported separately from high-penetrance P/LP carrier findings. "
+            "Review this result with a genetics professional."
+        )
     if _has_cancer_crosslink(variant):
         return (
             base + "This may be relevant for family planning. Because this gene also has "
@@ -448,7 +463,12 @@ def extract_carrier_variants(
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
-                pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                sa.or_(
+                    pathogenic_significance_filter(annotated_variants.c.clinvar_significance),
+                    low_penetrance_or_risk_allele_filter(
+                        annotated_variants.c.clinvar_significance
+                    ),
+                ),
             )
             .order_by(annotated_variants.c.gene_symbol, annotated_variants.c.rsid)
         )
@@ -481,6 +501,7 @@ def extract_carrier_variants(
             row.clinvar_review_stars or 0,
             gene_info.evidence_level,
         )
+        lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
 
         variants.append(
             CarrierVariantResult(
@@ -498,6 +519,7 @@ def extract_carrier_variants(
                 cross_links=gene_info.cross_links,
                 pmids=gene_info.pmids,
                 notes=gene_info.notes,
+                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
             )
         )
 
@@ -559,6 +581,7 @@ def store_carrier_findings(
             "cross_links": v.cross_links,
             "genotype": v.genotype,
             "notes": v.notes,
+            "clinvar_low_penetrance_or_risk_allele": (v.clinvar_low_penetrance_or_risk_allele),
         }
 
         rows.append(
@@ -572,7 +595,16 @@ def store_carrier_findings(
                 "conditions": v.clinvar_conditions,
                 "zygosity": "het",
                 "clinvar_significance": v.clinvar_significance,
-                "pmid_citations": json.dumps(v.pmids),
+                "pmid_citations": json.dumps(
+                    [
+                        *v.pmids,
+                        *(
+                            p
+                            for p in LOWER_PENETRANCE_RISK_ALLELE_PMIDS
+                            if v.clinvar_low_penetrance_or_risk_allele and p not in v.pmids
+                        ),
+                    ]
+                ),
                 "detail_json": json.dumps(detail),
             }
         )
