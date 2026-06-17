@@ -15,7 +15,10 @@ Covers:
 
 from __future__ import annotations
 
+import gzip
 import hashlib
+import io
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -26,6 +29,7 @@ from structlog.testing import capture_logs
 from backend.annotation.dbnsfp import (
     BATCH_SIZE,
     CREATE_INDEXES_SQL,
+    CREATE_LOAD_PROGRESS_SQL,
     DBNSFP_BITMASK,
     DBNSFP_FIELDS,
     LOOKUP_BATCH_SIZE,
@@ -37,12 +41,14 @@ from backend.annotation.dbnsfp import (
     _normalize_chrom,
     _parse_dbnsfp_float,
     _parse_float,
+    _reconcile_load_progress,
     _version_at_least,
     assess_ensemble,
     download_and_load_dbnsfp,
     download_dbnsfp,
     is_ensemble_pathogenic,
     load_dbnsfp_from_csv,
+    load_dbnsfp_from_tsv,
     lookup_dbnsfp_by_positions,
     lookup_dbnsfp_by_rsids,
     parse_dbnsfp_tsv_line,
@@ -995,4 +1001,163 @@ class TestIndexAfterLoad:
             }
         assert "idx_dbnsfp_rsid" in names
         assert "idx_dbnsfp_chrom_pos" in names
+        engine.dispose()
+
+
+# ── Load resumability (chromosome-granular, source-token guarded) ─────────
+
+
+def _write_dbnsfp_zip(path: Path, members: dict[str, list[dict]]) -> None:
+    """Build a minimal dbNSFP ZIP: one gzipped per-chromosome TSV per member.
+
+    ``members`` maps a chromosome label (e.g. "chr1") to row dicts keyed by the
+    dbNSFP TSV columns. Member files are named ``dbNSFP5.3.1a_variant.<label>.gz``
+    so they match the loader's ``_variant.chr`` filter.
+    """
+    cols = ["#chr", "pos(1-based)", "ref", "alt", "rs_dbSNP", "CADD_phred"]
+    with zipfile.ZipFile(path, "w") as zf:
+        for label, rows in members.items():
+            buf = io.StringIO()
+            buf.write("\t".join(cols) + "\n")
+            for r in rows:
+                buf.write("\t".join(str(r.get(c, ".")) for c in cols) + "\n")
+            zf.writestr(
+                f"dbNSFP5.3.1a_variant.{label}.gz",
+                gzip.compress(buf.getvalue().encode("utf-8")),
+            )
+
+
+def _row(chrom: str, pos: int, rsid: str, cadd: float) -> dict:
+    return {
+        "#chr": chrom,
+        "pos(1-based)": str(pos),
+        "ref": "A",
+        "alt": "G",
+        "rs_dbSNP": rsid,
+        "CADD_phred": str(cadd),
+    }
+
+
+def _cadd_by_rsid(engine: sa.Engine) -> dict[str, float]:
+    with engine.connect() as conn:
+        return {
+            r.rsid: r.cadd_phred
+            for r in conn.execute(sa.text("SELECT rsid, cadd_phred FROM dbnsfp_scores")).fetchall()
+        }
+
+
+class TestDbNSFPLoadResumability:
+    """Member-granular resume: a restart skips already-loaded chromosomes."""
+
+    def test_fresh_load_records_every_member(self, tmp_path: Path) -> None:
+        zip_path = tmp_path / "dbnsfp_archive.zip"
+        _write_dbnsfp_zip(
+            zip_path,
+            {"chr1": [_row("1", 100, "rs1", 10.0)], "chr2": [_row("2", 200, "rs2", 20.0)]},
+        )
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'dbnsfp.db'}")
+
+        stats = load_dbnsfp_from_tsv(zip_path, engine, source_token="tok-1")
+
+        assert stats.variants_loaded == 2
+        assert _cadd_by_rsid(engine) == {"rs1": 10.0, "rs2": 20.0}
+        with engine.connect() as conn:
+            done = {
+                r.member
+                for r in conn.execute(
+                    sa.text("SELECT member FROM dbnsfp_load_progress WHERE source_token = 'tok-1'")
+                ).fetchall()
+            }
+        assert done == {
+            "dbNSFP5.3.1a_variant.chr1.gz",
+            "dbNSFP5.3.1a_variant.chr2.gz",
+        }
+        engine.dispose()
+
+    def test_resume_skips_already_loaded_member(self, tmp_path: Path) -> None:
+        # First run loads only chr1 (sentinel CADD 777) and records it done.
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'dbnsfp.db'}")
+        zip1 = tmp_path / "v1.zip"
+        _write_dbnsfp_zip(zip1, {"chr1": [_row("1", 100, "rs1", 777.0)]})
+        load_dbnsfp_from_tsv(zip1, engine, source_token="tok-1")
+
+        # Second run: same token, chr1 now carries a DIFFERENT value + a new chr2.
+        # chr1 must be skipped (sentinel 777 survives — not re-read), chr2 loaded.
+        zip2 = tmp_path / "v2.zip"
+        _write_dbnsfp_zip(
+            zip2,
+            {"chr1": [_row("1", 100, "rs1", 10.0)], "chr2": [_row("2", 200, "rs2", 20.0)]},
+        )
+        load_dbnsfp_from_tsv(zip2, engine, source_token="tok-1")
+
+        cadd = _cadd_by_rsid(engine)
+        assert cadd["rs1"] == 777.0  # chr1 skipped — not overwritten
+        assert cadd["rs2"] == 20.0  # chr2 freshly loaded
+        engine.dispose()
+
+    def test_token_change_forces_full_reload(self, tmp_path: Path) -> None:
+        # A version bump (new token) must not serve the old version's data even
+        # though the member name (chr1) is identical.
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'dbnsfp.db'}")
+        old = tmp_path / "old.zip"
+        _write_dbnsfp_zip(old, {"chr1": [_row("1", 100, "rs1", 777.0)]})
+        load_dbnsfp_from_tsv(old, engine, source_token="tok-OLD")
+
+        new = tmp_path / "new.zip"
+        _write_dbnsfp_zip(new, {"chr1": [_row("1", 100, "rs1", 10.0)]})
+        load_dbnsfp_from_tsv(new, engine, source_token="tok-NEW")
+
+        assert _cadd_by_rsid(engine) == {"rs1": 10.0}  # wiped + reloaded, not 777
+        with engine.connect() as conn:
+            tokens = {
+                r.source_token
+                for r in conn.execute(
+                    sa.text("SELECT DISTINCT source_token FROM dbnsfp_load_progress")
+                ).fetchall()
+            }
+        assert tokens == {"tok-NEW"}
+        engine.dispose()
+
+    def test_rerun_with_all_members_done_is_noop(self, tmp_path: Path) -> None:
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'dbnsfp.db'}")
+        zip_path = tmp_path / "dbnsfp_archive.zip"
+        _write_dbnsfp_zip(
+            zip_path,
+            {"chr1": [_row("1", 100, "rs1", 10.0)], "chr2": [_row("2", 200, "rs2", 20.0)]},
+        )
+        load_dbnsfp_from_tsv(zip_path, engine, source_token="tok-1")
+        stats = load_dbnsfp_from_tsv(zip_path, engine, source_token="tok-1")
+
+        assert stats.variants_loaded == 0  # everything already done
+        assert _cadd_by_rsid(engine) == {"rs1": 10.0, "rs2": 20.0}
+        engine.dispose()
+
+    def test_reconcile_wipes_on_token_mismatch_keeps_on_match(self, tmp_path: Path) -> None:
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'dbnsfp.db'}")
+        _create_dbnsfp_table(engine)
+        with engine.begin() as conn:
+            conn.execute(sa.text(CREATE_LOAD_PROGRESS_SQL))
+            conn.execute(
+                sa.text(
+                    "INSERT INTO dbnsfp_scores (rsid, chrom, pos, ref, alt, cadd_phred)"
+                    " VALUES ('rsX', '1', 1, 'A', 'G', 1.0)"
+                )
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO dbnsfp_load_progress (source_token, member, loaded_at)"
+                    " VALUES ('OLD', 'm1', 't')"
+                )
+            )
+
+        # Matching token → returns the done set, data preserved.
+        assert _reconcile_load_progress(engine, "OLD") == {"m1"}
+        with engine.connect() as conn:
+            assert conn.execute(sa.text("SELECT COUNT(*) FROM dbnsfp_scores")).scalar() == 1
+
+        # Mismatched token → wipes scores + progress, returns empty.
+        assert _reconcile_load_progress(engine, "NEW") == set()
+        with engine.connect() as conn:
+            assert conn.execute(sa.text("SELECT COUNT(*) FROM dbnsfp_scores")).scalar() == 0
+            assert conn.execute(sa.text("SELECT COUNT(*) FROM dbnsfp_load_progress")).scalar() == 0
         engine.dispose()

@@ -35,6 +35,7 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -146,6 +147,21 @@ CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_dbnsfp_rsid ON dbnsfp_scores (rsid)",
     "CREATE INDEX IF NOT EXISTS idx_dbnsfp_chrom_pos ON dbnsfp_scores (chrom, pos)",
 ]
+
+# Per-member load progress (resumability). Each row records that one source
+# member (a per-chromosome file in the dbNSFP ZIP) was fully inserted for a given
+# ``source_token`` — the archive's SHA-256. The token guards against a dbNSFP
+# version bump: a new release reuses the same per-chromosome member names, so
+# resuming against a prior token's rows would silently serve the OLD version's
+# data. A token mismatch (or an empty table) forces a clean full reload.
+CREATE_LOAD_PROGRESS_SQL = """\
+CREATE TABLE IF NOT EXISTS dbnsfp_load_progress (
+    source_token TEXT NOT NULL,
+    member       TEXT NOT NULL,
+    loaded_at    TEXT NOT NULL,
+    PRIMARY KEY (source_token, member)
+)
+"""
 
 # Bulk-insert statement (idempotent upsert on the composite primary key).
 _INSERT_DBNSFP_SQL = sa.text(
@@ -541,6 +557,62 @@ def _iter_dbnsfp_single_file(
         yield row, stats
 
 
+def _read_zip_member(
+    zf: zipfile.ZipFile,
+    member: str,
+    stats: LoadStats,
+    progress_callback: Callable[[int], None] | None,
+) -> Iterator[dict]:
+    """Yield parsed rows from one (optionally gzipped) ZIP member."""
+    logger.info("dbnsfp_processing_member", member=member)
+    with zf.open(member) as raw_fh:
+        if member.endswith(".gz"):
+            fh = io.TextIOWrapper(gzip.open(raw_fh, "rb"), encoding="utf-8")
+        else:
+            fh = io.TextIOWrapper(raw_fh, encoding="utf-8")
+        for row, _stats in _iter_dbnsfp_single_file(fh, stats, progress_callback):
+            yield row
+
+
+def _read_plain_file(
+    tsv_path: Path,
+    stats: LoadStats,
+    progress_callback: Callable[[int], None] | None,
+) -> Iterator[dict]:
+    """Yield parsed rows from a plain or gzip-compressed TSV file."""
+    open_fn = gzip.open if tsv_path.suffix == ".gz" else open
+    with open_fn(tsv_path, "rt", encoding="utf-8") as fh:  # type: ignore[call-overload]
+        for row, _stats in _iter_dbnsfp_single_file(fh, stats, progress_callback):
+            yield row
+
+
+def _iter_dbnsfp_members(
+    tsv_path: Path,
+    stats: LoadStats,
+    progress_callback: Callable[[int], None] | None,
+) -> Iterator[tuple[str, Iterator[dict]]]:
+    """Yield ``(member_name, row_iterator)`` for each source file in ``tsv_path``.
+
+    For a dbNSFP ZIP this is one entry per per-chromosome member; for a plain or
+    gzipped TSV it is a single entry keyed by the file name. The member's file is
+    opened lazily only when its iterator is first advanced, so a caller may SKIP a
+    member (already loaded) by simply not consuming its iterator — no handle is
+    opened. A consumed iterator must be exhausted before the next member is
+    requested (it holds the open member handle).
+    """
+    if tsv_path.suffix == ".zip":
+        # dbNSFP ZIP archive: per-chromosome files like dbNSFP5.3.1a_variant.chr1.gz
+        with zipfile.ZipFile(tsv_path, "r") as zf:
+            members = sorted(
+                n for n in zf.namelist() if "_variant.chr" in n and not n.startswith("__MACOSX")
+            )
+            logger.info("dbnsfp_zip_members", count=len(members), files=members[:3])
+            for member in members:
+                yield member, _read_zip_member(zf, member, stats, progress_callback)
+    else:
+        yield tsv_path.name, _read_plain_file(tsv_path, stats, progress_callback)
+
+
 def iter_dbnsfp_tsv(
     tsv_path: Path,
     *,
@@ -561,27 +633,9 @@ def iter_dbnsfp_tsv(
         Tuple of (row dict ready for insert, running LoadStats).
     """
     stats = LoadStats()
-
-    if tsv_path.suffix == ".zip":
-        # dbNSFP ZIP archive: contains per-chromosome files like
-        # dbNSFP5.3.1a_variant.chr1.gz (gzipped TSVs)
-        with zipfile.ZipFile(tsv_path, "r") as zf:
-            members = sorted(
-                n for n in zf.namelist() if "_variant.chr" in n and not n.startswith("__MACOSX")
-            )
-            logger.info("dbnsfp_zip_members", count=len(members), files=members[:3])
-            for member in members:
-                logger.info("dbnsfp_processing_member", member=member)
-                with zf.open(member) as raw_fh:
-                    if member.endswith(".gz"):
-                        fh = io.TextIOWrapper(gzip.open(raw_fh, "rb"), encoding="utf-8")
-                    else:
-                        fh = io.TextIOWrapper(raw_fh, encoding="utf-8")
-                    yield from _iter_dbnsfp_single_file(fh, stats, progress_callback)
-    else:
-        open_fn = gzip.open if tsv_path.suffix == ".gz" else open
-        with open_fn(tsv_path, "rt", encoding="utf-8") as fh:  # type: ignore[call-overload]
-            yield from _iter_dbnsfp_single_file(fh, stats, progress_callback)
+    for _member, row_iter in _iter_dbnsfp_members(tsv_path, stats, progress_callback):
+        for row in row_iter:
+            yield row, stats
 
 
 def _record_to_dict(record: DbNSFPRecord) -> dict:
@@ -646,46 +700,152 @@ def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
         _wal_checkpoint(engine)
 
 
+def _create_dbnsfp_load_progress_table(engine: sa.Engine) -> None:
+    """Create the per-member load-progress table (idempotent)."""
+    with engine.begin() as conn:
+        conn.execute(sa.text(CREATE_LOAD_PROGRESS_SQL))
+
+
+def _reconcile_load_progress(engine: sa.Engine, source_token: str) -> set[str]:
+    """Return the members already loaded for ``source_token``, resetting on mismatch.
+
+    A clean resume requires the recorded source to match: a new dbNSFP release
+    reuses the same per-chromosome member names, so resuming against another
+    token's rows would silently serve the OLD version's data. When the recorded
+    token differs — or the table is empty (a fresh build, or a pre-resumability
+    leftover whose completeness we cannot trust) — both ``dbnsfp_scores`` and the
+    progress table are wiped so the load starts clean.
+    """
+    _create_dbnsfp_load_progress_table(engine)
+    with engine.begin() as conn:
+        tokens = {
+            r[0]
+            for r in conn.execute(
+                sa.text("SELECT DISTINCT source_token FROM dbnsfp_load_progress")
+            )
+        }
+        if tokens == {source_token}:
+            return {
+                r[0]
+                for r in conn.execute(
+                    sa.text("SELECT member FROM dbnsfp_load_progress WHERE source_token = :t"),
+                    {"t": source_token},
+                )
+            }
+        # Fresh, untrusted leftover, or a version-bump mismatch → wipe and restart.
+        conn.execute(sa.text("DELETE FROM dbnsfp_scores"))
+        conn.execute(sa.text("DELETE FROM dbnsfp_load_progress"))
+    return set()
+
+
+def _record_member_loaded(conn: sa.Connection, source_token: str, member: str) -> None:
+    """Mark ``member`` fully loaded — call ONLY after all its rows are committed.
+
+    Committing the marker strictly after the member's row batches preserves the
+    invariant "marker present ⇒ all rows present": a crash before the marker
+    re-processes the member, which is safe because the insert is ``INSERT OR
+    REPLACE`` on the primary key (idempotent).
+    """
+
+    def _do() -> None:
+        with conn.begin():
+            conn.execute(
+                sa.text(
+                    "INSERT OR REPLACE INTO dbnsfp_load_progress "
+                    "(source_token, member, loaded_at) VALUES (:t, :m, :ts)"
+                ),
+                {"t": source_token, "m": member, "ts": datetime.now(UTC).isoformat()},
+            )
+
+    retry_on_locked(_do)
+
+
+def _load_dbnsfp_resumable(
+    tsv_path: Path,
+    engine: sa.Engine,
+    source_token: str,
+    progress_callback: Callable[[int], None] | None,
+) -> LoadStats:
+    """Member-by-member load that resumes after an interruption.
+
+    Members already recorded for ``source_token`` are skipped; each remaining
+    member is fully inserted and only THEN recorded as complete. A restart
+    re-does at most the single member that was in flight (idempotently, via
+    ``INSERT OR REPLACE``), not the whole archive.
+    """
+    done = _reconcile_load_progress(engine, source_token)
+    final_stats = LoadStats()
+
+    with bulk_write_connection(engine) as conn:
+        for member, row_iter in _iter_dbnsfp_members(tsv_path, final_stats, progress_callback):
+            if member in done:
+                logger.info("dbnsfp_member_skip_loaded", member=member)
+                continue
+            batch: list[dict] = []
+            for row in row_iter:
+                batch.append(row)
+                if len(batch) >= BATCH_SIZE:
+                    insert_batch(conn, _INSERT_DBNSFP_SQL, batch)
+                    batch = []
+            if batch:
+                insert_batch(conn, _INSERT_DBNSFP_SQL, batch)
+            # Durably mark complete only after every row of this member committed.
+            _record_member_loaded(conn, source_token, member)
+
+    return final_stats
+
+
 def load_dbnsfp_from_tsv(
     tsv_path: Path,
     engine: sa.Engine,
     *,
     clear_existing: bool = True,
     progress_callback: Callable[[int], None] | None = None,
+    source_token: str | None = None,
 ) -> LoadStats:
     """Parse a dbNSFP TSV and load scores into the dbnsfp_scores table.
 
     Uses streaming parse + batch insert to keep memory usage low.
 
     Args:
-        tsv_path: Path to the dbNSFP TSV (.tsv or .tsv.gz).
+        tsv_path: Path to the dbNSFP TSV (.tsv, .tsv.gz, or .zip).
         engine: SQLAlchemy engine for dbnsfp.db.
-        clear_existing: Whether to DELETE all existing rows first.
+        clear_existing: Whether to DELETE all existing rows first. Ignored when
+            ``source_token`` is given — resumability reconciliation decides.
         progress_callback: Called with parsed line count at intervals.
+        source_token: When set (the archive's SHA-256), load member-by-member and
+            resume across restarts, skipping members already recorded for this
+            token. A token change forces a clean full reload (see
+            :func:`_reconcile_load_progress`). Left ``None`` (tests / non-archive
+            inputs) the load is a single pass honouring ``clear_existing``.
 
     Returns:
-        LoadStats with counts and metadata.
+        LoadStats with counts and metadata. With ``source_token`` the counts
+        reflect only this run's newly-loaded members (skipped members are not
+        re-counted).
     """
     # Create the table only; indexes are built once after the bulk insert.
     _create_dbnsfp_table(engine)
 
-    batch: list[dict] = []
-    final_stats = LoadStats()
+    if source_token is not None:
+        final_stats = _load_dbnsfp_resumable(tsv_path, engine, source_token, progress_callback)
+    else:
+        batch: list[dict] = []
+        final_stats = LoadStats()
+        with bulk_write_connection(engine) as conn:
+            if clear_existing:
+                execute_write(conn, sa.text("DELETE FROM dbnsfp_scores"))
 
-    with bulk_write_connection(engine) as conn:
-        if clear_existing:
-            execute_write(conn, sa.text("DELETE FROM dbnsfp_scores"))
+            for row, final_stats in iter_dbnsfp_tsv(tsv_path, progress_callback=progress_callback):
+                batch.append(row)
 
-        for row, final_stats in iter_dbnsfp_tsv(tsv_path, progress_callback=progress_callback):
-            batch.append(row)
+                if len(batch) >= BATCH_SIZE:
+                    insert_batch(conn, _INSERT_DBNSFP_SQL, batch)
+                    batch = []
 
-            if len(batch) >= BATCH_SIZE:
+            # Flush remaining
+            if batch:
                 insert_batch(conn, _INSERT_DBNSFP_SQL, batch)
-                batch = []
-
-        # Flush remaining
-        if batch:
-            insert_batch(conn, _INSERT_DBNSFP_SQL, batch)
 
     # Build indexes over the populated table, then truncate the WAL.
     _create_dbnsfp_indexes(engine)
@@ -896,7 +1056,9 @@ def download_and_load_dbnsfp(
     )
     archive_size = downloaded_path.stat().st_size
 
-    # Compute checksum
+    # Compute checksum — also the resumability source token: a restart mid-load
+    # resumes member-by-member against this archive, and a new release (different
+    # checksum) forces a clean full reload rather than mixing versions.
     sha256 = _compute_sha256(downloaded_path)
 
     # Parse and load
@@ -904,6 +1066,7 @@ def download_and_load_dbnsfp(
         downloaded_path,
         dbnsfp_engine,
         progress_callback=parse_progress,
+        source_token=sha256,
     )
     stats.sha256 = sha256
 
