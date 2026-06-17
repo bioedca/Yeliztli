@@ -18,10 +18,11 @@ ClinVar/ClinGen treat ``"Pathogenic, low penetrance"`` /
 (``"Established risk allele"`` etc.) as a *distinct* category from ordinary
 high-penetrance Mendelian P/LP, requiring their own classification/reporting
 considerations (ClinGen Low Penetrance & Risk Allele Working Group, Schmidt
-et al. 2024, PMID 38054408; the ACMG/AMP five-tier is for Mendelian disorders,
-Richards et al. 2015, PMID 25741868). So a ``low penetrance`` / ``risk allele``
-modifier is NOT just an extra clinical-impact clause — it must NOT be promoted
-into the ordinary ``clinvar_pathogenic`` / high-evidence path, else a
+et al., online 2023 / Genet Med 2024, PMID 38054408; the ACMG/AMP five-tier is
+for Mendelian disorders, Richards et al. 2015, PMID 25741868). So a
+``low penetrance`` / ``risk allele`` modifier is NOT just an extra
+clinical-impact clause — it must NOT be promoted into the ordinary
+``clinvar_pathogenic`` / high-evidence path, else a
 decreased-penetrance assertion reads as a standard high-penetrance P/LP result.
 
 ClinVar aggregate values can use ``/`` to join ACMG/ClinGen germline terms (e.g.
