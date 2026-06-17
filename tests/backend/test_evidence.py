@@ -107,15 +107,20 @@ class TestAssignClinvarEvidenceLevel:
         assert result == 4
 
     def test_low_penetrance_not_promoted_to_definitive(self):
-        """#987 — a low-penetrance compound is NOT ordinary high-penetrance P/LP, so
-        even at 2★ it does not get the ★★★★ definitive tier (primary returns None →
-        preliminary)."""
-        assert assign_clinvar_evidence_level("Pathogenic, low penetrance", 2) == 1
-        assert assign_clinvar_evidence_level("Likely pathogenic, low penetrance", 2) == 1
+        """#1027 — low-penetrance P/LP is capped at MODERATE, not ordinary
+        high-penetrance P/LP."""
+        assert assign_clinvar_evidence_level("Pathogenic, low penetrance", 2) == EVIDENCE_MODERATE
+        assert (
+            assign_clinvar_evidence_level("Likely pathogenic, low penetrance", 2)
+            == EVIDENCE_MODERATE
+        )
 
     def test_risk_allele_compound_not_promoted(self):
-        """#987 — a risk-allele compound is likewise not promoted as Mendelian P/LP."""
-        assert assign_clinvar_evidence_level("Pathogenic, Established risk allele", 3) == 1
+        """#1027 — a risk-allele compound is capped at MODERATE."""
+        assert (
+            assign_clinvar_evidence_level("Pathogenic, Established risk allele", 3)
+            == EVIDENCE_MODERATE
+        )
 
     def test_likely_pathogenic_1_star_review(self):
         """★★★☆ — ClinVar LP with 1-star review."""
