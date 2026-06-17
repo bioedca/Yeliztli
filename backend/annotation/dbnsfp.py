@@ -624,14 +624,26 @@ def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
     Building the indexes once over a fully populated table is far cheaper than
     maintaining them per-row across tens of millions of inserts, so the load path
     defers index creation to after the bulk insert and calls this.
+
+    Each index is built in its OWN transaction, with a WAL checkpoint after each.
+    Building every index in a single transaction holds all of their pages in the
+    WAL until one final commit — over tens of millions of rows that balloons the
+    WAL by gigabytes, and an interruption rolls back every index at once. Per-
+    index commits keep the WAL bounded to one index at a time and make each
+    finished index durable, so a restart resumes at the first unbuilt index
+    (``CREATE INDEX IF NOT EXISTS`` skips the ones already present) instead of
+    redoing all of them.
     """
+    for idx_sql in CREATE_INDEXES_SQL:
 
-    def _do() -> None:
-        with engine.begin() as conn:
-            for idx_sql in CREATE_INDEXES_SQL:
-                conn.execute(sa.text(idx_sql))
+        def _do(sql: str = idx_sql) -> None:
+            with engine.begin() as conn:
+                conn.execute(sa.text(sql))
 
-    retry_on_locked(_do)
+        retry_on_locked(_do)
+        # Fold this index's pages into the main DB before building the next, so
+        # the WAL never accumulates more than a single index's worth at a time.
+        _wal_checkpoint(engine)
 
 
 def load_dbnsfp_from_tsv(

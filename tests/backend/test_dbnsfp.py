@@ -25,6 +25,7 @@ from structlog.testing import capture_logs
 
 from backend.annotation.dbnsfp import (
     BATCH_SIZE,
+    CREATE_INDEXES_SQL,
     DBNSFP_BITMASK,
     DBNSFP_FIELDS,
     LOOKUP_BATCH_SIZE,
@@ -889,3 +890,69 @@ class TestIndexAfterLoad:
         assert "idx_dbnsfp_rsid" in index_names
         assert "idx_dbnsfp_chrom_pos" in index_names
         assert "idx_dbnsfp_rsid_covering" not in index_names
+
+    def test_each_index_built_in_its_own_transaction_with_checkpoint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Each index is created in a separate transaction and the WAL is
+        # checkpointed after each one, so the WAL never holds more than a single
+        # index's pages and a finished index survives an interruption. A revert
+        # to the old single-transaction build drops the per-index checkpoints.
+        checkpoints: list[str] = []
+        monkeypatch.setattr(
+            "backend.annotation.dbnsfp._wal_checkpoint",
+            lambda _engine: checkpoints.append("ck"),
+        )
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        _create_dbnsfp_table(engine)
+        _create_dbnsfp_indexes(engine)
+
+        assert len(checkpoints) == len(CREATE_INDEXES_SQL)
+
+        with engine.connect() as conn:
+            names = {
+                r[0]
+                for r in conn.execute(
+                    sa.text(
+                        "SELECT name FROM sqlite_master"
+                        " WHERE type='index' AND tbl_name='dbnsfp_scores'"
+                    )
+                ).fetchall()
+            }
+        assert {"idx_dbnsfp_rsid", "idx_dbnsfp_chrom_pos"} <= names
+        engine.dispose()
+
+    def test_index_creation_resumes_when_partially_built(self) -> None:
+        # A restart leaves some indexes already built (committed) — index
+        # creation must resume, building only the missing ones, and be a no-op
+        # when re-run on a fully-indexed table (CREATE INDEX IF NOT EXISTS).
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        _create_dbnsfp_table(engine)
+        # Simulate an interrupted build that committed only the first index.
+        with engine.begin() as conn:
+            conn.execute(sa.text("CREATE INDEX idx_dbnsfp_rsid ON dbnsfp_scores (rsid)"))
+
+        _create_dbnsfp_indexes(engine)  # resume → builds the rest
+        _create_dbnsfp_indexes(engine)  # idempotent → no error on a full rebuild
+
+        with engine.connect() as conn:
+            names = {
+                r[0]
+                for r in conn.execute(
+                    sa.text(
+                        "SELECT name FROM sqlite_master"
+                        " WHERE type='index' AND tbl_name='dbnsfp_scores'"
+                    )
+                ).fetchall()
+            }
+        assert "idx_dbnsfp_rsid" in names
+        assert "idx_dbnsfp_chrom_pos" in names
+        engine.dispose()
