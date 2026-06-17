@@ -307,9 +307,7 @@ class TestRunClinvarUpdateVersionStamp:
             mock_client.return_value.head.return_value = mock_resp
             assert check_clinvar_update(reference_engine) is None
 
-    def test_falls_back_to_filedate_when_no_last_modified(
-        self, reference_engine, tmp_path: Path
-    ):
+    def test_falls_back_to_filedate_when_no_last_modified(self, reference_engine, tmp_path: Path):
         registry = MagicMock()
         registry.reference_engine = reference_engine
         registry.settings = _settings_for_test(tmp_path)
