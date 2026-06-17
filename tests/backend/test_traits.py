@@ -32,6 +32,8 @@ from backend.analysis.traits import (
     INDETERMINATE,
     MODERATE,
     MODULE_NAME,
+    NO_CALL,
+    NOT_ON_ARRAY,
     STANDARD,
     PanelSNP,
     PathwayResult,
@@ -607,6 +609,25 @@ class TestScorePathways:
         assert drd4.coverage_note is not None
         assert "proxy" in drd4.coverage_note.lower()
 
+    def test_no_call_and_not_on_array_coverage_status(
+        self,
+        panel: TraitsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """On-array no-calls are tracked separately from off-chip missing SNPs."""
+        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "--")])
+
+        result = score_traits_pathways(panel, sample_engine, reference_engine)
+
+        personality = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "personality_big_five"
+        )
+        crhr1 = next(s for s in personality.missing_snps if s.rsid == "rs1396862")
+        wscd2 = next(s for s in personality.missing_snps if s.rsid == "rs2164273")
+        assert crhr1.coverage_status == NO_CALL
+        assert wscd2.coverage_status == NOT_ON_ARRAY
+
 
 # ── Findings storage tests ─────────────────────────────────────────────
 
@@ -689,6 +710,36 @@ class TestStoreFindingsIntegration:
         # personality_big_five + behavioral_traits = 2 summaries
         # (cognitive_ability is PRS-primary with no SNPs, so skipped)
         assert len(pathway_rows) == 2
+
+    def test_pathway_detail_splits_no_call_from_not_on_array(
+        self,
+        panel: TraitsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Stored pathway detail keeps missing_snps union and adds no_call_snps subset."""
+        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "--")])
+
+        result = score_traits_pathways(panel, sample_engine, reference_engine)
+        store_traits_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "pathway_summary",
+                        findings.c.pathway == "Personality Dimensions (Big Five)",
+                    )
+                )
+            ).first()
+
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert "rs1396862" in detail["missing_snps"]
+        assert "rs2164273" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs1396862"]
+        assert "rs2164273" not in detail["no_call_snps"]
 
     def test_drd4_finding_includes_coverage_note(
         self,

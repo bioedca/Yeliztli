@@ -130,6 +130,10 @@ export default function PathwayDetailPanel({
   onClose,
 }: PathwayDetailPanelProps) {
   const detailQuery = useTraitsPathwayDetail(pathwayId, sampleId)
+  const noCallSnps = detailQuery.data?.no_call_snps ?? []
+  const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
+    (rsid) => !noCallSnps.includes(rsid),
+  )
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -158,9 +162,14 @@ export default function PathwayDetailPanel({
           {detailQuery.data && (
             <p className="text-sm text-muted-foreground">
               {detailQuery.data.called_snps}/{detailQuery.data.total_snps} SNPs called
-              {detailQuery.data.missing_snps.length > 0 && (
+              {offChipSnps.length > 0 && (
                 <span className="ml-1">
-                  ({detailQuery.data.missing_snps.length} not on array)
+                  ({offChipSnps.length} not on array)
+                </span>
+              )}
+              {noCallSnps.length > 0 && (
+                <span className="ml-1">
+                  ({noCallSnps.length} no-call)
                 </span>
               )}
             </p>
@@ -245,11 +254,19 @@ export default function PathwayDetailPanel({
             </section>
 
             {/* Missing SNPs note */}
-            {detailQuery.data.missing_snps.length > 0 && (
+            {(offChipSnps.length > 0 || noCallSnps.length > 0) && (
               <section className="mt-4" aria-label="Missing SNPs">
-                <p className="text-xs text-muted-foreground italic">
-                  Not on array: {detailQuery.data.missing_snps.join(", ")}
-                </p>
+                {offChipSnps.length > 0 && (
+                  <p className="text-xs text-muted-foreground italic">
+                    Not on array: {offChipSnps.join(", ")}
+                  </p>
+                )}
+                {noCallSnps.length > 0 && (
+                  <p className="text-xs text-muted-foreground italic">
+                    No call (on the array but the genotype read failed - may be recoverable by
+                    re-testing): {noCallSnps.join(", ")}
+                  </p>
+                )}
               </section>
             )}
           </>

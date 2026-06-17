@@ -22,6 +22,7 @@ vi.mock("@/api/fitness", () => ({ useFitnessPathwayDetail: vi.fn() }))
 vi.mock("@/api/methylation", () => ({ useMethylationPathwayDetail: vi.fn() }))
 vi.mock("@/api/skin", () => ({ useSkinPathwayDetail: vi.fn() }))
 vi.mock("@/api/sleep", () => ({ useSleepPathwayDetail: vi.fn() }))
+vi.mock("@/api/traits", () => ({ useTraitsPathwayDetail: vi.fn() }))
 
 import AllergyPanel from "@/components/allergy/PathwayDetailPanel"
 import FitnessPanel from "@/components/fitness/PathwayDetailPanel"
@@ -30,6 +31,7 @@ import MethylationPanel from "@/components/methylation/PathwayDetailPanel"
 import NutrigenomicsPanel from "@/components/nutrigenomics/PathwayDetailPanel"
 import SkinPanel from "@/components/skin/PathwayDetailPanel"
 import SleepPanel from "@/components/sleep/PathwayDetailPanel"
+import TraitsPanel from "@/components/traits/PathwayDetailPanel"
 import { useAllergyPathwayDetail } from "@/api/allergy"
 import { useFitnessPathwayDetail } from "@/api/fitness"
 import { useGeneHealthPathwayDetail } from "@/api/gene-health"
@@ -37,6 +39,7 @@ import { useMethylationPathwayDetail } from "@/api/methylation"
 import { useNutrigenomicsPathwayDetail } from "@/api/nutrigenomics"
 import { useSkinPathwayDetail } from "@/api/skin"
 import { useSleepPathwayDetail } from "@/api/sleep"
+import { useTraitsPathwayDetail } from "@/api/traits"
 
 const OFF_CHIP = "rs10000001"
 const NO_CALL = "rs80338939"
@@ -73,6 +76,7 @@ const MODULES: { name: string; Panel: ComponentType<PanelProps>; hook: MockedDet
   { name: "nutrigenomics", Panel: NutrigenomicsPanel, hook: asMock(useNutrigenomicsPathwayDetail) },
   { name: "skin", Panel: SkinPanel, hook: asMock(useSkinPathwayDetail) },
   { name: "sleep", Panel: SleepPanel, hook: asMock(useSleepPathwayDetail) },
+  { name: "traits", Panel: TraitsPanel, hook: asMock(useTraitsPathwayDetail) },
 ]
 
 describe.each(MODULES)(
