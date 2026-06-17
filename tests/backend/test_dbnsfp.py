@@ -821,6 +821,46 @@ class TestDownloadDbNSFPResume:
         captured["on_validator"]('"etag-v2"')  # type: ignore[operator]
         assert sidecar.read_text(encoding="utf-8") == '"etag-v2"'
 
+    def test_skips_download_when_completed_archive_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A prior build finished the download (final archive renamed into place)
+        # but died during the load/index phase. The next run must REUSE the
+        # ~47 GB archive instead of re-downloading it from zero.
+        archive = tmp_path / "dbnsfp_archive.zip"
+        archive.write_bytes(b"already-downloaded")
+
+        def boom(*_args: object, **_kwargs: object):
+            raise AssertionError("stream_download must not run when the archive is present")
+
+        monkeypatch.setattr("backend.annotation.dbnsfp.stream_download", boom)
+
+        dest = download_dbnsfp(tmp_path)
+
+        assert dest == archive
+        assert dest.read_bytes() == b"already-downloaded"
+
+    def test_empty_archive_does_not_count_as_complete(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+
+        # A 0-byte final file is not a real archive — the download must still run.
+        (tmp_path / "dbnsfp_archive.zip").write_bytes(b"")
+        ran = {"called": False}
+
+        def fake_stream_download(url: str, tmp_path_arg: Path, **kwargs: object):
+            ran["called"] = True
+            tmp_path_arg.write_bytes(b"complete-archive")
+            return SimpleNamespace(total_bytes=16)
+
+        monkeypatch.setattr("backend.annotation.dbnsfp.stream_download", fake_stream_download)
+
+        dest = download_dbnsfp(tmp_path)
+
+        assert ran["called"] is True
+        assert dest.read_bytes() == b"complete-archive"
+
 
 # ── Constants tests ──────────────────────────────────────────────────────
 

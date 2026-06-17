@@ -812,6 +812,21 @@ def download_dbnsfp(
     dest_path = dest_dir / "dbnsfp_archive.zip"
     tmp_path = dest_dir / "dbnsfp_archive.zip.tmp"
 
+    # A completed archive from a prior, interrupted build is already on disk:
+    # the final file only appears via the atomic rename below, and a successful
+    # build deletes it (_cleanup_dbnsfp_archive). So a present, non-empty archive
+    # is a fully-downloaded copy of this pinned version — reuse it instead of
+    # re-pulling ~47 GB when an earlier run got past the download but died during
+    # the load/index phase. (A partial transfer lives in the .tmp and is resumed
+    # via HTTP Range below, not here.)
+    if dest_path.exists() and dest_path.stat().st_size > 0:
+        logger.info(
+            "dbnsfp_download_skip_existing",
+            path=str(dest_path),
+            bytes=dest_path.stat().st_size,
+        )
+        return dest_path
+
     logger.info("dbnsfp_download_start", url=url)
 
     # Resumable so a partial ~47 GB archive survives a failed/restarted build and
