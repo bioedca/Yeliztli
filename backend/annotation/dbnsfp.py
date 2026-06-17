@@ -129,19 +129,22 @@ CREATE TABLE IF NOT EXISTS dbnsfp_scores (
 )
 """
 
+# Two lookup indexes, built once over the fully-populated table (cheaper than
+# maintaining them per-row across tens of millions of inserts). The primary
+# (rsid) lookup path uses idx_dbnsfp_rsid; the position fallback uses the
+# composite PRIMARY KEY (chrom, pos, ref, alt).
+#
+# A wide all-columns "covering" index (formerly idx_dbnsfp_rsid_covering, P4-22)
+# was deliberately removed: on the full dbNSFP release it roughly DOUBLES the
+# on-disk database (~10+ GB over ~86M rows), and building it was the step that
+# kept the setup-wizard build from ever finishing — it took longer than a single
+# backend lifetime, so the process restarted before it completed, the version
+# stamp was never written, and setup stayed permanently blocked. rsid lookups
+# remain index-seeked via idx_dbnsfp_rsid; the only added cost is one row fetch
+# per match, negligible at the batched annotation lookup volumes.
 CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_dbnsfp_rsid ON dbnsfp_scores (rsid)",
     "CREATE INDEX IF NOT EXISTS idx_dbnsfp_chrom_pos ON dbnsfp_scores (chrom, pos)",
-    # Covering index for rsid lookups (P4-22): includes all score columns so
-    # the query can be satisfied entirely from the index without hitting the
-    # main table.  This eliminates random I/O on the ~1.5 GB main table for
-    # the primary (rsid-based) lookup path.
-    (
-        "CREATE INDEX IF NOT EXISTS idx_dbnsfp_rsid_covering ON dbnsfp_scores "
-        "(rsid, chrom, pos, ref, alt, cadd_phred, sift_score, sift_pred, "
-        "polyphen2_hsvar_score, polyphen2_hsvar_pred, revel, mutpred2, vest4, "
-        "metasvm, metalr, gerp_rs, phylop, mpc, primateai)"
-    ),
 ]
 
 # Bulk-insert statement (idempotent upsert on the composite primary key).
@@ -616,12 +619,11 @@ def _create_dbnsfp_table(engine: sa.Engine) -> None:
 
 
 def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
-    """Create the dbnsfp_scores indexes (idempotent). Retries on lock contention.
+    """Create the dbnsfp_scores lookup indexes (idempotent). Retries on lock contention.
 
-    Building the indexes — especially the wide ``idx_dbnsfp_rsid_covering`` — once
-    over a fully populated table is far cheaper than maintaining them per-row
-    across tens of millions of inserts, so the load path defers index creation
-    to after the bulk insert and calls this.
+    Building the indexes once over a fully populated table is far cheaper than
+    maintaining them per-row across tens of millions of inserts, so the load path
+    defers index creation to after the bulk insert and calls this.
     """
 
     def _do() -> None:

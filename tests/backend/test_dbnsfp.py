@@ -865,7 +865,9 @@ class TestIndexAfterLoad:
 
     def test_load_on_fresh_engine_creates_indexes_and_data(self) -> None:
         # Fresh engine with NO tables: load must create the table, insert, then
-        # build the indexes — all three must exist afterward and be queryable.
+        # build the two lookup indexes — both must exist afterward and be
+        # queryable. The wide all-columns covering index is intentionally NOT
+        # built (it doubles the on-disk DB and stalled the setup-wizard build).
         engine = sa.create_engine(
             "sqlite://",
             connect_args={"check_same_thread": False},
@@ -886,4 +888,4 @@ class TestIndexAfterLoad:
         assert count == 61
         assert "idx_dbnsfp_rsid" in index_names
         assert "idx_dbnsfp_chrom_pos" in index_names
-        assert "idx_dbnsfp_rsid_covering" in index_names
+        assert "idx_dbnsfp_rsid_covering" not in index_names

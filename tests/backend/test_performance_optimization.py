@@ -2,7 +2,7 @@
 
 Verifies that the P4-22 performance optimizations are in place:
   - SQLite PRAGMA tuning (cache_size, mmap_size, temp_store)
-  - dbNSFP covering index for rsid lookups
+  - dbNSFP lookup indexes (rsid + chrom/pos), without the dropped covering index
   - Dynamic SQLITE_MAX_VARIABLE_NUMBER detection
   - Per-source timing in AnnotationEngineResult
   - ThreadPoolExecutor reuse across batches (structural)
@@ -98,11 +98,16 @@ def test_default_engine_no_read_optimized_pragmas(tmp_path) -> None:
     engine.dispose()
 
 
-# ── dbNSFP covering index ──────────────────────────────────────────────
+# ── dbNSFP lookup indexes ──────────────────────────────────────────────
 
 
-def test_dbnsfp_covering_index_created() -> None:
-    """Table + index creation builds the covering index for rsid lookups."""
+def test_dbnsfp_lookup_indexes_created() -> None:
+    """Index creation builds the two lookup indexes — and NOT the covering index.
+
+    The wide all-columns ``idx_dbnsfp_rsid_covering`` was dropped: on the full
+    dbNSFP release it roughly doubles the on-disk DB and its build stalled the
+    setup wizard. rsid and chrom/pos lookups stay indexed.
+    """
     engine = sa.create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -119,15 +124,15 @@ def test_dbnsfp_covering_index_created() -> None:
         ).fetchall()
         index_names = {row[0] for row in indexes}
 
-    assert "idx_dbnsfp_rsid_covering" in index_names
     assert "idx_dbnsfp_rsid" in index_names
     assert "idx_dbnsfp_chrom_pos" in index_names
+    assert "idx_dbnsfp_rsid_covering" not in index_names
 
     engine.dispose()
 
 
-def test_dbnsfp_covering_index_used_for_rsid_lookup() -> None:
-    """SQLite query planner uses the covering index for rsid IN queries."""
+def test_dbnsfp_rsid_lookup_uses_index() -> None:
+    """The rsid IN query is index-seeked (not a full scan) via idx_dbnsfp_rsid."""
     import random
 
     engine = sa.create_engine(
@@ -164,7 +169,7 @@ def test_dbnsfp_covering_index_used_for_rsid_lookup() -> None:
         # Force SQLite to update statistics
         conn.execute(sa.text("ANALYZE"))
 
-    # Check EXPLAIN QUERY PLAN uses the covering index
+    # Check EXPLAIN QUERY PLAN: an indexed SEARCH on idx_dbnsfp_rsid, not a SCAN.
     with engine.connect() as conn:
         plan_rows = conn.execute(
             sa.text(
@@ -174,8 +179,10 @@ def test_dbnsfp_covering_index_used_for_rsid_lookup() -> None:
         ).fetchall()
         plan_text = " ".join(str(row) for row in plan_rows).lower()
 
-    # The covering index should be preferred over the plain rsid index
-    assert "idx_dbnsfp_rsid_covering" in plan_text or "idx_dbnsfp_rsid" in plan_text
+    # The rsid path stays index-seeked even without the (removed) covering index.
+    assert "idx_dbnsfp_rsid" in plan_text
+    assert "idx_dbnsfp_rsid_covering" not in plan_text
+    assert "search" in plan_text  # SEARCH = indexed; a bare SCAN would be a full read
 
     engine.dispose()
 
