@@ -283,89 +283,28 @@ def check_vep_bundle_update(
     *,
     timeout: float = 30.0,
 ) -> VersionInfo | None:
-    """Check if a newer VEP bundle is available on GitHub.
+    """Check whether the VEP bundle in the manifest is newer than the installed copy.
 
-    Reads the ``bundle_metadata`` table from the local VEP bundle to get
-    the current build_date, then queries the GitHub API for the latest
-    commit date on ``bundles/vep_bundle.db`` in the main branch.
+    The VEP bundle ships as a manifest-driven release asset, so — like the other
+    bundles (lai_bundle, ancestry_pca, gnomad) — its update check compares the
+    recorded ``database_versions`` version against the manifest version, returning
+    ``None`` (up to date) when they match and offering the manifest version
+    otherwise (including the "no recorded row" case).
+
+    The earlier implementation instead compared the bundle's frozen
+    ``bundle_metadata.build_date`` against the latest GitHub commit date for
+    ``bundles/vep_bundle.db``. Because that committed file is re-committed over
+    time, the commit date almost always exceeded the static build_date, so the
+    check offered an update on *every* run — even on a fresh install, where the
+    wizard already recorded the manifest semver. Delegating to the manifest
+    comparison makes a freshly-installed bundle correctly report up to date.
+
+    ``settings`` is accepted for dispatch-signature parity with the other
+    ``check_*_update`` callables but is unused — the manifest is the
+    authoritative source for the bundle's version.
     """
-    import sqlite3
-
-    from backend.config import get_settings
-    from backend.db.database_registry import BUNDLED_DIR, DATABASES
-
-    if settings is None:
-        settings = get_settings()
-
-    db_info = DATABASES["vep_bundle"]
-
-    # 1. Get local build date from the installed VEP bundle
-    local_path = db_info.dest_path(settings)
-    local_build_date: str | None = None
-
-    if local_path.exists():
-        try:
-            with sqlite3.connect(str(local_path)) as conn:
-                row = conn.execute(
-                    "SELECT value FROM bundle_metadata WHERE key = 'build_date'"
-                ).fetchone()
-                if row:
-                    local_build_date = row[0]
-        except Exception:
-            pass
-
-    if local_build_date is None:
-        # Also check bundled source
-        bundled_src = BUNDLED_DIR / db_info.filename
-        if bundled_src.exists():
-            try:
-                with sqlite3.connect(str(bundled_src)) as conn:
-                    row = conn.execute(
-                        "SELECT value FROM bundle_metadata WHERE key = 'build_date'"
-                    ).fetchone()
-                    if row:
-                        local_build_date = row[0]
-            except Exception:
-                pass
-
-    # 2. Check GitHub for the latest commit on the VEP bundle file
-    try:
-        with httpx.Client(
-            follow_redirects=True,
-            timeout=httpx.Timeout(timeout, connect=10.0),
-        ) as client:
-            resp = client.get(
-                "https://api.github.com/repos/bioedca/Yeliztli/commits",
-                params={"path": "bundles/vep_bundle.db", "per_page": "1"},
-                headers={"Accept": "application/vnd.github.v3+json"},
-            )
-            resp.raise_for_status()
-
-        commits = resp.json()
-        if not commits:
-            return None
-
-        # Extract the commit date (YYYY-MM-DD)
-        try:
-            commit_date_str = commits[0]["commit"]["committer"]["date"][:10]
-        except (KeyError, TypeError, IndexError) as exc:
-            logger.warning("vep_bundle_commit_parse_failed", error=str(exc))
-            return None
-
-        # Compare dates — if remote commit is newer than local build, update available
-        if local_build_date and commit_date_str <= local_build_date:
-            return None  # Already up to date
-
-        return VersionInfo(
-            db_name="vep_bundle",
-            latest_version=commit_date_str,
-            download_url=db_info.url,
-            download_size_bytes=db_info.expected_size_bytes,
-            release_date=commit_date_str,
-        )
-    except Exception as exc:
-        logger.warning("vep_bundle_update_check_failed", error=str(exc))
-        return None
+    del settings  # unused; kept for signature parity
+    return _check_manifest_bundle_update(reference_engine, "vep_bundle", timeout=timeout)
 
 
 def run_vep_bundle_update(
@@ -1106,6 +1045,7 @@ def run_clinvar_update(
     """
     from backend.annotation.clinvar import (
         CLINVAR_VCF_URL,
+        _get_clinvar_last_modified_version,
         download_clinvar_vcf,
         iter_clinvar_vcf,
         load_clinvar_from_iter,
@@ -1151,8 +1091,18 @@ def run_clinvar_update(
             elif old_significances[row.rsid] != row.significance:
                 variants_reclassified += 1
 
-    # 6. Record new version
-    new_version = load_stats.file_date or datetime.now(UTC).strftime("%Y%m%d")
+    # 6. Record new version. Use the FTP Last-Modified date — the exact source
+    # check_clinvar_update compares against — so a just-updated ClinVar is not
+    # immediately re-flagged as outdated. The VCF's own ##fileDate is typically a
+    # day earlier than Last-Modified, so stamping it (the previous behavior) left
+    # current < remote and the Update Manager re-offered the same update on every
+    # subsequent check. Fall back to the VCF fileDate, then today, when the
+    # Last-Modified header is unavailable. This mirrors download_and_load_clinvar.
+    new_version = (
+        _get_clinvar_last_modified_version(CLINVAR_VCF_URL)
+        or load_stats.file_date
+        or datetime.now(UTC).strftime("%Y%m%d")
+    )
     download_size = vcf_path.stat().st_size if vcf_path.exists() else 0
     duration = int(time.monotonic() - start_time)
 

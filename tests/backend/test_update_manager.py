@@ -55,6 +55,7 @@ from backend.db.update_manager import (
     get_current_version,
     get_update_history,
     parse_time_window,
+    run_clinvar_update,
     run_scheduled_update_check,
     set_auto_update,
     should_download_now,
@@ -245,6 +246,78 @@ class TestCheckClinvarUpdate:
             result = check_clinvar_update(reference_engine)
 
         assert result is None
+
+
+class TestRunClinvarUpdateVersionStamp:
+    """run_clinvar_update must stamp the FTP Last-Modified date.
+
+    check_clinvar_update compares the recorded version against the FTP
+    Last-Modified date. The VCF's own ``##fileDate`` is typically a day earlier,
+    so stamping it (the previous behavior) left ``current < remote`` and the
+    Update Manager re-offered the same update on every subsequent check — ClinVar
+    looked perpetually outdated right after updating. The recorded version must
+    therefore come from the same source the check uses.
+    """
+
+    def _run(self, registry, tmp_path, *, last_modified, file_date):
+        from backend.annotation.clinvar import LoadStats
+
+        vcf_path = tmp_path / "clinvar_GRCh37.vcf.gz"
+        vcf_path.write_bytes(b"x")  # so .stat().st_size succeeds
+
+        load_stats = LoadStats(file_date=file_date)
+
+        with (
+            patch("backend.annotation.clinvar.download_clinvar_vcf", return_value=vcf_path),
+            patch("backend.annotation.clinvar.iter_clinvar_vcf", return_value=iter([])),
+            patch(
+                "backend.annotation.clinvar.load_clinvar_from_iter",
+                return_value=load_stats,
+            ),
+            patch(
+                "backend.annotation.clinvar._get_clinvar_last_modified_version",
+                return_value=last_modified,
+            ),
+            patch("backend.db.update_manager.run_precheck_all_samples", return_value=[]),
+        ):
+            return run_clinvar_update(registry)
+
+    def test_stamps_last_modified_not_filedate(self, reference_engine, tmp_path: Path):
+        registry = MagicMock()
+        registry.reference_engine = reference_engine
+        registry.settings = _settings_for_test(tmp_path)
+
+        # fileDate (20260319) is a day earlier than Last-Modified (20260320).
+        result = self._run(registry, tmp_path, last_modified="20260320", file_date="20260319")
+
+        assert result.new_version == "20260320"
+        assert get_current_version(reference_engine, "clinvar") == "20260320"
+
+        # The freshly-updated DB is now reported up to date by the very check that
+        # flagged it — proving install/update and check use the same source.
+        mock_resp = MagicMock()
+        mock_resp.headers = {
+            "Last-Modified": "Fri, 20 Mar 2026 00:00:00 GMT",
+            "Content-Length": "30000000",
+        }
+        mock_resp.raise_for_status = MagicMock()
+        with patch("backend.db.update_manager.httpx.Client") as mock_client:
+            mock_client.return_value.__enter__ = MagicMock(return_value=mock_client.return_value)
+            mock_client.return_value.__exit__ = MagicMock(return_value=False)
+            mock_client.return_value.head.return_value = mock_resp
+            assert check_clinvar_update(reference_engine) is None
+
+    def test_falls_back_to_filedate_when_no_last_modified(
+        self, reference_engine, tmp_path: Path
+    ):
+        registry = MagicMock()
+        registry.reference_engine = reference_engine
+        registry.settings = _settings_for_test(tmp_path)
+
+        result = self._run(registry, tmp_path, last_modified=None, file_date="20260319")
+
+        assert result.new_version == "20260319"
+        assert get_current_version(reference_engine, "clinvar") == "20260319"
 
 
 class TestCheckAllUpdates:

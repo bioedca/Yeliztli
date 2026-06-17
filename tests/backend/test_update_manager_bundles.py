@@ -55,6 +55,13 @@ SAMPLE_MANIFEST: dict = {
             "sha256": "11" * 32,
             "size_bytes": 2_000_000_123,
         },
+        "vep_bundle": {
+            "version": "v3.0.0",
+            "build_date": "2026-06-01",
+            "url": "https://example.com/vep_bundle.db",
+            "sha256": "22" * 32,
+            "size_bytes": 358_752_256,
+        },
     },
     "pipeline_pins": {
         "clinvar": {
@@ -325,6 +332,110 @@ class TestCheckGnomadBundleUpdate:
         # Both call shapes return None (up to date).
         assert check_gnomad_bundle_update(reference_engine, None) is None
         assert check_gnomad_bundle_update(reference_engine, settings=object()) is None
+
+
+# ── check_vep_bundle_update ───────────────────────────────────────────
+
+
+class TestCheckVepBundleUpdate:
+    """VEP bundle is checked against the manifest like the other bundles.
+
+    Regression guard for the old GitHub-commit-date heuristic, which compared
+    the bundle's frozen ``build_date`` against the latest commit on
+    ``bundles/vep_bundle.db`` and so reported an update on every run (the file is
+    re-committed over time), even on a fresh install.
+    """
+
+    def test_manifest_newer_than_recorded_returns_version_info(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "vep_bundle", "v2.0.0")
+
+        result = check_vep_bundle_update(reference_engine)
+
+        assert result is not None
+        assert isinstance(result, VersionInfo)
+        assert result.db_name == "vep_bundle"
+        assert result.latest_version == "v3.0.0"
+        assert result.download_url == "https://example.com/vep_bundle.db"
+        assert result.download_size_bytes == 358_752_256
+        assert result.release_date == "2026-06-01"
+
+    def test_manifest_matches_recorded_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A freshly-installed bundle (recorded == manifest) is up to date."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "vep_bundle", "v3.0.0")
+
+        assert check_vep_bundle_update(reference_engine) is None
+
+    def test_no_recorded_version_returns_version_info(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """No recorded row → offer the manifest release (still satisfiable: has a url)."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        result = check_vep_bundle_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v3.0.0"
+
+    def test_stale_committed_fixture_recorded_returns_version_info(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """The offline-fallback fixture records 'v1.0.0' → real v3.0.0 is offered."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "vep_bundle", "v1.0.0")
+
+        result = check_vep_bundle_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v3.0.0"
+
+    def test_manifest_missing_bundle_entry_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        payload = json.loads(json.dumps(SAMPLE_MANIFEST))
+        del payload["bundles"]["vep_bundle"]
+        path = _write_manifest(tmp_path, payload)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        assert check_vep_bundle_update(reference_engine) is None
+
+    def test_no_url_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
+        """Without a download URL there is nothing to offer (no dead-end update)."""
+        payload = json.loads(json.dumps(SAMPLE_MANIFEST))
+        payload["bundles"]["vep_bundle"]["url"] = ""
+        path = _write_manifest(tmp_path, payload)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "vep_bundle", "v1.0.0")
+
+        assert check_vep_bundle_update(reference_engine) is None
+
+    def test_manifest_unreachable_returns_none(self, reference_engine):
+        """Manifest fetch failures degrade gracefully — no spurious update offers."""
+        with patch(
+            "backend.db.manifest.httpx.get",
+            side_effect=httpx.ConnectError("nope"),
+        ):
+            assert check_vep_bundle_update(reference_engine) is None
+
+    def test_settings_argument_accepted_and_ignored(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """Signature parity: settings is accepted but not required."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "vep_bundle", "v3.0.0")
+
+        assert check_vep_bundle_update(reference_engine, None) is None
+        assert check_vep_bundle_update(reference_engine, settings=object()) is None
 
 
 # ── CHECK_FNS dispatch dict ───────────────────────────────────────────
