@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -369,6 +370,69 @@ class TestLookupClinvar:
         assert result["rs429358"]["clinvar_significance"] == "risk_factor"
         assert result["rs429358"]["clinvar_review_stars"] == 3
 
+    def test_coord_fallback_rescues_rsid_mismatch(self, reference_engine: sa.Engine) -> None:
+        """A probe whose array rsID differs from ClinVar's is rescued by (chrom, pos).
+
+        ClinVar can file a variant under a different rsID than the array probe
+        (rsID merges/withdrawals, or the chip uses an internal id). Without a
+        coordinate fallback the live engine silently drops the Pathogenic record
+        — ClinVar was the only annotation source lacking the fallback that VEP,
+        gnomAD and dbNSFP already have. The carried allele is selected among the
+        site's records: genotype ``AA`` carries the G>A Pathogenic allele, not
+        the higher-star G>C Uncertain one, so a star-only pick would be wrong.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": "rs_clinvar_label",  # ClinVar's rsID, not the array's
+                        "chrom": "2",
+                        "pos": 238253397,
+                        "ref": "G",
+                        "alt": "C",
+                        "significance": "Uncertain significance",
+                        "review_stars": 3,  # highest stars — must NOT be chosen
+                        "accession": "VCV_uncertain",
+                        "conditions": "not provided",
+                        "gene_symbol": "GENEX",
+                        "variation_id": 9001,
+                    },
+                    {
+                        "rsid": "rs_clinvar_label",
+                        "chrom": "2",
+                        "pos": 238253397,
+                        "ref": "G",
+                        "alt": "A",
+                        "significance": "Pathogenic",
+                        "review_stars": 2,
+                        "accession": "VCV_pathogenic",
+                        "conditions": "Some disease",
+                        "gene_symbol": "GENEX",
+                        "variation_id": 9002,
+                    },
+                ],
+            )
+        raw = SimpleNamespace(rsid="rs_array_probe", chrom="2", pos=238253397, genotype="AA")
+
+        result = _lookup_clinvar(["rs_array_probe"], {"rs_array_probe": raw}, reference_engine)
+
+        assert "rs_array_probe" in result, (
+            "coord-fallback did not rescue the rsID-mismatched ClinVar record"
+        )
+        # Carriage-aware pick: the carried G>A Pathogenic allele wins over the
+        # higher-star G>C Uncertain record the sample does not carry.
+        assert result["rs_array_probe"]["clinvar_significance"] == "Pathogenic"
+        assert result["rs_array_probe"]["alt"] == "A"
+
+    def test_rsid_hit_skips_coord_fallback(self, reference_engine: sa.Engine) -> None:
+        """An rsID match short-circuits the fallback (no coord override of a hit)."""
+        # rs1801133 is filed at chrom 1; pretend the raw row carries a *different*
+        # coordinate. The rsID match must win and the bogus coordinate is ignored.
+        raw = SimpleNamespace(rsid="rs1801133", chrom="99", pos=1, genotype="AG")
+        result = _lookup_clinvar(["rs1801133"], {"rs1801133": raw}, reference_engine)
+        assert result["rs1801133"]["clinvar_significance"] == "drug_response"
+
 
 class TestLookupGnomad:
     def test_returns_gnomad_fields(self, gnomad_engine: sa.Engine) -> None:
@@ -682,6 +746,57 @@ class TestRunAnnotation:
         assert row.annotation_coverage == (
             VEP_BIT | CLINVAR_BIT | GNOMAD_BIT | DBNSFP_BIT | GENE_PHENOTYPE_BIT
         )
+
+    def test_clinvar_coord_fallback_annotates_rsid_mismatch(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        """Live engine annotates a Pathogenic ClinVar record matched only by coordinate.
+
+        PR-tier twin of the nightly real-bundle ClinVar hit-rate guard
+        (``test_annotation_engine_ancestrydna_real_bundle``): that test computes
+        its expected set by ClinVar *position*, so the live ``run_annotation``
+        path — not just the standalone ``annotate_sample_clinvar`` writer — must
+        fall back to (chrom, pos) when the array rsID and ClinVar rsID differ.
+        """
+        with mock_registry.reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": "rs_clinvar_label",  # differs from the array probe
+                        "chrom": "2",
+                        "pos": 238253397,
+                        "ref": "G",
+                        "alt": "A",
+                        "significance": "Pathogenic",
+                        "review_stars": 2,
+                        "accession": "VCV_coord",
+                        "conditions": "Some disease",
+                        "gene_symbol": "GENEX",
+                        "variation_id": 9101,
+                    }
+                ],
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs_array_probe", "chrom": "2", "pos": 238253397, "genotype": "AA"}],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_array_probe")
+            ).fetchone()
+
+        assert row is not None
+        assert row.clinvar_significance == "Pathogenic"
+        assert row.annotation_coverage & CLINVAR_BIT
+        # genotype AA vs ref G / alt A → homozygous carrier (non-NULL zygosity)
+        assert row.zygosity is not None
 
     def test_engine_populates_zygosity(
         self,

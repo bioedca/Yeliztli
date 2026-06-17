@@ -274,20 +274,32 @@ def _lookup_clinvar(
     raw_by_rsid: dict[str, sa.Row],
     reference_engine: sa.Engine,
 ) -> dict[str, dict]:
-    """Look up ClinVar annotations for a batch of rsids.
+    """Look up ClinVar annotations for a batch of rsids, with (chrom, pos) fallback.
+
+    Primary strategy: batch rsid lookup via ``lookup_clinvar_by_rsids``.
+    Fallback: rsids that miss the rsid index but carry a known ``(chrom, pos)``
+    are resolved via ``lookup_clinvar_by_positions``. An array probe's rsid can
+    be merged, withdrawn, or simply differ from the rsid ClinVar files the same
+    variant under, so coordinate matching recovers Pathogenic/Likely_pathogenic
+    records that rsid-only matching silently drops. This mirrors the gnomAD,
+    dbNSFP and VEP coord-fallbacks — ClinVar was the only annotation source
+    without one — and the standalone ``annotate_sample_clinvar`` writer.
 
     Passes the sample genotypes so multi-allelic sites are scored against the
     allele the sample actually carries (``_pick_clinvar_row``), and keeps the
     matched record's ``ref``/``alt`` so ``_merge_annotations`` can compute
     carriage (zygosity). Without these two the engine is genotype-agnostic.
     """
-    from backend.annotation.clinvar import lookup_clinvar_by_rsids
+    from backend.annotation.clinvar import (
+        lookup_clinvar_by_positions,
+        lookup_clinvar_by_rsids,
+    )
 
     genotype_by_rsid = {rsid: raw_by_rsid[rsid].genotype for rsid in rsids if rsid in raw_by_rsid}
-    matches = lookup_clinvar_by_rsids(rsids, reference_engine, genotype_by_rsid=genotype_by_rsid)
 
     results: dict[str, dict] = {}
-    for rsid, annot in matches.items():
+
+    def _record(rsid: str, annot) -> None:
         results[rsid] = {
             "clinvar_significance": annot.clinvar_significance,
             "clinvar_review_stars": annot.clinvar_review_stars,
@@ -297,6 +309,32 @@ def _lookup_clinvar(
             "ref": annot.ref,
             "alt": annot.alt,
         }
+
+    matches = lookup_clinvar_by_rsids(rsids, reference_engine, genotype_by_rsid=genotype_by_rsid)
+    for rsid, annot in matches.items():
+        _record(rsid, annot)
+
+    # Coordinate fallback for rsids that missed the rsid index but have a
+    # known (chrom, pos). Mirrors _lookup_gnomad's position fallback.
+    unmatched_positions: list[tuple[str, int, str]] = []
+    for rsid in rsids:
+        if rsid in results:
+            continue
+        raw = raw_by_rsid.get(rsid)
+        if raw is None:
+            continue
+        chrom = getattr(raw, "chrom", None)
+        pos = getattr(raw, "pos", None)
+        if chrom and pos is not None:
+            unmatched_positions.append((chrom, pos, rsid))
+
+    if unmatched_positions:
+        pos_matches = lookup_clinvar_by_positions(
+            unmatched_positions, reference_engine, genotype_by_rsid=genotype_by_rsid
+        )
+        for rsid, annot in pos_matches.items():
+            _record(rsid, annot)
+
     return results
 
 
