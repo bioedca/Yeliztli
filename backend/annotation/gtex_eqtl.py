@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import gzip
 import re
+import shutil
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -284,7 +285,12 @@ def _extract_eqtl_tar(tar_path: Path, dest_dir: Path) -> Path:
     _extract_lai_bundle``): reject absolute / ``..`` / link members, extract with
     ``filter="data"``. Returns the directory that holds the per-tissue
     ``*.signif_variant_gene_pairs.txt.gz`` files.
+
+    The destination is cleared first so a stale extraction (e.g. tissue files
+    from a previous, larger tar) can never be mixed into the new build.
     """
+    if dest_dir.exists():
+        shutil.rmtree(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tar_path, "r") as tf:
         for member in tf.getmembers():
@@ -336,8 +342,11 @@ def load_gtex_eqtl_dir(
         try:
             s = load_gtex_eqtl(f, rsid_lookup, tissue, engine, clear_existing=True)
         except ValueError as exc:
-            # A single tissue with zero rsID-matched rows must not abort the whole
-            # build; skip it (it contributes no joinable context anyway) and log.
+            # Only the explicit zero-rsID-match case is benign (a tissue with no
+            # joinable rows); a malformed/short-schema file must still abort the
+            # build rather than silently ship an incomplete DB.
+            if "parsed zero eQTL rows with an rsID" not in str(exc):
+                raise
             logger.warning("gtex_eqtl_tissue_empty", tissue=tissue, error=str(exc))
             continue
         stats.append(s)
@@ -373,14 +382,27 @@ def _download_gtex_inputs(
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    def _fetch(url: str, name: str) -> Path:
+    def _fetch(url: str, name: str, band_lo: float, band_hi: float) -> Path:
+        """Download one file, reporting progress into the ``[band_lo, band_hi]`` %.
+
+        The two downloads share one callback; mapping each into a distinct
+        percentage band keeps overall progress monotonic instead of resetting to
+        0% when the second (lookup) download starts. Reported as ``(pct, 100)``.
+        """
         dest_path = dest_dir / name
         tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
         logger.info("gtex_eqtl_download_start", url=url, dest=str(dest_path))
+
+        def _banded(done: int, total: int | None) -> None:
+            if download_progress is None:
+                return
+            frac = (done / total) if total else 0.0
+            download_progress(int(band_lo + frac * (band_hi - band_lo)), 100)
+
         stream_download(
             url,
             tmp_path,
-            progress_callback=download_progress,
+            progress_callback=_banded,
             timeout=timeout,
             resumable=True,
             validator=read_validator_sidecar(tmp_path),
@@ -390,8 +412,9 @@ def _download_gtex_inputs(
         clear_validator_sidecar(tmp_path)
         return dest_path
 
-    tar_path = _fetch(GTEX_EQTL_URL, "GTEx_Analysis_v8_eQTL.tar")
-    lookup_path = _fetch(GTEX_LOOKUP_URL, "GTEx_v8_WGS_lookup_table.txt.gz")
+    # Bands sized to the inputs' relative bytes (~1.6 GB tar, ~0.8 GB lookup).
+    tar_path = _fetch(GTEX_EQTL_URL, "GTEx_Analysis_v8_eQTL.tar", 0.0, 65.0)
+    lookup_path = _fetch(GTEX_LOOKUP_URL, "GTEx_v8_WGS_lookup_table.txt.gz", 65.0, 100.0)
     return tar_path, lookup_path
 
 
@@ -409,9 +432,18 @@ def download_and_load_gtex_eqtl(
     Pipeline build (like AlphaMissense): downloads the open-access eQTL tar (~1.6 GB)
     and the WGS variant→rsID lookup table (~0.8 GB), extracts the tar, and ingests
     each tissue rsID-keyed (GRCh38→rsID match, no liftover — see module header).
-    Heavy → run on the cluster. The version is recorded into the reference DB so the
-    Update Manager always surfaces a row.
+    Heavy → run on the cluster. The version MUST be recorded into the reference DB
+    (``reference_engine``) so the Update Manager surfaces a row — writing it into
+    the standalone ``gtex_eqtl.db`` would be invisible to the registry contract, so
+    ``reference_engine`` is required.
     """
+    if reference_engine is None:
+        raise ValueError(
+            "download_and_load_gtex_eqtl requires reference_engine so the version is "
+            "recorded in reference.db (visible to the Update Manager), not the "
+            "standalone gtex_eqtl.db."
+        )
+
     tar_path, lookup_path = _download_gtex_inputs(
         dest_dir, download_progress=download_progress, timeout=timeout
     )
@@ -420,7 +452,7 @@ def download_and_load_gtex_eqtl(
     stats = load_gtex_eqtl_dir(eqtl_dir, lookup_path, engine, parse_progress=parse_progress)
 
     record_gtex_eqtl_version(
-        reference_engine or engine,
+        reference_engine,
         file_path=str(tar_path),
         file_size_bytes=tar_path.stat().st_size if tar_path.exists() else None,
     )

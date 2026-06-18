@@ -214,6 +214,22 @@ class TestLoadDir:
         assert "Whole_Blood" in tissues
         assert "Brain" not in tissues
 
+    def test_malformed_schema_file_aborts_not_skipped(self, tmp_path: Path) -> None:
+        # A signif file missing the required variant_id/gene_id columns must abort
+        # the build (re-raised), NOT be silently skipped like a zero-rsID tissue.
+        eqtl_dir = tmp_path / "ex"
+        eqtl_dir.mkdir()
+        _write(
+            eqtl_dir,
+            "Bad.v8.signif_variant_gene_pairs.txt.gz",
+            "foo\tbar\tpval_nominal\n1\t2\t3\n",
+            gz=True,
+        )
+        lookup = _write(tmp_path, "lk.txt", _LOOKUP)
+        engine = _engine(tmp_path)
+        with pytest.raises(ValueError, match="missing variant_id/gene_id"):
+            load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
+
     def test_no_signif_files_refuses_to_build(self, tmp_path: Path) -> None:
         eqtl_dir = tmp_path / "empty"
         eqtl_dir.mkdir()
@@ -268,5 +284,14 @@ class TestDownloadAndLoad:
             gtex_mod, "_download_gtex_inputs", lambda d, **k: (tar_path, lookup_path)
         )
         engine = _engine(tmp_path)
+        ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
+        reference_metadata.create_all(ref)
         with pytest.raises(ValueError, match="no GTEx"):
+            download_and_load_gtex_eqtl(engine, tmp_path / "dl", reference_engine=ref)
+
+    def test_requires_reference_engine(self, tmp_path: Path) -> None:
+        # The registry contract needs the version in reference.db, so a build
+        # without a reference engine must fail fast (before any download).
+        engine = _engine(tmp_path)
+        with pytest.raises(ValueError, match="requires reference_engine"):
             download_and_load_gtex_eqtl(engine, tmp_path / "dl")
