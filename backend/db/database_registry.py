@@ -337,6 +337,22 @@ DATABASES: dict[str, DatabaseInfo] = {
         build_mode="pipeline",
         target_db="standalone",
     ),
+    "gtex_eqtl": DatabaseInfo(
+        name="gtex_eqtl",
+        display_name="GTEx eQTL",
+        description=(
+            "GTEx v8 tissue eQTL regulatory context (open-access summary stats); "
+            "context-only, never ACMG evidence"
+        ),
+        url="",
+        filename="gtex_eqtl.db",
+        # Estimate — refine to the byte size of the SLURM-built DB when shipped.
+        expected_size_bytes=3_000_000_000,  # ~3 GB built SQLite (rsID-keyed signif pairs)
+        required=False,
+        phase=3,
+        build_mode="pipeline",
+        target_db="standalone",
+    ),
     "pgs_scores": DatabaseInfo(
         name="pgs_scores",
         display_name="PGS Catalog scores",
@@ -495,6 +511,7 @@ _BUILD_FN_REGISTRY: dict[str, tuple[str, str]] = {
     # setup wizard / scheduler route it through run_gnomad_bundle_update instead.
     "dbnsfp": ("backend.annotation.dbnsfp", "download_and_load_dbnsfp"),
     "alphamissense": ("backend.annotation.alphamissense", "download_and_load_alphamissense"),
+    "gtex_eqtl": ("backend.annotation.gtex_eqtl", "download_and_load_gtex_eqtl"),
     "gwas_catalog": ("backend.annotation.gwas", "download_and_load_gwas"),
     "dbsnp": ("backend.annotation.dbsnp", "download_and_load_rsmerge"),
     "mondo_hpo": ("backend.annotation.mondo_hpo", "download_and_load_mondo_hpo"),
@@ -548,6 +565,7 @@ EXPECTED_GENOME_BUILD: dict[str, str] = {
     "vep_bundle": "GRCh37",
     "gnomad_constraint": "GRCh37",
     "alphamissense": "GRCh37",
+    "gtex_eqtl": "GRCh37",
     "pgs_scores": "GRCh37",
     "dbnsfp": "GRCh38",
 }

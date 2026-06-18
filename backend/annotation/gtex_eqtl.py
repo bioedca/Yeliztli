@@ -29,11 +29,40 @@ from __future__ import annotations
 
 import gzip
 import re
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 import sqlalchemy as sa
+import structlog
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+logger = structlog.get_logger(__name__)
+
+# Pipeline-build sources (mirrored in bundles/manifest.json -> pipeline_pins.gtex_eqtl).
+# Both files are GTEx v8 open-access summary statistics (the protected data is the
+# individual-level WGS, not these). Heavy (~1.6 GB tar + ~0.8 GB lookup) → build on
+# the cluster (see docs/external-inputs-strategy.md / CLAUDE.md SLURM rule).
+GTEX_EQTL_URL = (
+    "https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/"
+    "single-tissue-cis-qtl/GTEx_Analysis_v8_eQTL.tar"
+)
+# The WGS variant lookup table maps the GRCh38 ``variant_id`` to its dbSNP rsID
+# (``rs_id_dbSNP151_GRCh38p7``); this is how we join GTEx (GRCh38) to the app's
+# GRCh37 / rsID-keyed sample data WITHOUT a coordinate liftover — see module header.
+GTEX_LOOKUP_URL = (
+    "https://storage.googleapis.com/adult-gtex/references/v8/reference-tables/"
+    "GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze."
+    "lookup_table.txt.gz"
+)
+GTEX_VERSION = "v8"
+
+# GTEx significant cis-eQTL per-tissue files inside the eQTL tar are named
+# ``<Tissue>.v8.signif_variant_gene_pairs.txt.gz`` (e.g. ``Whole_Blood.v8.…``).
+_SIGNIF_PAIRS_RE = re.compile(r"\.v8\.signif_variant_gene_pairs\.txt(\.gz)?$")
 
 # variant_id format: chr1_64764_C_T_b38  (GRCh38, 'chr'-prefixed).
 _VARIANT_ID_RE = re.compile(r"^chr([0-9XYM]+)_(\d+)_([ACGT]+)_([ACGT]+)_b38$", re.IGNORECASE)
@@ -219,3 +248,187 @@ def lookup_eqtls_by_rsids(rsids: list[str], engine: sa.Engine) -> dict[str, list
             for r in conn.execute(stmt):
                 out.setdefault(r.rsid, []).append(dict(r._mapping))
     return out
+
+
+def record_gtex_eqtl_version(
+    engine: sa.Engine,
+    *,
+    version: str = GTEX_VERSION,
+    file_path: str | None = None,
+    file_size_bytes: int | None = None,
+    checksum: str | None = None,
+) -> None:
+    """Record the GTEx eQTL version in ``database_versions`` (GRCh37-joinable).
+
+    The rows are rsID-keyed and joined to the app's GRCh37 sample data by rsID, so
+    the recorded build is GRCh37 even though GTEx's native coordinates are GRCh38
+    (mirrors how dbNSFP is rsID-joined; see ``EXPECTED_GENOME_BUILD``).
+    """
+    from backend.db.database_registry import _record_db_version
+
+    _record_db_version(
+        engine,
+        db_name="gtex_eqtl",
+        version=version,
+        file_size_bytes=file_size_bytes,
+        sha256=checksum,
+        file_path=file_path,
+        genome_build="GRCh37",
+    )
+
+
+def _extract_eqtl_tar(tar_path: Path, dest_dir: Path) -> Path:
+    """Extract the GTEx eQTL tar into ``dest_dir`` (path-traversal/symlink safe).
+
+    Mirrors the LAI bundle extractor's safety guards (``database_registry.
+    _extract_lai_bundle``): reject absolute / ``..`` / link members, extract with
+    ``filter="data"``. Returns the directory that holds the per-tissue
+    ``*.signif_variant_gene_pairs.txt.gz`` files.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(tar_path, "r") as tf:
+        for member in tf.getmembers():
+            if member.name.startswith("/") or ".." in member.name.split("/"):
+                logger.warning("gtex_eqtl_skip_unsafe_entry", name=member.name)
+                continue
+            if member.issym() or member.islnk():
+                logger.warning("gtex_eqtl_skip_link", name=member.name)
+                continue
+            tf.extract(member, dest_dir, filter="data")
+    return dest_dir
+
+
+def _tissue_from_filename(path: Path) -> str:
+    """``Whole_Blood.v8.signif_variant_gene_pairs.txt.gz`` → ``Whole_Blood``."""
+    return _SIGNIF_PAIRS_RE.sub("", path.name)
+
+
+def load_gtex_eqtl_dir(
+    eqtl_dir: Path,
+    lookup_path: Path,
+    engine: sa.Engine,
+    *,
+    parse_progress: Callable[[int], None] | None = None,
+) -> list[GtexLoadStats]:
+    """Ingest every per-tissue signif-pairs file under ``eqtl_dir`` into ``gtex_eqtl.db``.
+
+    Loads the WGS variant→rsID lookup once, then ingests each tissue (per-tissue
+    ``clear_existing`` so a re-build replaces a tissue in place). Raises if the tar
+    contains no signif-pairs files (no silent empty build — mirrors the per-tissue
+    empty-parse guard in :func:`load_gtex_eqtl`).
+    """
+    signif_files = sorted(
+        p for p in eqtl_dir.rglob("*") if p.is_file() and _SIGNIF_PAIRS_RE.search(p.name)
+    )
+    if not signif_files:
+        raise ValueError(
+            f"no GTEx *.signif_variant_gene_pairs.txt(.gz) files found under {eqtl_dir} — "
+            f"refusing to build an empty gtex_eqtl.db."
+        )
+
+    rsid_lookup = load_variant_rsid_lookup(lookup_path)
+
+    create_gtex_tables(engine)
+    stats: list[GtexLoadStats] = []
+    total_loaded = 0
+    for f in signif_files:
+        tissue = _tissue_from_filename(f)
+        try:
+            s = load_gtex_eqtl(f, rsid_lookup, tissue, engine, clear_existing=True)
+        except ValueError as exc:
+            # A single tissue with zero rsID-matched rows must not abort the whole
+            # build; skip it (it contributes no joinable context anyway) and log.
+            logger.warning("gtex_eqtl_tissue_empty", tissue=tissue, error=str(exc))
+            continue
+        stats.append(s)
+        total_loaded += s.loaded
+        if parse_progress is not None:
+            parse_progress(total_loaded)
+
+    if not stats:
+        raise ValueError(
+            "every GTEx tissue parsed zero rsID-matched eQTL rows — refusing to build "
+            "an empty gtex_eqtl.db (is the WGS lookup table the right one?)."
+        )
+    return stats
+
+
+def _download_gtex_inputs(
+    dest_dir: Path,
+    *,
+    download_progress: Callable[[int, int | None], None] | None = None,
+    timeout: float = 7200.0,
+) -> tuple[Path, Path]:
+    """Download the GTEx eQTL tar + the WGS rsID lookup table → ``(tar_path, lookup_path)``.
+
+    Both are streamed (resumable) via the shared ``stream_download`` helper. Heavy —
+    run on the cluster. Isolated behind one function so tests can monkeypatch it.
+    """
+    from backend.annotation.http_download import (
+        clear_validator_sidecar,
+        read_validator_sidecar,
+        stream_download,
+        write_validator_sidecar,
+    )
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    def _fetch(url: str, name: str) -> Path:
+        dest_path = dest_dir / name
+        tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
+        logger.info("gtex_eqtl_download_start", url=url, dest=str(dest_path))
+        stream_download(
+            url,
+            tmp_path,
+            progress_callback=download_progress,
+            timeout=timeout,
+            resumable=True,
+            validator=read_validator_sidecar(tmp_path),
+            on_validator=lambda v: write_validator_sidecar(tmp_path, v),
+        )
+        tmp_path.rename(dest_path)
+        clear_validator_sidecar(tmp_path)
+        return dest_path
+
+    tar_path = _fetch(GTEX_EQTL_URL, "GTEx_Analysis_v8_eQTL.tar")
+    lookup_path = _fetch(GTEX_LOOKUP_URL, "GTEx_v8_WGS_lookup_table.txt.gz")
+    return tar_path, lookup_path
+
+
+def download_and_load_gtex_eqtl(
+    engine: sa.Engine,
+    dest_dir: Path,
+    *,
+    download_progress: Callable[[int, int | None], None] | None = None,
+    parse_progress: Callable[[int], None] | None = None,
+    timeout: float = 7200.0,
+    reference_engine: sa.Engine | None = None,
+) -> list[GtexLoadStats]:
+    """Build-mode entry point: fetch GTEx v8 eQTL + lookup and load ``gtex_eqtl.db``.
+
+    Pipeline build (like AlphaMissense): downloads the open-access eQTL tar (~1.6 GB)
+    and the WGS variant→rsID lookup table (~0.8 GB), extracts the tar, and ingests
+    each tissue rsID-keyed (GRCh38→rsID match, no liftover — see module header).
+    Heavy → run on the cluster. The version is recorded into the reference DB so the
+    Update Manager always surfaces a row.
+    """
+    tar_path, lookup_path = _download_gtex_inputs(
+        dest_dir, download_progress=download_progress, timeout=timeout
+    )
+
+    eqtl_dir = _extract_eqtl_tar(tar_path, dest_dir / "gtex_v8_eqtl")
+    stats = load_gtex_eqtl_dir(eqtl_dir, lookup_path, engine, parse_progress=parse_progress)
+
+    record_gtex_eqtl_version(
+        reference_engine or engine,
+        file_path=str(tar_path),
+        file_size_bytes=tar_path.stat().st_size if tar_path.exists() else None,
+    )
+    if download_progress is not None:
+        download_progress(100, 100)
+    logger.info(
+        "gtex_eqtl_build_complete",
+        tissues=len(stats),
+        rows=sum(s.loaded for s in stats),
+    )
+    return stats

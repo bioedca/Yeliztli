@@ -882,6 +882,8 @@ def _execute_build(
                 target_engine = registry.dbnsfp_engine
             elif db_info.name == "alphamissense":
                 target_engine = registry.alphamissense_engine
+            elif db_info.name == "gtex_eqtl":
+                target_engine = registry.gtex_eqtl_engine
             else:
                 target_engine = engine
 
@@ -938,7 +940,7 @@ def _execute_build(
                 parse_progress=on_parse_progress,
                 reference_engine=engine,
             )
-        elif db_info.name == "alphamissense":
+        elif db_info.name in ("alphamissense", "gtex_eqtl"):
             build_fn(
                 target_engine,
                 settings.downloads_dir,

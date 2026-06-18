@@ -98,6 +98,7 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
     "gnomad": [("gnomad_af", True)],
     "dbnsfp": [("dbnsfp_scores", True)],
     "alphamissense": [("alphamissense_scores", True)],
+    "gtex_eqtl": [("gtex_eqtl", True)],
     # bundle_metadata only needs to exist; vep_annotations carries the data.
     "vep_bundle": [("vep_annotations", True), ("bundle_metadata", False)],
     "encode_ccres": [("encode_ccres", True)],

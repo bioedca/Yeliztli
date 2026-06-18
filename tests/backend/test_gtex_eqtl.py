@@ -8,20 +8,26 @@ the context-only badge (never ACMG evidence).
 from __future__ import annotations
 
 import gzip
+import tarfile
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 
+import backend.annotation.gtex_eqtl as gtex_mod
 from backend.analysis.gtex import GTEX_PMID, eqtl_regulatory_context
 from backend.annotation.gtex_eqtl import (
+    GTEX_VERSION,
     create_gtex_tables,
+    download_and_load_gtex_eqtl,
     gtex_eqtl,
     load_gtex_eqtl,
+    load_gtex_eqtl_dir,
     load_variant_rsid_lookup,
     lookup_eqtls_by_rsids,
     parse_variant_id,
 )
+from backend.db.tables import database_versions, reference_metadata
 
 # GTEx WGS lookup table (variant_id → rsID). Last variant has no rsID ('.').
 _LOOKUP = (
@@ -155,3 +161,112 @@ class TestRegulatoryContext:
         assert ctx["acmg_evidence"] is False
         assert ctx["context_only"] is True
         assert GTEX_PMID in ctx["pmid_citations"]
+
+
+def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
+    """Build a synthetic ``GTEx_Analysis_v8_eQTL.tar`` with per-tissue signif files."""
+    raw = tmp_path / "tar_src"
+    raw.mkdir(exist_ok=True)
+    members: list[Path] = []
+    for tissue, content in tissue_to_signif.items():
+        f = raw / f"{tissue}.v8.signif_variant_gene_pairs.txt.gz"
+        with gzip.open(f, "wt", encoding="utf-8") as fh:
+            fh.write(content)
+        members.append(f)
+    tar_path = tmp_path / "GTEx_Analysis_v8_eQTL.tar"
+    with tarfile.open(tar_path, "w") as tf:
+        for f in members:
+            tf.add(f, arcname=f"GTEx_Analysis_v8_eQTL/{f.name}")
+    return tar_path
+
+
+class TestLoadDir:
+    def test_loads_all_tissues_from_extracted_dir(self, tmp_path: Path) -> None:
+        eqtl_dir = tmp_path / "ex"
+        eqtl_dir.mkdir()
+        _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
+        _write(eqtl_dir, "Liver.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
+        lookup = _write(tmp_path, "lk.txt", _LOOKUP)
+        engine = _engine(tmp_path)
+
+        stats = load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
+
+        assert {s.tissue for s in stats} == {"Whole_Blood", "Liver"}
+        assert _count_tissue_rows(engine, "Whole_Blood") == 2
+        assert _count_tissue_rows(engine, "Liver") == 2
+
+    def test_tissue_with_no_rsid_matches_is_skipped_not_fatal(self, tmp_path: Path) -> None:
+        # Whole_Blood matches the lookup; "Brain" has only off-lookup variants → its
+        # per-tissue empty-parse ValueError is caught and the tissue skipped.
+        brain = _SIGNIF.replace("chr1_64764_C_T_b38", "chr1_999_C_T_b38").replace(
+            "chr2_100_A_G_b38", "chr2_999_A_G_b38"
+        )
+        eqtl_dir = tmp_path / "ex"
+        eqtl_dir.mkdir()
+        _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
+        _write(eqtl_dir, "Brain.v8.signif_variant_gene_pairs.txt.gz", brain, gz=True)
+        lookup = _write(tmp_path, "lk.txt", _LOOKUP)
+        engine = _engine(tmp_path)
+
+        stats = load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
+
+        tissues = {s.tissue for s in stats}
+        assert "Whole_Blood" in tissues
+        assert "Brain" not in tissues
+
+    def test_no_signif_files_refuses_to_build(self, tmp_path: Path) -> None:
+        eqtl_dir = tmp_path / "empty"
+        eqtl_dir.mkdir()
+        (eqtl_dir / "README.txt").write_text("not an eqtl file", encoding="utf-8")
+        lookup = _write(tmp_path, "lk.txt", _LOOKUP)
+        engine = _engine(tmp_path)
+        with pytest.raises(ValueError, match="no GTEx"):
+            load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
+
+
+class TestDownloadAndLoad:
+    def test_builds_db_and_records_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tar_path = _make_eqtl_tar(tmp_path, {"Whole_Blood": _SIGNIF, "Liver": _SIGNIF})
+        lookup_path = _write(tmp_path, "lookup.txt", _LOOKUP)
+
+        def fake_download(dest_dir: Path, **_kw: object) -> tuple[Path, Path]:
+            return tar_path, lookup_path
+
+        monkeypatch.setattr(gtex_mod, "_download_gtex_inputs", fake_download)
+
+        engine = _engine(tmp_path)
+        ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
+        reference_metadata.create_all(ref)
+
+        stats = download_and_load_gtex_eqtl(engine, tmp_path / "dl", reference_engine=ref)
+
+        assert {s.tissue for s in stats} == {"Whole_Blood", "Liver"}
+        assert _count_tissue_rows(engine, "Whole_Blood") == 2
+        assert _count_tissue_rows(engine, "Liver") == 2
+
+        with ref.connect() as conn:
+            row = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "gtex_eqtl")
+            ).fetchone()
+        assert row is not None
+        assert row.version == GTEX_VERSION
+        assert row.genome_build == "GRCh37"  # rsID-joined to GRCh37 despite GTEx b38
+
+    def test_empty_tar_refuses_to_build(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        other = tmp_path / "readme.txt"
+        other.write_text("not an eqtl file", encoding="utf-8")
+        tar_path = tmp_path / "empty.tar"
+        with tarfile.open(tar_path, "w") as tf:
+            tf.add(other, arcname="GTEx_Analysis_v8_eQTL/readme.txt")
+        lookup_path = _write(tmp_path, "lookup.txt", _LOOKUP)
+
+        monkeypatch.setattr(
+            gtex_mod, "_download_gtex_inputs", lambda d, **k: (tar_path, lookup_path)
+        )
+        engine = _engine(tmp_path)
+        with pytest.raises(ValueError, match="no GTEx"):
+            download_and_load_gtex_eqtl(engine, tmp_path / "dl")

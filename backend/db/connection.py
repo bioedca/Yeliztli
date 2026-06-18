@@ -44,6 +44,7 @@ class DBRegistry:
         self._gnomad_engine: sa.Engine | None = None
         self._dbnsfp_engine: sa.Engine | None = None
         self._alphamissense_engine: sa.Engine | None = None
+        self._gtex_eqtl_engine: sa.Engine | None = None
         self._encode_ccres_engine: sa.Engine | None = None
 
     @property
@@ -141,6 +142,17 @@ class DBRegistry:
         return self._alphamissense_engine
 
     @property
+    def gtex_eqtl_engine(self) -> sa.Engine:
+        """Lazy-loaded GTEx eQTL engine (read-only regulatory-context associations)."""
+        if self._gtex_eqtl_engine is None:
+            self._gtex_eqtl_engine = self._create_engine(
+                self._settings.gtex_eqtl_db_path,
+                wal=self._settings.wal_mode,
+                read_optimized=True,
+            )
+        return self._gtex_eqtl_engine
+
+    @property
     def encode_ccres_engine(self) -> sa.Engine:
         """Lazy-loaded ENCODE cCREs engine (read-only, ~30 MB)."""
         if self._encode_ccres_engine is None:
@@ -200,6 +212,9 @@ class DBRegistry:
         if self._alphamissense_engine is not None:
             self._alphamissense_engine.dispose()
             self._alphamissense_engine = None
+        if self._gtex_eqtl_engine is not None:
+            self._gtex_eqtl_engine.dispose()
+            self._gtex_eqtl_engine = None
         if self._encode_ccres_engine is not None:
             self._encode_ccres_engine.dispose()
             self._encode_ccres_engine = None
