@@ -4,7 +4,9 @@ import { useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { usePharmaDrugLookup } from "@/api/pharmacogenomics"
+import { usePgxGuidelines } from "@/api/pgxGuidelines"
 import type { GeneEffect, CallConfidence } from "@/types/pharmacogenomics"
+import type { PgxAlertSources } from "@/types/pgxGuidelines"
 import {
   X,
   ExternalLink,
@@ -33,7 +35,37 @@ const CONFIDENCE_COLOR: Record<CallConfidence, string> = {
   Insufficient: "text-red-700 dark:text-red-400",
 }
 
-function GeneEffectCard({ effect }: { effect: GeneEffect }) {
+/** Context-only cross-source evidence strip (SW-E2): PharmGKB LoE + DPWG + FDA
+ * for this (gene, drug) pair. Only renders when the curated table has the pair
+ * (`has_sources`); absence is simply no strip, never a downgrade. */
+function PgxEvidenceStrip({ sources }: { sources: PgxAlertSources }) {
+  const parts: string[] = []
+  if (sources.pharmgkb_loe) parts.push(`PharmGKB LoE ${sources.pharmgkb_loe}`)
+  if (sources.dpwg_guideline) parts.push("DPWG ✓")
+  if (sources.fda_pgx_level) parts.push(`FDA: ${sources.fda_pgx_level}`)
+  if (parts.length === 0) return null
+
+  return (
+    <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-sky-700 dark:text-sky-400">
+        Cross-source evidence
+      </p>
+      <p className="mt-0.5 text-xs text-sky-800 dark:text-sky-300">{parts.join(" · ")}</p>
+      <p className="mt-1 text-[10px] italic text-sky-700/80 dark:text-sky-400/80">
+        Context only — does not change the CPIC recommendation. PharmGKB / DPWG / FDA-label
+        data via PharmGKB (CC BY-SA 4.0; share-alike).
+      </p>
+    </div>
+  )
+}
+
+function GeneEffectCard({
+  effect,
+  sources,
+}: {
+  effect: GeneEffect
+  sources?: PgxAlertSources | null
+}) {
   const confidence = effect.call_confidence
   const Icon = confidence ? CONFIDENCE_ICON[confidence] : null
   const color = confidence ? CONFIDENCE_COLOR[confidence] : ""
@@ -107,6 +139,8 @@ function GeneEffectCard({ effect }: { effect: GeneEffect }) {
           CPIC Guideline <ExternalLink className="h-3 w-3" />
         </a>
       )}
+
+      {sources?.has_sources && <PgxEvidenceStrip sources={sources} />}
     </div>
   )
 }
@@ -117,8 +151,20 @@ export default function DrugDetailPanel({
   onClose,
 }: DrugDetailPanelProps) {
   const { data, isLoading, isError, error } = usePharmaDrugLookup(drugName, sampleId)
+  // Additive, context-only: a failure here is swallowed (no strip) so it can
+  // never blank the drug detail (cf. the #642 query-isolation pattern).
+  const { data: pgxData } = usePgxGuidelines(sampleId)
   const panelRef = useRef<HTMLDivElement>(null)
   useDialogFocus(panelRef)
+
+  // Index the sample's cross-source evidence by gene, scoped to this drug.
+  const drugLabel = (data?.drug ?? drugName).toLowerCase()
+  const sourcesByGene = new Map<string, PgxAlertSources>()
+  for (const a of pgxData?.alerts ?? []) {
+    if (a.has_sources && a.gene_symbol && a.drug && a.drug.toLowerCase() === drugLabel) {
+      sourcesByGene.set(a.gene_symbol.toUpperCase(), a)
+    }
+  }
 
   return (
     <div
@@ -170,7 +216,11 @@ export default function DrugDetailPanel({
         )}
 
         {data?.gene_effects.map((effect) => (
-          <GeneEffectCard key={effect.gene} effect={effect} />
+          <GeneEffectCard
+            key={effect.gene}
+            effect={effect}
+            sources={sourcesByGene.get(effect.gene.toUpperCase()) ?? null}
+          />
         ))}
       </div>
     </div>

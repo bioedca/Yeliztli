@@ -16,7 +16,13 @@ vi.mock("@/api/pharmacogenomics", () => ({
   usePharmaDrugLookup: () => mockLookup(),
 }))
 
+const mockPgx = vi.fn()
+vi.mock("@/api/pgxGuidelines", () => ({
+  usePgxGuidelines: () => mockPgx(),
+}))
+
 import DrugDetailPanel from "@/components/pharmacogenomics/DrugDetailPanel"
+import type { PgxAlertSources } from "@/types/pgxGuidelines"
 
 function effect(over: Partial<GeneEffect> = {}): GeneEffect {
   return {
@@ -61,7 +67,27 @@ const UNCALLED = effect({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default: no cross-source evidence (existing tests don't exercise it).
+  mockPgx.mockReturnValue(q())
 })
+
+function sources(over: Partial<PgxAlertSources> = {}): PgxAlertSources {
+  return {
+    finding_id: 1,
+    gene_symbol: "CYP2C19",
+    drug: "clopidogrel",
+    metabolizer_status: "Poor Metabolizer",
+    has_sources: true,
+    pharmgkb_loe: "1A",
+    dpwg_guideline: true,
+    fda_pgx_level: "Actionable PGx",
+    ...over,
+  }
+}
+
+function pgxResult(alerts: PgxAlertSources[]) {
+  return q({ data: { alerts, context_only: true, note: "", pmid_citations: [] } })
+}
 
 describe("DrugDetailPanel — uncalled guideline gene (#905)", () => {
   it("shows an explicit 'Not assessed' state for a not_assessed gene", () => {
@@ -101,5 +127,48 @@ describe("DrugDetailPanel — uncalled guideline gene (#905)", () => {
     expect(screen.getByText(/NUDT15 could not be called/i)).toBeInTheDocument()
     // Exactly one gene is flagged not-assessed (NUDT15, not TPMT).
     expect(screen.getAllByText("Not assessed")).toHaveLength(1)
+  })
+})
+
+describe("DrugDetailPanel — cross-source PGx evidence strip (SW-E2)", () => {
+  const CYP2C19 = effect({ gene: "CYP2C19", classification: "A", call_confidence: "Complete" })
+
+  it("renders the evidence strip (LoE/DPWG/FDA + attribution) for a matching pair", () => {
+    mockLookup.mockReturnValue(q({ data: { drug: "clopidogrel", gene_effects: [CYP2C19] } }))
+    mockPgx.mockReturnValue(pgxResult([sources()]))
+    render(<DrugDetailPanel drugName="clopidogrel" sampleId={1} onClose={vi.fn()} />)
+
+    expect(screen.getByText("Cross-source evidence")).toBeInTheDocument()
+    expect(screen.getByText(/PharmGKB LoE 1A/)).toBeInTheDocument()
+    expect(screen.getByText(/DPWG ✓/)).toBeInTheDocument()
+    expect(screen.getByText(/FDA: Actionable PGx/)).toBeInTheDocument()
+    // CC-BY-SA-4.0 attribution + share-alike note travels with the data.
+    expect(screen.getByText(/CC BY-SA 4\.0/)).toBeInTheDocument()
+  })
+
+  it("shows no strip when the (gene, drug) pair lacks curated sources", () => {
+    mockLookup.mockReturnValue(q({ data: { drug: "clopidogrel", gene_effects: [CYP2C19] } }))
+    mockPgx.mockReturnValue(pgxResult([sources({ has_sources: false })]))
+    render(<DrugDetailPanel drugName="clopidogrel" sampleId={1} onClose={vi.fn()} />)
+
+    expect(screen.getByText("CYP2C19")).toBeInTheDocument()
+    expect(screen.queryByText("Cross-source evidence")).not.toBeInTheDocument()
+  })
+
+  it("does not leak another drug's evidence onto this drug", () => {
+    mockLookup.mockReturnValue(q({ data: { drug: "warfarin", gene_effects: [CYP2C19] } }))
+    mockPgx.mockReturnValue(pgxResult([sources({ drug: "clopidogrel" })]))
+    render(<DrugDetailPanel drugName="warfarin" sampleId={1} onClose={vi.fn()} />)
+
+    expect(screen.queryByText("Cross-source evidence")).not.toBeInTheDocument()
+  })
+
+  it("degrades gracefully (still shows the drug) when the pgx query has no data", () => {
+    mockLookup.mockReturnValue(q({ data: { drug: "clopidogrel", gene_effects: [CYP2C19] } }))
+    mockPgx.mockReturnValue(q({ data: undefined }))
+    render(<DrugDetailPanel drugName="clopidogrel" sampleId={1} onClose={vi.fn()} />)
+
+    expect(screen.getByText("CYP2C19")).toBeInTheDocument()
+    expect(screen.queryByText("Cross-source evidence")).not.toBeInTheDocument()
   })
 })
