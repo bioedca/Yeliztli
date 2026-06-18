@@ -12,18 +12,18 @@
 - [[_COMMUNITY_Community 741|Community 741]]
 - [[_COMMUNITY_Community 690|Community 690]]
 - [[_COMMUNITY_Community 515|Community 515]]
-- [[_COMMUNITY_Community 47|Community 47]]
-- [[_COMMUNITY_Community 86|Community 86]]
-- [[_COMMUNITY_Community 106|Community 106]]
-- [[_COMMUNITY_Community 149|Community 149]]
+- [[_COMMUNITY_ACMG Criteria Classification|ACMG Criteria Classification]]
+- [[_COMMUNITY_Effect Allele Strand Matching|Effect Allele Strand Matching]]
+- [[_COMMUNITY_Allergy Pathway Scoring|Allergy Pathway Scoring]]
+- [[_COMMUNITY_Allergy Panel Scoring|Allergy Panel Scoring]]
 - [[_COMMUNITY_Community 642|Community 642]]
-- [[_COMMUNITY_Community 57|Community 57]]
+- [[_COMMUNITY_Allergy Panel SNP Scoring|Allergy Panel SNP Scoring]]
 - [[_COMMUNITY_Community 444|Community 444]]
 - [[_COMMUNITY_Allergy & HLA Proxies|Allergy & HLA Proxies]]
 - [[_COMMUNITY_Alpha-1 & AMD Risk Modules|Alpha-1 & AMD Risk Modules]]
-- [[_COMMUNITY_Community 213|Community 213]]
+- [[_COMMUNITY_Alpha-1 Antitrypsin Risk|Alpha-1 Antitrypsin Risk]]
 - [[_COMMUNITY_Community 338|Community 338]]
-- [[_COMMUNITY_Community 173|Community 173]]
+- [[_COMMUNITY_AMD CFHARMS2 Risk|AMD CFH/ARMS2 Risk]]
 - [[_COMMUNITY_Haplogroup Classification|Haplogroup Classification]]
 - [[_COMMUNITY_Community 486|Community 486]]
 - [[_COMMUNITY_Ancestry Admixture (NNLS)|Ancestry Admixture (NNLS)]]
@@ -31,187 +31,187 @@
 - [[_COMMUNITY_Ancestry Pipeline Orchestration|Ancestry Pipeline Orchestration]]
 - [[_COMMUNITY_Community 487|Community 487]]
 - [[_COMMUNITY_Community 422|Community 422]]
-- [[_COMMUNITY_Community 150|Community 150]]
-- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Ancestry-Matched gnomAD AF|Ancestry-Matched gnomAD AF]]
+- [[_COMMUNITY_Inferred Ancestry & Cancer PRS Flagging|Inferred Ancestry & Cancer PRS Flagging]]
 - [[_COMMUNITY_Community 391|Community 391]]
-- [[_COMMUNITY_Community 190|Community 190]]
-- [[_COMMUNITY_Community 182|Community 182]]
+- [[_COMMUNITY_APOE Diplotype Determination|APOE Diplotype Determination]]
+- [[_COMMUNITY_APOE Disclosure Gate API|APOE Disclosure Gate API]]
 - [[_COMMUNITY_APOE Genotyping|APOE Genotyping]]
-- [[_COMMUNITY_Community 49|Community 49]]
-- [[_COMMUNITY_Community 87|Community 87]]
-- [[_COMMUNITY_Community 129|Community 129]]
-- [[_COMMUNITY_Community 214|Community 214]]
+- [[_COMMUNITY_APOE Findings Generation|APOE Findings Generation]]
+- [[_COMMUNITY_APOL1 Kidney Risk|APOL1 Kidney Risk]]
+- [[_COMMUNITY_Array Call Confidence|Array Call Confidence]]
+- [[_COMMUNITY_BChE Apnea Risk|BChE Apnea Risk]]
 - [[_COMMUNITY_Breast Absolute-Risk Overlay|Breast Absolute-Risk Overlay]]
 - [[_COMMUNITY_Community 323|Community 323]]
 - [[_COMMUNITY_Cancer Panel Analysis|Cancer Panel Analysis]]
-- [[_COMMUNITY_Community 174|Community 174]]
-- [[_COMMUNITY_Community 88|Community 88]]
+- [[_COMMUNITY_Cancer Panel & Card Contract|Cancer Panel & Card Contract]]
+- [[_COMMUNITY_Cancer Variant Extraction|Cancer Variant Extraction]]
 - [[_COMMUNITY_Cancer PRS|Cancer PRS]]
-- [[_COMMUNITY_Community 58|Community 58]]
-- [[_COMMUNITY_Community 223|Community 223]]
-- [[_COMMUNITY_Community 113|Community 113]]
+- [[_COMMUNITY_PGS Catalog Weight Bridge|PGS Catalog Weight Bridge]]
+- [[_COMMUNITY_Cardiovascular Panel Loader & Model|Cardiovascular Panel Loader & Model]]
+- [[_COMMUNITY_Cardiovascular Analysis & Provenance Tests|Cardiovascular Analysis & Provenance Tests]]
 - [[_COMMUNITY_Community 537|Community 537]]
-- [[_COMMUNITY_Community 80|Community 80]]
+- [[_COMMUNITY_Cardiovascular Panel Findings|Cardiovascular Panel Findings]]
 - [[_COMMUNITY_Community 378|Community 378]]
-- [[_COMMUNITY_Community 233|Community 233]]
-- [[_COMMUNITY_Community 137|Community 137]]
-- [[_COMMUNITY_Community 131|Community 131]]
+- [[_COMMUNITY_Cardiovascular & FH Analysis|Cardiovascular & FH Analysis]]
+- [[_COMMUNITY_Carrier Status Analysis|Carrier Status Analysis]]
+- [[_COMMUNITY_Carrier Status Panel|Carrier Status Panel]]
 - [[_COMMUNITY_Community 365|Community 365]]
 - [[_COMMUNITY_Community 538|Community 538]]
-- [[_COMMUNITY_Community 75|Community 75]]
+- [[_COMMUNITY_Carrier Status Findings|Carrier Status Findings]]
 - [[_COMMUNITY_Community 366|Community 366]]
-- [[_COMMUNITY_Community 175|Community 175]]
+- [[_COMMUNITY_ClinVar Significance Matching|ClinVar Significance Matching]]
 - [[_COMMUNITY_Custom Panels|Custom Panels]]
-- [[_COMMUNITY_Community 224|Community 224]]
-- [[_COMMUNITY_Community 176|Community 176]]
-- [[_COMMUNITY_Community 110|Community 110]]
+- [[_COMMUNITY_Custom Gene-List Parser|Custom Gene-List Parser]]
+- [[_COMMUNITY_eBMD Osteoporosis PRS|eBMD Osteoporosis PRS]]
+- [[_COMMUNITY_ClinVar Evidence Leveling|ClinVar Evidence Leveling]]
 - [[_COMMUNITY_Community 272|Community 272]]
 - [[_COMMUNITY_Community 283|Community 283]]
-- [[_COMMUNITY_Community 100|Community 100]]
-- [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Traits & Personality Panel|Traits & Personality Panel]]
+- [[_COMMUNITY_Familial Hypercholesterolemia Assessment|Familial Hypercholesterolemia Assessment]]
 - [[_COMMUNITY_Community 407|Community 407]]
 - [[_COMMUNITY_Community 379|Community 379]]
 - [[_COMMUNITY_Community 260|Community 260]]
 - [[_COMMUNITY_Community 380|Community 380]]
 - [[_COMMUNITY_Community 607|Community 607]]
-- [[_COMMUNITY_Community 215|Community 215]]
-- [[_COMMUNITY_Community 144|Community 144]]
+- [[_COMMUNITY_Fitness Cross-Context Scoring|Fitness Cross-Context Scoring]]
+- [[_COMMUNITY_Fitness Panel Scoring|Fitness Panel Scoring]]
 - [[_COMMUNITY_Community 352|Community 352]]
 - [[_COMMUNITY_Community 313|Community 313]]
 - [[_COMMUNITY_Community 539|Community 539]]
 - [[_COMMUNITY_Community 301|Community 301]]
-- [[_COMMUNITY_Community 138|Community 138]]
+- [[_COMMUNITY_Fitness Findings Storage|Fitness Findings Storage]]
 - [[_COMMUNITY_Community 540|Community 540]]
 - [[_COMMUNITY_Community 516|Community 516]]
 - [[_COMMUNITY_Community 541|Community 541]]
 - [[_COMMUNITY_Community 488|Community 488]]
 - [[_COMMUNITY_Community 261|Community 261]]
-- [[_COMMUNITY_Community 97|Community 97]]
-- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Gene Health Panel Engine|Gene Health Panel Engine]]
+- [[_COMMUNITY_Gene Health Panel Model|Gene Health Panel Model]]
 - [[_COMMUNITY_Community 643|Community 643]]
-- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Gene Health SNP Scoring|Gene Health SNP Scoring]]
 - [[_COMMUNITY_Gene Health Pathways|Gene Health Pathways]]
-- [[_COMMUNITY_Community 225|Community 225]]
-- [[_COMMUNITY_Community 198|Community 198]]
+- [[_COMMUNITY_ClinGen Gene-Disease Validity|ClinGen Gene-Disease Validity]]
+- [[_COMMUNITY_Strand-Aware Genotype Lookup|Strand-Aware Genotype Lookup]]
 - [[_COMMUNITY_Community 517|Community 517]]
 - [[_COMMUNITY_Gnomix Local Ancestry|Gnomix Local Ancestry]]
-- [[_COMMUNITY_Community 199|Community 199]]
+- [[_COMMUNITY_Gout & Urate Risk|Gout & Urate Risk]]
 - [[_COMMUNITY_Community 644|Community 644]]
-- [[_COMMUNITY_Community 90|Community 90]]
+- [[_COMMUNITY_Hemochromatosis Assessment|Hemochromatosis Assessment]]
 - [[_COMMUNITY_Community 302|Community 302]]
 - [[_COMMUNITY_Community 262|Community 262]]
-- [[_COMMUNITY_Community 101|Community 101]]
-- [[_COMMUNITY_Community 51|Community 51]]
-- [[_COMMUNITY_Community 63|Community 63]]
-- [[_COMMUNITY_Community 177|Community 177]]
+- [[_COMMUNITY_KING Kinship Estimation|KING Kinship Estimation]]
+- [[_COMMUNITY_LAI Runner & Storage|LAI Runner & Storage]]
+- [[_COMMUNITY_Ancestry E2E (Tier1LAI)|Ancestry E2E (Tier1/LAI)]]
+- [[_COMMUNITY_Local Ancestry Runner (Beagle)|Local Ancestry Runner (Beagle)]]
 - [[_COMMUNITY_Community 263|Community 263]]
-- [[_COMMUNITY_Community 161|Community 161]]
+- [[_COMMUNITY_LHON Mitochondrial Assessment|LHON Mitochondrial Assessment]]
 - [[_COMMUNITY_Metabolic PRS (T2DObesity)|Metabolic PRS (T2D/Obesity)]]
-- [[_COMMUNITY_Community 81|Community 81]]
-- [[_COMMUNITY_Community 145|Community 145]]
+- [[_COMMUNITY_MTHFR Methylation Pathways|MTHFR Methylation Pathways]]
+- [[_COMMUNITY_Methylation Panel Scoring|Methylation Panel Scoring]]
 - [[_COMMUNITY_Community 645|Community 645]]
 - [[_COMMUNITY_Community 518|Community 518]]
-- [[_COMMUNITY_Community 234|Community 234]]
+- [[_COMMUNITY_Methylation SNP Scoring|Methylation SNP Scoring]]
 - [[_COMMUNITY_Community 408|Community 408]]
-- [[_COMMUNITY_Community 103|Community 103]]
-- [[_COMMUNITY_Community 130|Community 130]]
-- [[_COMMUNITY_Community 235|Community 235]]
-- [[_COMMUNITY_Community 162|Community 162]]
-- [[_COMMUNITY_Community 245|Community 245]]
+- [[_COMMUNITY_Methylation MTHFR Panel|Methylation MTHFR Panel]]
+- [[_COMMUNITY_MT-RNR1 Aminoglycoside Ototoxicity|MT-RNR1 Aminoglycoside Ototoxicity]]
+- [[_COMMUNITY_Nutrigenomics Pathways|Nutrigenomics Pathways]]
+- [[_COMMUNITY_Nutrigenomics Panel Models|Nutrigenomics Panel Models]]
+- [[_COMMUNITY_Nutrigenomics Pathway API|Nutrigenomics Pathway API]]
 - [[_COMMUNITY_Community 646|Community 646]]
-- [[_COMMUNITY_Community 91|Community 91]]
-- [[_COMMUNITY_Community 122|Community 122]]
+- [[_COMMUNITY_Nutrigenomics SNP Scoring|Nutrigenomics SNP Scoring]]
+- [[_COMMUNITY_Nutrigenomics Findings Storage|Nutrigenomics Findings Storage]]
 - [[_COMMUNITY_Community 339|Community 339]]
-- [[_COMMUNITY_Community 191|Community 191]]
-- [[_COMMUNITY_Community 146|Community 146]]
-- [[_COMMUNITY_Community 123|Community 123]]
+- [[_COMMUNITY_Cross-Source PGx Evidence|Cross-Source PGx Evidence]]
+- [[_COMMUNITY_PGx Star-Allele Calling|PGx Star-Allele Calling]]
+- [[_COMMUNITY_CPIC Guideline Coverage Guard|CPIC Guideline Coverage Guard]]
 - [[_COMMUNITY_PGx Prescribing Alerts|PGx Prescribing Alerts]]
-- [[_COMMUNITY_Community 200|Community 200]]
+- [[_COMMUNITY_PGx Alt-Allele Counting|PGx Alt-Allele Counting]]
 - [[_COMMUNITY_Star-Allele Phasing|Star-Allele Phasing]]
 - [[_COMMUNITY_Community 353|Community 353]]
 - [[_COMMUNITY_Community 284|Community 284]]
 - [[_COMMUNITY_Community 409|Community 409]]
-- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Cross-Module Findings Integration|Cross-Module Findings Integration]]
 - [[_COMMUNITY_Community 303|Community 303]]
 - [[_COMMUNITY_Community 381|Community 381]]
 - [[_COMMUNITY_PRS Core (PercentileCI)|PRS Core (Percentile/CI)]]
 - [[_COMMUNITY_Community 445|Community 445]]
 - [[_COMMUNITY_PRS Pipeline|PRS Pipeline]]
-- [[_COMMUNITY_Community 155|Community 155]]
-- [[_COMMUNITY_Community 104|Community 104]]
-- [[_COMMUNITY_Community 147|Community 147]]
+- [[_COMMUNITY_Admixture-Aware Mismatch Check|Admixture-Aware Mismatch Check]]
+- [[_COMMUNITY_PRS Ancestry Calibration|PRS Ancestry Calibration]]
+- [[_COMMUNITY_Sample QC Metrics|Sample QC Metrics]]
 - [[_COMMUNITY_Community 340|Community 340]]
 - [[_COMMUNITY_Rare Variant Finder|Rare Variant Finder]]
-- [[_COMMUNITY_Community 246|Community 246]]
-- [[_COMMUNITY_Community 247|Community 247]]
-- [[_COMMUNITY_Community 139|Community 139]]
-- [[_COMMUNITY_Community 79|Community 79]]
-- [[_COMMUNITY_Community 151|Community 151]]
-- [[_COMMUNITY_Community 167|Community 167]]
-- [[_COMMUNITY_Community 192|Community 192]]
+- [[_COMMUNITY_Rare Variant Evidence Levels|Rare Variant Evidence Levels]]
+- [[_COMMUNITY_PRS Responsible-Return Framing|PRS Responsible-Return Framing]]
+- [[_COMMUNITY_Risk Genotype Caller|Risk Genotype Caller]]
+- [[_COMMUNITY_Risk Genotype Classification|Risk Genotype Classification]]
+- [[_COMMUNITY_Runs-of-Homozygosity Detection|Runs-of-Homozygosity Detection]]
+- [[_COMMUNITY_Analysis Module Orchestrator|Analysis Module Orchestrator]]
+- [[_COMMUNITY_Sex Chromosome Aneuploidy Screen|Sex Chromosome Aneuploidy Screen]]
 - [[_COMMUNITY_Community 273|Community 273]]
-- [[_COMMUNITY_Community 152|Community 152]]
-- [[_COMMUNITY_Community 183|Community 183]]
+- [[_COMMUNITY_Skin Panel Scoring|Skin Panel Scoring]]
+- [[_COMMUNITY_Skin Pathway Scoring API|Skin Pathway Scoring API]]
 - [[_COMMUNITY_Community 489|Community 489]]
 - [[_COMMUNITY_Community 573|Community 573]]
-- [[_COMMUNITY_Community 236|Community 236]]
-- [[_COMMUNITY_Community 107|Community 107]]
+- [[_COMMUNITY_Skin Trait Scoring|Skin Trait Scoring]]
+- [[_COMMUNITY_Skin Findings Storage|Skin Findings Storage]]
 - [[_COMMUNITY_Community 285|Community 285]]
 - [[_COMMUNITY_Community 341|Community 341]]
-- [[_COMMUNITY_Community 237|Community 237]]
+- [[_COMMUNITY_Sleep Pathway Scoring|Sleep Pathway Scoring]]
 - [[_COMMUNITY_Community 410|Community 410]]
 - [[_COMMUNITY_Community 647|Community 647]]
-- [[_COMMUNITY_Community 248|Community 248]]
-- [[_COMMUNITY_Community 171|Community 171]]
+- [[_COMMUNITY_Sleep CYP1A2 Metabolizer|Sleep CYP1A2 Metabolizer]]
+- [[_COMMUNITY_Sleep Trait Findings|Sleep Trait Findings]]
 - [[_COMMUNITY_Community 254|Community 254]]
 - [[_COMMUNITY_Community 392|Community 392]]
 - [[_COMMUNITY_Community 608|Community 608]]
 - [[_COMMUNITY_Community 574|Community 574]]
-- [[_COMMUNITY_Community 156|Community 156]]
-- [[_COMMUNITY_Community 193|Community 193]]
+- [[_COMMUNITY_Thrombophilia Risk Assessment|Thrombophilia Risk Assessment]]
+- [[_COMMUNITY_Traits Pathway Scoring|Traits Pathway Scoring]]
 - [[_COMMUNITY_Community 610|Community 610]]
-- [[_COMMUNITY_Community 178|Community 178]]
+- [[_COMMUNITY_Traits & Personality API|Traits & Personality API]]
 - [[_COMMUNITY_Community 367|Community 367]]
-- [[_COMMUNITY_Community 153|Community 153]]
+- [[_COMMUNITY_Personality Traits Panel|Personality Traits Panel]]
 - [[_COMMUNITY_Community 609|Community 609]]
-- [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Warfarin Dosing Pharmacogenomics|Warfarin Dosing Pharmacogenomics]]
 - [[_COMMUNITY_Community 847|Community 847]]
-- [[_COMMUNITY_Community 179|Community 179]]
+- [[_COMMUNITY_Zygosity Classification|Zygosity Classification]]
 - [[_COMMUNITY_AlphaMissense Ingestion|AlphaMissense Ingestion]]
 - [[_COMMUNITY_Resumable HTTP Download|Resumable HTTP Download]]
-- [[_COMMUNITY_Community 157|Community 157]]
+- [[_COMMUNITY_ClinGen Gene Validity Ingestion|ClinGen Gene Validity Ingestion]]
 - [[_COMMUNITY_ClinVar Ingestion|ClinVar Ingestion]]
 - [[_COMMUNITY_Community 264|Community 264]]
-- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_ClinVar Annotation Lookup|ClinVar Annotation Lookup]]
 - [[_COMMUNITY_CPIC Definitions|CPIC Definitions]]
-- [[_COMMUNITY_Community 216|Community 216]]
+- [[_COMMUNITY_CPIC Update Check|CPIC Update Check]]
 - [[_COMMUNITY_dbNSFP Ingestion|dbNSFP Ingestion]]
 - [[_COMMUNITY_dbNSFP & Annotation Engine|dbNSFP & Annotation Engine]]
-- [[_COMMUNITY_Community 124|Community 124]]
+- [[_COMMUNITY_dbNSFP TSV Parsing|dbNSFP TSV Parsing]]
 - [[_COMMUNITY_Community 325|Community 325]]
-- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Database Version Registry|Database Version Registry]]
 - [[_COMMUNITY_Community 324|Community 324]]
-- [[_COMMUNITY_Community 125|Community 125]]
+- [[_COMMUNITY_dbNSFP Score Lookup|dbNSFP Score Lookup]]
 - [[_COMMUNITY_dbSNP  rsMerge Annotation|dbSNP / rsMerge Annotation]]
 - [[_COMMUNITY_Community 464|Community 464]]
-- [[_COMMUNITY_Community 61|Community 61]]
-- [[_COMMUNITY_Community 201|Community 201]]
+- [[_COMMUNITY_Pipeline Update Checks|Pipeline Update Checks]]
+- [[_COMMUNITY_ENCODE cCREs Ingestion|ENCODE cCREs Ingestion]]
 - [[_COMMUNITY_Community 411|Community 411]]
 - [[_COMMUNITY_Community 382|Community 382]]
 - [[_COMMUNITY_Community 354|Community 354]]
 - [[_COMMUNITY_Community 304|Community 304]]
-- [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Evidence Conflict Detection|Evidence Conflict Detection]]
 - [[_COMMUNITY_Community 274|Community 274]]
 - [[_COMMUNITY_gnomAD Frequency Data|gnomAD Frequency Data]]
-- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_GTEx eQTL Ingestion|GTEx eQTL Ingestion]]
 - [[_COMMUNITY_Community 807|Community 807]]
 - [[_COMMUNITY_GWAS Catalog Ingestion|GWAS Catalog Ingestion]]
-- [[_COMMUNITY_Community 218|Community 218]]
+- [[_COMMUNITY_GWAS Catalog TSV Parsing|GWAS Catalog TSV Parsing]]
 - [[_COMMUNITY_Community 613|Community 613]]
 - [[_COMMUNITY_Community 490|Community 490]]
 - [[_COMMUNITY_Community 692|Community 692]]
 - [[_COMMUNITY_Community 648|Community 648]]
-- [[_COMMUNITY_Community 217|Community 217]]
+- [[_COMMUNITY_GWAS Release Update Check|GWAS Release Update Check]]
 - [[_COMMUNITY_Community 355|Community 355]]
 - [[_COMMUNITY_Community 412|Community 412]]
 - [[_COMMUNITY_Community 286|Community 286]]
@@ -224,61 +224,61 @@
 - [[_COMMUNITY_Community 465|Community 465]]
 - [[_COMMUNITY_Community 424|Community 424]]
 - [[_COMMUNITY_Community 649|Community 649]]
-- [[_COMMUNITY_Community 116|Community 116]]
+- [[_COMMUNITY_PGS Catalog Ingestion|PGS Catalog Ingestion]]
 - [[_COMMUNITY_Community 849|Community 849]]
-- [[_COMMUNITY_Community 194|Community 194]]
-- [[_COMMUNITY_Community 163|Community 163]]
+- [[_COMMUNITY_vcfanno Overlay Parser|vcfanno Overlay Parser]]
+- [[_COMMUNITY_vcfanno Overlay API|vcfanno Overlay API]]
 - [[_COMMUNITY_Community 576|Community 576]]
 - [[_COMMUNITY_Community 425|Community 425]]
 - [[_COMMUNITY_Community 343|Community 343]]
 - [[_COMMUNITY_Community 275|Community 275]]
-- [[_COMMUNITY_Community 202|Community 202]]
+- [[_COMMUNITY_Consequence Severity Ranking|Consequence Severity Ranking]]
 - [[_COMMUNITY_Community 383|Community 383]]
 - [[_COMMUNITY_Community 287|Community 287]]
 - [[_COMMUNITY_Community 326|Community 326]]
 - [[_COMMUNITY_Sample Staleness Gating|Sample Staleness Gating]]
-- [[_COMMUNITY_Community 77|Community 77]]
-- [[_COMMUNITY_Community 164|Community 164]]
+- [[_COMMUNITY_Fresh-Sample Gating & Watches|Fresh-Sample Gating & Watches]]
+- [[_COMMUNITY_Sample Management API|Sample Management API]]
 - [[_COMMUNITY_Community 368|Community 368]]
 - [[_COMMUNITY_Risk Findings API & ACMG|Risk Findings API & ACMG]]
-- [[_COMMUNITY_Community 226|Community 226]]
-- [[_COMMUNITY_Community 249|Community 249]]
+- [[_COMMUNITY_Admin System Health API|Admin System Health API]]
+- [[_COMMUNITY_Allergy Pathway Findings API|Allergy Pathway Findings API]]
 - [[_COMMUNITY_Community 295|Community 295]]
-- [[_COMMUNITY_Community 227|Community 227]]
+- [[_COMMUNITY_Annotated Variants Query Endpoints|Annotated Variants Query Endpoints]]
 - [[_COMMUNITY_Config TOML Persistence|Config TOML Persistence]]
 - [[_COMMUNITY_Community 384|Community 384]]
 - [[_COMMUNITY_App Core & Download Manager|App Core & Download Manager]]
-- [[_COMMUNITY_Community 250|Community 250]]
+- [[_COMMUNITY_Cardiovascular & FH Findings API|Cardiovascular & FH Findings API]]
 - [[_COMMUNITY_Community 290|Community 290]]
 - [[_COMMUNITY_Community 395|Community 395]]
-- [[_COMMUNITY_Community 141|Community 141]]
+- [[_COMMUNITY_App Lifespan & Logging|App Lifespan & Logging]]
 - [[_COMMUNITY_Databases API|Databases API]]
-- [[_COMMUNITY_Community 134|Community 134]]
+- [[_COMMUNITY_Results Export API|Results Export API]]
 - [[_COMMUNITY_Community 315|Community 315]]
 - [[_COMMUNITY_Community 291|Community 291]]
 - [[_COMMUNITY_Gene Detail API|Gene Detail API]]
-- [[_COMMUNITY_Community 172|Community 172]]
+- [[_COMMUNITY_IGV.js Track Endpoints|IGV.js Track Endpoints]]
 - [[_COMMUNITY_Community 320|Community 320]]
-- [[_COMMUNITY_Community 59|Community 59]]
-- [[_COMMUNITY_Community 165|Community 165]]
+- [[_COMMUNITY_Individuals & Sample Merge API|Individuals & Sample Merge API]]
+- [[_COMMUNITY_Build-36 Liftover Ingest|Build-36 Liftover Ingest]]
 - [[_COMMUNITY_Community 599|Community 599]]
 - [[_COMMUNITY_Community 316|Community 316]]
 - [[_COMMUNITY_Test Harness & Config|Test Harness & Config]]
-- [[_COMMUNITY_Community 158|Community 158]]
-- [[_COMMUNITY_Community 108|Community 108]]
+- [[_COMMUNITY_Pharmacogenomics Drug API|Pharmacogenomics Drug API]]
+- [[_COMMUNITY_Query Builder & SQL Console|Query Builder & SQL Console]]
 - [[_COMMUNITY_Community 310|Community 310]]
-- [[_COMMUNITY_Community 207|Community 207]]
+- [[_COMMUNITY_Rare Variant API & Export|Rare Variant API & Export]]
 - [[_COMMUNITY_Community 385|Community 385]]
 - [[_COMMUNITY_Community 327|Community 327]]
 - [[_COMMUNITY_Setup Wizard API|Setup Wizard API]]
 - [[_COMMUNITY_Community 266|Community 266]]
 - [[_COMMUNITY_Community 256|Community 256]]
-- [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Update & Reannotation API|Update & Reannotation API]]
 - [[_COMMUNITY_Community 282|Community 282]]
 - [[_COMMUNITY_Community 441|Community 441]]
-- [[_COMMUNITY_Community 219|Community 219]]
-- [[_COMMUNITY_Community 46|Community 46]]
-- [[_COMMUNITY_Community 251|Community 251]]
+- [[_COMMUNITY_Variant Detail Payload Builder|Variant Detail Payload Builder]]
+- [[_COMMUNITY_Variant Browser API|Variant Browser API]]
+- [[_COMMUNITY_Genotype No-Call Classification|Genotype No-Call Classification]]
 - [[_COMMUNITY_Community 344|Community 344]]
 - [[_COMMUNITY_Community 267|Community 267]]
 - [[_COMMUNITY_Community 493|Community 493]]
@@ -286,29 +286,29 @@
 - [[_COMMUNITY_Community 428|Community 428]]
 - [[_COMMUNITY_Community 652|Community 652]]
 - [[_COMMUNITY_Community 618|Community 618]]
-- [[_COMMUNITY_Community 68|Community 68]]
+- [[_COMMUNITY_Settings Sources & Data-Dir Pointer|Settings Sources & Data-Dir Pointer]]
 - [[_COMMUNITY_Settings & DB Paths|Settings & DB Paths]]
-- [[_COMMUNITY_Community 185|Community 185]]
-- [[_COMMUNITY_Community 118|Community 118]]
-- [[_COMMUNITY_Community 148|Community 148]]
+- [[_COMMUNITY_HLA Proxy Lookup Loader|HLA Proxy Lookup Loader]]
+- [[_COMMUNITY_Cross-Process Build Guard|Cross-Process Build Guard]]
+- [[_COMMUNITY_Reference Database Health|Reference Database Health]]
 - [[_COMMUNITY_Sample Registration & Disclaimer|Sample Registration & Disclaimer]]
-- [[_COMMUNITY_Community 66|Community 66]]
-- [[_COMMUNITY_Community 169|Community 169]]
+- [[_COMMUNITY_LAI Bundle Registry|LAI Bundle Registry]]
+- [[_COMMUNITY_DB Health & Resumable Downloads|DB Health & Resumable Downloads]]
 - [[_COMMUNITY_Community 294|Community 294]]
-- [[_COMMUNITY_Community 115|Community 115]]
+- [[_COMMUNITY_Database Health Validation|Database Health Validation]]
 - [[_COMMUNITY_Community 699|Community 699]]
 - [[_COMMUNITY_Download Manager|Download Manager]]
-- [[_COMMUNITY_Community 140|Community 140]]
-- [[_COMMUNITY_Community 230|Community 230]]
-- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Bundle Manifest & Pins|Bundle Manifest & Pins]]
+- [[_COMMUNITY_VEP Bundle rsID Extraction|VEP Bundle rsID Extraction]]
+- [[_COMMUNITY_Bundle Manifest Fetch|Bundle Manifest Fetch]]
 - [[_COMMUNITY_Community 396|Community 396]]
 - [[_COMMUNITY_Community 292|Community 292]]
 - [[_COMMUNITY_Community 279|Community 279]]
 - [[_COMMUNITY_Scheduled Update Check|Scheduled Update Check]]
-- [[_COMMUNITY_Community 56|Community 56]]
+- [[_COMMUNITY_Bundle Update Checks|Bundle Update Checks]]
 - [[_COMMUNITY_Community 510|Community 510]]
-- [[_COMMUNITY_Community 45|Community 45]]
-- [[_COMMUNITY_Community 244|Community 244]]
+- [[_COMMUNITY_Genotype Ingestion Parsers|Genotype Ingestion Parsers]]
+- [[_COMMUNITY_Union Site Catalog Builder|Union Site Catalog Builder]]
 - [[_COMMUNITY_Community 726|Community 726]]
 - [[_COMMUNITY_Community 373|Community 373]]
 - [[_COMMUNITY_Community 585|Community 585]]
@@ -316,38 +316,38 @@
 - [[_COMMUNITY_Community 505|Community 505]]
 - [[_COMMUNITY_23andMe Parser|23andMe Parser]]
 - [[_COMMUNITY_AncestryDNA Parser|AncestryDNA Parser]]
-- [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_VCF Export Builder|VCF Export Builder]]
 - [[_COMMUNITY_Community 350|Community 350]]
 - [[_COMMUNITY_Community 311|Community 311]]
-- [[_COMMUNITY_Community 186|Community 186]]
+- [[_COMMUNITY_SystemdLaunchd Install Logic|Systemd/Launchd Install Logic]]
 - [[_COMMUNITY_Community 257|Community 257]]
 - [[_COMMUNITY_Community 744|Community 744]]
 - [[_COMMUNITY_Community 578|Community 578]]
 - [[_COMMUNITY_Community 356|Community 356]]
 - [[_COMMUNITY_Community 931|Community 931]]
 - [[_COMMUNITY_Community 467|Community 467]]
-- [[_COMMUNITY_Community 55|Community 55]]
-- [[_COMMUNITY_Community 166|Community 166]]
-- [[_COMMUNITY_Community 228|Community 228]]
+- [[_COMMUNITY_Query Builder Translator|Query Builder Translator]]
+- [[_COMMUNITY_FHIR Observation Resource Builder|FHIR Observation Resource Builder]]
+- [[_COMMUNITY_PDF Report Generator|PDF Report Generator]]
 - [[_COMMUNITY_Community 419|Community 419]]
 - [[_COMMUNITY_Community 429|Community 429]]
 - [[_COMMUNITY_Community 933|Community 933]]
-- [[_COMMUNITY_Community 159|Community 159]]
-- [[_COMMUNITY_Community 229|Community 229]]
-- [[_COMMUNITY_Community 196|Community 196]]
+- [[_COMMUNITY_Sample Delete Cascade|Sample Delete Cascade]]
+- [[_COMMUNITY_Sample Merge Service|Sample Merge Service]]
+- [[_COMMUNITY_Sample Merge Semantics|Sample Merge Semantics]]
 - [[_COMMUNITY_Community 670|Community 670]]
 - [[_COMMUNITY_Community 420|Community 420]]
-- [[_COMMUNITY_Community 136|Community 136]]
-- [[_COMMUNITY_Community 160|Community 160]]
+- [[_COMMUNITY_Sample Merge Engine|Sample Merge Engine]]
+- [[_COMMUNITY_Sample Merge & Concordance|Sample Merge & Concordance]]
 - [[_COMMUNITY_Community 348|Community 348]]
-- [[_COMMUNITY_Community 187|Community 187]]
-- [[_COMMUNITY_Community 74|Community 74]]
-- [[_COMMUNITY_Community 120|Community 120]]
-- [[_COMMUNITY_Community 135|Community 135]]
+- [[_COMMUNITY_Sex Inference Classification|Sex Inference Classification]]
+- [[_COMMUNITY_Sex Inference|Sex Inference]]
+- [[_COMMUNITY_Sample Staleness Service|Sample Staleness Service]]
+- [[_COMMUNITY_PubMed Entrez Fetcher Engine|PubMed Entrez Fetcher Engine]]
 - [[_COMMUNITY_UniProt Domain Cache|UniProt Domain Cache]]
 - [[_COMMUNITY_Community 374|Community 374]]
 - [[_COMMUNITY_Community 941|Community 941]]
-- [[_COMMUNITY_Community 143|Community 143]]
+- [[_COMMUNITY_App Update Checker|App Update Checker]]
 - [[_COMMUNITY_Community 593|Community 593]]
 - [[_COMMUNITY_Community 719|Community 719]]
 - [[_COMMUNITY_Community 675|Community 675]]
@@ -366,22 +366,22 @@
 - [[_COMMUNITY_Community 595|Community 595]]
 - [[_COMMUNITY_Community 335|Community 335]]
 - [[_COMMUNITY_Community 336|Community 336]]
-- [[_COMMUNITY_Community 168|Community 168]]
+- [[_COMMUNITY_Admin System Health UI|Admin System Health UI]]
 - [[_COMMUNITY_Frontend Pathway Cards|Frontend Pathway Cards]]
 - [[_COMMUNITY_Community 426|Community 426]]
 - [[_COMMUNITY_Community 306|Community 306]]
-- [[_COMMUNITY_Community 117|Community 117]]
+- [[_COMMUNITY_Frontend Module Data Hooks|Frontend Module Data Hooks]]
 - [[_COMMUNITY_Community 393|Community 393]]
 - [[_COMMUNITY_Community 466|Community 466]]
 - [[_COMMUNITY_Community 577|Community 577]]
-- [[_COMMUNITY_Community 126|Community 126]]
+- [[_COMMUNITY_Variant Table & Navigation UI|Variant Table & Navigation UI]]
 - [[_COMMUNITY_Community 616|Community 616]]
-- [[_COMMUNITY_Community 184|Community 184]]
-- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Database Health UI|Database Health UI]]
+- [[_COMMUNITY_Update Manager UI|Update Manager UI]]
 - [[_COMMUNITY_Community 427|Community 427]]
 - [[_COMMUNITY_Community 265|Community 265]]
 - [[_COMMUNITY_Community 617|Community 617]]
-- [[_COMMUNITY_Community 203|Community 203]]
+- [[_COMMUNITY_Frontend Findings & Traits Views|Frontend Findings & Traits Views]]
 - [[_COMMUNITY_Community 369|Community 369]]
 - [[_COMMUNITY_Community 314|Community 314]]
 - [[_COMMUNITY_Community 651|Community 651]]
@@ -390,20 +390,20 @@
 - [[_COMMUNITY_Community 288|Community 288]]
 - [[_COMMUNITY_Community 255|Community 255]]
 - [[_COMMUNITY_Community 289|Community 289]]
-- [[_COMMUNITY_Community 102|Community 102]]
-- [[_COMMUNITY_Community 204|Community 204]]
-- [[_COMMUNITY_Community 114|Community 114]]
-- [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Setup Wizard Steps UI|Setup Wizard Steps UI]]
+- [[_COMMUNITY_Variant Detail Page UI|Variant Detail Page UI]]
+- [[_COMMUNITY_Variant Table & Watches UI|Variant Table & Watches UI]]
+- [[_COMMUNITY_Plotly Visualization Charts|Plotly Visualization Charts]]
 - [[_COMMUNITY_Community 848|Community 848]]
 - [[_COMMUNITY_Community 611|Community 611]]
 - [[_COMMUNITY_Community 694|Community 694]]
 - [[_COMMUNITY_Community 809|Community 809]]
 - [[_COMMUNITY_Community 878|Community 878]]
 - [[_COMMUNITY_Community 851|Community 851]]
-- [[_COMMUNITY_Community 85|Community 85]]
+- [[_COMMUNITY_Variant Card & Dialog Focus|Variant Card & Dialog Focus]]
 - [[_COMMUNITY_Community 721|Community 721]]
 - [[_COMMUNITY_Community 723|Community 723]]
-- [[_COMMUNITY_Community 212|Community 212]]
+- [[_COMMUNITY_IGV Genome Browser|IGV Genome Browser]]
 - [[_COMMUNITY_Community 893|Community 893]]
 - [[_COMMUNITY_Community 895|Community 895]]
 - [[_COMMUNITY_Community 511|Community 511]]
@@ -415,7 +415,7 @@
 - [[_COMMUNITY_Community 897|Community 897]]
 - [[_COMMUNITY_Community 873|Community 873]]
 - [[_COMMUNITY_Community 802|Community 802]]
-- [[_COMMUNITY_Community 232|Community 232]]
+- [[_COMMUNITY_Frontend Component Test Harness|Frontend Component Test Harness]]
 - [[_COMMUNITY_Community 877|Community 877]]
 - [[_COMMUNITY_Community 900|Community 900]]
 - [[_COMMUNITY_Community 901|Community 901]]
@@ -433,7 +433,7 @@
 - [[_COMMUNITY_Community 789|Community 789]]
 - [[_COMMUNITY_Community 513|Community 513]]
 - [[_COMMUNITY_Community 601|Community 601]]
-- [[_COMMUNITY_Community 69|Community 69]]
+- [[_COMMUNITY_Frontend Test Harness|Frontend Test Harness]]
 - [[_COMMUNITY_Community 389|Community 389]]
 - [[_COMMUNITY_Community 731|Community 731]]
 - [[_COMMUNITY_Community 790|Community 790]]
@@ -511,9 +511,9 @@
 - [[_COMMUNITY_Community 277|Community 277]]
 - [[_COMMUNITY_Community 787|Community 787]]
 - [[_COMMUNITY_Community 308|Community 308]]
-- [[_COMMUNITY_Community 93|Community 93]]
+- [[_COMMUNITY_Annotation Benchmark Harness|Annotation Benchmark Harness]]
 - [[_COMMUNITY_Community 390|Community 390]]
-- [[_COMMUNITY_Community 181|Community 181]]
+- [[_COMMUNITY_Haplogroup Bundle Builder|Haplogroup Bundle Builder]]
 - [[_COMMUNITY_Community 568|Community 568]]
 - [[_COMMUNITY_Community 569|Community 569]]
 - [[_COMMUNITY_Community 840|Community 840]]
@@ -537,17 +537,17 @@
 - [[_COMMUNITY_Community 891|Community 891]]
 - [[_COMMUNITY_Community 376|Community 376]]
 - [[_COMMUNITY_Community 321|Community 321]]
-- [[_COMMUNITY_Community 133|Community 133]]
-- [[_COMMUNITY_Community 94|Community 94]]
+- [[_COMMUNITY_Sex Threshold Validation|Sex Threshold Validation]]
+- [[_COMMUNITY_Custom Panels API|Custom Panels API]]
 - [[_COMMUNITY_Community 650|Community 650]]
-- [[_COMMUNITY_Community 180|Community 180]]
+- [[_COMMUNITY_Pipeline Invariant QA Gates|Pipeline Invariant QA Gates]]
 - [[_COMMUNITY_Community 519|Community 519]]
 - [[_COMMUNITY_Community 305|Community 305]]
 - [[_COMMUNITY_Community 693|Community 693]]
 - [[_COMMUNITY_Community 742|Community 742]]
 - [[_COMMUNITY_Community 850|Community 850]]
 - [[_COMMUNITY_Community 494|Community 494]]
-- [[_COMMUNITY_Community 92|Community 92]]
+- [[_COMMUNITY_Admin Panel API|Admin Panel API]]
 - [[_COMMUNITY_Alembic Migrations|Alembic Migrations]]
 - [[_COMMUNITY_Community 468|Community 468]]
 - [[_COMMUNITY_Community 276|Community 276]]
@@ -567,10 +567,10 @@
 - [[_COMMUNITY_Community 747|Community 747]]
 - [[_COMMUNITY_Community 307|Community 307]]
 - [[_COMMUNITY_Community 293|Community 293]]
-- [[_COMMUNITY_Community 220|Community 220]]
-- [[_COMMUNITY_Community 208|Community 208]]
+- [[_COMMUNITY_Annotation Engine PK Invariance|Annotation Engine PK Invariance]]
+- [[_COMMUNITY_Merged-Sample Coverage Telemetry|Merged-Sample Coverage Telemetry]]
 - [[_COMMUNITY_Community 523|Community 523]]
-- [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Annotated Variants API Tests|Annotated Variants API Tests]]
 - [[_COMMUNITY_Community 748|Community 748]]
 - [[_COMMUNITY_Community 749|Community 749]]
 - [[_COMMUNITY_Community 812|Community 812]]
@@ -585,7 +585,7 @@
 - [[_COMMUNITY_Community 750|Community 750]]
 - [[_COMMUNITY_Community 813|Community 813]]
 - [[_COMMUNITY_Community 524|Community 524]]
-- [[_COMMUNITY_Community 209|Community 209]]
+- [[_COMMUNITY_Auth & Session Enforcement|Auth & Session Enforcement]]
 - [[_COMMUNITY_Community 580|Community 580]]
 - [[_COMMUNITY_Community 357|Community 357]]
 - [[_COMMUNITY_Community 696|Community 696]]
@@ -602,22 +602,22 @@
 - [[_COMMUNITY_Community 698|Community 698]]
 - [[_COMMUNITY_Community 581|Community 581]]
 - [[_COMMUNITY_Community 655|Community 655]]
-- [[_COMMUNITY_Community 142|Community 142]]
+- [[_COMMUNITY_Carrier Disclaimer API|Carrier Disclaimer API]]
 - [[_COMMUNITY_Community 624|Community 624]]
-- [[_COMMUNITY_Community 54|Community 54]]
+- [[_COMMUNITY_Carrier Panel Genes|Carrier Panel Genes]]
 - [[_COMMUNITY_Community 359|Community 359]]
 - [[_COMMUNITY_Community 448|Community 448]]
-- [[_COMMUNITY_Community 231|Community 231]]
+- [[_COMMUNITY_Citation Provenance Guard|Citation Provenance Guard]]
 - [[_COMMUNITY_Community 329|Community 329]]
 - [[_COMMUNITY_Community 397|Community 397]]
-- [[_COMMUNITY_Community 238|Community 238]]
+- [[_COMMUNITY_Concordance Report Pagination|Concordance Report Pagination]]
 - [[_COMMUNITY_Community 469|Community 469]]
 - [[_COMMUNITY_Community 751|Community 751]]
 - [[_COMMUNITY_Community 498|Community 498]]
 - [[_COMMUNITY_Community 752|Community 752]]
 - [[_COMMUNITY_Community 499|Community 499]]
 - [[_COMMUNITY_Community 656|Community 656]]
-- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Database Health API|Database Health API]]
 - [[_COMMUNITY_Community 318|Community 318]]
 - [[_COMMUNITY_Community 700|Community 700]]
 - [[_COMMUNITY_Community 657|Community 657]]
@@ -631,14 +631,14 @@
 - [[_COMMUNITY_Community 702|Community 702]]
 - [[_COMMUNITY_Community 360|Community 360]]
 - [[_COMMUNITY_Community 470|Community 470]]
-- [[_COMMUNITY_Community 127|Community 127]]
+- [[_COMMUNITY_End-to-End Pipeline Tests|End-to-End Pipeline Tests]]
 - [[_COMMUNITY_Community 582|Community 582]]
 - [[_COMMUNITY_Community 546|Community 546]]
 - [[_COMMUNITY_Community 583|Community 583]]
-- [[_COMMUNITY_Community 98|Community 98]]
+- [[_COMMUNITY_Variant Query Export API|Variant Query Export API]]
 - [[_COMMUNITY_Community 319|Community 319]]
 - [[_COMMUNITY_Community 625|Community 625]]
-- [[_COMMUNITY_Community 195|Community 195]]
+- [[_COMMUNITY_FHIR Export Endpoint Tests|FHIR Export Endpoint Tests]]
 - [[_COMMUNITY_Community 814|Community 814]]
 - [[_COMMUNITY_Community 450|Community 450]]
 - [[_COMMUNITY_Community 500|Community 500]]
@@ -664,7 +664,7 @@
 - [[_COMMUNITY_Community 278|Community 278]]
 - [[_COMMUNITY_Community 707|Community 707]]
 - [[_COMMUNITY_Community 706|Community 706]]
-- [[_COMMUNITY_Community 239|Community 239]]
+- [[_COMMUNITY_Gene Detail & UniProt API|Gene Detail & UniProt API]]
 - [[_COMMUNITY_Community 347|Community 347]]
 - [[_COMMUNITY_Community 760|Community 760]]
 - [[_COMMUNITY_Community 761|Community 761]]
@@ -680,15 +680,15 @@
 - [[_COMMUNITY_Community 659|Community 659]]
 - [[_COMMUNITY_Community 547|Community 547]]
 - [[_COMMUNITY_Community 433|Community 433]]
-- [[_COMMUNITY_Community 188|Community 188]]
+- [[_COMMUNITY_IGV Track Endpoints|IGV Track Endpoints]]
 - [[_COMMUNITY_Community 852|Community 852]]
 - [[_COMMUNITY_Community 400|Community 400]]
 - [[_COMMUNITY_Community 472|Community 472]]
 - [[_COMMUNITY_Community 502|Community 502]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 109|Community 109]]
+- [[_COMMUNITY_Individuals Routes & Linking|Individuals Routes & Linking]]
+- [[_COMMUNITY_Sample Ingestion API|Sample Ingestion API]]
 - [[_COMMUNITY_Community 434|Community 434]]
-- [[_COMMUNITY_Community 240|Community 240]]
+- [[_COMMUNITY_Installer Flow Tests|Installer Flow Tests]]
 - [[_COMMUNITY_Community 763|Community 763]]
 - [[_COMMUNITY_Community 548|Community 548]]
 - [[_COMMUNITY_Community 708|Community 708]]
@@ -711,7 +711,7 @@
 - [[_COMMUNITY_Community 416|Community 416]]
 - [[_COMMUNITY_Community 269|Community 269]]
 - [[_COMMUNITY_Community 549|Community 549]]
-- [[_COMMUNITY_Community 241|Community 241]]
+- [[_COMMUNITY_Sample Merge Routes|Sample Merge Routes]]
 - [[_COMMUNITY_Community 309|Community 309]]
 - [[_COMMUNITY_Community 631|Community 631]]
 - [[_COMMUNITY_Community 550|Community 550]]
@@ -739,7 +739,7 @@
 - [[_COMMUNITY_Community 504|Community 504]]
 - [[_COMMUNITY_Community 772|Community 772]]
 - [[_COMMUNITY_Community 773|Community 773]]
-- [[_COMMUNITY_Community 189|Community 189]]
+- [[_COMMUNITY_Annotation Overlay API|Annotation Overlay API]]
 - [[_COMMUNITY_Community 665|Community 665]]
 - [[_COMMUNITY_Community 281|Community 281]]
 - [[_COMMUNITY_Community 633|Community 633]]
@@ -748,43 +748,43 @@
 - [[_COMMUNITY_Community 401|Community 401]]
 - [[_COMMUNITY_Community 438|Community 438]]
 - [[_COMMUNITY_Community 587|Community 587]]
-- [[_COMMUNITY_Community 210|Community 210]]
+- [[_COMMUNITY_Panel rsID Validity Guard|Panel rsID Validity Guard]]
 - [[_COMMUNITY_Community 774|Community 774]]
 - [[_COMMUNITY_Community 506|Community 506]]
 - [[_COMMUNITY_Community 666|Community 666]]
 - [[_COMMUNITY_Community 634|Community 634]]
 - [[_COMMUNITY_Community 667|Community 667]]
 - [[_COMMUNITY_Community 668|Community 668]]
-- [[_COMMUNITY_Community 67|Community 67]]
-- [[_COMMUNITY_Community 242|Community 242]]
+- [[_COMMUNITY_Pharma Drug API|Pharma Drug API]]
+- [[_COMMUNITY_CYP2C9 Star-Allele Calling|CYP2C9 Star-Allele Calling]]
 - [[_COMMUNITY_Community 552|Community 552]]
-- [[_COMMUNITY_Community 221|Community 221]]
+- [[_COMMUNITY_Thiopurine PGx Alerts (NUDT15)|Thiopurine PGx Alerts (NUDT15)]]
 - [[_COMMUNITY_Community 296|Community 296]]
 - [[_COMMUNITY_Community 270|Community 270]]
 - [[_COMMUNITY_Community 474|Community 474]]
 - [[_COMMUNITY_Community 475|Community 475]]
-- [[_COMMUNITY_Community 119|Community 119]]
+- [[_COMMUNITY_PubMed Fetcher Cache Tests|PubMed Fetcher Cache Tests]]
 - [[_COMMUNITY_Community 334|Community 334]]
 - [[_COMMUNITY_Community 476|Community 476]]
 - [[_COMMUNITY_Community 297|Community 297]]
 - [[_COMMUNITY_Community 529|Community 529]]
 - [[_COMMUNITY_Community 669|Community 669]]
 - [[_COMMUNITY_Community 454|Community 454]]
-- [[_COMMUNITY_Community 50|Community 50]]
-- [[_COMMUNITY_Community 132|Community 132]]
+- [[_COMMUNITY_Rare Variant Search API|Rare Variant Search API]]
+- [[_COMMUNITY_Fixture Regeneration|Fixture Regeneration]]
 - [[_COMMUNITY_Community 713|Community 713]]
-- [[_COMMUNITY_Community 96|Community 96]]
+- [[_COMMUNITY_Clinical Report Generator|Clinical Report Generator]]
 - [[_COMMUNITY_Community 477|Community 477]]
-- [[_COMMUNITY_Community 252|Community 252]]
-- [[_COMMUNITY_Community 128|Community 128]]
+- [[_COMMUNITY_Backup Restore Version Gate|Backup Restore Version Gate]]
+- [[_COMMUNITY_Stale-Source Merge Commit Guard|Stale-Source Merge Commit Guard]]
 - [[_COMMUNITY_Community 386|Community 386]]
-- [[_COMMUNITY_Community 99|Community 99]]
-- [[_COMMUNITY_Community 211|Community 211]]
+- [[_COMMUNITY_Sample Merge Preview|Sample Merge Preview]]
+- [[_COMMUNITY_Sample Metadata CRUD|Sample Metadata CRUD]]
 - [[_COMMUNITY_Community 298|Community 298]]
 - [[_COMMUNITY_Community 362|Community 362]]
 - [[_COMMUNITY_Community 363|Community 363]]
-- [[_COMMUNITY_Community 205|Community 205]]
-- [[_COMMUNITY_Community 170|Community 170]]
+- [[_COMMUNITY_Database Schema Validation|Database Schema Validation]]
+- [[_COMMUNITY_Sample Schema Migrations|Sample Schema Migrations]]
 - [[_COMMUNITY_Community 714|Community 714]]
 - [[_COMMUNITY_Community 507|Community 507]]
 - [[_COMMUNITY_Community 588|Community 588]]
@@ -793,8 +793,8 @@
 - [[_COMMUNITY_Community 478|Community 478]]
 - [[_COMMUNITY_Community 299|Community 299]]
 - [[_COMMUNITY_Community 591|Community 591]]
-- [[_COMMUNITY_Community 197|Community 197]]
-- [[_COMMUNITY_Community 243|Community 243]]
+- [[_COMMUNITY_Skin MC1R UV Sensitivity|Skin MC1R UV Sensitivity]]
+- [[_COMMUNITY_Skin Pathway API|Skin Pathway API]]
 - [[_COMMUNITY_Community 553|Community 553]]
 - [[_COMMUNITY_Community 636|Community 636]]
 - [[_COMMUNITY_Community 775|Community 775]]
@@ -815,13 +815,13 @@
 - [[_COMMUNITY_Community 479|Community 479]]
 - [[_COMMUNITY_Community 716|Community 716]]
 - [[_COMMUNITY_Community 530|Community 530]]
-- [[_COMMUNITY_Community 222|Community 222]]
+- [[_COMMUNITY_Read-Only SQL Console|Read-Only SQL Console]]
 - [[_COMMUNITY_Community 455|Community 455]]
 - [[_COMMUNITY_Community 456|Community 456]]
 - [[_COMMUNITY_Community 387|Community 387]]
 - [[_COMMUNITY_Community 457|Community 457]]
-- [[_COMMUNITY_Community 253|Community 253]]
-- [[_COMMUNITY_Community 121|Community 121]]
+- [[_COMMUNITY_TagWatch Merge Non-Propagation|Tag/Watch Merge Non-Propagation]]
+- [[_COMMUNITY_Variant Tagging API|Variant Tagging API]]
 - [[_COMMUNITY_Community 480|Community 480]]
 - [[_COMMUNITY_Community 259|Community 259]]
 - [[_COMMUNITY_Community 403|Community 403]]
@@ -837,11 +837,11 @@
 - [[_COMMUNITY_Community 508|Community 508]]
 - [[_COMMUNITY_Community 780|Community 780]]
 - [[_COMMUNITY_Community 916|Community 916]]
-- [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Bundle Update History|Bundle Update History]]
 - [[_COMMUNITY_Community 509|Community 509]]
 - [[_COMMUNITY_Community 388|Community 388]]
 - [[_COMMUNITY_Community 531|Community 531]]
-- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Variant Detail API Tests|Variant Detail API Tests]]
 - [[_COMMUNITY_Community 532|Community 532]]
 - [[_COMMUNITY_Community 557|Community 557]]
 - [[_COMMUNITY_Community 558|Community 558]]
@@ -854,7 +854,7 @@
 - [[_COMMUNITY_Community 781|Community 781]]
 - [[_COMMUNITY_Community 560|Community 560]]
 - [[_COMMUNITY_Community 561|Community 561]]
-- [[_COMMUNITY_Community 206|Community 206]]
+- [[_COMMUNITY_Watched Variants API|Watched Variants API]]
 - [[_COMMUNITY_Community 674|Community 674]]
 - [[_COMMUNITY_Community 856|Community 856]]
 - [[_COMMUNITY_Community 377|Community 377]]
@@ -904,7 +904,7 @@
 - [[_COMMUNITY_Community 949|Community 949]]
 - [[_COMMUNITY_Community 950|Community 950]]
 - [[_COMMUNITY_Community 834|Community 834]]
-- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_User Documentation Site|User Documentation Site]]
 - [[_COMMUNITY_Community 564|Community 564]]
 - [[_COMMUNITY_Community 565|Community 565]]
 - [[_COMMUNITY_Community 543|Community 543]]
@@ -922,7 +922,7 @@
 - [[_COMMUNITY_Community 638|Community 638]]
 - [[_COMMUNITY_Community 300|Community 300]]
 - [[_COMMUNITY_Community 722|Community 722]]
-- [[_COMMUNITY_Community 112|Community 112]]
+- [[_COMMUNITY_CI Pipeline & Workflows|CI Pipeline & Workflows]]
 - [[_COMMUNITY_Community 271|Community 271]]
 
 ## God Nodes (most connected - your core abstractions)
@@ -996,19 +996,19 @@ Nodes (5): _data_dir_from_bind(), Connection, Path, upgrade(), Derive the data d
 Cohesion: 0.24
 Nodes (10): _data_dir_from_bind(), Connection, Path, _resolve_sample_db_path(), _backfill_one(), upgrade(), Backfill per-sample ``annotation_state`` with ``vep_bundle_version='v1.0.0'``., Derive the data directory (parent of reference.db) from the bind URL. (+2 more)
 
-### Community 47 - "Community 47"
+### Community 47 - "ACMG Criteria Classification"
 Cohesion: 0.07
 Nodes (34): _tokens(), AcmgCriterion, AcmgEvidence, AcmgResult, _effective_af(), _points_for(), criterion_pvs1(), criterion_pm2() (+26 more)
 
-### Community 86 - "Community 86"
+### Community 86 - "Effect Allele Strand Matching"
 Cohesion: 0.06
 Nodes (27): AlleleMatch, _parse_alleles(), _count(), match_effect_allele_dosage(), canonical_alleles(), risk_dosage(), Strand-aware allele matching for weighted scoring and risk-genotype calling.  Th, Outcome of resolving a weight-set effect allele against a genotype.      Attribu (+19 more)
 
-### Community 106 - "Community 106"
+### Community 106 - "Allergy Pathway Scoring"
 Cohesion: 0.06
 Nodes (46): Pathway, PathwayResult, HLAProxyInfo, CeliacCombinedResult, HistamineCombinedResult, CrossModuleFinding, AllergyResult, _fetch_hla_proxy_info() (+38 more)
 
-### Community 149 - "Community 149"
+### Community 149 - "Allergy Panel Scoring"
 Cohesion: 0.10
 Nodes (34): PanelSNP, AllergyPanel, SNPResult, load_allergy_panel(), Path, _determine_pathway_level(), A single SNP entry from the curated allergy panel., The complete curated allergy panel. (+26 more)
 
@@ -1016,7 +1016,7 @@ Nodes (34): PanelSNP, AllergyPanel, SNPResult, load_allergy_panel(), Path, _dete
 Cohesion: 0.39
 Nodes (3): _normalize_genotype(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', TestGenotypeNormalization
 
-### Community 57 - "Community 57"
+### Community 57 - "Allergy Panel SNP Scoring"
 Cohesion: 0.06
 Nodes (33): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, AllergyPanel, TestSNPScoring, PanelSNP, TestHLAB1502ProxyAlleleDirection, TestHLAA31ProxyAlleleDirection, TestCeliacDQ8ProxyMarkerIdentity (+25 more)
 
@@ -1032,7 +1032,7 @@ Nodes (54): store_allergy_findings(), Store allergy findings in the sample datab
 Cohesion: 0.05
 Nodes (66): Path, RiskPanel, Engine, RiskAssessment, store_alpha1_findings(), Alpha-1 antitrypsin deficiency (SERPINA1) risk module — §6 / roadmap #25.  Thin, Persist alpha-1 findings to the sample DB (idempotent)., Path (+58 more)
 
-### Community 213 - "Community 213"
+### Community 213 - "Alpha-1 Antitrypsin Risk"
 Cohesion: 0.17
 Nodes (20): load_alpha1_panel(), assess_alpha1(), Load the curated alpha-1 antitrypsin risk panel., Read SERPINA1 Z/S genotypes and classify., _runner(), Engine, Alpha-1 antitrypsin deficiency findings API — EXPANSION_STRATEGY.md #25.  GET  /, make_risk_router() (+12 more)
 
@@ -1040,7 +1040,7 @@ Nodes (20): load_alpha1_panel(), assess_alpha1(), Load the curated alpha-1 antit
 Cohesion: 0.14
 Nodes (12): classify_am_pathogenicity(), _revel_direction(), alphamissense_badge(), Any, alphamissense_badge_for_variant(), AlphaMissense missense-class context badge (SW-A12).  Turns an AlphaMissense pre, Derive the 3-way class from the score using the paper thresholds.      Used only, Map an insilico_tiers criterion (PP3/BP4) to a benign/pathogenic direction. (+4 more)
 
-### Community 173 - "Community 173"
+### Community 173 - "AMD CFH/ARMS2 Risk"
 Cohesion: 0.15
 Nodes (21): load_amd_panel(), assess_amd(), Load the curated AMD risk panel., Read CFH/ARMS2 genotypes and classify., _runner(), Engine, Age-related macular degeneration (AMD) findings API — EXPANSION_STRATEGY.md #26., panel() (+13 more)
 
@@ -1072,11 +1072,11 @@ Nodes (4): _encode_dosage(), Encode a genotype as alt-allele dosage (0, 1, or 2)
 Cohesion: 0.19
 Nodes (7): compute_admixture_fractions(), Estimate admixture fractions via inverse-distance weighting.      .. deprecated:, TestComputeAdmixtureFractions, Test admixture fraction computation via inverse-distance weighting., T3-24: Admixture fractions sum to ~1.0., Sample at exact centroid → 100% that population., Multiple populations at distance 0 — share equally.
 
-### Community 150 - "Community 150"
+### Community 150 - "Ancestry-Matched gnomAD AF"
 Cohesion: 0.08
 Nodes (23): get_ancestry_matched_af_column(), Return the gnomAD AF column name matching the inferred ancestry.      Maps super, TestGetAncestryMatchedAfColumn, TestGetInferredAncestry, Engine, _seed_annotated_variant_with_af(), _seed_ancestry_finding(), TestAncestryMatchedAfIntegration (+15 more)
 
-### Community 62 - "Community 62"
+### Community 62 - "Inferred Ancestry & Cancer PRS Flagging"
 Cohesion: 0.06
 Nodes (45): get_inferred_ancestry(), get_top_ancestry_fraction(), Retrieve the inferred top ancestry from a sample's findings.      Preference ord, Retrieve the top ancestry fraction from a sample's findings.      Searches the s, load_cancer_prs_weights(), Load cancer PRS weight sets from JSON.      Each weight set defines SNP weights, run_cancer_prs(), sample_with_ancestry_eur() (+37 more)
 
@@ -1084,11 +1084,11 @@ Nodes (45): get_inferred_ancestry(), get_top_ancestry_fraction(), Retrieve the i
 Cohesion: 0.15
 Nodes (17): _apoe_array_reliability_flag(), Any, _resolve_diplotype(), _parse_discordant_calls(), _implied_e_status(), _format_discordance_note(), _build_discordance_notes(), APOEFinding (+9 more)
 
-### Community 190 - "Community 190"
+### Community 190 - "APOE Diplotype Determination"
 Cohesion: 0.08
 Nodes (23): APOEAllele, StrEnum, APOEResult, _normalise_genotype(), Individual APOE allele (one per chromosome copy)., Result of APOE genotype determination.      Attributes:         status: Whether, Whether at least one ε4 allele is present., Number of ε4 alleles (0, 1, or 2). (+15 more)
 
-### Community 182 - "Community 182"
+### Community 182 - "APOE Disclosure Gate API"
 Cohesion: 0.09
 Nodes (36): APOEStatus, APOE determination status., APOEGateDisclaimerResponse, APOEGateStatusResponse, APOEGateAcknowledgeResponse, APOEGenotypeResponse, APOEFindingResponse, APOEFindingsListResponse (+28 more)
 
@@ -1096,19 +1096,19 @@ Nodes (36): APOEStatus, APOE determination status., APOEGateDisclaimerResponse, 
 Cohesion: 0.06
 Nodes (48): determine_apoe_genotype(), Engine, store_apoe_finding(), store_apoe_three_findings(), Determine the APOE diplotype from raw variant genotypes.      Looks up rs429358, Store the APOE genotype finding in the sample database.      Creates a single fi, Generate and store the three APOE findings in the sample database.      Creates, Engine (+40 more)
 
-### Community 49 - "Community 49"
+### Community 49 - "APOE Findings Generation"
 Cohesion: 0.04
 Nodes (42): generate_apoe_findings(), Generate the three APOE findings from a determined genotype.      Produces findi, TestAPOEResultProperties, TestAPOEFindingsGeneration, APOEResult, TestAPOEFindingsContentCV, TestAPOEFindingsContentAlzheimers, TestAPOEFindingsContentLipid (+34 more)
 
-### Community 87 - "Community 87"
+### Community 87 - "APOL1 Kidney Risk"
 Cohesion: 0.14
 Nodes (30): load_apol1_panel(), assess_apol1(), Engine, RiskAssessment, store_apol1_findings(), Load the curated APOL1 risk panel., Read APOL1 G1/G2/N264K genotypes and classify with ancestry context., Persist APOL1 findings to the sample DB (idempotent). (+22 more)
 
-### Community 129 - "Community 129"
+### Community 129 - "Array Call Confidence"
 Cohesion: 0.07
 Nodes (24): _locus_low_entry(), Any, _is_catalogued(), _af_unavailable(), classify_array_reliability(), array_confidence_badge(), assess_pathogenic_findings(), Engine (+16 more)
 
-### Community 214 - "Community 214"
+### Community 214 - "BChE Apnea Risk"
 Cohesion: 0.12
 Nodes (14): bche_risk(), Any, _variant_call(), assess_bche(), Engine, BCHE (butyrylcholinesterase) succinylcholine/mivacurium apnea-risk context (SW-E, Combine atypical + K allele counts into a BChE-deficiency risk category.      ``, Per-variant observed call (allele count + whether it was assayed). (+6 more)
 
@@ -1124,11 +1124,11 @@ Nodes (14): _assign_evidence_level(), _is_pms2_pseudogene_confounded(), Row, _is
 Cohesion: 0.03
 Nodes (82): CancerGene, CancerPanel, CancerVariantResult, CancerAnalysisResult, A single gene entry from the curated cancer panel., Whether this gene produces findings in multiple modules., The complete curated cancer predisposition gene panel., Return all gene symbols in the panel. (+74 more)
 
-### Community 174 - "Community 174"
+### Community 174 - "Cancer Panel & Card Contract"
 Cohesion: 0.07
 Nodes (27): load_cancer_panel(), Path, Return all expected ClinVar rsids across all genes., Return genes that have cross-links to other modules., Load the curated cancer gene panel from JSON.      Args:         panel_path: Opt, panel(), CancerPanel, sample_with_cancer_variants() (+19 more)
 
-### Community 88 - "Community 88"
+### Community 88 - "Cancer Variant Extraction"
 Cohesion: 0.11
 Nodes (17): extract_cancer_variants(), Engine, store_cancer_findings(), Extract ClinVar P/LP variants in the cancer gene panel from annotated variants., Store cancer predisposition findings in the sample database.      Creates one fi, CancerPanel, Engine, TestExtractCancerVariants (+9 more)
 
@@ -1136,15 +1136,15 @@ Nodes (17): extract_cancer_variants(), Engine, store_cancer_findings(), Extract 
 Cohesion: 0.05
 Nodes (45): CancerPRSResult, resolve_cancer_prs_sex_context(), Engine, run_cancer_prs(), store_cancer_prs_findings(), Cancer-specific PRS integration (P3-15).  Loads published weight sets for cancer, Aggregated cancer PRS results for eligible traits.      Attributes:         resu, Number of traits with sufficient SNP coverage. (+37 more)
 
-### Community 58 - "Community 58"
+### Community 58 - "PGS Catalog Weight Bridge"
 Cohesion: 0.07
 Nodes (46): Path, PRSWeightSet, Path, Engine, PgsScoreSpec, load_pgs_registry(), _covers(), select_pgs_for_ancestry() (+38 more)
 
-### Community 223 - "Community 223"
+### Community 223 - "Cardiovascular Panel Loader & Model"
 Cohesion: 0.09
 Nodes (20): CardiovascularGene, CardiovascularPanel, load_cardiovascular_panel(), Path, _cardiovascular_finding_text(), Cardiovascular gene panel definition, loader, and analysis module.  Implements P, A single gene entry from the curated cardiovascular panel., The complete curated cardiovascular gene panel. (+12 more)
 
-### Community 113 - "Community 113"
+### Community 113 - "Cardiovascular Analysis & Provenance Tests"
 Cohesion: 0.05
 Nodes (31): CardiovascularVariantResult, CardiovascularAnalysisResult, A single ClinVar P/LP variant found in the cardiovascular gene panel., Complete cardiovascular analysis result for a sample., Number of P/LP variants found., Variants in FH genes (LDLR, PCSK9, APOB)., Variants in cardiomyopathy genes., Variants in channelopathy genes. (+23 more)
 
@@ -1152,7 +1152,7 @@ Nodes (31): CardiovascularVariantResult, CardiovascularAnalysisResult, A single 
 Cohesion: 0.29
 Nodes (4): _assign_evidence_level(), Assign evidence level (1-4 stars) based on ClinVar data.      Delegates to the c, TestEvidenceLevelAssignment, Test _assign_evidence_level based on ClinVar review stars.
 
-### Community 80 - "Community 80"
+### Community 80 - "Cardiovascular Panel Findings"
 Cohesion: 0.10
 Nodes (23): extract_cardiovascular_variants(), store_cardiovascular_findings(), Extract ClinVar P/LP variants in the cardiovascular gene panel.      Queries the, Store cardiovascular findings in the sample database.      Creates one finding p, CardiovascularPanel, Engine, TestExtractCardiovascularVariants, TestStoreCardiovascularFindings (+15 more)
 
@@ -1160,15 +1160,15 @@ Nodes (23): extract_cardiovascular_variants(), store_cardiovascular_findings(), 
 Cohesion: 0.18
 Nodes (10): Engine, FHStatus, store_fh_status_finding(), Familial hypercholesterolemia status determination.      Summarises whether the, Human-readable FH status summary., Store the FH status summary finding in the sample database.      Creates a singl, TestStoreFHStatusFinding, Test FH status summary finding storage. (+2 more)
 
-### Community 233 - "Community 233"
+### Community 233 - "Cardiovascular & FH Analysis"
 Cohesion: 0.15
 Nodes (9): determine_fh_status(), Determine FH status from cardiovascular analysis results.      Examines the FH-c, TestCardiovascularAnalysisResult, TestDetermineFHStatus, CardiovascularAnalysisResult, Test CardiovascularAnalysisResult dataclass properties., Test FH variant status reporting (P3-20)., Non-FH cardiovascular variants do not trigger FH positive. (+1 more)
 
-### Community 137 - "Community 137"
+### Community 137 - "Carrier Status Analysis"
 Cohesion: 0.07
 Nodes (34): CarrierVariantResult, CarrierAnalysisResult, _has_cancer_crosslink(), _is_hbb_hbs_trait(), _has_personal_risk_context(), _carrier_finding_category(), _carrier_finding_text(), _classify_supported_carrier_indel() (+26 more)
 
-### Community 131 - "Community 131"
+### Community 131 - "Carrier Status Panel"
 Cohesion: 0.08
 Nodes (31): CarrierGene, CarrierPanel, A single gene entry from the curated carrier panel., Whether this gene produces findings in multiple modules., The complete curated carrier status gene panel., Return all gene symbols in the panel., Look up a gene by symbol (case-insensitive)., Return genes that have cross-links to other modules. (+23 more)
 
@@ -1180,7 +1180,7 @@ Nodes (13): load_carrier_panel(), Path, Return all expected ClinVar rsids across
 Cohesion: 0.29
 Nodes (4): _assign_carrier_evidence_level(), Assign evidence level (1-4 stars) for carrier findings.      Delegates to the ce, TestCarrierEvidenceLevelAssignment, Test _assign_carrier_evidence_level based on ClinVar review stars.
 
-### Community 75 - "Community 75"
+### Community 75 - "Carrier Status Findings"
 Cohesion: 0.10
 Nodes (25): extract_carrier_variants(), Engine, store_carrier_findings(), Extract heterozygous ClinVar P/LP variants in the carrier gene panel.      Queri, Store carrier status findings in the sample database.      Creates one finding p, CarrierPanel, Engine, TestExtractCarrierVariants (+17 more)
 
@@ -1188,7 +1188,7 @@ Nodes (25): extract_carrier_variants(), Engine, store_carrier_findings(), Extrac
 Cohesion: 0.15
 Nodes (9): format_clinvar_conditions(), format_clinvar_conditions_text(), Shared ClinVar ``clinvar_conditions`` (raw ``CLNDN``) formatter for the server-r, Split the raw ``CLNDN`` blob into cleaned, de-duped condition names.      Drops, The cleaned conditions as a comma-joined string (empty when none remain —     a, TestFormatClinvarConditions, TestFrontendParity, Unit + cross-stack parity tests for the backend ClinVar-conditions formatter (#9 (+1 more)
 
-### Community 175 - "Community 175"
+### Community 175 - "ClinVar Significance Matching"
 Cohesion: 0.08
 Nodes (23): _has_non_mendelian_modifier(), is_low_penetrance_or_risk_allele(), primary_pathogenic_classification(), is_pathogenic_primary(), low_penetrance_or_risk_allele_filter(), ColumnElement, pathogenic_significance_filter(), Shared ClinVar clinical-significance matching for the variant-extraction modules (+15 more)
 
@@ -1196,15 +1196,15 @@ Nodes (23): _has_non_mendelian_modifier(), is_low_penetrance_or_risk_allele(), p
 Cohesion: 0.04
 Nodes (66): BedRegion, ParsedPanel, CustomPanel, _is_valid_gene_symbol(), parse_bed_file(), detect_and_parse(), save_custom_panel(), Engine (+58 more)
 
-### Community 224 - "Community 224"
+### Community 224 - "Custom Gene-List Parser"
 Cohesion: 0.09
 Nodes (18): parse_gene_list(), Parse a gene list from text content.      Accepts one gene per line or comma/tab, TestParseGeneList, Tests for gene list parser., Parses one gene symbol per line., Parses comma-separated gene symbols., Parses tab-separated gene symbols., Parses mixed separator formats. (+10 more)
 
-### Community 176 - "Community 176"
+### Community 176 - "eBMD Osteoporosis PRS"
 Cohesion: 0.10
 Nodes (30): score_ebmd_prs(), Engine, PRSResult, store_ebmd_findings(), Osteoporosis / heel-eBMD polygenic score (SW-B7).  Scores a sample against a hee, Compute the eBMD PRS via the bridge, or None when the BYO score is absent., Store the eBMD PRS finding (replaced on re-run); 0 when unavailable.      store_, create_pgs_tables() (+22 more)
 
-### Community 110 - "Community 110"
+### Community 110 - "ClinVar Evidence Leveling"
 Cohesion: 0.06
 Nodes (28): assign_clinvar_evidence_level(), Assign evidence level based on ClinVar data.      Used by cancer, cardiovascular, TestAssignClinvarEvidenceLevel, Test ClinVar-based evidence assignment per PRD §3.4., ★★★★ — ClinVar Pathogenic with ≥2-star review., ★★★★ — ClinVar Pathogenic with 3-star review., ★★★★ — ClinVar Pathogenic with 4-star review., ★★★★ — ClinVar LP with ≥2-star review. (+20 more)
 
@@ -1216,11 +1216,11 @@ Nodes (13): assign_cpic_evidence_level(), Assign evidence level based on CPIC ti
 Cohesion: 0.11
 Nodes (15): assign_gwas_evidence_level(), Assign evidence level for GWAS-based findings.      Args:         replicated: Wh, TestAssignGwasEvidenceLevel, Test GWAS-based evidence assignment per PRD §3.4., ★☆☆☆ — Single study, p > 5e-8., ★★☆☆ — Single cohort GWAS hit p < 5e-8., ★★★☆ — Replicated in ≥2 cohorts with GW significance., ★☆☆☆ — Replicated but not genome-wide significant. (+7 more)
 
-### Community 100 - "Community 100"
+### Community 100 - "Traits & Personality Panel"
 Cohesion: 0.08
 Nodes (37): cap_evidence_level(), Cap an evidence level at a maximum value.      Used by modules with hard evidenc, TraitsPanel, _run_traits_prs(), Engine, _generate_cross_module_findings(), score_traits_pathways(), _fetch_genotypes() (+29 more)
 
-### Community 76 - "Community 76"
+### Community 76 - "Familial Hypercholesterolemia Assessment"
 Cohesion: 0.07
 Nodes (46): _is_pathogenic(), ApobFdbResult, FhMonogenicVariant, FHAssessment, detect_fh_monogenic(), Engine, detect_apob_fdb(), score_ldl_prs() (+38 more)
 
@@ -1244,11 +1244,11 @@ Nodes (13): has_changes(), dismiss_finding_diff(), True when the diff has at lea
 Cohesion: 0.28
 Nodes (7): is_surfaceable(), Shared finding-surfacing gate (validation strategy D2; F8).  A genotyping chip r, Return ``False`` for a finding that contradicts the inferred sex.      Conservat, test_is_surfaceable(), test_caller_set_matches_documented_scope(), Truth-table coverage for the shared finding-surfacing gate (F8).  ``is_surfaceab, #851: the docstring states only ``rare_variant_finder`` wires the gate today.
 
-### Community 215 - "Community 215"
+### Community 215 - "Fitness Cross-Context Scoring"
 Cohesion: 0.12
 Nodes (24): FitnessPanel, PathwayResult, CrossContextFinding, _generate_cross_context_findings(), score_fitness_pathways(), Engine, _fetch_genotypes(), Gene Fitness module — categorical pathway scoring with ACTN3 three-state calling (+16 more)
 
-### Community 144 - "Community 144"
+### Community 144 - "Fitness Panel Scoring"
 Cohesion: 0.08
 Nodes (26): PanelSNP, _score_snp(), A single SNP entry from the curated fitness panel., Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, PanelSNP, TestCOL1A1Injury, TestCOL5A1RangeOfMotion, TestSNPScoring (+18 more)
 
@@ -1268,7 +1268,7 @@ Nodes (6): FitnessResult, update_annotation_coverage_gwas(), Complete fitness sc
 Cohesion: 0.17
 Nodes (9): _resolve_three_state(), Resolve ACTN3 R577X three-state calling label (RR/RX/XX).      Returns None if t, FitnessPanel, TestPanelLoading, TestACTN3ThreeState, RR genotype (CC) → Standard category in Endurance pathway., RX genotype (CT) → Moderate category., XX genotype (TT) is context-only, NOT an Elevated endurance call: the human (+1 more)
 
-### Community 138 - "Community 138"
+### Community 138 - "Fitness Findings Storage"
 Cohesion: 0.09
 Nodes (28): store_fitness_findings(), Store fitness findings in the sample database.      Creates up to 17 findings:, Engine, reference_engine(), _seed_variants(), _seed_gwas(), TestScorePathways, TestStoreFindingsIntegration (+20 more)
 
@@ -1292,11 +1292,11 @@ Nodes (7): assess_g6pd(), Engine, Context-only, sex-aware G6PD deficiency summar
 Cohesion: 0.13
 Nodes (15): is_lof_constrained(), _badge(), lookup_gene_constraints(), Engine, Any, gnomAD gene-constraint lookup + context badge.  EXPANSION_STRATEGY.md §7 / roadm, A gene is LoF-constrained when LOEUF < 0.35 or pLI > 0.9., Batch lookup → ``{gene_symbol: constraint_context}`` for the genes found. (+7 more)
 
-### Community 97 - "Community 97"
+### Community 97 - "Gene Health Panel Engine"
 Cohesion: 0.05
 Nodes (53): GeneHealthPanel, CrossModuleFinding, load_gene_health_panel(), Path, _map_indel_genotype(), _apply_ancestry_caveat(), _generate_cross_module_findings(), _find_panel_snp() (+45 more)
 
-### Community 48 - "Community 48"
+### Community 48 - "Gene Health Panel Model"
 Cohesion: 0.07
 Nodes (45): PanelSNP, Pathway, SNPResult, PathwayResult, GeneHealthResult, _determine_pathway_level(), A single SNP entry from the curated gene health panel., A gene health pathway with its curated SNPs. (+37 more)
 
@@ -1304,7 +1304,7 @@ Nodes (45): PanelSNP, Pathway, SNPResult, PathwayResult, GeneHealthResult, _dete
 Cohesion: 0.39
 Nodes (3): _normalize_genotype(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', TestGenotypeNormalization
 
-### Community 89 - "Community 89"
+### Community 89 - "Gene Health SNP Scoring"
 Cohesion: 0.08
 Nodes (30): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, GeneHealthPanel, TestSNPScoring, _all_gene_health_pmids(), TCF7L2 het (CT) -> Moderate, evidence_level=3., TCF7L2 hom (TT) -> Elevated., TCF7L2 ref (CC) -> Standard. (+22 more)
 
@@ -1312,11 +1312,11 @@ Nodes (30): _score_snp(), Score a single SNP given a genotype.      Applies evid
 Cohesion: 0.06
 Nodes (46): score_gene_health_pathways(), store_gene_health_findings(), Score all gene health pathways for a sample.      1. Fetches raw genotypes from, Store gene health findings in the sample database.      Creates findings:, Engine, _seed_variants(), _seed_gwas(), _seed_ancestry() (+38 more)
 
-### Community 225 - "Community 225"
+### Community 225 - "ClinGen Gene-Disease Validity"
 Cohesion: 0.12
 Nodes (30): classification_rank(), is_established(), best_curation(), Any, _guardrail_copy(), gene_validity_guardrail(), _uncurated_guardrail(), assess_finding_gene_validity() (+22 more)
 
-### Community 198 - "Community 198"
+### Community 198 - "Strand-Aware Genotype Lookup"
 Cohesion: 0.10
 Nodes (13): _order_variants(), genotype_candidates(), lookup_by_genotype(), T, is_acgt_genotype(), Strand- and order-aware genotype lookup for categorical panel scoring.  Every ca, Return the genotype with its two alleles in both orders.      Handles slash-deli, Genotype keys to try, in priority order (reference strand, then complement). (+5 more)
 
@@ -1328,7 +1328,7 @@ Nodes (4): is_strand_ambiguous(), Whether ``genotype`` is a strand-unresolvable 
 Cohesion: 0.04
 Nodes (51): GnomixModel, load_gnomix_model(), Path, run_inference(), ndarray, _softmax(), _pad_mirror(), _build_smoother_features() (+43 more)
 
-### Community 199 - "Community 199"
+### Community 199 - "Gout & Urate Risk"
 Cohesion: 0.21
 Nodes (19): load_gout_panel(), assess_gout(), Load the curated gout/urate risk panel., Read ABCG2/SLC2A9 genotypes and classify with ancestry-appropriate ORs., _runner(), Engine, Gout / serum-urate findings API — EXPANSION_STRATEGY.md #43.  GET  /api/analysis, panel() (+11 more)
 
@@ -1336,7 +1336,7 @@ Nodes (19): load_gout_panel(), assess_gout(), Load the curated gout/urate risk p
 Cohesion: 0.29
 Nodes (5): eqtl_regulatory_context(), Any, GTEx eQTL regulatory-context badge (SW-F3).  Turns raw GTEx eQTL lookups (:func:, Summarize a variant's GTEx eQTL associations (context only), or None if none., TestRegulatoryContext
 
-### Community 90 - "Community 90"
+### Community 90 - "Hemochromatosis Assessment"
 Cohesion: 0.07
 Nodes (39): load_hemochromatosis_panel(), assess_hemochromatosis(), Engine, RiskAssessment, store_hemochromatosis_findings(), Load the curated HFE risk panel., Read HFE genotypes and classify, using recorded biological sex when available., Persist HFE findings to the sample DB (idempotent). (+31 more)
 
@@ -1348,19 +1348,19 @@ Nodes (12): DiseaseVariant, Protocol, classify_disease_status(), Shared autosoma
 Cohesion: 0.12
 Nodes (14): InsilicoTier, is_missense_consequence(), revel_to_acmg_tier(), insilico_block(), Calibrated in-silico ACMG/AMP evidence tiers from REVEL (Pejaver 2022).  EXPANSI, A calibrated REVEL → ACMG/AMP evidence assignment (DRAFT)., The additive, non-mutating ``detail_json['insilico']`` block., True if a VEP consequence string contains the ``missense_variant`` SO term. (+6 more)
 
-### Community 101 - "Community 101"
+### Community 101 - "KING Kinship Estimation"
 Cohesion: 0.06
 Nodes (42): KinshipStats, KinshipPair, KinshipResult, _hom_allele(), _is_het(), read_autosomal_genotypes(), Engine, _classify() (+34 more)
 
-### Community 51 - "Community 51"
+### Community 51 - "LAI Runner & Storage"
 Cohesion: 0.04
 Nodes (52): run_lai_analysis(), Engine, _ensure_lai_tables(), _read_sample_file_format(), _read_sample_genotypes(), _store_lai_results(), LAI module entry point — local ancestry inference integration.  Provides the hig, Run LAI analysis on a sample.      Reads genotypes from the sample DB, runs the (+44 more)
 
-### Community 63 - "Community 63"
+### Community 63 - "Ancestry E2E (Tier1/LAI)"
 Cohesion: 0.04
 Nodes (32): LAIResult, Result from LAI analysis., bundle(), AncestryBundle, eur_sample_engine(), Engine, eur_result(), TestSyntheticFixture (+24 more)
 
-### Community 177 - "Community 177"
+### Community 177 - "Local Ancestry Runner (Beagle)"
 Cohesion: 0.07
 Nodes (20): Path, ndarray, ChromosomeResult, Check that all required bundle components exist., Resolve the rsID->GRCh38 liftover table, tolerating the v2.0.0 rename., Load rsID -> (chrom, pos_grch38) lookup table., Run the full LAI pipeline.          Args:             genotypes: List of dicts w, Filter to autosomal diploid SNP genotypes.          Carries ``source`` through t (+12 more)
 
@@ -1368,7 +1368,7 @@ Nodes (20): Path, ndarray, ChromosomeResult, Check that all required bundle comp
 Cohesion: 0.25
 Nodes (14): load_lhon_panel(), Load the curated LHON primary-mutation panel., read_genotypes(), Engine, Read each panel locus's genotype from ``raw_variants``.      A locus is read fro, _runner(), Engine, LHON (Leber hereditary optic neuropathy) findings API — EXPANSION_STRATEGY.md #5 (+6 more)
 
-### Community 161 - "Community 161"
+### Community 161 - "LHON Mitochondrial Assessment"
 Cohesion: 0.15
 Nodes (22): assess_lhon(), Read the three primary LHON genotypes and classify (no stratification)., panel(), _seed(), Engine, _mt(), _m11778(), _m3460() (+14 more)
 
@@ -1376,11 +1376,11 @@ Nodes (22): assess_lhon(), Read the three primary LHON genotypes and classify (n
 Cohesion: 0.05
 Nodes (58): AnchorResult, MetabolicResult, _anchor_dosage(), score_anchor_snps(), Engine, run_metabolic_prs(), store_metabolic_findings(), Metabolic disease PRS — type 2 diabetes & obesity/BMI (SW-B5).  Scores the sampl (+50 more)
 
-### Community 81 - "Community 81"
+### Community 81 - "MTHFR Methylation Pathways"
 Cohesion: 0.07
 Nodes (40): CompoundHetResult, score_methylation_pathways(), Engine, _fetch_genotypes(), migrate_mthfr_from_nutrigenomics(), store_methylation_findings(), MTHFR & Methylation module — 5 pathway-level summaries.  Implements P3-52:   - 5, Return all rsids in the panel. (+32 more)
 
-### Community 145 - "Community 145"
+### Community 145 - "Methylation Panel Scoring"
 Cohesion: 0.11
 Nodes (31): PanelSNP, MethylationPanel, SNPResult, PathwayResult, MethylationResult, update_annotation_coverage_gwas(), A single SNP entry from the curated methylation panel., The complete curated methylation panel. (+23 more)
 
@@ -1392,7 +1392,7 @@ Nodes (7): Pathway, load_methylation_panel(), Path, A methylation pathway with i
 Cohesion: 0.24
 Nodes (6): _normalize_genotype(), Container, _genotype_matches(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', Whether any strand-/order-harmonized form of ``genotype`` is in ``accepted``., TestGenotypeNormalization
 
-### Community 234 - "Community 234"
+### Community 234 - "Methylation SNP Scoring"
 Cohesion: 0.10
 Nodes (15): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, TestQDPRThirdAllele, TestCholineBetaineAlleleFrames, TestSNPScoring, rs1677693 (QDPR) is tri-allelic in Ensembl (G/A/T); the panel models only     th, Sanity: the modeled G/A genotypes are untouched by the #608 change., A non-nucleotide no-call must NOT become Indeterminate via the #608 path — (+7 more)
 
@@ -1400,23 +1400,23 @@ Nodes (15): _score_snp(), Score a single SNP given a genotype.      Applies evid
 Cohesion: 0.23
 Nodes (8): _determine_pathway_level(), Determine the overall pathway category from individual SNP results.      The pat, TestPathwayLevel, _make_snp_result(), Multiple Moderate SNPs do not create a generic Elevated pathway call., Three ★☆ Moderate SNPs stay Moderate., Only 2 Moderate SNPs stay Moderate., An actual Elevated SNP still drives an Elevated pathway.
 
-### Community 103 - "Community 103"
+### Community 103 - "Methylation MTHFR Panel"
 Cohesion: 0.06
 Nodes (22): _assess_compound_heterozygosity(), Assess MTHFR compound heterozygosity (C677T + A1298C).      Returns a CompoundHe, MethylationPanel, TestPanelLoading, TestCBSProxy, TestFOLH1Direction, MTHFR C677T (rs1801133) must be in folate_mthfr pathway., MTHFR A1298C (rs1801131) must be in folate_mthfr pathway. (+14 more)
 
-### Community 130 - "Community 130"
+### Community 130 - "MT-RNR1 Aminoglycoside Ototoxicity"
 Cohesion: 0.12
 Nodes (29): load_mt_rnr1_panel(), RiskPanel, assess_mt_rnr1(), Engine, RiskAssessment, store_mt_rnr1_findings(), Load the curated MT-RNR1 aminoglycoside-ototoxicity panel., Read MT-RNR1 genotypes and classify (no ancestry/sex stratification). (+21 more)
 
-### Community 235 - "Community 235"
+### Community 235 - "Nutrigenomics Pathways"
 Cohesion: 0.11
 Nodes (23): Pathway, NutrigenomicsResult, _apply_ancestry_caveat(), _resolve_lactose_persistence(), Engine, _fetch_genotypes(), update_annotation_coverage_gwas(), Curated nutrigenomics SNP panel and categorical pathway scoring.  Implements P3- (+15 more)
 
-### Community 162 - "Community 162"
+### Community 162 - "Nutrigenomics Panel Models"
 Cohesion: 0.10
 Nodes (28): PanelSNP, NutrigenomicsPanel, SNPResult, PathwayResult, _determine_pathway_level(), A single SNP entry from the curated panel., The complete curated nutrigenomics panel., Return all rsids in the panel. (+20 more)
 
-### Community 245 - "Community 245"
+### Community 245 - "Nutrigenomics Pathway API"
 Cohesion: 0.09
 Nodes (28): load_nutrigenomics_panel(), Path, Load the curated nutrigenomics panel from JSON.      Args:         panel_path: O, SNPDetail, PathwaySummary, PathwaysResponse, PathwayDetailResponse, RunResponse (+20 more)
 
@@ -1424,11 +1424,11 @@ Nodes (28): load_nutrigenomics_panel(), Path, Load the curated nutrigenomics pan
 Cohesion: 0.39
 Nodes (3): _normalize_genotype(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', TestGenotypeNormalization
 
-### Community 91 - "Community 91"
+### Community 91 - "Nutrigenomics SNP Scoring"
 Cohesion: 0.07
 Nodes (22): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, NutrigenomicsPanel, TestPanelLoading, TestSNPScoring, TestLactaseAncestryCaveat, TestLct22018AncestryCaveat, #595: rs4654748 (ALPL) is a vitamin B6 locus, not B12.          The panel-cited (+14 more)
 
-### Community 122 - "Community 122"
+### Community 122 - "Nutrigenomics Findings Storage"
 Cohesion: 0.09
 Nodes (29): score_nutrigenomics_pathways(), store_nutrigenomics_findings(), Score all nutrigenomics pathways for a sample.      1. Fetches raw genotypes fro, Store nutrigenomics findings in the sample database.      Creates one finding pe, Engine, _seed_variants(), _seed_gwas(), TestScorePathways (+21 more)
 
@@ -1436,15 +1436,15 @@ Nodes (29): score_nutrigenomics_pathways(), store_nutrigenomics_findings(), Scor
 Cohesion: 0.22
 Nodes (13): load_parkinsons_panel(), assess_parkinsons(), Load the curated Parkinson's (LRRK2 G2019S) risk panel., Read LRRK2 G2019S and classify (no ancestry/sex stratification of the call)., panel(), _seed(), Engine, _lrrk2() (+5 more)
 
-### Community 191 - "Community 191"
+### Community 191 - "Cross-Source PGx Evidence"
 Cohesion: 0.09
 Nodes (22): _load_sources(), Any, lookup_guideline_sources(), assess_sample_pgx_guidelines(), Engine, Cross-source pharmacogenomic evidence layer over CPIC (SW-E2).  CPIC is one of s, Load + cache the curated gene-drug → cross-source evidence map., Return the cross-source evidence for one (gene, drug), or None if uncurated. (+14 more)
 
-### Community 146 - "Community 146"
+### Community 146 - "PGx Star-Allele Calling"
 Cohesion: 0.08
 Nodes (27): _allele_sort_key(), _defining_rsids_by_allele(), _has_heterozygous_unique_marker(), _is_phase_inferred_compound_het(), PrescribingAlert, _build_finding_text(), store_prescribing_alerts(), Pharmacogenomics star-allele calling via CPIC lookup tables.  Implements P3-02, (+19 more)
 
-### Community 123 - "Community 123"
+### Community 123 - "CPIC Guideline Coverage Guard"
 Cohesion: 0.07
 Nodes (40): CallConfidence, _indel_alt_token(), Three-state calling confidence for pharmacogenomics (P3-03).      Complete:, Return the D/I token for a simple indel whose ALT defines the star allele., reference_engine(), Engine, _genotype_states(), _Variant (+32 more)
 
@@ -1452,7 +1452,7 @@ Nodes (40): CallConfidence, _indel_alt_token(), Three-state calling confidence f
 Cohesion: 0.04
 Nodes (68): StarAlleleResult, _fetch_sample_genotypes(), Engine, call_all_star_alleles(), _fetch_guidelines_for_gene_phenotype(), _fetch_guideline_phenotypes_for_gene(), generate_prescribing_alerts(), Result of star-allele calling for a single gene. (+60 more)
 
-### Community 200 - "Community 200"
+### Community 200 - "PGx Alt-Allele Counting"
 Cohesion: 0.09
 Nodes (12): _count_indel_alt_alleles(), _count_alt_alleles(), Count copies of a declared simple indel ALT from I/D raw genotype tokens., Count how many copies of the alt allele are in a genotype string.      Args:, test_pharmacogenomics_count_alt_alleles_parity(), test_count_indel_alt_alleles_no_call_returns_none(), test_count_indel_alt_alleles_counts_real_dosage(), ``--`` and ``??`` both yield ``None`` from ``_count_alt_alleles``.      CPIC sta (+4 more)
 
@@ -1472,7 +1472,7 @@ Nodes (15): _assess_call_confidence(), Determine three-state calling confidence 
 Cohesion: 0.21
 Nodes (3): classify_actionability(), Coarsely classify a CPIC prescribing recommendation's actionability.      Return, TestClassifyActionability
 
-### Community 64 - "Community 64"
+### Community 64 - "Cross-Module Findings Integration"
 Cohesion: 0.06
 Nodes (37): update_annotation_coverage_cpic(), OR bit 6 (CPIC, value 64) into annotation_coverage for CPIC-assessed variants., TestClient, TestCrossModuleIntegration, All analysis modules run against full test fixture without errors., Upload sample, run annotation, return sample_id., T3-43: All analysis modules produce findings for the test fixture         withou, Unified findings API returns findings from multiple modules. (+29 more)
 
@@ -1496,15 +1496,15 @@ Nodes (6): _count_effect_allele(), Count copies of the effect allele in a genoty
 Cohesion: 0.07
 Nodes (41): compute_prs(), run_prs(), store_prs_findings(), Compute a PRS from a weight set against a sample's annotated variants.      Quer, Run the complete PRS pipeline: compute → percentile → bootstrap → ancestry check, Store PRS findings in the sample database.      Creates one finding per PRS resu, weight_set(), PRSWeightSet (+33 more)
 
-### Community 155 - "Community 155"
+### Community 155 - "Admixture-Aware Mismatch Check"
 Cohesion: 0.09
 Nodes (19): check_ancestry_mismatch(), Check and flag ancestry mismatch between PRS weights and user ancestry.      If, TestAncestryMatchCaseInsensitive, TestAdmixtureAwareThreshold, PRSResult, TestAdmixedSentinelHandling, TestMultiAncestryProvenanceWarning, Each PRS result gets its own ancestry_mismatch flag (not global). (+11 more)
 
-### Community 104 - "Community 104"
+### Community 104 - "PRS Ancestry Calibration"
 Cohesion: 0.07
 Nodes (26): CalibratedDistribution, _single_base(), _frequency_for_reference_allele(), _norm_chrom(), effect_allele_frequency(), ancestry_weighted_af(), expected_prs_mean_sd(), get_ancestry_fractions() (+18 more)
 
-### Community 147 - "Community 147"
+### Community 147 - "Sample QC Metrics"
 Cohesion: 0.09
 Nodes (32): QCMetrics, _alleles(), compute_qc_metrics(), Engine, store_qc_metrics(), sex_check(), het_outlier_zscore(), Sample QC metrics + reference-bias disclosure — roadmap #9.  Populates the (prev (+24 more)
 
@@ -1516,31 +1516,31 @@ Nodes (15): CategoryCarriage, CarriageReport, _best_clinvar_alleles(), Engine, a
 Cohesion: 0.05
 Nodes (60): RareVariantFilter, RareVariantResult, RareVariantFinderResult, find_rare_variants(), Engine, store_rare_variant_findings(), Rare variant finder module (P3-28).  Identifies rare and ultra-rare variants fro, Filter parameters for the rare variant finder.      All filters are optional and (+52 more)
 
-### Community 246 - "Community 246"
+### Community 246 - "Rare Variant Evidence Levels"
 Cohesion: 0.13
 Nodes (11): _assign_evidence_level(), Assign evidence level (1-4 stars) for a rare variant.      Delegates to the cent, TestEvidenceLevelAssignment, RareVariantResult, TestRareVariantResultProperties, Test evidence level assignment for rare variants., Helper to create a RareVariantResult with defaults., Test RareVariantResult dataclass properties. (+3 more)
 
-### Community 247 - "Community 247"
+### Community 247 - "PRS Responsible-Return Framing"
 Cohesion: 0.10
 Nodes (19): prs_source_population_label(), prs_ci_label(), prs_return_framing(), Any, Shared responsible-return framing (SW-A1 / roadmap #10) — §12.3 / §12.10.  One h, Mandatory source-population label for a PRS percentile (§12.3)., Bootstrap-CI label, always paired — explicit when unavailable., Consolidated responsible-return block for a PRS finding's ``detail_json``. (+11 more)
 
-### Community 139 - "Community 139"
+### Community 139 - "Risk Genotype Caller"
 Cohesion: 0.08
 Nodes (42): ProbeReadout, RiskCall, _validate_pmids(), Any, _sample_uses_rcrs_mt(), Connection, _locus_is_no_call(), reconcile_concordance() (+34 more)
 
-### Community 79 - "Community 79"
+### Community 79 - "Risk Genotype Classification"
 Cohesion: 0.11
 Nodes (28): RiskLocus, GenotypeModel, _indel_dosage(), One typed position in a risk panel, anchored to its rsID., A declarative genotype→risk rule.      ``match`` maps each rsID to a per-locus c, Count copies of an indel risk token (e.g. ``"D"``) in an I/D genotype.      Retu, _panel(), GenotypeModel (+20 more)
 
-### Community 151 - "Community 151"
+### Community 151 - "Runs-of-Homozygosity Detection"
 Cohesion: 0.11
 Nodes (27): RohSegment, RohResult, _genotype_state(), _read_autosomal_states(), Engine, _scan_chromosome(), detect_roh(), _finding_text() (+19 more)
 
-### Community 167 - "Community 167"
+### Community 167 - "Analysis Module Orchestrator"
 Cohesion: 0.12
 Nodes (36): run_all_analyses(), Engine, DBRegistry, _get_modules(), _run_cancer(), _run_carrier(), _run_cardiovascular(), _run_nutrigenomics() (+28 more)
 
-### Community 192 - "Community 192"
+### Community 192 - "Sex Chromosome Aneuploidy Screen"
 Cohesion: 0.17
 Nodes (22): AneuploidyResult, screen_aneuploidy(), Engine, _finding_text(), store_aneuploidy_findings(), Sex-chromosome aneuploidy screen (XXY / Klinefelter pattern) — roadmap #48.  Arr, Screen for an XXY (Klinefelter) genotype signature., Persist a single screen-result finding (idempotent). (+14 more)
 
@@ -1548,11 +1548,11 @@ Nodes (22): AneuploidyResult, screen_aneuploidy(), Engine, _finding_text(), stor
 Cohesion: 0.11
 Nodes (23): SkinPanel, MC1RAggregateResult, CrossModuleFinding, _r_allele_dosage(), _compute_mc1r_aggregate(), _generate_cross_module_findings(), _find_panel_snp(), score_skin_pathways() (+15 more)
 
-### Community 152 - "Community 152"
+### Community 152 - "Skin Panel Scoring"
 Cohesion: 0.10
 Nodes (27): PanelSNP, SNPResult, PathwayResult, _determine_pathway_level(), A single SNP entry from the curated skin panel., Scoring result for a single SNP., Scoring result for a complete pathway., SNPs that were present and genotyped in the sample. (+19 more)
 
-### Community 183 - "Community 183"
+### Community 183 - "Skin Pathway Scoring API"
 Cohesion: 0.08
 Nodes (36): Pathway, load_skin_panel(), Path, A skin pathway with its curated SNPs., Load the curated skin panel from JSON.      Args:         panel_path: Optional o, SNPDetail, PathwaySummary, MC1RAggregateItem (+28 more)
 
@@ -1564,11 +1564,11 @@ Nodes (8): SkinResult, _find_panel_snp_from_result(), update_annotation_coverage
 Cohesion: 0.31
 Nodes (4): _normalize_genotype(), Container, Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', TestGenotypeNormalization
 
-### Community 236 - "Community 236"
+### Community 236 - "Skin Trait Scoring"
 Cohesion: 0.10
 Nodes (15): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, TestMMP1IndelScoring, TestSNPScoring, MMP1 rs1799750 is reported by 23andMe as I/D indel tokens, not nucleotides., #269: MC1R rs1805009 is C/G palindromic (GG=Standard, CC=Elevated), so         b, ★☆ evidence hard-caps at Moderate (key rule)., ★★ evidence allows Elevated when genotype warrants it. (+7 more)
 
-### Community 107 - "Community 107"
+### Community 107 - "Skin Findings Storage"
 Cohesion: 0.07
 Nodes (32): store_skin_findings(), Store skin findings in the sample database.      Creates up to 20 findings:, Engine, reference_engine(), _seed_variants(), _seed_gwas(), TestCrossModuleFindings, TestStoreFindingsIntegration (+24 more)
 
@@ -1580,7 +1580,7 @@ Nodes (23): Pathway, SleepPanel, CrossModuleFinding, load_sleep_panel(), Path, _
 Cohesion: 0.14
 Nodes (14): PanelSNP, _score_snp(), A single SNP entry from the curated sleep panel., Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, PanelSNP, TestSNPScoring, _make_test_snp(), ★☆ evidence hard-caps at Moderate (key rule). (+6 more)
 
-### Community 237 - "Community 237"
+### Community 237 - "Sleep Pathway Scoring"
 Cohesion: 0.13
 Nodes (17): SNPResult, PathwayResult, _determine_pathway_level(), Scoring result for a single SNP., Scoring result for a complete pathway., SNPs that were present and genotyped in the sample., SNPs that were not present in the sample., Determine the overall pathway category from individual SNP results.      The pat (+9 more)
 
@@ -1592,11 +1592,11 @@ Nodes (11): SleepResult, update_annotation_coverage_gwas(), Complete sleep scori
 Cohesion: 0.39
 Nodes (3): _normalize_genotype(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', TestGenotypeNormalization
 
-### Community 248 - "Community 248"
+### Community 248 - "Sleep CYP1A2 Metabolizer"
 Cohesion: 0.14
 Nodes (10): _resolve_metabolizer_state(), Resolve CYP1A2 caffeine metabolizer state (rapid/intermediate/slow).      Return, SleepPanel, TestPanelLoading, TestCYP1A2Metabolizer, Rapid metabolizer (AA) → Standard category., Intermediate metabolizer (AC) → Moderate category., Slow metabolizer (CC) → Elevated category (evidence_level=2 allows it). (+2 more)
 
-### Community 171 - "Community 171"
+### Community 171 - "Sleep Trait Findings"
 Cohesion: 0.10
 Nodes (25): store_sleep_findings(), Store sleep findings in the sample database.      Creates up to 14 findings:, Engine, reference_engine(), _seed_variants(), _seed_gwas(), TestScorePathways, TestStoreFindingsIntegration (+17 more)
 
@@ -1616,11 +1616,11 @@ Nodes (5): generate_svgs_for_sample(), Path, Post-analysis SVG generation: read 
 Cohesion: 0.31
 Nodes (4): save_finding_svgs(), Generate SVGs for findings and persist to disk.      For each finding dict, atte, TestSaveFindingSvgs, Test bulk SVG generation and file writing.
 
-### Community 156 - "Community 156"
+### Community 156 - "Thrombophilia Risk Assessment"
 Cohesion: 0.12
 Nodes (25): load_thrombophilia_panel(), assess_thrombophilia(), Load the curated thrombophilia risk panel., Read FVL/Prothrombin genotypes and classify., _runner(), Engine, Inherited thrombophilia findings API — EXPANSION_STRATEGY.md #24.  GET  /api/ana, panel() (+17 more)
 
-### Community 193 - "Community 193"
+### Community 193 - "Traits Pathway Scoring"
 Cohesion: 0.10
 Nodes (22): PanelSNP, SNPResult, PathwayResult, _determine_pathway_level(), A single SNP entry from the curated traits panel., Scoring result for a single SNP., Scoring result for a complete pathway., SNPs that were present and genotyped in the sample. (+14 more)
 
@@ -1628,7 +1628,7 @@ Nodes (22): PanelSNP, SNPResult, PathwayResult, _determine_pathway_level(), A si
 Cohesion: 0.39
 Nodes (6): TraitsResult, update_annotation_coverage_gwas(), Complete traits scoring result for a sample., OR bit 5 (GWAS Catalog, value 32) into annotation_coverage for GWAS-matched vari, TestUpdateAnnotationCoverageGwas, Test that GWAS bitmask bit 5 (value 32) is ORed into annotation_coverage.
 
-### Community 178 - "Community 178"
+### Community 178 - "Traits & Personality API"
 Cohesion: 0.08
 Nodes (37): load_traits_panel(), Load the curated traits panel from JSON.      Args:         panel_path: Optional, SNPDetail, PathwaySummary, PRSFinding, CrossModuleItem, PathwaysResponse, PathwayDetailResponse (+29 more)
 
@@ -1636,7 +1636,7 @@ Nodes (37): load_traits_panel(), Load the curated traits panel from JSON.      A
 Cohesion: 0.13
 Nodes (13): _normalize_genotype(), Normalize genotype string for lookup.      Handles common formats: 'CT', 'TC', ', panel(), sample_engine(), Path, reference_engine(), _seed_gwas(), TestGenotypeNormalization (+5 more)
 
-### Community 153 - "Community 153"
+### Community 153 - "Personality Traits Panel"
 Cohesion: 0.09
 Nodes (15): _score_snp(), Score a single SNP given a genotype.      Applies evidence-level gating: ★☆ (evi, TraitsPanel, TestPanelLoading, TestDRD4Proxy, TestSNPScoring, DRD4 rs747302 is C/G palindromic (CC=Standard, GG=Moderate); the strand, DRD4 rs747302 models the C/G contrast; an observed ``CT`` carries a ``T`` (+7 more)
 
@@ -1644,7 +1644,7 @@ Nodes (15): _score_snp(), Score a single SNP given a genotype.      Applies evid
 Cohesion: 0.36
 Nodes (3): _load_prs_weight_sets(), Convert panel PRS weight set definitions into PRSWeightSet objects.      Reuses, TestPRSIntegration
 
-### Community 154 - "Community 154"
+### Community 154 - "Warfarin Dosing Pharmacogenomics"
 Cohesion: 0.09
 Nodes (21): _normalise_ancestry(), _ancestry_label(), vkorc1_phenotype(), cyp4f2_phenotype(), Any, _assess_gene(), assess_warfarin(), Engine (+13 more)
 
@@ -1652,7 +1652,7 @@ Nodes (21): _normalise_ancestry(), _ancestry_label(), vkorc1_phenotype(), cyp4f2
 Cohesion: 0.50
 Nodes (3): _zygosity_from_alleles(), Shared zygosity helpers (MRG-01a part 1; Plan §10.3).  Single source of truth fo, Classify a resolved allele set against a (ref, alt) pair.
 
-### Community 179 - "Community 179"
+### Community 179 - "Zygosity Classification"
 Cohesion: 0.08
 Nodes (15): classify_zygosity(), Resolve a genotype to ``hom_ref`` / ``het`` / ``hom_alt`` vs ClinVar ref/alt., test_inv3_no_double_carry_at_palindrome(), A biallelic genotype cannot carry two distinct ALTs at one (chrom,pos,ref)., F508del (an indel) is unscoreable on an A/C/G/T chip.          ``classify_zygosi, TestClassifyZygosityReferenceStrand, TestClassifyZygosityStrandFlip, TestClassifyZygosityPalindromic (+7 more)
 
@@ -1664,7 +1664,7 @@ Nodes (81): AlphaMissenseLoadStats, _normalize_chrom(), _parse_float(), _file_di
 Cohesion: 0.05
 Nodes (84): download_alphamissense(), Download the AlphaMissense hg19 TSV to ``dest_dir`` (atomic rename on success)., DownloadError, IncompleteDownloadError, _RetryableStatusError, _SlowTransferError, compute_backoff(), _content_range_total() (+76 more)
 
-### Community 157 - "Community 157"
+### Community 157 - "ClinGen Gene Validity Ingestion"
 Cohesion: 0.11
 Nodes (40): ClinGenLoadStats, _clean(), parse_file_created_date(), Path, parse_clingen_csv(), Any, _wal_checkpoint(), Engine (+32 more)
 
@@ -1676,7 +1676,7 @@ Nodes (85): SkipReason, LoadStats, ClinVarRecord, _parse_info_field(), _review_s
 Cohesion: 0.11
 Nodes (11): parse_clinvar_vcf_line(), Parse a single non-header VCF line into a ClinVarRecord.      Returns:         T, TestParseClinvarVcfLine, Lines without RS in INFO should return skip_reason=NO_RSID., Non-numeric POS should return skip_reason=MALFORMED., Non-numeric RS values should return skip_reason=MALFORMED, mirroring         the, When CLNVCID is absent, CLNACC is used for accession., Multi-significance separated by / should use first. (+3 more)
 
-### Community 65 - "Community 65"
+### Community 65 - "ClinVar Annotation Lookup"
 Cohesion: 0.06
 Nodes (35): ClinVarAnnotation, AnnotationResult, _pick_clinvar_row(), Row, lookup_clinvar_by_rsids(), lookup_clinvar_by_positions(), annotate_sample_clinvar(), ClinVar annotation data for a single variant. (+27 more)
 
@@ -1684,7 +1684,7 @@ Nodes (35): ClinVarAnnotation, AnnotationResult, _pick_clinvar_row(), Row, looku
 Cohesion: 0.05
 Nodes (53): CPICLoadStats, CPICAllele, CPICDiplotype, CPICGuideline, _parse_float(), _allele_to_dict(), _diplotype_to_dict(), _guideline_to_dict() (+45 more)
 
-### Community 216 - "Community 216"
+### Community 216 - "CPIC Update Check"
 Cohesion: 0.11
 Nodes (21): check_cpic_update(), Check whether a newer CPIC release is available on GitHub.      Uses ``pipeline_, _clear_manifest_cache_and_env(), _cpic_release_payload(), _mock_get_client(), TestCheckCpicUpdate, Tests for manifest-driven pipeline-DB update checks (Steps 19–24).  Each ``check, Each test starts with an empty manifest cache and no env override. (+13 more)
 
@@ -1696,7 +1696,7 @@ Nodes (120): DbNSFPRecord, LoadStats, _compute_sha256(), Path, _wal_checkpoint()
 Cohesion: 0.02
 Nodes (184): DbNSFPAnnotation, is_ensemble_pathogenic_from_counts(), dbNSFP annotation data with computed ensemble vote counts., Ensemble rule: a strict majority of the *present* axes vote deleterious.      Re, _is_benign_significance(), AnnotationEngineResult, _wal_checkpoint(), Engine (+176 more)
 
-### Community 124 - "Community 124"
+### Community 124 - "dbNSFP TSV Parsing"
 Cohesion: 0.07
 Nodes (27): assess_ensemble(), _normalize_chrom(), _parse_float(), _parse_dbnsfp_float(), _split_dbnsfp_multivalue(), _parse_dbnsfp_float_extreme(), _parse_dbnsfp_pred_by_severity(), parse_dbnsfp_tsv_line() (+19 more)
 
@@ -1704,7 +1704,7 @@ Nodes (27): assess_ensemble(), _normalize_chrom(), _parse_float(), _parse_dbnsfp
 Cohesion: 0.16
 Nodes (11): is_ensemble_pathogenic(), Whether the in-silico ensemble supports pathogenicity (F24/F25)., TestEnsemblePathogenicity, DbNSFPAnnotation, T2-12 / F24/F25: ensemble flag = strict majority of *present* independent axes., F38: PolyPhen uses the strict 0.909 'probably damaging' cutoff.          A 'poss, Test exact threshold boundaries., F24: REVEL+MetaSVM+MetaLR count as ONE axis, not three votes.          Three con (+3 more)
 
-### Community 52 - "Community 52"
+### Community 52 - "Database Version Registry"
 Cohesion: 0.05
 Nodes (72): record_dbnsfp_version(), Insert or update the dbNSFP version in the database_versions table., _build_encode_ccres_db(), _record_encode_ccres_version(), _record_db_version(), Engine, check_genome_build_consistency(), Transform a downloaded ENCODE cCREs BED file into a SQLite database.      Called (+64 more)
 
@@ -1712,7 +1712,7 @@ Nodes (72): record_dbnsfp_version(), Insert or update the dbNSFP version in the 
 Cohesion: 0.12
 Nodes (13): check_dbnsfp_update(), Check whether the dbNSFP release pinned in the manifest is newer than installed., TestCheckDbnsfpUpdate, Recorded version older than manifest pin → VersionInfo., Recorded version newer than manifest pin → no downgrade offered., Recorded version equals manifest pin → already up to date., Fresh install (no database_versions row) → offer the pinned version., HEAD succeeds without Content-Length → size defaults to 0. (+5 more)
 
-### Community 125 - "Community 125"
+### Community 125 - "dbNSFP Score Lookup"
 Cohesion: 0.06
 Nodes (27): _dbnsfp_row_to_annotation(), Row, _pick_dbnsfp_row(), lookup_dbnsfp_by_rsids(), lookup_dbnsfp_by_positions(), Build a :class:`DbNSFPAnnotation` from a ``dbnsfp_scores`` row., Select the dbNSFP row whose ALT the sample carries (F11).      A multi-allelic s, Look up dbNSFP scores for a batch of rsids.      Processes in batches of 500 to (+19 more)
 
@@ -1724,11 +1724,11 @@ Nodes (75): ValidationStatus, MergeRecord, LoadStats, ValidationResult, Annotati
 Cohesion: 0.22
 Nodes (6): parse_rsmerge_line(), Parse a single line from RsMergeArch.bcp.      The BCP format is tab-separated w, TestParseRsmergeLine, Tests for individual BCP line parsing., rsCurrent (col 6) is preferred over rsLow (col 1)., Handles rs-prefixed values in the BCP (shouldn't happen but be safe).
 
-### Community 61 - "Community 61"
+### Community 61 - "Pipeline Update Checks"
 Cohesion: 0.06
 Nodes (38): check_dbsnp_update(), Check whether the dbSNP RsMergeArch pinned in the manifest is newer than install, check_mondo_hpo_update(), Check whether the Monarch MONDO/HPO release pinned in the manifest is newer than, _write_manifest(), Path, TestCheckDbsnpUpdate, TestCheckMondoHpoUpdate (+30 more)
 
-### Community 201 - "Community 201"
+### Community 201 - "ENCODE cCREs Ingestion"
 Cohesion: 0.11
 Nodes (24): LoadStats, iter_ccre_bed(), Path, create_encode_ccres_tables(), Engine, _insert_batch(), _compute_sha256(), load_encode_ccres() (+16 more)
 
@@ -1748,7 +1748,7 @@ Nodes (13): _normalize_chrom(), get_ccre_summary(), Normalize chromosome name (s
 Cohesion: 0.12
 Nodes (21): is_loaded(), Check whether ENCODE cCREs data has been loaded.      Args:         engine: SQLA, _get_encode_engine(), CCREItem, RegionResponse, SummaryResponse, StatusResponse, query_region() (+13 more)
 
-### Community 72 - "Community 72"
+### Community 72 - "Evidence Conflict Detection"
 Cohesion: 0.06
 Nodes (37): EvidenceConflictResult, Any, detect_evidence_conflict(), apply_evidence_conflicts(), Evidence conflict detection — amber flag logic.  Fires when ClinVar classifies a, Result of evidence conflict detection for a single variant., Detect evidence conflict for a single variant.      The amber flag fires when AL, Apply evidence conflict detection to a list of merged variant dicts.      Mutate (+29 more)
 
@@ -1760,7 +1760,7 @@ Nodes (15): count_deleterious_tools(), Count deleterious independent axes.      
 Cohesion: 0.02
 Nodes (135): GnomADRecord, LoadStats, compute_af_popmax(), compute_rare_flags(), _normalize_chrom(), _parse_float(), _parse_int(), _parse_info_field() (+127 more)
 
-### Community 83 - "Community 83"
+### Community 83 - "GTEx eQTL Ingestion"
 Cohesion: 0.09
 Nodes (43): GtexLoadStats, create_gtex_tables(), Engine, _float_at(), _open_maybe_gzip(), Path, IO, load_variant_rsid_lookup() (+35 more)
 
@@ -1772,7 +1772,7 @@ Nodes (3): parse_variant_id(), Parse a GTEx ``chrN_pos_ref_alt_b38`` id → (chr
 Cohesion: 0.04
 Nodes (79): GWASLoadStats, _parse_float(), _iter_rsid_batches(), gwas_matched_rsids(), Engine, iter_gwas_tsv(), Path, _batched() (+71 more)
 
-### Community 218 - "Community 218"
+### Community 218 - "GWAS Catalog TSV Parsing"
 Cohesion: 0.09
 Nodes (14): _normalize_chrom(), _parse_int(), _extract_risk_allele(), parse_gwas_tsv_row(), Normalize chromosome name. Returns None for invalid chromosomes., Safely parse an integer, returning None on failure., Extract risk allele from 'STRONGEST SNP-RISK ALLELE' column.      Format is typi, Parse a single GWAS Catalog TSV row into a dict for insertion.      Args: (+6 more)
 
@@ -1792,7 +1792,7 @@ Nodes (3): _parse_sample_size(), Extract total sample size from INITIAL SAMPLE S
 Cohesion: 0.39
 Nodes (3): _is_odds_ratio(), Heuristic to distinguish OR from beta in the 'OR or BETA' column.      If the 95, TestIsOddsRatio
 
-### Community 217 - "Community 217"
+### Community 217 - "GWAS Release Update Check"
 Cohesion: 0.10
 Nodes (19): check_gwas_update(), Check whether the GWAS Catalog release pinned in the manifest is newer than inst, _mock_head_client(), TestCheckGwasUpdate, Build a context-manager mock that replaces ``httpx.Client``.      Returns a ``Ma, Recorded date older than remote Last-Modified → VersionInfo., Recorded date newer than remote Last-Modified → no downgrade offered., Recorded date equals remote Last-Modified → already up to date. (+11 more)
 
@@ -1844,7 +1844,7 @@ Nodes (10): parse_genemap2_text(), Parse OMIM genemap2 text content into records
 Cohesion: 0.36
 Nodes (4): _parse_phenotype_entry(), Parse a single OMIM phenotype entry string.      Format: ``Phenotype text, MIM_n, TestPhenotypeEntryParsing, Test individual phenotype entry parsing.
 
-### Community 116 - "Community 116"
+### Community 116 - "PGS Catalog Ingestion"
 Cohesion: 0.10
 Nodes (32): PgsLoadStats, Engine, classify_pgs_license(), parse_pgs_header(), _open_maybe_gzip(), Path, IO, load_pgs_score_from_file() (+24 more)
 
@@ -1852,11 +1852,11 @@ Nodes (32): PgsLoadStats, Engine, classify_pgs_license(), parse_pgs_header(), _o
 Cohesion: 0.50
 Nodes (3): _detect_max_variable_number(), SQLite compile-time limit detection (P4-22 performance optimization).  Detects `, Detect SQLite's SQLITE_MAX_VARIABLE_NUMBER at runtime.      Probes by executing
 
-### Community 194 - "Community 194"
+### Community 194 - "vcfanno Overlay Parser"
 Cohesion: 0.08
 Nodes (27): OverlayRecord, ParsedOverlay, ApplyResult, _normalise_chrom(), parse_bed_overlay(), parse_vcf_overlay(), _parse_vcf_info(), Any (+19 more)
 
-### Community 163 - "Community 163"
+### Community 163 - "vcfanno Overlay API"
 Cohesion: 0.09
 Nodes (40): OverlayConfig, get_overlay(), A stored overlay configuration., Get a single overlay config by ID., OverlayConfigResponse, OverlayListResponse, OverlayParsePreviewResponse, OverlayUploadResponse (+32 more)
 
@@ -1876,7 +1876,7 @@ Nodes (14): apply_overlay(), get_overlay_results(), Apply a parsed overlay to a 
 Cohesion: 0.11
 Nodes (16): _wal_checkpoint(), Engine, annotate_sample_vep(), VEP bundle lookup client for batch rsid annotation.  Reads raw variants from a p, Run WAL checkpoint if the engine is file-backed (not in-memory)., Annotate a sample's variants with VEP data from the bundle.      Reads all ``raw, TestAnnotateSampleVep, Tests for the full annotation pipeline. (+8 more)
 
-### Community 202 - "Community 202"
+### Community 202 - "Consequence Severity Ranking"
 Cohesion: 0.09
 Nodes (14): consequence_severity(), Return the severity score for a consequence SO term.      If the consequence con, TestConsequenceSeverity, Tests for consequence severity ranking + MANE Select flagging (P2-03).  Dedicate, T2-02: Most-severe consequence correctly ranks SO terms., stop_gained > missense_variant., missense_variant > synonymous_variant., Transitive: stop_gained > synonymous_variant. (+6 more)
 
@@ -1896,11 +1896,11 @@ Nodes (11): lookup_vep_by_rsids(), Look up VEP annotations for a batch of rsids.
 Cohesion: 0.02
 Nodes (90): _read_recorded_sample_version(), _read_installed_version(), _resolve_required_version(), _resolve_update_url(), FastAPI dependencies for sample-staleness gating.  Plan §7.5 — ``require_fresh_s, Return the sample's recorded ``vep_bundle_version`` (fallback ``v1.0.0``)., Manifest version, falling back to the ``database_versions`` row., trigger_lai_analysis() (+82 more)
 
-### Community 77 - "Community 77"
+### Community 77 - "Fresh-Sample Gating & Watches"
 Cohesion: 0.06
 Nodes (46): _sample_existence(), require_fresh_sample(), Tri-state existence of ``sample_id`` in the reference DB ``samples`` table., Gate sample-scoped routes on existence, then staleness (Plan §7.5, #453).      R, WatchCreate, WatchNotesUpdate, WatchResponse, _get_sample_engine() (+38 more)
 
-### Community 164 - "Community 164"
+### Community 164 - "Sample Management API"
 Cohesion: 0.07
 Nodes (39): require_fresh_merged_sample(), ``require_fresh_sample`` alias for ``{merged_id}``-pathed routes.      Plan §10., SampleResponse, SampleUpdate, _row_to_response(), Row, _enrich_with_sample_metadata(), list_samples() (+31 more)
 
@@ -1912,11 +1912,11 @@ Nodes (19): _gate_status(), Engine, Table, apoe_gate_status(), is_apoe_gate_ackn
 Cohesion: 0.04
 Nodes (94): AcmgCriterionResponse, BaseModel, AcmgVariantResponse, AcmgResponse, list_acmg(), DRAFT ACMG/AMP variant-classification API — SW-F1 / roadmap #13.  A read-only, N, DRAFT ACMG/AMP classifications for the sample's notable variants.      Scope: ca, ArrayConfidenceResponse (+86 more)
 
-### Community 226 - "Community 226"
+### Community 226 - "Admin System Health API"
 Cohesion: 0.09
 Nodes (31): _format_ts(), LogEntry, LogResponse, DatabaseStat, SampleStat, DiskUsage, ActiveJob, SystemStatus (+23 more)
 
-### Community 249 - "Community 249"
+### Community 249 - "Allergy Pathway Findings API"
 Cohesion: 0.10
 Nodes (29): SNPDetail, PathwaySummary, CeliacCombinedItem, HistamineCombinedItem, CrossModuleItem, PathwaysResponse, PathwayDetailResponse, RunResponse (+21 more)
 
@@ -1924,7 +1924,7 @@ Nodes (29): SNPDetail, PathwaySummary, CeliacCombinedItem, HistamineCombinedItem
 Cohesion: 0.10
 Nodes (21): get_lai_status(), Check LAI bundle and Java availability.      Returns whether the LAI bundle is d, file_format_has_ancestrydna(), is_lai_coverage_degraded(), _read_installed_lai_version(), _read_sample_file_format(), is_degraded_for_sample(), is_degraded_globally() (+13 more)
 
-### Community 227 - "Community 227"
+### Community 227 - "Annotated Variants Query Endpoints"
 Cohesion: 0.11
 Nodes (31): AnnotatedVariantRow, AnnotatedVariantPage, AnnotatedVariantCount, AnnotatedChromosomeSummary, _get_sample_engine(), Engine, _require_annotated(), _chrom_sort_key() (+23 more)
 
@@ -1940,7 +1940,7 @@ Nodes (19): LoginRequest, LoginResponse, SetPasswordRequest, SetPasswordResponse
 Cohesion: 0.02
 Nodes (172): BackupEstimateResponse, BackupExportRequest, BackupExportResponse, BackupStatusResponse, _get_file_size(), Path, _collect_sample_files(), _collect_reference_files() (+164 more)
 
-### Community 250 - "Community 250"
+### Community 250 - "Cardiovascular & FH Findings API"
 Cohesion: 0.10
 Nodes (29): CardiovascularVariantResponse, CardiovascularVariantsListResponse, FHVariantSummary, FHStatusResponse, CardiovascularDisclaimerResponse, CardiovascularRunResponse, _get_sample_engine(), Engine (+21 more)
 
@@ -1952,7 +1952,7 @@ Nodes (25): CarrierVariantResponse, CarrierVariantsListResponse, CarrierDisclaim
 Cohesion: 0.21
 Nodes (17): PresetItem, PresetListResponse, CreatePresetRequest, UpdatePresetRequest, _presets_path(), Path, _read_custom_presets(), _write_custom_presets() (+9 more)
 
-### Community 141 - "Community 141"
+### Community 141 - "App Lifespan & Logging"
 Cohesion: 0.08
 Nodes (30): shutdown_executor(), cleanup_interrupted_sessions(), Shut down the download executor. Called from FastAPI lifespan., Mark in-progress sessions as interrupted/stale on server startup.      Called fr, _db_processor_factory(), callable, configure_logging(), Structured logging configuration for Yeliztli (P4-21b).  Configures structlog to (+22 more)
 
@@ -1960,7 +1960,7 @@ Nodes (30): shutdown_executor(), cleanup_interrupted_sessions(), Shut down the d
 Cohesion: 0.04
 Nodes (67): _eta_seconds(), _aggregate_progress(), Any, Honest ETA from a smoothed rate, or ``None`` when it can't be trusted.      Retu, Roll per-database byte progress up into one session-level summary.      Only dat, DatabaseInfo, Settings, Path (+59 more)
 
-### Community 134 - "Community 134"
+### Community 134 - "Results Export API"
 Cohesion: 0.06
 Nodes (45): RuleModel, RuleGroupModel, ExportQueryRequest, ExportSqlRequest, ExportFhirRequest, _resolve_sample_db_path(), Path, _get_sample_engine() (+37 more)
 
@@ -1976,7 +1976,7 @@ Nodes (25): SNPDetail, PathwaySummary, CrossContextItem, PathwaysResponse, Pathw
 Cohesion: 0.05
 Nodes (79): ProteinDomain, ProteinFeature, UniProtData, GenePhenotypeRecord, PubMedArticleResponse, GeneVariantSummary, PopulationAFSummary, GeneDetailResponse (+71 more)
 
-### Community 172 - "Community 172"
+### Community 172 - "IGV.js Track Endpoints"
 Cohesion: 0.07
 Nodes (35): _normalize_chrom(), _get_sample_engine(), Engine, _clinvar_row_to_vcf_line(), Row, clinvar_vcf_header(), Response, clinvar_vcf_region() (+27 more)
 
@@ -1984,11 +1984,11 @@ Nodes (35): _normalize_chrom(), _get_sample_engine(), Engine, _clinvar_row_to_vc
 Cohesion: 0.13
 Nodes (11): _resolve_vcf_fields(), Resolve VCF (REF, ALT, GT) for one sample variant.      VCF genotype fields are, TestResolveVcfFields, Unit tests for the _resolve_vcf_fields helper (#471)., Homozygous-ALT call (CC vs ref T) -> 1/1, never a false 0/0., Heterozygote uses biological REF/ALT, not raw allele-string order., True homozygous reference -> 0/0., Haploid homozygous-ALT -> single-allele GT=1. (+3 more)
 
-### Community 59 - "Community 59"
+### Community 59 - "Individuals & Sample Merge API"
 Cohesion: 0.08
 Nodes (67): IndividualCreate, IndividualUpdate, LinkSampleRequest, LinkedSample, IndividualSummary, IndividualDetail, LinkConflictDetail, MergePreviewRequest (+59 more)
 
-### Community 165 - "Community 165"
+### Community 165 - "Build-36 Liftover Ingest"
 Cohesion: 0.07
 Nodes (30): _coerce_semver(), Version, _build_bundle_gate_payload(), _vep_bundle_blocks_ancestrydna(), Engine, _lift_result_build36(), ParseResult, _ingest_file() (+22 more)
 
@@ -2004,11 +2004,11 @@ Nodes (23): SNPDetail, PathwaySummary, CompoundHetInfo, PathwaysResponse, Pathwa
 Cohesion: 0.01
 Nodes (258): NuclearDeleteResponse, nuclear_delete(), Nuclear Delete API endpoint (P4-21).  Single operation that wipes ALL data — all, Response after successful nuclear delete., Wipe ALL data and reset to fresh-install state.      Deletes every file inside t, Yeliztli configuration via Pydantic Settings.  Layered: defaults -> ~/.yeliztli/, Database layer for Yeliztli.  Public API::      from backend.db import reference, reset_registry() (+250 more)
 
-### Community 158 - "Community 158"
+### Community 158 - "Pharmacogenomics Drug API"
 Cohesion: 0.07
 Nodes (41): DrugListItem, DrugListResponse, GeneEffect, DrugLookupResponse, GeneSummary, GeneSummaryResponse, CoverageInfo, ReportGeneEffect (+33 more)
 
-### Community 108 - "Community 108"
+### Community 108 - "Query Builder & SQL Console"
 Cohesion: 0.06
 Nodes (52): RuleModel, RuleGroupModel, QueryRequest, QueryVariantRow, QueryResultPage, QueryFieldInfo, QueryMetaResponse, _resolve_sample_db_path() (+44 more)
 
@@ -2016,7 +2016,7 @@ Nodes (52): RuleModel, RuleGroupModel, QueryRequest, QueryVariantRow, QueryResul
 Cohesion: 0.13
 Nodes (8): _validate_read_only(), Raise HTTPException if the SQL contains write operations.      Defence-in-depth:, TestSQLConsoleReadOnly, Verify SQL console blocks all write operations., _validate_read_only rejects INSERT, UPDATE, DELETE, DROP, etc., _validate_read_only allows SELECT and EXPLAIN., TestValidateReadOnly, Application-level SQL write detection.
 
-### Community 207 - "Community 207"
+### Community 207 - "Rare Variant API & Export"
 Cohesion: 0.09
 Nodes (33): RareVariantFilterRequest, RareVariantResponse, RareVariantSearchResponse, RareVariantFindingResponse, RareVariantFindingsListResponse, RareVariantRunResponse, _get_sample_engine(), Engine (+25 more)
 
@@ -2040,7 +2040,7 @@ Nodes (27): SNPDetail, PathwaySummary, CrossModuleItem, MetabolizerState, Pathwa
 Cohesion: 0.11
 Nodes (28): TagResponse, TagCreate, TagUpdate, VariantTagAction, _get_sample_engine(), Engine, list_tags(), create_tag() (+20 more)
 
-### Community 71 - "Community 71"
+### Community 71 - "Update & Reannotation API"
 Cohesion: 0.05
 Nodes (51): UpdateAvailable, UpdateCheckResponse, UpdateHistoryEntry, ReannotationPrompt, ReleaseDelta, ChangedFinding, DiffFinding, FindingChangesResponse (+43 more)
 
@@ -2052,15 +2052,15 @@ Nodes (14): DatabaseStatus, get_database_statuses(), Get current version and dis
 Cohesion: 0.26
 Nodes (15): dismiss_finding_changes(), Dismiss the stored finding-level change diff for a sample., _env(), Path, DBRegistry, _get_finding_changes(), _dismiss_finding_changes(), test_get_finding_changes_returns_diff() (+7 more)
 
-### Community 219 - "Community 219"
+### Community 219 - "Variant Detail Payload Builder"
 Cohesion: 0.09
 Nodes (28): TranscriptAnnotation, GenePhenotypeRecord, EvidenceConflictDetail, VariantDetailResponse, _get_sample_engine(), Engine, _fetch_all_transcripts(), _fetch_gene_phenotypes() (+20 more)
 
-### Community 46 - "Community 46"
+### Community 46 - "Variant Browser API"
 Cohesion: 0.04
 Nodes (72): VariantRow, VariantPage, VariantCount, ChromosomeSummary, _get_sample_engine(), Engine, _chrom_sort_key(), _select_table() (+64 more)
 
-### Community 251 - "Community 251"
+### Community 251 - "Genotype No-Call Classification"
 Cohesion: 0.11
 Nodes (8): _classify_genotype(), Classify a genotype string as het, hom, or nocall.      Routes recognition throu, test_classify_genotype_reclassifies_to_nocall(), test_classify_genotype_called_rows_unchanged(), ``_classify_genotype`` returns ``"nocall"`` for every no-call sentinel.      Pla, Called rows (het / hom) retain their pre-MRG-01a classification., TestClassifyGenotype, Unit tests for genotype classification logic.
 
@@ -2092,7 +2092,7 @@ Nodes (4): clear_all_rate_limits(), Clear all rate limits (for testing)., TestRa
 Cohesion: 0.22
 Nodes (8): _is_auth_exempt(), AuthMiddleware, BaseHTTPMiddleware, Request, RequestResponseEndpoint, Response, Check if a path is exempt from authentication., Middleware that enforces session-based auth when enabled.      When auth_enabled
 
-### Community 68 - "Community 68"
+### Community 68 - "Settings Sources & Data-Dir Pointer"
 Cohesion: 0.04
 Nodes (56): data_dir_pointer_path(), _ConfigTomlTableSource, PydanticBaseSettingsSource, BaseSettings, Any, _DataDirPointerSource, _escape_toml_basic_string(), dump_config_toml() (+48 more)
 
@@ -2100,15 +2100,15 @@ Nodes (56): data_dir_pointer_path(), _ConfigTomlTableSource, PydanticBaseSetting
 Cohesion: 0.03
 Nodes (72): Path, Settings, Application settings with layered config resolution., render_variant_card_html(), Render a single-variant evidence card as HTML.      Parameters     ----------, db_registry(), Path, DBRegistry (+64 more)
 
-### Community 185 - "Community 185"
+### Community 185 - "HLA Proxy Lookup Loader"
 Cohesion: 0.08
 Nodes (16): load_hla_proxy_data(), Engine, Path, Load curated HLA proxy lookup data from JSON into reference.db.  Reads ``hla_pro, Populate ``hla_proxy_lookup`` from the curated JSON bundle.      Parameters, TestHLAProxyJSON, TestHLAProxyTable, Engine (+8 more)
 
-### Community 118 - "Community 118"
+### Community 118 - "Cross-Process Build Guard"
 Cohesion: 0.08
 Nodes (33): _lock_for(), RLock, build_lock(), try_acquire_build_lock(), claims_dir(), Path, _claim_path(), cross_process_build_claim() (+25 more)
 
-### Community 148 - "Community 148"
+### Community 148 - "Reference Database Health"
 Cohesion: 0.09
 Nodes (36): is_build_locked(), Best-effort check of whether a build is currently running for ``db_name``., DatabaseHealth, _artifact_path(), DatabaseInfo, Settings, Path, artifact_present() (+28 more)
 
@@ -2116,11 +2116,11 @@ Nodes (36): is_build_locked(), Best-effort check of whether a build is currently
 Cohesion: 0.01
 Nodes (126): DBRegistry, Settings, Path, Engine, Singleton managing SQLite engine connections for all databases.      Reference D, Public accessor for the registry's Settings instance., Create a SQLAlchemy engine for a SQLite database.          Args:             db_, Lazy-loaded VEP bundle engine (read-only, ~500 MB). (+118 more)
 
-### Community 66 - "Community 66"
+### Community 66 - "LAI Bundle Registry"
 Cohesion: 0.05
 Nodes (46): _extract_lai_bundle(), detect_java(), Extract the LAI bundle tarball into a sibling directory.      Called by the down, Check whether a Java runtime (8+) is available on PATH.      Runs ``java -versio, _build_minimal_lai_tarball(), Path, _make_data_dir_with_reference(), _write_local_manifest() (+38 more)
 
-### Community 169 - "Community 169"
+### Community 169 - "DB Health & Resumable Downloads"
 Cohesion: 0.14
 Nodes (21): get_database(), Look up a database by name, or None if not found., find_resumable_download(), Return resume metadata for an interrupted ``download``-mode transfer.      A res, ref_db(), Engine, _seed_cpic(), _seed_gwas() (+13 more)
 
@@ -2128,7 +2128,7 @@ Nodes (21): get_database(), Look up a database by name, or None if not found., f
 Cohesion: 0.14
 Nodes (11): IntegrityResult, Outcome of a readability / integrity check for one database., _seed_clinvar(), _health(), DatabaseHealth, TestReferenceResidentHealthMatrix, TestStandaloneHealthMatrix, TestBundledHealthMatrix (+3 more)
 
-### Community 115 - "Community 115"
+### Community 115 - "Database Health Validation"
 Cohesion: 0.09
 Nodes (21): validate_database(), Check that ``db_name``'s artifact is present and readable by its consumer., settings(), Path, _make_valid_gnomad(), _make_valid_dbnsfp(), _make_valid_encode(), _make_valid_vep_bundle() (+13 more)
 
@@ -2140,15 +2140,15 @@ Nodes (3): recover_orphaned_downloads(), Mark ``downloads`` rows stuck mid-trans
 Cohesion: 0.04
 Nodes (85): DownloadResult, DownloadError, ChecksumMismatchError, DownloadManager, Engine, Path, _compute_sha256(), Resumable HTTP download manager with SHA-256 verification and SSE progress.  Dow (+77 more)
 
-### Community 140 - "Community 140"
+### Community 140 - "Bundle Manifest & Pins"
 Cohesion: 0.10
 Nodes (33): ManifestFetchError, BundleManifestEntry, PipelinePinEntry, Manifest, _required_str(), _parse_manifest(), Any, _current_app_version() (+25 more)
 
-### Community 230 - "Community 230"
+### Community 230 - "VEP Bundle rsID Extraction"
 Cohesion: 0.10
 Nodes (27): RuntimeError, chrom_sort_key(), Canonical chromosome sort order — dependency-free.  Extracted from ``vcf_export`, Return an integer sort key for a chromosome string (unknown → 99)., ExtractError, _read_bundle_version(), Connection, extract_sites() (+19 more)
 
-### Community 70 - "Community 70"
+### Community 70 - "Bundle Manifest Fetch"
 Cohesion: 0.07
 Nodes (24): Path, fetch_manifest(), Return the bundle manifest, fetching remotely or from the env override.      Cac, _write_manifest(), Path, _make_response(), TestRemoteFetch, TestMinAppVersionAdvisoryWarning (+16 more)
 
@@ -2168,7 +2168,7 @@ Nodes (12): ensure_sample_schema_current(), Ensure an existing sample database h
 Cohesion: 0.04
 Nodes (81): VersionInfo, UpdateCheckResult, UpdateResult, parse_time_window(), should_download_now(), check_all_updates(), get_auto_update(), set_auto_update() (+73 more)
 
-### Community 56 - "Community 56"
+### Community 56 - "Bundle Update Checks"
 Cohesion: 0.07
 Nodes (38): check_vep_bundle_update(), check_lai_bundle_update(), check_ancestry_pca_update(), check_gnomad_bundle_update(), Check whether the VEP bundle in the manifest is newer than the installed copy., Check whether the LAI bundle in the manifest is newer than the installed copy., Check whether the ancestry-PCA bundle in the manifest is newer than the installe, Check whether the gnomAD bundle in the manifest is newer than the installed copy (+30 more)
 
@@ -2176,11 +2176,11 @@ Nodes (38): check_vep_bundle_update(), check_lai_bundle_update(), check_ancestry
 Cohesion: 0.23
 Nodes (6): _precheck_clinvar(), ClinVar-specific pre-check: detect significance changes., TestPrecheck, T4-22n: Pre-check does NOT upgrade banner when watched variant has no change., T4-22m variant: Watched variant reclassification detected via direct query path., Pre-check without precomputed dicts (queries reference DB).
 
-### Community 45 - "Community 45"
+### Community 45 - "Genotype Ingestion Parsers"
 Cohesion: 0.07
 Nodes (62): SourceVendor, Enum, ParsedVariant, ParseResult, ParserError, UnsupportedFormatError, MalformedDataError, UnrecognizedVersionError (+54 more)
 
-### Community 244 - "Community 244"
+### Community 244 - "Union Site Catalog Builder"
 Cohesion: 0.11
 Nodes (29): normalize_for(), Per-vendor chromosome normalizers for the ingestion parser layer.  Implements th, Normalize ``chrom`` for ``vendor`` to one of ``1``-``22`` / ``X`` / ``Y`` / ``MT, _iter_vendor_rows(), Path, SourceVendor, load_vendor_sites(), load_vep_bundle_rsids() (+21 more)
 
@@ -2212,7 +2212,7 @@ Nodes (51): _canonical_genotype(), _validate_line(), ParsedVariant, parse_23andm
 Cohesion: 0.04
 Nodes (65): detect_version(), _canonical_genotype(), _validate_line(), _open_input(), Path, TextIO, _read_head_lines(), _is_5col_header() (+57 more)
 
-### Community 95 - "Community 95"
+### Community 95 - "VCF Export Builder"
 Cohesion: 0.06
 Nodes (27): _build_header_lines(), date, _VariantRow, export_vcf_from_rows(), Path, TextIO, VCF 4.2 export.  VCF genotype (``GT``) fields are allele-indexed against ``REF``, Build VCF meta-information and header lines. (+19 more)
 
@@ -2224,7 +2224,7 @@ Nodes (21): _chrom_sort_key(), Return an integer sort key for a chromosome strin
 Cohesion: 0.13
 Nodes (10): _resolve_vcf_fields(), Resolve VCF ``(REF, ALT, GT)`` for one variant.      Returns ``None`` for no-cal, TestReferenceAlignedFields, TestGenotypeConversion, Tests for VCF 4.2 export (P1-09).  Test IDs covered:   T1-09 — VCF export produc, #560 (same class as #471): VCF GT is allele-indexed against REF/ALT, so a     SN, The core bug: a true hom-alt call must be 1/1, not 0/0., REF/ALT follow the annotation (C/T), not the observed allele-string         orde (+2 more)
 
-### Community 186 - "Community 186"
+### Community 186 - "Systemd/Launchd Install Logic"
 Cohesion: 0.09
 Nodes (36): _find_python(), _find_command(), _run(), CompletedProcess, build_frontend(), _render_plist(), install_launchd(), uninstall_launchd() (+28 more)
 
@@ -2248,15 +2248,15 @@ Nodes (14): ensure_data_dir(), health_check(), main(), Create the ~/.yeliztli di
 Cohesion: 0.22
 Nodes (13): _coerce_numeric(), Any, _coerce_boolean(), _coerce_value(), _translate_rule(), ColumnElement, _count_rules(), Recursive translator: react-querybuilder RuleGroupType → SQLAlchemy Core.  Conve (+5 more)
 
-### Community 55 - "Community 55"
+### Community 55 - "Query Builder Translator"
 Cohesion: 0.04
 Nodes (22): translate(), Recursively translate a RuleGroupType JSON tree to a SQLAlchemy expression., TestTranslatorBasicOperators, TestTranslatorNesting, TestTranslatorEdgeCases, TestTranslatorFieldValidation, TestTranslatorTypeSafety, TestTranslatorBooleanLogic (+14 more)
 
-### Community 166 - "Community 166"
+### Community 166 - "FHIR Observation Resource Builder"
 Cohesion: 0.08
 Nodes (26): _make_uuid(), _coding(), _codeable_concept(), Any, _text_codeable_concept(), _component(), _normalise_clinvar_significance(), _clinical_significance_value() (+18 more)
 
-### Community 228 - "Community 228"
+### Community 228 - "PDF Report Generator"
 Cohesion: 0.11
 Nodes (22): _get_sample_info(), Engine, Path, _parse_json_field(), _load_findings(), Any, _group_findings_into_sections(), render_report_html() (+14 more)
 
@@ -2268,15 +2268,15 @@ Nodes (12): _read_svg_content(), Read an SVG file from disk and return its conte
 Cohesion: 0.19
 Nodes (7): _load_single_finding(), Engine, Any, Load a single finding by ID from the sample database.      Raises ValueError if, TestLoadSingleFinding, Test _load_single_finding helper., #918: the raw CLNDN blob is cleaned for display — no | separators, no         no
 
-### Community 159 - "Community 159"
+### Community 159 - "Sample Delete Cascade"
 Cohesion: 0.11
 Nodes (24): MergedChild, DeleteCascadeResult, list_merged_children(), DBRegistry, _delete_sample_files(), delete_sample_with_cascade(), Source-deletion cascade service (AncestryDNA Plan §10.8; Step 66 / MRG-02a).  De, A merged sample whose ``merge_provenance`` lists the target as a source. (+16 more)
 
-### Community 229 - "Community 229"
+### Community 229 - "Sample Merge Service"
 Cohesion: 0.10
 Nodes (30): _canonical_genotype(), _ConcordanceSummary, _read_sample_row(), Engine, Row, _latest_annotation_status(), _stream_raw_variants(), _rsids_in_vep_bundle() (+22 more)
 
-### Community 196 - "Community 196"
+### Community 196 - "Sample Merge Semantics"
 Cohesion: 0.09
 Nodes (21): _is_merge_no_call(), _MergedRow, _apply_semantics(), No-call predicate scoped to the merge boundary (Plan §15.1 MRG-08).      Distinc, One row destined for the merged sample's ``raw_variants`` table., Apply §10.2 / §10.3 semantics over the coordinate union.      Output is sorted b, TestVepBundleTiebreaker, TestAlleleOrderNormalization (+13 more)
 
@@ -2288,11 +2288,11 @@ Nodes (4): _resolve_winner(), Return ``'S1'`` or ``'S2'`` for the winning side a
 Cohesion: 0.16
 Nodes (9): _compute_file_hash(), SHA-256 over ``S1 ‖ S2 ‖ strategy ‖ SAMPLE_SCHEMA_VERSION`` (Plan §10.5 step 5)., TestFileHashRecipe, TestReMergeHashInvariants, Plan §10.5 step 5: ``SHA-256(S1 ‖ S2 ‖ strategy ‖ SAMPLE_SCHEMA_VERSION)``., Plan §15.1 MRG-08a — re-merge round-trip locks ``file_hash`` invariants., Plan §10.5 step 5: deterministic on ``(S1, S2, strategy, schema_version)``., Plan §10.5 step 5: ``strategy`` is part of the SHA-256 payload.          Re-merg (+1 more)
 
-### Community 136 - "Community 136"
+### Community 136 - "Sample Merge Engine"
 Cohesion: 0.13
 Nodes (23): _estimate_duration_seconds(), Plan §10.6: return an integer-second estimate for the commit phase., merge_registry(), _create_individual(), DBRegistry, _create_source_sample(), _seed_installed_vep_bundle(), _noop_annotation_enqueue() (+15 more)
 
-### Community 160 - "Community 160"
+### Community 160 - "Sample Merge & Concordance"
 Cohesion: 0.10
 Nodes (25): merge_samples(), Merge two source samples into a new merged sample. Returns the new ``sample_id``, _create_individual_e2e(), _seed_installed_vep_bundle(), _make_mergeable_source(), _noop_annotation_enqueue(), MonkeyPatch, TestMergeThenDeleteCascade (+17 more)
 
@@ -2300,19 +2300,19 @@ Nodes (25): merge_samples(), Merge two source samples into a new merged sample. 
 Cohesion: 0.13
 Nodes (18): _is_par(), _is_no_call(), _is_het(), _is_hom(), _is_hemizygous(), SexSignals, compute_sex_signals(), ResolvedSex (+10 more)
 
-### Community 187 - "Community 187"
+### Community 187 - "Sex Inference Classification"
 Cohesion: 0.07
 Nodes (21): _classify(), Classification, Apply the Plan §9.4 decision tree to pre-tabulated counts.      Order is load-be, sample_engine(), TestValidatedConstants, TestPARPreFilter, TestXHetRateThreshold, TestMinimumEvidenceGuard (+13 more)
 
-### Community 74 - "Community 74"
+### Community 74 - "Sex Inference"
 Cohesion: 0.08
 Nodes (36): infer_biological_sex(), Infer biological sex from a sample's ``raw_variants`` table.      Returns one of, Engine, _seed(), _x_rows(), _y_rows(), TestClassificationBranches, TestXHetWithChrYSignal (+28 more)
 
-### Community 120 - "Community 120"
+### Community 120 - "Sample Staleness Service"
 Cohesion: 0.08
 Nodes (35): _coerce_major(), _read_installed_major(), get_recorded_bundle_version(), _read_sample_bundle_version(), is_sample_stale(), Sample-annotation staleness service (Plan §7.4 step 3, ADNA-00c part 4).  ``is_s, Return the semver major of ``raw`` or ``None`` when unparseable., Read ``database_versions['vep_bundle'].version``'s semver major.      Returns `` (+27 more)
 
-### Community 135 - "Community 135"
+### Community 135 - "PubMed Entrez Fetcher Engine"
 Cohesion: 0.06
 Nodes (30): PubMedArticle, FetchResult, datetime, _row_to_article(), Row, _parse_entrez_record(), Cache-first PubMed abstract fetcher using Biopython Entrez.  Implements P3-10: P, A single PubMed article with metadata. (+22 more)
 
@@ -2324,7 +2324,7 @@ Nodes (72): ProteinDomainData, ProteinFeatureData, UniProtResult, CacheStats, Ca
 Cohesion: 0.11
 Nodes (12): PrefetchResult, _ProgressCallback, Row, Result of a batch pre-fetch operation., Get protein data for a gene (cache-first).          1. Check cache for a fresh e, Force refresh from UniProt API, ignoring cache.          Returns:             Un, Pre-fetch UniProt data for a list of genes.          Args:             gene_symb, Get a fresh (non-expired) cache entry. (+4 more)
 
-### Community 143 - "Community 143"
+### Community 143 - "App Update Checker"
 Cohesion: 0.09
 Nodes (24): AppUpdateInfo, parse_version(), Version, check_app_update(), _compare_versions(), Any, App update checker — GitHub Releases API (P4-21d).  On startup, checks the GitHu, Result of an app update check. (+16 more)
 
@@ -2400,7 +2400,7 @@ Nodes (23): dependencies, @monaco-editor/react, @nightingale-elements/nightingal
 Cohesion: 0.09
 Nodes (23): devDependencies, @eslint/js, @playwright/test, @testing-library/jest-dom, @testing-library/react, @testing-library/user-event, @types/node, @types/react (+15 more)
 
-### Community 168 - "Community 168"
+### Community 168 - "Admin System Health UI"
 Cohesion: 0.06
 Nodes (29): LogEntry, LogResponse, DatabaseStat, SampleStat, DiskUsage, ActiveJob, SystemStatus, LogFilters (+21 more)
 
@@ -2416,7 +2416,7 @@ Nodes (10): useAncestryFindings(), usePCACoordinates(), useHaplogroups(), useLAI
 Cohesion: 0.10
 Nodes (17): AnnotationJobResult, AnnotationProgress, useStartAnnotation(), useCancelAnnotation(), ActiveAnnotationJob, useActiveAnnotationJob(), TERMINAL_STATES, useAnnotationProgress() (+9 more)
 
-### Community 117 - "Community 117"
+### Community 117 - "Frontend Module Data Hooks"
 Cohesion: 0.05
 Nodes (34): useAPOEDisclaimer(), useAPOEGateStatus(), useAcknowledgeAPOEGate(), useAPOEGenotype(), useAPOEFindings(), useCardiovascularVariants(), useFHStatus(), useCardiovascularDisclaimer() (+26 more)
 
@@ -2432,7 +2432,7 @@ Nodes (9): BackupEstimate, BackupExportResult, BackupStatus, BACKUP_ESTIMATE_KEY
 Cohesion: 0.27
 Nodes (7): useCancerVariants(), useCancerPRS(), useCancerDisclaimer(), useAbsoluteRisk(), useSetAbsoluteRiskConsent(), AbsoluteRiskOverlay(), CancerView()
 
-### Community 126 - "Community 126"
+### Community 126 - "Variant Table & Navigation UI"
 Cohesion: 0.05
 Nodes (32): useColumnPresets(), useCreatePreset(), useDeletePreset(), useIndividuals(), qcMetricsQueryKey(), useQCMetrics(), useSamples(), useTags() (+24 more)
 
@@ -2440,11 +2440,11 @@ Nodes (32): useColumnPresets(), useCreatePreset(), useDeletePreset(), useIndivid
 Cohesion: 0.28
 Nodes (7): useCustomPanels(), useUploadPanel(), useDeletePanel(), CONSEQUENCE_OPTIONS, CLINVAR_OPTIONS, FilterPanelProps, FilterPanel()
 
-### Community 184 - "Community 184"
+### Community 184 - "Database Health UI"
 Cohesion: 0.07
 Nodes (28): DatabaseHealthState, DatabaseHealth, DatabaseHealthList, ResumeResponse, VerifyResponse, CleanResponse, DB_HEALTH_KEY, ACTIVE_STATES (+20 more)
 
-### Community 73 - "Community 73"
+### Community 73 - "Update Manager UI"
 Cohesion: 0.04
 Nodes (47): isDatabaseBusy(), busyLabel(), DatabaseStatus, UpdateAvailable, UpdateCheckResult, UpdateHistoryEntry, ReannotationPrompt, FindingFieldChange (+39 more)
 
@@ -2456,7 +2456,7 @@ Nodes (11): useEbmd(), useRunEbmd(), useFhAssessment(), useRunFh(), EBMDView(), 
 Cohesion: 0.08
 Nodes (19): useFindings(), useFindingsSummary(), ReportRequest, useGenerateReport(), FhirExportRequest, useExportFhir(), MODULE_ICONS, moduleLabel() (+11 more)
 
-### Community 203 - "Community 203"
+### Community 203 - "Frontend Findings & Traits Views"
 Cohesion: 0.07
 Nodes (26): useGeneHealthPathways(), useGeneHealthPathwayDetail(), useTraitsPathways(), useTraitsPathwayDetail(), useTraitsPRS(), useTraitsDisclaimer(), PathwayDetailPanelProps, SNPRow() (+18 more)
 
@@ -2492,19 +2492,19 @@ Nodes (20): useQueryFields(), ExecuteQueryParams, useRunQuery(), useSavedQueries
 Cohesion: 0.10
 Nodes (14): useSample(), useUpdateSample(), useDeleteSample(), SamplesApiError, useMergeProvenance(), useConcordanceReport(), useSampleMergedChildren(), SampleEditForm() (+6 more)
 
-### Community 102 - "Community 102"
+### Community 102 - "Setup Wizard Steps UI"
 Cohesion: 0.04
 Nodes (34): BundleGateError, isBundleGatePayload(), BundleVersionMismatchError, isBundleVersionMismatchPayload(), SETUP_STATUS_KEY, DISCLAIMER_KEY, DETECT_EXISTING_KEY, useDisclaimer() (+26 more)
 
-### Community 204 - "Community 204"
+### Community 204 - "Variant Detail Page UI"
 Cohesion: 0.08
 Nodes (20): useVariantDetail(), VariantDetailSidePanelProps, renderStars(), formatConsequence(), DetailRow(), PanelContent(), VariantDetailSidePanel(), formatAlleleFrequency() (+12 more)
 
-### Community 114 - "Community 114"
+### Community 114 - "Variant Table & Watches UI"
 Cohesion: 0.05
 Nodes (32): WatchedVariant, useWatchedVariants(), useWatchVariant(), useUnwatchVariant(), WatchButtonProps, WatchButton(), ChromosomeNavProps, ALWAYS_VISIBLE (+24 more)
 
-### Community 82 - "Community 82"
+### Community 82 - "Plotly Visualization Charts"
 Cohesion: 0.04
 Nodes (39): AdmixtureBarProps, AdmixtureBar(), AncestryResultCardProps, ConfidenceBadge(), MissingAimIndicator(), AncestryResultCard(), PCAScatterProps, PCAScatter() (+31 more)
 
@@ -2524,7 +2524,7 @@ Nodes (4): APOEFindingCardProps, CATEGORY_CONFIG, DEFAULT_CONFIG, APOEFindingCar
 Cohesion: 0.67
 Nodes (3): APOEGenotypeCardProps, formatDiplotype(), APOEGenotypeCard()
 
-### Community 85 - "Community 85"
+### Community 85 - "Variant Card & Dialog Focus"
 Cohesion: 0.04
 Nodes (48): VariantCardProps, INHERITANCE_LABELS, VariantCard(), VariantDetailPanelProps, VariantDetailPanel(), VariantCardProps, VariantCard(), VariantDetailPanelProps (+40 more)
 
@@ -2536,7 +2536,7 @@ Nodes (5): CHROMOSOME_LENGTHS, MAX_CHR_LENGTH, SORTED_CHROMS, TooltipState, Chro
 Cohesion: 0.33
 Nodes (6): QualityControlProps, HET_STATUS_COPY, SEX_CHECK_COPY, StatusBadge(), formatSexValue(), QualityControl()
 
-### Community 212 - "Community 212"
+### Community 212 - "IGV Genome Browser"
 Cohesion: 0.10
 Nodes (26): mockCreateBrowser, mockRemoveBrowser, mockSearch, mockOn, mockBrowser, IgvBrowserHandle, IgvBrowserProps, IgvVariantClickEvent (+18 more)
 
@@ -2556,7 +2556,7 @@ Nodes (5): MetabolizerCardProps, CONFIDENCE_CONFIG, RESULT_CONFIG, resultTone(),
 Cohesion: 0.40
 Nodes (4): BigFiveRadarChartProps, BIG_FIVE_DIMENSIONS, computeDimensionValues(), BigFiveRadarChart()
 
-### Community 232 - "Community 232"
+### Community 232 - "Frontend Component Test Harness"
 Cohesion: 0.07
 Nodes (18): ErrorBoundaryProps, ErrorBoundaryState, ErrorBoundary, renderBadge(), mockFetch, renderGuard(), mockFetch, makeDb() (+10 more)
 
@@ -2600,7 +2600,7 @@ Nodes (11): DISCLAIMER, GENOTYPE_E3E4, GENOTYPE_E3E3, GENOTYPE_E2E4, GENOTYPE_NO
 Cohesion: 0.20
 Nodes (7): mockFetch, AppUpdatePayload, LAIStatusPayload, LAI_STATUS_CLEAR, UPDATE_AVAILABLE, UP_TO_DATE, LAI_STATUS_DEGRADED
 
-### Community 69 - "Community 69"
+### Community 69 - "Frontend Test Harness"
 Cohesion: 0.04
 Nodes (32): MOCK_ITEMS, MOCK_ITEMS, fetchMock, MOCK_BINS, mockFetch, NEUROLOGICAL_PATHWAY, METABOLIC_PATHWAY, AUTOIMMUNE_PATHWAY (+24 more)
 
@@ -2860,7 +2860,7 @@ Nodes (6): _read_sample_records(), _read_date_collected(), Path, date, Read the 
 Cohesion: 0.19
 Nodes (13): Settings, build_report(), main(), _seed_data_dir(), Path, TestBuildReport, TestMainCLI, CaptureFixture (+5 more)
 
-### Community 93 - "Community 93"
+### Community 93 - "Annotation Benchmark Harness"
 Cohesion: 0.08
 Nodes (51): create_shared_memory_engine(), Engine, generate_raw_variants(), seed_vep_bundle(), seed_clinvar(), seed_gene_phenotype(), seed_gnomad(), seed_dbnsfp() (+43 more)
 
@@ -2868,7 +2868,7 @@ Nodes (51): create_shared_memory_engine(), Engine, generate_raw_variants(), seed
 Cohesion: 0.19
 Nodes (18): sites_from_result(), build_union(), Path, _classify_prefix(), build_report(), check_union_floor(), _sha256_file(), _git_commit() (+10 more)
 
-### Community 181 - "Community 181"
+### Community 181 - "Haplogroup Bundle Builder"
 Cohesion: 0.11
 Nodes (36): _mt_snp(), Any, _y_snp(), _node(), _snp_key(), _prune_redundant_y_snps(), build_mt_tree(), build_y_tree() (+28 more)
 
@@ -2952,11 +2952,11 @@ Nodes (3): cluster_inputs_configured(), cluster_disk_free(), env_lock_matches()
 Cohesion: 0.16
 Nodes (23): _base_type(), _cast_value(), _create_table_sql(), _insert_sql(), _column_names(), _column_type_map(), _load_csv(), Path (+15 more)
 
-### Community 133 - "Community 133"
+### Community 133 - "Sex Threshold Validation"
 Cohesion: 0.08
 Nodes (45): Report, _is_par(), _is_no_call(), _is_het(), _is_hom(), _is_hemizygous(), classify(), build_report() (+37 more)
 
-### Community 94 - "Community 94"
+### Community 94 - "Custom Panels API"
 Cohesion: 0.04
 Nodes (37): hom_ref_pathogenic_row(), het_pathogenic_row(), Shared seed rows for carriage / zygosity negative-control tests.  The flagship d, A rare, ClinVar-Pathogenic, **homozygous-reference** annotated_variants row., A rare, ClinVar-Pathogenic, **heterozygous** (carried) annotated_variants row., TestClient, TestParseEndpoint, TestUploadEndpoint (+29 more)
 
@@ -2964,7 +2964,7 @@ Nodes (37): hom_ref_pathogenic_row(), het_pathogenic_row(), Shared seed rows for
 Cohesion: 0.39
 Nodes (3): LiveRun, Row, Snapshot of one live pipeline run, ready to assert against.
 
-### Community 180 - "Community 180"
+### Community 180 - "Pipeline Invariant QA Gates"
 Cohesion: 0.09
 Nodes (35): build_live_run(), clinvar_row(), Factory returning a ``_build(...)`` that runs the live pipeline.      Keeps the, Build one ``clinvar_variants`` row with real column names., test_inv1_no_homref_in_pathogenic_findings(), test_inv2_snv_with_source_alleles_has_zygosity(), test_inv4_no_chry_finding_on_xx(), test_inv6_raw_annotated_reconciliation() (+27 more)
 
@@ -2988,7 +2988,7 @@ Nodes (5): test_live_engine_computes_carriage(), test_validation_suite_never_cal
 Cohesion: 0.50
 Nodes (3): test_live_findings_carry_provenance(), Live-path coverage for per-finding provenance stamping (SW-A4 / #8).  The unit t, Every finding produced by a full live run is stamped with valid provenance.
 
-### Community 92 - "Community 92"
+### Community 92 - "Admin Panel API"
 Cohesion: 0.05
 Nodes (35): tmp_data_dir(), Path, admin_client(), TestClient, TestLogExplorer, TestDbStats, _make_lai_bundle(), TestDbStatsPresence (+27 more)
 
@@ -3044,11 +3044,11 @@ Nodes (21): parsed_ancestrydna(), ancestrydna_sample_engine(), Engine, _insert_v
 Cohesion: 0.12
 Nodes (23): real_vep_bundle_path(), Path, synthetic_parsed(), synthetic_sample_engine(), Engine, real_vep_engine(), reference_engine_with_clinvar(), registry() (+15 more)
 
-### Community 220 - "Community 220"
+### Community 220 - "Annotation Engine PK Invariance"
 Cohesion: 0.10
 Nodes (26): _new_engine(), Engine, _seed_sample(), _read_annotated_rows(), unmerged_engine(), merged_engine(), vep_engine(), reference_engine() (+18 more)
 
-### Community 208 - "Community 208"
+### Community 208 - "Merged-Sample Coverage Telemetry"
 Cohesion: 0.09
 Nodes (25): _new_engine(), Engine, _seed_vep_bundle(), vep_engine(), reference_engine(), registry(), merged_sample_engine(), unmerged_sample_engine() (+17 more)
 
@@ -3056,7 +3056,7 @@ Nodes (25): _new_engine(), Engine, _seed_vep_bundle(), vep_engine(), reference_e
 Cohesion: 0.17
 Nodes (3): TestAnnotationStateSchema, TestAnnotationStateLifecycle, Tests for the per-sample ``annotation_state`` kv table (Plan §7.1).  Locks two c
 
-### Community 60 - "Community 60"
+### Community 60 - "Annotated Variants API Tests"
 Cohesion: 0.03
 Nodes (25): _setup_client(), Path, client(), empty_client(), TestListAnnotatedVariants, TestAnnotationPagination, TestClinvarFilter, conflicting_client() (+17 more)
 
@@ -3096,7 +3096,7 @@ Nodes (4): TestAPOEGateInvariant, Property-based invariant: APOE findings must n
 Cohesion: 0.29
 Nodes (3): TestClient, TestArrayConfidenceEndpoint, #636: a common-AF locus-specific weak spot (APOE rs429358) comes back         ra
 
-### Community 209 - "Community 209"
+### Community 209 - "Auth & Session Enforcement"
 Cohesion: 0.08
 Nodes (15): TestLogin, TestClient, TestExpiredSession, TestAuthEnforcement, TestAuthDisabled, TestLogout, TestSetPassword, T4-22a: Login with correct PIN returns session cookie, wrong PIN returns 401. (+7 more)
 
@@ -3156,7 +3156,7 @@ Nodes (4): TestInheritance, Test inheritance pattern assignments., ABCG5/8 sitos
 Cohesion: 0.20
 Nodes (5): TestPMIDs, Test PubMed citation data., The LPA row must cite real LPA/Lp(a)-CAD genetics, not the unrelated         ret, #177 — LDLR/PCSK9/APOB must cite FH-specific literature.          Locks the veri, None of the verified-unrelated PMIDs may appear in any panel entry.
 
-### Community 142 - "Community 142"
+### Community 142 - "Carrier Disclaimer API"
 Cohesion: 0.06
 Nodes (25): TestClient, TestCarrierDisclaimer, TestCarrierGeneNotes, Tests for the carrier disclaimer endpoint (P3-37)., Should return the full carrier disclaimer content., Disclaimer text should be substantial., Disclaimer should emphasize reproductive context, not personal disease., Disclaimer should explain classic carriers and gene-specific exceptions. (+17 more)
 
@@ -3164,7 +3164,7 @@ Nodes (25): TestClient, TestCarrierDisclaimer, TestCarrierGeneNotes, Tests for t
 Cohesion: 0.22
 Nodes (5): TestCarrierDisclaimerConstants, Unit tests for the hardcoded carrier disclaimer text (P3-37)., Carrier disclaimer should be substantial (comparable to other module disclaimers, Text should frame as reproductive risk, NOT personal disease risk., All gene notes should be non-empty strings.
 
-### Community 54 - "Community 54"
+### Community 54 - "Carrier Panel Genes"
 Cohesion: 0.04
 Nodes (27): CarrierPanel, TestGeneCompleteness, TestGeneLookup, TestCrossLinks, TestAutosomalRecessiveFiltering, TestExpectedClinVarRsids, TestInheritance, TestPMIDs (+19 more)
 
@@ -3176,7 +3176,7 @@ Nodes (19): _iter_snps(), _load_categorical_snps(), _strand_consistent(), test_r
 Cohesion: 0.15
 Nodes (13): test_23andme_remaps(), test_ancestrydna_remaps(), test_par_divergence_between_vendors(), test_canonical_values_pass_through_unchanged(), SourceVendor, test_strip_and_uppercase(), test_invalid_inputs_raise(), test_vendor_coverage_is_total() (+5 more)
 
-### Community 231 - "Community 231"
+### Community 231 - "Citation Provenance Guard"
 Cohesion: 0.09
 Nodes (31): _iter_pmids(), _iter_indel_polarity_pmids(), _iter_keys(), all_panel_pmids(), all_proxy_pmids(), all_indel_polarity_pmids(), test_registry_is_well_formed(), test_gene_adjacent_pmids_stay_gene_scoped() (+23 more)
 
@@ -3188,7 +3188,7 @@ Nodes (22): _tokens(), _load_snapshot(), _entry_pmids(), _panel_entries(), _inde
 Cohesion: 0.17
 Nodes (5): TestClient, TestListPresets, TestCreatePreset, TestUpdatePreset, TestDeletePreset
 
-### Community 238 - "Community 238"
+### Community 238 - "Concordance Report Pagination"
 Cohesion: 0.08
 Nodes (21): _build_non_discordant_rows(), _build_annotation_rows(), pagination_client(), Path, _expected_ordered_keys(), TestDefaultLimit, TestClient, TestMaxLimitCap (+13 more)
 
@@ -3212,7 +3212,7 @@ Nodes (11): _iter_defining_variants(), _snv_defining_variants(), test_snv_defini
 Cohesion: 0.25
 Nodes (3): TestPackageBuild, Verify the Python package builds correctly., Verify the console_scripts entry point is declared in pyproject.toml.
 
-### Community 78 - "Community 78"
+### Community 78 - "Database Health API"
 Cohesion: 0.06
 Nodes (42): RangeHTTPHandler, range_server(), server_url(), HTTPServer, settings(), Path, db_client(), TestClient (+34 more)
 
@@ -3244,7 +3244,7 @@ Nodes (15): test_detect_ancestrydna_via_uncommented_header_only(), test_detect_2
 Cohesion: 0.22
 Nodes (13): _doc_rsids(), Path, _panel_rsids(), _all_panel_rsids(), _docs_citing_rsids(), test_mapped_doc_cites_only_panel_rsids(), test_every_doc_rsid_is_scored_or_allowlisted(), test_allowlisted_rsids_really_are_non_loci() (+5 more)
 
-### Community 127 - "Community 127"
+### Community 127 - "End-to-End Pipeline Tests"
 Cohesion: 0.08
 Nodes (28): e2e_client(), TestClient, TestE2EPipelineSmoke, TestE2EPipeline, FastAPI TestClient wired to the full E2E environment., PR-tier smoke: the full pipeline runs to completion.      One representative end, Upload → annotate runs to completion with status=complete., Full pipeline: upload → parse → annotate → query. (+20 more)
 
@@ -3260,7 +3260,7 @@ Nodes (10): test_build_encode_ccres_db(), Path, test_build_encode_ccres_db_empty
 Cohesion: 0.20
 Nodes (6): TestCapEvidenceLevel, Test evidence level capping utility., Level below cap is unchanged., Level at cap is unchanged., Level above cap is reduced., Traits & Personality cap at ★★☆☆.
 
-### Community 98 - "Community 98"
+### Community 98 - "Variant Query Export API"
 Cohesion: 0.04
 Nodes (31): _normalize(), _setup_client(), Path, client(), empty_client(), large_client(), TestExportQueryCSV, TestExportQueryTSV (+23 more)
 
@@ -3272,7 +3272,7 @@ Nodes (18): _make_bundle(), Path, _run(), test_fixture_produces_expected_tsv_and
 Cohesion: 0.28
 Nodes (5): TestClient, TestFhAssessmentRoute, TestFhStatusRoute, GET /api/analysis/fh/assessment, GET /api/analysis/cardiovascular/fh-status (require_fresh_sample-gated)
 
-### Community 195 - "Community 195"
+### Community 195 - "FHIR Export Endpoint Tests"
 Cohesion: 0.06
 Nodes (16): _normalize(), _setup_client(), Path, client(), empty_client(), TestFhirBundleStructure, TestFhirDiagnosticReport, TestFhirFiltering (+8 more)
 
@@ -3312,7 +3312,7 @@ Nodes (4): TestACEProxy, T3-49 precursor: validate ACE I/D proxy metadata in pan
 Cohesion: 0.13
 Nodes (3): TestAssessG6pd, TestExpandedDeficiencyPanel, Issue #209: the panel now types the common East/Southeast-Asian and other     CP
 
-### Community 239 - "Community 239"
+### Community 239 - "Gene Detail & UniProt API"
 Cohesion: 0.06
 Nodes (16): TestClient, Gene detail returns gene-phenotype records from reference.db., Gene detail includes all sample variants for the gene., Gene detail includes per-population AF data for chart rendering., Gene symbol is normalized to uppercase., Unknown gene returns 200 with empty data (not 404)., Invalid sample_id returns 404., Missing sample_id returns 422. (+8 more)
 
@@ -3364,7 +3364,7 @@ Nodes (7): TestEnsureSampleSchemaCurrent, Engine, Test ensure_sample_schema_curr
 Cohesion: 0.17
 Nodes (10): annotation_client(), TestClient, TestAnnotationAPI, FastAPI TestClient wired to the annotation environment., POST /api/annotation/{sample_id} returns 202 with job_id., POST /api/annotation/{sample_id} returns 409 if already running., GET /api/annotation/status/{job_id} returns SSE content type., POST /api/annotation/cancel/{job_id} cancels a running job. (+2 more)
 
-### Community 188 - "Community 188"
+### Community 188 - "IGV Track Endpoints"
 Cohesion: 0.08
 Nodes (18): TestClient, TestClinVarTrack, TestSampleVariantsTrack, TestGnomadTrack, Tests for ClinVar VCF region and header endpoints., Requesting with or without 'chr' prefix should work., Tests for user sample VCF region and header endpoints., Unannotated AG -> honest fallback REF=N, ALT=A,G, GT=1/2 (no arbitrary REF). (+10 more)
 
@@ -3384,11 +3384,11 @@ Nodes (8): _assert_canonical_polarity(), TestGJB2Polarity, TestCFTRPolarity, Tes
 Cohesion: 0.22
 Nodes (6): _raw_panel(), TestDHFRPolarity, TestMMP1Polarity, DHFR 19-bp intron-1 deletion (rs70991108) — methylation_panel.json (#508)., MMP1 -1607 1G/2G promoter indel (rs1799750) — skin_panel.json (#610).      The u, Regression for #610: the row must key on the vendor I/D tokens 23andMe         e
 
-### Community 111 - "Community 111"
+### Community 111 - "Individuals Routes & Linking"
 Cohesion: 0.07
 Nodes (24): _seed_sample(), Engine, Path, _seed_high_confidence_findings(), _seed_extra_sample(), individuals_client(), TestClient, TestHappyPaths (+16 more)
 
-### Community 109 - "Community 109"
+### Community 109 - "Sample Ingestion API"
 Cohesion: 0.04
 Nodes (21): client(), Path, TestClient, _seed_vep_bundle_v2(), TestIngestEndpoint, TestIngestStatus, TestListSamples, TestGetSample (+13 more)
 
@@ -3396,7 +3396,7 @@ Nodes (21): client(), Path, TestClient, _seed_vep_bundle_v2(), TestIngestEndpoin
 Cohesion: 0.12
 Nodes (9): TestGenomeBuildGate, The ingest route lifts NCBI build-36 (23andMe v3 / hg18) uploads to GRCh37     a, Premise check: the v3 fixture really is build 36, with a coordinate         far, A build-36 v3 upload is now accepted (202) and lifted to GRCh37., After the lift, the stored rs7412 sits at its GRCh37 coordinate         (19:4541, The lifted v3 upload now persists sample + job rows (it is no longer         rej, The upload response's counts describe the post-lift *stored* set: both         v, A build that is neither GRCh36 nor GRCh37 has no supported liftover and (+1 more)
 
-### Community 240 - "Community 240"
+### Community 240 - "Installer Flow Tests"
 Cohesion: 0.09
 Nodes (15): TestEnsureDataDir, Path, MonkeyPatch, TestRenderPlist, TestRenderSystemdUnit, TestHealthCheck, TestInstallFlow, TestUninstallFlow (+7 more)
 
@@ -3432,7 +3432,7 @@ Nodes (17): runner(), LAIRunner, _with_source(), _emit_all_sites(), TestPerSourc
 Cohesion: 0.24
 Nodes (7): TestConvertRoute, TestClient, `GET /api/liftover/convert` — the single-coordinate HTTP endpoint had no     rou, A liftable GRCh37 coordinate returns the GRCh38 mapping + success., MT is deliberately not lifted (F34: hg19 chrM is Yoruba, not rCRS) —         the, `pos` is constrained to > 0 (1-based), so 0 is rejected by validation., Both `chrom` and `pos` are required query params.
 
-### Community 241 - "Community 241"
+### Community 241 - "Sample Merge Routes"
 Cohesion: 0.12
 Nodes (9): TestMergeCommitRoute, TestClient, TestMergeProvenanceRoute, TestConcordanceReportRoute, TestReadRoutesGated, Plan §10.6 commit route: ``POST /api/individuals/{id}/merge``., Plan §10.6 merge-provenance read route., Plan §10.6 concordance-report route with pagination. (+1 more)
 
@@ -3516,7 +3516,7 @@ Nodes (4): TestOMIMVersionRecording, Test OMIM version recording., Record OMIM v
 Cohesion: 0.33
 Nodes (4): TestAPIKeyValidation, Test API key validation., fetch_omim_genemap2 raises ValueError with empty key., enrich_with_omim raises ValueError with empty key.
 
-### Community 189 - "Community 189"
+### Community 189 - "Annotation Overlay API"
 Cohesion: 0.10
 Nodes (18): tmp_data_dir(), Path, sample_db_path(), overlay_client(), TestClient, TestParseOverlay, TestOverlayCRUD, TestApplyOverlay (+10 more)
 
@@ -3552,7 +3552,7 @@ Nodes (15): _walk_dicts(), _all_panel_rsids(), _is_scoreable_marker(), _pathway_
 Cohesion: 0.27
 Nodes (9): _walk_dicts(), _discover_risk_ref_loci(), test_discovery_finds_the_panel_loci(), test_every_panel_locus_has_distinct_risk_and_ref(), Suite-wide guard: the ``{risk, ref}`` dosage pair must be two distinct alleles., Yield every dict nested anywhere inside a parsed-JSON structure., ``{f'{panel}::{rsid}': (risk_allele, ref_allele)}`` for every locus that     car, Sanity: the walker must find the curated loci, so the invariant test below     c (+1 more)
 
-### Community 210 - "Community 210"
+### Community 210 - "Panel rsID Validity Guard"
 Cohesion: 0.08
 Nodes (23): _collect_rsids(), _panel_files(), Path, _panel_rsids(), _well_formed_panel_rsids(), _coordinate_fixture(), _validity_snapshot(), TestPanelRsidValidity (+15 more)
 
@@ -3568,11 +3568,11 @@ Nodes (4): TestAIMRsIDs, Validate aim_rsids_23andme array for genotype matching.
 Cohesion: 0.25
 Nodes (4): TestReferencePanel, Validate reference panel data., All stds should be positive (no zero-variance AIMs)., Mean dosages should be in [0, 2].
 
-### Community 67 - "Community 67"
+### Community 67 - "Pharma Drug API"
 Cohesion: 0.06
 Nodes (26): tmp_data_dir(), Path, _setup_client(), TestClient, client(), client_no_findings(), client_no_guidelines(), TestListDrugs (+18 more)
 
-### Community 242 - "Community 242"
+### Community 242 - "CYP2C9 Star-Allele Calling"
 Cohesion: 0.13
 Nodes (30): _cyp2c9_genotypes(), reference_engine(), Engine, _call_cyp2c9(), _make_sample(), test_new_diplotype_rows_resolve_to_expected_phenotype(), test_star3_allele_is_no_function(), test_star3_diplotype_rows_use_no_function_activity() (+22 more)
 
@@ -3580,7 +3580,7 @@ Nodes (30): _cyp2c9_genotypes(), reference_engine(), Engine, _call_cyp2c9(), _ma
 Cohesion: 0.24
 Nodes (9): reference_engine(), Engine, _sample(), test_cyp2d6_star5_is_structurally_indeterminate_not_reference(), test_cyp2d6_caveat_directional_band_text(), CYP2D6 structural-variant / copy-number guardrails (SW-E3).  CYP2D6 is the canon, CYP2D6 sample; defaults to homozygous reference, override per rsid., A reference-looking array call cannot exclude the CYP2D6*5 deletion. (+1 more)
 
-### Community 221 - "Community 221"
+### Community 221 - "Thiopurine PGx Alerts (NUDT15)"
 Cohesion: 0.18
 Nodes (31): reference_engine(), Engine, _call(), _cyp3a5_genotypes(), _nudt15_genotypes(), _make_sample(), test_nudt15_reference_is_normal(), test_nudt15_non_carrier_alerts_are_reference_only() (+23 more)
 
@@ -3600,7 +3600,7 @@ Nodes (13): _configure_entrez(), _fetch_live_records(), _cited_pmid_sources(), t
 Cohesion: 0.21
 Nodes (7): Path, TestClient, TestGetTheme, TestSetTheme, GET /api/preferences/theme., PUT /api/preferences/theme., Setting theme should not clobber existing config entries.
 
-### Community 119 - "Community 119"
+### Community 119 - "PubMed Fetcher Cache Tests"
 Cohesion: 0.07
 Nodes (35): reference_engine(), Engine, fetcher(), PubMedFetcher, fetcher_no_email(), _seed_cache(), _make_entrez_record(), TestFetchAndCache (+27 more)
 
@@ -3624,11 +3624,11 @@ Nodes (4): TestTranslatorLargeInputs, PRD §8.7: Large inputs within limits., Ne
 Cohesion: 0.13
 Nodes (4): TestQueryEndpoint, POST /api/query — execute filter tree., Pathogenic AND (rare OR ultra_rare)., NOT(benign) should return non-benign variants.
 
-### Community 50 - "Community 50"
+### Community 50 - "Rare Variant Search API"
 Cohesion: 0.04
 Nodes (43): TestClient, TestSearchEndpoint, TestFindingsEndpoint, TestRunEndpoint, TestTSVExport, TestVCFExport, Tests for the search endpoint., Default search returns rare + novel variants (AF < 0.01). (+35 more)
 
-### Community 132 - "Community 132"
+### Community 132 - "Fixture Regeneration"
 Cohesion: 0.08
 Nodes (21): _run_script(), Path, CompletedProcess, TestSeedCSVsExist, TestSeedCSVContent, TestRegenerateFixtures, _run_vendor_script(), _template_variant_count() (+13 more)
 
@@ -3636,7 +3636,7 @@ Nodes (21): _run_script(), Path, CompletedProcess, TestSeedCSVsExist, TestSeedCS
 Cohesion: 0.38
 Nodes (6): _git_grep(), test_no_unexpected_genomeinsight_references(), test_dead_dbnsfp_prebuilt_url_stays_deleted(), Residual rename-guard for the GenomeInsight -> Yeliztli rebrand (Phase 7 hard ga, The tree contains only allow-listed ``genomeinsight`` references., R8: the dead, different-org ``DBNSFP_PREBUILT_URL`` must stay deleted.
 
-### Community 96 - "Community 96"
+### Community 96 - "Clinical Report Generator"
 Cohesion: 0.06
 Nodes (30): tmp_data_dir(), Path, _insert_gated_report_findings(), _acknowledge_gate(), Table, TestLoadFindings, _render_html_helper(), TestHtmlRendering (+22 more)
 
@@ -3644,11 +3644,11 @@ Nodes (30): tmp_data_dir(), Path, _insert_gated_report_findings(), _acknowledge_
 Cohesion: 0.23
 Nodes (5): TestClient, TestReportAPI, Test PDF generation endpoint with mocked Playwright., 503 when Playwright browsers aren't available., Empty modules list should return 422 (use null for all).
 
-### Community 252 - "Community 252"
+### Community 252 - "Backup Restore Version Gate"
 Cohesion: 0.17
 Nodes (22): _make_client_ctx(), Settings, _seed_reference_db(), _build_sample_db(), Path, _build_archive(), _post_import(), TestClient (+14 more)
 
-### Community 128 - "Community 128"
+### Community 128 - "Stale-Source Merge Commit Guard"
 Cohesion: 0.08
 Nodes (35): _seed_installed_vep_bundle(), Engine, _seed_source_sample(), _stub_huey_and_record_calls(), MonkeyPatch, stale_merge_client(), Path, _snapshot_samples_row_count() (+27 more)
 
@@ -3656,11 +3656,11 @@ Nodes (35): _seed_installed_vep_bundle(), Engine, _seed_source_sample(), _stub_h
 Cohesion: 0.15
 Nodes (17): perf_registry(), Path, _create_individual(), DBRegistry, _create_source_sample(), _drift_for_s2(), _noop_annotation_enqueue(), MonkeyPatch (+9 more)
 
-### Community 99 - "Community 99"
+### Community 99 - "Sample Merge Preview"
 Cohesion: 0.06
 Nodes (37): _noop_annotation_enqueue(), MonkeyPatch, _seed_installed_vep_bundle(), Engine, _seed_source_sample(), preview_client(), Path, _snapshot_samples_row_count() (+29 more)
 
-### Community 211 - "Community 211"
+### Community 211 - "Sample Metadata CRUD"
 Cohesion: 0.09
 Nodes (13): client(), Path, TestClient, _create_sample(), TestGetSampleMetadata, TestUpdateSampleMetadata, TestDeleteSampleWithMetadata, Tests for sample metadata CRUD (P4-21f / T4-22h).  Covers: create, read, update, (+5 more)
 
@@ -3676,11 +3676,11 @@ Nodes (12): _v(), _seed_installed_bundle(), _create_sample(), migrate_client(), 
 Cohesion: 0.14
 Nodes (8): sq_client(), Path, TestClient, TestListSavedQueries, TestCreateSavedQuery, TestUpdateSavedQuery, TestDeleteSavedQuery, TestClient with saved_queries.get_settings patched.
 
-### Community 205 - "Community 205"
+### Community 205 - "Database Schema Validation"
 Cohesion: 0.11
 Nodes (15): _run_alembic_upgrade(), _get_tables(), _get_columns(), _get_indexes(), TestReferenceSchema, TestSampleSchema, Tests for database schemas (reference.db + sample DB)., Run Alembic upgrade to head on a SQLite database. (+7 more)
 
-### Community 170 - "Community 170"
+### Community 170 - "Sample Schema Migrations"
 Cohesion: 0.08
 Nodes (21): Path, Engine, TestSchemaMigration, Test that ensure_sample_schema_current() upgrades older DBs., Create a sample DB that simulates a v3 schema (without cross-link columns)., v3 → v4 adds related_module and related_finding_id columns., Existing findings are preserved during column addition., Running ensure_sample_schema_current twice is safe. (+13 more)
 
@@ -3716,11 +3716,11 @@ Nodes (15): _make_entry(), BundleManifestEntry, _make_download_db(), DatabaseInf
 Cohesion: 0.20
 Nodes (6): TestIND09bEdgeCases, Plan §14.1 IND-09b edge-case battery — hardens the boundary     behaviors around, Multiple chrM rows + no chrX/chrY rows at all → ``unknown``.         Strengthens, Het PAR1 + Het PAR2 + no non-PAR chrX + no chrY → ``unknown``.         Both PAR, PAR1 het + non-PAR chrX no-calls only → ``unknown``. The PAR         row is pre-, Direct ``_classify`` assertion of the diploid-X / chrY boundary.          With a
 
-### Community 197 - "Community 197"
+### Community 197 - "Skin MC1R UV Sensitivity"
 Cohesion: 0.09
 Nodes (15): SkinPanel, TestPanelLoading, TestMC1RMultiAllele, MC1R R alleles → cancer, FLG → allergy, VDR → nutrigenomics., MC1R R151C het (CT) → Moderate., MC1R R151C hom (TT) → Elevated (evidence_level=3 ≥ 2)., MC1R R163Q hom (AA) → Moderate (mild r allele, caps at Moderate)., All MC1R variants ref → 0 R alleles → Low UV Sensitivity. (+7 more)
 
-### Community 243 - "Community 243"
+### Community 243 - "Skin Pathway API"
 Cohesion: 0.11
 Nodes (7): TestClient, TestListPathways, TestPathwayDetail, TestRunScoring, After running, pathways endpoint returns scored results., After running, MC1R aggregate should be present., Running scoring twice is idempotent — equal count AND no duplicate rows.
 
@@ -3780,7 +3780,7 @@ Nodes (4): TestRLSSNPs, Validate restless legs syndrome SNPs., MEIS1 GG → Elev
 Cohesion: 0.24
 Nodes (5): TestHLAProxy, Validate rs2858884 is curated as an informational HLA-DQ region marker.      rs2, Coverage note must explain why this is not a DQB1*06:02 proxy., No genotype yields a narcolepsy risk call — all map to Standard.          Keyed, No risk allele is asserted for this informational marker.
 
-### Community 222 - "Community 222"
+### Community 222 - "Read-Only SQL Console"
 Cohesion: 0.07
 Nodes (16): _normalize(), _setup_client(), Path, client(), empty_client(), TestSqlConsoleRejectsWrites, TestSqlConsoleEdgeCases, TestSqlConsoleReadOnlyEngine (+8 more)
 
@@ -3792,11 +3792,11 @@ Nodes (6): TestSqlConsoleReadAccess, PRD T4-04: Full read access to all tables +
 Cohesion: 0.13
 Nodes (13): sample_engine(), nutrigenomics_finding(), pharmacogenomics_finding(), carrier_finding(), apoe_finding(), ancestry_finding(), Tests for SVG rendering at analysis time (P3-39).  Covers: - Individual SVG rend, In-memory sample DB with tables created. (+5 more)
 
-### Community 253 - "Community 253"
+### Community 253 - "Tag/Watch Merge Non-Propagation"
 Cohesion: 0.17
 Nodes (23): _create_individual(), DBRegistry, _create_source_sample(), _seed_installed_vep_bundle(), _noop_annotation_enqueue(), MonkeyPatch, _sample_engine(), Engine (+15 more)
 
-### Community 121 - "Community 121"
+### Community 121 - "Variant Tagging API"
 Cohesion: 0.06
 Nodes (31): _variant_tag_count(), Path, tmp_data_dir(), sample_db_path(), tags_client(), TestClient, TestListTags, TestCreateTag (+23 more)
 
@@ -3848,7 +3848,7 @@ Nodes (3): TestRiskTolerance, Validate risk tolerance SNP (CADM2 rs993137)., GWA
 Cohesion: 0.15
 Nodes (3): TestScoringRules, Hard cap at ★★☆☆ per PRD §3.4b., star-1 evidence hard-caps at Moderate (project convention).
 
-### Community 105 - "Community 105"
+### Community 105 - "Bundle Update History"
 Cohesion: 0.11
 Nodes (31): _clear_manifest_cache_and_env(), MonkeyPatch, data_dir_with_ref(), Path, serve_payload(), _PayloadHandler, Any, _write_manifest() (+23 more)
 
@@ -3864,7 +3864,7 @@ Nodes (8): _record_version_row(), TestCheckFnsRegistration, Signature parity: ``
 Cohesion: 0.27
 Nodes (11): _ref_engine(), TestClient, Engine, test_post_auto_update_persists_value(), test_post_auto_update_round_trip(), test_post_auto_update_unknown_db_returns_404(), test_post_auto_update_validates_body(), test_get_status_reflects_persisted_auto_update() (+3 more)
 
-### Community 53 - "Community 53"
+### Community 53 - "Variant Detail API Tests"
 Cohesion: 0.03
 Nodes (31): _setup_client(), Path, client(), hygiene_client(), empty_client(), _seed_gtex_eqtl_db(), gtex_client(), TestGetVariantDetail (+23 more)
 
@@ -3916,7 +3916,7 @@ Nodes (10): test_vulture_config_is_wired(), test_vulture_detects_unused_module_s
 Cohesion: 0.29
 Nodes (5): tmp_data_dir(), Path, warfarin_api_response(), TestWarfarinEndpoint, API tests for the warfarin-dosing context endpoint (SW-E1 warfarin layer / #13).
 
-### Community 206 - "Community 206"
+### Community 206 - "Watched Variants API"
 Cohesion: 0.08
 Nodes (20): TestClient, TestWatchVariant, TestUnwatchVariant, TestListWatched, TestUpdateWatchNotes, POST snapshots current ClinVar significance., POST handles variant with NULL ClinVar significance., POST handles variant not in annotated_variants (no annotation yet). (+12 more)
 
@@ -4044,7 +4044,7 @@ Nodes (14): Yeliztli Architecture overview, Backend stack (FastAPI/Starlette/Uvi
 Cohesion: 0.40
 Nodes (5): Export feature (VCF/TSV/JSON/CSV/FHIR R4), Keyboard shortcuts & command palette, Command palette (Cmd/Ctrl+K, navigation-only), Query Builder (visual + read-only SQL console), SQL console read-only by design
 
-### Community 84 - "Community 84"
+### Community 84 - "User Documentation Site"
 Cohesion: 0.06
 Nodes (60): Variant Explorer, Column Presets (Clinical/Research/Frequency/Scores), Variant Tagging, Watching a VUS (Variant of Uncertain Significance), Advanced Variant Filtering, Getting Started Guide, Intended Use & Disclaimers (research/educational only, not medical), Install Quick Start (+52 more)
 
@@ -4116,7 +4116,7 @@ Nodes (26): 23andMe v3 Sample (build 36 / hg18), 23andMe v4 Sample (GRCh37 / bui
 Cohesion: 0.48
 Nodes (7): CodeRabbit advisory review configuration, Test assertion standards (advisory enforcement), hom_ref / non-carrier negative control check, CONTRIBUTING guide, Test assertion standards (CONTRIBUTING), hom_ref negative controls for carriage-gated modules, tests/backend/_carriage_fixtures.py shared builders
 
-### Community 112 - "Community 112"
+### Community 112 - "CI Pipeline & Workflows"
 Cohesion: 0.06
 Nodes (52): Yeliztli CodeQL advanced scanning config, security-extended query suite, CodeQL paths-ignore (tests/docs/dist excluded), CodeQL analysis workflow, CodeQL analyze job (matrix: actions/js-ts/python), Bundle Release verify-and-publish workflow, Verify bundle asset job, bundles/manifest.json bundle registry (+44 more)
 
@@ -4142,11 +4142,11 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `Variant Explorer Nav Item` and `Global Search Box`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Settings` connect `Settings & DB Paths` to `Test Harness & Config`, `Sample Registration & Disclaimer`, `Setup Wizard API`, `App Core & Download Manager`, `Scheduled Update Check`, `dbNSFP Ingestion`, `Community 522`, `Community 524`, `Sample Staleness Gating`, `Community 529`, `Databases API`, `Download Manager`, `Ancestry PCA Inference`, `Community 532`, `UniProt Domain Cache`, `Community 547`, `Gene Detail API`, `Community 557`, `Community 46`, `Community 559`, `Community 558`, `Community 561`, `Community 50`, `Community 52`, `Community 53`, `Community 55`, `Community 59`, `Community 60`, `Community 63`, `Community 64`, `Community 579`, `Community 68`, `Community 580`, `Community 67`, `Community 71`, `Community 588`, `Community 589`, `Community 78`, `Community 590`, `Community 77`, `Community 592`, `Community 92`, `Community 94`, `Community 96`, `Community 98`, `Community 99`, `Community 105`, `Community 109`, `Community 111`, `Community 624`, `Community 625`, `Community 626`, `Community 115`, `Community 629`, `Community 120`, `Community 121`, `Community 127`, `Community 128`, `Community 131`, `Community 136`, `Community 650`, `Community 652`, `Community 141`, `Community 654`, `Community 142`, `Community 658`, `Community 148`, `Community 669`, `Community 670`, `Community 159`, `Community 160`, `Community 166`, `Community 169`, `Community 696`, `Community 699`, `Community 700`, `Community 189`, `Community 703`, `Community 706`, `Community 195`, `Community 196`, `Community 206`, `Community 209`, `Community 211`, `Community 222`, `Community 228`, `Community 748`, `Community 749`, `Community 750`, `Community 238`, `Community 752`, `Community 241`, `Community 239`, `Community 243`, `Community 251`, `Community 252`, `Community 253`, `Community 259`, `Community 267`, `Community 787`, `Community 276`, `Community 277`, `Community 280`, `Community 282`, `Community 294`, `Community 297`, `Community 299`, `Community 814`, `Community 815`, `Community 816`, `Community 817`, `Community 308`, `Community 310`, `Community 318`, `Community 328`, `Community 334`, `Community 344`, `Community 346`, `Community 357`, `Community 362`, `Community 363`, `Community 371`, `Community 372`, `Community 377`, `Community 386`, `Community 387`, `Community 396`, `Community 397`, `Community 415`, `Community 419`, `Community 420`, `Community 428`, `Community 429`, `Community 430`, `Community 433`, `Community 434`, `Community 441`, `Community 442`, `Community 443`, `Community 450`, `Community 454`, `Community 455`, `Community 457`, `Community 459`, `Community 475`, `Community 476`, `Community 477`, `Community 478`, `Community 493`, `Community 494`, `Community 498`, `Community 500`, `Community 507`, `Community 509`, `Community 510`?**
+- **Why does `Settings` connect `Settings & DB Paths` to `Test Harness & Config`, `Sample Registration & Disclaimer`, `Setup Wizard API`, `App Core & Download Manager`, `Scheduled Update Check`, `dbNSFP Ingestion`, `Community 522`, `Community 524`, `Sample Staleness Gating`, `Community 529`, `Databases API`, `Download Manager`, `Ancestry PCA Inference`, `Community 532`, `UniProt Domain Cache`, `Community 547`, `Gene Detail API`, `Community 557`, `Variant Browser API`, `Community 559`, `Community 558`, `Community 561`, `Rare Variant Search API`, `Database Version Registry`, `Variant Detail API Tests`, `Query Builder Translator`, `Individuals & Sample Merge API`, `Annotated Variants API Tests`, `Ancestry E2E (Tier1/LAI)`, `Cross-Module Findings Integration`, `Community 579`, `Settings Sources & Data-Dir Pointer`, `Community 580`, `Pharma Drug API`, `Update & Reannotation API`, `Community 588`, `Community 589`, `Database Health API`, `Community 590`, `Fresh-Sample Gating & Watches`, `Community 592`, `Admin Panel API`, `Custom Panels API`, `Clinical Report Generator`, `Variant Query Export API`, `Sample Merge Preview`, `Bundle Update History`, `Sample Ingestion API`, `Individuals Routes & Linking`, `Community 624`, `Community 625`, `Community 626`, `Database Health Validation`, `Community 629`, `Sample Staleness Service`, `Variant Tagging API`, `End-to-End Pipeline Tests`, `Stale-Source Merge Commit Guard`, `Carrier Status Panel`, `Sample Merge Engine`, `Community 650`, `Community 652`, `App Lifespan & Logging`, `Community 654`, `Carrier Disclaimer API`, `Community 658`, `Reference Database Health`, `Community 669`, `Community 670`, `Sample Delete Cascade`, `Sample Merge & Concordance`, `FHIR Observation Resource Builder`, `DB Health & Resumable Downloads`, `Community 696`, `Community 699`, `Community 700`, `Annotation Overlay API`, `Community 703`, `Community 706`, `FHIR Export Endpoint Tests`, `Sample Merge Semantics`, `Watched Variants API`, `Auth & Session Enforcement`, `Sample Metadata CRUD`, `Read-Only SQL Console`, `PDF Report Generator`, `Community 748`, `Community 749`, `Community 750`, `Concordance Report Pagination`, `Community 752`, `Sample Merge Routes`, `Gene Detail & UniProt API`, `Skin Pathway API`, `Genotype No-Call Classification`, `Backup Restore Version Gate`, `Tag/Watch Merge Non-Propagation`, `Community 259`, `Community 267`, `Community 787`, `Community 276`, `Community 277`, `Community 280`, `Community 282`, `Community 294`, `Community 297`, `Community 299`, `Community 814`, `Community 815`, `Community 816`, `Community 817`, `Community 308`, `Community 310`, `Community 318`, `Community 328`, `Community 334`, `Community 344`, `Community 346`, `Community 357`, `Community 362`, `Community 363`, `Community 371`, `Community 372`, `Community 377`, `Community 386`, `Community 387`, `Community 396`, `Community 397`, `Community 415`, `Community 419`, `Community 420`, `Community 428`, `Community 429`, `Community 430`, `Community 433`, `Community 434`, `Community 441`, `Community 442`, `Community 443`, `Community 450`, `Community 454`, `Community 455`, `Community 457`, `Community 459`, `Community 475`, `Community 476`, `Community 477`, `Community 478`, `Community 493`, `Community 494`, `Community 498`, `Community 500`, `Community 507`, `Community 509`, `Community 510`?**
   _High betweenness centrality (0.199) - this node is a cross-community bridge._
-- **Why does `get_registry()` connect `Sample Staleness Gating` to `Test Harness & Config`, `Sample Registration & Disclaimer`, `App Core & Download Manager`, `dbNSFP Ingestion`, `Settings & DB Paths`, `Rare Variant Finder`, `Community 531`, `Risk Findings API & ACMG`, `Ancestry Pipeline Orchestration`, `Config TOML Persistence`, `Breast Absolute-Risk Overlay`, `Gene Detail API`, `Metabolic PRS (T2D/Obesity)`, `Custom Panels`, `Gnomix Local Ancestry`, `Community 46`, `Community 59`, `Community 64`, `Community 71`, `Community 76`, `Community 77`, `Community 81`, `Community 599`, `Community 90`, `Community 92`, `Community 96`, `Community 97`, `Community 99`, `Community 101`, `Community 108`, `Community 120`, `Community 127`, `Community 128`, `Community 131`, `Community 134`, `Community 136`, `Community 141`, `Community 147`, `Community 158`, `Community 159`, `Community 163`, `Community 164`, `Community 165`, `Community 166`, `Community 172`, `Community 176`, `Community 178`, `Community 182`, `Community 183`, `Community 185`, `Community 206`, `Community 207`, `Community 219`, `Community 226`, `Community 227`, `Community 228`, `Community 238`, `Community 241`, `Community 245`, `Community 249`, `Community 250`, `Community 253`, `Community 256`, `Community 266`, `Community 282`, `Community 290`, `Community 291`, `Community 295`, `Community 304`, `Community 315`, `Community 316`, `Community 346`, `Community 362`, `Community 379`, `Community 386`, `Community 425`, `Community 433`?**
+- **Why does `get_registry()` connect `Sample Staleness Gating` to `Test Harness & Config`, `Sample Registration & Disclaimer`, `App Core & Download Manager`, `dbNSFP Ingestion`, `Settings & DB Paths`, `Rare Variant Finder`, `Community 531`, `Risk Findings API & ACMG`, `Ancestry Pipeline Orchestration`, `Config TOML Persistence`, `Breast Absolute-Risk Overlay`, `Gene Detail API`, `Metabolic PRS (T2D/Obesity)`, `Custom Panels`, `Gnomix Local Ancestry`, `Variant Browser API`, `Individuals & Sample Merge API`, `Cross-Module Findings Integration`, `Update & Reannotation API`, `Familial Hypercholesterolemia Assessment`, `Fresh-Sample Gating & Watches`, `MTHFR Methylation Pathways`, `Community 599`, `Hemochromatosis Assessment`, `Admin Panel API`, `Clinical Report Generator`, `Gene Health Panel Engine`, `Sample Merge Preview`, `KING Kinship Estimation`, `Query Builder & SQL Console`, `Sample Staleness Service`, `End-to-End Pipeline Tests`, `Stale-Source Merge Commit Guard`, `Carrier Status Panel`, `Results Export API`, `Sample Merge Engine`, `App Lifespan & Logging`, `Sample QC Metrics`, `Pharmacogenomics Drug API`, `Sample Delete Cascade`, `vcfanno Overlay API`, `Sample Management API`, `Build-36 Liftover Ingest`, `FHIR Observation Resource Builder`, `IGV.js Track Endpoints`, `eBMD Osteoporosis PRS`, `Traits & Personality API`, `APOE Disclosure Gate API`, `Skin Pathway Scoring API`, `HLA Proxy Lookup Loader`, `Watched Variants API`, `Rare Variant API & Export`, `Variant Detail Payload Builder`, `Admin System Health API`, `Annotated Variants Query Endpoints`, `PDF Report Generator`, `Concordance Report Pagination`, `Sample Merge Routes`, `Nutrigenomics Pathway API`, `Allergy Pathway Findings API`, `Cardiovascular & FH Findings API`, `Tag/Watch Merge Non-Propagation`, `Community 256`, `Community 266`, `Community 282`, `Community 290`, `Community 291`, `Community 295`, `Community 304`, `Community 315`, `Community 316`, `Community 346`, `Community 362`, `Community 379`, `Community 386`, `Community 425`, `Community 433`?**
   _High betweenness centrality (0.113) - this node is a cross-community bridge._
-- **Why does `DBRegistry` connect `Sample Registration & Disclaimer` to `Test Harness & Config`, `dbNSFP & Annotation Engine`, `Community 386`, `Community 131`, `Community 387`, `Community 259`, `App Core & Download Manager`, `Community 136`, `Scheduled Update Check`, `dbNSFP Ingestion`, `Settings & DB Paths`, `Community 650`, `Community 396`, `Sample Staleness Gating`, `Download Manager`, `Community 276`, `Community 532`, `Community 280`, `Community 670`, `Community 159`, `Community 160`, `Community 547`, `Community 420`, `Community 167`, `Community 557`, `Community 46`, `Community 559`, `Community 558`, `Community 561`, `Community 434`, `Community 53`, `Community 441`, `Community 442`, `Community 59`, `Community 700`, `Community 60`, `Community 318`, `Community 443`, `Community 67`, `Community 196`, `Community 457`, `Community 459`, `Community 334`, `Community 592`, `Community 211`, `Community 346`, `Community 476`, `Community 93`, `Community 229`, `Community 109`, `Community 752`, `Community 498`, `Community 243`, `Community 251`, `Community 253`?**
+- **Why does `DBRegistry` connect `Sample Registration & Disclaimer` to `Test Harness & Config`, `dbNSFP & Annotation Engine`, `Community 386`, `Carrier Status Panel`, `Community 387`, `Community 259`, `App Core & Download Manager`, `Sample Merge Engine`, `Scheduled Update Check`, `dbNSFP Ingestion`, `Settings & DB Paths`, `Community 650`, `Community 396`, `Sample Staleness Gating`, `Download Manager`, `Community 276`, `Community 532`, `Community 280`, `Community 670`, `Sample Delete Cascade`, `Sample Merge & Concordance`, `Community 547`, `Community 420`, `Analysis Module Orchestrator`, `Community 557`, `Variant Browser API`, `Community 559`, `Community 558`, `Community 561`, `Community 434`, `Variant Detail API Tests`, `Community 441`, `Community 442`, `Individuals & Sample Merge API`, `Community 700`, `Annotated Variants API Tests`, `Community 318`, `Community 443`, `Pharma Drug API`, `Sample Merge Semantics`, `Community 457`, `Community 459`, `Community 334`, `Community 592`, `Sample Metadata CRUD`, `Community 346`, `Community 476`, `Annotation Benchmark Harness`, `Sample Merge Service`, `Sample Ingestion API`, `Community 752`, `Community 498`, `Skin Pathway API`, `Genotype No-Call Classification`, `Tag/Watch Merge Non-Propagation`?**
   _High betweenness centrality (0.098) - this node is a cross-community bridge._
 - **Are the 733 inferred relationships involving `Settings` (e.g. with `ThreadPoolExecutor` and `DatabaseStatusResponse`) actually correct?**
   _`Settings` has 733 INFERRED edges - model-reasoned connections that need verification._
