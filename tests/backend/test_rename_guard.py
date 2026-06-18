@@ -117,9 +117,7 @@ def test_no_unexpected_genomeinsight_references() -> None:
 
 def test_dead_dbnsfp_prebuilt_url_stays_deleted() -> None:
     """R8: the dead, different-org ``DBNSFP_PREBUILT_URL`` must stay deleted."""
-    lines = _git_grep(
-        "-nI", "DBNSFP_PREBUILT_URL", "--", ".", f":!{SELF}", *GENERATED_TREES
-    )
+    lines = _git_grep("-nI", "DBNSFP_PREBUILT_URL", "--", ".", f":!{SELF}", *GENERATED_TREES)
     assert not lines, (
         "DBNSFP_PREBUILT_URL must stay deleted (R8: a different-org dead URL; dbNSFP "
         "redistribution licensing forbids wiring it up):\n  " + "\n  ".join(lines)
