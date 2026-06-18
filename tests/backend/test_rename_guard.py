@@ -40,6 +40,15 @@ FULLY_ALLOWED_PREFIXES = ("docs/release-notes/",)
 # both greps.
 SELF = "tests/backend/test_rename_guard.py"
 
+# Generated knowledge-graph artifacts (``graphify-out/``) index the entire codebase,
+# so they re-surface every ``genomeinsight`` / ``DBNSFP_PREBUILT_URL`` token that
+# already lives in *source* — node labels, function names, even this guard's own
+# docstring. Every such token is therefore already governed at its source (allow-listed
+# below, or this guard file's internals); scanning the derived graph would only
+# double-count source the guard already polices. The artifacts are excluded from both
+# greps as a git pathspec (``:!graphify-out`` excludes the directory and its contents).
+GENERATED_TREES = (":!graphify-out",)
+
 # Per-file allow-list: a ``genomeinsight`` line in one of these files is permitted iff
 # it contains at least one of the listed (case-sensitive) tokens. Anything else fails —
 # including a stray ``genomeinsight`` in a file not listed here at all.
@@ -85,6 +94,7 @@ def test_no_unexpected_genomeinsight_references() -> None:
         ".",
         f":!{SELF}",
         ":!RENAME-TO-YELIZTLI.md",
+        *GENERATED_TREES,
     )
 
     violations: list[str] = []
@@ -107,7 +117,9 @@ def test_no_unexpected_genomeinsight_references() -> None:
 
 def test_dead_dbnsfp_prebuilt_url_stays_deleted() -> None:
     """R8: the dead, different-org ``DBNSFP_PREBUILT_URL`` must stay deleted."""
-    lines = _git_grep("-nI", "DBNSFP_PREBUILT_URL", "--", ".", f":!{SELF}")
+    lines = _git_grep(
+        "-nI", "DBNSFP_PREBUILT_URL", "--", ".", f":!{SELF}", *GENERATED_TREES
+    )
     assert not lines, (
         "DBNSFP_PREBUILT_URL must stay deleted (R8: a different-org dead URL; dbNSFP "
         "redistribution licensing forbids wiring it up):\n  " + "\n  ".join(lines)
