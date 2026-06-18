@@ -34,6 +34,7 @@ import type {
 import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
+import GTExEqtlBadgeCard from "@/components/variant-detail/GTExEqtlBadge"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
@@ -464,6 +465,14 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <div className="mt-3 px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
           Ensemble pathogenic (≥3 independent axes deleterious)
         </div>
+      )}
+
+      {/* GTEx eQTL regulatory context (SW-F3) — context-only, never ACMG */}
+      {variant.gtex_eqtl_badge && (
+        <>
+          <SectionHeader icon={Activity} label="Regulatory Context (GTEx eQTL)" />
+          <GTExEqtlBadgeCard badge={variant.gtex_eqtl_badge} />
+        </>
       )}
 
       {/* Disease Associations */}

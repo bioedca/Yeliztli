@@ -512,4 +512,51 @@ describe("VariantDetailPage (P2-21a)", () => {
     await user.click(screen.getByRole("tab", { name: /clinical/i }))
     expect(screen.getByText("No ClinVar record for this variant.")).toBeInTheDocument()
   })
+
+  it("renders the GTEx eQTL regulatory badge in the Clinical tab when present", async () => {
+    const withEqtl: VariantDetail = {
+      ...mockVariant,
+      gtex_eqtl_badge: {
+        rsid: "rs100",
+        gene_ids: ["ENSG00000141510"],
+        tissues: ["Whole_Blood", "Lung"],
+        n_associations: 2,
+        top_gene_id: "ENSG00000141510",
+        top_tissue: "Whole_Blood",
+        top_pval_nominal: 1.2e-9,
+        acmg_evidence: false,
+        context_only: true,
+        note: "context only",
+        pmid_citations: ["32913098"],
+      },
+    }
+    mockFetch.mockImplementation(async () => ({ ok: true, json: async () => withEqtl }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /clinical/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+
+    expect(screen.getByText("GTEx eQTL regulatory context")).toBeInTheDocument()
+    expect(screen.getByText("ENSG00000141510")).toBeInTheDocument()
+    expect(screen.getByText("Whole Blood")).toBeInTheDocument() // underscores humanized
+    // The "not ACMG evidence" caveat travels with the badge.
+    expect(screen.getByText(/not ACMG evidence/i)).toBeInTheDocument()
+  })
+
+  it("omits the GTEx eQTL section when no badge is present", async () => {
+    // mockVariant has no gtex_eqtl_badge (DB absent / no association).
+    mockFetch.mockImplementation(async () => ({ ok: true, json: async () => mockVariant }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /clinical/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+
+    expect(screen.queryByText("GTEx eQTL regulatory context")).not.toBeInTheDocument()
+  })
 })

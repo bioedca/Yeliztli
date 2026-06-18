@@ -12,6 +12,7 @@ GET  /api/variants/{rsid}  — Full variant detail with all annotations
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -20,6 +21,8 @@ from pydantic import BaseModel
 
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
+from backend.analysis.gtex import eqtl_regulatory_context
+from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.api.dependencies import require_fresh_sample
@@ -142,6 +145,9 @@ class VariantDetailResponse(BaseModel):
     alphamissense_pathogenicity: float | None = None
     alphamissense_class: str | None = None
     alphamissense_badge: dict[str, Any] | None = None
+
+    # GTEx eQTL regulatory context (context-only; association, never ACMG evidence)
+    gtex_eqtl_badge: dict[str, Any] | None = None
 
     # dbSNP
     dbsnp_build: int | None = None
@@ -342,6 +348,31 @@ def _attach_alphamissense_badge(data: dict[str, Any]) -> None:
     )
 
 
+def _attach_gtex_eqtl_badge(data: dict[str, Any], registry: Any) -> None:
+    """Attach the context-only GTEx eQTL regulatory badge (optional layer).
+
+    No-op when the optional ``gtex_eqtl.db`` is not installed (the engine is
+    existence-guarded so we never create an empty DB file or 500 the endpoint).
+    The badge is regulatory association only — never ACMG evidence (no PP3/PS3).
+    """
+    data["gtex_eqtl_badge"] = None
+    rsid = data.get("rsid")
+    if not rsid:
+        return
+
+    settings = getattr(registry, "settings", None)
+    db_path = getattr(settings, "gtex_eqtl_db_path", None)
+    if isinstance(db_path, Path) and not db_path.exists():
+        return  # optional DB not installed → no badge
+
+    try:
+        hits = lookup_eqtls_by_rsids([rsid], registry.gtex_eqtl_engine)
+    except sa.exc.SQLAlchemyError:
+        logger.debug("gtex_eqtl_badge_lookup_failed", exc_info=True)
+        return
+    data["gtex_eqtl_badge"] = eqtl_regulatory_context(rsid, hits.get(rsid, []))
+
+
 # ── Endpoint ─────────────────────────────────────────────────────────
 
 
@@ -392,6 +423,7 @@ def get_variant_detail(
     evidence_conflict_detail = _build_evidence_conflict_detail(row)
 
     _attach_alphamissense_badge(data)
+    _attach_gtex_eqtl_badge(data, get_registry())
 
     return VariantDetailResponse(
         **data,

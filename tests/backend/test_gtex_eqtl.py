@@ -295,3 +295,18 @@ class TestDownloadAndLoad:
         engine = _engine(tmp_path)
         with pytest.raises(ValueError, match="requires reference_engine"):
             download_and_load_gtex_eqtl(engine, tmp_path / "dl")
+
+
+class TestAcmgIsolation:
+    """An eQTL is a regulatory ASSOCIATION, not a causal mechanism — it must never
+    feed ACMG (no PP3/PS3 uplift). This pins that the ACMG assessor has zero
+    coupling to the GTEx layer (mirrors the firewall caller-set guards)."""
+
+    def test_acmg_does_not_reference_gtex(self) -> None:
+        import backend.analysis.acmg as acmg_mod
+
+        src = Path(acmg_mod.__file__).read_text(encoding="utf-8").lower()
+        assert "gtex" not in src, (
+            "backend/analysis/acmg.py must not import or reference GTEx — an eQTL is "
+            "association, not mechanism, and may never become ACMG evidence."
+        )

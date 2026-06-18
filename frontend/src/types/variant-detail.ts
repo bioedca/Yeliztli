@@ -111,4 +111,26 @@ export interface VariantDetail {
   transcripts: TranscriptAnnotation[]
   gene_phenotypes: GenePhenotypeRecord[]
   evidence_conflict_detail: EvidenceConflictDetail | null
+
+  // GTEx eQTL regulatory context (SW-F3) — present only when gtex_eqtl.db is
+  // installed and the variant has an eQTL association. Context-only; never ACMG.
+  gtex_eqtl_badge?: GTExEqtlBadge | null
+}
+
+/** Context-only GTEx eQTL regulatory association summary (SW-F3).
+ * Mirrors backend `analysis/gtex.eqtl_regulatory_context`. An eQTL is a
+ * statistical association with gene expression — NOT a causal-mechanism claim
+ * and NEVER ACMG evidence (`acmg_evidence` is always false). */
+export interface GTExEqtlBadge {
+  rsid: string
+  gene_ids: string[]
+  tissues: string[]
+  n_associations: number
+  top_gene_id: string | null
+  top_tissue: string | null
+  top_pval_nominal: number | null
+  acmg_evidence: boolean
+  context_only: boolean
+  note: string | null
+  pmid_citations: string[]
 }

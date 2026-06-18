@@ -323,6 +323,50 @@ def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
 
 
+def _seed_gtex_eqtl_db(data_dir: Path, rsid: str) -> None:
+    """Seed a standalone gtex_eqtl.db with one eQTL association for ``rsid``."""
+    from backend.annotation.gtex_eqtl import create_gtex_tables, gtex_eqtl
+
+    eng = sa.create_engine(f"sqlite:///{data_dir / 'gtex_eqtl.db'}")
+    create_gtex_tables(eng)
+    with eng.begin() as conn:
+        conn.execute(
+            gtex_eqtl.insert(),
+            [
+                {
+                    "rsid": rsid,
+                    "gene_id": "ENSG00000001626",
+                    "tissue": "Whole_Blood",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "pval_nominal": 1e-10,
+                    "slope": 0.42,
+                },
+                {
+                    "rsid": rsid,
+                    "gene_id": "ENSG00000001626",
+                    "tissue": "Lung",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "pval_nominal": 3e-6,
+                    "slope": 0.31,
+                },
+            ],
+        )
+    eng.dispose()
+
+
+@pytest.fixture
+def gtex_client(tmp_data_dir: Path):
+    """Client whose data dir carries a seeded gtex_eqtl.db (eQTL for rs123456789)."""
+    _seed_gtex_eqtl_db(tmp_data_dir, SAMPLE_VARIANT_VUS["rsid"])
+    yield from _setup_client(
+        tmp_data_dir,
+        [SAMPLE_VARIANT_VUS, SAMPLE_VARIANT_BRCA1],
+        GENE_PHENOTYPE_DATA,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/variants/{rsid} — Core retrieval
 # ═══════════════════════════════════════════════════════════════════════
@@ -866,3 +910,35 @@ class TestResponseShape:
         data = tc.get(f"/api/variants/rs999?sample_id={sid}").json()
         assert data["genotype"] == "CC"
         assert data["zygosity"] == "hom_ref"
+
+
+class TestGtexEqtlBadge:
+    """SW-F3: the optional GTEx eQTL regulatory badge on variant detail."""
+
+    def test_attaches_badge_for_eqtl_rsid(self, gtex_client):
+        tc, sid = gtex_client
+        data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
+        badge = data["gtex_eqtl_badge"]
+        assert badge is not None
+        assert badge["rsid"] == "rs123456789"
+        assert badge["gene_ids"] == ["ENSG00000001626"]
+        assert set(badge["tissues"]) == {"Whole_Blood", "Lung"}
+        assert badge["n_associations"] == 2
+        assert badge["top_tissue"] == "Whole_Blood"  # smallest p-value
+        # Regulatory association only — never an ACMG vote.
+        assert badge["acmg_evidence"] is False
+        assert badge["context_only"] is True
+
+    def test_no_badge_for_variant_without_eqtl(self, gtex_client):
+        tc, sid = gtex_client
+        # rs80357906 (BRCA1) is annotated but absent from gtex_eqtl.db.
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+        assert data["gtex_eqtl_badge"] is None
+
+    def test_badge_none_when_db_absent(self, client):
+        # The default client has no gtex_eqtl.db → optional layer is simply absent
+        # (existence-guarded: no 500, no empty DB file created).
+        tc, sid = client
+        resp = tc.get(f"/api/variants/rs123456789?sample_id={sid}")
+        assert resp.status_code == 200
+        assert resp.json()["gtex_eqtl_badge"] is None
