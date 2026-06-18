@@ -57,6 +57,12 @@ jobs:
               - 'backend/**'
               - 'tests/**'
               - 'pyproject.toml'
+              # Committed knowledge-graph artifacts index the whole tree, so a
+              # graphify-out-only refresh can still break tree-scanning backend
+              # tests (e.g. test_rename_guard.py's git-grep). Without this, such
+              # a PR skipped the backend suite and reddened main, caught only by
+              # the nightly (#1061/#1065). Run the backend suite on these too.
+              - 'graphify-out/**'
             frontend:
               - 'frontend/**'
             docker:
