@@ -1,0 +1,20 @@
+# graphify knowledge-graph artifacts (generated outputs committed so contributors
+# and Claude sessions can query the graph without rebuilding — see
+# graphify-out/.gitignore for what stays machine-local).
+
+# Union-merge graph.json so two devs committing in parallel never end up with
+# conflict markers: the graphify merge driver composes both graphs instead of a
+# line-wise merge. Each clone must register the driver locally (it is per-clone,
+# not shared via git):
+#     git config merge.graphify.name   "graphify graph.json union merge"
+#     git config merge.graphify.driver "graphify merge-driver %O %A %B"
+# (the `graphify hook install` flow sets up the post-commit/post-checkout
+# auto-rebuild hooks alongside it). An undefined driver safely falls back to a
+# normal merge, so this attribute never breaks a clone that hasn't set it up.
+graphify-out/graph.json merge=graphify linguist-generated=true
+
+# The remaining committed graphify outputs are also generated; mark them so
+# GitHub collapses their (large, churny) diffs by default and excludes them from
+# repository language statistics.
+graphify-out/GRAPH_REPORT.md linguist-generated=true
+graphify-out/.graphify_labels.json linguist-generated=true
