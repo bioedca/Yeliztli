@@ -149,6 +149,7 @@ nav:
   - Maintainer:
       - maintainer/index.md
       - Bundle build & release: bundle-release-runbook.md
+      - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
       - App release process: maintainer/release-process.md
   - Attribution: attribution.md
