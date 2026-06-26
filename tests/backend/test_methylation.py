@@ -488,20 +488,28 @@ class TestBHMTR239QDirection:
     def test_gln239_homozygote_is_not_elevated(self, panel: MethylationPanel) -> None:
         result = _score_snp(self._get_bhmt_r239q(panel), "AA")
         text = result.effect_summary.lower()
+        recommendation = result.recommendation_text.lower()
         assert result.category == STANDARD
         assert "reduced betaine-dependent" not in text
         assert "does not support reduced bhmt activity" in text
         assert "not treated" in text
+        assert "does not support an activity-reducing" in recommendation
+        assert "context only" in recommendation
+        assert "especially relevant when mthfr function is reduced" not in recommendation
 
     def test_heterozygotes_are_informational_standard(self, panel: MethylationPanel) -> None:
         bhmt = self._get_bhmt_r239q(panel)
         for genotype in ("AG", "GA"):
             result = _score_snp(bhmt, genotype)
             text = result.effect_summary.lower()
+            recommendation = result.recommendation_text.lower()
             assert result.category == STANDARD, genotype
             assert "may modestly alter" not in text
             assert "reduced betaine-dependent" not in text
             assert "informational only" in text
+            assert "does not support an activity-reducing" in recommendation
+            assert "context only" in recommendation
+            assert "especially relevant when mthfr function is reduced" not in recommendation
 
 
 class TestCholineBetaineAlleleFrames:
