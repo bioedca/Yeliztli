@@ -459,6 +459,51 @@ class TestFOLH1Direction:
         assert _score_snp(folh1, "AG").category == MODERATE
 
 
+class TestBHMTR239QDirection:
+    """rs3733890 (BHMT R239Q) must not be scored as reduced remethylation (#1069).
+
+    The panel's cited evidence does not support the previous user-facing call
+    path: A/Gln239 as Moderate and AA/Gln239 homozygotes as Elevated for reduced
+    betaine-dependent remethylation. Li 2008 found no significant enzyme-activity
+    difference for BHMT variant allozymes, Weisberg 2003 found no plasma
+    homocysteine effect and a possible protective CAD signal for QQ, and Xu 2016
+    was mostly null with a protective cervical-cancer signal.
+    """
+
+    def _get_bhmt_r239q(self, panel: MethylationPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs3733890":
+                    return snp
+        pytest.fail("BHMT rs3733890 not found")
+
+    def test_panel_allele_frame_is_retained(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_bhmt_r239q(panel)
+        assert bhmt.gene == "BHMT"
+        assert bhmt.variant_name == "G742A (Arg239Gln)"
+        assert bhmt.hgvs_protein == "p.Arg239Gln"
+        assert bhmt.risk_allele == "A"
+        assert bhmt.ref_allele == "G"
+
+    def test_gln239_homozygote_is_not_elevated(self, panel: MethylationPanel) -> None:
+        result = _score_snp(self._get_bhmt_r239q(panel), "AA")
+        text = result.effect_summary.lower()
+        assert result.category == STANDARD
+        assert "reduced betaine-dependent" not in text
+        assert "does not support reduced bhmt activity" in text
+        assert "not treated" in text
+
+    def test_heterozygotes_are_informational_standard(self, panel: MethylationPanel) -> None:
+        bhmt = self._get_bhmt_r239q(panel)
+        for genotype in ("AG", "GA"):
+            result = _score_snp(bhmt, genotype)
+            text = result.effect_summary.lower()
+            assert result.category == STANDARD, genotype
+            assert "may modestly alter" not in text
+            assert "reduced betaine-dependent" not in text
+            assert "informational only" in text
+
+
 class TestCholineBetaineAlleleFrames:
     """Issue #717: BHMT/SLC44A1 genotype keys must match real variant alleles."""
 

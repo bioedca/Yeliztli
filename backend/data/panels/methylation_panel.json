@@ -392,24 +392,24 @@
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "Normal betaine-homocysteine methyltransferase activity. Standard betaine-dependent homocysteine remethylation."
+              "effect_summary": "BHMT Arg239 reference genotype. Standard betaine-dependent homocysteine remethylation."
             },
             "GA": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous BHMT variant. May modestly alter betaine-dependent homocysteine remethylation."
+              "category": "Standard",
+              "effect_summary": "Heterozygous BHMT R239Q genotype. Evidence does not support reduced BHMT activity or elevated baseline homocysteine; reported as informational only."
             },
             "AG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous BHMT variant. May modestly alter betaine-dependent homocysteine remethylation."
+              "category": "Standard",
+              "effect_summary": "Heterozygous BHMT R239Q genotype. Evidence does not support reduced BHMT activity or elevated baseline homocysteine; reported as informational only."
             },
             "AA": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous BHMT variant. Reduced betaine-dependent homocysteine remethylation. This alternative pathway becomes especially important when MTHFR function is impaired."
+              "category": "Standard",
+              "effect_summary": "Homozygous BHMT R239Q (Gln239) genotype. Evidence does not support reduced BHMT activity or elevated baseline homocysteine; not treated as a reduced-remethylation risk marker."
             }
           },
           "evidence_level": 2,
           "pmids": ["18457970", "27578989", "12818402"],
-          "recommendation_text": "BHMT provides an alternative homocysteine remethylation pathway using betaine (from choline) as the methyl donor. Especially relevant when MTHFR function is reduced."
+          "recommendation_text": "BHMT catalyzes betaine-dependent homocysteine remethylation. For rs3733890/R239Q, the cited evidence does not support an activity-reducing or baseline homocysteine-raising interpretation; this locus is kept as context only."
         },
         {
           "rsid": "rs2228611",
