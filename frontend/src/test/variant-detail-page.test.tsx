@@ -41,6 +41,7 @@ const mockVariant: VariantDetail = {
   gnomad_af_global: 0.0003,
   gnomad_af_afr: 0.0001,
   gnomad_af_amr: 0.0002,
+  gnomad_af_asj: 0.0269,
   gnomad_af_eas: null,
   gnomad_af_eur: 0.0004,
   gnomad_af_fin: null,
@@ -257,6 +258,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     // Population bars
     expect(screen.getByTestId("pop-bar-global")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-afr")).toBeInTheDocument()
+    expect(screen.getByTestId("pop-bar-asj")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-eur")).toBeInTheDocument()
 
     // Per-population AF must render as a raw FRACTION (the shared
@@ -265,6 +267,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     // under the old formatPercent, eur=0.0004 rendered "0.0400%".
     expect(screen.getByTestId("pop-bar-eur")).toHaveTextContent("0.0004")
     expect(screen.getByTestId("pop-bar-global")).toHaveTextContent("0.0003")
+    expect(screen.getByTestId("pop-bar-asj")).toHaveTextContent("0.0269")
     expect(screen.getByTestId("pop-bar-eur")).not.toHaveTextContent("%")
     expect(screen.getByTestId("pop-bar-afr")).not.toHaveTextContent("%")
   })
@@ -462,6 +465,7 @@ describe("VariantDetailPage (P2-21a)", () => {
       gnomad_af_global: null,
       gnomad_af_afr: null,
       gnomad_af_amr: null,
+      gnomad_af_asj: null,
       gnomad_af_eas: null,
       gnomad_af_eur: null,
       gnomad_af_fin: null,

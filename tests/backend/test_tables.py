@@ -191,7 +191,9 @@ class TestSampleMetadata:
         # ClinVar columns
         assert {"clinvar_significance", "clinvar_review_stars"}.issubset(col_names)
         # gnomAD columns
-        assert {"gnomad_af_global", "gnomad_af_eur", "rare_flag"}.issubset(col_names)
+        assert {"gnomad_af_global", "gnomad_af_asj", "gnomad_af_eur", "rare_flag"}.issubset(
+            col_names
+        )
         # dbNSFP columns
         assert {"cadd_phred", "sift_score", "revel"}.issubset(col_names)
         # Coverage bitmask

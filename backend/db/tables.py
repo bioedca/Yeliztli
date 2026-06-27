@@ -622,6 +622,7 @@ annotated_variants = sa.Table(
     sa.Column("gnomad_af_global", sa.Float),
     sa.Column("gnomad_af_afr", sa.Float),
     sa.Column("gnomad_af_amr", sa.Float),
+    sa.Column("gnomad_af_asj", sa.Float),
     sa.Column("gnomad_af_eas", sa.Float),
     sa.Column("gnomad_af_eur", sa.Float),
     sa.Column("gnomad_af_fin", sa.Float),

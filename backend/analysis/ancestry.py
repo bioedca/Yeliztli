@@ -1264,6 +1264,7 @@ def get_pca_coordinates(
 _ANCESTRY_TO_GNOMAD_COL: dict[str, str] = {
     "AFR": "gnomad_af_afr",
     "AMR": "gnomad_af_amr",
+    "ASJ": "gnomad_af_asj",
     "CSA": "gnomad_af_sas",  # gnomAD "sas" covers Central/South Asian
     "EAS": "gnomad_af_eas",
     "EUR": "gnomad_af_eur",
@@ -1275,7 +1276,7 @@ _ANCESTRY_TO_GNOMAD_COL: dict[str, str] = {
 def get_ancestry_matched_af_column(population: str | None) -> str:
     """Return the gnomAD AF column name matching the inferred ancestry.
 
-    Maps super-population codes (AFR, AMR, EAS, EUR, SAS, OCE) to the
+    Maps population codes (AFR, AMR, ASJ, EAS, EUR, SAS, OCE) to the
     corresponding ``gnomad_af_*`` column in annotated_variants.
 
     Args:

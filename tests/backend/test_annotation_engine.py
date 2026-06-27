@@ -252,7 +252,7 @@ def gnomad_engine() -> sa.Engine:
                     sa.text(
                         "INSERT INTO gnomad_af VALUES "
                         "(:rsid, :chrom, :pos, :ref, :alt, :af_global, "
-                        ":af_afr, :af_amr, :af_eas, :af_eur, :af_fin, "
+                        ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, "
                         ":af_sas, :homozygous_count)"
                     ),
                     {
@@ -264,6 +264,7 @@ def gnomad_engine() -> sa.Engine:
                         "af_global": float(row["af_global"]),
                         "af_afr": float(row["af_afr"]),
                         "af_amr": float(row["af_amr"]),
+                        "af_asj": float(row["af_asj"]),
                         "af_eas": float(row["af_eas"]),
                         "af_eur": float(row["af_eur"]),
                         "af_fin": float(row["af_fin"]),
@@ -450,7 +451,7 @@ class TestLookupGnomad:
                 sa.text(
                     "INSERT INTO gnomad_af VALUES "
                     "('rs_rare', '1', 1, 'A', 'G', 0.005, "
-                    "0.003, 0.004, 0.006, 0.005, 0.002, 0.007, 5)"
+                    "0.003, 0.004, 0.0045, 0.006, 0.005, 0.002, 0.007, 5)"
                 )
             )
         result = _lookup_gnomad(["rs_rare"], {}, gnomad_engine)
@@ -463,7 +464,7 @@ class TestLookupGnomad:
                 sa.text(
                     "INSERT INTO gnomad_af VALUES "
                     "('rs_ultrarare', '1', 2, 'A', 'G', 0.00005, "
-                    "0.00003, 0.00004, 0.00006, 0.00005, 0.00002, 0.00007, 1)"
+                    "0.00003, 0.00004, 0.00004, 0.00006, 0.00005, 0.00002, 0.00007, 1)"
                 )
             )
         result = _lookup_gnomad(["rs_ultrarare"], {}, gnomad_engine)
@@ -1299,6 +1300,7 @@ class TestGnomadAnnotationLookupIntegration:
             af_global=0.0781,
             af_afr=0.1130,
             af_amr=0.0560,
+            af_asj=0.0269,
             af_eas=0.0980,
             af_eur=0.0730,
             af_fin=0.0410,
@@ -1312,6 +1314,7 @@ class TestGnomadAnnotationLookupIntegration:
         assert d["gnomad_af_global"] == pytest.approx(0.0781)
         assert d["gnomad_af_afr"] == pytest.approx(0.1130)
         assert d["gnomad_af_amr"] == pytest.approx(0.0560)
+        assert d["gnomad_af_asj"] == pytest.approx(0.0269)
         assert d["gnomad_af_eas"] == pytest.approx(0.0980)
         assert d["gnomad_af_eur"] == pytest.approx(0.0730)
         assert d["gnomad_af_fin"] == pytest.approx(0.0410)
@@ -1329,6 +1332,7 @@ class TestGnomadAnnotationLookupIntegration:
         assert data["gnomad_af_global"] == pytest.approx(0.0781)
         assert data["gnomad_af_afr"] == pytest.approx(0.1130)
         assert data["gnomad_af_amr"] == pytest.approx(0.0560)
+        assert data["gnomad_af_asj"] == pytest.approx(0.0781)
         assert data["gnomad_af_eas"] == pytest.approx(0.0980)
         assert data["gnomad_af_eur"] == pytest.approx(0.0730)
         assert data["gnomad_af_fin"] == pytest.approx(0.0410)
@@ -1372,7 +1376,7 @@ class TestGnomadAnnotationLookupIntegration:
                 sa.text(
                     "INSERT INTO gnomad_af VALUES "
                     "('rs_boundary', '1', 999, 'A', 'G', 0.001, "
-                    "0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 2)"
+                    "0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 2)"
                 )
             )
         result = _lookup_gnomad(["rs_boundary"], {}, gnomad_engine)
@@ -1387,7 +1391,7 @@ class TestGnomadAnnotationLookupIntegration:
                 sa.text(
                     "INSERT INTO gnomad_af VALUES "
                     "('rs_gnomad_id', '5', 500, 'C', 'T', 0.02, "
-                    "0.03, 0.01, 0.02, 0.025, 0.015, 0.018, 30)"
+                    "0.03, 0.01, 0.022, 0.02, 0.025, 0.015, 0.018, 30)"
                 )
             )
 
@@ -1442,9 +1446,10 @@ class TestGnomadAnnotationLookupIntegration:
         assert row is not None
         # Global AF
         assert row.gnomad_af_global == pytest.approx(0.0781)
-        # Per-population AFs (AFR/AMR/EAS/EUR/SAS per PRD)
+        # Per-population AFs (including ASJ from gnomAD r2.1)
         assert row.gnomad_af_afr == pytest.approx(0.1130)
         assert row.gnomad_af_amr == pytest.approx(0.0560)
+        assert row.gnomad_af_asj == pytest.approx(0.0781)
         assert row.gnomad_af_eas == pytest.approx(0.0980)
         assert row.gnomad_af_eur == pytest.approx(0.0730)
         assert row.gnomad_af_sas == pytest.approx(0.0650)
@@ -1487,6 +1492,7 @@ class TestGnomadAnnotationLookupIntegration:
         assert engine_data["gnomad_af_global"] == module_annot.af_global
         assert engine_data["gnomad_af_afr"] == module_annot.af_afr
         assert engine_data["gnomad_af_amr"] == module_annot.af_amr
+        assert engine_data["gnomad_af_asj"] == module_annot.af_asj
         assert engine_data["gnomad_af_eas"] == module_annot.af_eas
         assert engine_data["gnomad_af_eur"] == module_annot.af_eur
         assert engine_data["gnomad_af_sas"] == module_annot.af_sas

@@ -120,6 +120,7 @@ const BRCA1_AF_DATA: PopulationAFSummary[] = [
     gnomad_af_global: 0.000003,
     gnomad_af_afr: 0.000001,
     gnomad_af_amr: 0.000002,
+    gnomad_af_asj: 0.000004,
     gnomad_af_eas: 0.0,
     gnomad_af_eur: 0.000005,
     gnomad_af_fin: 0.0,
@@ -250,6 +251,9 @@ describe("PopulationAFChart", () => {
     expect(screen.getByTestId("population-af-chart")).toBeInTheDocument()
     expect(screen.getByTestId("plotly-chart")).toBeInTheDocument()
     expect(screen.getByText("rs80357906")).toBeInTheDocument()
+    expect(screen.getByTestId("plotly-chart").getAttribute("data-props")).toContain(
+      "Ashkenazi Jewish",
+    )
   })
 
   it("shows empty state when no data", () => {
@@ -267,6 +271,7 @@ describe("PopulationAFChart", () => {
         gnomad_af_global: 0.0012,
         gnomad_af_afr: 0.001,
         gnomad_af_amr: 0.0015,
+        gnomad_af_asj: 0.0017,
         gnomad_af_eas: 0.0008,
         gnomad_af_eur: 0.0014,
         gnomad_af_fin: 0.002,

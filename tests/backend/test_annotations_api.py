@@ -38,6 +38,7 @@ ANNOTATED_VARIANTS = [
         "clinvar_accession": "VCV000017661",
         "clinvar_conditions": "Breast-ovarian cancer",
         "gnomad_af_global": 0.0001,
+        "gnomad_af_asj": 0.00015,
         "gnomad_af_eur": 0.0002,
         "rare_flag": True,
         "ultra_rare_flag": True,
@@ -280,6 +281,7 @@ class TestListAnnotatedVariants:
         # gnomAD fields
         assert "gnomad_af_global" in item
         assert "gnomad_af_afr" in item
+        assert "gnomad_af_asj" in item
         assert "gnomad_af_eur" in item
         assert "gnomad_homozygous_count" in item
         assert "rare_flag" in item

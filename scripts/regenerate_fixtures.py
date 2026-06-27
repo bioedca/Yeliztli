@@ -254,6 +254,7 @@ GNOMAD_SCHEMA: list[tuple[str, str]] = [
     ("af_global", "REAL"),
     ("af_afr", "REAL"),
     ("af_amr", "REAL"),
+    ("af_asj", "REAL"),
     ("af_eas", "REAL"),
     ("af_eur", "REAL"),
     ("af_fin", "REAL"),
@@ -568,8 +569,7 @@ def build_standalone_db(
         # §12.1). Other standalone DBs do not carry this table.
         if db_name == "mini_vep_bundle.db":
             conn.execute(
-                "CREATE TABLE IF NOT EXISTS bundle_metadata "
-                "(key TEXT PRIMARY KEY, value TEXT)"
+                "CREATE TABLE IF NOT EXISTS bundle_metadata (key TEXT PRIMARY KEY, value TEXT)"
             )
             metadata = dict(MINI_VEP_BUNDLE_METADATA)
             metadata["variant_count"] = str(len(rows))
@@ -645,9 +645,7 @@ def emit_ancestrydna_fixture(
         return summary
 
     if dry_run:
-        summary.append(
-            f"[dry-run] Would write {output_path} from template {template_path}"
-        )
+        summary.append(f"[dry-run] Would write {output_path} from template {template_path}")
         return summary
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -674,9 +672,7 @@ def emit_ancestrydna_fixture(
             variant_rows += 1
 
     size = output_path.stat().st_size
-    summary.append(
-        f"Created {output_path} ({_human_size(size)}): {variant_rows} variants"
-    )
+    summary.append(f"Created {output_path} ({_human_size(size)}): {variant_rows} variants")
     return summary
 
 
@@ -740,9 +736,7 @@ def main(argv: list[str] | None = None) -> None:
         print()
 
         output_path = output_dir / "synthetic_eur_ancestrydna.txt"
-        for line in emit_ancestrydna_fixture(
-            args.template, output_path, dry_run=dry_run
-        ):
+        for line in emit_ancestrydna_fixture(args.template, output_path, dry_run=dry_run):
             print(line)
         print()
         print("Done.")

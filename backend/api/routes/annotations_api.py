@@ -76,6 +76,7 @@ class AnnotatedVariantRow(BaseModel):
     gnomad_af_global: float | None = None
     gnomad_af_afr: float | None = None
     gnomad_af_amr: float | None = None
+    gnomad_af_asj: float | None = None
     gnomad_af_eas: float | None = None
     gnomad_af_eur: float | None = None
     gnomad_af_fin: float | None = None

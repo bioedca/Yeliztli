@@ -84,6 +84,7 @@ class RareVariantResponse(BaseModel):
     gnomad_af_global: float | None = None
     gnomad_af_afr: float | None = None
     gnomad_af_amr: float | None = None
+    gnomad_af_asj: float | None = None
     gnomad_af_eas: float | None = None
     gnomad_af_eur: float | None = None
     gnomad_af_fin: float | None = None
@@ -244,6 +245,7 @@ def search_rare_variants(
             gnomad_af_global=v.gnomad_af_global,
             gnomad_af_afr=v.gnomad_af_afr,
             gnomad_af_amr=v.gnomad_af_amr,
+            gnomad_af_asj=v.gnomad_af_asj,
             gnomad_af_eas=v.gnomad_af_eas,
             gnomad_af_eur=v.gnomad_af_eur,
             gnomad_af_fin=v.gnomad_af_fin,

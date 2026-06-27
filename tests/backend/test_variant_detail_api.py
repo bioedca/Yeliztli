@@ -47,6 +47,7 @@ SAMPLE_VARIANT_BRCA1 = {
     "clinvar_conditions": "Breast-ovarian cancer",
     "gnomad_af_global": 0.000003,
     "gnomad_af_afr": 0.000001,
+    "gnomad_af_asj": 0.000004,
     "gnomad_af_eur": 0.000005,
     "gnomad_af_sas": 0.000002,
     "gnomad_homozygous_count": 0,
@@ -458,6 +459,7 @@ class TestGetVariantDetail:
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
         assert data["gnomad_af_global"] == pytest.approx(0.000003)
+        assert data["gnomad_af_asj"] == pytest.approx(0.000004)
         assert data["gnomad_af_eur"] == pytest.approx(0.000005)
         assert data["gnomad_homozygous_count"] == 0
         assert data["rare_flag"] is True

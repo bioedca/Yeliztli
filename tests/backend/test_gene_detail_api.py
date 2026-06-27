@@ -102,6 +102,7 @@ def gene_detail_client(
                         "gnomad_af_global": 0.000003,
                         "gnomad_af_afr": 0.000001,
                         "gnomad_af_amr": 0.000002,
+                        "gnomad_af_asj": 0.000004,
                         "gnomad_af_eas": 0.0,
                         "gnomad_af_eur": 0.000005,
                         "gnomad_af_fin": 0.0,
@@ -124,6 +125,7 @@ def gene_detail_client(
                         "gnomad_af_global": 0.02,
                         "gnomad_af_afr": 0.01,
                         "gnomad_af_amr": 0.015,
+                        "gnomad_af_asj": 0.018,
                         "gnomad_af_eas": 0.005,
                         "gnomad_af_eur": 0.025,
                         "gnomad_af_fin": 0.03,
@@ -201,6 +203,7 @@ class TestGeneDetailEndpoint:
         assert len(data["population_af"]) == 2
         pathogenic_af = next(af for af in data["population_af"] if af["rsid"] == "rs80357906")
         assert pathogenic_af["gnomad_af_global"] == pytest.approx(0.000003)
+        assert pathogenic_af["gnomad_af_asj"] == pytest.approx(0.000004)
         assert pathogenic_af["gnomad_af_eur"] == pytest.approx(0.000005)
 
     def test_gene_detail_case_insensitive(self, gene_detail_client: TestClient) -> None:

@@ -128,6 +128,7 @@ class PopulationAFSummary(BaseModel):
     gnomad_af_global: float | None = None
     gnomad_af_afr: float | None = None
     gnomad_af_amr: float | None = None
+    gnomad_af_asj: float | None = None
     gnomad_af_eas: float | None = None
     gnomad_af_eur: float | None = None
     gnomad_af_fin: float | None = None
@@ -526,6 +527,7 @@ def _fetch_population_af(gene_symbol: str, sample_engine: sa.Engine) -> list[Pop
             av.c.gnomad_af_global,
             av.c.gnomad_af_afr,
             av.c.gnomad_af_amr,
+            av.c.gnomad_af_asj,
             av.c.gnomad_af_eas,
             av.c.gnomad_af_eur,
             av.c.gnomad_af_fin,
@@ -550,6 +552,7 @@ def _fetch_population_af(gene_symbol: str, sample_engine: sa.Engine) -> list[Pop
             gnomad_af_global=row.gnomad_af_global,
             gnomad_af_afr=row.gnomad_af_afr,
             gnomad_af_amr=row.gnomad_af_amr,
+            gnomad_af_asj=row.gnomad_af_asj,
             gnomad_af_eas=row.gnomad_af_eas,
             gnomad_af_eur=row.gnomad_af_eur,
             gnomad_af_fin=row.gnomad_af_fin,

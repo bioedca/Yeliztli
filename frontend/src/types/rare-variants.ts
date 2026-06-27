@@ -26,6 +26,7 @@ export interface RareVariant {
   gnomad_af_global: number | null
   gnomad_af_afr: number | null
   gnomad_af_amr: number | null
+  gnomad_af_asj?: number | null
   gnomad_af_eas: number | null
   gnomad_af_eur: number | null
   gnomad_af_fin: number | null

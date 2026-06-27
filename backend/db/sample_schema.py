@@ -32,7 +32,9 @@ logger = structlog.get_logger(__name__)
 #      (SW-A4 #8 — per-finding source-release + version pinning, audit metadata)
 # v12: Add AlphaMissense context-only columns to annotated_variants
 #      (missense pathogenicity prediction metadata; never ACMG evidence)
-SAMPLE_SCHEMA_VERSION = 12
+# v13: Add gnomad_af_asj to annotated_variants
+#      (gnomAD r2.1 ASJ population for population-max AF and ancestry display)
+SAMPLE_SCHEMA_VERSION = 13
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -315,6 +317,21 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     added_alpha = True
             if added_alpha:
                 logger.info("alphamissense_columns_added", from_version=from_version)
+                added = True
+
+    if from_version < 13:
+        # gnomAD r2.1 includes Ashkenazi Jewish (ASJ) AF. Store it alongside the
+        # other per-population AFs so popmax and ancestry-matched displays can
+        # use the most-common ancestry instead of silently falling back to global.
+        inspector = sa.inspect(engine)
+        if "annotated_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
+            if "gnomad_af_asj" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(
+                        sa.text("ALTER TABLE annotated_variants ADD COLUMN gnomad_af_asj REAL")
+                    )
+                logger.info("gnomad_af_asj_column_added", from_version=from_version)
                 added = True
 
     return added

@@ -195,7 +195,7 @@ class TestSampleSchema:
         for col in ["clinvar_significance", "clinvar_review_stars"]:
             assert col in cols, f"Missing column: {col}"
         # gnomAD
-        for col in ["gnomad_af_global", "gnomad_af_eur", "rare_flag"]:
+        for col in ["gnomad_af_global", "gnomad_af_asj", "gnomad_af_eur", "rare_flag"]:
             assert col in cols, f"Missing column: {col}"
         # dbNSFP
         for col in ["cadd_phred", "sift_score", "revel"]:
@@ -655,3 +655,46 @@ class TestSchemaMigration:
         assert row[1] == 0.75
         assert row[2] is None
         assert row[3] is None
+
+    def _create_v12_sample_db(self, db_path: Path) -> sa.Engine:
+        """Create a sample DB at v12 without gnomad_af_asj."""
+        engine = self._create_v11_sample_db(db_path)
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "ALTER TABLE annotated_variants ADD COLUMN alphamissense_pathogenicity REAL"
+                )
+            )
+            conn.execute(
+                sa.text("ALTER TABLE annotated_variants ADD COLUMN alphamissense_class TEXT")
+            )
+            conn.execute(sa.text("PRAGMA user_version = 12"))
+        return engine
+
+    def test_upgrade_v12_adds_gnomad_asj_column(self, tmp_path):
+        """v12 → v13 adds the gnomAD ASJ population AF column."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v12_sample_db(db_path)
+
+        cols_before = _get_columns(db_path, "annotated_variants")
+        assert "gnomad_af_asj" not in cols_before
+
+        updated = ensure_sample_schema_current(engine)
+        assert updated is True
+
+        cols_after = _get_columns(db_path, "annotated_variants")
+        assert "gnomad_af_asj" in cols_after
+
+    def test_upgrade_v12_preserves_existing_annotated_rows(self, tmp_path):
+        """The v12 → v13 upgrade preserves annotated rows and NULLs ASJ AF."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v12_sample_db(db_path)
+        ensure_sample_schema_current(engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT rsid, revel, gnomad_af_asj FROM annotated_variants")
+            ).fetchone()
+        assert row[0] == "rs1801133"
+        assert row[1] == 0.75
+        assert row[2] is None

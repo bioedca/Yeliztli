@@ -15,6 +15,7 @@ const POPULATIONS = [
   { key: "gnomad_af_global" as const, label: "Global", color: "#0D9488" },
   { key: "gnomad_af_eur" as const, label: "European", color: "#2563EB" },
   { key: "gnomad_af_afr" as const, label: "African", color: "#7C3AED" },
+  { key: "gnomad_af_asj" as const, label: "Ashkenazi Jewish", color: "#DB2777" },
   { key: "gnomad_af_eas" as const, label: "East Asian", color: "#059669" },
   { key: "gnomad_af_amr" as const, label: "Latino/Admixed", color: "#D97706" },
   { key: "gnomad_af_sas" as const, label: "South Asian", color: "#DC2626" },

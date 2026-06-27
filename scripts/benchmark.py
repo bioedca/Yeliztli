@@ -257,7 +257,7 @@ def seed_gnomad(
                 rsid TEXT PRIMARY KEY, chrom TEXT NOT NULL, pos INTEGER NOT NULL,
                 ref TEXT NOT NULL, alt TEXT NOT NULL,
                 af_global REAL, af_afr REAL, af_amr REAL, af_eas REAL,
-                af_eur REAL, af_fin REAL, af_sas REAL,
+                af_asj REAL, af_eur REAL, af_fin REAL, af_sas REAL,
                 homozygous_count INTEGER DEFAULT 0
             )
         """)
@@ -287,6 +287,7 @@ def seed_gnomad(
                 "af_global": af,
                 "af_afr": min(1.0, af * rng.uniform(0.5, 2.0)),
                 "af_amr": min(1.0, af * rng.uniform(0.5, 2.0)),
+                "af_asj": min(1.0, af * rng.uniform(0.5, 2.0)),
                 "af_eas": min(1.0, af * rng.uniform(0.5, 2.0)),
                 "af_eur": min(1.0, af * rng.uniform(0.5, 2.0)),
                 "af_fin": min(1.0, af * rng.uniform(0.5, 2.0)),
@@ -302,9 +303,9 @@ def seed_gnomad(
             conn.execute(
                 sa.text(
                     "INSERT INTO gnomad_af (rsid, chrom, pos, ref, alt, af_global, "
-                    "af_afr, af_amr, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "af_afr, af_amr, af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
                     "VALUES (:rsid, :chrom, :pos, :ref, :alt, :af_global, :af_afr, "
-                    ":af_amr, :af_eas, :af_eur, :af_fin, :af_sas, :homozygous_count)"
+                    ":af_amr, :af_asj, :af_eas, :af_eur, :af_fin, :af_sas, :homozygous_count)"
                 ),
                 batch,
             )

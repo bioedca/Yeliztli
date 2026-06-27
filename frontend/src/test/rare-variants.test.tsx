@@ -30,6 +30,7 @@ function makeMockVariant(overrides: Partial<RareVariant> = {}): RareVariant {
     gnomad_af_global: 0.00023,
     gnomad_af_afr: 0.0001,
     gnomad_af_amr: null,
+    gnomad_af_asj: 0.0269,
     gnomad_af_eas: null,
     gnomad_af_eur: 0.0003,
     gnomad_af_fin: null,
@@ -264,6 +265,8 @@ describe("VariantDetailPanel", () => {
     expect(screen.getByText("Pathogenic")).toBeInTheDocument()
     expect(screen.getByText("28.5")).toBeInTheDocument()
     expect(screen.getByText("VCV000012345")).toBeInTheDocument()
+    expect(screen.getByText("Ashkenazi Jewish")).toBeInTheDocument()
+    expect(screen.getByText("0.0269")).toBeInTheDocument()
     // het default → "Heterozygous" (the zygosity label was previously unasserted)
     expect(screen.getByText("Heterozygous")).toBeInTheDocument()
   })
@@ -289,6 +292,7 @@ describe("VariantDetailPanel", () => {
     const variant = makeMockVariant({
       gnomad_af_global: null,
       gnomad_af_afr: null,
+      gnomad_af_asj: null,
       gnomad_af_eur: null,
       is_novel: false,
     })
@@ -301,6 +305,7 @@ describe("VariantDetailPanel", () => {
     const variant = makeMockVariant({
       gnomad_af_global: null,
       gnomad_af_afr: null,
+      gnomad_af_asj: null,
       gnomad_af_eur: null,
       is_novel: true,
     })

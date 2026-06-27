@@ -92,7 +92,7 @@ class TestParseGnomadVcfLine:
         line = (
             "19\t44908684\trs429358\tT\tC\t.\tPASS\t"
             "AF=0.1387;AF_afr=0.2650;AF_amr=0.1100;AF_eas=0.0890;"
-            "AF_nfe=0.1510;AF_fin=0.1630;AF_sas=0.0880;nhomalt=2543"
+            "AF_nfe=0.1510;AF_fin=0.1630;AF_asj=0.0269;AF_sas=0.0880;nhomalt=2543"
         )
         record, skip = parse_gnomad_vcf_line(line)
 
@@ -106,6 +106,7 @@ class TestParseGnomadVcfLine:
         assert record.af_global == pytest.approx(0.1387)
         assert record.af_afr == pytest.approx(0.2650)
         assert record.af_amr == pytest.approx(0.1100)
+        assert record.af_asj == pytest.approx(0.0269)
         assert record.af_eas == pytest.approx(0.0890)
         assert record.af_eur == pytest.approx(0.1510)  # AF_nfe → af_eur
         assert record.af_fin == pytest.approx(0.1630)
@@ -162,6 +163,7 @@ class TestParseGnomadVcfLine:
         assert record is not None
         assert record.af_global == pytest.approx(0.05)
         assert record.af_afr is None
+        assert record.af_asj is None
         assert record.homozygous_count == 0
 
     def test_multiple_ids_picks_rsid(self):
@@ -216,6 +218,7 @@ class TestIterGnomadVcf:
         assert rows[0]["rsid"] == "rs111"
         assert rows[0]["af_global"] == pytest.approx(0.05)
         assert rows[0]["af_afr"] == pytest.approx(0.03)
+        assert rows[0]["af_asj"] is None
         assert rows[0]["homozygous_count"] == 10
 
     def test_progress_callback(self, tmp_path: Path):
@@ -271,6 +274,30 @@ class TestCreateGnomadTables:
             result = conn.execute(sa.text("SELECT COUNT(*) FROM gnomad_af")).scalar()
         assert result == 0
 
+    def test_adds_asj_column_to_legacy_table(self):
+        """Calling table creation upgrades pre-ASJ standalone gnomAD tables."""
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE gnomad_af ("
+                    "rsid TEXT PRIMARY KEY, chrom TEXT NOT NULL, pos INTEGER NOT NULL, "
+                    "ref TEXT NOT NULL, alt TEXT NOT NULL, af_global REAL, af_afr REAL, "
+                    "af_amr REAL, af_eas REAL, af_eur REAL, af_fin REAL, af_sas REAL, "
+                    "homozygous_count INTEGER DEFAULT 0)"
+                )
+            )
+
+        _create_gnomad_table(engine)
+
+        with engine.connect() as conn:
+            cols = {row[1] for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))}
+        assert "af_asj" in cols
+
 
 # ── CSV loading tests ───────────────────────────────────────────────────
 
@@ -298,6 +325,7 @@ class TestLoadGnomadFromCsv:
         assert row.pos == 44908822
         assert row.af_global == pytest.approx(0.0781)
         assert row.af_afr == pytest.approx(0.1130)
+        assert row.af_asj == pytest.approx(0.0781)
         assert row.homozygous_count == 874
 
     def test_clear_existing(self, gnomad_engine: sa.Engine):
@@ -375,6 +403,7 @@ class TestLookupGnomadByRsids:
         assert annot.af_global == pytest.approx(0.0781)
         assert annot.af_afr == pytest.approx(0.1130)
         assert annot.af_amr == pytest.approx(0.0560)
+        assert annot.af_asj == pytest.approx(0.0781)
         assert annot.af_eas == pytest.approx(0.0980)
         assert annot.af_eur == pytest.approx(0.0730)
         assert annot.af_fin == pytest.approx(0.0410)
@@ -493,6 +522,60 @@ class TestRareVariantFlags:
         assert annot.rare_flag is False
         assert annot.ultra_rare_flag is False
 
+    def test_asj_common_founder_variant_not_flagged_rare(self, gnomad_engine: sa.Engine):
+        """ASJ must participate in popmax for Ashkenazi founder variants (#1092)."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES ('rs76763715', '1', 155205634, 'T', 'C', "
+                    "0.002310653664434228, 0.0002461235546394296, "
+                    "0.0007228358295263979, 0.026884920634920637, "
+                    "0.0, 0.002075053634860901, 0.0012011457082139888, "
+                    "0.0, 4)"
+                )
+            )
+
+        annot = lookup_gnomad_by_rsids(["rs76763715"], gnomad_engine)["rs76763715"]
+
+        assert annot.af_global == pytest.approx(0.002310653664434228)
+        assert annot.af_asj == pytest.approx(0.026884920634920637)
+        assert annot.af_popmax == pytest.approx(0.026884920634920637)
+        assert annot.rare_flag is False
+        assert annot.ultra_rare_flag is False
+
+    def test_legacy_bundle_without_asj_still_reads(self) -> None:
+        """Older installed gnomAD bundles are tolerated until users update them."""
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE gnomad_af ("
+                    "rsid TEXT PRIMARY KEY, chrom TEXT NOT NULL, pos INTEGER NOT NULL, "
+                    "ref TEXT NOT NULL, alt TEXT NOT NULL, af_global REAL, af_afr REAL, "
+                    "af_amr REAL, af_eas REAL, af_eur REAL, af_fin REAL, af_sas REAL, "
+                    "homozygous_count INTEGER DEFAULT 0)"
+                )
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af VALUES "
+                    "('rs_legacy', '1', 100, 'A', 'G', 0.002, "
+                    "0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 1)"
+                )
+            )
+
+        annot = lookup_gnomad_by_rsids(["rs_legacy"], engine)["rs_legacy"]
+
+        assert annot.af_asj is None
+        assert annot.af_popmax == pytest.approx(0.008)
+
     def test_thresholds_match_constants(self):
         """Threshold constants match PRD specs."""
         assert RARE_AF_THRESHOLD == 0.01
@@ -604,6 +687,7 @@ class TestGnomADAnnotation:
         assert annot.af_eas is not None
         assert annot.af_eur is not None
         assert annot.af_fin is not None
+        assert annot.af_asj is not None
         assert annot.af_sas is not None
         assert isinstance(annot.homozygous_count, int)
         assert isinstance(annot.rare_flag, bool)
@@ -651,6 +735,18 @@ class TestComputeAfPopmax:
     def test_max_over_populations(self):
         # Global rare, but common in AFR → popmax is the ancestry max.
         assert compute_af_popmax(0.0052, 0.018, 0.0025, 0.0001, 0.0003, 0.0001, 0.002) == 0.018
+
+    def test_includes_asj(self):
+        assert compute_af_popmax(
+            0.002310653664434228,
+            0.0002461235546394296,
+            0.0007228358295263979,
+            0.0,
+            0.002075053634860901,
+            0.0012011457082139888,
+            0.0,
+            af_asj=0.026884920634920637,
+        ) == pytest.approx(0.026884920634920637)
 
     def test_all_none_is_none(self):
         assert compute_af_popmax(None, None, None, None, None, None, None) is None

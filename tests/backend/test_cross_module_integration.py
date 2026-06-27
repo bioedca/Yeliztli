@@ -137,7 +137,7 @@ def _create_gnomad_db(db_path: Path) -> None:
                         sa.text(
                             "INSERT INTO gnomad_af VALUES "
                             "(:rsid, :chrom, :pos, :ref, :alt, :af_global, "
-                            ":af_afr, :af_amr, :af_eas, :af_eur, :af_fin, "
+                            ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, "
                             ":af_sas, :homozygous_count)"
                         ),
                         {
@@ -149,6 +149,7 @@ def _create_gnomad_db(db_path: Path) -> None:
                             "af_global": float(row["af_global"]),
                             "af_afr": float(row["af_afr"]),
                             "af_amr": float(row["af_amr"]),
+                            "af_asj": float(row["af_asj"]),
                             "af_eas": float(row["af_eas"]),
                             "af_eur": float(row["af_eur"]),
                             "af_fin": float(row["af_fin"]),

@@ -6,8 +6,8 @@ fields per population, and builds an indexed SQLite database
 annotation engine.
 
 The ``gnomad_af`` table stores one row per variant with columns:
-rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_eas,
-af_eur, af_fin, af_sas, homozygous_count.
+rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj,
+af_eas, af_eur, af_fin, af_sas, homozygous_count.
 
 Usage::
 
@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS gnomad_af (
     af_global        REAL,
     af_afr           REAL,
     af_amr           REAL,
+    af_asj           REAL,
     af_eas           REAL,
     af_eur           REAL,
     af_fin           REAL,
@@ -103,9 +104,9 @@ CREATE_INDEXES_SQL = [
 _INSERT_GNOMAD_SQL = sa.text(
     "INSERT OR REPLACE INTO gnomad_af "
     "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
-    "af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
     "VALUES (:rsid, :chrom, :pos, :ref, :alt, :af_global, "
-    ":af_afr, :af_amr, :af_eas, :af_eur, :af_fin, :af_sas, "
+    ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, :af_sas, "
     ":homozygous_count)"
 )
 
@@ -125,6 +126,7 @@ class GnomADRecord:
     af_global: float | None = None
     af_afr: float | None = None
     af_amr: float | None = None
+    af_asj: float | None = None
     af_eas: float | None = None
     af_eur: float | None = None
     af_fin: float | None = None
@@ -153,6 +155,7 @@ class GnomADAnnotation:
     af_global: float | None
     af_afr: float | None
     af_amr: float | None
+    af_asj: float | None
     af_eas: float | None
     af_eur: float | None
     af_fin: float | None
@@ -171,6 +174,7 @@ def compute_af_popmax(
     af_eur: float | None = None,
     af_fin: float | None = None,
     af_sas: float | None = None,
+    af_asj: float | None = None,
 ) -> float | None:
     """Compute the population-maximum allele frequency (F15).
 
@@ -185,7 +189,9 @@ def compute_af_popmax(
         The maximum non-null allele frequency, or ``None`` if all are null.
     """
     present = [
-        af for af in (af_global, af_afr, af_amr, af_eas, af_eur, af_fin, af_sas) if af is not None
+        af
+        for af in (af_global, af_afr, af_amr, af_eas, af_eur, af_fin, af_sas, af_asj)
+        if af is not None
     ]
     return max(present) if present else None
 
@@ -335,6 +341,7 @@ def parse_gnomad_vcf_line(line: str) -> tuple[GnomADRecord | None, str | None]:
         af_global=_parse_float(info.get("AF")),
         af_afr=_parse_float(info.get("AF_afr")),
         af_amr=_parse_float(info.get("AF_amr")),
+        af_asj=_parse_float(info.get("AF_asj")),
         af_eas=_parse_float(info.get("AF_eas")),
         af_eur=_parse_float(info.get("AF_nfe")),
         af_fin=_parse_float(info.get("AF_fin")),
@@ -396,6 +403,7 @@ def iter_gnomad_vcf(
                 "af_global": record.af_global,
                 "af_afr": record.af_afr,
                 "af_amr": record.af_amr,
+                "af_asj": record.af_asj,
                 "af_eas": record.af_eas,
                 "af_eur": record.af_eur,
                 "af_fin": record.af_fin,
@@ -416,6 +424,20 @@ def _create_gnomad_table(engine: sa.Engine) -> None:
     """Create only the gnomad_af table (no indexes). Safe to call repeatedly."""
     with engine.begin() as conn:
         conn.execute(sa.text(CREATE_TABLE_SQL))
+        existing_cols = _gnomad_table_columns(conn)
+        if "af_asj" not in existing_cols:
+            conn.execute(sa.text("ALTER TABLE gnomad_af ADD COLUMN af_asj REAL"))
+
+
+def _gnomad_table_columns(conn: sa.Connection) -> set[str]:
+    """Return column names for the local gnomad_af table."""
+    return {row[1] for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))}
+
+
+def _gnomad_af_select_sql(conn: sa.Connection) -> str:
+    """Return AF select list, tolerating pre-ASJ read-only bundles."""
+    af_asj = "af_asj" if "af_asj" in _gnomad_table_columns(conn) else "NULL AS af_asj"
+    return f"af_global, af_afr, af_amr, {af_asj}, af_eas, af_eur, af_fin, af_sas"
 
 
 def _create_gnomad_indexes(engine: sa.Engine) -> None:
@@ -535,6 +557,7 @@ def load_gnomad_from_csv(
                         "af_global": _parse_float(row.get("af_global")),
                         "af_afr": _parse_float(row.get("af_afr")),
                         "af_amr": _parse_float(row.get("af_amr")),
+                        "af_asj": _parse_float(row.get("af_asj")),
                         "af_eas": _parse_float(row.get("af_eas")),
                         "af_eur": _parse_float(row.get("af_eur")),
                         "af_fin": _parse_float(row.get("af_fin")),
@@ -626,14 +649,15 @@ def lookup_gnomad_by_rsids(
     results: dict[str, GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
+        af_select = _gnomad_af_select_sql(conn)
         for i in range(0, len(rsids), LOOKUP_BATCH_SIZE):
             batch = rsids[i : i + LOOKUP_BATCH_SIZE]
             placeholders = ", ".join(f":r{j}" for j in range(len(batch)))
             params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
 
             stmt = sa.text(
-                "SELECT rsid, af_global, af_afr, af_amr, af_eas, af_eur, "  # noqa: S608
-                f"af_fin, af_sas, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders})"
+                "SELECT rsid, "  # noqa: S608
+                f"{af_select}, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders})"
             )
             rows = conn.execute(stmt, params).fetchall()
 
@@ -646,6 +670,7 @@ def lookup_gnomad_by_rsids(
                     row.af_eur,
                     row.af_fin,
                     row.af_sas,
+                    af_asj=row.af_asj,
                 )
                 rare, ultra_rare = compute_rare_flags(popmax)
                 results[row.rsid] = GnomADAnnotation(
@@ -653,6 +678,7 @@ def lookup_gnomad_by_rsids(
                     af_global=row.af_global,
                     af_afr=row.af_afr,
                     af_amr=row.af_amr,
+                    af_asj=row.af_asj,
                     af_eas=row.af_eas,
                     af_eur=row.af_eur,
                     af_fin=row.af_fin,
@@ -688,6 +714,7 @@ def lookup_gnomad_by_positions(
     results: dict[tuple[str, int, str, str], GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
+        af_select = _gnomad_af_select_sql(conn)
         for i in range(0, len(positions), POSITION_LOOKUP_BATCH_SIZE):
             batch = positions[i : i + POSITION_LOOKUP_BATCH_SIZE]
 
@@ -705,8 +732,8 @@ def lookup_gnomad_by_positions(
 
             where_clause = " OR ".join(conditions)
             stmt = sa.text(
-                "SELECT rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "  # noqa: S608
-                "af_eas, af_eur, af_fin, af_sas, homozygous_count "
+                "SELECT rsid, chrom, pos, ref, alt, "  # noqa: S608
+                f"{af_select}, homozygous_count "
                 f"FROM gnomad_af WHERE {where_clause}"
             )
             rows = conn.execute(stmt, params).fetchall()
@@ -720,6 +747,7 @@ def lookup_gnomad_by_positions(
                     row.af_eur,
                     row.af_fin,
                     row.af_sas,
+                    af_asj=row.af_asj,
                 )
                 rare, ultra_rare = compute_rare_flags(popmax)
                 key = (row.chrom, row.pos, row.ref, row.alt)
@@ -728,6 +756,7 @@ def lookup_gnomad_by_positions(
                     af_global=row.af_global,
                     af_afr=row.af_afr,
                     af_amr=row.af_amr,
+                    af_asj=row.af_asj,
                     af_eas=row.af_eas,
                     af_eur=row.af_eur,
                     af_fin=row.af_fin,

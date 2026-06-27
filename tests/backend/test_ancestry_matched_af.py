@@ -39,6 +39,9 @@ class TestGetAncestryMatchedAfColumn:
     def test_amr_maps_to_gnomad_af_amr(self) -> None:
         assert get_ancestry_matched_af_column("AMR") == "gnomad_af_amr"
 
+    def test_asj_maps_to_gnomad_af_asj(self) -> None:
+        assert get_ancestry_matched_af_column("ASJ") == "gnomad_af_asj"
+
     def test_eas_maps_to_gnomad_af_eas(self) -> None:
         assert get_ancestry_matched_af_column("EAS") == "gnomad_af_eas"
 
@@ -149,6 +152,7 @@ def _seed_annotated_variant_with_af(
     af_eur: float = 0.12,
     af_eas: float = 0.08,
     af_amr: float = 0.14,
+    af_asj: float = 0.13,
     af_sas: float = 0.10,
 ) -> None:
     """Insert a single annotated variant with per-population gnomAD AFs."""
@@ -166,6 +170,7 @@ def _seed_annotated_variant_with_af(
                     "gnomad_af_eur": af_eur,
                     "gnomad_af_eas": af_eas,
                     "gnomad_af_amr": af_amr,
+                    "gnomad_af_asj": af_asj,
                     "gnomad_af_sas": af_sas,
                     "annotation_coverage": 4,
                 }
@@ -235,6 +240,20 @@ class TestAncestryMatchedAfIntegration:
                 sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
             ).fetchone()
         assert getattr(row, col) == pytest.approx(0.20)
+
+    def test_asj_user_gets_asj_frequency(self, sample_engine: sa.Engine) -> None:
+        _seed_annotated_variant_with_af(sample_engine, af_global=0.0023, af_asj=0.0269)
+        _seed_ancestry_finding(sample_engine, "ASJ")
+
+        ancestry = get_inferred_ancestry(sample_engine)
+        col = get_ancestry_matched_af_column(ancestry)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
+            ).fetchone()
+        assert col == "gnomad_af_asj"
+        assert getattr(row, col) == pytest.approx(0.0269)
 
     def test_eas_user_gets_eas_frequency(self, sample_engine: sa.Engine) -> None:
         _seed_annotated_variant_with_af(sample_engine, af_eas=0.08)

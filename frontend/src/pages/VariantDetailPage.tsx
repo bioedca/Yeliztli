@@ -282,6 +282,7 @@ function PopulationTab({ variant }: { variant: VariantDetail }) {
     { label: "Global", code: "global", af: variant.gnomad_af_global },
     { label: "African", code: "afr", af: variant.gnomad_af_afr },
     { label: "Latino/Admixed", code: "amr", af: variant.gnomad_af_amr },
+    { label: "Ashkenazi Jewish", code: "asj", af: variant.gnomad_af_asj ?? null },
     { label: "East Asian", code: "eas", af: variant.gnomad_af_eas },
     { label: "European", code: "eur", af: variant.gnomad_af_eur },
     { label: "Finnish", code: "fin", af: variant.gnomad_af_fin },
