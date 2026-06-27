@@ -178,6 +178,29 @@ class TestMonogenicDetection:
         mono = detect_fh_monogenic(sample_engine)
         assert [m.gene for m in mono] == ["APOB"]
 
+    def test_malformed_detail_json_falls_back_to_fh_gene_detection(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cardiovascular",
+                        "category": "monogenic_variant",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "zygosity": "het",
+                        "evidence_level": 4,
+                        "finding_text": "LDLR P/LP",
+                        "detail_json": "[]",
+                    }
+                ],
+            )
+
+        mono = detect_fh_monogenic(sample_engine)
+        assert [m.gene for m in mono] == ["LDLR"]
+
 
 class TestApobFdb:
     def test_pathogenic_carrier(self, sample_engine: sa.Engine) -> None:

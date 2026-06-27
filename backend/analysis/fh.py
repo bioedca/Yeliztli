@@ -91,6 +91,8 @@ def _is_fh_monogenic_finding(row: sa.Row) -> bool:
         detail = json.loads(row.detail_json)
     except (json.JSONDecodeError, TypeError):
         return True
+    if not isinstance(detail, dict):
+        return True
 
     cardiovascular_category = detail.get("cardiovascular_category")
     if cardiovascular_category is None:
