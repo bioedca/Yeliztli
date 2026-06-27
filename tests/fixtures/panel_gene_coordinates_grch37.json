@@ -10,6 +10,24 @@
   "aliases": {
     "MCT1": "SLC16A1"
   },
+  "composites": {
+    "CAV1/CAV2": [
+      "CAV1",
+      "CAV2"
+    ],
+    "IL2/IL21": [
+      "IL2",
+      "IL21"
+    ],
+    "MCM6/LCT": [
+      "MCM6",
+      "LCT"
+    ],
+    "NBPF3/ALPL": [
+      "NBPF3",
+      "ALPL"
+    ]
+  },
   "genes": {
     "ABCA7": {
       "assembly": "GRCh37",

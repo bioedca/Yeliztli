@@ -127,7 +127,12 @@ def _rsid_coordinate_fixture() -> dict[str, Any]:
     return _load_json(RSID_COORDINATE_FIXTURE)
 
 
-def _declared_gene_symbols(declared_gene: str, aliases: dict[str, str]) -> list[str]:
+def _declared_gene_symbols(
+    declared_gene: str, aliases: dict[str, str], composites: dict[str, list[str]]
+) -> list[str]:
+    if declared_gene in composites:
+        return list(composites[declared_gene])
+
     symbols: list[str] = []
     for part in declared_gene.split("/"):
         part = part.strip()
@@ -172,9 +177,20 @@ class TestPanelDeclaredGeneCoordinates:
         assert isinstance(aliases, dict)
         assert aliases.get("MCT1") == "SLC16A1"
 
+        composites = fixture.get("composites")
+        assert isinstance(composites, dict)
+        assert composites.get("IL2/IL21") == ["IL2", "IL21"]
+        for declared_gene, symbols in composites.items():
+            assert isinstance(declared_gene, str) and declared_gene
+            assert isinstance(symbols, list) and symbols, declared_gene
+            assert all(isinstance(symbol, str) and symbol for symbol in symbols), declared_gene
+
         genes = fixture.get("genes")
         assert isinstance(genes, dict)
         assert len(genes) >= 100, "declared-gene fixture coverage regressed"
+        for declared_gene, symbols in composites.items():
+            for symbol in symbols:
+                assert symbol in genes, f"{declared_gene} -> {symbol}"
         for symbol, rec in genes.items():
             assert rec.get("assembly") == "GRCh37", symbol
             assert isinstance(rec.get("chrom"), str) and rec["chrom"], symbol
@@ -209,10 +225,11 @@ class TestPanelDeclaredGeneCoordinates:
         fixture = _gene_fixture()
         genes = fixture["genes"]
         aliases = fixture["aliases"]
+        composites = fixture["composites"]
 
         missing: list[str] = []
         for row in _panel_gene_rows():
-            for symbol in _declared_gene_symbols(row.declared_gene, aliases):
+            for symbol in _declared_gene_symbols(row.declared_gene, aliases, composites):
                 if symbol not in genes:
                     missing.append(
                         f"{row.panel}: {row.context}: {row.rsid} declares "
@@ -229,13 +246,14 @@ class TestPanelDeclaredGeneCoordinates:
         gene_fixture = _gene_fixture()
         genes = gene_fixture["genes"]
         aliases = gene_fixture["aliases"]
+        composites = gene_fixture["composites"]
         allowed = gene_fixture["allowed_non_overlaps"]
         rsid_coords = _rsid_coordinate_fixture()["rsids"]
 
         offenders: list[str] = []
         for row in _panel_gene_rows():
             rsid_coord = rsid_coords[row.rsid]
-            symbols = _declared_gene_symbols(row.declared_gene, aliases)
+            symbols = _declared_gene_symbols(row.declared_gene, aliases, composites)
             overlapping = [symbol for symbol in symbols if _overlaps(rsid_coord, genes[symbol])]
             if overlapping or row.key in allowed:
                 continue
@@ -257,6 +275,7 @@ class TestPanelDeclaredGeneCoordinates:
         gene_fixture = _gene_fixture()
         genes = gene_fixture["genes"]
         aliases = gene_fixture["aliases"]
+        composites = gene_fixture["composites"]
         allowed = gene_fixture["allowed_non_overlaps"]
         rsid_coords = _rsid_coordinate_fixture()["rsids"]
         rows = {row.key: row for row in _panel_gene_rows()}
@@ -268,7 +287,7 @@ class TestPanelDeclaredGeneCoordinates:
             if row is None:
                 stale.append(key)
                 continue
-            symbols = _declared_gene_symbols(row.declared_gene, aliases)
+            symbols = _declared_gene_symbols(row.declared_gene, aliases, composites)
             rsid_coord = rsid_coords[row.rsid]
             overlapping = [symbol for symbol in symbols if _overlaps(rsid_coord, genes[symbol])]
             if overlapping:
@@ -287,6 +306,7 @@ class TestPanelDeclaredGeneCoordinates:
         gene_fixture = _gene_fixture()
         genes = gene_fixture["genes"]
         aliases = gene_fixture["aliases"]
+        composites = gene_fixture["composites"]
         allowed = gene_fixture["allowed_non_overlaps"]
         rsid_coords = _rsid_coordinate_fixture()["rsids"]
         rows = {row.key: row for row in _panel_gene_rows()}
@@ -303,7 +323,7 @@ class TestPanelDeclaredGeneCoordinates:
             ]
             assert matches, f"{panel}|{rsid}|{declared_gene}"
             for row in matches:
-                symbols = _declared_gene_symbols(row.declared_gene, aliases)
+                symbols = _declared_gene_symbols(row.declared_gene, aliases, composites)
                 assert any(
                     _overlaps(rsid_coords[row.rsid], genes[symbol]) for symbol in symbols
                 ), row.key
