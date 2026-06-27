@@ -466,6 +466,14 @@ class TestGeneMetadata:
         for gene in panel.genes:
             assert gene.notes, f"{gene.gene_symbol} has no notes"
 
+    def test_sdhd_has_user_facing_clinical_caveat(self, panel: CancerPanel) -> None:
+        sdhd = panel.get_gene("SDHD")
+        assert sdhd is not None
+        assert "parent-of-origin" in sdhd.clinical_caveat
+        assert "paternal inheritance" in sdhd.clinical_caveat
+        assert "parent of origin" in sdhd.clinical_caveat
+        assert {"15064708", "23493432"} <= set(sdhd.pmids)
+
 
 # ── Dataclass properties ─────────────────────────────────────────────────
 

@@ -489,8 +489,9 @@
         "rs587783368",
         "rs104893901"
       ],
-      "pmids": ["20301715", "24344213"],
-      "notes": "Parent-of-origin effect: disease penetrance primarily with paternal inheritance."
+      "pmids": ["20301715", "24344213", "15064708", "23493432"],
+      "notes": "Parent-of-origin effect: disease penetrance primarily with paternal inheritance.",
+      "clinical_caveat": "Clinical caveat: SDHD has a parent-of-origin effect; disease penetrance is primarily associated with paternal inheritance. Array data do not determine parent of origin, so clinical/genetic confirmation and family-history review are needed."
     },
     {
       "gene_symbol": "BAP1",

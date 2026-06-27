@@ -14,6 +14,7 @@ export interface CancerVariant {
   cancer_types: string[]
   inheritance: string
   clinvar_low_penetrance_or_risk_allele?: boolean
+  clinical_caveat?: string | null
   evidence_level: number
   cross_links: string[]
   pmids: string[]

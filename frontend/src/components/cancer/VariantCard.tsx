@@ -115,6 +115,16 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
         </p>
       )}
 
+      {variant.clinical_caveat && (
+        <div
+          className="mb-2 flex items-start gap-2 border-l-2 border-amber-500 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+          data-testid="cancer-clinical-caveat"
+        >
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+          <p>{variant.clinical_caveat}</p>
+        </div>
+      )}
+
       {/* Footer: evidence stars + inheritance */}
       <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
         <EvidenceStars level={variant.evidence_level} />

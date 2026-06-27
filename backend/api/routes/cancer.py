@@ -54,6 +54,7 @@ class CancerVariantResponse(BaseModel):
     cross_links: list[str] = []
     pmids: list[str] = []
     clinvar_low_penetrance_or_risk_allele: bool = False
+    clinical_caveat: str | None = None
 
 
 class CancerVariantsListResponse(BaseModel):
@@ -209,6 +210,7 @@ def _fetch_cancer_findings(
                 "clinvar_low_penetrance_or_risk_allele": detail.get(
                     "clinvar_low_penetrance_or_risk_allele", False
                 ),
+                "clinical_caveat": detail.get("clinical_caveat"),
             }
         )
 

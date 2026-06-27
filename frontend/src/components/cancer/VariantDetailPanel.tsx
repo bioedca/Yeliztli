@@ -156,6 +156,19 @@ export default function VariantDetailPanel({
           </section>
         )}
 
+        {variant.clinical_caveat && (
+          <section className="mb-5">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Clinical Caveat</h3>
+            <div
+              className="flex items-start gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+              data-testid="cancer-clinical-caveat-panel"
+            >
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+              <p>{variant.clinical_caveat}</p>
+            </div>
+          </section>
+        )}
+
         {/* PubMed references */}
         {variant.pmids.length > 0 && (
           <section className="mb-5">

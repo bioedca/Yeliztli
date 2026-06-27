@@ -88,6 +88,7 @@ class CancerGene:
     expected_clinvar_rsids: list[str]
     pmids: list[str]
     notes: str
+    clinical_caveat: str = ""
 
     @property
     def is_dual_role(self) -> bool:
@@ -174,6 +175,7 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
                     expected_clinvar_rsids=gene_data.get("expected_clinvar_rsids", []),
                     pmids=gene_data.get("pmids", []),
                     notes=gene_data.get("notes", ""),
+                    clinical_caveat=gene_data.get("clinical_caveat", ""),
                 )
             )
         except KeyError as e:
@@ -225,6 +227,7 @@ class CancerVariantResult:
     revel: float | None = None
     consequence: str | None = None
     clinvar_low_penetrance_or_risk_allele: bool = False
+    clinical_caveat: str = ""
 
 
 @dataclass
@@ -382,6 +385,7 @@ def extract_cancer_variants(
                 revel=row.revel,
                 consequence=row.consequence,
                 clinvar_low_penetrance_or_risk_allele=lower_penetrance,
+                clinical_caveat=gene_info.clinical_caveat,
             )
         )
 
@@ -418,29 +422,41 @@ def _cancer_finding_text(variant: CancerVariantResult, status: str) -> str:
     syndrome_text = ", ".join(variant.syndromes) if variant.syndromes else "Cancer predisposition"
     sig = variant.clinvar_significance
     head = f"{variant.gene_symbol} {variant.rsid} ({variant.genotype})"
+    caveat = variant.clinical_caveat
     if variant.clinvar_low_penetrance_or_risk_allele:
-        return (
+        return _append_clinical_caveat(
             f"{head} — {sig} for {syndrome_text}. ClinVar marks this as "
             "lower-penetrance/risk-allele, so it is reported separately from "
-            "high-penetrance P/LP cancer predisposition variants."
+            "high-penetrance P/LP cancer predisposition variants.",
+            caveat,
         )
     if status == DISEASE_CARRIER:
-        return (
+        return _append_clinical_caveat(
             f"{head} — {sig}, heterozygous carrier. {syndrome_text} is autosomal "
             f"recessive and requires biallelic (two-copy) variants, so a single "
             f"pathogenic allele is a carrier state — not an affected diagnosis. "
             f"Monoallelic carriers have at most a modest, still-debated increase in "
             f"colorectal cancer risk; array data may not exclude a second untyped "
-            f"allele, so clinical/genetic confirmation is needed if indicated."
+            f"allele, so clinical/genetic confirmation is needed if indicated.",
+            caveat,
         )
     if status == DISEASE_POSSIBLE_BIALLELIC:
-        return (
+        return _append_clinical_caveat(
             f"{head} — {sig}, heterozygous (one of multiple {variant.gene_symbol} "
             f"pathogenic alleles). {syndrome_text} is autosomal recessive; genotype "
             f"data cannot phase these alleles, so biallelic (compound-heterozygous) "
-            f"status is possible but unconfirmed and requires clinical confirmation."
+            f"status is possible but unconfirmed and requires clinical confirmation.",
+            caveat,
         )
-    return f"{head} — {sig} for {syndrome_text}"
+    return _append_clinical_caveat(f"{head} — {sig} for {syndrome_text}", caveat)
+
+
+def _append_clinical_caveat(text: str, caveat: str) -> str:
+    """Append a curated, user-facing caveat without exposing internal panel notes."""
+    if not caveat:
+        return text
+    separator = " " if text.endswith((".", "!", "?")) else ". "
+    return f"{text}{separator}{caveat}"
 
 
 def store_cancer_findings(
@@ -501,6 +517,8 @@ def store_cancer_findings(
             # Never mutates evidence_level / clinvar_significance below.
             "insilico": insilico_block(v.revel, v.consequence),
         }
+        if v.clinical_caveat:
+            detail["clinical_caveat"] = v.clinical_caveat
         # Optional gnomAD gene-constraint context (only when reference_engine given).
         if reference_engine is not None:
             detail["gene_constraint"] = constraints.get(v.gene_symbol)

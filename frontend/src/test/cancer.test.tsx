@@ -45,6 +45,25 @@ const TP53_VARIANT: CancerVariant = {
   pmids: ["19454582"],
 }
 
+const SDHD_VARIANT: CancerVariant = {
+  rsid: "rs28934575",
+  gene_symbol: "SDHD",
+  genotype: "C/T",
+  zygosity: "het",
+  clinvar_significance: "Pathogenic",
+  clinvar_accession: "VCV000013575",
+  clinvar_review_stars: 2,
+  clinvar_conditions: "Paraganglioma-Pheochromocytoma Syndrome",
+  syndromes: ["Paraganglioma-Pheochromocytoma Syndrome"],
+  cancer_types: ["Paraganglioma", "Pheochromocytoma"],
+  inheritance: "AD",
+  clinical_caveat:
+    "Clinical caveat: SDHD has a parent-of-origin effect; disease penetrance is primarily associated with paternal inheritance. Array data do not determine parent of origin, so clinical/genetic confirmation and family-history review are needed.",
+  evidence_level: 4,
+  cross_links: [],
+  pmids: ["20301715", "15064708", "23493432"],
+}
+
 const BREAST_PRS: CancerPRS = {
   trait: "breast_cancer",
   name: "Breast Cancer",
@@ -222,6 +241,13 @@ describe("VariantCard", () => {
     expect(
       screen.getByText("Hereditary Breast and Ovarian Cancer"),
     ).toBeInTheDocument()
+  })
+
+  it("renders clinical caveats", () => {
+    render(<VariantCard variant={SDHD_VARIANT} onClick={onClick} sampleId={1} />)
+    const caveat = screen.getByTestId("cancer-clinical-caveat")
+    expect(caveat).toHaveTextContent("parent-of-origin")
+    expect(caveat).toHaveTextContent("paternal inheritance")
   })
 
   it("renders evidence stars", () => {
@@ -468,6 +494,15 @@ describe("VariantDetailPanel", () => {
     )
     expect(screen.getByText("PMID:20301425")).toBeInTheDocument()
     expect(screen.getByText("PMID:22006311")).toBeInTheDocument()
+  })
+
+  it("renders clinical caveats", () => {
+    render(
+      <VariantDetailPanel variant={SDHD_VARIANT} sampleId={1} onClose={onClose} />,
+    )
+    const caveat = screen.getByTestId("cancer-clinical-caveat-panel")
+    expect(caveat).toHaveTextContent("parent-of-origin")
+    expect(caveat).toHaveTextContent("paternal inheritance")
   })
 
   it("renders BRCA cross-link banner", () => {

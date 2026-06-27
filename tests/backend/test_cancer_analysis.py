@@ -383,6 +383,35 @@ class TestExtractCancerVariants:
         brca1 = [v for v in result.variants if v.rsid == "rs80357906"][0]
         assert len(brca1.pmids) > 0
 
+    def test_sdhd_clinical_caveat_extracted(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs28934575",
+                    "chrom": "11",
+                    "pos": 111959664,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "SDHD",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000013575",
+                    "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert len(result.variants) == 1
+        variant = result.variants[0]
+        assert variant.gene_symbol == "SDHD"
+        assert "parent-of-origin" in variant.clinical_caveat
+        assert "paternal inheritance" in variant.clinical_caveat
+
     def test_empty_sample_returns_no_variants(
         self, panel: CancerPanel, empty_sample: sa.Engine
     ) -> None:
@@ -791,6 +820,43 @@ class TestStoreCancerFindings:
             ).fetchone()
         detail = json.loads(row.detail_json)
         assert detail["genotype"] == "CT"
+
+    def test_sdhd_parent_of_origin_caveat_stored_and_fetched(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.cancer import _fetch_cancer_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs28934575",
+                    "chrom": "11",
+                    "pos": 111959664,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "SDHD",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000013575",
+                    "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
+                    "annotation_coverage": 2,
+                },
+            )
+        result = extract_cancer_variants(panel, sample_engine)
+        store_cancer_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs28934575")).one()
+
+        detail = json.loads(row.detail_json)
+        assert "parent-of-origin" in row.finding_text
+        assert "paternal inheritance" in row.finding_text
+        assert detail["clinical_caveat"] == result.variants[0].clinical_caveat
+        assert "parent of origin" in detail["clinical_caveat"]
+
+        fetched = _fetch_cancer_findings(sample_engine)
+        assert fetched[0]["clinical_caveat"] == detail["clinical_caveat"]
 
     def test_clears_previous_findings_on_rerun(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
