@@ -36,6 +36,7 @@ from backend.services.sex_inference import (
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
     THRESHOLD_X_HET_DIPLOID,
+    THRESHOLD_Y_PAR_NOISE,
     compute_sex_signals,
 )
 
@@ -66,6 +67,7 @@ Y_PRESENT_RATE = 0.30
 POSSIBLE_XXY = "possible_xxy"
 NO_SIGNAL = "no_aneuploidy_signal"
 INDETERMINATE = "indeterminate"
+MANUAL_REVIEW = "manual_review"
 
 
 @dataclass(frozen=True)
@@ -93,7 +95,13 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         x_het_rate = s.x_nonpar_het / s.x_nonpar_typed
         two_x = x_het_rate >= THRESHOLD_X_HET_DIPLOID
         y_present = s.y_rate > Y_PRESENT_RATE
-        outcome = POSSIBLE_XXY if (two_x and y_present) else NO_SIGNAL
+        y_discordant = s.y_rate > THRESHOLD_Y_PAR_NOISE
+        if two_x and y_present:
+            outcome = POSSIBLE_XXY
+        elif two_x and y_discordant:
+            outcome = MANUAL_REVIEW
+        else:
+            outcome = NO_SIGNAL
 
     return AneuploidyResult(
         outcome=outcome,
@@ -121,6 +129,15 @@ def _finding_text(result: AneuploidyResult) -> str:
             "The sex-chromosome aneuploidy screen is indeterminate — too few X or Y "
             "probes were typed on this array to judge chromosome copy number. No "
             "screen result can be given, and this does not rule anything in or out."
+        )
+    if result.outcome == MANUAL_REVIEW:
+        return (
+            "The sex-chromosome aneuploidy screen needs manual review: the sample "
+            "has a diploid-X signal together with a chrY signal above the calibrated "
+            "noise floor, but not strong enough for the XXY screen threshold. This "
+            "discordant X/Y pattern is not a clean negative result. The screen is "
+            "not a diagnosis and should be interpreted with clinical confirmation "
+            "or orthogonal chromosome-copy-number evidence if relevant."
         )
     return (
         "No XXY (Klinefelter) genotype signature was detected. Note this screen can "

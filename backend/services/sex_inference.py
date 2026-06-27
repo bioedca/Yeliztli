@@ -78,6 +78,10 @@ _PAR1: tuple[int, int] = (60001, 2_699_520)
 _PAR2: tuple[int, int] = (154_931_044, 155_260_560)
 _THRESHOLD_XY_CONFIRM: float = 0.30
 _THRESHOLD_PAR_NOISE: float = 0.10
+# Public because the sex-aneuploidy screen must use the same chrY discordance
+# floor for diploid-X samples; otherwise it can emit a clean negative where this
+# classifier requires manual review.
+THRESHOLD_Y_PAR_NOISE: float = _THRESHOLD_PAR_NOISE
 
 # Non-PAR chrX heterozygosity *rate* thresholds (issue #519). A normal 46,XY
 # male's non-PAR X is hemizygous, so his observed X-het rate is ≈0 — only

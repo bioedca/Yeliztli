@@ -11,9 +11,10 @@ syndrome)**.
 
 ## What you'll see
 
-A single result: **possible XXY**, **no aneuploidy signal**, or **indeterminate** (when probe
-coverage is insufficient), along with the supporting counts (heterozygous X calls and Y-probe
-presence). It is framed as a **screen that requires clinical karyotype confirmation**.
+A single result: **possible XXY**, **manual review**, **no aneuploidy signal**, or
+**indeterminate** (when probe coverage is insufficient), along with the supporting counts
+(heterozygous X calls and Y-probe presence). It is framed as a **screen that requires clinical
+karyotype confirmation**.
 
 ## Good to know
 
@@ -22,4 +23,5 @@ presence). It is framed as a **screen that requires clinical karyotype confirmat
 - From array genotypes, **XXY is the only sex-chromosome aneuploidy reliably detectable**. It
   cannot detect Turner syndrome (45,X) or XYY (those need different signal types), and XXX is
   indistinguishable from typical XX.
-- Minimum probe-count thresholds guard against false calls from stray probes.
+- Minimum probe-count thresholds guard against false calls from stray probes, and discordant
+  X/Y signals in the manual-review band are not reported as clean negative screens.

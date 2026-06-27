@@ -12,6 +12,7 @@ import sqlalchemy as sa
 
 from backend.analysis.sex_aneuploidy import (
     INDETERMINATE,
+    MANUAL_REVIEW,
     MODULE,
     NO_SIGNAL,
     POSSIBLE_XXY,
@@ -19,6 +20,7 @@ from backend.analysis.sex_aneuploidy import (
     store_aneuploidy_findings,
 )
 from backend.db.tables import findings, raw_variants
+from backend.services.sex_inference import infer_biological_sex
 
 
 def _seed(engine: sa.Engine, rows: list[dict]) -> None:
@@ -72,7 +74,7 @@ class TestScreen:
 
     def test_typical_xx_no_signal(self, sample_engine: sa.Engine) -> None:
         # X heterozygous, but chrY evaluable and NOT present (mostly no-call).
-        _seed(sample_engine, _x_probes(60, 60) + _y_probes(8, 60))
+        _seed(sample_engine, _x_probes(60, 60) + _y_probes(6, 60))
         r = screen_aneuploidy(sample_engine)
         assert r.outcome == NO_SIGNAL
 
@@ -123,6 +125,20 @@ class TestScreen:
         r = screen_aneuploidy(sample_engine)
         assert r.outcome == POSSIBLE_XXY
 
+    def test_diploid_x_with_intermediate_y_signal_needs_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Diploid-X plus chrY above the shared PAR-noise floor must not become a
+        clean negative screen while sex inference asks for manual review (#1130)."""
+        _seed(sample_engine, _x_probes(60, 60) + _y_probes(12, 48))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == MANUAL_REVIEW
+        assert r.x_evaluable and r.y_evaluable
+        assert r.y_rate == 0.2
+        assert infer_biological_sex(sample_engine) == "manual_review"
+
     def test_single_stray_y_probe_is_indeterminate(self, sample_engine: sa.Engine) -> None:
         # The golden-fixture shape: XX-like X het + ONE Y probe → must NOT call XXY.
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(1))
@@ -159,6 +175,21 @@ class TestStorage:
             row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).fetchone()
         text = row.finding_text.lower()
         assert "turner" in text and "xyy" in text
+
+    def test_manual_review_screen_does_not_read_as_negative(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, _x_probes(60, 60) + _y_probes(12, 48))
+        r = screen_aneuploidy(sample_engine)
+        store_aneuploidy_findings(r, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).fetchone()
+
+        text = row.finding_text.lower()
+        assert row.conditions == "Sex-chromosome aneuploidy screen: manual_review"
+        assert "manual review" in text
+        assert "not a clean negative" in text
+        assert "no xxy" not in text
 
     def test_store_is_idempotent(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(60))
