@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PhyloTree mtDNA + ISOGG Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5 array coverage. Provides 2-3 levels of haplogroup resolution.",
   "build": "GRCh37",
   "sources": {
@@ -26,9 +26,9 @@
           "haplogroup": "L0",
           "defining_snps": [
             {
-              "rsid": "i5002758",
-              "pos": 2758,
-              "allele": "A"
+              "rsid": "i5001048",
+              "pos": 1048,
+              "allele": "T"
             },
             {
               "rsid": "i5005442",
@@ -36,19 +36,19 @@
               "allele": "C"
             },
             {
-              "rsid": "i5007146",
-              "pos": 7146,
-              "allele": "G"
+              "rsid": "i5006185",
+              "pos": 6185,
+              "allele": "C"
             },
             {
-              "rsid": "i5008468",
-              "pos": 8468,
+              "rsid": "i5009042",
+              "pos": 9042,
               "allele": "T"
             },
             {
-              "rsid": "i5014203",
-              "pos": 14203,
-              "allele": "G"
+              "rsid": "i5010589",
+              "pos": 10589,
+              "allele": "A"
             }
           ],
           "children": [
@@ -546,12 +546,12 @@
             {
               "rsid": "i5001018",
               "pos": 1018,
-              "allele": "A"
+              "allele": "G"
             },
             {
               "rsid": "i5016311",
               "pos": 16311,
-              "allele": "C"
+              "allele": "T"
             }
           ],
           "children": [
@@ -1143,27 +1143,17 @@
                 {
                   "rsid": "i5008701",
                   "pos": 8701,
-                  "allele": "G"
+                  "allele": "A"
                 },
                 {
                   "rsid": "i5009540",
                   "pos": 9540,
-                  "allele": "C"
-                },
-                {
-                  "rsid": "rs1000318",
-                  "pos": 10740,
                   "allele": "T"
                 },
                 {
                   "rsid": "i5010873",
                   "pos": 10873,
-                  "allele": "C"
-                },
-                {
-                  "rsid": "i5015301",
-                  "pos": 15301,
-                  "allele": "A"
+                  "allele": "T"
                 }
               ],
               "children": [
@@ -1557,9 +1547,9 @@
                       "allele": "C"
                     },
                     {
-                      "rsid": "rs1000622",
-                      "pos": 13824,
-                      "allele": "T"
+                      "rsid": "i5016223",
+                      "pos": 16223,
+                      "allele": "C"
                     }
                   ],
                   "children": [
@@ -4592,15 +4582,15 @@
   },
   "stats": {
     "mt_haplogroups": 192,
-    "mt_defining_snps": 375,
-    "mt_unique_snps": 288,
+    "mt_defining_snps": 373,
+    "mt_unique_snps": 284,
     "mt_max_depth": 9,
     "y_haplogroups": 129,
     "y_defining_snps": 163,
     "y_unique_snps": 99,
     "y_max_depth": 12,
     "total_haplogroups": 321,
-    "total_defining_snps": 538,
-    "total_unique_snps": 387
+    "total_defining_snps": 536,
+    "total_unique_snps": 383
   }
 }

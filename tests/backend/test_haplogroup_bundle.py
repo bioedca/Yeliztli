@@ -137,6 +137,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
+        assert bundle["version"] == "1.0.1"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -291,6 +292,29 @@ class TestMtDNATree:
         assert "H" in path
         assert "H1" in path
         assert path[-1] == "H1a"
+
+    def test_macro_haplogroup_alleles_follow_phylotree_direction(self, mt_tree: dict) -> None:
+        """#1080: macro mtDNA alleles must use the forward evolutionary allele."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        assert allele_map("L0") == {
+            1048: "T",
+            5442: "C",
+            6185: "C",
+            9042: "T",
+            10589: "A",
+        }
+        assert allele_map("L3") == {769: "G", 1018: "G", 16311: "T"}
+        assert allele_map("N") == {
+            8701: "A",
+            9540: "T",
+            10873: "T",
+        }
+        assert allele_map("R") == {12705: "C", 16223: "C"}
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""

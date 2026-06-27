@@ -44,7 +44,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.0.0"
+BUNDLE_VERSION = "1.0.1"
 BUILD = "GRCh37"
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
@@ -208,11 +208,13 @@ def build_mt_tree() -> dict[str, Any]:
     l0 = _node(
         "L0",
         [
-            _mt_snp("i5002758", 2758, "A"),
+            # PhyloTree Build 17 gives mutations in forward evolutionary direction;
+            # keep an array-covered subset of the L0 motif here.
+            _mt_snp("i5001048", 1048, "T"),
             _mt_snp("i5005442", 5442, "C"),
-            _mt_snp("i5007146", 7146, "G"),
-            _mt_snp("i5008468", 8468, "T"),
-            _mt_snp("i5014203", 14203, "G"),
+            _mt_snp("i5006185", 6185, "C"),
+            _mt_snp("i5009042", 9042, "T"),
+            _mt_snp("i5010589", 10589, "A"),
         ],
         [l0a, l0b, l0d, l0f, l0k],
     )
@@ -1523,7 +1525,7 @@ def build_mt_tree() -> dict[str, Any]:
         "R",
         [
             _mt_snp("i5012705", 12705, "C"),
-            _mt_snp("rs1000622", 13824, "T"),
+            _mt_snp("i5016223", 16223, "C"),
         ],
         [r0, b, f, p, jt, u, k],
     )
@@ -1532,11 +1534,12 @@ def build_mt_tree() -> dict[str, Any]:
     n_branch = _node(
         "N",
         [
-            _mt_snp("i5008701", 8701, "G"),
-            _mt_snp("i5009540", 9540, "C"),
-            _mt_snp("rs1000318", 10740, "T"),
-            _mt_snp("i5010873", 10873, "C"),
-            _mt_snp("i5015301", 15301, "A"),
+            # Source-direction N markers, excluding positions with modeled
+            # downstream reversions/opposite alleles (10398, 15301) so typed
+            # descendant clades do not hard-conflict before reaching N.
+            _mt_snp("i5008701", 8701, "A"),
+            _mt_snp("i5009540", 9540, "T"),
+            _mt_snp("i5010873", 10873, "T"),
         ],
         [a, ii, n1, n9, s, w, x, y_mt, r],
     )
@@ -1600,8 +1603,8 @@ def build_mt_tree() -> dict[str, Any]:
         "L3",
         [
             _mt_snp("i5000769", 769, "G"),
-            _mt_snp("i5001018", 1018, "A"),
-            _mt_snp("i5016311", 16311, "C"),
+            _mt_snp("i5001018", 1018, "G"),
+            _mt_snp("i5016311", 16311, "T"),
         ],
         [l3a, l3b, l3d, l3e, l3f, m_branch, n_branch],
     )

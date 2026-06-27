@@ -77,19 +77,21 @@ def sample_engine() -> sa.Engine:
 # Known genotype fixture for H1a path:
 # mt-MRCA → L3 → N → R → R0 → HV → H → H1 → H1a
 _H1A_GENOTYPES = [
-    # L3 defining SNPs
+    # L3 defining SNPs (PhyloTree Build 17 forward-direction labels:
+    # A769G, A1018G, C16311T).
     {"rsid": "i5000769", "chrom": "MT", "pos": 769, "genotype": "GG"},
-    {"rsid": "i5001018", "chrom": "MT", "pos": 1018, "genotype": "AA"},
-    {"rsid": "i5016311", "chrom": "MT", "pos": 16311, "genotype": "CC"},
-    # N defining SNPs
-    {"rsid": "i5008701", "chrom": "MT", "pos": 8701, "genotype": "GG"},
-    {"rsid": "i5009540", "chrom": "MT", "pos": 9540, "genotype": "CC"},
-    {"rsid": "rs1000318", "chrom": "MT", "pos": 10740, "genotype": "TT"},
-    {"rsid": "i5010873", "chrom": "MT", "pos": 10873, "genotype": "CC"},
-    {"rsid": "i5015301", "chrom": "MT", "pos": 15301, "genotype": "AA"},
-    # R defining SNPs
+    {"rsid": "i5001018", "chrom": "MT", "pos": 1018, "genotype": "GG"},
+    {"rsid": "i5016311", "chrom": "MT", "pos": 16311, "genotype": "TT"},
+    # N defining SNPs (source-direction non-colliding subset: G8701A, C9540T,
+    # C10873T). Source positions 10398 and 15301 are modeled on downstream
+    # clades with opposite alleles, so they stay off the N ancestor in this
+    # bundle.
+    {"rsid": "i5008701", "chrom": "MT", "pos": 8701, "genotype": "AA"},
+    {"rsid": "i5009540", "chrom": "MT", "pos": 9540, "genotype": "TT"},
+    {"rsid": "i5010873", "chrom": "MT", "pos": 10873, "genotype": "TT"},
+    # R defining SNPs (T12705C, T16223C).
     {"rsid": "i5012705", "chrom": "MT", "pos": 12705, "genotype": "CC"},
-    {"rsid": "rs1000622", "chrom": "MT", "pos": 13824, "genotype": "TT"},
+    {"rsid": "i5016223", "chrom": "MT", "pos": 16223, "genotype": "CC"},
     # R0 defining SNPs
     {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "GG"},
     # HV defining SNPs
@@ -102,6 +104,45 @@ _H1A_GENOTYPES = [
     # H1a defining SNPs
     {"rsid": "rs1000390", "chrom": "MT", "pos": 13290, "genotype": "TT"},
     {"rsid": "i5013404", "chrom": "MT", "pos": 13404, "genotype": "CC"},
+]
+
+_MT_R_TRUNK_GENOTYPES = _H1A_GENOTYPES[:8]
+
+_MT_N1_REVERSAL_GENOTYPES = _H1A_GENOTYPES[:6] + [
+    {"rsid": "i5006365", "chrom": "MT", "pos": 6365, "genotype": "CC"},
+    {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
+]
+
+_MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5000827", "chrom": "MT", "pos": 827, "genotype": "GG"},
+    {"rsid": "i5008281", "chrom": "MT", "pos": 8281, "genotype": "CC"},
+    {"rsid": "i5015301", "chrom": "MT", "pos": 15301, "genotype": "AA"},
+]
+
+_MT_J_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
+    {"rsid": "i5011251", "chrom": "MT", "pos": 11251, "genotype": "GG"},
+    {"rsid": "i5000295", "chrom": "MT", "pos": 295, "genotype": "TT"},
+    {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
+    {"rsid": "i5012612", "chrom": "MT", "pos": 12612, "genotype": "GG"},
+    {"rsid": "i5016069", "chrom": "MT", "pos": 16069, "genotype": "TT"},
+]
+
+_MT_K1_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5001189", "chrom": "MT", "pos": 1189, "genotype": "CC"},
+    {"rsid": "i5010550", "chrom": "MT", "pos": 10550, "genotype": "GG"},
+    {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
+    {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
+    {"rsid": "i5016224", "chrom": "MT", "pos": 16224, "genotype": "CC"},
+    {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
+]
+
+_MT_L0_GENOTYPES = [
+    {"rsid": "i5001048", "chrom": "MT", "pos": 1048, "genotype": "TT"},
+    {"rsid": "i5005442", "chrom": "MT", "pos": 5442, "genotype": "CC"},
+    {"rsid": "i5006185", "chrom": "MT", "pos": 6185, "genotype": "CC"},
+    {"rsid": "i5009042", "chrom": "MT", "pos": 9042, "genotype": "TT"},
+    {"rsid": "i5010589", "chrom": "MT", "pos": 10589, "genotype": "AA"},
 ]
 
 # Non-PAR chrX hom calls needed for the Plan §9.4 sex-inference algorithm
@@ -206,7 +247,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.0.0"
+        assert bundle.version == "1.0.1"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -601,6 +642,47 @@ class TestTreeWalk:
         assert "H1" in haplogroups_in_path
         assert "H1a" in haplogroups_in_path
 
+    def test_source_polarity_trunk_resolves_to_r_on_real_bundle(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1080: source-direction L3/N/R alleles must not collapse to mt-MRCA."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _MT_R_TRUNK_GENOTYPES}
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "R"
+        assert [step.haplogroup for step in path] == ["L3", "N", "R"]
+
+    def test_source_polarity_l0_resolves_on_real_bundle(self, bundle: HaplogroupBundle) -> None:
+        """#1080: an L0 source-motif sample should resolve below mt-MRCA."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _MT_L0_GENOTYPES}
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "L0"
+        assert [step.haplogroup for step in path] == ["L0"]
+
+    @pytest.mark.parametrize(
+        ("rows", "expected_path"),
+        [
+            (_MT_N1_REVERSAL_GENOTYPES, ["L3", "N", "N1"]),
+            (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B"]),
+            (_MT_J_REVERSAL_GENOTYPES, ["L3", "N", "R", "JT", "J"]),
+            (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "K", "K1"]),
+        ],
+    )
+    def test_n_subset_does_not_block_descendant_reversion_markers(
+        self,
+        bundle: HaplogroupBundle,
+        rows: list[dict[str, object]],
+        expected_path: list[str],
+    ) -> None:
+        """#1080: N markers must not conflict with known downstream reversions."""
+        genotypes = {str(row["rsid"]): str(row["genotype"]) for row in rows}
+
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == expected_path[-1]
+        assert [step.haplogroup for step in path] == expected_path
+
 
 class TestTreeWalkSharedAncestralMarkers:
     """#804: descent must rest on clade-*specific* derived markers, so a child
@@ -784,9 +866,9 @@ class TestAssignHaplogroups:
         to INDEPENDENTLY-derived literals (#640).
 
         The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
-        HV → H → H1 → H1a, with 3 + 5 + 2 + 1 + 1 + 2 + 1 + 2 = 17 defining SNPs,
-        all 17 derived in the fixture — so the expected present/total/confidence
-        are knowable offline (17 / 17 → 1.0). Asserting those literals, rather
+        HV → H → H1 → H1a, with 3 + 3 + 2 + 1 + 1 + 2 + 1 + 2 = 15 defining SNPs,
+        all 15 derived in the fixture — so the expected present/total/confidence
+        are knowable offline (15 / 15 → 1.0). Asserting those literals, rather
         than recomputing from the result's own ``defining_snps_present`` /
         ``defining_snps_total`` (the old self-derivation tautology), means a
         present/total miscount (e.g. an #498-class tree-walk counting a
@@ -798,8 +880,8 @@ class TestAssignHaplogroups:
 
         mt = results[0]
         assert mt.haplogroup == "H1a"
-        assert mt.defining_snps_present == 17
-        assert mt.defining_snps_total == 17
+        assert mt.defining_snps_present == 15
+        assert mt.defining_snps_total == 15
         assert mt.confidence == 1.0
 
     def test_traversal_path_populated(
@@ -824,6 +906,21 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.haplogroup == "mt-MRCA"
         assert len(mt.traversal_path) == 0
+
+    def test_mt_source_trunk_assigned_by_position(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """#1080: source-direction L3/N/R calls assign through the DB position path."""
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), _MT_R_TRUNK_GENOTYPES)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        assert len(results) == 1
+        mt = results[0]
+        assert mt.tree_type == "mt"
+        assert mt.haplogroup == "R"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R"]
 
 
 # ── Y A-branch polarity / placement regression (#660) ────────────────────
