@@ -18,6 +18,7 @@ DB registry so it rebuilds against the temp data dir).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
@@ -29,7 +30,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import reference_metadata, samples
+from backend.db.tables import findings, reference_metadata, samples
 
 
 @pytest.fixture
@@ -74,6 +75,67 @@ def fh_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         reset_registry()
 
 
+@pytest.fixture
+def fh_client_with_apob_fhbl(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """Client with an APOB FHBL cardiovascular finding that must not count as FH."""
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(ref_engine)
+
+    (tmp_data_dir / "samples").mkdir(parents=True, exist_ok=True)
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="APOB FHBL Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="fhbl1085",
+            )
+        )
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                {
+                    "module": "cardiovascular",
+                    "category": "monogenic_variant",
+                    "evidence_level": 4,
+                    "gene_symbol": "APOB",
+                    "rsid": "rs121918385",
+                    "finding_text": (
+                        "APOB rs121918385 — Pathogenic for Familial hypobetalipoproteinemia"
+                    ),
+                    "conditions": "Familial hypobetalipoproteinemia",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "detail_json": json.dumps({"cardiovascular_category": "lipid_metabolism"}),
+                }
+            ],
+        )
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        from backend.main import create_app
+
+        app = create_app()
+        with TestClient(app) as tc:
+            yield tc
+        reset_registry()
+
+
 class TestFhAssessmentRoute:
     """GET /api/analysis/fh/assessment"""
 
@@ -90,6 +152,13 @@ class TestFhAssessmentRoute:
     def test_missing_sample_returns_404(self, fh_client: TestClient) -> None:
         resp = fh_client.get("/api/analysis/fh/assessment", params={"sample_id": 999})
         assert resp.status_code == 404
+
+    def test_apob_fhbl_is_not_monogenic_fh(self, fh_client_with_apob_fhbl: TestClient) -> None:
+        resp = fh_client_with_apob_fhbl.get("/api/analysis/fh/assessment", params={"sample_id": 1})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["has_monogenic"] is False
+        assert body["monogenic"] == []
 
 
 class TestFhStatusRoute:

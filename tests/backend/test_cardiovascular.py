@@ -1497,7 +1497,7 @@ class TestDetermineFHStatus:
     def test_summary_text_negative(self) -> None:
         result = CardiovascularAnalysisResult()
         fh = determine_fh_status(result)
-        assert "No pathogenic" in fh.summary_text
+        assert "No FH-causing pathogenic" in fh.summary_text
         assert "LDLR" in fh.summary_text
 
     def test_summary_text_homozygous_note(self) -> None:
@@ -1597,7 +1597,7 @@ class TestStoreFHStatusFinding:
                 )
             ).fetchone()
         assert row is not None
-        assert "No pathogenic" in row.finding_text
+        assert "No FH-causing pathogenic" in row.finding_text
         assert row.evidence_level is None
         assert row.conditions is None
 
@@ -1678,7 +1678,7 @@ class TestStoreFHStatusFinding:
                 sa.select(findings).where(findings.c.category == "fh_status")
             ).fetchall()
         assert len(rows) == 1
-        assert "No pathogenic" in rows[0].finding_text
+        assert "No FH-causing pathogenic" in rows[0].finding_text
 
     def test_does_not_affect_monogenic_findings(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine

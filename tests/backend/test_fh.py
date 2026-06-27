@@ -9,6 +9,8 @@ Covers:
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 
 from backend.analysis.fh import (
@@ -96,6 +98,34 @@ def _insert_monogenic(engine: sa.Engine, gene: str, *, sig: str, zyg: str) -> No
         )
 
 
+def _insert_cardiovascular_finding(
+    engine: sa.Engine,
+    gene: str,
+    *,
+    cardiovascular_category: str,
+    sig: str = "Pathogenic",
+    zyg: str = "het",
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                {
+                    "module": "cardiovascular",
+                    "category": "monogenic_variant",
+                    "gene_symbol": gene,
+                    "clinvar_significance": sig,
+                    "zygosity": zyg,
+                    "evidence_level": 4,
+                    "finding_text": f"{gene} P/LP",
+                    "detail_json": json.dumps(
+                        {"cardiovascular_category": cardiovascular_category}
+                    ),
+                }
+            ],
+        )
+
+
 def _insert_apob_fdb(
     engine: sa.Engine, *, genotype: str, sig: str | None, zygosity: str = "het"
 ) -> None:
@@ -126,6 +156,27 @@ class TestMonogenicDetection:
     def test_excludes_non_carrier_zygosity(self, sample_engine: sa.Engine) -> None:
         _insert_monogenic(sample_engine, "APOB", sig="Pathogenic", zyg="hom_ref")
         assert detect_fh_monogenic(sample_engine) == []
+
+    def test_excludes_apob_fhbl_lipid_finding(self, sample_engine: sa.Engine) -> None:
+        _insert_cardiovascular_finding(
+            sample_engine,
+            "APOB",
+            cardiovascular_category="lipid_metabolism",
+            sig="Pathogenic",
+            zyg="het",
+        )
+        assert detect_fh_monogenic(sample_engine) == []
+
+    def test_keeps_apob_fh_category_finding(self, sample_engine: sa.Engine) -> None:
+        _insert_cardiovascular_finding(
+            sample_engine,
+            "APOB",
+            cardiovascular_category="familial_hypercholesterolemia",
+            sig="Pathogenic",
+            zyg="het",
+        )
+        mono = detect_fh_monogenic(sample_engine)
+        assert [m.gene for m in mono] == ["APOB"]
 
 
 class TestApobFdb:

@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.fh import FH_CRITERIA_CONTEXT, FH_GENES
+from backend.analysis.fh import FH_CRITERIA_CONTEXT, detect_fh_monogenic
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -126,15 +126,6 @@ def get_fh_assessment(
     """Composed FH view: monogenic + APOB FDB + LDL-C PRS + criteria framing."""
     sample_engine = _get_sample_engine(sample_id)
     with sample_engine.connect() as conn:
-        mono_rows = conn.execute(
-            sa.select(findings)
-            .where(
-                findings.c.category == "monogenic_variant",
-                findings.c.gene_symbol.in_(FH_GENES),
-                findings.c.zygosity.in_(("het", "hom_alt")),
-            )
-            .order_by(findings.c.gene_symbol)
-        ).fetchall()
         fdb_row = conn.execute(
             sa.select(findings).where(
                 findings.c.module == "fh", findings.c.category == "fdb_variant"
@@ -146,13 +137,13 @@ def get_fh_assessment(
 
     monogenic = [
         FhMonogenicResponse(
-            gene=r.gene_symbol or "",
-            rsid=r.rsid,
-            clinvar_significance=r.clinvar_significance,
-            zygosity=r.zygosity,
-            evidence_level=r.evidence_level or 0,
+            gene=v.gene,
+            rsid=v.rsid,
+            clinvar_significance=v.clinvar_significance,
+            zygosity=v.zygosity,
+            evidence_level=v.evidence_level,
         )
-        for r in mono_rows
+        for v in detect_fh_monogenic(sample_engine)
     ]
 
     apob_fdb = None

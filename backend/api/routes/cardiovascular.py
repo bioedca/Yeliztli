@@ -264,8 +264,8 @@ def get_fh_status(
         return FHStatusResponse(
             status="Negative",
             summary_text=(
-                "No pathogenic or likely pathogenic variants identified in "
-                "FH-associated genes (LDLR, PCSK9, APOB)."
+                "No FH-causing pathogenic or likely pathogenic variants identified in "
+                "LDLR, PCSK9, or APOB."
             ),
         )
 

@@ -651,8 +651,8 @@ class FHStatus:
         """Human-readable FH status summary."""
         if not self.is_positive:
             return (
-                "No pathogenic or likely pathogenic variants identified in "
-                "FH-associated genes (LDLR, PCSK9, APOB)."
+                "No FH-causing pathogenic or likely pathogenic variants identified in "
+                "LDLR, PCSK9, or APOB."
             )
 
         genes_str = ", ".join(sorted(self.affected_genes))

@@ -38,6 +38,7 @@ logger = structlog.get_logger(__name__)
 MODULE_NAME = "fh"
 FH_GENES = ("LDLR", "APOB", "PCSK9")
 FH_TRAIT = "ldl_cholesterol"
+FH_CARDIOVASCULAR_CATEGORY = "familial_hypercholesterolemia"
 
 # APOB familial defective apoB-100 variant (the canonical APOB FH cause).
 APOB_FDB_RSID = "rs5742904"
@@ -80,6 +81,21 @@ def _is_pathogenic(significance: str | None) -> bool:
     if "conflicting" in s:
         return False
     return "pathogenic" in s  # matches both "pathogenic" and "likely_pathogenic"
+
+
+def _is_fh_monogenic_finding(row: sa.Row) -> bool:
+    """Whether a stored monogenic finding should count as FH genetic evidence."""
+    if not row.detail_json:
+        return True
+    try:
+        detail = json.loads(row.detail_json)
+    except (json.JSONDecodeError, TypeError):
+        return True
+
+    cardiovascular_category = detail.get("cardiovascular_category")
+    if cardiovascular_category is None:
+        return True
+    return cardiovascular_category == FH_CARDIOVASCULAR_CATEGORY
 
 
 @dataclass
@@ -144,6 +160,7 @@ def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
             evidence_level=r.evidence_level or 0,
         )
         for r in rows
+        if _is_fh_monogenic_finding(r)
     ]
 
 
