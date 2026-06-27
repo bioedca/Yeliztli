@@ -178,6 +178,16 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
 # a dict mapping rsid -> dict of column values to merge.
 
 
+def _unique_vep_allele_identity(pairs: set[tuple[str | None, str | None]]) -> dict | None:
+    """Return private VEP alleles only when a lookup proves one allele pair."""
+    if len(pairs) != 1:
+        return None
+    ref, alt = next(iter(pairs))
+    if ref is None or alt is None:
+        return None
+    return {"_vep_ref": ref, "_vep_alt": alt}
+
+
 def _lookup_vep(
     rsids: list[str],
     raw_by_rsid: dict[str, sa.Row],
@@ -210,7 +220,7 @@ def _lookup_vep_alleles(
     matched_rsids: set[str],
     vep_engine: sa.Engine,
 ) -> dict[str, dict]:
-    """Fetch private VEP ref/alt allele identity for already matched variants."""
+    """Fetch unambiguous private VEP ref/alt identity for already matched variants."""
     if not matched_rsids:
         return {}
 
@@ -224,13 +234,23 @@ def _lookup_vep_alleles(
             params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
             rows = conn.execute(
                 sa.text(
-                    "SELECT rsid, ref, alt FROM vep_annotations "  # noqa: S608
+                    "SELECT rsid, chrom, pos, ref, alt FROM vep_annotations "  # noqa: S608
                     f"WHERE rsid IN ({placeholders})"
                 ),
                 params,
             ).fetchall()
+            by_rsid: dict[str, set[tuple[str | None, str | None]]] = {}
             for row in rows:
-                out.setdefault(row.rsid, {"_vep_ref": row.ref, "_vep_alt": row.alt})
+                raw = raw_by_rsid.get(row.rsid)
+                if raw is None:
+                    continue
+                if str(row.chrom) != str(raw.chrom) or int(row.pos) != int(raw.pos):
+                    continue
+                by_rsid.setdefault(row.rsid, set()).add((row.ref, row.alt))
+            for rsid, pairs in by_rsid.items():
+                alleles = _unique_vep_allele_identity(pairs)
+                if alleles is not None:
+                    out[rsid] = alleles
 
         remaining = [rsid for rsid in matched_list if rsid not in out]
         for i in range(0, len(remaining), _VEP_ALLELE_BATCH_SIZE):
@@ -257,14 +277,19 @@ def _lookup_vep_alleles(
                 ),
                 params,
             ).fetchall()
-            by_pos = {(str(row.chrom), int(row.pos)): row for row in rows}
+            by_pos: dict[tuple[str, int], set[tuple[str | None, str | None]]] = {}
+            for row in rows:
+                by_pos.setdefault((str(row.chrom), int(row.pos)), set()).add((row.ref, row.alt))
             for rsid in batch:
                 raw = raw_by_rsid.get(rsid)
                 if raw is None:
                     continue
-                hit = by_pos.get((str(raw.chrom), int(raw.pos)))
-                if hit is not None:
-                    out[rsid] = {"_vep_ref": hit.ref, "_vep_alt": hit.alt}
+                pairs = by_pos.get((str(raw.chrom), int(raw.pos)))
+                if pairs is None:
+                    continue
+                alleles = _unique_vep_allele_identity(pairs)
+                if alleles is not None:
+                    out[rsid] = alleles
 
     return out
 
@@ -705,12 +730,20 @@ def _merge_annotations(
 
         # Carriage: a genotyping chip reports a call at every probe regardless
         # of whether the person carries the variant, so annotate against the
-        # allele actually carried. ``ref``/``alt`` come from the source that
-        # supplied allele identity (ClinVar today). ``classify_zygosity``
-        # returns None when carriage is indeterminate (indel / no-call /
-        # strand-ambiguous), in which case zygosity stays NULL.
+        # allele actually carried. ClinVar remains the preferred allele-identity
+        # source, but ordinary VEP-only SNPs also need public ref/alt so
+        # genome-wide consumers such as imputation do not lose the typed marker
+        # scaffold. ``classify_zygosity`` returns None when carriage is
+        # indeterminate (indel / no-call / strand-ambiguous), in which case
+        # zygosity stays NULL.
         ref = row_data.get("ref")
         alt = row_data.get("alt")
+        if ref is None and alt is None:
+            vep_ref = row_data.get("_vep_ref")
+            vep_alt = row_data.get("_vep_alt")
+            if vep_ref is not None and vep_alt is not None:
+                row_data["ref"] = ref = vep_ref
+                row_data["alt"] = alt = vep_alt
         if ref is not None and alt is not None:
             row_data["zygosity"] = classify_zygosity(raw.genotype, ref, alt)
 

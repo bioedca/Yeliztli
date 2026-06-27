@@ -9,10 +9,12 @@ end-to-end DB -> bgzipped+tabix-indexed chr{N}.vcf.gz writer (read back via pysa
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pysam
 import pytest
 import sqlalchemy as sa
+from sqlalchemy.pool import StaticPool
 
 from backend.analysis.imputation_input import (
     INPUT_CHROMOSOMES,
@@ -22,16 +24,78 @@ from backend.analysis.imputation_input import (
     encode_input_gt,
     write_imputation_input_vcfs,
 )
-from backend.db.tables import annotated_variants
+from backend.annotation.engine import CLINVAR_BIT, VEP_BIT, _merge_annotations, run_annotation
+from backend.db.sample_schema import create_sample_tables
+from backend.db.tables import annotated_variants, raw_variants, reference_metadata
 
 
 @pytest.fixture
 def sample_engine() -> sa.Engine:
-    from backend.db.sample_schema import create_sample_tables
-
     engine = sa.create_engine("sqlite://")
     create_sample_tables(engine)
     return engine
+
+
+def _threadsafe_sqlite_engine() -> sa.Engine:
+    return sa.create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+
+def _create_minimal_reference_engine() -> sa.Engine:
+    engine = _threadsafe_sqlite_engine()
+    reference_metadata.create_all(engine)
+    return engine
+
+
+def _create_minimal_vep_engine(rows: list[dict]) -> sa.Engine:
+    engine = _threadsafe_sqlite_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE vep_annotations ("
+                "  rsid TEXT, chrom TEXT, pos INTEGER,"
+                "  ref TEXT, alt TEXT, gene_symbol TEXT,"
+                "  transcript_id TEXT, consequence TEXT,"
+                "  hgvs_coding TEXT, hgvs_protein TEXT,"
+                "  strand TEXT, exon_number INTEGER,"
+                "  intron_number INTEGER, mane_select INTEGER"
+                ")"
+            )
+        )
+        conn.execute(sa.text("CREATE INDEX idx_vep_rsid ON vep_annotations(rsid)"))
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations "
+                "(rsid, chrom, pos, ref, alt, gene_symbol, transcript_id, consequence, "
+                "hgvs_coding, hgvs_protein, strand, exon_number, intron_number, mane_select) "
+                "VALUES (:rsid, :chrom, :pos, :ref, :alt, :gene_symbol, :transcript_id, "
+                ":consequence, :hgvs_coding, :hgvs_protein, :strand, :exon_number, "
+                ":intron_number, :mane_select)"
+            ),
+            rows,
+        )
+    return engine
+
+
+class _MinimalRegistry:
+    def __init__(self, *, reference_engine: sa.Engine, vep_engine: sa.Engine) -> None:
+        self.reference_engine = reference_engine
+        self.vep_engine = vep_engine
+
+    @property
+    def gnomad_engine(self) -> sa.Engine:
+        raise FileNotFoundError("gnomAD not configured for this regression")
+
+    @property
+    def dbnsfp_engine(self) -> sa.Engine:
+        raise FileNotFoundError("dbNSFP not configured for this regression")
+
+    @property
+    def alphamissense_engine(self) -> sa.Engine:
+        raise FileNotFoundError("AlphaMissense not configured for this regression")
 
 
 def _insert(engine: sa.Engine, rows: list[dict]) -> None:
@@ -82,6 +146,236 @@ class TestEncodeInputGt:
 
 
 class TestCollectInputSites:
+    def test_run_annotation_vep_only_snp_emits_imputation_site(self, tmp_path: Path) -> None:
+        sample_engine = _threadsafe_sqlite_engine()
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs_vep_only", "chrom": "1", "pos": 12345, "genotype": "AG"}],
+            )
+
+        reference_engine = _create_minimal_reference_engine()
+        vep_engine = _create_minimal_vep_engine(
+            [
+                {
+                    "rsid": "rs_vep_only",
+                    "chrom": "1",
+                    "pos": 12345,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST00000000000",
+                    "consequence": "intron_variant",
+                    "hgvs_coding": None,
+                    "hgvs_protein": None,
+                    "strand": "+",
+                    "exon_number": None,
+                    "intron_number": 1,
+                    "mane_select": 0,
+                }
+            ]
+        )
+        registry = _MinimalRegistry(reference_engine=reference_engine, vep_engine=vep_engine)
+
+        result = run_annotation(sample_engine, registry, batch_size=1)
+
+        assert result.errors == []
+        assert result.source_failures == {}
+        assert result.rows_written == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_vep_only")
+            ).one()
+        assert row.annotation_coverage == VEP_BIT
+        assert row.ref == "A"
+        assert row.alt == "G"
+        assert row.zygosity == "het"
+
+        imputation_result = write_imputation_input_vcfs(
+            sample_engine, tmp_path / "vcfs", chromosomes=("1",)
+        )
+
+        assert imputation_result.n_total == 1
+        assert imputation_result.n_emitted == 1
+        chr1 = tmp_path / "vcfs" / "chr1.vcf.gz"
+        with pysam.VariantFile(str(chr1)) as vf:
+            recs = list(vf)
+        assert [(r.chrom, r.pos, r.id, r.ref, r.alts) for r in recs] == [
+            ("1", 12345, "rs_vep_only", "A", ("G",))
+        ]
+        assert recs[0].samples[0]["GT"] == (0, 1)
+
+    def test_run_annotation_ambiguous_vep_alleles_do_not_emit_imputation_site(
+        self, tmp_path: Path
+    ) -> None:
+        sample_engine = _threadsafe_sqlite_engine()
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs_multi_alt", "chrom": "1", "pos": 12345, "genotype": "AG"}],
+            )
+
+        reference_engine = _create_minimal_reference_engine()
+        vep_engine = _create_minimal_vep_engine(
+            [
+                {
+                    "rsid": "rs_multi_alt",
+                    "chrom": "1",
+                    "pos": 12345,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST00000000001",
+                    "consequence": "intron_variant",
+                    "hgvs_coding": None,
+                    "hgvs_protein": None,
+                    "strand": "+",
+                    "exon_number": None,
+                    "intron_number": 1,
+                    "mane_select": 0,
+                },
+                {
+                    "rsid": "rs_multi_alt",
+                    "chrom": "1",
+                    "pos": 12345,
+                    "ref": "A",
+                    "alt": "T",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST00000000002",
+                    "consequence": "missense_variant",
+                    "hgvs_coding": None,
+                    "hgvs_protein": None,
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+            ]
+        )
+        registry = _MinimalRegistry(reference_engine=reference_engine, vep_engine=vep_engine)
+
+        result = run_annotation(sample_engine, registry, batch_size=1)
+
+        assert result.errors == []
+        assert result.rows_written == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_multi_alt")
+            ).one()
+        assert row.annotation_coverage == VEP_BIT
+        assert row.ref is None
+        assert row.alt is None
+        assert row.zygosity is None
+
+        imputation_result = write_imputation_input_vcfs(
+            sample_engine, tmp_path / "vcfs", chromosomes=("1",)
+        )
+
+        assert imputation_result.n_total == 1
+        assert imputation_result.n_emitted == 0
+        assert imputation_result.vcf_paths == {}
+
+    def test_run_annotation_shared_rsid_off_coordinate_alleles_do_not_emit_imputation_site(
+        self, tmp_path: Path
+    ) -> None:
+        sample_engine = _threadsafe_sqlite_engine()
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs_shared", "chrom": "1", "pos": 12345, "genotype": "AG"}],
+            )
+
+        reference_engine = _create_minimal_reference_engine()
+        vep_engine = _create_minimal_vep_engine(
+            [
+                {
+                    "rsid": "rs_shared",
+                    "chrom": "2",
+                    "pos": 99999,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST00000000003",
+                    "consequence": "intron_variant",
+                    "hgvs_coding": None,
+                    "hgvs_protein": None,
+                    "strand": "+",
+                    "exon_number": None,
+                    "intron_number": 1,
+                    "mane_select": 0,
+                },
+                {
+                    "rsid": "rs_shared",
+                    "chrom": "3",
+                    "pos": 88888,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST00000000004",
+                    "consequence": "missense_variant",
+                    "hgvs_coding": None,
+                    "hgvs_protein": None,
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+            ]
+        )
+        registry = _MinimalRegistry(reference_engine=reference_engine, vep_engine=vep_engine)
+
+        result = run_annotation(sample_engine, registry, batch_size=1)
+
+        assert result.errors == []
+        assert result.rows_written == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_shared")
+            ).one()
+        assert row.annotation_coverage == VEP_BIT
+        assert row.ref is None
+        assert row.alt is None
+        assert row.zygosity is None
+
+        imputation_result = write_imputation_input_vcfs(
+            sample_engine, tmp_path / "vcfs", chromosomes=("1",)
+        )
+
+        assert imputation_result.n_total == 1
+        assert imputation_result.n_emitted == 0
+        assert imputation_result.vcf_paths == {}
+
+    def test_clinvar_alleles_remain_preferred_over_vep_fallback(self) -> None:
+        raw = SimpleNamespace(rsid="rs_vep_only", chrom="1", pos=12345, genotype="AG")
+        merged = _merge_annotations(
+            [raw],
+            vep_data={
+                "rs_vep_only": {
+                    "gene_symbol": "GENE",
+                    "consequence": "intron_variant",
+                    "_vep_ref": "T",
+                    "_vep_alt": "C",
+                }
+            },
+            clinvar_data={
+                "rs_vep_only": {
+                    "clinvar_significance": "Pathogenic",
+                    "ref": "A",
+                    "alt": "G",
+                }
+            },
+            gnomad_data={},
+            dbnsfp_data={},
+        )
+
+        assert merged[0]["annotation_coverage"] == VEP_BIT | CLINVAR_BIT
+        assert merged[0]["ref"] == "A"
+        assert merged[0]["alt"] == "G"
+        assert merged[0]["zygosity"] == "het"
+
     def test_groups_autosomes_and_drops_out_of_scope(self) -> None:
         rows = [
             ("rs1", "1", 100, "A", "G", "het"),  # emit
