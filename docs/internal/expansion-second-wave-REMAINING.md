@@ -1,7 +1,9 @@
 # Expansion Second-Wave — Remaining Implementation Inventory
 
-> **Generated:** 2026-06-10. **Last updated:** 2026-06-11 (bioedca fork) after the SW-A11,
-> SW-F1, SW-E1, SW-A12, SW-E6 + warfarin-layer merges.
+> **Generated:** 2026-06-10. **Last updated:** 2026-06-26 (bioedca fork) — the entire
+> **tractable** second-wave set is now merged: SW-A11, SW-F1, SW-E1(+E1b), SW-A12, SW-E6 +
+> warfarin layer, all of Wave B, **SW-E2** (#1055), **SW-F3** (#1053/#1056), and **SW-F2**
+> (#1083/#1088, BYO SpliceAI ingest path). Only Wave C + Wave D remain (separately-scheduled).
 > **Source of truth:** the 42-PR second-wave plan (Waves A–F).
 > **External-input plan:** verified licensing/fetch tier per dataset — referenced below as
 > *[ext-strategy]*.
@@ -11,8 +13,10 @@
 > **Owner decisions in force (interviewed 2026-06-11):** (1) Licensing = **(A) explicit
 > non-commercial** — bundle only CC0/CC-BY (with attribution); non-commercial sources stay
 > user-fetch. (2) **PCA = fix, then build on it** (gates B2/B4/B5). (3) Scope = **tractable set
-> first** (A11→F1, E1→E2/E6, A12, B1→B3-B8, F3); **Wave C imputation, Wave D HLA/HIBAG, and
-> SW-F2 SpliceAI are separately-scheduled (deferred)** — see §6/§12. (4) AlphaMissense bundled
+> first** (A11→F1, E1→E2/E6, A12, B1→B3-B8, F3); **Wave C imputation and Wave D HLA/HIBAG are
+> separately-scheduled (deferred)** — see §4/§5/§12. SW-F2 SpliceAI, originally deferred, is now
+> **done** as a BYO-ingest path (#1083/#1088 — its block was bundling/auto-download, not the
+> ingest seam, which is pure code consistent with posture (A)). (4) AlphaMissense bundled
 > as **CC-BY-4.0** (authoritative Zenodo 10813168 grant; stale NC-SA file header documented).
 
 ---
@@ -26,8 +30,8 @@
 | **C** — Imputation foundation | 7 | 0 | — | 7 (**separately-scheduled**) |
 | **D** — HLA / HIBAG | 6 | 0 | — | 6 (**separately-scheduled**) |
 | **E** — Pharmacogenomics expansion | 6 | 6 | — | 0 ✅ |
-| **F** — Deeper variant interpretation | 3 | 2 (F1/F3) | — | 1 (F2 **separately-scheduled**) |
-| **Total** | **42** | **28** | — | **14 (all separately-scheduled — Wave C: 7, Wave D: 6, SW-F2: 1)** |
+| **F** — Deeper variant interpretation | 3 | 3 (F1/F2/F3) | — | 0 ✅ |
+| **Total** | **42** | **29** | — | **13 (all separately-scheduled — Wave C: 7, Wave D: 6)** |
 
 **Wave B completed (bioedca fork, 2026-06-11)** — all 8 merged + the score bundle + frontends:
 - **SW-B1/B2** (#100/#116, earlier) — PGS Catalog GRCh37 ingestion + ancestry-continuous calibration.
@@ -41,14 +45,19 @@
 - **Bundle** (#141) — `pgs_scores.db` shipped (CC-BY scores T2D PGS000713, BMI PGS005198, LDL-C
   PGS000688; release `pgs-scores-v1.0.0`). **Frontends** (#142) — Metabolic/FH/eBMD views + B8 opt-in.
 
-**Done earlier (bioedca fork, 2026-06-11):** SW-A11, SW-F1, SW-E1(+E1b), SW-A12, SW-E6, warfarin
-layer; **SW-E2** (#103) DPWG/PharmGKB-LOE/FDA over CPIC; **SW-F3** (#106) GTEx eQTL regulatory layer.
+**Done earlier (bioedca fork):** SW-A11, SW-F1, SW-E1(+E1b), SW-A12, SW-E6, warfarin layer;
+**SW-E2** (#1055) DPWG/PharmGKB-LOE/FDA over CPIC; **SW-F3** (#1053/#1056) GTEx eQTL regulatory
+layer; **SW-F2** (#1083/#1088) BYO SpliceAI splice-prediction layer + variant-detail badge.
 
 **Done previously:** rest of Wave A; Wave E PGx trio (E5 DPYD, E3 CYP2D6 CNV, E4 med-safety report).
 
-**Bottom line:** **Every tractable second-wave PR is complete.** The only remaining work is the
-**14 separately-scheduled PRs** — Wave C imputation (×7, §4), Wave D HLA/HIBAG (×6, §5), and
-SW-F2 SpliceAI (×1, §7) — each parked pending its own external runtime/fetch.
+**Bottom line:** **Every tractable second-wave PR is complete** (SW-F2, the last one, shipped as a
+BYO SpliceAI ingest path — §7). The only remaining work is the **13 separately-scheduled PRs** —
+Wave C imputation (×7, §4) and Wave D HLA/HIBAG (×6, §5) — each parked pending its own external
+**runtime/dataset**: a ~40 GB 1000G panel + a Beagle imputation engine (Wave C), and an
+R/Bioconductor subprocess + user-fetched HIBAG classifier models (Wave D). These are
+infrastructure tracks, not pure-code features, so neither reduces to a clean atomic PR until its
+runtime is provisioned.
 
 > **Wave-B coverage caveat:** the disease PRSs are genome-wide; on un-imputed array data only
 > ~35–57% of each score's variants are typed, so percentiles are *withheld* (coverage reported)
@@ -125,57 +134,53 @@ Needs an **R subprocess** (GPL-isolated) + **user-fetched classifier models** (n
 
 ---
 
-## 6. Wave E — Pharmacogenomics expansion (1 remaining: E2)
+## 6. Wave E — Pharmacogenomics expansion — ✅ COMPLETE (6/6)
 
-E1/E3/E4/E5/E6 are **done**. Only **SW-E2** remains.
+All six are **done** (SW-E2 was the last).
 
 | PR | # | Goal | Status |
 |----|---|------|--------|
 | **SW-E1** | 15 | PharmVar-canonical versioned star-allele defs; panel expansion; explicit **indeterminate** flags | ✅ **Done** (#34) + **E1b** (#38, NAT2 + CYP2B6). VKORC1/CYP4F2 shipped as the separate **warfarin dose-effect layer** (`backend/analysis/warfarin.py`, #57). |
 | **SW-E6** | 35, 22 | G6PD (X-linked, het-female variability) + BCHE + NUDT15 | ✅ **Done** — BCHE succinylcholine apnea (#61) + G6PD sex-aware deficiency (#63); NUDT15 already added in SW-E1. |
-| **SW-E2** | 16 | Layer **DPWG + PharmGKB LOE (1A–4) + FDA PGx table** over CPIC (PharmGKB **CC-BY-SA** — honor share-alike) | **Remaining.** Extend `cpic_guidelines` with dpwg/loe/fda columns; surface via the `gene_caveat` seam. **Needs authoritative PharmGKB/DPWG/FDA source data** to avoid guessing clinical values (all 20 current CPIC pairs are PharmGKB LOE 1A by definition; per-pair DPWG/FDA membership needs the real tables). Owner decision pending: fetch the tables vs. ship the verifiable LOE=1A + links subset. |
+| **SW-E2** | 16 | Layer **DPWG + PharmGKB LOE (1A–4) + FDA PGx table** over CPIC (PharmGKB **CC-BY-SA** — honor share-alike) | ✅ **Done** (#1055) — cross-source PGx evidence strip (`backend/analysis/pgx_guidelines.py` + `backend/data/pgx/pgx_guideline_sources.csv`) surfaced via the `gene_caveat` seam. |
 
 > Reuse seam already in place from E3/E5: `_GENE_INTERPRETATION_CAVEATS` map →
 > `detail_json["gene_caveat"]` → pharma route → `MetabolizerCard`/`MedicationSafetyReport`.
 
 ---
 
-## 7. Wave F — Deeper variant interpretation (F1 done; F3 active; F2 deferred)
+## 7. Wave F — Deeper variant interpretation — ✅ COMPLETE (3/3)
 
 Coordinate tightly with the validation/Phase-F effort.
 
 | PR | # | Goal | Status |
 |----|---|------|--------|
 | **SW-F1** | 13 | InterVar-style **DRAFT** ACMG/AMP engine (computable criteria; PVS1 via Abou-Tayoun tree; Tavtigian points). DRAFT/non-clinical, never auto-upgrades a P; PM3 unknown from unphased array | ✅ **Done** — `backend/analysis/acmg.py`, `GET /api/analysis/acmg` (additive, never mutates evidence_level/clinvar_significance). Unblocked by the SW-A11 ClinGen half. |
-| **SW-F2** | 38 | SpliceAI precomputed delta-scores (0.2/0.5/0.8) for typed SNPs in splice windows | ⏸ **SEPARATELY-SCHEDULED (deferred 2026-06-11).** Illumina **non-commercial** + BaseSpace-login-gated → never bundle/auto-download (BYO-only). Consistent with the (A) non-commercial posture; revisit when a BYO-ingest path is built. |
-| **SW-F3** | 39 | GTEx v8/v10 eQTL/sQTL regulatory layer for typed non-coding SNPs (eQTL = association, not mechanism; do **not** inflate ACMG) | **Active-remaining.** Needs **GTEx open-access `signif_pairs`** fetch (redistribute OK) + **GRCh38 → GRCh37 liftover/rsID match** — *[ext-strategy]* §GTEx. |
+| **SW-F2** | 38 | SpliceAI precomputed delta-scores (0.2/0.5/0.8) for typed SNPs in splice windows | ✅ **Done** (#1083 backend / #1088 frontend) — **BYO-ingest path**: `backend/annotation/spliceai.py` (position-keyed GRCh37 ingest, min-DS floor, empty-parse guard) + `backend/analysis/spliceai.py` context badge (tiers at 0.2/0.5/0.8; `acmg_evidence=False`) + `scripts/ingest_spliceai_scores.py` + variant-detail `SpliceAIBadge`. Illumina **non-commercial** + BaseSpace-login-gated → never bundled/auto-downloaded (registered `build_mode="manual"`); the user supplies the hg19 VCF. Thresholds + score definition evidence-verified (PMID:30661751 / DOI:10.1016/j.cell.2018.12.015). |
+| **SW-F3** | 39 | GTEx v8/v10 eQTL/sQTL regulatory layer for typed non-coding SNPs (eQTL = association, not mechanism; do **not** inflate ACMG) | ✅ **Done** (#1053 backend / #1056 frontend) — `backend/annotation/gtex_eqtl.py` (GRCh38 `variant_id`→dbSNP rsID match, no liftover) + `backend/analysis/gtex.py` context badge (`acmg_evidence=False`) + variant-detail `GTExEqtlBadge`. Pipeline-built standalone `gtex_eqtl.db`. |
 
 ---
 
-## 8. Tractability split — current state (post-2026-06-11)
+## 8. Tractability split — current state (2026-06-26)
 
-**✅ Done this session (no longer remaining):** SW-A11 (full), SW-A12, SW-E1(+E1b), SW-E6,
-SW-F1, and the warfarin VKORC1/CYP4F2 layer. All merged with green post-merge CI.
+**✅ Done (no longer remaining) — the entire tractable set:** all of Wave A, all of Wave B
+(+ the `pgs_scores.db` bundle + frontends), all of Wave E (incl. SW-E2 #1055), and all of Wave F
+(SW-F1; SW-F3 #1053/#1056; SW-F2 #1083/#1088). All merged with green CI; `main` stays releasable.
+(The earlier PCA-fix gate on SW-B2/B4/B5 was resolved as those landed — Wave B is COMPLETE.)
 
-**Fully autonomous, can start now (no new dataset, no PCA dependency):**
-- **SW-E2** — DPWG/PharmGKB-LOE/FDA layer over CPIC. *Caveat:* accurate per-pair DPWG/FDA
-  values need the authoritative tables; PharmGKB LOE=1A is a clean rule for all current CPIC
-  pairs. **Owner steer requested** (fetch tables vs. verifiable subset) — see §6, §9.
+**Separately-scheduled (deferred by owner decision) — the only remaining work:**
+- **Wave C** (imputation, ×7) — needs a ~40 GB 1000G Phase 3 v5a panel (native b37 bref3) **and**
+  a local Beagle 5.x phase+impute **runtime** with laptop-runtime measurement. SW-C1 (ship the
+  panel) is the foundation; the panel is open/redistributable (fetchable via the SLURM cluster)
+  but exceeds GitHub's 2 GiB release-asset limit, so it must ship via a manifest/user-fetch path,
+  not a bundled asset. C2–C7 build on the imputation runtime.
+- **Wave D** (HLA/HIBAG, ×6) — needs an **R/Bioconductor subprocess** (GPL-isolated) running the
+  HIBAG classifier, plus **user-fetched classifier models** (no-license / proprietary-derived →
+  never bundleable). SW-D1 (the R-subprocess engine) is the foundation and can keep the existing
+  single-tag HLA proxy as a fallback.
 
-**Blocked on a dataset fetch (owner approves the fetch):**
-- **SW-B1** — PGS Catalog GRCh37 hmPOS (per-score license gating). Unlocks B3–B8.
-- **SW-F3** — GTEx open-access summaries (+ GRCh38→37 liftover).
-
-**Blocked on the PCA fix (owner-flagged "not working"; tests pass → real-data issue, needs
-failure-mode detail):**
-- **SW-B2** (PC-continuous calibration), **SW-B4**, **SW-B5** — all consume PCA ancestry.
-
-**Separately-scheduled (deferred by owner decision):**
-- **Wave C** (imputation, ×7) — ~40 GB 1000G panel + Beagle runtime.
-- **Wave D** (HLA/HIBAG, ×6) — R/Bioconductor subprocess + user-fetched models.
-- **SW-F2** (SpliceAI, ×1) — BYO-only; non-commercial + login-gated.
-
-**Gated only by a prerequisite PR (no new data of their own):** SW-B3–B8 (need B1).
+Neither track reduces to a pure-code feature the way SW-F2's BYO parser did: each needs its
+external runtime provisioned **first**, so each resumes as its own scheduled track (§4/§5/§12).
 
 ---
 
@@ -221,12 +226,20 @@ failure-mode detail):**
 
 ---
 
-## 12. Recommended next sequence (as of 2026-06-11)
+## 12. Recommended next sequence (as of 2026-06-26)
 
-Steps 1–2 of the original sequence are **done** (A11, A12, E1/E1b, E6, F1, warfarin layer). What remains:
+The whole tractable line is **done** — Waves A, B, E, and F are complete (the last item, SW-F2,
+shipped as a BYO SpliceAI ingest path, #1083/#1088). Only the two separately-scheduled
+infrastructure tracks remain, each gated on its own external runtime/dataset:
 
-1. **SW-E2** (DPWG/PharmGKB-LOE/FDA over CPIC) — once the owner steers data sourcing (§9.6). Last fully-autonomous item; completes Wave E.
-2. **Fix PCA** (§9.5) — needs the owner's observed failure mode; gates SW-B2/B4/B5.
-3. **SW-B1** (PGS Catalog fetch) → then **SW-B2** (after PCA) → **SW-B3–B8**. Unlocks the whole Wave-B line.
-4. **SW-F3** (GTEx fetch + liftover).
-5. **Separately-scheduled:** Wave C (1000G → Beagle), Wave D (HIBAG/R), SW-F2 (SpliceAI BYO) — each resumes as its own track when its runtime/fetch is provisioned.
+1. **Wave C — imputation (×7).** Provision the runtime first: fetch the ~40 GB 1000G Phase 3 v5a
+   panel via the SLURM cluster (open/redistributable; build bref3 with the vendored Beagle JAR),
+   then SW-C1 ships it via a manifest/user-fetch path (too large for a GitHub release asset) →
+   SW-C2 (local Beagle phase+impute + laptop-runtime measurement) → SW-C3–C7. Needs an owner
+   go-ahead to stand up the imputation runtime.
+2. **Wave D — HLA/HIBAG (×6).** Stand up an R/Bioconductor subprocess (GPL-isolated) + a BYO path
+   for the user-fetched HIBAG classifier models (never bundleable), then SW-D1 (core engine,
+   proxy fallback retained) → SW-D2–D6. Needs the R-subprocess seam + an owner go-ahead.
+
+Both are infrastructure-first tracks, not pure-code features — they cannot be reduced to clean,
+green, atomic PRs until their runtimes exist, so they stay parked pending an owner decision.
