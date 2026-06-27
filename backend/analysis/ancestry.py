@@ -1645,6 +1645,7 @@ def _tree_walk(
     path: list[HaplogroupTraversalStep],
     ancestral_rsids: frozenset[str] = frozenset(),
     min_internal_terminal_specific_snps: int = 1,
+    _support_path: list[tuple[int, int]] | None = None,
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
 
@@ -1674,10 +1675,10 @@ def _tree_walk(
     conflict/fraction behavior, because there is no deeper branch to over-resolve
     into. Among eligible direct children the highest clade-specific fraction is
     the direct candidate. If sparse pass-through descendants are also supported,
-    candidates are ranked by recorded path support: total derived markers,
-    confidence, then path depth. The recorded path step keeps the **full** node
-    match (including inherited markers) so the confidence present/total semantics
-    are unchanged.
+    candidates are ranked by clade-specific support: total derived markers,
+    confidence, then supported path depth. The recorded path step keeps the
+    **full** node match (including inherited markers) so the confidence
+    present/total semantics are unchanged.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
@@ -1695,19 +1696,24 @@ def _tree_walk(
     Returns:
         Tuple of (deepest matching node, full traversal path).
     """
+    if _support_path is None:
+        _support_path = []
+
     # Markers seen from the root down to and including this node.
     seen_rsids = ancestral_rsids | {snp.rsid for snp in node.defining_snps}
 
     best_child: HaplogroupNode | None = None
+    best_child_support: tuple[int, int] | None = None
     best_child_fraction = 0.0
-    passthrough_children: list[HaplogroupNode] = []
+    passthrough_children: list[tuple[HaplogroupNode, int, int]] = []
 
     def candidate_score(
-        candidate_path: list[HaplogroupTraversalStep],
+        candidate_support_path: list[tuple[int, int]],
     ) -> tuple[int, float, int]:
-        present = sum(step.snps_present for step in candidate_path)
-        total = sum(step.snps_total for step in candidate_path)
-        return present, _haplogroup_confidence(present, total), len(candidate_path)
+        present = sum(step_present for step_present, _ in candidate_support_path)
+        total = sum(step_total for _, step_total in candidate_support_path)
+        supported_depth = sum(1 for _, step_total in candidate_support_path if step_total > 0)
+        return present, _haplogroup_confidence(present, total), supported_depth
 
     for child in node.children:
         # Clade-specific defining SNPs: drop any marker inherited/duplicated from
@@ -1720,7 +1726,7 @@ def _tree_walk(
             # It can't be a terminal match, but it may be a structural pass-through to a
             # deeper clade that does — defer it (handled only if no child has direct
             # evidence).
-            passthrough_children.append(child)
+            passthrough_children.append((child, 0, 0))
             continue
 
         present, conflicting, total = _classify_snps(specific, genotype_map)
@@ -1742,20 +1748,24 @@ def _tree_walk(
             # Y=DE under CT) without enough evidence to make that child terminal.
             # Keep it as a possible route to a deeper clade, but do not call it
             # unless a descendant supplies stronger support.
-            passthrough_children.append(child)
+            passthrough_children.append((child, present, total))
             continue
 
         if fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION and fraction > best_child_fraction:
             best_child = child
+            best_child_support = (present, total)
             best_child_fraction = fraction
 
     best_terminal: HaplogroupNode | None = None
     best_path: list[HaplogroupTraversalStep] = []
+    best_support_path: list[tuple[int, int]] = []
     best_score: tuple[int, float, int] | None = None
 
     if best_child is not None:
         # Recurse into the best directly-supported child.
+        assert best_child_support is not None
         direct_path: list[HaplogroupTraversalStep] = []
+        direct_support_path = [best_child_support]
         _record_step(direct_path, best_child, genotype_map)
         best_terminal, direct_path = _tree_walk(
             best_child,
@@ -1763,41 +1773,48 @@ def _tree_walk(
             direct_path,
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
+            _support_path=direct_support_path,
         )
         best_path = direct_path
-        best_score = candidate_score(direct_path)
+        best_support_path = direct_support_path
+        best_score = candidate_score(direct_support_path)
 
     # A pass-through child (one defined solely by inherited markers, or an
     # under-supported internal child) is descended into ONLY if it leads to a
     # deeper clade that does — otherwise it is a spurious over-resolution (the
     # sample is indistinguishable from this node) and the walk stops here. When a
     # direct sibling also matched, let the supported pass-through compete using
-    # the same recorded-path support score so deeper evidence is not discarded.
-    for child in passthrough_children:
+    # the same clade-specific support score so deeper evidence is not discarded.
+    for child, child_present, child_total in passthrough_children:
         # The inherited markers were derived to reach here, so a typed-ancestral
         # one would contradict the lineage — skip such a broken pass-through.
         _, conflicting, _ = _classify_node_match(child, genotype_map)
         if conflicting > 0:
             continue
+        sub_support_path: list[tuple[int, int]] = []
         terminal, sub_path = _tree_walk(
             child,
             genotype_map,
             [],
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
+            _support_path=sub_support_path,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
             passthrough_path: list[HaplogroupTraversalStep] = []
             _record_step(passthrough_path, child, genotype_map)
             passthrough_path.extend(sub_path)
-            score = candidate_score(passthrough_path)
+            passthrough_support_path = [(child_present, child_total), *sub_support_path]
+            score = candidate_score(passthrough_support_path)
             if best_score is None or score > best_score:
                 best_terminal = terminal
                 best_path = passthrough_path
+                best_support_path = passthrough_support_path
                 best_score = score
 
     if best_terminal is not None:
         path.extend(best_path)
+        _support_path.extend(best_support_path)
         return best_terminal, path
 
     # No child matched — current node is the deepest match

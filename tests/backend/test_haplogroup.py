@@ -718,6 +718,57 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "DEEP"
         assert [s.haplogroup for s in path] == ["SPARSE", "DEEP"]
 
+    def test_passthrough_ranking_ignores_inherited_marker_counts(self) -> None:
+        """Candidate ranking must use clade-specific support, not the full display
+        counts that include parent markers re-listed on structural pass-throughs."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="PARENT",
+                    defining_snps=[HaplogroupSNP("p", 1, "G")],
+                    children=[
+                        HaplogroupNode(
+                            haplogroup="PT",
+                            defining_snps=[HaplogroupSNP("p", 1, "G")],
+                            children=[
+                                HaplogroupNode(
+                                    haplogroup="DEEP",
+                                    defining_snps=[HaplogroupSNP("d", 2, "T")],
+                                    children=[],
+                                ),
+                            ],
+                        ),
+                        HaplogroupNode(
+                            haplogroup="SIBLING",
+                            defining_snps=[
+                                HaplogroupSNP("sib1", 3, "A"),
+                                HaplogroupSNP("sib2", 4, "C"),
+                            ],
+                            children=[],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        genotypes = {
+            "p": "GG",
+            "d": "TT",
+            "sib1": "AA",
+            "sib2": "CC",
+        }
+
+        terminal, path = _tree_walk(
+            root,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+        )
+
+        assert terminal.haplogroup == "SIBLING"
+        assert [s.haplogroup for s in path] == ["PARENT", "SIBLING"]
+
     def test_synthetic_shared_marker_children_do_not_over_resolve(self) -> None:
         """Two children that each re-list one of the parent's markers (the CT/DE,
         CT/F shape) are both refused when their own markers are untyped."""
