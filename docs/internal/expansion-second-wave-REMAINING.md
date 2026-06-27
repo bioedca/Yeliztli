@@ -67,13 +67,14 @@ layer; **SW-F2** (#1083/#1088) BYO SpliceAI splice-prediction layer + variant-de
 
 **Done previously:** rest of Wave A; Wave E PGx trio (E5 DPYD, E3 CYP2D6 CNV, E4 med-safety report).
 
-**Bottom line:** **Every tractable second-wave PR is complete** (SW-F2, the last one, shipped as a
-BYO SpliceAI ingest path — §7). The only remaining work is the **13 separately-scheduled PRs** —
-Wave C imputation (×7, §4) and Wave D HLA/HIBAG (×6, §5) — each parked pending its own external
-**runtime/dataset**: a ~40 GB 1000G panel + a Beagle imputation engine (Wave C), and an
-R/Bioconductor subprocess + user-fetched HIBAG classifier models (Wave D). These are
-infrastructure tracks, not pure-code features, so neither reduces to a clean atomic PR until its
-runtime is provisioned.
+**Bottom line:** **Every tractable second-wave PR is complete**, and **Wave C's pure-code
+foundation is now merged** too (SW-C1 #1096, SW-C2 #1100, SW-C3 #1110, plus the input-prep
+glue #1112). The only remaining work is the **10 runtime-/owner-gated PRs** — Wave C's tail
+(C4–C7, ×4, §4) and Wave D HLA/HIBAG (×6, §5) — parked pending its own external **runtime/data**:
+the ~8.5 GB 1000G panel installed + Beagle run on real data with per-laptop runtime measured on
+the target hardware (Wave C), and an R/Bioconductor subprocess + user-fetched HIBAG classifier
+models (Wave D). These are infrastructure tracks, not pure-code features, so neither reduces to a
+clean atomic PR until its runtime is provisioned.
 
 > **Wave-B coverage caveat:** the disease PRSs are genome-wide; on un-imputed array data only
 > ~35–57% of each score's variants are typed, so percentiles are *withheld* (coverage reported)
@@ -183,10 +184,10 @@ Coordinate tightly with the validation/Phase-F effort.
 
 ## 8. Tractability split — current state (2026-06-27)
 
-**✅ Done (no longer remaining):** all of Wave A, all of Wave B (+ the `pgs_scores.db` bundle +
-frontends), all of Wave E (incl. SW-E2 #1055), all of Wave F (SW-F1; SW-F3 #1053/#1056; SW-F2
-#1083/#1088), **and Wave C's pure-code foundation** — SW-C1 #1096, SW-C2 #1100, SW-C3 #1110 +
-the input-prep glue #1112. All merged with green CI; `main` stays releasable. (The earlier
+**✅ Done (no longer remaining):** all of Wave A; all of Wave B (+ the `pgs_scores.db` bundle +
+frontends); all of Wave E (incl. SW-E2 #1055); all of Wave F (SW-F1, SW-F3 #1053/#1056, SW-F2
+PRs #1083/#1088); **and Wave C's pure-code foundation** (SW-C1 #1096, SW-C2 #1100, SW-C3 #1110,
+plus the input-prep glue #1112). All merged with green CI; `main` stays releasable. (The earlier
 PCA-fix gate on SW-B2/B4/B5 was resolved as those landed — Wave B is COMPLETE.)
 
 **Runtime-gated / owner-gated — the only remaining work:**
