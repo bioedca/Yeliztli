@@ -491,6 +491,11 @@ def _create_gnomad_table(engine: sa.Engine, *, recreate_legacy_rsid_pk: bool = F
             _gnomad_table_primary_key(conn) == ("rsid",) or _gnomad_rsid_is_not_null(conn)
         ):
             conn.execute(sa.text("DROP TABLE gnomad_af"))
+        elif _gnomad_rsid_is_not_null(conn):
+            raise RuntimeError(
+                "Existing gnomad_af table has rsid NOT NULL; reload with clear_existing=True "
+                "or migrate the table before loading nullable rsid rows."
+            )
         conn.execute(sa.text(CREATE_TABLE_SQL))
         existing_cols = _gnomad_table_columns(conn)
         if "af_asj" not in existing_cols:

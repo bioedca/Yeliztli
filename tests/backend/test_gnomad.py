@@ -372,6 +372,32 @@ class TestCreateGnomadTables:
         assert stored.rsid is None
         assert stored.af_global == pytest.approx(0.10)
 
+    def test_append_load_rejects_not_null_rsid_table(self, tmp_path: Path):
+        """Append-mode loads fail clearly when the existing schema rejects NULL rsid."""
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE gnomad_af ("
+                    "rsid TEXT NOT NULL, chrom TEXT NOT NULL, pos INTEGER NOT NULL, "
+                    "ref TEXT NOT NULL, alt TEXT NOT NULL, af_global REAL, af_afr REAL, "
+                    "af_amr REAL, af_asj REAL, af_eas REAL, af_eur REAL, af_fin REAL, "
+                    "af_sas REAL, homozygous_count INTEGER DEFAULT 0, "
+                    "PRIMARY KEY (chrom, pos, ref, alt))"
+                )
+            )
+
+        vcf_path = tmp_path / "gnomad.vcf.gz"
+        with gzip.open(vcf_path, "wt") as f:
+            f.write("##fileformat=VCFv4.2\n")
+
+        with pytest.raises(RuntimeError, match="rsid NOT NULL"):
+            load_gnomad_from_vcf(vcf_path, engine, clear_existing=False)
+
 
 # ── CSV loading tests ───────────────────────────────────────────────────
 
