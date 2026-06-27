@@ -733,6 +733,38 @@ class TestExtractCardiovascularVariants:
         assert result.hom_alt_plausibility_suppressed == 1
         assert fh.status == FH_STATUS_NEGATIVE
 
+    def test_dominant_hom_alt_suppression_falls_back_to_global_af(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ldlr_global_af",
+                        "chrom": "19",
+                        "pos": 11210003,
+                        "ref": "G",
+                        "alt": "A",
+                        "genotype": "AA",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 4,
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "gnomad_af_popmax": None,
+                        "gnomad_af_global": 1e-4,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 1
+
     def test_keeps_dominant_hom_alt_when_gnomad_homozygotes_are_observed(
         self, panel: CardiovascularPanel, sample_engine: sa.Engine
     ) -> None:
