@@ -8,6 +8,25 @@ const frontendDir = process.cwd()
 const repoRoot = path.resolve(frontendDir, "..")
 const strictScript = path.join(frontendDir, "scripts", "run-vitest-strict.sh")
 
+function yamlBlock(contents: string, header: string) {
+  const lines = contents.split(/\r?\n/)
+  const start = lines.findIndex((line) => line.trim() === header)
+  expect(start, `Missing YAML header: ${header}`).toBeGreaterThanOrEqual(0)
+
+  const indent = lines[start].search(/\S/)
+  const block = [lines[start]]
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === "") {
+      block.push(line)
+      continue
+    }
+    const lineIndent = line.search(/\S/)
+    if (lineIndent <= indent) break
+    block.push(line)
+  }
+  return block.join("\n")
+}
+
 function runWithFakeVitest(
   fakeBody: string,
   scriptArgs: string[] = [],
@@ -51,17 +70,22 @@ describe("frontend strict test command contract", () => {
   it("keeps CI and release frontend jobs on the explicit strict command", () => {
     for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release.yml"]) {
       const contents = readFileSync(path.join(repoRoot, workflow), "utf8")
-      expect(contents).toContain("run: cd frontend && npm run test:ci")
+      expect(yamlBlock(contents, "test-frontend:")).toContain(
+        "run: cd frontend && npm run test:ci",
+      )
     }
   })
 
   it("runs frontend tests when frontend contract files change", () => {
     const ciWorkflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8")
+    const filters = yamlBlock(ciWorkflow, "filters: |")
+    const frontendFilter = yamlBlock(filters, "frontend:")
+    const frontendJob = yamlBlock(ciWorkflow, "test-frontend:")
 
-    expect(ciWorkflow).toContain("- 'tests/frontend/**'")
-    expect(ciWorkflow).toContain("- '.github/workflows/ci.yml'")
-    expect(ciWorkflow).toContain("- '.github/workflows/release.yml'")
-    expect(ciWorkflow).toContain(
+    expect(frontendFilter).toContain("- 'tests/frontend/**'")
+    expect(frontendFilter).toContain("- '.github/workflows/ci.yml'")
+    expect(frontendFilter).toContain("- '.github/workflows/release.yml'")
+    expect(frontendJob).toContain(
       "needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true'",
     )
   })
