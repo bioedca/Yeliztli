@@ -254,9 +254,9 @@ class TestParseClinvarVcfLine:
     def test_skips_non_numeric_rs(self):
         """Non-numeric RS values should return skip_reason=MALFORMED, mirroring
         the POS check — dbSNP rs numbers are bare positive integers, so a value
-        like ``abc``/``12abc``/``-5`` must be skipped, never built into a junk
+        like ``abc``/``12abc``/``-5``/``0`` must be skipped, never built into a junk
         ``rs{value}`` rsid."""
-        for bad in ("abc", "12abc", "-5"):
+        for bad in ("abc", "12abc", "-5", "0"):
             line = (
                 f"1\t100\t42\tA\tG\t.\t.\tRS={bad};CLNSIG=Benign;CLNREVSTAT=no_assertion_provided"
             )

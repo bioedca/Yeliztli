@@ -196,7 +196,7 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
     # valid: ClinVar's Variation ID plus coordinates are enough for loading and
     # position fallback.
     rs_val = info.get("RS")
-    if rs_val and not (rs_val.isascii() and rs_val.isdigit()):
+    if rs_val and (not (rs_val.isascii() and rs_val.isdigit()) or int(rs_val) <= 0):
         return None, SkipReason.MALFORMED
     rsid = f"rs{rs_val}" if rs_val else None
 
