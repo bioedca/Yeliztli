@@ -858,6 +858,49 @@ class TestStoreCancerFindings:
         fetched = _fetch_cancer_findings(sample_engine)
         assert fetched[0]["clinical_caveat"] == detail["clinical_caveat"]
 
+    def test_legacy_sdhd_finding_fetch_adds_current_clinical_caveat(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.cancer import _fetch_cancer_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "cancer",
+                    "category": "monogenic_variant",
+                    "evidence_level": 4,
+                    "gene_symbol": "SDHD",
+                    "rsid": "rs28934575",
+                    "finding_text": "SDHD rs28934575 (CT) — Pathogenic for "
+                    "Paraganglioma-Pheochromocytoma Syndrome",
+                    "conditions": "Paraganglioma-Pheochromocytoma Syndrome",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "pmid_citations": json.dumps(["20301715"]),
+                    "detail_json": json.dumps(
+                        {
+                            "genotype": "CT",
+                            "clinvar_accession": "VCV000013575",
+                            "clinvar_review_stars": 2,
+                            "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
+                            "syndromes": ["Paraganglioma-Pheochromocytoma Syndrome"],
+                            "cancer_types": ["Paraganglioma", "Pheochromocytoma"],
+                            "inheritance": "AD",
+                            "disease_status": "affected",
+                            "cross_links": [],
+                            "clinvar_low_penetrance_or_risk_allele": False,
+                        }
+                    ),
+                },
+            )
+
+        fetched = _fetch_cancer_findings(sample_engine)
+
+        assert len(fetched) == 1
+        assert "parent-of-origin" in fetched[0]["clinical_caveat"]
+        assert "paternal inheritance" in fetched[0]["clinical_caveat"]
+
     def test_clears_previous_findings_on_rerun(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:

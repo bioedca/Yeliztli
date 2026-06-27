@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import lru_cache
 from typing import Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cancer import load_cancer_panel
 from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -147,6 +149,16 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return registry.get_sample_engine(sample_db_path)
 
 
+@lru_cache(maxsize=1)
+def _cancer_clinical_caveats_by_gene() -> dict[str, str]:
+    """Return curated user-facing caveats keyed by gene symbol."""
+    return {
+        gene.gene_symbol.upper(): gene.clinical_caveat
+        for gene in load_cancer_panel().genes
+        if gene.clinical_caveat
+    }
+
+
 def _fetch_cancer_findings(
     sample_engine: sa.Engine,
     gene_filter: str | None = None,
@@ -191,6 +203,10 @@ def _fetch_cancer_findings(
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Failed to parse pmid_citations for finding id=%s", row.id)
 
+        clinical_caveat = detail.get("clinical_caveat") or _cancer_clinical_caveats_by_gene().get(
+            (row.gene_symbol or "").upper()
+        )
+
         result.append(
             {
                 "rsid": row.rsid or "",
@@ -210,7 +226,7 @@ def _fetch_cancer_findings(
                 "clinvar_low_penetrance_or_risk_allele": detail.get(
                     "clinvar_low_penetrance_or_risk_allele", False
                 ),
-                "clinical_caveat": detail.get("clinical_caveat"),
+                "clinical_caveat": clinical_caveat,
             }
         )
 
