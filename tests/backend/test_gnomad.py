@@ -3,7 +3,7 @@
 Covers:
 - T2-09: gnomAD loader ingests subset, lookup returns correct AF for rs7412 (APOE)
 - T2-10: Rare variant flag correctly set for AF < 0.01 and < 0.001
-- VCF line parsing (valid, multiallelic, no rsid, invalid chrom)
+- VCF line parsing (valid, multiallelic splitting, no rsid, invalid chrom)
 - CSV loading into gnomad_af table
 - Batch lookup by rsid and by (chrom, pos, ref, alt)
 - Table creation and index creation
@@ -40,6 +40,7 @@ from backend.annotation.gnomad import (
     lookup_gnomad_by_positions,
     lookup_gnomad_by_rsids,
     parse_gnomad_vcf_line,
+    parse_gnomad_vcf_records,
 )
 from backend.db.tables import reference_metadata, sample_metadata_obj
 
@@ -130,13 +131,36 @@ class TestParseGnomadVcfLine:
         assert record is None
         assert skip == "no_rsid"
 
-    def test_multiallelic_skipped(self):
-        """Multi-allelic ALT fields are skipped."""
-        line = "1\t100\trs12345\tA\tG,T\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+    def test_multiallelic_split_per_alt_info(self):
+        """Multi-allelic ALT fields are split and keep matching INFO values."""
+        line = (
+            "1\t100\trs12345\tA\tG,T\t.\tPASS\t"
+            "AF=0.05,0.20;AF_afr=0.03,0.07;AF_asj=0.01,0.02;nhomalt=4,9"
+        )
+        records, skip = parse_gnomad_vcf_records(line)
 
-        assert record is None
-        assert skip == "multiallelic"
+        assert skip is None
+        assert [record.alt for record in records] == ["G", "T"]
+        assert [record.rsid for record in records] == ["rs12345", "rs12345"]
+        assert records[0].af_global == pytest.approx(0.05)
+        assert records[0].af_afr == pytest.approx(0.03)
+        assert records[0].af_asj == pytest.approx(0.01)
+        assert records[0].homozygous_count == 4
+        assert records[1].af_global == pytest.approx(0.20)
+        assert records[1].af_afr == pytest.approx(0.07)
+        assert records[1].af_asj == pytest.approx(0.02)
+        assert records[1].homozygous_count == 9
+
+    def test_multiallelic_matching_rsid_count_maps_by_alt_order(self):
+        """When the ID column has one rsID per ALT, preserve that order."""
+        line = "1\t100\trs111;rs222\tA\tG,T\t.\tPASS\tAF=0.05,0.20"
+        records, skip = parse_gnomad_vcf_records(line)
+
+        assert skip is None
+        assert [(record.rsid, record.alt) for record in records] == [
+            ("rs111", "G"),
+            ("rs222", "T"),
+        ]
 
     def test_invalid_chrom_skipped(self):
         """Invalid chromosomes are skipped."""
@@ -263,6 +287,7 @@ class TestCreateGnomadTables:
                 )
             ).fetchall()
         index_names = {r[0] for r in indexes}
+        assert "idx_gnomad_rsid" in index_names
         assert "idx_gnomad_chrom_pos" in index_names
         assert "idx_gnomad_chrom_pos_ref_alt" in index_names
 
@@ -368,14 +393,14 @@ class TestLoadGnomadFromVcf:
             count = conn.execute(sa.text("SELECT COUNT(*) FROM gnomad_af")).scalar()
         assert count == 2
 
-    def test_skips_no_rsid_and_multiallelic(self, gnomad_engine: sa.Engine, tmp_path: Path):
-        """Variants without rsid or with multiallelic ALT are skipped."""
+    def test_skips_no_rsid_and_splits_multiallelic(self, gnomad_engine: sa.Engine, tmp_path: Path):
+        """Variants without rsid are skipped, while multiallelic ALT rows are split."""
         vcf_content = textwrap.dedent("""\
             ##fileformat=VCFv4.2
             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
             1\t100\trs111\tA\tG\t.\tPASS\tAF=0.05
             1\t200\t.\tC\tT\t.\tPASS\tAF=0.10
-            1\t300\trs333\tG\tA,T\t.\tPASS\tAF=0.20
+            1\t300\trs333\tG\tA,T\t.\tPASS\tAF=0.20,0.30;AF_afr=0.01,0.02;nhomalt=4,5
         """)
         vcf_path = tmp_path / "gnomad.vcf.gz"
         with gzip.open(vcf_path, "wt") as f:
@@ -383,9 +408,22 @@ class TestLoadGnomadFromVcf:
 
         stats = load_gnomad_from_vcf(vcf_path, gnomad_engine)
 
-        assert stats.variants_loaded == 1
+        assert stats.variants_loaded == 3
         assert stats.skipped_no_rsid == 1
-        assert stats.skipped_multiallelic == 1
+        assert stats.skipped_multiallelic == 0
+        assert stats.multiallelic_sites_split == 1
+        assert stats.multiallelic_records_loaded == 2
+
+        results = lookup_gnomad_by_positions(
+            [("1", 300, "G", "A"), ("1", 300, "G", "T")],
+            gnomad_engine,
+        )
+        assert results[("1", 300, "G", "A")].af_global == pytest.approx(0.20)
+        assert results[("1", 300, "G", "A")].af_afr == pytest.approx(0.01)
+        assert results[("1", 300, "G", "A")].homozygous_count == 4
+        assert results[("1", 300, "G", "T")].af_global == pytest.approx(0.30)
+        assert results[("1", 300, "G", "T")].af_afr == pytest.approx(0.02)
+        assert results[("1", 300, "G", "T")].homozygous_count == 5
 
 
 # ── Lookup by rsid tests ────────────────────────────────────────────────
@@ -443,6 +481,26 @@ class TestLookupGnomadByRsids:
 
         assert "rs429358" in results
         assert "rs7412" in results
+
+    def test_duplicate_rsid_uses_conservative_popmax(self, gnomad_engine: sa.Engine):
+        """rsID-only lookup remains deterministic when several ALTs share an rsID."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_shared', '1', 300, 'G', 'A', 0.001, 0.001, 0.001, 0.001, "
+                    "0.001, 0.001, 0.001, 0.001, 1), "
+                    "('rs_shared', '1', 300, 'G', 'T', 0.20, 0.05, 0.04, 0.03, "
+                    "0.02, 0.01, 0.07, 0.08, 5)"
+                )
+            )
+
+        results = lookup_gnomad_by_rsids(["rs_shared"], gnomad_engine)
+
+        assert results["rs_shared"].af_global == pytest.approx(0.20)
+        assert results["rs_shared"].af_popmax == pytest.approx(0.20)
 
 
 # ── Lookup by position tests ────────────────────────────────────────────

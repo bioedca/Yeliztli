@@ -5,7 +5,7 @@ fields per population, and builds an indexed SQLite database
 (``gnomad_af.db``).  Also provides batch lookup functions used by the
 annotation engine.
 
-The ``gnomad_af`` table stores one row per variant with columns:
+The ``gnomad_af`` table stores one row per alternate allele with columns:
 rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj,
 af_eas, af_eur, af_fin, af_sas, homozygous_count.
 
@@ -78,7 +78,7 @@ ULTRA_RARE_AF_THRESHOLD = 0.001
 
 CREATE_TABLE_SQL = """\
 CREATE TABLE IF NOT EXISTS gnomad_af (
-    rsid             TEXT PRIMARY KEY,
+    rsid             TEXT NOT NULL,
     chrom            TEXT NOT NULL,
     pos              INTEGER NOT NULL,
     ref              TEXT NOT NULL,
@@ -91,16 +91,18 @@ CREATE TABLE IF NOT EXISTS gnomad_af (
     af_eur           REAL,
     af_fin           REAL,
     af_sas           REAL,
-    homozygous_count INTEGER DEFAULT 0
+    homozygous_count INTEGER DEFAULT 0,
+    PRIMARY KEY (chrom, pos, ref, alt)
 )
 """
 
 CREATE_INDEXES_SQL = [
+    "CREATE INDEX IF NOT EXISTS idx_gnomad_rsid ON gnomad_af (rsid)",
     "CREATE INDEX IF NOT EXISTS idx_gnomad_chrom_pos ON gnomad_af (chrom, pos)",
     "CREATE INDEX IF NOT EXISTS idx_gnomad_chrom_pos_ref_alt ON gnomad_af (chrom, pos, ref, alt)",
 ]
 
-# Bulk-insert statement (idempotent upsert on the rsid primary key).
+# Bulk-insert statement (idempotent upsert on the coordinate/allele primary key).
 _INSERT_GNOMAD_SQL = sa.text(
     "INSERT OR REPLACE INTO gnomad_af "
     "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
@@ -144,6 +146,8 @@ class LoadStats:
     skipped_invalid_chrom: int = 0
     skipped_malformed: int = 0
     skipped_multiallelic: int = 0
+    multiallelic_sites_split: int = 0
+    multiallelic_records_loaded: int = 0
     sha256: str | None = None
 
 
@@ -264,6 +268,49 @@ def _parse_info_field(info: str) -> dict[str, str]:
     return result
 
 
+def _extract_rsids(var_id: str) -> list[str]:
+    """Extract rsIDs from a VCF ID field, preserving their listed order."""
+    if not var_id or var_id == ".":
+        return []
+    return [vid for vid in var_id.split(";") if vid.startswith("rs")]
+
+
+def _rsid_for_alt(rsids: list[str], alt_index: int, alt_count: int) -> str:
+    """Choose the best rsID available for an ALT-specific row.
+
+    gnomAD's VCF ID column is site-level, not a structured per-ALT field. When
+    the number of rsIDs matches the number of ALTs, keep that order; otherwise
+    use the first rsID and let the coordinate primary key disambiguate rows.
+    """
+    if len(rsids) == alt_count:
+        return rsids[alt_index]
+    return rsids[0]
+
+
+def _info_value_for_alt(
+    info: dict[str, str],
+    key: str,
+    alt_index: int,
+    alt_count: int,
+) -> str | None:
+    """Return an ALT-specific INFO value.
+
+    gnomAD frequency/count fields are Number=A in the source VCF: a multi-ALT
+    row stores comma-indexed values aligned to the ALT field. If a multi-ALT row
+    has a mismatched value count, treat that field as missing rather than copying
+    one allele's value to another allele.
+    """
+    value = info.get(key)
+    if value is None or value == "" or value == ".":
+        return value
+    values = value.split(",")
+    if alt_count == 1:
+        return value
+    if len(values) == alt_count:
+        return values[alt_index]
+    return None
+
+
 def _compute_sha256(file_path: Path) -> str:
     """Compute SHA-256 checksum of a file."""
     sha = hashlib.sha256()
@@ -289,67 +336,79 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
 # ── VCF parsing ──────────────────────────────────────────────────────────
 
 
-def parse_gnomad_vcf_line(line: str) -> tuple[GnomADRecord | None, str | None]:
-    """Parse a single gnomAD VCF data line.
+def parse_gnomad_vcf_records(line: str) -> tuple[list[GnomADRecord], str | None]:
+    """Parse one gnomAD VCF data line into one record per ALT allele.
 
     Returns:
-        Tuple of (record, skip_reason). If record is None, skip_reason
+        Tuple of (records, skip_reason). If records is empty, skip_reason
         indicates why the line was skipped.
     """
     parts = line.rstrip("\n\r").split("\t")
     if len(parts) < 8:
-        return None, "malformed"
+        return [], "malformed"
 
     chrom_raw, pos_str, var_id, ref, alt, _qual, _filt, info_str = parts[:8]
 
     # Normalize chromosome
     chrom = _normalize_chrom(chrom_raw)
     if chrom is None:
-        return None, "invalid_chrom"
+        return [], "invalid_chrom"
 
     # Validate position
     try:
         pos = int(pos_str)
     except (ValueError, TypeError):
-        return None, "malformed"
+        return [], "malformed"
 
     # Extract rsid from ID column
-    rsid: str | None = None
-    if var_id and var_id != ".":
-        # gnomAD ID column may contain multiple IDs separated by ;
-        for vid in var_id.split(";"):
-            if vid.startswith("rs"):
-                rsid = vid
-                break
+    rsids = _extract_rsids(var_id)
+    if not rsids:
+        return [], "no_rsid"
 
-    if not rsid:
-        return None, "no_rsid"
-
-    # Skip multi-allelic (contains comma in ALT)
-    if "," in alt:
-        return None, "multiallelic"
+    alts = alt.split(",")
+    if any(not allele for allele in alts):
+        return [], "malformed"
 
     # Parse INFO fields for allele frequencies
     info = _parse_info_field(info_str)
+    alt_count = len(alts)
 
-    record = GnomADRecord(
-        rsid=rsid,
-        chrom=chrom,
-        pos=pos,
-        ref=ref,
-        alt=alt,
-        af_global=_parse_float(info.get("AF")),
-        af_afr=_parse_float(info.get("AF_afr")),
-        af_amr=_parse_float(info.get("AF_amr")),
-        af_asj=_parse_float(info.get("AF_asj")),
-        af_eas=_parse_float(info.get("AF_eas")),
-        af_eur=_parse_float(info.get("AF_nfe")),
-        af_fin=_parse_float(info.get("AF_fin")),
-        af_sas=_parse_float(info.get("AF_sas")),
-        homozygous_count=_parse_int(info.get("nhomalt")),
-    )
+    records = [
+        GnomADRecord(
+            rsid=_rsid_for_alt(rsids, alt_index, alt_count),
+            chrom=chrom,
+            pos=pos,
+            ref=ref,
+            alt=alt_allele,
+            af_global=_parse_float(_info_value_for_alt(info, "AF", alt_index, alt_count)),
+            af_afr=_parse_float(_info_value_for_alt(info, "AF_afr", alt_index, alt_count)),
+            af_amr=_parse_float(_info_value_for_alt(info, "AF_amr", alt_index, alt_count)),
+            af_asj=_parse_float(_info_value_for_alt(info, "AF_asj", alt_index, alt_count)),
+            af_eas=_parse_float(_info_value_for_alt(info, "AF_eas", alt_index, alt_count)),
+            af_eur=_parse_float(_info_value_for_alt(info, "AF_nfe", alt_index, alt_count)),
+            af_fin=_parse_float(_info_value_for_alt(info, "AF_fin", alt_index, alt_count)),
+            af_sas=_parse_float(_info_value_for_alt(info, "AF_sas", alt_index, alt_count)),
+            homozygous_count=_parse_int(
+                _info_value_for_alt(info, "nhomalt", alt_index, alt_count)
+            ),
+        )
+        for alt_index, alt_allele in enumerate(alts)
+    ]
 
-    return record, None
+    return records, None
+
+
+def parse_gnomad_vcf_line(line: str) -> tuple[GnomADRecord | None, str | None]:
+    """Parse a gnomAD VCF data line and return the first ALT record.
+
+    This compatibility wrapper is for callers/tests that expect a single record.
+    The loader uses :func:`parse_gnomad_vcf_records` so multi-allelic rows are
+    preserved as one record per ALT allele.
+    """
+    records, skip_reason = parse_gnomad_vcf_records(line)
+    if not records:
+        return None, skip_reason
+    return records[0], skip_reason
 
 
 def iter_gnomad_vcf(
@@ -379,9 +438,9 @@ def iter_gnomad_vcf(
 
             stats.total_lines += 1
 
-            record, skip_reason = parse_gnomad_vcf_line(line)
+            records, skip_reason = parse_gnomad_vcf_records(line)
 
-            if record is None:
+            if not records:
                 if skip_reason == "no_rsid":
                     stats.skipped_no_rsid += 1
                 elif skip_reason == "invalid_chrom":
@@ -392,41 +451,53 @@ def iter_gnomad_vcf(
                     stats.skipped_malformed += 1
                 continue
 
-            stats.variants_loaded += 1
-
-            row = {
-                "rsid": record.rsid,
-                "chrom": record.chrom,
-                "pos": record.pos,
-                "ref": record.ref,
-                "alt": record.alt,
-                "af_global": record.af_global,
-                "af_afr": record.af_afr,
-                "af_amr": record.af_amr,
-                "af_asj": record.af_asj,
-                "af_eas": record.af_eas,
-                "af_eur": record.af_eur,
-                "af_fin": record.af_fin,
-                "af_sas": record.af_sas,
-                "homozygous_count": record.homozygous_count,
-            }
+            stats.variants_loaded += len(records)
+            if len(records) > 1:
+                stats.multiallelic_sites_split += 1
+                stats.multiallelic_records_loaded += len(records)
 
             if progress_callback and stats.total_lines % 100_000 == 0:
                 progress_callback(stats.total_lines)
 
-            yield row, stats
+            for record in records:
+                row = {
+                    "rsid": record.rsid,
+                    "chrom": record.chrom,
+                    "pos": record.pos,
+                    "ref": record.ref,
+                    "alt": record.alt,
+                    "af_global": record.af_global,
+                    "af_afr": record.af_afr,
+                    "af_amr": record.af_amr,
+                    "af_asj": record.af_asj,
+                    "af_eas": record.af_eas,
+                    "af_eur": record.af_eur,
+                    "af_fin": record.af_fin,
+                    "af_sas": record.af_sas,
+                    "homozygous_count": record.homozygous_count,
+                }
+
+                yield row, stats
 
 
 # ── Database creation & loading ──────────────────────────────────────────
 
 
-def _create_gnomad_table(engine: sa.Engine) -> None:
+def _create_gnomad_table(engine: sa.Engine, *, recreate_legacy_rsid_pk: bool = False) -> None:
     """Create only the gnomad_af table (no indexes). Safe to call repeatedly."""
     with engine.begin() as conn:
+        if recreate_legacy_rsid_pk and _gnomad_table_primary_key(conn) == ("rsid",):
+            conn.execute(sa.text("DROP TABLE gnomad_af"))
         conn.execute(sa.text(CREATE_TABLE_SQL))
         existing_cols = _gnomad_table_columns(conn)
         if "af_asj" not in existing_cols:
             conn.execute(sa.text("ALTER TABLE gnomad_af ADD COLUMN af_asj REAL"))
+
+
+def _gnomad_table_primary_key(conn: sa.Connection) -> tuple[str, ...]:
+    """Return the local gnomad_af primary-key columns in key order."""
+    rows = conn.execute(sa.text("PRAGMA table_info(gnomad_af)")).fetchall()
+    return tuple(name for _pk_order, name in sorted((row[5], row[1]) for row in rows if row[5]))
 
 
 def _gnomad_table_columns(conn: sa.Connection) -> set[str]:
@@ -476,7 +547,7 @@ def load_gnomad_from_vcf(
         LoadStats with counts and metadata.
     """
     # Create the table only; indexes are built once after the bulk insert.
-    _create_gnomad_table(engine)
+    _create_gnomad_table(engine, recreate_legacy_rsid_pk=clear_existing)
 
     batch: list[dict] = []
     final_stats = LoadStats()
@@ -506,6 +577,8 @@ def load_gnomad_from_vcf(
         skipped_no_rsid=final_stats.skipped_no_rsid,
         skipped_invalid_chrom=final_stats.skipped_invalid_chrom,
         skipped_multiallelic=final_stats.skipped_multiallelic,
+        multiallelic_sites_split=final_stats.multiallelic_sites_split,
+        multiallelic_records_loaded=final_stats.multiallelic_records_loaded,
     )
 
     return final_stats
@@ -534,7 +607,7 @@ def load_gnomad_from_csv(
         LoadStats with counts.
     """
     # Create the table only; indexes are built once after the bulk insert.
-    _create_gnomad_table(engine)
+    _create_gnomad_table(engine, recreate_legacy_rsid_pk=clear_existing)
 
     stats = LoadStats()
     batch: list[dict] = []
@@ -628,6 +701,41 @@ def download_gnomad_vcf(
 # ── Annotation lookup ────────────────────────────────────────────────────
 
 
+def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
+    """Build a lookup annotation from a gnomAD result row."""
+    popmax = compute_af_popmax(
+        row.af_global,
+        row.af_afr,
+        row.af_amr,
+        row.af_eas,
+        row.af_eur,
+        row.af_fin,
+        row.af_sas,
+        af_asj=row.af_asj,
+    )
+    rare, ultra_rare = compute_rare_flags(popmax)
+    return GnomADAnnotation(
+        rsid=row.rsid,
+        af_global=row.af_global,
+        af_afr=row.af_afr,
+        af_amr=row.af_amr,
+        af_asj=row.af_asj,
+        af_eas=row.af_eas,
+        af_eur=row.af_eur,
+        af_fin=row.af_fin,
+        af_sas=row.af_sas,
+        homozygous_count=row.homozygous_count or 0,
+        rare_flag=rare,
+        ultra_rare_flag=ultra_rare,
+        af_popmax=popmax,
+    )
+
+
+def _annotation_rank(annot: GnomADAnnotation) -> float:
+    """Rank ambiguous rsID-only hits by conservative popmax."""
+    return -1.0 if annot.af_popmax is None else annot.af_popmax
+
+
 def lookup_gnomad_by_rsids(
     rsids: list[str],
     gnomad_engine: sa.Engine,
@@ -657,37 +765,16 @@ def lookup_gnomad_by_rsids(
 
             stmt = sa.text(
                 "SELECT rsid, "  # noqa: S608
-                f"{af_select}, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders})"
+                f"{af_select}, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders}) "
+                "ORDER BY rsid, chrom, pos, ref, alt"
             )
             rows = conn.execute(stmt, params).fetchall()
 
             for row in rows:
-                popmax = compute_af_popmax(
-                    row.af_global,
-                    row.af_afr,
-                    row.af_amr,
-                    row.af_eas,
-                    row.af_eur,
-                    row.af_fin,
-                    row.af_sas,
-                    af_asj=row.af_asj,
-                )
-                rare, ultra_rare = compute_rare_flags(popmax)
-                results[row.rsid] = GnomADAnnotation(
-                    rsid=row.rsid,
-                    af_global=row.af_global,
-                    af_afr=row.af_afr,
-                    af_amr=row.af_amr,
-                    af_asj=row.af_asj,
-                    af_eas=row.af_eas,
-                    af_eur=row.af_eur,
-                    af_fin=row.af_fin,
-                    af_sas=row.af_sas,
-                    homozygous_count=row.homozygous_count or 0,
-                    rare_flag=rare,
-                    ultra_rare_flag=ultra_rare,
-                    af_popmax=popmax,
-                )
+                annot = _annotation_from_row(row)
+                current = results.get(row.rsid)
+                if current is None or _annotation_rank(annot) > _annotation_rank(current):
+                    results[row.rsid] = annot
 
     return results
 
@@ -739,32 +826,7 @@ def lookup_gnomad_by_positions(
             rows = conn.execute(stmt, params).fetchall()
 
             for row in rows:
-                popmax = compute_af_popmax(
-                    row.af_global,
-                    row.af_afr,
-                    row.af_amr,
-                    row.af_eas,
-                    row.af_eur,
-                    row.af_fin,
-                    row.af_sas,
-                    af_asj=row.af_asj,
-                )
-                rare, ultra_rare = compute_rare_flags(popmax)
                 key = (row.chrom, row.pos, row.ref, row.alt)
-                results[key] = GnomADAnnotation(
-                    rsid=row.rsid,
-                    af_global=row.af_global,
-                    af_afr=row.af_afr,
-                    af_amr=row.af_amr,
-                    af_asj=row.af_asj,
-                    af_eas=row.af_eas,
-                    af_eur=row.af_eur,
-                    af_fin=row.af_fin,
-                    af_sas=row.af_sas,
-                    homozygous_count=row.homozygous_count or 0,
-                    rare_flag=rare,
-                    ultra_rare_flag=ultra_rare,
-                    af_popmax=popmax,
-                )
+                results[key] = _annotation_from_row(row)
 
     return results

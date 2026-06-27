@@ -1413,6 +1413,37 @@ class TestGnomadAnnotationLookupIntegration:
         assert "rs_user_id" in result
         assert result["rs_user_id"]["gnomad_af_global"] == pytest.approx(0.02)
 
+    def test_position_lookup_beats_ambiguous_shared_rsid(self, gnomad_engine: sa.Engine) -> None:
+        """Exact allele coordinates select the carried ALT at shared-rsID sites."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_shared', '1', 300, 'G', 'A', 0.001, 0.001, 0.001, 0.001, "
+                    "0.001, 0.001, 0.001, 0.001, 1), "
+                    "('rs_shared', '1', 300, 'G', 'T', 0.20, 0.05, 0.04, 0.03, "
+                    "0.02, 0.01, 0.07, 0.08, 5)"
+                )
+            )
+
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, "
+                    "genotype TEXT, ref TEXT, alt TEXT)"
+                )
+            )
+            conn.execute(sa.text("INSERT INTO t VALUES ('rs_shared', '1', 300, 'GA', 'G', 'A')"))
+            row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
+
+        result = _lookup_gnomad(["rs_shared"], {"rs_shared": row}, gnomad_engine)
+
+        assert result["rs_shared"]["gnomad_af_global"] == pytest.approx(0.001)
+        assert result["rs_shared"]["gnomad_homozygous_count"] == 1
+
     def test_position_fallback_skipped_without_ref_alt(self, gnomad_engine: sa.Engine) -> None:
         """Fallback is skipped when raw variant lacks ref/alt columns."""
         # Create a raw row without ref/alt (like 23andMe data)

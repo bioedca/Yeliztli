@@ -361,13 +361,13 @@ def _lookup_gnomad(
     raw_by_rsid: dict[str, sa.Row],
     gnomad_engine: sa.Engine,
 ) -> dict[str, dict]:
-    """Look up gnomAD allele frequencies by rsid with position-based fallback.
+    """Look up gnomAD allele frequencies by exact allele, then rsid.
 
-    Primary strategy: batch rsid lookup via ``lookup_gnomad_by_rsids``.
-    Fallback: for unmatched rsids that have chrom/pos data, attempt
-    position-based lookup via ``lookup_gnomad_by_positions`` using the
-    composite (chrom, pos, ref, alt) index when ref/alt are available,
-    or (chrom, pos) scan otherwise.
+    Primary strategy when ref/alt are available: position-based lookup via
+    ``lookup_gnomad_by_positions`` using the composite (chrom, pos, ref, alt)
+    index. This is allele-specific, so multi-allelic sites and shared rsIDs do
+    not return the wrong ALT. Fallback: batch rsid lookup via
+    ``lookup_gnomad_by_rsids`` for rows that lack exact allele coordinates.
 
     Delegates to :mod:`backend.annotation.gnomad` functions so that
     threshold constants (RARE_AF_THRESHOLD, ULTRA_RARE_AF_THRESHOLD) and
@@ -376,37 +376,37 @@ def _lookup_gnomad(
     if not rsids:
         return {}
 
-    # Primary: rsid-based lookup
-    rsid_matches = lookup_gnomad_by_rsids(rsids, gnomad_engine)
-
     results: dict[str, dict] = {}
-    for rsid, annot in rsid_matches.items():
-        results[rsid] = _annot_to_dict(annot)
 
-    # Fallback: position-based lookup for unmatched rsids
+    # Exact allele lookup first. gnomAD is stored one row per ALT, and an rsID
+    # may be shared by several alternate alleles at the same position.
+    positions: list[tuple[str, int, str, str]] = []
+    pos_to_rsid: dict[tuple[str, int, str, str], str] = {}
+    for rsid in rsids:
+        raw = raw_by_rsid.get(rsid)
+        if raw is None:
+            continue
+        chrom = getattr(raw, "chrom", None)
+        pos = getattr(raw, "pos", None)
+        ref = getattr(raw, "ref", None)
+        alt = getattr(raw, "alt", None)
+        if chrom and pos is not None and ref and alt:
+            key = (chrom, pos, ref, alt)
+            positions.append(key)
+            pos_to_rsid[key] = rsid
+
+    if positions:
+        pos_matches = lookup_gnomad_by_positions(positions, gnomad_engine)
+        for key, annot in pos_matches.items():
+            rsid = pos_to_rsid[key]
+            results[rsid] = _annot_to_dict(annot)
+
+    # Fallback: rsid-based lookup for rows without exact allele coordinates.
     unmatched = [r for r in rsids if r not in results]
     if unmatched:
-        # Build position tuples from raw variant data where available
-        positions: list[tuple[str, int, str, str]] = []
-        pos_to_rsid: dict[tuple[str, int, str, str], str] = {}
-        for rsid in unmatched:
-            raw = raw_by_rsid.get(rsid)
-            if raw is None:
-                continue
-            chrom = getattr(raw, "chrom", None)
-            pos = getattr(raw, "pos", None)
-            ref = getattr(raw, "ref", None)
-            alt = getattr(raw, "alt", None)
-            if chrom and pos and ref and alt:
-                key = (chrom, pos, ref, alt)
-                positions.append(key)
-                pos_to_rsid[key] = rsid
-
-        if positions:
-            pos_matches = lookup_gnomad_by_positions(positions, gnomad_engine)
-            for key, annot in pos_matches.items():
-                rsid = pos_to_rsid[key]
-                results[rsid] = _annot_to_dict(annot)
+        rsid_matches = lookup_gnomad_by_rsids(unmatched, gnomad_engine)
+        for rsid, annot in rsid_matches.items():
+            results[rsid] = _annot_to_dict(annot)
 
     return results
 
