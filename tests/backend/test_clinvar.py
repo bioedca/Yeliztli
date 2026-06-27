@@ -215,16 +215,23 @@ class TestParseClinvarVcfLine:
         assert rec is not None
         assert rec.review_stars == 4
 
-    def test_skips_no_rs_with_reason(self):
-        """Lines without RS in INFO should return skip_reason=NO_RSID."""
+    def test_loads_no_rsid_record(self):
+        """Lines without RS load with ``rsid=None`` for coordinate lookup."""
         line = (
             "3\t12345\t100001\tC\tT\t.\t.\t"
             "CLNSIG=Pathogenic;CLNREVSTAT=no_assertion_criteria_provided;"
             "CLNDN=Some_disease;GENEINFO=FAKEGENE:99"
         )
         rec, skip = parse_clinvar_vcf_line(line)
-        assert rec is None
-        assert skip == SkipReason.NO_RSID
+        assert skip is None
+        assert rec is not None
+        assert rec.rsid is None
+        assert rec.chrom == "3"
+        assert rec.pos == 12345
+        assert rec.significance == "Pathogenic"
+        assert rec.accession is None
+        assert rec.gene_symbol == "FAKEGENE"
+        assert rec.variation_id == 100001
 
     def test_skips_invalid_chrom_with_reason(self):
         line = "Un\t12345\t100\tA\tG\t.\t.\tRS=999;CLNSIG=Benign;CLNREVSTAT=no_assertion_provided"
@@ -298,15 +305,17 @@ class TestParseClinvarVcfLine:
         assert rec.significance == "Pathogenic"
 
     def test_gene_with_rs_substring_still_no_rsid(self):
-        """Gene name containing 'RS' substring should not trick skip counting."""
+        """Gene name containing 'RS' substring should not create a fake rsid."""
         line = (
             "1\t100\t42\tA\tG\t.\t.\t"
             "CLNSIG=Benign;CLNREVSTAT=no_assertion_provided;"
             "GENEINFO=MARS:4141"
         )
         rec, skip = parse_clinvar_vcf_line(line)
-        assert rec is None
-        assert skip == SkipReason.NO_RSID
+        assert skip is None
+        assert rec is not None
+        assert rec.rsid is None
+        assert rec.gene_symbol == "MARS"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -319,10 +328,10 @@ class TestParseClinvarVcf:
         """Parse the mini ClinVar VCF fixture and verify stats."""
         rows, stats = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
 
-        # 12 data lines total, 1 has no RS → 11 loaded
+        # 12 data lines total, including 1 coordinate-only no-RS record.
         assert stats.total_lines == 12
-        assert stats.variants_loaded == 11
-        assert stats.skipped_no_rsid == 1
+        assert stats.variants_loaded == 12
+        assert stats.skipped_no_rsid == 0
         assert stats.file_date == "20260301"
 
     def test_known_variant_present(self):
@@ -350,26 +359,26 @@ class TestParseClinvarVcf:
                 f_out.write(f_in.read())
 
         rows, stats = _materialize_clinvar_rows(gz_path)
-        assert stats.variants_loaded == 11
+        assert stats.variants_loaded == 12
 
     def test_progress_callback(self):
         """Progress callback should not raise (even if lines < 10k)."""
         cb = MagicMock()
         rows, stats = _materialize_clinvar_rows(MINI_CLINVAR_VCF, progress_callback=cb)
         # Mini fixture has only 12 lines — below 10k threshold
-        assert stats.variants_loaded == 11
+        assert stats.variants_loaded == 12
 
 
 class TestIterClinvarVcf:
     def test_iter_yields_correct_count(self):
-        """Iterator should yield 11 rows from mini fixture."""
+        """Iterator should yield 12 rows from mini fixture."""
         count = 0
         stats = None
         for _, stats in iter_clinvar_vcf(MINI_CLINVAR_VCF):
             count += 1
-        assert count == 11
+        assert count == 12
         assert stats is not None
-        assert stats.variants_loaded == 11
+        assert stats.variants_loaded == 12
 
 
 class TestMalformedVcfData:
@@ -378,15 +387,13 @@ class TestMalformedVcfData:
         line = "1\t100\t42\tA\tG\t.\t.\t\x00\x01\x02"
         rec, skip = parse_clinvar_vcf_line(line)
         assert rec is None
-        assert skip == SkipReason.NO_RSID
+        assert skip == SkipReason.MALFORMED
 
     def test_truncated_info_field(self):
-        """Truncated INFO with an empty RS value is skipped as NO_RSID: the
-        ``if not rs_val`` guard fires before any rsid is built, so the parser
-        never yields ``rsid == "rs"``."""
+        """An empty RS value alone is malformed, not a coordinate-only record."""
         rec, skip = parse_clinvar_vcf_line("1\t100\t42\tA\tG\t.\t.\tRS=")
         assert rec is None
-        assert skip == SkipReason.NO_RSID
+        assert skip == SkipReason.MALFORMED
 
     def test_empty_line(self):
         rec, skip = parse_clinvar_vcf_line("")
@@ -430,10 +437,10 @@ class TestLoadClinvarFromIter:
         """Stream loading from the iterator loads every row."""
         stats = load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
 
-        assert stats.variants_loaded == 11
+        assert stats.variants_loaded == 12
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-        assert count == 11
+        assert count == 12
 
     def test_stream_load_known_variant(self, ref_engine: sa.Engine):
         """rs28897696 (HBB Pathogenic) is queryable after a stream load (T1-11 spec)."""
@@ -467,6 +474,25 @@ class TestLoadClinvarFromIter:
         assert row.rsid == "rs429358"
         assert row.gene_symbol == "APOE"
 
+    def test_stream_load_no_rsid_record(self, ref_engine: sa.Engine):
+        """Coordinate-only ClinVar records are stored with a NULL rsid."""
+        load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
+
+        with ref_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(clinvar_variants).where(
+                    sa.and_(
+                        clinvar_variants.c.chrom == "3",
+                        clinvar_variants.c.pos == 12345,
+                    )
+                )
+            ).first()
+        assert row is not None
+        assert row.rsid is None
+        assert row.significance == "Pathogenic"
+        assert row.gene_symbol == "FAKEGENE"
+        assert row.variation_id == 100001
+
     def test_clear_existing_replaces_data(self, ref_engine: sa.Engine):
         """clear_existing=True (the default) replaces old rows — no doubling."""
         load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
@@ -474,7 +500,7 @@ class TestLoadClinvarFromIter:
 
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-        assert count == 11
+        assert count == 12
 
     def test_append_without_clear(self, ref_engine: sa.Engine):
         """clear_existing=False appends rather than replacing."""
@@ -485,7 +511,7 @@ class TestLoadClinvarFromIter:
 
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-        assert count == 22  # doubled
+        assert count == 24  # doubled
 
     def test_empty_iterator(self, ref_engine: sa.Engine):
         """An empty iterator loads nothing without error."""
@@ -672,14 +698,14 @@ class TestDownloadAndLoadClinvar:
 
             stats = download_and_load_clinvar(ref_engine, dest_dir)
 
-        assert stats.variants_loaded == 11
+        assert stats.variants_loaded == 12
         assert stats.file_date == "20260301"
         assert stats.sha256 is not None
 
         # Verify data in DB
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
-            assert count == 11
+            assert count == 12
 
             # Verify version recorded
             ver = conn.execute(

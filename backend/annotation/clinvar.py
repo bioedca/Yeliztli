@@ -76,6 +76,8 @@ VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 class SkipReason:
     """Enum-like constants for why a VCF line was skipped."""
 
+    # Legacy counter kept for old load telemetry. Valid ClinVar records no
+    # longer need a dbSNP RS field because coordinate lookup can recover them.
     NO_RSID = "no_rsid"
     INVALID_CHROM = "invalid_chrom"
     MALFORMED = "malformed"
@@ -98,7 +100,7 @@ class LoadStats:
 class ClinVarRecord:
     """A single parsed ClinVar variant record."""
 
-    rsid: str
+    rsid: str | None
     chrom: str
     pos: int
     ref: str
@@ -187,16 +189,22 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
     # Parse INFO
     info = _parse_info_field(info_str)
 
-    # Extract rsid — require a numeric RS field. dbSNP rs numbers are bare
-    # positive integers, so a non-numeric RS value (e.g. ``abc``, ``12abc``,
-    # ``-5``) is malformed: turning it into ``rs{value}`` would store a junk
-    # rsid (``rsabc``, ``rs-5``) that never matches a real ``rsNNN`` lookup.
+    # Extract optional rsid. dbSNP rs numbers are bare positive integers, so a
+    # non-numeric RS value (e.g. ``abc``, ``12abc``, ``-5``) is malformed:
+    # turning it into ``rs{value}`` would store a junk rsid (``rsabc``,
+    # ``rs-5``) that never matches a real ``rsNNN`` lookup. Missing/empty RS is
+    # valid: ClinVar's Variation ID plus coordinates are enough for loading and
+    # position fallback.
     rs_val = info.get("RS")
-    if not rs_val:
-        return None, SkipReason.NO_RSID
-    if not (rs_val.isascii() and rs_val.isdigit()):
+    if rs_val and not (rs_val.isascii() and rs_val.isdigit()):
         return None, SkipReason.MALFORMED
-    rsid = f"rs{rs_val}"
+    rsid = f"rs{rs_val}" if rs_val else None
+
+    if not any(
+        info.get(key)
+        for key in ("RS", "CLNSIG", "CLNREVSTAT", "CLNDN", "GENEINFO", "CLNVCID", "CLNACC")
+    ):
+        return None, SkipReason.MALFORMED
 
     # Parse variation ID from the ID column
     variation_id: int | None = None

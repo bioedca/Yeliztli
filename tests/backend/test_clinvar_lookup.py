@@ -217,6 +217,39 @@ class TestLookupByPositions:
         assert "i_custom_id" in result
         assert result["i_custom_id"].rsid == "i_custom_id"
 
+    def test_null_reference_rsid_position_match(self, reference_engine: sa.Engine) -> None:
+        """Coordinate fallback can recover ClinVar records with no dbSNP rsid."""
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": None,
+                        "chrom": "2",
+                        "pos": 47630325,
+                        "ref": "TTCGACATGGCG",
+                        "alt": "T",
+                        "significance": "Pathogenic",
+                        "review_stars": 1,
+                        "accession": "VCV001075377",
+                        "conditions": "Lynch syndrome",
+                        "gene_symbol": "MSH2",
+                        "variation_id": 1075377,
+                    }
+                ],
+            )
+
+        result = lookup_clinvar_by_positions(
+            [("2", 47630325, "sample_msh2_del")],
+            reference_engine,
+            genotype_by_rsid={"sample_msh2_del": "ID"},
+        )
+
+        assert result["sample_msh2_del"].rsid == "sample_msh2_del"
+        assert result["sample_msh2_del"].clinvar_significance == "Pathogenic"
+        assert result["sample_msh2_del"].clinvar_accession == "VCV001075377"
+        assert result["sample_msh2_del"].matched_by == "chrom_pos"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # annotate_sample_clinvar (end-to-end)
@@ -545,6 +578,63 @@ class TestAnnotateSampleClinvar:
         assert row is not None
         assert row.clinvar_significance == "risk_factor"
         assert row.annotation_coverage & CLINVAR_BITMASK == CLINVAR_BITMASK
+
+    def test_chrom_pos_fallback_with_null_reference_rsid(
+        self,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """End-to-end annotation writes no-rsID ClinVar records by sample key."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {
+                        "rsid": "sample_msh2_del",
+                        "chrom": "2",
+                        "pos": 47630325,
+                        "genotype": "ID",
+                    },
+                ],
+            )
+
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": None,
+                        "chrom": "2",
+                        "pos": 47630325,
+                        "ref": "TTCGACATGGCG",
+                        "alt": "T",
+                        "significance": "Pathogenic",
+                        "review_stars": 1,
+                        "accession": "VCV001075377",
+                        "conditions": "Lynch syndrome",
+                        "gene_symbol": "MSH2",
+                        "variation_id": 1075377,
+                    },
+                ],
+            )
+
+        result = annotate_sample_clinvar(sample_engine, reference_engine)
+
+        assert result.matched_by_rsid == 0
+        assert result.matched_by_position == 1
+        assert result.rows_written == 1
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "sample_msh2_del")
+            ).first()
+
+        assert row is not None
+        assert row.clinvar_significance == "Pathogenic"
+        assert row.clinvar_accession == "VCV001075377"
+        assert row.ref == "TTCGACATGGCG"
+        assert row.alt == "T"
+        assert row.zygosity is None
 
     def test_re_annotation_updates_existing(
         self,
