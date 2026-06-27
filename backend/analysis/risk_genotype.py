@@ -1260,6 +1260,8 @@ def _off_chip_disclosures(
 ) -> list[RiskCall]:
     if not panel.emit_off_chip_disclosures:
         return []
+    if not any(dosages.get(loc.rsid) is not None for loc in panel.loci):
+        return []
     return [
         _render_off_chip_disclosure(panel, loc, dosages, readouts, sex)
         for loc in panel.loci

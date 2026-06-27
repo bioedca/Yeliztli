@@ -294,6 +294,53 @@ class TestClassify:
         assert assessment.calls == []
         assert assessment.indeterminate_reasons == {"rsB": INDETERMINATE_NO_CALL}
 
+    def test_opt_in_off_chip_disclosure_requires_partial_panel_signal(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        model = GenotypeModel(
+            id="b_carrier",
+            match={"rsB": {"dosage": 1}},
+            risk_classification="B carrier",
+            evidence_stars=3,
+            finding_text="B carrier {genotype}",
+        )
+        panel = RiskPanel(
+            module="testmod",
+            version="1.0.0",
+            description="",
+            category="risk_genotype",
+            loci=[
+                RiskLocus(
+                    rsid="rsA",
+                    gene_symbol="GENEA",
+                    label="A high-impact",
+                    risk_allele="A",
+                    ref_allele="G",
+                    off_chip_risk="high",
+                ),
+                RiskLocus(
+                    rsid="rsB",
+                    gene_symbol="GENEB",
+                    label="B high-impact",
+                    risk_allele="T",
+                    ref_allele="C",
+                    off_chip_risk="high",
+                ),
+            ],
+            genotype_models=[model],
+            emit_off_chip_disclosures=True,
+        )
+
+        readouts = read_genotypes(panel, sample_engine)
+        dosages = compute_dosages(panel, readouts)
+        assessment = classify(panel, dosages, readouts)
+
+        assert assessment.calls == []
+        assert assessment.indeterminate_reasons == {
+            "rsA": INDETERMINATE_OFF_CHIP,
+            "rsB": INDETERMINATE_OFF_CHIP,
+        }
+
 
 class TestAncestryGate:
     def _gated_panel(self) -> RiskPanel:

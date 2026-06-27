@@ -144,6 +144,18 @@ class TestNegativeAndIndeterminate:
         a = assess_thrombophilia(panel, sample_engine)
         assert a.calls == []
 
+    def test_whole_panel_off_chip_stays_silent(self, panel, sample_engine: sa.Engine) -> None:
+        # If neither thrombophilia locus was assessed, avoid creating a module
+        # card with every locus listed as not assessed. The disclosure is for
+        # partial-panel false reassurance, e.g. FVL negative + F2 off-chip.
+        a = assess_thrombophilia(panel, sample_engine)
+
+        assert a.calls == []
+        assert a.indeterminate_reasons == {
+            "rs6025": "off_chip",
+            "rs1799963": "off_chip",
+        }
+
     def test_fvl_reference_f2_off_chip_surfaces_prothrombin_disclosure(
         self, panel, sample_engine: sa.Engine
     ) -> None:
