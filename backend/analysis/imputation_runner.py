@@ -50,10 +50,13 @@ DEFAULT_JAVA_MEM = "8g"
 # minutes-to-tens-of-minutes on a laptop, so default generously.
 DEFAULT_TIMEOUT = 3600.0
 
-# DR2 (dosage R²) is Beagle's imputation-quality metric in [0, 1]. The widely-used
-# "well-imputed" cutoff is DR2 >= 0.8; SW-C3 will combine this with MAF to decide
-# which imputed variants are reliable enough to surface. Defined here as the shared
-# constant so the runtime summary and the firewall agree.
+# DR2 (dosage R²) is Beagle's imputation-quality metric in [0, 1]. DR2 >= 0.8 is a
+# deliberately conservative "well-imputed" cutoff (the looser GWAS convention is
+# r² ≈ 0.3–0.5; rigorous practice uses MAF-dependent thresholds — Naj 2019,
+# DOI:10.1002/cphg.84). The SW-C3 firewall (backend.analysis.imputation_firewall)
+# combines it with a MAF floor: Beagle's estimated DR2 over-states quality at low
+# MAF (winner's curse), so DR2 >= 0.8 is necessary-but-not-sufficient for rare
+# variants. Shared constant so the runtime summary and the firewall agree.
 WELL_IMPUTED_DR2 = 0.8
 
 _DR2_RE = re.compile(r"(?:^|;)DR2=([^;]+)")

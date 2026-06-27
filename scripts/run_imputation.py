@@ -22,6 +22,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from backend.analysis.imputation_firewall import FirewallSummary, summarize_firewall
 from backend.analysis.imputation_runner import (
     ImputationRunner,
     ImputationSummary,
@@ -30,6 +31,20 @@ from backend.analysis.imputation_runner import (
 )
 from backend.annotation.imputation_panel import PANEL_CHROMOSOMES
 from backend.db.connection import get_registry
+
+
+def _accumulate_firewall(total: FirewallSummary, part: FirewallSummary) -> None:
+    """Fold one chromosome's firewall summary into the running total."""
+    total.n_imputed += part.n_imputed
+    total.n_reportable += part.n_reportable
+    total.n_quarantined += part.n_quarantined
+    for reason, count in part.quarantine_reasons.items():
+        total.quarantine_reasons[reason] = total.quarantine_reasons.get(reason, 0) + count
+
+
+def _format_reasons(reasons: dict[str, int]) -> str:
+    """Render quarantine reason counts as a stable, sorted ``reason=count`` string."""
+    return ", ".join(f"{reason}={count}" for reason, count in sorted(reasons.items()))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     total = ImputationSummary()
+    fw_total = FirewallSummary()
     failures: list[str] = []
     for c in chroms:
         inp = input_dir / f"chr{c}.vcf.gz"
@@ -89,25 +105,47 @@ def main(argv: list[str] | None = None) -> int:
             print(f"chr{c}: FAILED ({res.stderr_tail})", file=sys.stderr, flush=True)
             failures.append(c)
             continue
-        s = summarize_dr2(parse_imputed_vcf(res.output_vcf))
+        # Materialize once: both the DR2 quality summary and the SW-C3 firewall
+        # consume the same per-ALT records.
+        variants = list(parse_imputed_vcf(res.output_vcf))
+        s = summarize_dr2(variants)
+        fw = summarize_firewall(variants)
         total.n_total += s.n_total
         total.n_imputed += s.n_imputed
         total.n_well_imputed += s.n_well_imputed
         total.chrom_runtimes[c] = res.runtime_seconds
+        _accumulate_firewall(fw_total, fw)
         frac = s.frac_well_imputed
         frac_str = f"{frac:.1%}" if frac is not None else "n/a"
+        rep_frac = fw.frac_reportable
+        rep_str = f"{rep_frac:.1%}" if rep_frac is not None else "n/a"
         print(
             f"chr{c}: {res.runtime_seconds:.1f}s  "
-            f"{s.n_total} markers ({s.n_imputed} imputed, {frac_str} DR2>=0.8)",
+            f"{s.n_total} markers ({s.n_imputed} imputed, {frac_str} DR2>=0.8; "
+            f"firewall: {fw.n_reportable} reportable / {fw.n_quarantined} quarantined, "
+            f"{rep_str} pass)",
             flush=True,
         )
 
     grand_frac = total.frac_well_imputed
     grand_frac_str = f"{grand_frac:.1%}" if grand_frac is not None else "n/a"
+    grand_rep = fw_total.frac_reportable
+    grand_rep_str = f"{grand_rep:.1%}" if grand_rep is not None else "n/a"
     print(
         f"\nTOTAL: {total.total_runtime_seconds:.1f}s wall-clock over "
         f"{len(total.chrom_runtimes)} chromosome(s); {total.n_total} markers, "
         f"{total.n_imputed} imputed, {grand_frac_str} with DR2>=0.8."
+    )
+    reasons_tail = (
+        f" — {_format_reasons(fw_total.quarantine_reasons)}."
+        if fw_total.quarantine_reasons
+        else "."
+    )
+    print(
+        f"FIREWALL (SW-C3): {fw_total.n_reportable}/{fw_total.n_imputed} imputed markers "
+        f"clear the MAF/r² firewall ({grand_rep_str}); "
+        f"{fw_total.n_quarantined} quarantined from P/LP/carrier/monogenic calls"
+        + reasons_tail
     )
     if failures:
         print(f"Failed chromosomes: {', '.join(failures)}", file=sys.stderr)
