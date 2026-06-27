@@ -199,3 +199,8 @@ def test_cyp2d6_as_1_25_and_1_5_diplotypes_are_normal_metabolizers(
     alerts = generate_prescribing_alerts(results, reference_engine)
     assert alerts, f"expected CYP2D6 prescribing alerts for {expected_diplotype}"
     assert {alert.phenotype for alert in alerts} == {"Normal Metabolizer"}
+
+    tamoxifen = [alert for alert in alerts if alert.drug == "tamoxifen"]
+    assert len(tamoxifen) == 1
+    assert tamoxifen[0].recommendation == "Use label-recommended dosing."
+    assert "alternative therapy" not in tamoxifen[0].recommendation.lower()
