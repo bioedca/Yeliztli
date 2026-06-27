@@ -187,7 +187,7 @@ class TestChromValidation:
             runner.impute_chromosome("../../etc", tmp_path / "in.vcf.gz", tmp_path / "out")
 
 
-class TestNonFiniteFloats:
+class TestMalformedFloats:
     def test_nan_inf_dr2_af_become_none(self, tmp_path: Path) -> None:
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
@@ -197,4 +197,16 @@ class TestNonFiniteFloats:
         assert v.dr2 is None  # nan dropped
         assert v.af is None  # inf dropped
         # A non-finite DR2 must not be counted as well-imputed.
+        assert summarize_dr2([v]).n_well_imputed == 0
+
+    def test_out_of_range_dr2_af_become_none(self, tmp_path: Path) -> None:
+        # Finite but out of [0, 1] (DR2=1.2, AF=-0.1) must be dropped so a malformed
+        # value can't inflate the summary or wrongly clear the well-imputed cutoff.
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "22\t100\trsx\tA\tG\t.\tPASS\tDR2=1.2;AF=-0.1;IMP\n"
+        )
+        [v] = list(parse_imputed_vcf(_write_gz(tmp_path / "oor.vcf.gz", vcf)))
+        assert v.dr2 is None  # 1.2 > 1 dropped
+        assert v.af is None  # -0.1 < 0 dropped
         assert summarize_dr2([v]).n_well_imputed == 0

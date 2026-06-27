@@ -155,9 +155,10 @@ def _info_floats(info: str, regex: re.Pattern[str]) -> list[float | None]:
         except ValueError:
             out.append(None)
             continue
-        # DR2/AF are finite probabilities/correlations; drop nan/inf so they can't
-        # poison the quality summary (nan comparisons are always False).
-        out.append(val if math.isfinite(val) else None)
+        # DR2 and AF are both bounded in [0, 1]; drop nan/inf AND finite
+        # out-of-range values so a malformed entry (e.g. DR2=1.2, AF=-0.1) can't
+        # poison the quality summary or wrongly clear the well-imputed cutoff.
+        out.append(val if math.isfinite(val) and 0.0 <= val <= 1.0 else None)
     return out
 
 
