@@ -65,6 +65,9 @@ jobs:
               - 'graphify-out/**'
             frontend:
               - 'frontend/**'
+              - 'tests/frontend/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/release.yml'
             docker:
               - 'backend/**'
               - 'frontend/**'
@@ -181,7 +184,7 @@ jobs:
   test-frontend:
     name: Frontend Tests
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

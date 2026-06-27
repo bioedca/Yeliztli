@@ -20,9 +20,11 @@ npx playwright test              # or: make test-e2e
 make test
 ```
 
-Frontend test runs fail on React `not wrapped in act(...)` warnings as well as Vitest
-assertion failures. CI and release jobs use the same strict command through
-`npm run test:ci`.
+Non-watch frontend test runs (`npm test`, `npm run test:ci`, and `npm run
+test:coverage`) fail on React `not wrapped in act(...)` warnings as well as
+Vitest assertion failures. CI and release jobs use the same strict command
+through `npm run test:ci`; `npm run test:watch` remains a local watch-mode
+command for iteration.
 
 The **slow tier** (`-m slow`) holds long-running benchmarks and accuracy validations; it runs
 **nightly**, not on every PR.
