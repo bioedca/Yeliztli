@@ -20,6 +20,7 @@ import {
   Globe,
   FlaskConical,
   Microscope,
+  Scissors,
 } from "lucide-react"
 
 import { useVariantDetail } from "@/api/variant-detail"
@@ -35,6 +36,7 @@ import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
 import GTExEqtlBadgeCard from "@/components/variant-detail/GTExEqtlBadge"
+import SpliceAIBadgeCard from "@/components/variant-detail/SpliceAIBadge"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
@@ -472,6 +474,14 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <>
           <SectionHeader icon={Activity} label="Regulatory Context (GTEx eQTL)" />
           <GTExEqtlBadgeCard badge={variant.gtex_eqtl_badge} />
+        </>
+      )}
+
+      {/* SpliceAI splice-effect prediction (SW-F2) — context-only, never ACMG */}
+      {variant.spliceai_badge && (
+        <>
+          <SectionHeader icon={Scissors} label="Splice Prediction (SpliceAI)" />
+          <SpliceAIBadgeCard badge={variant.spliceai_badge} />
         </>
       )}
 

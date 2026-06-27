@@ -559,4 +559,56 @@ describe("VariantDetailPage (P2-21a)", () => {
 
     expect(screen.queryByText("GTEx eQTL regulatory context")).not.toBeInTheDocument()
   })
+
+  it("renders the SpliceAI splice-prediction badge in the Clinical tab when present", async () => {
+    const withSpliceai: VariantDetail = {
+      ...mockVariant,
+      spliceai_badge: {
+        ds_max: 0.91,
+        tier: "high_confidence",
+        symbol: "CFTR",
+        top_mode: "acceptor_loss",
+        top_mode_label: "Acceptor loss",
+        top_delta_position: 3,
+        ds_acceptor_gain: 0.02,
+        ds_acceptor_loss: 0.91,
+        ds_donor_gain: 0.0,
+        ds_donor_loss: 0.05,
+        acmg_evidence: false,
+        context_only: true,
+        note: "context only",
+        pmid_citations: ["30661751"],
+      },
+    }
+    mockFetch.mockImplementation(async () => ({ ok: true, json: async () => withSpliceai }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /clinical/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+
+    expect(screen.getByText("SpliceAI splice prediction")).toBeInTheDocument()
+    expect(screen.getByText(/High-confidence/)).toBeInTheDocument()
+    expect(screen.getByText("0.91")).toBeInTheDocument()
+    expect(screen.getByText("Acceptor loss")).toBeInTheDocument()
+    expect(screen.getByText("3 nt downstream")).toBeInTheDocument()
+    // The "not ACMG evidence" caveat travels with the badge.
+    expect(screen.getByText(/not ACMG evidence/i)).toBeInTheDocument()
+  })
+
+  it("omits the SpliceAI section when no badge is present", async () => {
+    // mockVariant has no spliceai_badge (BYO DB absent / no prediction).
+    mockFetch.mockImplementation(async () => ({ ok: true, json: async () => mockVariant }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /clinical/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+
+    expect(screen.queryByText("SpliceAI splice prediction")).not.toBeInTheDocument()
+  })
 })

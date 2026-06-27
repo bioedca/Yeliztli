@@ -115,6 +115,11 @@ export interface VariantDetail {
   // GTEx eQTL regulatory context (SW-F3) — present only when gtex_eqtl.db is
   // installed and the variant has an eQTL association. Context-only; never ACMG.
   gtex_eqtl_badge?: GTExEqtlBadge | null
+
+  // SpliceAI splice-effect prediction (SW-F2) — present only when the optional
+  // BYO spliceai.db is installed and the variant has a prediction at/above the
+  // ingest threshold. In-silico context-only; never ACMG.
+  spliceai_badge?: SpliceAIBadge | null
 }
 
 /** Context-only GTEx eQTL regulatory association summary (SW-F3).
@@ -129,6 +134,28 @@ export interface GTExEqtlBadge {
   top_gene_id: string | null
   top_tissue: string | null
   top_pval_nominal: number | null
+  acmg_evidence: boolean
+  context_only: boolean
+  note: string | null
+  pmid_citations: string[]
+}
+
+/** Context-only SpliceAI splice-effect prediction summary (SW-F2).
+ * Mirrors backend `analysis/spliceai.spliceai_splice_context`. SpliceAI is an
+ * in-silico predictor — `ds_max` is the delta score (0–1, max over the four
+ * acceptor/donor gain/loss events); `tier` bins it at the 0.2/0.5/0.8 operating
+ * points. It is NEVER ACMG evidence (`acmg_evidence` is always false). */
+export interface SpliceAIBadge {
+  ds_max: number | null
+  tier: string // "possible" | "likely" | "high_confidence" | "none" | "unknown"
+  symbol: string | null
+  top_mode: string | null
+  top_mode_label: string | null
+  top_delta_position: number | null
+  ds_acceptor_gain: number | null
+  ds_acceptor_loss: number | null
+  ds_donor_gain: number | null
+  ds_donor_loss: number | null
   acmg_evidence: boolean
   context_only: boolean
   note: string | null
