@@ -475,24 +475,28 @@ def _load_imputed_dosages(
     if not wanted:
         return {}
     out: dict[tuple[str | None, int], list[tuple[str, str, float]]] = {}
+    # Narrow the scan to the weight set's positions in SQL (chrom matched in Python
+    # after _norm_chrom). Batched to stay under SQLite's bound-variable limit.
+    wanted_pos = list({pos for _, pos in wanted})
+    select_cols = sa.select(
+        imputed_variants.c.chrom,
+        imputed_variants.c.pos,
+        imputed_variants.c.ref,
+        imputed_variants.c.alt,
+        imputed_variants.c.dosage,
+    )
     with sample_engine.connect() as conn:
         if not sa.inspect(conn).has_table("imputed_variants"):
             return {}
-        rows = conn.execute(
-            sa.select(
-                imputed_variants.c.chrom,
-                imputed_variants.c.pos,
-                imputed_variants.c.ref,
-                imputed_variants.c.alt,
-                imputed_variants.c.dosage,
-            )
-        ).fetchall()
-    for r in rows:
-        if r.dosage is None:
-            continue
-        key = (_norm_chrom(r.chrom), r.pos)
-        if key in wanted:
-            out.setdefault(key, []).append((r.ref, r.alt, r.dosage))
+        for start in range(0, len(wanted_pos), 900):
+            batch = wanted_pos[start : start + 900]
+            rows = conn.execute(select_cols.where(imputed_variants.c.pos.in_(batch))).fetchall()
+            for r in rows:
+                if r.dosage is None:
+                    continue
+                key = (_norm_chrom(r.chrom), r.pos)
+                if key in wanted:
+                    out.setdefault(key, []).append((r.ref, r.alt, r.dosage))
     return out
 
 

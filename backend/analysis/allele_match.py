@@ -239,6 +239,8 @@ def imputed_effect_dosage(
     oa = other_allele.strip().upper()
     r = ref.strip().upper()
     a = alt.strip().upper()
+    if not 0.0 <= alt_dosage <= 2.0:  # a diploid ALT dose is bounded in [0, 2]
+        return None
     if any(x not in COMPLEMENT for x in (ea, oa, r, a)):
         return None
     if r == a:

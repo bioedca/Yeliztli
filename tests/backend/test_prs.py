@@ -1750,3 +1750,16 @@ class TestImputationAwareCoverage:
         assert result.snps_used_imputed == 0
         assert result.coverage_tier == "typed_only"
         assert result.is_sufficient is False
+
+    def test_graceful_when_imputed_table_absent(self, sample_engine: sa.Engine) -> None:
+        # A pre-v14 sample DB with no imputed_variants table must not error.
+        ws = self._weight_set()
+        with sample_engine.begin() as conn:
+            conn.execute(sa.text("DROP TABLE imputed_variants"))
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AG"}],
+            )
+        result = compute_prs(ws, sample_engine)
+        assert result.snps_used_imputed == 0
+        assert result.coverage_tier == "typed_only"
