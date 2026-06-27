@@ -857,6 +857,78 @@ class TestExtractCardiovascularVariants:
         genes = {v.gene_symbol for v in fh}
         assert genes == {"LDLR", "PCSK9"}
 
+    def test_apob_hypobetalipoproteinemia_variant_is_not_fh_positive(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """APOB FHBL/low-LDL variants must not be reported as FH-positive."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs121918385",
+                        "chrom": "2",
+                        "pos": 21001489,
+                        "ref": "G",
+                        "alt": "GT",
+                        "genotype": "GT",
+                        "zygosity": "het",
+                        "gene_symbol": "APOB",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000017885",
+                        "clinvar_conditions": "Familial hypobetalipoproteinemia",
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert result.pathogenic_count == 1
+        assert result.fh_variants == []
+        assert fh.status == FH_STATUS_NEGATIVE
+        assert fh.variant_count == 0
+
+        apob = result.variants[0]
+        assert apob.gene_symbol == "APOB"
+        assert apob.cardiovascular_category == CATEGORY_LIPID
+        assert apob.conditions == ["Familial hypobetalipoproteinemia"]
+
+    def test_apob_hypercholesterolemia_variant_still_counts_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Variant-level FH conditions still keep APOB in FH status."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs5742904",
+                        "chrom": "2",
+                        "pos": 21002377,
+                        "ref": "G",
+                        "alt": "A",
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "APOB",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000017876",
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert [v.rsid for v in result.fh_variants] == ["rs5742904"]
+        assert fh.status == FH_STATUS_POSITIVE
+        assert fh.affected_genes == ["APOB"]
+
     def test_cardiomyopathy_variants_grouped(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
     ) -> None:
@@ -1734,6 +1806,47 @@ class TestKCNQ1ConditionScope:
         assert "Jervell and Lange-Nielsen Syndrome" not in detail["conditions"]
         assert detail["inheritance"] == "AD"
         assert detail["disease_status"] == DISEASE_AFFECTED
+
+
+class TestAPOBConditionScope:
+    """APOB low-LDL conditions should surface without inverting into FH."""
+
+    def test_apob_fhbl_finding_uses_variant_condition_not_gene_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        result, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                {
+                    "rsid": "rs121918385",
+                    "chrom": "2",
+                    "pos": 21001489,
+                    "ref": "G",
+                    "alt": "GT",
+                    "genotype": "GT",
+                    "zygosity": "het",
+                    "gene_symbol": "APOB",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000017885",
+                    "clinvar_conditions": "Familial hypobetalipoproteinemia",
+                    "annotation_coverage": 2,
+                }
+            ],
+        )
+        fh = determine_fh_status(result)
+
+        assert fh.status == FH_STATUS_NEGATIVE
+        assert len(rows) == 1
+
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Familial hypobetalipoproteinemia" in text
+        assert "Familial Hypercholesterolemia" not in text
+        assert rows[0]["conditions"] == "Familial hypobetalipoproteinemia"
+        assert detail["conditions"] == ["Familial hypobetalipoproteinemia"]
+        assert detail["cardiovascular_category"] == CATEGORY_LIPID
 
 
 class TestRecessiveInheritanceGating:

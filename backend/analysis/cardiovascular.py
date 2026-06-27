@@ -48,6 +48,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_conditions import format_clinvar_conditions
 from backend.analysis.clinvar_significance import (
     LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
     LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
@@ -80,6 +81,22 @@ CATEGORY_CHANNELOPATHY = "channelopathy"
 CATEGORY_CARDIOMYOPATHY = "cardiomyopathy"
 
 VALID_CATEGORIES = {CATEGORY_FH, CATEGORY_LIPID, CATEGORY_CHANNELOPATHY, CATEGORY_CARDIOMYOPATHY}
+
+FH_CONDITION_TERMS = (
+    "familial hypercholesterolemia",
+    "familial hypercholesterolaemia",
+    "familial defective apolipoprotein b",
+    "hypercholesterolemia",
+    "hypercholesterolaemia",
+)
+LOW_LDL_CONDITION_TERMS = (
+    "hypobetalipoproteinemia",
+    "hypobetalipoproteinaemia",
+    "hypocholesterolemia",
+    "hypocholesterolaemia",
+    "abetalipoproteinemia",
+    "abetalipoproteinaemia",
+)
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -264,6 +281,42 @@ class CardiovascularAnalysisResult:
         return [v for v in self.variants if v.cardiovascular_category == CATEGORY_LIPID]
 
 
+def _condition_mentions_any(condition: str, terms: tuple[str, ...]) -> bool:
+    condition_lower = condition.casefold()
+    return any(term in condition_lower for term in terms)
+
+
+def _is_low_ldl_condition_only(clinvar_conditions: str | None) -> bool:
+    """Return true when variant-level ClinVar conditions are low-LDL, not FH.
+
+    APOB and PCSK9 are biologically bidirectional: some variants cause
+    high-LDL familial hypercholesterolemia, while loss-of-function variants can
+    be annotated as hypobetalipoproteinemia/hypocholesterolemia. Only the former
+    should count toward FH status.
+    """
+    conditions = format_clinvar_conditions(clinvar_conditions)
+    if not conditions:
+        return False
+
+    has_low_ldl = any(_condition_mentions_any(c, LOW_LDL_CONDITION_TERMS) for c in conditions)
+    has_fh = any(_condition_mentions_any(c, FH_CONDITION_TERMS) for c in conditions)
+    return has_low_ldl and not has_fh
+
+
+def _variant_condition_scope(
+    gene_info: CardiovascularGene, clinvar_conditions: str | None
+) -> tuple[list[str], str]:
+    """Return display conditions and cardiovascular category for one variant."""
+    if gene_info.cardiovascular_category != CATEGORY_FH:
+        return gene_info.conditions, gene_info.cardiovascular_category
+
+    if not _is_low_ldl_condition_only(clinvar_conditions):
+        return gene_info.conditions, gene_info.cardiovascular_category
+
+    variant_conditions = format_clinvar_conditions(clinvar_conditions)
+    return variant_conditions or gene_info.conditions, CATEGORY_LIPID
+
+
 def _assign_evidence_level(
     clinvar_significance: str,
     clinvar_review_stars: int,
@@ -369,6 +422,9 @@ def extract_cardiovascular_variants(
             gene_info.evidence_level,
         )
         lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        conditions, cardiovascular_category = _variant_condition_scope(
+            gene_info, row.clinvar_conditions
+        )
 
         variants.append(
             CardiovascularVariantResult(
@@ -380,8 +436,8 @@ def extract_cardiovascular_variants(
                 clinvar_review_stars=row.clinvar_review_stars or 0,
                 clinvar_accession=row.clinvar_accession,
                 clinvar_conditions=row.clinvar_conditions,
-                conditions=gene_info.conditions,
-                cardiovascular_category=gene_info.cardiovascular_category,
+                conditions=conditions,
+                cardiovascular_category=cardiovascular_category,
                 inheritance=gene_info.inheritance,
                 evidence_level=evidence,
                 cross_links=gene_info.cross_links,
