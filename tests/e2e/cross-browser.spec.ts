@@ -16,7 +16,7 @@
 
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
@@ -81,7 +81,55 @@ function isIgnoredConsoleMessage(text: string): boolean {
 }
 
 async function expectAppChromeSettled(page: Page) {
+  await waitForReactHydration(page)
+  await expect(page.locator('nav[aria-label="Main navigation"]')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
+}
+
+const VISUAL_SAMPLE = {
+  id: 1,
+  name: 'genome_Eduardo_Campos_v5_Full_20260227101528.txt',
+  db_path: 'samples/sample_1.db',
+  file_format: '23andme_v5',
+  file_hash: 'e2e-visual-fixture',
+  notes: null,
+  date_collected: null,
+  source: null,
+  extra: {},
+  created_at: '2026-06-17T12:00:00Z',
+  updated_at: '2026-06-17T12:00:00Z',
+}
+
+const VISUAL_BACKUP_ESTIMATE = {
+  sample_bytes: 544_944_947,
+  config_bytes: 0,
+  reference_bytes: 18_683_107_738,
+  total_without_ref_bytes: 544_944_947,
+  total_with_ref_bytes: 19_228_052_685,
+  total_without_ref_mb: 519.7,
+  total_with_ref_mb: 18_337.3,
+  sample_count: 1,
+  reference_db_count: 5,
+}
+
+function jsonResponse(body: unknown) {
+  return {
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  }
+}
+
+async function mockVisualScreenshotData(page: Page) {
+  await page.route('**/api/samples', (route) =>
+    route.fulfill(jsonResponse([VISUAL_SAMPLE])),
+  )
+  await page.route('**/api/individuals', (route) =>
+    route.fulfill(jsonResponse([])),
+  )
+  await page.route('**/api/backup/estimate', (route) =>
+    route.fulfill(jsonResponse(VISUAL_BACKUP_ESTIMATE)),
+  )
 }
 
 // ── 1. Page rendering: no JS errors, correct h1 heading ────────────────
@@ -420,11 +468,15 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
 
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} screenshot`, async ({ page }) => {
-      await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await mockVisualScreenshotData(page)
+      await page.goto(pg.path, { waitUntil: 'domcontentloaded' })
       await expectAppChromeSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      if (pg.path === '/settings/general') {
+        await expect(page.getByTestId('sample-metadata-editor')).toBeVisible()
+        await expect(page.getByTestId('export-backup')).toContainText('519.7 MB')
+      }
       await expect(page).toHaveScreenshot(`${pg.name}.png`, {
         fullPage: true,
       })
@@ -435,11 +487,15 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} dark mode screenshot`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: 'dark' })
-      await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await mockVisualScreenshotData(page)
+      await page.goto(pg.path, { waitUntil: 'domcontentloaded' })
       await expectAppChromeSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      if (pg.path === '/settings/general') {
+        await expect(page.getByTestId('sample-metadata-editor')).toBeVisible()
+        await expect(page.getByTestId('export-backup')).toContainText('519.7 MB')
+      }
       await expect(page).toHaveScreenshot(`${pg.name}-dark.png`, {
         fullPage: true,
       })
