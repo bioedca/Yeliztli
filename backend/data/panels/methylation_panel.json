@@ -900,31 +900,31 @@
         {
           "rsid": "rs9001",
           "gene": "CHDH",
-          "variant_name": "G233T (Ala119Ser)",
-          "hgvs_protein": "p.Ala119Ser",
-          "risk_allele": "T",
-          "ref_allele": "G",
+          "variant_name": "+318A>C (Glu40Ala)",
+          "hgvs_protein": "p.Glu40Ala",
+          "risk_allele": "G",
+          "ref_allele": "T",
           "genotype_effects": {
-            "GG": {
+            "TT": {
               "category": "Standard",
-              "effect_summary": "Normal choline dehydrogenase activity. Standard oxidation of choline to betaine aldehyde."
+              "effect_summary": "Reference CHDH Glu40/Glu40 at rs9001. Standard interpretation for this choline-metabolism association."
             },
             "GT": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous CHDH variant. May modestly affect choline-to-betaine conversion."
+              "category": "Standard",
+              "effect_summary": "Heterozygous CHDH rs9001 Glu40Ala. The Ala40 allele has been reported as protective against choline-deficiency susceptibility and is interpreted as informational in this panel."
             },
             "TG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous CHDH variant. May modestly affect choline-to-betaine conversion."
+              "category": "Standard",
+              "effect_summary": "Heterozygous CHDH rs9001 Glu40Ala. The Ala40 allele has been reported as protective against choline-deficiency susceptibility and is interpreted as informational in this panel."
             },
-            "TT": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous CHDH variant. Reduced choline dehydrogenase activity may lower betaine production from choline, affecting BHMT-mediated homocysteine remethylation."
+            "GG": {
+              "category": "Standard",
+              "effect_summary": "Homozygous CHDH rs9001 Ala40/Ala40. The Ala40 allele has been reported as protective against choline-deficiency susceptibility and is interpreted as informational in this panel."
             }
           },
           "evidence_level": 1,
           "pmids": ["16816108", "28134761", "24671709"],
-          "recommendation_text": "CHDH oxidizes choline to betaine (via betaine aldehyde). Variants may reduce betaine availability for BHMT-mediated homocysteine remethylation."
+          "recommendation_text": "CHDH oxidizes choline to betaine (via betaine aldehyde). rs9001 (+318A>C; p.Glu40Ala) is tracked as a choline-metabolism association; the cited evidence supports keeping it informational rather than a risk call."
         },
         {
           "rsid": "rs585800",

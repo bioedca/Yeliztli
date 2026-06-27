@@ -512,6 +512,38 @@ class TestBHMTR239QDirection:
             assert "especially relevant when mthfr function is reduced" not in recommendation
 
 
+class TestCHDHRS9001Direction:
+    """rs9001 is CHDH p.Glu40Ala and must not flag reference TT as reduced activity."""
+
+    def _get_chdh_rs9001(self, panel: MethylationPanel) -> PanelSNP:
+        for pw in panel.pathways:
+            for snp in pw.snps:
+                if snp.rsid == "rs9001":
+                    return snp
+        pytest.fail("CHDH rs9001 not found")
+
+    def test_panel_uses_t_reference_and_glu40ala(self, panel: MethylationPanel) -> None:
+        chdh = self._get_chdh_rs9001(panel)
+        assert chdh.gene == "CHDH"
+        assert chdh.variant_name == "+318A>C (Glu40Ala)"
+        assert chdh.hgvs_protein == "p.Glu40Ala"
+        assert chdh.risk_allele == "G"
+        assert chdh.ref_allele == "T"
+
+    @pytest.mark.parametrize("genotype", ["TT", "GT", "TG", "GG"])
+    def test_rs9001_genotypes_are_standard(self, panel: MethylationPanel, genotype: str) -> None:
+        result = _score_snp(self._get_chdh_rs9001(panel), genotype)
+        all_text = f"{result.effect_summary} {result.recommendation_text}".lower()
+
+        assert result.category == STANDARD
+        assert "ala119ser" not in all_text
+        assert "g233t" not in all_text
+        assert "reduced choline dehydrogenase" not in all_text
+        assert "reduced-activity" not in all_text
+        assert "lower betaine" not in all_text
+        assert "lower-betaine" not in all_text
+
+
 class TestCholineBetaineAlleleFrames:
     """Issue #717: BHMT/SLC44A1 genotype keys must match real variant alleles."""
 
@@ -842,6 +874,34 @@ class TestScorePathways:
 
         # GWAS matches
         assert "rs1801133" in result.gwas_matched_rsids
+
+    def test_chdh_rs9001_tt_reference_stays_standard(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Issue #1072: rs9001 TT is reference Glu40/Glu40, not a CHDH concern."""
+        _seed_variants(sample_engine, [("rs9001", "3", 53857917, "TT")])
+
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        choline = next(pr for pr in result.pathway_results if pr.pathway_id == "choline_betaine")
+        chdh = next((s for s in choline.called_snps if s.rsid == "rs9001"), None)
+
+        assert choline.level == STANDARD
+        assert chdh is not None
+        assert chdh.category == STANDARD
+        assert "reduced choline dehydrogenase" not in chdh.effect_summary.lower()
+
+        store_methylation_findings(result, sample_engine)
+        with sample_engine.begin() as conn:
+            chdh_findings = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.rsid == "rs9001",
+                )
+            ).fetchall()
+        assert chdh_findings == []
 
     def test_compound_het_detected_in_scoring(
         self,

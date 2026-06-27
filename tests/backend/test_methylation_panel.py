@@ -318,6 +318,30 @@ class TestCholineBetaineAlleleFrames:
         assert set(snp["genotype_effects"]) == {"GG", "GT", "TG", "TT"}
         assert "C" not in "".join(snp["genotype_effects"])
 
+    def test_rs9001_uses_reference_t_and_glu40ala(self, panel_data: dict) -> None:
+        """Issue #1072: CHDH rs9001 is T/G p.Glu40Ala, not G233T/Ala119Ser."""
+        snp = self._get_snp(panel_data, "rs9001")
+
+        assert snp["gene"] == "CHDH"
+        assert snp["variant_name"] == "+318A>C (Glu40Ala)"
+        assert snp["hgvs_protein"] == "p.Glu40Ala"
+        assert (snp["risk_allele"], snp["ref_allele"]) == ("G", "T")
+        assert set(snp["genotype_effects"]) == {"TT", "TG", "GT", "GG"}
+
+        categories = {effect["category"] for effect in snp["genotype_effects"].values()}
+        assert categories == {"Standard"}
+        all_text = " ".join(
+            [snp["variant_name"], snp["recommendation_text"]]
+            + [effect["effect_summary"] for effect in snp["genotype_effects"].values()]
+        ).lower()
+        assert "ala119ser" not in all_text
+        assert "g233t" not in all_text
+        assert "reduced choline dehydrogenase" not in all_text
+        assert "reduced-activity" not in all_text
+        assert "lower betaine" not in all_text
+        assert "lower-betaine" not in all_text
+        assert "protective" in all_text
+
 
 # ── MTHFR flagship variant tests ────────────────────────────────────────
 
@@ -942,7 +966,7 @@ class TestMethylationCitationRemediation:
         "rs3733890": {"18457970", "27578989", "12818402"},  # BHMT R239Q
         "rs585800": {"18457970", "20662904", "15887275"},  # BHMT (gene-level)
         "rs12325817": {"16816108", "20861172", "21059658"},  # PEMT
-        "rs9001": {"16816108", "28134761", "24671709"},  # CHDH A119S
+        "rs9001": {"16816108", "28134761", "24671709"},  # CHDH Glu40Ala
         "rs3199966": {"24671709", "28134761", "22483272"},  # SLC44A1
         "rs7639752": {"30055775", "24671709", "28134761"},  # PCYT1A
         "rs2266782": {"10640514", "31317802", "12052141"},  # FMO3 E158K
