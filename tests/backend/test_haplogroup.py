@@ -631,11 +631,44 @@ class TestTreeWalkSharedAncestralMarkers:
             bundle.y_tree,
             genotypes,
             [],
-            min_terminal_specific_snps=2,
+            min_internal_terminal_specific_snps=2,
         )
 
         assert terminal.haplogroup == "CT"
         assert [(s.haplogroup, s.snps_present, s.snps_total) for s in path] == [("CT", 1, 2)]
+
+    def test_one_marker_leaf_can_still_be_terminal_with_internal_floor(self) -> None:
+        """The #1079 guard is for under-supported internal nodes. A one-SNP leaf has
+        no deeper branch to over-resolve into, so the existing conflict/fraction
+        rules still allow it as terminal."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="A",
+                    defining_snps=[HaplogroupSNP("a1", 1, "G"), HaplogroupSNP("a2", 2, "T")],
+                    children=[
+                        HaplogroupNode(
+                            haplogroup="A1",
+                            defining_snps=[HaplogroupSNP("leaf", 3, "C")],
+                            children=[],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        genotypes = {"a1": "GG", "a2": "TT", "leaf": "CC"}
+
+        terminal, path = _tree_walk(
+            root,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+        )
+
+        assert terminal.haplogroup == "A1"
+        assert [s.haplogroup for s in path] == ["A", "A1"]
 
     def test_synthetic_shared_marker_children_do_not_over_resolve(self) -> None:
         """Two children that each re-list one of the parent's markers (the CT/DE,

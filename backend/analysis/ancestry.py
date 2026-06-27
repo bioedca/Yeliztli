@@ -1575,7 +1575,7 @@ def load_haplogroup_bundle(
 # (``snps_conflicting == 0``) — a missing/untyped marker is lack of evidence, an
 # ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
-_Y_HAPLOGROUP_MIN_TERMINAL_SPECIFIC_SNPS = 2
+_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
 
 # Normalized mitochondrial chromosome label. Every ingestion parser normalizes the
 # vendor mtDNA code (23andMe/AncestryDNA "25"/"26", etc.) to "MT" (see
@@ -1644,7 +1644,7 @@ def _tree_walk(
     genotype_map: dict[str, str | None],
     path: list[HaplogroupTraversalStep],
     ancestral_rsids: frozenset[str] = frozenset(),
-    min_terminal_specific_snps: int = 1,
+    min_internal_terminal_specific_snps: int = 1,
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
 
@@ -1663,14 +1663,17 @@ def _tree_walk(
     observed-and-derived (``present >= 1`` — no descent on zero clade-specific
     evidence), the derived fraction clears the threshold
     (``present / total >= _HAPLOGROUP_MIN_MATCH_FRACTION``), and the node has at
-    least ``min_terminal_specific_snps`` clade-specific SNPs available for terminal
-    support. A child defined *only* by re-listed ancestral markers has no
+    least ``min_internal_terminal_specific_snps`` clade-specific SNPs available
+    before a non-leaf child can stop the walk as terminal. A child defined *only*
+    by re-listed ancestral markers has no
     clade-specific SNPs and is never a terminal match; it may only be used as a
     structural pass-through to a deeper supported clade. A child with too few
-    clade-specific SNPs for terminal support follows the same pass-through rule:
-    it can route the walk to a deeper supported clade, but it is not reported as
-    terminal on its own. Among eligible direct children the highest clade-specific
-    fraction wins. The recorded path step keeps the **full** node match (including
+    clade-specific SNPs for non-leaf terminal support follows the same
+    pass-through rule: it can route the walk to a deeper supported clade, but it
+    is not reported as terminal on its own. Leaf children keep the existing
+    conflict/fraction behavior, because there is no deeper branch to over-resolve
+    into. Among eligible direct children the highest clade-specific fraction
+    wins. The recorded path step keeps the **full** node match (including
     inherited markers) so the confidence present/total semantics are unchanged.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
@@ -1681,10 +1684,10 @@ def _tree_walk(
         path: Accumulated traversal path (mutated in-place).
         ancestral_rsids: rsids of every defining SNP from the root down to (and
             including) ``node`` — markers a child must not re-use for credit.
-        min_terminal_specific_snps: Minimum number of child-specific defining SNPs
-            needed before a child can be reported as the deepest match. Higher
-            values still allow sparse structural nodes to pass through to deeper
-            supported clades.
+        min_internal_terminal_specific_snps: Minimum number of child-specific
+            defining SNPs needed before a non-leaf child can be reported as the
+            deepest match. Higher values still allow sparse structural nodes to
+            pass through to deeper supported clades.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
@@ -1720,7 +1723,11 @@ def _tree_walk(
             continue
 
         fraction = present / total
-        if fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION and total < min_terminal_specific_snps:
+        if (
+            child.children
+            and fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION
+            and total < min_internal_terminal_specific_snps
+        ):
             # Sparse marker panels can type a one-SNP internal child (for example
             # Y=DE under CT) without enough evidence to make that child terminal.
             # Keep it as a possible route to a deeper clade, but do not call it
@@ -1740,7 +1747,7 @@ def _tree_walk(
             genotype_map,
             path,
             seen_rsids,
-            min_terminal_specific_snps=min_terminal_specific_snps,
+            min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
         )
 
     # No child has direct clade-specific evidence. A pass-through child (one
@@ -1758,7 +1765,7 @@ def _tree_walk(
             genotype_map,
             [],
             seen_rsids,
-            min_terminal_specific_snps=min_terminal_specific_snps,
+            min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
             _record_step(path, child, genotype_map)
@@ -1917,7 +1924,7 @@ def assign_haplogroups(
             bundle.y_tree,
             genotype_map,
             y_path,
-            min_terminal_specific_snps=_Y_HAPLOGROUP_MIN_TERMINAL_SPECIFIC_SNPS,
+            min_internal_terminal_specific_snps=_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS,
         )
 
         y_total_present = sum(step.snps_present for step in y_path)
