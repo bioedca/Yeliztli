@@ -44,6 +44,7 @@ import structlog
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
     is_acgt_genotype,
+    is_strand_ambiguous,
     lookup_by_genotype,
 )
 from backend.analysis.zygosity import is_no_call
@@ -316,6 +317,39 @@ def _score_snp(snp: PanelSNP, genotype: str | None, panel: SleepPanel) -> SNPRes
             present_in_sample=False,
             metabolizer_state=None,
             coverage_note=snp.coverage_note,
+        )
+
+    # Palindromic-SNP strand guard (#170/#269): for an A/T or C/G homozygote whose
+    # curated category differs between strands, the array strand cannot be resolved
+    # from the genotype string, so withhold the category instead of risking the
+    # flipped one. Compare CATEGORIES (not the full effect dicts), with the same
+    # STANDARD default used below, so a homozygote whose two strands share a
+    # category is not falsely withheld.
+    if is_strand_ambiguous(
+        {gt: eff.get("category", STANDARD) for gt, eff in snp.genotype_effects.items()},
+        genotype,
+    ):
+        return SNPResult(
+            rsid=snp.rsid,
+            gene=snp.gene,
+            variant_name=snp.variant_name,
+            genotype=genotype,
+            category=INDETERMINATE,
+            effect_summary=(
+                f"{genotype} is a palindromic (A/T or C/G) homozygote: its strand — and "
+                f"therefore its effect category — cannot be determined from the array "
+                f"genotype alone, so it is reported as indeterminate rather than a "
+                f"possibly strand-flipped call."
+            ),
+            evidence_level=snp.evidence_level,
+            pmids=snp.pmids,
+            recommendation_text=snp.recommendation_text,
+            present_in_sample=True,
+            metabolizer_state=None,
+            coverage_note=(
+                "Strand-ambiguous palindromic SNP — confirm the genotyping strand "
+                "(or use a sequencing-based result) before interpreting this locus."
+            ),
         )
 
     # Look up genotype effect from panel definition, harmonizing allele order

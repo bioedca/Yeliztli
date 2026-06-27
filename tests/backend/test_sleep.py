@@ -392,6 +392,36 @@ class TestSNPScoring:
         assert "outside this locus" in result.coverage_note
         assert "indeterminate" in result.effect_summary.lower()
 
+    def test_palindromic_homozygote_withheld_as_indeterminate(self, panel: SleepPanel) -> None:
+        """A future A/T sleep SNP must not emit a strand-flipped homozygote call."""
+        snp = PanelSNP(
+            rsid="rs_sleep_palindrome",
+            gene="CLOCK",
+            variant_name="synthetic palindromic SNP",
+            hgvs_protein=None,
+            risk_allele="A",
+            ref_allele="T",
+            genotype_effects={
+                "AA": {"category": ELEVATED, "effect_summary": "A-strand homozygote"},
+                "AT": {"category": MODERATE, "effect_summary": "heterozygote"},
+                "TA": {"category": MODERATE, "effect_summary": "heterozygote"},
+                "TT": {"effect_summary": "T-strand homozygote defaults Standard"},
+            },
+            evidence_level=2,
+            pmids=["25495213"],
+            recommendation_text="Synthetic test row.",
+        )
+
+        for homozygote in ("AA", "TT"):
+            result = _score_snp(snp, homozygote, panel)
+            assert result.category == INDETERMINATE, homozygote
+            assert result.present_in_sample is True
+            assert "palindromic" in result.effect_summary.lower()
+            assert "strand" in (result.coverage_note or "").lower()
+
+        assert _score_snp(snp, "AT", panel).category == MODERATE
+        assert _score_snp(snp, "TA", panel).category == MODERATE
+
     def test_adora2a_tt_capped_at_moderate(self, panel: SleepPanel) -> None:
         """ADORA2A has evidence_level=1, so TT (Elevated) → capped at Moderate."""
         adora2a = None
