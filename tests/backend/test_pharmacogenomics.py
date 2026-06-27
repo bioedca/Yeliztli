@@ -271,8 +271,8 @@ def pgx_reference_engine() -> sa.Engine:
         {
             "gene": "CYP2D6",
             "diplotype": "*1/*10",
-            "phenotype": "Intermediate Metabolizer",
-            "ehr_notation": "CYP2D6 Intermediate Metabolizer",
+            "phenotype": "Normal Metabolizer",
+            "ehr_notation": "CYP2D6 Normal Metabolizer",
             "activity_score": 1.25,
         },
         # TPMT

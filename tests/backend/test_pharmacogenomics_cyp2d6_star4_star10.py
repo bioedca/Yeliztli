@@ -1,12 +1,13 @@
-"""CYP2D6 ``*4/*10`` activity-score / phenotype guard (issue #47).
+"""CYP2D6 activity-score / phenotype guards (issues #47 and #1077).
 
 ``CYP2D6*4`` is a no-function allele (activity score 0.0) and ``CYP2D6*10`` is
 decreased-function (activity score 0.25, per the CPIC-revised value), so a
 ``*4/*10`` carrier has a diplotype activity score of 0.25. The CPIC/DPWG
 standardized genotype-to-phenotype translation bins activity score **0** as Poor
-Metabolizer and **0 < AS < 1.25** as Intermediate Metabolizer; nonzero
-decreased-function activity is explicitly separated from the Poor Metabolizer
-group (AS = 0):
+Metabolizer, **0 < AS < 1.25** as Intermediate Metabolizer, and
+**1.25 <= AS <= 2.25** as Normal Metabolizer; nonzero decreased-function
+activity is explicitly separated from the Poor Metabolizer group (AS = 0), while
+AS 1.25/1.5 diplotypes remain Normal Metabolizer:
 
   - Caudle et al. 2019, *Clin Transl Sci* (PMID 31647186) — consensus
     standardized CYP2D6 genotype-to-phenotype translation.
@@ -20,7 +21,7 @@ Poor Metabolizer (AS 0.25), which overstated loss of CYP2D6 activity and routed
 carriers to Poor Metabolizer recommendations (e.g. *avoid codeine*, *avoid
 tamoxifen*) instead of the Intermediate Metabolizer guidance. These tests load
 the REAL production CPIC tables and lock the corrected mapping, plus the
-invariant that a CYP2D6 Poor Metabolizer call requires activity score 0.
+invariants that CYP2D6 phenotypes follow the consensus activity-score bins.
 """
 
 from __future__ import annotations
@@ -54,6 +55,23 @@ _CYP2D6 = {
     "rs59421388": ("22", 42523610, "C", "T"),  # *29
     "rs28371725": ("22", 42523805, "C", "T"),  # *41
 }
+
+_CYP2D6_CONSENSUS_NORMAL_DIPLOTYPES = [
+    ("*1/*10", {"rs1065852": "GA"}, 1.25),
+    ("*1/*17", {"rs28371706": "GA"}, 1.5),
+    ("*1/*29", {"rs59421388": "CT"}, 1.5),
+    ("*1/*41", {"rs28371725": "CT"}, 1.5),
+]
+
+
+def _expected_cyp2d6_phenotype(score: float) -> str:
+    if score == 0.0:
+        return "Poor Metabolizer"
+    if 0.0 < score < 1.25:
+        return "Intermediate Metabolizer"
+    if 1.25 <= score <= 2.25:
+        return "Normal Metabolizer"
+    return "Ultrarapid Metabolizer"
 
 
 @pytest.fixture(scope="module")
@@ -134,3 +152,50 @@ def test_cyp2d6_poor_metabolizer_requires_zero_activity_score() -> None:
             f"CYP2D6 {row['diplotype']}: phenotype={row['phenotype']!r} with "
             f"activity_score={score} violates Poor Metabolizer <=> AS 0"
         )
+
+
+def test_cyp2d6_production_rows_follow_consensus_activity_score_bins() -> None:
+    """Production invariant: CYP2D6 phenotype is deterministic from activity score.
+
+    Caudle et al. 2019 CPIC/DPWG consensus Table 3 defines the contiguous CYP2D6
+    bins as PM = 0, IM = 0 < AS < 1.25, NM = 1.25 <= AS <= 2.25, and UM > 2.25.
+    This catches both the old *4/*10 PM/IM drift and the AS 1.25/1.5 IM/NM drift.
+    """
+    with _DIPLOTYPES_CSV.open(newline="", encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r["gene"] == "CYP2D6"]
+    assert rows, "expected CYP2D6 diplotype rows in production CSV"
+
+    for row in rows:
+        score = float(row["activity_score"])
+        expected = _expected_cyp2d6_phenotype(score)
+        assert row["phenotype"] == expected, (
+            f"CYP2D6 {row['diplotype']}: phenotype={row['phenotype']!r} with "
+            f"activity_score={score} violates CPIC/DPWG consensus bin {expected!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    ("expected_diplotype", "overrides", "expected_score"),
+    _CYP2D6_CONSENSUS_NORMAL_DIPLOTYPES,
+    ids=[diplotype for diplotype, _overrides, _score in _CYP2D6_CONSENSUS_NORMAL_DIPLOTYPES],
+)
+def test_cyp2d6_as_1_25_and_1_5_diplotypes_are_normal_metabolizers(
+    reference_engine: sa.Engine,
+    expected_diplotype: str,
+    overrides: dict[str, str],
+    expected_score: float,
+) -> None:
+    """AS 1.25/1.5 diplotypes must use Normal Metabolizer guidance (issue #1077)."""
+    sample = _sample(**overrides)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2D6"}))
+    (result,) = results
+
+    assert result.diplotype == expected_diplotype
+    assert result.activity_score == expected_score
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.phenotype != "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    assert alerts, f"expected CYP2D6 prescribing alerts for {expected_diplotype}"
+    assert {alert.phenotype for alert in alerts} == {"Normal Metabolizer"}
