@@ -80,6 +80,53 @@ function isIgnoredConsoleMessage(text: string): boolean {
   return IGNORED_CONSOLE_PATTERNS.some((p) => text.includes(p))
 }
 
+const VISUAL_SCREENSHOT_SAMPLE = {
+  id: 1,
+  name: 'genome_Eduardo_Campos_v5_Full_20260227101528.txt',
+  db_path: '/tmp/.yeliztli/samples/sample_1.db',
+  file_format: '23andme_v5',
+  file_hash: 'visual-screenshot-fixture',
+  notes: null,
+  date_collected: null,
+  source: null,
+  extra: null,
+  created_at: '2026-06-17T12:00:00Z',
+  updated_at: '2026-06-17T12:00:00Z',
+}
+
+const VISUAL_SCREENSHOT_BACKUP_ESTIMATE = {
+  sample_bytes: 544_944_947,
+  config_bytes: 0,
+  reference_bytes: 18_683_107_738,
+  total_without_ref_bytes: 544_944_947,
+  total_with_ref_bytes: 19_228_052_685,
+  total_without_ref_mb: 519.7,
+  total_with_ref_mb: 18_337.3,
+  sample_count: 1,
+  reference_db_count: 5,
+}
+
+function jsonRoute(body: unknown, status = 200) {
+  return {
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  }
+}
+
+async function mockVisualScreenshotData(page: Page) {
+  await page.route('**/api/samples', (route) =>
+    route.fulfill(jsonRoute([VISUAL_SCREENSHOT_SAMPLE])),
+  )
+  await page.route(`**/api/samples/${VISUAL_SCREENSHOT_SAMPLE.id}`, (route) =>
+    route.fulfill(jsonRoute(VISUAL_SCREENSHOT_SAMPLE)),
+  )
+  await page.route('**/api/individuals', (route) => route.fulfill(jsonRoute([])))
+  await page.route('**/api/backup/estimate', (route) =>
+    route.fulfill(jsonRoute(VISUAL_SCREENSHOT_BACKUP_ESTIMATE)),
+  )
+}
+
 async function expectAppChromeSettled(page: Page) {
   await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
 }
@@ -420,6 +467,7 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
 
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} screenshot`, async ({ page }) => {
+      await mockVisualScreenshotData(page)
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
       await expectAppChromeSettled(page)
@@ -434,6 +482,7 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
   // Dark mode screenshots
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} dark mode screenshot`, async ({ page }) => {
+      await mockVisualScreenshotData(page)
       await page.emulateMedia({ colorScheme: 'dark' })
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
