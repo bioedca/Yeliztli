@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
+import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
 
 /* ------------------------------------------------------------------ */
@@ -178,6 +179,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
     : variant.rare_flag
       ? "Rare"
       : null
+  const gnomadUncovered = isGnomadSourceUncovered(variant.gnomad_source_status)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
@@ -231,7 +233,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <SectionHeader icon={Activity} label="Key Scores" />
       <DetailRow label="gnomAD AF" value={
         <span className="flex items-center gap-1.5">
-          {formatAlleleFrequency(variant.gnomad_af_global)}
+          {gnomadUncovered ? "Not assessed" : formatAlleleFrequency(variant.gnomad_af_global)}
           {rareLabel && (
             <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {rareLabel}
@@ -337,7 +339,7 @@ function PopulationTab({ variant }: { variant: VariantDetail }) {
       ) : (
         <div className="text-center py-8 text-muted-foreground">
           <Globe className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          <p className="text-sm">No population frequency data available for this variant.</p>
+          <p className="text-sm">{gnomadNoFrequencyDetail(variant.gnomad_source_status)}</p>
         </div>
       )}
     </div>

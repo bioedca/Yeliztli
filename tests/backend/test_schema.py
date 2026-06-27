@@ -195,7 +195,13 @@ class TestSampleSchema:
         for col in ["clinvar_significance", "clinvar_review_stars"]:
             assert col in cols, f"Missing column: {col}"
         # gnomAD
-        for col in ["gnomad_af_global", "gnomad_af_asj", "gnomad_af_eur", "rare_flag"]:
+        for col in [
+            "gnomad_af_global",
+            "gnomad_af_asj",
+            "gnomad_source_status",
+            "gnomad_af_eur",
+            "rare_flag",
+        ]:
             assert col in cols, f"Missing column: {col}"
         # dbNSFP
         for col in ["cadd_phred", "sift_score", "revel"]:
@@ -694,6 +700,63 @@ class TestSchemaMigration:
         with engine.connect() as conn:
             row = conn.execute(
                 sa.text("SELECT rsid, revel, gnomad_af_asj FROM annotated_variants")
+            ).fetchone()
+        assert row[0] == "rs1801133"
+        assert row[1] == 0.75
+        assert row[2] is None
+
+    def _create_v14_sample_db(self, db_path: Path) -> sa.Engine:
+        """Create a sample DB at v14 without gnomad_source_status."""
+        engine = self._create_v12_sample_db(db_path)
+        with engine.begin() as conn:
+            conn.execute(sa.text("ALTER TABLE annotated_variants ADD COLUMN gnomad_af_asj REAL"))
+            conn.execute(
+                sa.text(
+                    """CREATE TABLE imputed_variants (
+                        chrom TEXT NOT NULL,
+                        pos INTEGER NOT NULL,
+                        ref TEXT NOT NULL,
+                        alt TEXT NOT NULL,
+                        rsid TEXT,
+                        gene_symbol TEXT,
+                        consequence TEXT,
+                        dosage REAL NOT NULL,
+                        gt_estimate TEXT,
+                        dr2 REAL NOT NULL,
+                        af REAL NOT NULL,
+                        source_panel TEXT NOT NULL,
+                        batch_id TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (chrom, pos, ref, alt, batch_id)
+                    )"""
+                )
+            )
+            conn.execute(sa.text("PRAGMA user_version = 14"))
+        return engine
+
+    def test_upgrade_v14_adds_gnomad_source_status_column(self, tmp_path):
+        """v14 → v15 adds gnomad_source_status to annotated_variants."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v14_sample_db(db_path)
+
+        cols_before = _get_columns(db_path, "annotated_variants")
+        assert "gnomad_source_status" not in cols_before
+
+        updated = ensure_sample_schema_current(engine)
+        assert updated is True
+
+        cols_after = _get_columns(db_path, "annotated_variants")
+        assert "gnomad_source_status" in cols_after
+
+    def test_upgrade_v14_preserves_existing_annotated_rows(self, tmp_path):
+        """The v14 → v15 upgrade preserves annotated rows and NULLs source status."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v14_sample_db(db_path)
+        ensure_sample_schema_current(engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT rsid, revel, gnomad_source_status FROM annotated_variants")
             ).fetchone()
         assert row[0] == "rs1801133"
         assert row[1] == 0.75

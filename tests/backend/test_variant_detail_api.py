@@ -167,6 +167,21 @@ SAMPLE_VARIANT_MINIMAL = {
     "annotation_coverage": 0b000001,
 }
 
+SAMPLE_VARIANT_SOURCE_UNCOVERED = {
+    "rsid": "rs1799963",
+    "chrom": "11",
+    "pos": 46739505,
+    "ref": "G",
+    "alt": "A",
+    "genotype": "AG",
+    "zygosity": "het",
+    "gene_symbol": "F2",
+    "consequence": "3_prime_UTR_variant",
+    "gnomad_af_global": None,
+    "gnomad_source_status": "source_uncovered",
+    "annotation_coverage": 0b000001,
+}
+
 GENE_PHENOTYPE_DATA = [
     {
         "gene_symbol": "BRCA1",
@@ -303,6 +318,7 @@ def client(tmp_data_dir: Path):
             SAMPLE_VARIANT_VUS,
             SAMPLE_VARIANT_BENIGN,
             SAMPLE_VARIANT_MINIMAL,
+            SAMPLE_VARIANT_SOURCE_UNCOVERED,
         ],
         GENE_PHENOTYPE_DATA,
     )
@@ -904,6 +920,7 @@ class TestResponseShape:
             "clinvar_significance",
             "clinvar_review_stars",
             "gnomad_af_global",
+            "gnomad_source_status",
             "rare_flag",
             "cadd_phred",
             "sift_score",
@@ -939,6 +956,14 @@ class TestResponseShape:
         assert data["clinvar_significance"] is None
         assert data["gnomad_af_global"] is None
         assert data["cadd_phred"] is None
+
+    def test_source_uncovered_variant_surfaces_gnomad_status(self, client):
+        """AF-null non-coding variants can say the exome source did not assess them."""
+        tc, sid = client
+        data = tc.get(f"/api/variants/rs1799963?sample_id={sid}").json()
+        assert data["gnomad_af_global"] is None
+        assert data["gnomad_source_status"] == "source_uncovered"
+        assert data["consequence"] == "3_prime_UTR_variant"
 
     def test_minimal_variant_surfaces_hom_ref_carriage(self, client):
         """The endpoint must faithfully surface a non-carrier's carriage.

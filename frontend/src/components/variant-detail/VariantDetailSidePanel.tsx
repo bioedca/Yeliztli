@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
+import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
 
 interface VariantDetailSidePanelProps {
@@ -124,6 +125,7 @@ function PanelContent({
     : variant.rare_flag
       ? "Rare"
       : null
+  const gnomadUncovered = isGnomadSourceUncovered(variant.gnomad_source_status)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
@@ -220,7 +222,7 @@ function PanelContent({
           label="gnomAD AF"
           value={
             <span className="flex items-center gap-1.5">
-              {formatAlleleFrequency(variant.gnomad_af_global)}
+              {gnomadUncovered ? "Not assessed" : formatAlleleFrequency(variant.gnomad_af_global)}
               {rareLabel && (
                 <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                   {rareLabel}

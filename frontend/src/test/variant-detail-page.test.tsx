@@ -488,7 +488,41 @@ describe("VariantDetailPage (P2-21a)", () => {
     })
 
     await user.click(screen.getByRole("tab", { name: /population/i }))
-    expect(screen.getByText(/No population frequency data/)).toBeInTheDocument()
+    expect(screen.getByText("Not found in gnomAD")).toBeInTheDocument()
+  })
+
+  it("labels source-uncovered no population data distinctly", async () => {
+    const sourceUncoveredVariant: VariantDetail = {
+      ...mockVariant,
+      consequence: "3_prime_UTR_variant",
+      gnomad_af_global: null,
+      gnomad_af_afr: null,
+      gnomad_af_amr: null,
+      gnomad_af_asj: null,
+      gnomad_af_eas: null,
+      gnomad_af_eur: null,
+      gnomad_af_fin: null,
+      gnomad_af_sas: null,
+      gnomad_source_status: "source_uncovered",
+      gnomad_homozygous_count: null,
+      rare_flag: false,
+      ultra_rare_flag: false,
+    }
+
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => sourceUncoveredVariant,
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs1799963")
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /population/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("tab", { name: /population/i }))
+    expect(screen.getByText("Not assessed by current gnomAD exome source")).toBeInTheDocument()
   })
 
   it("handles variant with no ClinVar data in Clinical tab", async () => {

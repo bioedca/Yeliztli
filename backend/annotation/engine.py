@@ -114,6 +114,25 @@ def _is_benign_significance(significance: str | None) -> bool:
 # Gene-phenotype runs sequentially after VEP since it depends on gene_symbol.
 _MAX_WORKERS = 4
 
+GNOMAD_SOURCE_OBSERVED = "observed"
+GNOMAD_SOURCE_UNCOVERED = "source_uncovered"
+
+_GNOMAD_EXOME_UNCOVERED_CONSEQUENCES: frozenset[str] = frozenset(
+    {
+        "3_prime_UTR_variant",
+        "5_prime_UTR_variant",
+        "downstream_gene_variant",
+        "intergenic_variant",
+        "intron_variant",
+        "mature_miRNA_variant",
+        "non_coding_transcript_exon_variant",
+        "non_coding_transcript_variant",
+        "regulatory_region_variant",
+        "TF_binding_site_variant",
+        "upstream_gene_variant",
+    }
+)
+
 
 # ── Result dataclass ─────────────────────────────────────────────────────
 
@@ -349,11 +368,34 @@ def _annot_to_dict(annot: GnomADAnnotation) -> dict:
         "gnomad_af_eur": annot.af_eur,
         "gnomad_af_fin": annot.af_fin,
         "gnomad_af_sas": annot.af_sas,
+        "gnomad_source_status": GNOMAD_SOURCE_OBSERVED,
         "gnomad_homozygous_count": annot.homozygous_count,
         "gnomad_af_popmax": annot.af_popmax,
         "rare_flag": annot.rare_flag,
         "ultra_rare_flag": annot.ultra_rare_flag,
     }
+
+
+def _consequence_terms(consequence: str | None) -> set[str]:
+    """Split a stored VEP consequence string into SO terms."""
+    if not consequence:
+        return set()
+    return {term.strip() for term in consequence.split("&") if term.strip()}
+
+
+def _gnomad_source_status(row_data: dict, *, matched: bool) -> str | None:
+    """Return the status for the currently selected gnomAD AF source.
+
+    The bundled AF source is gnomAD r2.1.1 exomes. A matched row is observed in
+    that source. An unmatched non-coding VEP consequence is outside the selected
+    exome source's intended assessment scope, so callers should not present it
+    as simply absent from gnomAD.
+    """
+    if matched:
+        return GNOMAD_SOURCE_OBSERVED
+    if _consequence_terms(row_data.get("consequence")) & _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES:
+        return GNOMAD_SOURCE_UNCOVERED
+    return None
 
 
 def _lookup_gnomad(
@@ -703,6 +745,10 @@ def _merge_annotations(
             row_data.update(gene_phenotype_data[rsid])
             bitmask |= GENE_PHENOTYPE_BIT
 
+        gnomad_status = _gnomad_source_status(row_data, matched=rsid in gnomad_data)
+        if gnomad_status is not None:
+            row_data["gnomad_source_status"] = gnomad_status
+
         # Carriage: a genotyping chip reports a call at every probe regardless
         # of whether the person carries the variant, so annotate against the
         # allele actually carried. ``ref``/``alt`` come from the source that
@@ -782,6 +828,7 @@ _UPSERT_COLUMNS = [
     "gnomad_af_eur",
     "gnomad_af_fin",
     "gnomad_af_sas",
+    "gnomad_source_status",
     "gnomad_af_popmax",
     "gnomad_homozygous_count",
     "rare_flag",

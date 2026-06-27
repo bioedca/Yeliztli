@@ -112,6 +112,7 @@ class RareVariantResult:
     gnomad_af_eur: float | None
     gnomad_af_fin: float | None
     gnomad_af_sas: float | None
+    gnomad_source_status: str | None
     clinvar_significance: str | None
     clinvar_review_stars: int | None
     clinvar_accession: str | None
@@ -256,6 +257,7 @@ def find_rare_variants(
         av.c.gnomad_af_eur,
         av.c.gnomad_af_fin,
         av.c.gnomad_af_sas,
+        av.c.gnomad_source_status,
         av.c.clinvar_significance,
         av.c.clinvar_review_stars,
         av.c.clinvar_accession,
@@ -370,6 +372,7 @@ def find_rare_variants(
             gnomad_af_eur=row.gnomad_af_eur,
             gnomad_af_fin=row.gnomad_af_fin,
             gnomad_af_sas=row.gnomad_af_sas,
+            gnomad_source_status=row.gnomad_source_status,
             clinvar_significance=row.clinvar_significance,
             clinvar_review_stars=row.clinvar_review_stars,
             clinvar_accession=row.clinvar_accession,
@@ -465,6 +468,8 @@ def store_rare_variant_findings(
         # otherwise state the neutral fact that gnomAD has no frequency for it.
         if v.gnomad_af_global is not None:
             af_text = f"AF={v.gnomad_af_global:.6f}"
+        elif v.gnomad_source_status == "source_uncovered":
+            af_text = "Not assessed by current gnomAD exome source"
         elif v.is_novel:
             af_text = "Novel (uncatalogued)"
         else:
@@ -487,6 +492,7 @@ def store_rare_variant_findings(
 
         detail = {
             "af_global": v.gnomad_af_global,
+            "gnomad_source_status": v.gnomad_source_status,
             "af_populations": {
                 "afr": v.gnomad_af_afr,
                 "amr": v.gnomad_af_amr,

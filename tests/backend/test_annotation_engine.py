@@ -41,6 +41,8 @@ from backend.annotation.engine import (
     DBNSFP_BIT,
     GENE_PHENOTYPE_BIT,
     GNOMAD_BIT,
+    GNOMAD_SOURCE_OBSERVED,
+    GNOMAD_SOURCE_UNCOVERED,
     VEP_BIT,
     AnnotationEngineResult,
     _annot_to_dict,
@@ -566,7 +568,41 @@ class TestMergeAnnotations:
         assert merged[0]["gene_symbol"] == "GENE1"
         assert merged[0]["clinvar_significance"] == "Pathogenic"
         assert merged[0]["gnomad_af_global"] == 0.01
+        assert merged[0]["gnomad_source_status"] == GNOMAD_SOURCE_OBSERVED
         assert merged[0]["cadd_phred"] == 25.0
+
+    def test_noncoding_gnomad_miss_marks_source_uncovered(self) -> None:
+        """A non-coding variant outside the exome AF source is not plain absence."""
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, genotype TEXT)")
+            )
+            conn.execute(sa.text("INSERT INTO t VALUES ('rs1799963', '11', 46739505, 'AG')"))
+            row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
+
+        vep = {"rs1799963": {"gene_symbol": "F2", "consequence": "3_prime_UTR_variant"}}
+        merged = _merge_annotations([row], vep, {}, {}, {})
+
+        assert merged[0]["annotation_coverage"] == VEP_BIT
+        assert merged[0]["gnomad_source_status"] == GNOMAD_SOURCE_UNCOVERED
+        assert "gnomad_af_global" not in merged[0]
+
+    def test_coding_gnomad_miss_leaves_status_unknown(self) -> None:
+        """A coding miss without coverage proof is not marked source-uncovered."""
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, genotype TEXT)")
+            )
+            conn.execute(sa.text("INSERT INTO t VALUES ('rs_missense', '1', 100, 'AG')"))
+            row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
+
+        vep = {"rs_missense": {"gene_symbol": "GENE1", "consequence": "missense_variant"}}
+        merged = _merge_annotations([row], vep, {}, {}, {})
+
+        assert merged[0]["annotation_coverage"] == VEP_BIT
+        assert "gnomad_source_status" not in merged[0]
 
     def test_partial_sources(self) -> None:
         """Variant matched by only VEP has only VEP bit set."""
@@ -1319,6 +1355,7 @@ class TestGnomadAnnotationLookupIntegration:
         assert d["gnomad_af_eur"] == pytest.approx(0.0730)
         assert d["gnomad_af_fin"] == pytest.approx(0.0410)
         assert d["gnomad_af_sas"] == pytest.approx(0.0650)
+        assert d["gnomad_source_status"] == GNOMAD_SOURCE_OBSERVED
         assert d["gnomad_homozygous_count"] == 874
         assert d["rare_flag"] is False
         assert d["ultra_rare_flag"] is False
@@ -1584,6 +1621,7 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_eas == pytest.approx(0.0980)
         assert row.gnomad_af_eur == pytest.approx(0.0730)
         assert row.gnomad_af_sas == pytest.approx(0.0650)
+        assert row.gnomad_source_status == GNOMAD_SOURCE_OBSERVED
         # Homozygous count
         assert row.gnomad_homozygous_count == 874
         # Rare flags

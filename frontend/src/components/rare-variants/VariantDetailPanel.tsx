@@ -10,6 +10,7 @@ import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
+import { gnomadNoFrequencyDetail } from "@/lib/gnomad-status"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -265,9 +266,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
                 exome-biased gnomAD bundle is "Not found in gnomAD", not novel
                 (#951; matches ResultsTable + the SearchSummary novel_count, #866). */}
             <p className="text-sm text-muted-foreground">
-              {variant.is_novel
-                ? "Novel — absent from gnomAD and not catalogued in dbSNP/ClinVar"
-                : "Not found in gnomAD"}
+              {gnomadNoFrequencyDetail(variant.gnomad_source_status, variant.is_novel)}
             </p>
           </section>
         )}

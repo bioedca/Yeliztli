@@ -56,6 +56,7 @@ _DEFAULTS = {
     "gnomad_af_fin": None,
     "gnomad_af_sas": None,
     "gnomad_af_popmax": None,
+    "gnomad_source_status": None,
     "clinvar_significance": None,
     "clinvar_review_stars": None,
     "clinvar_accession": None,
@@ -625,6 +626,7 @@ class TestEvidenceLevelAssignment:
             gnomad_af_eur=None,
             gnomad_af_fin=None,
             gnomad_af_sas=None,
+            gnomad_source_status=None,
             clinvar_significance=None,
             clinvar_review_stars=None,
             clinvar_accession=None,
@@ -901,6 +903,42 @@ class TestStoreRareVariantFindings:
         assert "af_populations" in detail
         assert detail["consequence"] == "missense_variant"
 
+    def test_source_uncovered_finding_text_and_detail(self, sample_engine: sa.Engine) -> None:
+        """AF-null source-uncovered variants do not say plain 'Not in gnomAD'."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    _v(
+                        rsid="rs1799963",
+                        chrom="11",
+                        pos=46739505,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="F2",
+                        consequence="3_prime_UTR_variant",
+                        gnomad_af_global=None,
+                        gnomad_source_status="source_uncovered",
+                        clinvar_significance="Pathogenic",
+                        clinvar_review_stars=2,
+                        annotation_coverage=0b000011,
+                    )
+                ],
+            )
+
+        result = find_rare_variants(RareVariantFilter(), sample_engine)
+        store_rare_variant_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text, findings.c.detail_json).where(
+                    findings.c.rsid == "rs1799963"
+                )
+            ).one()
+        assert "Not assessed by current gnomAD exome source" in row.finding_text
+        assert "Not in gnomAD" not in row.finding_text
+        assert json.loads(row.detail_json)["gnomad_source_status"] == "source_uncovered"
+
     def test_clears_previous_findings_on_rerun(self, sample_with_rare_variants: sa.Engine) -> None:
         filters = RareVariantFilter()
         result = find_rare_variants(filters, sample_with_rare_variants)
@@ -968,6 +1006,7 @@ class TestRareVariantResultProperties:
             gnomad_af_eur=None,
             gnomad_af_fin=None,
             gnomad_af_sas=None,
+            gnomad_source_status=None,
             clinvar_significance=None,
             clinvar_review_stars=None,
             clinvar_accession=None,
@@ -1025,6 +1064,7 @@ class TestRareVariantResultProperties:
             gnomad_af_eur=None,
             gnomad_af_fin=None,
             gnomad_af_sas=None,
+            gnomad_source_status=None,
             clinvar_significance="Pathogenic",
             clinvar_review_stars=3,
             clinvar_accession=None,
@@ -1074,6 +1114,7 @@ class TestRareVariantResultProperties:
             gnomad_af_eur=None,
             gnomad_af_fin=None,
             gnomad_af_sas=None,
+            gnomad_source_status=None,
             clinvar_significance=None,
             clinvar_review_stars=None,
             clinvar_accession=None,

@@ -36,7 +36,9 @@ logger = structlog.get_logger(__name__)
 #      (gnomAD r2.1 ASJ population for population-max AF and ancestry display)
 # v14: Add imputed_variants table (Wave C — firewall-cleared imputed variants;
 #      created on existing sample DBs via create_all(checkfirst=True))
-SAMPLE_SCHEMA_VERSION = 14
+# v15: Add gnomad_source_status to annotated_variants
+#      (distinguish observed AFs from variants not assessed by the exome-only source)
+SAMPLE_SCHEMA_VERSION = 15
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -334,6 +336,24 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         sa.text("ALTER TABLE annotated_variants ADD COLUMN gnomad_af_asj REAL")
                     )
                 logger.info("gnomad_af_asj_column_added", from_version=from_version)
+                added = True
+
+    if from_version < 15:
+        # Issue #1121: the shipped AF bundle is gnomAD r2.1.1 exomes, not a
+        # genome-wide source. NULL on existing rows until re-annotation; new
+        # rows distinguish observed matches from non-coding variants outside the
+        # selected source's assessment scope.
+        inspector = sa.inspect(engine)
+        if "annotated_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
+            if "gnomad_source_status" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(
+                        sa.text(
+                            "ALTER TABLE annotated_variants ADD COLUMN gnomad_source_status TEXT"
+                        )
+                    )
+                logger.info("gnomad_source_status_column_added", from_version=from_version)
                 added = True
 
     return added

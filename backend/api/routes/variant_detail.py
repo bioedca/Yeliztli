@@ -120,6 +120,7 @@ class VariantDetailResponse(BaseModel):
     gnomad_af_eur: float | None = None
     gnomad_af_fin: float | None = None
     gnomad_af_sas: float | None = None
+    gnomad_source_status: str | None = None
     gnomad_af_popmax: float | None = None
     gnomad_homozygous_count: int | None = None
     rare_flag: bool | None = None

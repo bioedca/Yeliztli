@@ -111,6 +111,7 @@ class VariantRow(BaseModel):
     clinvar_significance: str | None = None
     clinvar_review_stars: int | None = None
     gnomad_af_global: float | None = None
+    gnomad_source_status: str | None = None
     rare_flag: bool | None = None
     cadd_phred: float | None = None
     sift_score: float | None = None
@@ -359,6 +360,7 @@ def _row_to_variant(
             "clinvar_significance",
             "clinvar_review_stars",
             "gnomad_af_global",
+            "gnomad_source_status",
             "rare_flag",
             "cadd_phred",
             "sift_score",

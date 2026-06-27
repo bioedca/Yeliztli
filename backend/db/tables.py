@@ -628,6 +628,11 @@ annotated_variants = sa.Table(
     sa.Column("gnomad_af_fin", sa.Float),
     sa.Column("gnomad_af_sas", sa.Float),
     sa.Column(
+        "gnomad_source_status",
+        sa.Text,
+        comment="observed | source_uncovered; current AF bundle is gnomAD r2.1.1 exomes",
+    ),
+    sa.Column(
         "gnomad_af_popmax",
         sa.Float,
         comment="Population-max AF (max of non-null pop AFs); rarity denominator (F15)",

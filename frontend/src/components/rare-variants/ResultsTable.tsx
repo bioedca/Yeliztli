@@ -7,6 +7,7 @@
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
+import { gnomadNoFrequencyLabel } from "@/lib/gnomad-status"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
@@ -91,9 +92,7 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
                       not Novel (#866; matches the SearchSummary novel_count). */}
                   {v.gnomad_af_global != null
                     ? formatAlleleFrequency(v.gnomad_af_global)
-                    : v.is_novel
-                      ? "Novel"
-                      : "Not in gnomAD"}
+                    : gnomadNoFrequencyLabel(v.gnomad_source_status, v.is_novel)}
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-xs">
                   {v.cadd_phred?.toFixed(1) ?? "—"}

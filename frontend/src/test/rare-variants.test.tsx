@@ -191,6 +191,17 @@ describe("ResultsTable", () => {
     expect(screen.queryByText("Novel")).not.toBeInTheDocument()
   })
 
+  it("shows source-uncovered status instead of plain gnomAD absence (#1121)", () => {
+    const variant = makeMockVariant({
+      gnomad_af_global: null,
+      gnomad_source_status: "source_uncovered",
+      is_novel: false,
+    })
+    render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
+    expect(screen.getByText("Not assessed by current gnomAD exome source")).toBeInTheDocument()
+    expect(screen.queryByText("Not in gnomAD")).not.toBeInTheDocument()
+  })
+
   it("renders gnomAD AF in one consistent unit across the 0.0001 threshold (#564)", () => {
     // Two near-identical frequencies straddling the old percent/fraction split.
     // Pre-fix, 0.00012 rendered as "0.012%" and 0.00009 as "9.0e-5" — a ~100x
@@ -311,8 +322,22 @@ describe("VariantDetailPanel", () => {
     })
     render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
     expect(
-      screen.getByText("Novel — absent from gnomAD and not catalogued in dbSNP/ClinVar"),
+      screen.getByText("Novel - absent from gnomAD and not catalogued in dbSNP/ClinVar"),
     ).toBeInTheDocument()
+  })
+
+  it("shows source-uncovered detail instead of plain gnomAD absence (#1121)", () => {
+    const variant = makeMockVariant({
+      gnomad_af_global: null,
+      gnomad_af_afr: null,
+      gnomad_af_asj: null,
+      gnomad_af_eur: null,
+      gnomad_source_status: "source_uncovered",
+      is_novel: false,
+    })
+    render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
+    expect(screen.getByText("Not assessed by current gnomAD exome source")).toBeInTheDocument()
+    expect(screen.queryByText("Not found in gnomAD")).not.toBeInTheDocument()
   })
 
   it("shows evidence conflict warning", () => {

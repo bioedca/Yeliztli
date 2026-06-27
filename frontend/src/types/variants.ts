@@ -13,6 +13,7 @@ export interface VariantRow {
   clinvar_significance: string | null
   clinvar_review_stars: number | null
   gnomad_af_global: number | null
+  gnomad_source_status?: string | null
   rare_flag: boolean | null
   cadd_phred: number | null
   sift_score: number | null
