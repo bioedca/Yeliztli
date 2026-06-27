@@ -196,7 +196,7 @@ jobs:
         run: cd frontend && npm ci
 
       - name: Vitest
-        run: cd frontend && npm test
+        run: cd frontend && npm run test:ci
 
   # ── Frontend build — Tier 1 ─────────────────────────────────────────────
   build-frontend:

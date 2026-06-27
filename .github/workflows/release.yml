@@ -104,7 +104,7 @@ jobs:
         run: cd frontend && npm ci
 
       - name: Vitest
-        run: cd frontend && npm test
+        run: cd frontend && npm run test:ci
 
   # ── Cross-platform native install smoke test ────────────
   smoke-install:

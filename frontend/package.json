@@ -9,10 +9,10 @@
     "lint": "eslint .",
     "knip": "knip",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "bash scripts/run-vitest-strict.sh",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:ci": "bash -c 'set -o pipefail; vitest run 2>&1 | tee /tmp/vitest.log; VITEST_EXIT=$?; grep -q \"not wrapped in act\" /tmp/vitest.log && exit 1; exit $VITEST_EXIT'"
+    "test:coverage": "bash scripts/run-vitest-strict.sh --coverage",
+    "test:ci": "npm test"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
