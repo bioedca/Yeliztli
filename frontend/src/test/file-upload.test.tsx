@@ -14,9 +14,11 @@ describe("FileUpload", () => {
   it("renders the drop zone in idle state", () => {
     render(<FileUpload />)
     expect(
-      screen.getByText(/drop your 23andMe file here/i),
+      screen.getByText(/drop your 23andMe or AncestryDNA file here/i),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText(/upload 23andMe file/i)).toBeInTheDocument()
+    expect(
+      screen.getByLabelText(/upload 23andMe or AncestryDNA file/i),
+    ).toBeInTheDocument()
   })
 
   it("shows dragging state on dragover", () => {
@@ -25,7 +27,7 @@ describe("FileUpload", () => {
     fireEvent.dragOver(dropZone)
     // The border color changes — component should still be visible
     expect(
-      screen.getByText(/drop your 23andMe file here/i),
+      screen.getByText(/drop your 23andMe or AncestryDNA file here/i),
     ).toBeInTheDocument()
   })
 
@@ -101,8 +103,41 @@ describe("FileUpload", () => {
 
     fireEvent.click(screen.getByText(/try again/i))
     expect(
-      screen.getByText(/drop your 23andMe file here/i),
+      screen.getByText(/drop your 23andMe or AncestryDNA file here/i),
     ).toBeInTheDocument()
+  })
+
+  it("rejects ZIP archives before calling ingest", async () => {
+    render(<FileUpload />)
+    const dropZone = screen.getByRole("button")
+    const file = new File(["PK\u0003\u0004"], "genome.zip", {
+      type: "application/zip",
+    })
+    fireEvent.drop(dropZone, {
+      dataTransfer: { files: [file] },
+    })
+
+    expect(await screen.findByText(/upload failed/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(screen.getByText(/this looks like a zip archive/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/extract the raw 23andMe\/AncestryDNA \.txt file first/i),
+    ).toBeInTheDocument()
+  })
+
+  it("rejects renamed ZIP archives by signature before calling ingest", async () => {
+    render(<FileUpload />)
+    const dropZone = screen.getByRole("button")
+    const file = new File(["PK\u0003\u0004"], "renamed-genome.txt", {
+      type: "application/octet-stream",
+    })
+    fireEvent.drop(dropZone, {
+      dataTransfer: { files: [file] },
+    })
+
+    expect(await screen.findByText(/upload failed/i)).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(screen.getByText(/this looks like a zip archive/i)).toBeInTheDocument()
   })
 
   it("renders the bundle-gate banner (not a raw object) on a 409 gate response", async () => {
@@ -157,7 +192,7 @@ describe("FileUpload", () => {
     })
 
     render(<FileUpload />)
-    const fileInput = screen.getByLabelText(/upload 23andMe file/i)
+    const fileInput = screen.getByLabelText(/upload 23andMe or AncestryDNA file/i)
     const file = new File(["content"], "my_data.txt", { type: "text/plain" })
     fireEvent.change(fileInput, { target: { files: [file] } })
 

@@ -6,7 +6,7 @@ Covers vendor detection precedence + the rejection-with-guidance surface:
 - AncestryDNA fixture detects as `ANCESTRYDNA`; an uncommented 5-column
   header alone (no `#AncestryDNA` comment) also detects as `ANCESTRYDNA`.
 - A file carrying BOTH signatures routes to 23andMe (precedence rule).
-- Unknown / empty / binary / comment-only / VCF / CSV inputs raise
+- Unknown / empty / binary / comment-only / VCF / CSV / ZIP inputs raise
   `UnsupportedFormatError` with the matching guidance message.
 - `dispatcher.parse()` on a real 23andMe v5 fixture returns the unified
   `base.ParseResult` shape (vendor + string version + build + variants).
@@ -92,6 +92,13 @@ def test_csv_rejected_with_csv_message(tmp_path: Path) -> None:
     p = tmp_path / "random.csv"
     p.write_text("name,age,city\nAlice,30,NYC\nBob,25,LA\nCharlie,42,SF\n")
     with pytest.raises(UnsupportedFormatError, match="comma-separated"):
+        dispatcher.detect_vendor(p)
+
+
+def test_zip_archive_rejected_with_zip_message(tmp_path: Path) -> None:
+    p = tmp_path / "genome.zip"
+    p.write_bytes(b"PK\x03\x04binary archive bytes, with commas, inside")
+    with pytest.raises(UnsupportedFormatError, match="ZIP archive"):
         dispatcher.detect_vendor(p)
 
 

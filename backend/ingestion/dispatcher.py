@@ -15,7 +15,7 @@ Detection precedence per Plan §8.3:
   ``rsid\\tchromosome\\tposition\\tallele1\\tallele2`` wins.
 - A file matching both signatures (e.g. a 23andMe comment that mentions
   AncestryDNA) routes to 23andMe by precedence.
-- Otherwise raises ``UnsupportedFormatError`` with a VCF / CSV / binary /
+- Otherwise raises ``UnsupportedFormatError`` with a VCF / CSV / ZIP / binary /
   generic guidance message.
 
 The unified ``ParseResult`` returned by :func:`parse` always carries the
@@ -53,6 +53,7 @@ _ERR_CSV = (
     "This file appears to be comma-separated. 23andMe and AncestryDNA raw "
     "data files use tab-separated format."
 )
+_ERR_ZIP = "This looks like a ZIP archive. Extract the raw 23andMe/AncestryDNA .txt file first."
 _ERR_BINARY = "This file contains binary data and is not a valid text file."
 _ERR_UNKNOWN = (
     "Unrecognized file format. Yeliztli expects 23andMe or AncestryDNA "
@@ -66,6 +67,16 @@ def _check_binary(head: bytes) -> bool:
     return b"\x00" in head
 
 
+def _check_zip(head: bytes) -> bool:
+    return head.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
+
+
+def reject_unsupported_archive_bytes(head: bytes) -> None:
+    """Reject archive bytes before text decoding can obscure their format."""
+    if _check_zip(head):
+        raise UnsupportedFormatError(_ERR_ZIP)
+
+
 def _read_head_lines(
     file_or_path: str | Path | TextIO,
     limit: int = _DETECT_LINE_LIMIT,
@@ -74,6 +85,7 @@ def _read_head_lines(
         path = Path(file_or_path)
         with open(path, "rb") as bfh:
             raw = bfh.read(512)
+        reject_unsupported_archive_bytes(raw)
         if _check_binary(raw):
             raise UnsupportedFormatError(_ERR_BINARY)
         with open(path, encoding="utf-8", errors="replace") as fh:
@@ -179,4 +191,4 @@ def parse(file_or_path: str | Path | TextIO) -> ParseResult:
     raise UnsupportedFormatError("unreachable")  # pragma: no cover
 
 
-__all__ = ["ParserError", "detect_vendor", "parse"]
+__all__ = ["ParserError", "detect_vendor", "parse", "reject_unsupported_archive_bytes"]

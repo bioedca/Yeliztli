@@ -23,7 +23,7 @@ from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, jobs, raw_variants, sample_metadata_table, samples
 from backend.ingestion.base import ParsedVariant, ParseResult
-from backend.ingestion.dispatcher import ParserError, parse
+from backend.ingestion.dispatcher import ParserError, parse, reject_unsupported_archive_bytes
 from backend.ingestion.liftover import lift_build36_to_grch37
 
 logger = logging.getLogger(__name__)
@@ -157,6 +157,8 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
 
     Returns a dict with sample_id, job_id, variant_count, nocall_count.
     """
+    reject_unsupported_archive_bytes(file_bytes[:512])
+
     registry = get_registry()
     settings = registry.settings
 

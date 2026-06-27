@@ -21,6 +21,35 @@ import type { BundleGatePayload } from "@/types/setup"
 
 type UploadState = "idle" | "dragging" | "uploading" | "complete" | "error"
 
+const ZIP_ARCHIVE_ERROR =
+  "This looks like a ZIP archive. Extract the raw 23andMe/AncestryDNA .txt file first."
+
+function hasZipMagic(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    ((bytes[2] === 0x03 && bytes[3] === 0x04) ||
+      (bytes[2] === 0x05 && bytes[3] === 0x06) ||
+      (bytes[2] === 0x07 && bytes[3] === 0x08))
+  )
+}
+
+async function isZipArchiveFile(file: File): Promise<boolean> {
+  const name = file.name.trim().toLowerCase()
+  const declaredZip =
+    name.endsWith(".zip") ||
+    file.type === "application/zip" ||
+    file.type === "application/x-zip-compressed"
+
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+    return declaredZip || hasZipMagic(head)
+  } catch {
+    return declaredZip
+  }
+}
+
 export default function FileUpload() {
   const [state, setState] = useState<UploadState>("idle")
   const [fileName, setFileName] = useState<string | null>(null)
@@ -39,6 +68,13 @@ export default function FileUpload() {
       setFileName(file.name)
       setError(null)
       setBundleGate(null)
+
+      if (await isZipArchiveFile(file)) {
+        setError(ZIP_ARCHIVE_ERROR)
+        setState("error")
+        return
+      }
+
       setState("uploading")
 
       try {
@@ -135,10 +171,10 @@ export default function FileUpload() {
       >
         <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
         <p className="text-sm font-medium text-foreground">
-          Drop your 23andMe file here or click to browse
+          Drop your 23andMe or AncestryDNA file here or click to browse
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Supports 23andMe raw data files (v3, v4, v5)
+          Supports 23andMe raw data files (v3, v4, v5) and AncestryDNA raw data
         </p>
         <input
           ref={fileInputRef}
@@ -146,7 +182,7 @@ export default function FileUpload() {
           accept=".txt,.csv,.tsv"
           onChange={onFileSelect}
           className="hidden"
-          aria-label="Upload 23andMe file"
+          aria-label="Upload 23andMe or AncestryDNA file"
         />
       </div>
     )

@@ -30,6 +30,7 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.ingestion.base import UnsupportedFormatError
 from backend.ingestion.parser_23andme import parse_23andme
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
@@ -243,6 +244,22 @@ class TestIngestEndpoint:
             files={"file": ("data.vcf", io.BytesIO(vcf_content), "text/plain")},
         )
         assert response.status_code == 422
+
+    def test_ingest_zip_archive_rejected_before_registry_setup(self, monkeypatch):
+        from backend.api.routes import ingest as ingest_route
+
+        def fail_get_registry():
+            raise AssertionError("ZIP rejection should happen before registry setup")
+
+        monkeypatch.setattr(ingest_route, "get_registry", fail_get_registry)
+        zip_content = b"PK\x03\x04binary archive bytes, with commas, inside"
+        with pytest.raises(UnsupportedFormatError) as excinfo:
+            ingest_route._ingest_file(zip_content, "genome.zip")
+
+        detail = str(excinfo.value)
+        assert "ZIP archive" in detail
+        assert "Extract the raw 23andMe/AncestryDNA .txt file first" in detail
+        assert "comma-separated" not in detail
 
     def test_ingest_multiple_files_get_unique_ids(self, client):
         with open(V5_FILE, "rb") as f1:
