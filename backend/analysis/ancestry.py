@@ -1672,9 +1672,12 @@ def _tree_walk(
     pass-through rule: it can route the walk to a deeper supported clade, but it
     is not reported as terminal on its own. Leaf children keep the existing
     conflict/fraction behavior, because there is no deeper branch to over-resolve
-    into. Among eligible direct children the highest clade-specific fraction
-    wins. The recorded path step keeps the **full** node match (including
-    inherited markers) so the confidence present/total semantics are unchanged.
+    into. Among eligible direct children the highest clade-specific fraction is
+    the direct candidate. If sparse pass-through descendants are also supported,
+    candidates are ranked by recorded path support: total derived markers,
+    confidence, then path depth. The recorded path step keeps the **full** node
+    match (including inherited markers) so the confidence present/total semantics
+    are unchanged.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
@@ -1698,6 +1701,13 @@ def _tree_walk(
     best_child: HaplogroupNode | None = None
     best_child_fraction = 0.0
     passthrough_children: list[HaplogroupNode] = []
+
+    def candidate_score(
+        candidate_path: list[HaplogroupTraversalStep],
+    ) -> tuple[int, float, int]:
+        present = sum(step.snps_present for step in candidate_path)
+        total = sum(step.snps_total for step in candidate_path)
+        return present, _haplogroup_confidence(present, total), len(candidate_path)
 
     for child in node.children:
         # Clade-specific defining SNPs: drop any marker inherited/duplicated from
@@ -1739,21 +1749,30 @@ def _tree_walk(
             best_child = child
             best_child_fraction = fraction
 
+    best_terminal: HaplogroupNode | None = None
+    best_path: list[HaplogroupTraversalStep] = []
+    best_score: tuple[int, float, int] | None = None
+
     if best_child is not None:
-        _record_step(path, best_child, genotype_map)
         # Recurse into the best directly-supported child.
-        return _tree_walk(
+        direct_path: list[HaplogroupTraversalStep] = []
+        _record_step(direct_path, best_child, genotype_map)
+        best_terminal, direct_path = _tree_walk(
             best_child,
             genotype_map,
-            path,
+            direct_path,
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
         )
+        best_path = direct_path
+        best_score = candidate_score(direct_path)
 
-    # No child has direct clade-specific evidence. A pass-through child (one
-    # defined solely by inherited markers) is descended into ONLY if it leads to a
+    # A pass-through child (one defined solely by inherited markers, or an
+    # under-supported internal child) is descended into ONLY if it leads to a
     # deeper clade that does — otherwise it is a spurious over-resolution (the
-    # sample is indistinguishable from this node) and the walk stops here.
+    # sample is indistinguishable from this node) and the walk stops here. When a
+    # direct sibling also matched, let the supported pass-through compete using
+    # the same recorded-path support score so deeper evidence is not discarded.
     for child in passthrough_children:
         # The inherited markers were derived to reach here, so a typed-ancestral
         # one would contradict the lineage — skip such a broken pass-through.
@@ -1768,9 +1787,18 @@ def _tree_walk(
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
-            _record_step(path, child, genotype_map)
-            path.extend(sub_path)
-            return terminal, path
+            passthrough_path: list[HaplogroupTraversalStep] = []
+            _record_step(passthrough_path, child, genotype_map)
+            passthrough_path.extend(sub_path)
+            score = candidate_score(passthrough_path)
+            if best_score is None or score > best_score:
+                best_terminal = terminal
+                best_path = passthrough_path
+                best_score = score
+
+    if best_terminal is not None:
+        path.extend(best_path)
+        return best_terminal, path
 
     # No child matched — current node is the deepest match
     return node, path

@@ -670,6 +670,54 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "A1"
         assert [s.haplogroup for s in path] == ["A", "A1"]
 
+    def test_sparse_internal_passthrough_competes_with_direct_sibling(self) -> None:
+        """A sparse internal branch that reaches deeper support should not be skipped
+        just because a direct sibling also clears the minimum fraction."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="SPARSE",
+                    defining_snps=[HaplogroupSNP("s", 1, "G")],
+                    children=[
+                        HaplogroupNode(
+                            haplogroup="DEEP",
+                            defining_snps=[
+                                HaplogroupSNP("d1", 2, "T"),
+                                HaplogroupSNP("d2", 3, "C"),
+                            ],
+                            children=[],
+                        ),
+                    ],
+                ),
+                HaplogroupNode(
+                    haplogroup="SIBLING",
+                    defining_snps=[
+                        HaplogroupSNP("sib1", 4, "A"),
+                        HaplogroupSNP("sib2", 5, "G"),
+                    ],
+                    children=[],
+                ),
+            ],
+        )
+        genotypes = {
+            "s": "GG",
+            "d1": "TT",
+            "d2": "CC",
+            "sib1": "AA",
+        }
+
+        terminal, path = _tree_walk(
+            root,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+        )
+
+        assert terminal.haplogroup == "DEEP"
+        assert [s.haplogroup for s in path] == ["SPARSE", "DEEP"]
+
     def test_synthetic_shared_marker_children_do_not_over_resolve(self) -> None:
         """Two children that each re-list one of the parent's markers (the CT/DE,
         CT/F shape) are both refused when their own markers are untyped."""
