@@ -586,6 +586,7 @@ EXPECTED_GENOME_BUILD: dict[str, str] = {
     "alphamissense": "GRCh37",
     "gtex_eqtl": "GRCh37",
     "spliceai": "GRCh37",  # hg19 precomputed scores, joined by position (no liftover)
+    "imputation_panel": "GRCh37",  # 1000G Phase 3 v5a, native build-37 (SW-C1)
     "pgs_scores": "GRCh37",
     "dbnsfp": "GRCh38",
 }

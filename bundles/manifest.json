@@ -99,5 +99,42 @@
       "last_known_version": "v8",
       "license": "open-access-summary-stats"
     }
+  },
+  "imputation_panel": {
+    "name": "1000 Genomes Phase 3 v5a (Beagle bref3)",
+    "build": "GRCh37",
+    "version": "1000G_phase3_v5a_b37",
+    "citation_pmid": "26432245",
+    "license": "open / public (1000 Genomes Fort Lauderdale terms; no redistribution restriction)",
+    "source": "Beagle reference panels (B. Browning, UW): bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a (files dated 2018-05-30)",
+    "base_url": "http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/b37.bref3",
+    "map_url": "http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/plink.GRCh37.map.zip",
+    "accuracy_caveat": "Defensible v1 panel; imputation accuracy is lower for rare/low-frequency variants and ancestries under-represented in 1000G (PMID:32002535) - TOPMed/HRC are the upgrade path. The SW-C3 firewall must quarantine imputed rare variants from carrier/monogenic calls.",
+    "files": {
+      "chr1": {"size_bytes": 538096271, "sha256": "3247b638789cf255c0084a011711eccddef08c0529c04a22b837d181e8773d42"},
+      "chr2": {"size_bytes": 570900081, "sha256": "8d6c41af2af1e91b9018c750d024f71a3d7b9e1a5ba9c1f1a1075e96a5ca1d5f"},
+      "chr3": {"size_bytes": 475988388, "sha256": "2d222f07a3f2007a31b9e27a19966ab18b2c43d1e802af24b9544923c34ebc0a"},
+      "chr4": {"size_bytes": 479817516, "sha256": "a00b81dac5cfd50d4f68d9a8bdbe748db9d7ee730a4a546492bd6a48443814bb"},
+      "chr5": {"size_bytes": 426293904, "sha256": "64b1e0b12130839314330f88ed4428e1e62a48d483b2d0983ef842476dfc612a"},
+      "chr6": {"size_bytes": 433180692, "sha256": "3076bc2db3f3c148ffe7b69b3f1794fdde78498825e1e2636b6f277a33b28056"},
+      "chr7": {"size_bytes": 401538411, "sha256": "944e2ce955780c32948a197c54e902ddf97caa5fb114e23090eb23242d277805"},
+      "chr8": {"size_bytes": 374379298, "sha256": "1ff6bde256470e20efcf12c2393a07b3dae13015f97182fc8d47d4fbbf958fe8"},
+      "chr9": {"size_bytes": 304107685, "sha256": "232da4adcec62b739fee108a806392e4ac18705dee0a0de1e85e2d24c4a2e11e"},
+      "chr10": {"size_bytes": 341429691, "sha256": "06da30da724b0b78b5f019124d10a88aa45c7a41a60357f9a6a6b59253a97d94"},
+      "chr11": {"size_bytes": 332474064, "sha256": "a05d978751b511aef8bc33b4a164d6f4b6b2243e1cc9dca676772208267dfe67"},
+      "chr12": {"size_bytes": 327714054, "sha256": "15e832382b5e35f7ea8b7ea9f46cacebac94a99f2eb74c56bc1de152224fda34"},
+      "chr13": {"size_bytes": 241320879, "sha256": "f9f160980484ac9c7da1f167eaf3d494962079c46ed86dd123c3cccba1405a71"},
+      "chr14": {"size_bytes": 225355199, "sha256": "ec6a3d3cdb23d6bc4e3f19546ba41f6b895938bbbd86ef94235d1e41694d4364"},
+      "chr15": {"size_bytes": 211304618, "sha256": "6e6e171a044d6006c6c6260095cb4d0139fe869a8e306833f68442b1f9286b47"},
+      "chr16": {"size_bytes": 229911351, "sha256": "effbd0f6bd9dc20cefa17bb7bc91a9486863cc93d0de375bbad5629db7fdae9d"},
+      "chr17": {"size_bytes": 202099645, "sha256": "4aa241d5692c1034f30f233611e053fc63a4df43e3b2f2968f9d7b0c87cefe79"},
+      "chr18": {"size_bytes": 194061409, "sha256": "a006737a2d0173c6e30e3053ca441a3a32cb84604a86c1d86be0786565c74e23"},
+      "chr19": {"size_bytes": 171004256, "sha256": "ed4b323d4b1faae1c7f3daed97f259ab0d8642ade001c2565bd6f860b26a03ec"},
+      "chr20": {"size_bytes": 153844474, "sha256": "5eba2a97065d12a95a9ffda1b6715a3443e3c145aa33f5e4609a6925ad9aa63d"},
+      "chr21": {"size_bytes": 100843132, "sha256": "96b424bd787425c70a60fdafe92b246803c3000013931613bf3eabd24b4ab3de"},
+      "chr22": {"size_bytes": 104221013, "sha256": "ad95694bf54ba427df3dbd7b7ec74098d88fc984a99dfa1f4c612aca6cac2092"},
+      "chrX": {"size_bytes": 281366227, "sha256": "572d1ea72327e9b58517d68537a888821772bf80e5107cacb4d9cea89b589021"},
+      "map": {"size_bytes": 23913120, "sha256": "8e88141345844571bc63efac6c043ee29e8ca41f26087dc51b7f1918943a077b"}
+    }
   }
 }

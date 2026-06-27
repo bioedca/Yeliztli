@@ -252,6 +252,11 @@ class Settings(BaseSettings):
     def resolved_lai_bundle_path(self) -> Path:
         return self.lai_bundle_path or (self.data_dir / "lai_bundle")
 
+    @property
+    def imputation_panel_dir(self) -> Path:
+        """Directory holding the (opt-in) 1000G Phase 3 v5a imputation panel (SW-C1)."""
+        return self.data_dir / "imputation_panel"
+
     @classmethod
     def settings_customise_sources(
         cls,
