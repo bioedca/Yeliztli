@@ -21,6 +21,8 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.prs import (
+    PRS_HIGHER_IS_PROTECTIVE,
+    PRS_HIGHER_IS_RISK,
     PRSResult,
     PRSSNPContribution,
     PRSSNPWeight,
@@ -316,6 +318,38 @@ class TestComputePRS:
         assert result.snps_used == 0
         assert result.coverage_fraction == 0.0
         assert result.is_sufficient is False
+
+    def test_invalid_orientation_normalized_to_risk(self, sample_engine: sa.Engine) -> None:
+        ws = PRSWeightSet(
+            name="invalid orientation",
+            trait="test",
+            module="test",
+            source_ancestry="EUR",
+            source_study="Test",
+            source_pmid="123",
+            sample_size=1000,
+            weights=[],
+            reference_mean=0.0,
+            reference_std=1.0,
+            higher_is="unsupported",
+        )
+        assert ws.higher_is == PRS_HIGHER_IS_RISK
+
+        result = compute_prs(ws, sample_engine)
+        assert result.higher_is == PRS_HIGHER_IS_RISK
+
+        direct = PRSResult(
+            weight_set_name="direct",
+            trait="test",
+            module="test",
+            source_ancestry="EUR",
+            source_study="Test",
+            source_pmid="123",
+            sample_size=1000,
+            raw_score=0.0,
+            higher_is="unsupported",
+        )
+        assert direct.higher_is == PRS_HIGHER_IS_RISK
 
 
 # ── Percentile & z-score tests ──────────────────────────────────────────
@@ -1051,6 +1085,54 @@ class TestStorePRSFindings:
         assert rf["source_population"] == "EUR"
         assert "EUR" in rf["source_population_label"]
         assert "95% CI" in rf["ci_label"]
+
+    def test_detail_json_has_default_risk_orientation(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry="EUR",
+            n_bootstrap=100,
+            rng_seed=42,
+        )
+        store_prs_findings([result], sample_with_prs_variants, module="cancer")
+
+        with sample_with_prs_variants.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["higher_is"] == "risk"
+        assert "higher genetic burden" in detail["orientation_note"]
+
+    def test_protective_orientation_stated_in_finding_text(self, sample_engine: sa.Engine) -> None:
+        result = PRSResult(
+            weight_set_name="Protective PRS",
+            trait="protective_trait",
+            module="test",
+            source_ancestry="EUR",
+            source_study="Test",
+            source_pmid="123",
+            sample_size=1000,
+            raw_score=1.5,
+            z_score=1.2,
+            percentile=88.0,
+            snps_used=10,
+            snps_total=10,
+            coverage_fraction=1.0,
+            higher_is=PRS_HIGHER_IS_PROTECTIVE,
+        )
+
+        store_prs_findings([result], sample_engine, module="test")
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        assert "88th percentile" in row.finding_text
+        assert "Higher percentiles are protective" in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["higher_is"] == "protective"
+        assert detail["orientation_note"] == (
+            "Higher percentiles are protective; lower percentiles indicate higher risk context."
+        )
 
     def test_prs_score_and_percentile_stored(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine

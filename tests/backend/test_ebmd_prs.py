@@ -14,6 +14,7 @@ import json
 import sqlalchemy as sa
 
 from backend.analysis.ebmd_prs import (
+    EBMD_CONTEXT,
     EBMD_PGS_ID,
     score_ebmd_prs,
     store_ebmd_findings,
@@ -103,6 +104,15 @@ class TestByoAvailability:
         # source_pmid for PGS000657 (the single source of truth), not a
         # module-level constant — a dead duplicate of it was removed in #671.
         assert prs.source_pmid == "32614825"
+        assert prs.higher_is == "protective"
+
+
+def test_context_states_inverse_direction() -> None:
+    direction = EBMD_CONTEXT["direction"]
+    assert "lower heel eBMD percentile" in direction
+    assert "higher fracture-risk context" in direction
+    assert "high percentile" in direction
+    assert "protective" in direction
 
 
 class TestStore:
@@ -122,6 +132,10 @@ class TestStore:
         # not from the dead module-level constant removed in #671. Deletion is
         # behaviour-preserving for the user-facing citation.
         assert "32614825" in json.loads(rows[0].pmid_citations)
+        detail = json.loads(rows[0].detail_json)
+        assert detail["higher_is"] == "protective"
+        assert "higher percentiles are protective" in detail["orientation_note"].lower()
+        assert "lower percentiles indicate higher risk context" in rows[0].finding_text.lower()
 
     def test_absence_clears_stale(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine)

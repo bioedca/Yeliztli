@@ -3,6 +3,7 @@
 interface EbmdPrs {
   name: string
   calibrated: boolean
+  higher_is: "risk" | "protective"
   percentile: number | null
   snps_used: number
   snps_total: number

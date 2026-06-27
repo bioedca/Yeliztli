@@ -14,7 +14,9 @@ Clinical framing (Forgetta et al., PLoS Med 2020): a BMD PRS can *refine*
 fracture-risk screening — e.g. as a prescreen to reduce DXA referrals — and
 modestly improves reclassification over FRAX, but it does **not** measure bone
 density, diagnose osteoporosis, or replace DXA (the diagnostic gold standard) or
-FRAX (the validated fracture-risk calculator).
+FRAX (the validated fracture-risk calculator). Its direction is inverse to
+risk-increasing PRS traits: lower eBMD implies higher fracture-risk context,
+while higher eBMD is protective.
 """
 
 from __future__ import annotations
@@ -38,6 +40,12 @@ EBMD_CONTEXT: dict[str, str] = {
         "gold standard for osteoporosis) or FRAX (the validated fracture-risk "
         "calculator), and it does not measure your bone density or diagnose "
         "osteoporosis."
+    ),
+    "direction": (
+        "Direction: a lower heel eBMD percentile indicates lower genetically "
+        "predicted bone mineral density and higher fracture-risk context; a high "
+        "percentile indicates higher genetically predicted bone density and is "
+        "protective."
     ),
     "utility": (
         "A bone-density polygenic score can refine fracture-risk screening — for "

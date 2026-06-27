@@ -76,6 +76,34 @@ from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
 
+PRS_HIGHER_IS_RISK = "risk"
+PRS_HIGHER_IS_PROTECTIVE = "protective"
+PRS_HIGHER_IS_VALUES = frozenset({PRS_HIGHER_IS_RISK, PRS_HIGHER_IS_PROTECTIVE})
+
+_PRS_ORIENTATION_NOTES = {
+    PRS_HIGHER_IS_RISK: (
+        "Higher percentiles indicate higher genetic burden for this trait or risk context."
+    ),
+    PRS_HIGHER_IS_PROTECTIVE: (
+        "Higher percentiles are protective; lower percentiles indicate higher risk context."
+    ),
+}
+
+
+def normalize_prs_higher_is(higher_is: str | None) -> str:
+    """Normalize unsupported PRS orientations to the conservative risk default."""
+    return higher_is if higher_is in PRS_HIGHER_IS_VALUES else PRS_HIGHER_IS_RISK
+
+
+def prs_orientation_note(higher_is: str | None) -> str:
+    """Return the reader-facing interpretation note for a PRS orientation."""
+    higher_is = normalize_prs_higher_is(higher_is)
+    return _PRS_ORIENTATION_NOTES.get(
+        higher_is,
+        _PRS_ORIENTATION_NOTES[PRS_HIGHER_IS_RISK],
+    )
+
+
 # ── Data classes ──────────────────────────────────────────────────────────
 
 
@@ -144,6 +172,10 @@ class PRSWeightSet:
     reference_mean: float
     reference_std: float
     calibrated: bool = True
+    # Direction/orientation of the percentile. Most PRS traits are risk-increasing
+    # (higher percentile = higher risk/burden), but eBMD is inverse: higher
+    # predicted bone density is protective against fracture risk (#1078).
+    higher_is: str = PRS_HIGHER_IS_RISK
     # ── Per-PGS provenance (SW-B3) ──────────────────────────────────────
     # Populated when the weight set is sourced from the PGS Catalog (via the
     # SW-B4 bridge); ``None`` for hand-curated weight sets. Surfaced on every
@@ -167,6 +199,9 @@ class PRSWeightSet:
     # set. Defaults preserve historical single-ancestry behaviour.
     multi_ancestry: bool = False
     development_ancestries: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.higher_is = normalize_prs_higher_is(self.higher_is)
 
     @property
     def snp_count(self) -> int:
@@ -262,6 +297,7 @@ class PRSResult:
     # False → no validated reference distribution for this score, so percentile,
     # z-score and bootstrap CI are deliberately withheld (left None). See #7.
     calibrated: bool = True
+    higher_is: str = PRS_HIGHER_IS_RISK
     calibration_method: str | None = None
     calibration_reference_mean: float | None = None
     calibration_reference_std: float | None = None
@@ -285,6 +321,9 @@ class PRSResult:
     # Human-readable disclosure that the percentile is common-variant-only and
     # is reported independently of any monogenic finding (None until annotated).
     monogenic_note: str | None = None
+
+    def __post_init__(self) -> None:
+        self.higher_is = normalize_prs_higher_is(self.higher_is)
 
     @property
     def is_sufficient(self) -> bool:
@@ -513,6 +552,7 @@ def compute_prs(
         source_pmid=weight_set.source_pmid,
         sample_size=weight_set.sample_size,
         raw_score=raw_score,
+        higher_is=normalize_prs_higher_is(weight_set.higher_is),
         snps_used=snps_used,
         snps_total=snps_total,
         coverage_fraction=coverage_fraction,
@@ -908,6 +948,7 @@ def run_prs(
     """
     result = compute_prs(weight_set, sample_engine)
     result.calibrated = weight_set.calibrated
+    result.higher_is = normalize_prs_higher_is(weight_set.higher_is)
     # Carry per-PGS provenance through to the result (SW-B3).
     result.pgs_id = weight_set.pgs_id
     result.pgs_license = weight_set.pgs_license
@@ -1045,13 +1086,23 @@ def store_prs_findings(
             )
             continue
 
+        higher_is = normalize_prs_higher_is(r.higher_is)
+        orientation_note = prs_orientation_note(higher_is)
+        orientation_suffix = (
+            f" — {orientation_note}" if higher_is == PRS_HIGHER_IS_PROTECTIVE else ""
+        )
+        orientation_clause = (
+            f"{orientation_note} — " if higher_is == PRS_HIGHER_IS_PROTECTIVE else ""
+        )
+
         if not r.is_sufficient:
             # Stored for transparency but coverage too low for a reliable score —
             # percentile withheld regardless of calibration state.
             finding_text = (
                 f"{r.weight_set_name}: coverage too low for a reliable polygenic "
                 f"estimate ({r.coverage_fraction:.0%} of {r.snps_total} score "
-                f"variants typed) — percentile withheld — Research Use Only"
+                f"variants typed) — percentile withheld{orientation_suffix} — "
+                "Research Use Only"
             )
         elif not r.calibrated:
             # No validated reference distribution → percentile is withheld
@@ -1059,7 +1110,7 @@ def store_prs_findings(
             finding_text = (
                 f"{r.weight_set_name}: population percentile not reported — score "
                 "lacks a validated reference distribution (uncalibrated) — "
-                "Research Use Only"
+                f"{orientation_clause}Research Use Only"
             )
         else:
             percentile_text = f"{r.percentile:.0f}th" if r.percentile is not None else "N/A"
@@ -1070,7 +1121,7 @@ def store_prs_findings(
 
             finding_text = (
                 f"{r.weight_set_name}: {percentile_text} percentile{ci_text}"
-                f" [{z_text}] — Research Use Only"
+                f" [{z_text}]{orientation_suffix} — Research Use Only"
             )
 
         detail = {
@@ -1089,6 +1140,8 @@ def store_prs_findings(
             "snps_strand_flipped": r.snps_strand_flipped,
             "snps_unresolved": r.snps_unresolved,
             "calibrated": r.calibrated,
+            "higher_is": higher_is,
+            "orientation_note": orientation_note,
             "percentile": r.percentile,
             "z_score": r.z_score,
             "bootstrap_ci_lower": r.bootstrap_ci_lower,

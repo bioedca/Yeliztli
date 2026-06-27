@@ -74,6 +74,7 @@ export default function EBMDView() {
               <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
               <div className="text-sm text-amber-800 dark:text-amber-300 space-y-2">
                 <p>{data.context.not_a_substitute}</p>
+                {data.context.direction && <p>{data.context.direction}</p>}
                 <p>{data.context.utility}</p>
               </div>
             </div>

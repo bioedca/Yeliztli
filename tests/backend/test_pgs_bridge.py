@@ -10,9 +10,12 @@ Covers:
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 
 from backend.analysis.pgs_bridge import (
+    _REGISTRY_PATH,
     PgsScoreSpec,
     _covers,
     _resolve_source_ancestry,
@@ -22,6 +25,9 @@ from backend.analysis.pgs_bridge import (
     select_pgs_for_ancestry,
 )
 from backend.analysis.prs import (
+    PRS_HIGHER_IS_PROTECTIVE,
+    PRS_HIGHER_IS_RISK,
+    PRS_HIGHER_IS_VALUES,
     PRSResult,
     PRSSNPWeight,
     PRSWeightSet,
@@ -121,7 +127,12 @@ def _pgs_engine() -> sa.Engine:
 
 
 def _spec(
-    pgs_id: str, *, multi: bool, ancestries: list[str], bundle_ok: bool = True
+    pgs_id: str,
+    *,
+    multi: bool,
+    ancestries: list[str],
+    bundle_ok: bool = True,
+    higher_is: str = PRS_HIGHER_IS_RISK,
 ) -> PgsScoreSpec:
     return PgsScoreSpec(
         pgs_id=pgs_id,
@@ -136,6 +147,7 @@ def _spec(
         sample_size=1000,
         license="CC-BY-4.0",
         source_url="https://example/" + pgs_id,
+        higher_is=higher_is,
         bundle_ok=bundle_ok,
     )
 
@@ -270,7 +282,25 @@ class TestSelection:
         bmi = reg["body_mass_index"][0]
         assert bmi.pgs_id == "PGS005198"
         assert bmi.multi_ancestry is True
+        assert bmi.higher_is == PRS_HIGHER_IS_RISK
         assert bmi.license == "CC-BY-4.0" and bmi.bundle_ok is True
+        assert reg["heel_ebmd"][0].higher_is == PRS_HIGHER_IS_PROTECTIVE
+
+    def test_registry_entries_declare_score_orientation(self) -> None:
+        raw = json.loads(_REGISTRY_PATH.read_text())
+        missing: list[str] = []
+        invalid: list[str] = []
+        for trait, entries in raw["scores"].items():
+            for entry in entries:
+                pgs_id = entry.get("pgs_id", "<unknown>")
+                label = f"{trait}:{pgs_id}"
+                if "higher_is" not in entry:
+                    missing.append(label)
+                elif entry["higher_is"] not in PRS_HIGHER_IS_VALUES:
+                    invalid.append(f"{label}={entry['higher_is']}")
+
+        assert missing == []
+        assert invalid == []
 
 
 # ── Weight-set construction ────────────────────────────────────────────────
@@ -288,6 +318,7 @@ class TestBuildWeightSet:
         assert ws.development_method == "snpnet"
         assert ws.genome_build == "GRCh37"
         assert ws.calibrated is False
+        assert ws.higher_is == PRS_HIGHER_IS_RISK
         assert ws.snp_count == 2
         assert {w.rsid for w in ws.weights} == {"rs1", "rs2"}
         # EUR-only score, inferred EUR -> no mismatch (source resolved to EUR).
@@ -300,6 +331,7 @@ class TestBuildWeightSet:
         )
         assert ws is not None
         assert ws.snp_count == 2  # guard the all() checks against a vacuous pass
+        assert ws.higher_is == PRS_HIGHER_IS_RISK
         # No rsIDs → positional weights carry chrom/pos and empty rsid.
         assert all(w.rsid == "" for w in ws.weights)
         assert all(w.chrom and w.pos for w in ws.weights)
@@ -316,6 +348,17 @@ class TestBuildWeightSet:
         }
         ws = build_trait_weight_set(_pgs_engine(), "body_mass_index", "EUR", registry=registry)
         assert ws is not None and ws.pgs_id == "PGS005198"
+
+    def test_build_weight_set_threads_protective_orientation(self) -> None:
+        spec = _spec(
+            "PGS000713",
+            multi=False,
+            ancestries=["EUR"],
+            higher_is=PRS_HIGHER_IS_PROTECTIVE,
+        )
+        ws = build_weight_set_from_pgs(_pgs_engine(), spec, "heel_ebmd", inferred_ancestry="EUR")
+        assert ws is not None
+        assert ws.higher_is == PRS_HIGHER_IS_PROTECTIVE
 
     def test_build_trait_weight_set_unknown_trait(self) -> None:
         assert build_trait_weight_set(_pgs_engine(), "no_such_trait", "EUR", registry={}) is None

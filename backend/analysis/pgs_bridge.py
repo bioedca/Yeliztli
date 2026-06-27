@@ -31,7 +31,12 @@ import structlog
 from sqlalchemy.pool import NullPool
 
 from backend.analysis.ancestry import ancestry_covered
-from backend.analysis.prs import PRSSNPWeight, PRSWeightSet
+from backend.analysis.prs import (
+    PRS_HIGHER_IS_RISK,
+    PRS_HIGHER_IS_VALUES,
+    PRSSNPWeight,
+    PRSWeightSet,
+)
 from backend.annotation.pgs_catalog import (
     load_score_weights,
     pgs_score_metadata,
@@ -81,6 +86,7 @@ class PgsScoreSpec:
     sample_size: int
     license: str
     source_url: str
+    higher_is: str = PRS_HIGHER_IS_RISK
     bundle_ok: bool = True
     monogenic_genes: list[str] = field(default_factory=list)
 
@@ -109,12 +115,26 @@ def load_pgs_registry(path: Path | None = None) -> dict[str, list[PgsScoreSpec]]
                 sample_size=int(e["sample_size"]),
                 license=e["license"],
                 source_url=e["source_url"],
+                higher_is=_registry_higher_is(e, trait=trait),
                 bundle_ok=bool(e.get("bundle_ok", True)),
                 monogenic_genes=list(e.get("monogenic_genes", [])),
             )
             for e in entries
         ]
     return out
+
+
+def _registry_higher_is(entry: dict, *, trait: str) -> str:
+    """Validate a registry score's percentile orientation."""
+    value = str(entry["higher_is"])
+    if value not in PRS_HIGHER_IS_VALUES:
+        pgs_id = entry.get("pgs_id", "<unknown>")
+        allowed = ", ".join(sorted(PRS_HIGHER_IS_VALUES))
+        raise ValueError(
+            f"Invalid higher_is={value!r} for trait={trait!r}, pgs_id={pgs_id!r}; "
+            f"expected one of: {allowed}"
+        )
+    return value
 
 
 # ── Score selection (SW-B4) ───────────────────────────────────────────────
@@ -246,6 +266,7 @@ def build_weight_set_from_pgs(
         # No baked-in reference distribution: percentile is withheld unless the
         # SW-B2 ancestry-continuous calibration supplies one at run time (#7).
         calibrated=False,
+        higher_is=spec.higher_is,
         pgs_id=spec.pgs_id,
         pgs_license=spec.license,
         development_method=spec.method,

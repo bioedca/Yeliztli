@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.ebmd_prs import EBMD_CONTEXT, EBMD_PGS_ID
+from backend.analysis.prs import PRS_HIGHER_IS_PROTECTIVE
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -34,6 +35,7 @@ router = APIRouter(
 class EbmdPrsResponse(BaseModel):
     name: str = ""
     calibrated: bool = False
+    higher_is: str = PRS_HIGHER_IS_PROTECTIVE
     percentile: float | None = None
     snps_used: int = 0
     snps_total: int = 0
@@ -106,6 +108,7 @@ def get_ebmd_prs(
         prs = EbmdPrsResponse(
             name=d.get("name", ""),
             calibrated=d.get("calibrated", False),
+            higher_is=d.get("higher_is", PRS_HIGHER_IS_PROTECTIVE),
             percentile=row.prs_percentile,
             snps_used=d.get("snps_used", 0),
             snps_total=d.get("snps_total", 0),
