@@ -16,7 +16,7 @@
 
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
@@ -114,20 +114,57 @@ function jsonRoute(body: unknown, status = 200) {
   }
 }
 
-async function mockVisualScreenshotData(page: Page) {
+async function mockVisualScreenshotState(page: Page) {
   await page.route('**/api/samples', (route) =>
     route.fulfill(jsonRoute([VISUAL_SCREENSHOT_SAMPLE])),
   )
   await page.route(`**/api/samples/${VISUAL_SCREENSHOT_SAMPLE.id}`, (route) =>
     route.fulfill(jsonRoute(VISUAL_SCREENSHOT_SAMPLE)),
   )
-  await page.route('**/api/individuals', (route) => route.fulfill(jsonRoute([])))
+  await page.route('**/api/individuals', (route) =>
+    route.fulfill(jsonRoute([])),
+  )
   await page.route('**/api/backup/estimate', (route) =>
     route.fulfill(jsonRoute(VISUAL_SCREENSHOT_BACKUP_ESTIMATE)),
   )
+  await page.route('**/api/updates/app-update', (route) =>
+    route.fulfill(jsonRoute({
+      update_available: false,
+      current_version: '0.2.0',
+      latest_version: null,
+      release_url: null,
+      release_notes: null,
+      error: null,
+    })),
+  )
+  await page.route('**/api/analysis/ancestry/lai/status', (route) =>
+    route.fulfill(jsonRoute({
+      bundle_downloaded: true,
+      java_available: true,
+      lai_available: true,
+      message: 'Chromosome painting is available.',
+      degraded_coverage: false,
+    })),
+  )
+  await page.route('**/api/updates/prompts**', (route) =>
+    route.fulfill(jsonRoute([])),
+  )
+  await page.route('**/api/updates/status', (route) =>
+    route.fulfill(jsonRoute([])),
+  )
+  await page.route('**/api/updates/check', (route) =>
+    route.fulfill(jsonRoute({
+      available: [],
+      up_to_date: [],
+      errors: [],
+      checked_at: '2026-06-17T12:00:00Z',
+    })),
+  )
 }
 
-async function expectAppChromeSettled(page: Page) {
+async function expectVisualScreenshotShellSettled(page: Page) {
+  await waitForReactHydration(page)
+  await expect(page.locator('nav[aria-label="Main navigation"]')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
 }
 
@@ -467,10 +504,10 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
 
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} screenshot`, async ({ page }) => {
-      await mockVisualScreenshotData(page)
+      await mockVisualScreenshotState(page)
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
-      await expectAppChromeSettled(page)
+      await expectVisualScreenshotShellSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await expect(page).toHaveScreenshot(`${pg.name}.png`, {
@@ -482,11 +519,11 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
   // Dark mode screenshots
   for (const pg of screenshotPages) {
     test(`capture ${pg.name} dark mode screenshot`, async ({ page }) => {
-      await mockVisualScreenshotData(page)
+      await mockVisualScreenshotState(page)
       await page.emulateMedia({ colorScheme: 'dark' })
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
-      await expectAppChromeSettled(page)
+      await expectVisualScreenshotShellSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await expect(page).toHaveScreenshot(`${pg.name}-dark.png`, {
