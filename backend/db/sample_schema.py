@@ -38,7 +38,9 @@ logger = structlog.get_logger(__name__)
 #      created on existing sample DBs via create_all(checkfirst=True))
 # v15: Add gnomad_source_status to annotated_variants
 #      (distinguish observed AFs from variants not assessed by the exome-only source)
-SAMPLE_SCHEMA_VERSION = 15
+# v16: Add dosage column to imputed_variants (SW-C5 — Beagle DS, for PRS scoring;
+#      added on existing sample DBs via ALTER TABLE in _add_missing_columns)
+SAMPLE_SCHEMA_VERSION = 16
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -354,6 +356,24 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         )
                     )
                 logger.info("gnomad_source_status_column_added", from_version=from_version)
+                added = True
+
+    if from_version < 16:
+        # SW-C5: per-sample imputed dosage (Beagle DS) on imputed_variants, used to
+        # score PRSs from imputed common variants. Nullable + range CHECK so the
+        # ADD COLUMN is valid on an existing (possibly populated) table.
+        inspector = sa.inspect(engine)
+        if "imputed_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("imputed_variants")}
+            if "dosage" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(
+                        sa.text(
+                            "ALTER TABLE imputed_variants ADD COLUMN dosage REAL "
+                            "CHECK (dosage IS NULL OR (dosage >= 0 AND dosage <= 2))"
+                        )
+                    )
+                logger.info("imputed_variants_dosage_column_added", from_version=from_version)
                 added = True
 
     return added

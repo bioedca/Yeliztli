@@ -948,9 +948,17 @@ imputed_variants = sa.Table(
     sa.Column(
         "af", sa.Float, nullable=False, comment="Beagle estimated ALT allele frequency (0-1)"
     ),
+    # Estimated ALT dose (Beagle DS, per-sample, 0-2) — the continuous dosage SW-C5
+    # uses to score PRSs from imputed common variants. Nullable: a firewall-cleared
+    # variant is still stored even if DS was malformed (PRS scoring skips null doses);
+    # only the dr2/af firewall fields are hard-required.
+    sa.Column("dosage", sa.Float, comment="Beagle estimated ALT dose (DS, 0-2)"),
     sa.PrimaryKeyConstraint("chrom", "pos", "alt"),
     sa.CheckConstraint("dr2 >= 0 AND dr2 <= 1", name="ck_imputed_variants_dr2_range"),
     sa.CheckConstraint("af >= 0 AND af <= 1", name="ck_imputed_variants_af_range"),
+    sa.CheckConstraint(
+        "dosage IS NULL OR (dosage >= 0 AND dosage <= 2)", name="ck_imputed_variants_dosage_range"
+    ),
 )
 
 # ── Merge Provenance (single-row, present only on merged samples) ─────

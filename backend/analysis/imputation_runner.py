@@ -101,6 +101,7 @@ class ImputedVariant:
     dr2: float | None  # dosage R² imputation quality (0-1)
     af: float | None  # estimated ALT allele frequency
     imputed: bool  # True = Beagle IMP flag (ref-only marker); False = genotyped
+    dosage: float | None = None  # estimated ALT dose (Beagle DS, per-sample, 0-2)
 
 
 @dataclass
@@ -165,12 +166,39 @@ def _info_floats(info: str, regex: re.Pattern[str]) -> list[float | None]:
     return out
 
 
+def _sample_dosages(format_field: str, sample_field: str) -> list[float | None]:
+    """Parse the per-ALT ``DS`` (estimated ALT dose) from a sample's FORMAT column.
+
+    Beagle emits ``GT:DS`` with ``DS`` Number=A (one dose per ALT). Returns the
+    per-ALT doses, dropping any non-finite or out-of-[0, 2] value to ``None`` (a
+    diploid ALT dose is bounded in [0, 2]). Returns ``[]`` when ``DS`` is absent.
+    """
+    keys = format_field.split(":")
+    if "DS" not in keys:
+        return []
+    idx = keys.index("DS")
+    values = sample_field.split(":")
+    if idx >= len(values):
+        return []
+    out: list[float | None] = []
+    for tok in values[idx].split(","):
+        tok = tok.strip()
+        try:
+            val = float(tok)
+        except ValueError:
+            out.append(None)
+            continue
+        out.append(val if math.isfinite(val) and 0.0 <= val <= 2.0 else None)
+    return out
+
+
 def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
     """Yield :class:`ImputedVariant` per ALT from a Beagle imputed VCF (gz or plain).
 
-    Extracts the per-ALT ``DR2`` / ``AF`` and the ``IMP`` flag (present only on
-    imputed, ref-only markers). Multi-allelic markers yield one record per ALT,
-    each paired with its aligned DR2/AF entry.
+    Extracts the per-ALT ``DR2`` / ``AF``, the ``IMP`` flag (present only on
+    imputed, ref-only markers), and the sample's per-ALT ``DS`` dosage. Multi-
+    allelic markers yield one record per ALT, each paired with its aligned
+    DR2/AF/dosage entry.
     """
     with _open_maybe_gzip(vcf_path) as fh:
         for line in fh:
@@ -187,6 +215,8 @@ def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
             imputed = bool(_IMP_RE.search(info))
             dr2 = _info_floats(info, _DR2_RE)
             af = _info_floats(info, _AF_RE)
+            # Per-sample dosage (single-sample imputed VCF: FORMAT=parts[8], sample=parts[9]).
+            dosage = _sample_dosages(parts[8], parts[9]) if len(parts) >= 10 else []
             ref_u = ref.strip().upper()
             for i, a in enumerate(alt.split(",")):
                 yield ImputedVariant(
@@ -196,6 +226,7 @@ def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
                     alt=a.strip().upper(),
                     dr2=dr2[i] if i < len(dr2) else None,
                     af=af[i] if i < len(af) else None,
+                    dosage=dosage[i] if i < len(dosage) else None,
                     imputed=imputed,
                 )
 

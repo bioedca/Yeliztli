@@ -76,6 +76,26 @@ class TestParse:
         assert by_id[(20000500, "T")].dr2 == 0.30
         assert by_id[(20000500, "T")].imputed is True
 
+    def test_parses_per_alt_ds_dosage(self, tmp_path: Path) -> None:
+        vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)
+        by_id = {(v.pos, v.alt): v for v in parse_imputed_vcf(vcf)}
+        # Sample col DS (GT:DS): rs1 "0|0:0" → 0; rs2 "0|1:1" → 1.
+        assert by_id[(20000146, "A")].dosage == 0.0
+        assert by_id[(20000428, "T")].dosage == 1.0
+        # Multi-allelic rs3 "1|2:1,1" → DS aligns per ALT.
+        assert by_id[(20000500, "A")].dosage == 1.0
+        assert by_id[(20000500, "T")].dosage == 1.0
+
+    def test_dosage_none_when_no_ds_or_out_of_range(self, tmp_path: Path) -> None:
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+            "22\t100\trsx\tA\tG\t.\tPASS\tDR2=0.9;AF=0.2;IMP\tGT\t0|1\n"  # no DS field
+            "22\t200\trsy\tA\tG\t.\tPASS\tDR2=0.9;AF=0.2;IMP\tGT:DS\t0|1:2.5\n"  # DS>2 dropped
+        )
+        by_pos = {v.pos: v for v in parse_imputed_vcf(_write_gz(tmp_path / "nf.vcf.gz", vcf))}
+        assert by_pos[100].dosage is None  # FORMAT has no DS
+        assert by_pos[200].dosage is None  # 2.5 out of [0, 2]
+
 
 class TestSummary:
     def test_counts_and_well_imputed(self, tmp_path: Path) -> None:

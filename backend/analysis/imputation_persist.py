@@ -76,6 +76,7 @@ def persist_imputed_variants(
             "alt": v.alt,
             "dr2": v.dr2,
             "af": v.af,
+            "dosage": v.dosage,
         }
     rows = list(rows_by_key.values())
     with sample_engine.begin() as conn:

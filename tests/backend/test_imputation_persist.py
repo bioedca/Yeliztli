@@ -35,9 +35,18 @@ def sample_engine() -> sa.Engine:
 
 
 def _iv(
-    *, pos: int, dr2: float | None, af: float | None, imputed: bool, ref: str = "A", alt: str = "G"
+    *,
+    pos: int,
+    dr2: float | None,
+    af: float | None,
+    imputed: bool,
+    ref: str = "A",
+    alt: str = "G",
+    dosage: float | None = 1.0,
 ) -> ImputedVariant:
-    return ImputedVariant(chrom="22", pos=pos, ref=ref, alt=alt, dr2=dr2, af=af, imputed=imputed)
+    return ImputedVariant(
+        chrom="22", pos=pos, ref=ref, alt=alt, dr2=dr2, af=af, imputed=imputed, dosage=dosage
+    )
 
 
 def _read_rows(engine: sa.Engine) -> list[dict]:
@@ -61,6 +70,13 @@ class TestPersist:
             (100, 0.95, 0.30),
             (500, 0.88, 0.97),
         }
+
+    def test_dosage_round_trips(self, sample_engine: sa.Engine) -> None:
+        persist_imputed_variants(
+            sample_engine, [_iv(pos=100, dr2=0.95, af=0.30, imputed=True, dosage=1.37)]
+        )
+        rows = _read_rows(sample_engine)
+        assert rows[0]["dosage"] == 1.37
 
     def test_replace_semantics(self, sample_engine: sa.Engine) -> None:
         persist_imputed_variants(sample_engine, [_iv(pos=100, dr2=0.95, af=0.30, imputed=True)])
@@ -163,12 +179,14 @@ class TestImputeAndPersistSample:
 
         rows = _read_rows(sample_engine)
         assert len(rows) == 1
-        assert (rows[0]["chrom"], rows[0]["pos"], rows[0]["alt"], rows[0]["dr2"]) == (
-            "22",
-            100,
-            "A",
-            0.95,
-        )
+        # DS=1 from the rs1 sample column round-trips as dosage.
+        assert (
+            rows[0]["chrom"],
+            rows[0]["pos"],
+            rows[0]["alt"],
+            rows[0]["dr2"],
+            rows[0]["dosage"],
+        ) == ("22", 100, "A", 0.95, 1.0)
 
     def test_partial_failure_skips_persist_and_preserves_prior(
         self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
@@ -231,3 +249,27 @@ class TestImputeAndPersistSample:
         panel.mkdir()
         with pytest.raises(FileNotFoundError, match="Beagle JAR"):
             ImputationRunner(panel, tmp_path / "nope.jar")
+
+
+class TestDosageMigration:
+    def test_add_missing_columns_adds_dosage_to_pre_v16_table(self) -> None:
+        from backend.db.sample_schema import _add_missing_columns
+
+        engine = sa.create_engine("sqlite://")
+        # A pre-v16 imputed_variants (the #1128 shape, no dosage column).
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE imputed_variants ("
+                    "chrom TEXT NOT NULL, pos INTEGER NOT NULL, ref TEXT NOT NULL, "
+                    "alt TEXT NOT NULL, dr2 REAL NOT NULL, af REAL NOT NULL, "
+                    "PRIMARY KEY (chrom, pos, alt))"
+                )
+            )
+        cols_before = {c["name"] for c in sa.inspect(engine).get_columns("imputed_variants")}
+        assert "dosage" not in cols_before
+
+        added = _add_missing_columns(engine, from_version=15)
+        cols_after = {c["name"] for c in sa.inspect(engine).get_columns("imputed_variants")}
+        assert added is True
+        assert "dosage" in cols_after
