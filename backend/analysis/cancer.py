@@ -215,8 +215,10 @@ _CANCER_CONDITION_TERMS_BY_GENE = {
     "RET": (
         "multiple endocrine neoplasia",
         "men2",
+        "men-2",
         "men 2",
         "medullary thyroid",
+        "thyroid carcinoma, medullary",
         "pheochromocytoma",
         "phaeochromocytoma",
         "paraganglioma",

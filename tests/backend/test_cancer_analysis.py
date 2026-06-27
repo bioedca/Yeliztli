@@ -364,6 +364,36 @@ class TestExtractCancerVariants:
         assert result.condition_mismatch_suppressed == 0
         assert result.variants[0].syndromes == ["Multiple Endocrine Neoplasia Type 2 (MEN2)"]
 
+    def test_keeps_ret_when_clinvar_condition_uses_alternate_men2_labels(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ret_alt_men2_label",
+                        "chrom": "10",
+                        "pos": 43614922,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "RET",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000RETALT",
+                        "clinvar_conditions": (
+                            "MEN-2A|Thyroid carcinoma, medullary|Hirschsprung disease"
+                        ),
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_ret_alt_men2_label"]
+        assert result.condition_mismatch_suppressed == 0
+
     def test_brca1_golden_fixture(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:
