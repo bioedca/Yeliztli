@@ -10,7 +10,7 @@ and methyl groups — across five pathways and roughly **35 SNPs**.
 - **Folate & MTHFR** (*MTHFR* C677T/A1298C, *DHFR*, *SLC19A1*, *TCN2*, …)
 - **Methionine cycle** (*MTR*, *MTRR*, *AHCY*, *BHMT*, …)
 - **Transsulfuration** (*CBS*, *CTH*, *GPX1*, *SOD2*, …)
-- **BH4 & neurotransmitter synthesis** (*COMT*, *VDR*, *GCH1*, *QDPR*, …)
+- **BH4 & neurotransmitter synthesis** (*COMT*, *VDR*, *GCH1*, *MTHFD1*, …)
 - **Choline & betaine** (*PEMT*, *CHDH*, *FMO3*, …)
 
 ## What you'll see

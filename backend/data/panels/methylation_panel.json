@@ -115,6 +115,36 @@
           "recommendation_text": "DHFR converts dietary folic acid to dihydrofolate. The 19bp deletion may alter the efficiency of folic acid utilization. Relevance is primarily in the context of folic acid supplementation vs. natural folate sources."
         },
         {
+          "rsid": "rs1677693",
+          "gene": "DHFR",
+          "variant_name": "DHFR intronic tagSNP",
+          "hgvs_protein": null,
+          "risk_allele": "T",
+          "ref_allele": "G",
+          "genotype_effects": {
+            "GG": {
+              "category": "Standard",
+              "effect_summary": "No modeled DHFR rs1677693 T allele detected. This intronic tagSNP is reported only as weak folate-pathway context, not as a DHFR enzyme-activity call."
+            },
+            "GT": {
+              "category": "Moderate",
+              "effect_summary": "Heterozygous DHFR intronic tagSNP. Reported as the minor-allele contrast in a folate-associated one-carbon metabolism candidate-gene study; no direct DHFR enzyme-activity effect is inferred."
+            },
+            "TG": {
+              "category": "Moderate",
+              "effect_summary": "Heterozygous DHFR intronic tagSNP. Reported as the minor-allele contrast in a folate-associated one-carbon metabolism candidate-gene study; no direct DHFR enzyme-activity effect is inferred."
+            },
+            "TT": {
+              "category": "Moderate",
+              "effect_summary": "Homozygous DHFR intronic tagSNP. Reported as the minor-allele contrast in a folate-associated one-carbon metabolism candidate-gene study; no direct DHFR enzyme-activity effect is inferred."
+            }
+          },
+          "coverage_note": "Ensembl GRCh37 maps rs1677693 to chr5:79,936,318 within DHFR (ENSG00000228716), with alleles G/A/T and T reported as the minor allele. The panel models the G/T contrast and withholds A-containing third-allele genotypes as Indeterminate.",
+          "evidence_level": 1,
+          "pmids": ["20615890"],
+          "recommendation_text": "rs1677693 is an intronic DHFR tagSNP from a folate-associated one-carbon metabolism colorectal-cancer candidate-gene study. Treat it as weak, non-actionable folate-pathway context."
+        },
+        {
           "rsid": "rs1051266",
           "gene": "SLC19A1",
           "variant_name": "G80A (His27Arg)",
@@ -831,35 +861,6 @@
           "evidence_level": 1,
           "pmids": ["24136375", "18598896"],
           "recommendation_text": "GCH1 is the rate-limiting enzyme for BH4 de novo synthesis. BH4 is essential for neurotransmitter precursor synthesis (serotonin, dopamine, norepinephrine). Adequate folate supports BH4 recycling."
-        },
-        {
-          "rsid": "rs1677693",
-          "gene": "QDPR",
-          "variant_name": "QDPR intronic",
-          "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "G",
-          "genotype_effects": {
-            "GG": {
-              "category": "Standard",
-              "effect_summary": "Standard dihydropteridine reductase activity. Normal BH4 recycling."
-            },
-            "GA": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous QDPR variant. May modestly affect BH4 recycling efficiency."
-            },
-            "AG": {
-              "category": "Moderate",
-              "effect_summary": "Heterozygous QDPR variant. May modestly affect BH4 recycling efficiency."
-            },
-            "AA": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous QDPR variant. May reduce BH4 recycling, increasing demand for de novo BH4 synthesis and folate-mediated BH4 regeneration."
-            }
-          },
-          "evidence_level": 1,
-          "pmids": ["20615890", "16917893"],
-          "recommendation_text": "QDPR recycles quinonoid-dihydrobiopterin back to BH4. Efficient BH4 recycling reduces demand for de novo synthesis and supports continuous neurotransmitter production."
         }
       ]
     },

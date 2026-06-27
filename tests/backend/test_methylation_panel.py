@@ -43,10 +43,11 @@ EXPECTED_PATHWAYS = {
 
 # All expected rsids across the 5 pathways (~35 SNPs)
 EXPECTED_RSIDS = {
-    # Folate & MTHFR (8)
+    # Folate & MTHFR (9)
     "rs1801133",  # MTHFR C677T
     "rs1801131",  # MTHFR A1298C
     "rs70991108",  # DHFR 19bp del
+    "rs1677693",  # DHFR intronic tagSNP
     "rs1051266",  # SLC19A1
     "rs202676",  # FOLH1
     "rs1801198",  # TCN2
@@ -67,14 +68,13 @@ EXPECTED_RSIDS = {
     "rs41303970",  # GCLM
     "rs1050450",  # GPX1
     "rs4880",  # SOD2
-    # BH4 & Neurotransmitter (7)
+    # BH4 & Neurotransmitter (6)
     "rs4680",  # COMT Val158Met
     "rs2228570",  # VDR FokI
     "rs1544410",  # VDR BsmI
     "rs2236225",  # MTHFD1
     "rs6495446",  # MTHFS
     "rs8007267",  # GCH1
-    "rs1677693",  # QDPR
     # Choline & Betaine (6)
     "rs12325817",  # PEMT
     "rs9001",  # CHDH
@@ -110,7 +110,6 @@ EXPECTED_GENES = {
     "MTHFD1",
     "MTHFS",
     "GCH1",
-    "QDPR",
     "PEMT",
     "CHDH",
     "SLC44A1",
@@ -188,7 +187,7 @@ class TestSNPCoverage:
 
     def test_folate_mthfr_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "folate_mthfr")
-        assert len(pw["snps"]) == 8
+        assert len(pw["snps"]) == 9
 
     def test_methionine_cycle_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "methionine_cycle")
@@ -200,7 +199,7 @@ class TestSNPCoverage:
 
     def test_bh4_neurotransmitter_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "bh4_neurotransmitter")
-        assert len(pw["snps"]) == 7
+        assert len(pw["snps"]) == 6
 
     def test_choline_betaine_snp_count(self, panel_data: dict) -> None:
         pw = next(p for p in panel_data["pathways"] if p["id"] == "choline_betaine")
@@ -610,6 +609,7 @@ class TestPathwayAllocation:
         assert "rs1801133" in rsids  # MTHFR C677T
         assert "rs1801131" in rsids  # MTHFR A1298C
         assert "rs70991108" in rsids  # DHFR
+        assert "rs1677693" in rsids  # DHFR intronic tagSNP
         assert "rs1051266" in rsids  # SLC19A1
         assert "rs202676" in rsids  # FOLH1
         assert "rs1801198" in rsids  # TCN2
@@ -647,7 +647,7 @@ class TestPathwayAllocation:
         assert "rs2236225" in rsids  # MTHFD1
         assert "rs6495446" in rsids  # MTHFS
         assert "rs8007267" in rsids  # GCH1
-        assert "rs1677693" in rsids  # QDPR
+        assert "rs1677693" not in rsids  # DHFR folate marker, not BH4
 
     def test_choline_betaine_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "choline_betaine")
@@ -826,6 +826,63 @@ class TestDHFRCitationProvenance:
         assert "Elevated" not in categories
 
 
+class TestDHFRRs1677693Attribution:
+    """Regression guard for #1071: rs1677693 is DHFR/folate, not QDPR/BH4."""
+
+    _QDPR_BH4_REVIEW_PMID = "16917893"
+
+    def _get_snp(self, panel_data: dict, rsid: str) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == rsid:
+                    return snp
+        pytest.fail(f"{rsid} not found in panel")
+
+    def _get_pathway(self, panel_data: dict, pathway_id: str) -> dict:
+        for pathway in panel_data["pathways"]:
+            if pathway["id"] == pathway_id:
+                return pathway
+        pytest.fail(f"{pathway_id} not found in panel")
+
+    def test_rs1677693_is_dhfr_folate_context(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs1677693")
+        assert snp["gene"] == "DHFR"
+        assert snp["variant_name"] == "DHFR intronic tagSNP"
+        assert set(snp["pmids"]) == {"20615890"}
+        assert snp["risk_allele"] == "T"
+        assert snp["ref_allele"] == "G"
+        assert set(snp["genotype_effects"]) == {"GG", "GT", "TG", "TT"}
+        assert snp["evidence_level"] == 1
+
+        text = " ".join(
+            [
+                snp["variant_name"],
+                snp["coverage_note"],
+                snp["recommendation_text"],
+                *(effect["effect_summary"] for effect in snp["genotype_effects"].values()),
+            ]
+        ).lower()
+        assert "dhfr" in text
+        assert "folate" in text
+        assert "qdpr" not in text
+        assert "bh4" not in text
+        assert "dihydropteridine" not in text
+
+    def test_rs1677693_is_in_folate_not_bh4_pathway(self, panel_data: dict) -> None:
+        folate_rsids = {
+            snp["rsid"] for snp in self._get_pathway(panel_data, "folate_mthfr")["snps"]
+        }
+        bh4_rsids = {
+            snp["rsid"] for snp in self._get_pathway(panel_data, "bh4_neurotransmitter")["snps"]
+        }
+        assert "rs1677693" in folate_rsids
+        assert "rs1677693" not in bh4_rsids
+
+    def test_qdpr_bh4_review_not_attached_to_rs1677693(self, panel_data: dict) -> None:
+        snp = self._get_snp(panel_data, "rs1677693")
+        assert self._QDPR_BH4_REVIEW_PMID not in snp["pmids"]
+
+
 # ── Glutathione/antioxidant citation provenance (issue #314, pathway-group slice)
 
 
@@ -907,8 +964,8 @@ class TestMethylationCitationRemediation:
     choline-betaine / vitamin-D references — each PMID title verified via NCBI
     esummary and the association verified with the Consensus connector. rsIDs with
     little/no PubMed footprint (MTHFS rs6495446, MAT1A rs10887718, AHCY rs819147,
-    QDPR rs1677693 and BHMT rs585800 cite the gene's
-    functional/discovery papers rather than a fabricated variant-specific one. The
+    BHMT rs585800 cites the gene's functional/discovery papers rather than a
+    fabricated variant-specific one. The
     TCN2 row also drops the dead PMID 19187342 (#417).
     """
 
@@ -936,7 +993,7 @@ class TestMethylationCitationRemediation:
         "rs2424913": {"21854760", "36980848", "27789275"},  # DNMT3B -149C>T
         "rs1021737": {"15151507", "18476726", "19428278"},  # CTH S403I
         "rs8007267": {"24136375", "18598896"},  # GCH1
-        "rs1677693": {"20615890", "16917893"},  # QDPR (gene-level)
+        "rs1677693": {"20615890"},  # DHFR intronic tagSNP (#1071)
         "rs2228570": {"9797477", "17274004", "15899948"},  # VDR FokI
         "rs1544410": {"23134477", "33238893"},  # VDR BsmI
         "rs3733890": {"18457970", "27578989", "12818402"},  # BHMT R239Q
