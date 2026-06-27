@@ -16,7 +16,7 @@
 
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
@@ -81,7 +81,9 @@ function isIgnoredConsoleMessage(text: string): boolean {
 }
 
 async function expectAppChromeSettled(page: Page) {
-  await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
+  await waitForReactHydration(page)
+  await expect(page.getByRole('banner')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible()
 }
 
 // ── 1. Page rendering: no JS errors, correct h1 heading ────────────────
