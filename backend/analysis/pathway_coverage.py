@@ -67,13 +67,11 @@ def coverage_interpretation(
         return None
 
     not_assessed = format_not_assessed(missing)
+    if level == STANDARD_LEVEL and indeterminate_count > 0:
+        return f"Standard result is based on interpreted SNPs only; {not_assessed} not assessed."
     if called_count <= 0:
         return f"No tracked SNPs assessed; {not_assessed} not assessed."
     if level == STANDARD_LEVEL:
-        if indeterminate_count > 0:
-            return (
-                f"Standard result is based on interpreted SNPs only; {not_assessed} not assessed."
-            )
         return f"{standard_limited_phrase}; {not_assessed} not assessed."
     return f"{level} result is based on tested SNPs only; {not_assessed} not assessed."
 
