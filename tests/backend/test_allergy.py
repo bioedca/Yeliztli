@@ -703,6 +703,7 @@ class TestHistamineCombined:
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
         assert result.histamine_combined is not None
         assert "Both AOC1" in result.histamine_combined.combined_text
+        assert "AOC1 coverage is incomplete" in result.histamine_combined.combined_text
         assert result.histamine_combined.de_emphasize is True
 
     def test_aoc1_only(
@@ -724,6 +725,7 @@ class TestHistamineCombined:
         assert result.histamine_combined is not None
         assert "AOC1" in result.histamine_combined.combined_text
         assert "HNMT" not in result.histamine_combined.combined_text
+        assert "AOC1 coverage is incomplete" in result.histamine_combined.combined_text
 
     def test_neither_variant(
         self,
@@ -1624,6 +1626,13 @@ class TestFindingsStorage:
                     findings.c.pathway == "Histamine Metabolism",
                 )
             ).one()
+            combined_row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "histamine_combined",
+                    findings.c.pathway == "Histamine Metabolism",
+                )
+            ).one()
 
         assert "Standard (no variants of concern)" not in row.finding_text
         assert "No variants of concern among tested SNPs" in row.finding_text
@@ -1637,6 +1646,15 @@ class TestFindingsStorage:
         }
         assert detail["no_call_snps"] == []
         assert "No variants of concern among tested SNPs" in detail["coverage_interpretation"]
+        combined_detail = json.loads(combined_row.detail_json)
+        assert "AOC1 coverage is incomplete" in combined_row.finding_text
+        assert set(combined_detail["aoc1_off_chip_snps"]) == {
+            "rs10156191",
+            "rs1049742",
+            "rs1049793",
+            "rs2052129",
+        }
+        assert combined_detail["aoc1_no_call_snps"] == []
 
     def test_hla_proxy_lookup_in_findings(
         self,

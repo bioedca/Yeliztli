@@ -706,12 +706,12 @@ def _compute_histamine_combined(
         combined_text = (
             f"Both AOC1 (DAO) and HNMT variants detected. {load_phrase} Combined "
             "reduction in histamine catabolism may amplify histamine intolerance "
-            "risk. Evidence is at the candidate gene level."
+            f"risk. Evidence is at the candidate gene level.{aoc1_coverage_note}"
         )
     elif aoc1_present:
         combined_text = (
             f"AOC1 (DAO) variant(s) detected. {load_phrase} Reduced gut histamine "
-            "clearance. Evidence is at the candidate gene level."
+            f"clearance. Evidence is at the candidate gene level.{aoc1_coverage_note}"
         )
     elif hnmt_cat != STANDARD:
         combined_text = (
