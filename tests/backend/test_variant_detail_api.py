@@ -367,6 +367,48 @@ def gtex_client(tmp_data_dir: Path):
     )
 
 
+def _seed_spliceai_db(data_dir: Path, variant: dict) -> None:
+    """Seed a standalone spliceai.db with one high-confidence prediction for ``variant``."""
+    from backend.annotation.spliceai import create_spliceai_tables, spliceai_scores
+
+    eng = sa.create_engine(f"sqlite:///{data_dir / 'spliceai.db'}")
+    create_spliceai_tables(eng)
+    with eng.begin() as conn:
+        conn.execute(
+            spliceai_scores.insert(),
+            [
+                {
+                    "chrom": variant["chrom"],
+                    "pos": variant["pos"],
+                    "ref": variant["ref"],
+                    "alt": variant["alt"],
+                    "symbol": "CFTR",
+                    "ds_ag": 0.02,
+                    "ds_al": 0.91,
+                    "ds_dg": 0.00,
+                    "ds_dl": 0.05,
+                    "dp_ag": -7,
+                    "dp_al": 3,
+                    "dp_dg": 12,
+                    "dp_dl": -21,
+                    "ds_max": 0.91,
+                }
+            ],
+        )
+    eng.dispose()
+
+
+@pytest.fixture
+def spliceai_client(tmp_data_dir: Path):
+    """Client whose data dir carries a seeded spliceai.db (prediction for rs123456789)."""
+    _seed_spliceai_db(tmp_data_dir, SAMPLE_VARIANT_VUS)
+    yield from _setup_client(
+        tmp_data_dir,
+        [SAMPLE_VARIANT_VUS, SAMPLE_VARIANT_BRCA1],
+        GENE_PHENOTYPE_DATA,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/variants/{rsid} — Core retrieval
 # ═══════════════════════════════════════════════════════════════════════
@@ -942,3 +984,34 @@ class TestGtexEqtlBadge:
         resp = tc.get(f"/api/variants/rs123456789?sample_id={sid}")
         assert resp.status_code == 200
         assert resp.json()["gtex_eqtl_badge"] is None
+
+
+class TestSpliceaiBadge:
+    """SW-F2: the optional BYO SpliceAI splice-prediction badge on variant detail."""
+
+    def test_attaches_badge_for_predicted_variant(self, spliceai_client):
+        tc, sid = spliceai_client
+        data = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()
+        badge = data["spliceai_badge"]
+        assert badge is not None
+        assert badge["ds_max"] == 0.91
+        assert badge["tier"] == "high_confidence"
+        assert badge["top_mode"] == "acceptor_loss"
+        assert badge["symbol"] == "CFTR"
+        # In-silico prediction only — never an ACMG vote.
+        assert badge["acmg_evidence"] is False
+        assert badge["context_only"] is True
+
+    def test_no_badge_for_variant_without_prediction(self, spliceai_client):
+        tc, sid = spliceai_client
+        # rs80357906 (BRCA1) is annotated but absent from spliceai.db.
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+        assert data["spliceai_badge"] is None
+
+    def test_badge_none_when_db_absent(self, client):
+        # The default client has no spliceai.db → optional BYO layer simply absent
+        # (existence-guarded: no 500, no empty DB file created).
+        tc, sid = client
+        resp = tc.get(f"/api/variants/rs123456789?sample_id={sid}")
+        assert resp.status_code == 200
+        assert resp.json()["spliceai_badge"] is None

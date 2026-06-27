@@ -22,9 +22,11 @@ from pydantic import BaseModel
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.gtex import eqtl_regulatory_context
+from backend.analysis.spliceai import spliceai_splice_context
 from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes
+from backend.annotation.spliceai import lookup_spliceai_by_variant
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -148,6 +150,9 @@ class VariantDetailResponse(BaseModel):
 
     # GTEx eQTL regulatory context (context-only; association, never ACMG evidence)
     gtex_eqtl_badge: dict[str, Any] | None = None
+
+    # SpliceAI splice-effect prediction (context-only; in-silico, never ACMG evidence)
+    spliceai_badge: dict[str, Any] | None = None
 
     # dbSNP
     dbsnp_build: int | None = None
@@ -373,6 +378,35 @@ def _attach_gtex_eqtl_badge(data: dict[str, Any], registry: Any) -> None:
     data["gtex_eqtl_badge"] = eqtl_regulatory_context(rsid, hits.get(rsid, []))
 
 
+def _attach_spliceai_badge(data: dict[str, Any], registry: Any) -> None:
+    """Attach the context-only SpliceAI splice-prediction badge (optional BYO layer).
+
+    No-op when the optional ``spliceai.db`` is not installed (existence-guarded so
+    we never create an empty DB file or 500 the endpoint). SpliceAI is keyed by
+    GRCh37 position (chrom/pos/ref/alt), not rsID. The badge is an in-silico
+    prediction only — never ACMG evidence (no PVS1/PP3/PS3).
+    """
+    data["spliceai_badge"] = None
+    chrom = data.get("chrom")
+    pos = data.get("pos")
+    ref = data.get("ref")
+    alt = data.get("alt")
+    if not chrom or pos is None or not ref or not alt:
+        return
+
+    settings = getattr(registry, "settings", None)
+    db_path = getattr(settings, "spliceai_db_path", None)
+    if isinstance(db_path, Path) and not db_path.exists():
+        return  # optional BYO DB not installed → no badge
+
+    try:
+        row = lookup_spliceai_by_variant(chrom, pos, ref, alt, registry.spliceai_engine)
+    except sa.exc.SQLAlchemyError:
+        logger.debug("spliceai_badge_lookup_failed", exc_info=True)
+        return
+    data["spliceai_badge"] = spliceai_splice_context(row)
+
+
 # ── Endpoint ─────────────────────────────────────────────────────────
 
 
@@ -422,8 +456,10 @@ def get_variant_detail(
     # 6. Build evidence conflict detail
     evidence_conflict_detail = _build_evidence_conflict_detail(row)
 
+    registry = get_registry()
     _attach_alphamissense_badge(data)
-    _attach_gtex_eqtl_badge(data, get_registry())
+    _attach_gtex_eqtl_badge(data, registry)
+    _attach_spliceai_badge(data, registry)
 
     return VariantDetailResponse(
         **data,

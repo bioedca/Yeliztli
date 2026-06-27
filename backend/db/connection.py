@@ -45,6 +45,7 @@ class DBRegistry:
         self._dbnsfp_engine: sa.Engine | None = None
         self._alphamissense_engine: sa.Engine | None = None
         self._gtex_eqtl_engine: sa.Engine | None = None
+        self._spliceai_engine: sa.Engine | None = None
         self._encode_ccres_engine: sa.Engine | None = None
 
     @property
@@ -153,6 +154,17 @@ class DBRegistry:
         return self._gtex_eqtl_engine
 
     @property
+    def spliceai_engine(self) -> sa.Engine:
+        """Lazy-loaded SpliceAI engine (read-only, optional BYO splice predictions)."""
+        if self._spliceai_engine is None:
+            self._spliceai_engine = self._create_engine(
+                self._settings.spliceai_db_path,
+                wal=self._settings.wal_mode,
+                read_optimized=True,
+            )
+        return self._spliceai_engine
+
+    @property
     def encode_ccres_engine(self) -> sa.Engine:
         """Lazy-loaded ENCODE cCREs engine (read-only, ~30 MB)."""
         if self._encode_ccres_engine is None:
@@ -215,6 +227,9 @@ class DBRegistry:
         if self._gtex_eqtl_engine is not None:
             self._gtex_eqtl_engine.dispose()
             self._gtex_eqtl_engine = None
+        if self._spliceai_engine is not None:
+            self._spliceai_engine.dispose()
+            self._spliceai_engine = None
         if self._encode_ccres_engine is not None:
             self._encode_ccres_engine.dispose()
             self._encode_ccres_engine = None

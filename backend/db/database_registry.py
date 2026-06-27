@@ -353,6 +353,25 @@ DATABASES: dict[str, DatabaseInfo] = {
         build_mode="pipeline",
         target_db="standalone",
     ),
+    "spliceai": DatabaseInfo(
+        name="spliceai",
+        display_name="SpliceAI",
+        description=(
+            "SpliceAI splice-effect predictions (Illumina, non-commercial; BYO — "
+            "user-supplied). In-silico splice context only, never ACMG evidence"
+        ),
+        # BYO: the precomputed scores are NC + BaseSpace-login-gated, so there is
+        # no redistributable URL and no build_fn. build_mode="manual" is skipped
+        # by the setup wizard / update manager (never auto-fetched); a user ingests
+        # a local file via scripts/ingest_spliceai_scores.py.
+        url="",
+        filename="spliceai.db",
+        expected_size_bytes=200_000_000,  # depends on the --min-ds floor at ingest
+        required=False,
+        phase=3,
+        build_mode="manual",
+        target_db="standalone",
+    ),
     "pgs_scores": DatabaseInfo(
         name="pgs_scores",
         display_name="PGS Catalog scores",
@@ -566,6 +585,7 @@ EXPECTED_GENOME_BUILD: dict[str, str] = {
     "gnomad_constraint": "GRCh37",
     "alphamissense": "GRCh37",
     "gtex_eqtl": "GRCh37",
+    "spliceai": "GRCh37",  # hg19 precomputed scores, joined by position (no liftover)
     "pgs_scores": "GRCh37",
     "dbnsfp": "GRCh38",
 }

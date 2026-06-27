@@ -970,6 +970,17 @@ ALPHAMISSENSE_CONTEXT_ONLY = (
 )
 
 
+SPLICEAI_CONTEXT_ONLY = (
+    "SpliceAI splice-effect prediction (Jaganathan 2019; context only). SpliceAI is a "
+    "deep-learning model that PREDICTS whether a variant alters splicing; the delta score "
+    "(0–1) reflects predicted impact, with 0.2 (high recall), 0.5 (recommended), and 0.8 "
+    "(high precision) as the published operating points. This is an in-silico prediction, "
+    "NOT a functional/RNA assay proving a splicing change, and it is deliberately NOT counted "
+    "as ACMG evidence (no PVS1/PP3/PS3 uplift). Confirm a predicted effect with RNA or "
+    "functional testing and discuss interpretation with your care team."
+)
+
+
 ACMG_DRAFT_CONTEXT_ONLY = (
     "DRAFT automated ACMG/AMP classification (non-clinical; context only). This is a "
     "computational estimate from a subset of ACMG/AMP criteria (Richards 2015) scored "
