@@ -78,6 +78,12 @@ ZYG_HOM_ALT = "hom_alt"
 # homozygous-reference chip position never produces a "Pathogenic" finding.
 CARRIED_ZYGOSITIES: frozenset[str] = frozenset({ZYG_HET, ZYG_HOM_ALT})
 
+# Guard for rare autosomal-dominant homozygous-alt calls. For a rare allele,
+# the expected true-homozygote frequency is approximately q^2; rows at or below
+# this threshold and with no population homozygotes are treated as implausible
+# for consumer monogenic findings rather than as confident biallelic calls.
+DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
+
 
 def _zygosity_from_alleles(alleles: set[str], ref: str, alt: str) -> str:
     """Classify a resolved allele set against a (ref, alt) pair."""
@@ -165,3 +171,30 @@ def classify_zygosity(genotype: str | None, ref: str | None, alt: str | None) ->
     # Alleles explained by neither strand (a different/triallelic variant, or a
     # strand-ambiguous homozygous reverse call): carriage cannot be confirmed.
     return None
+
+
+def effective_gnomad_af(row: object) -> float | None:
+    """Return usable popmax AF, falling back to global AF."""
+    for af in (getattr(row, "gnomad_af_popmax", None), getattr(row, "gnomad_af_global", None)):
+        if af is not None and 0 <= af <= 1:
+            return af
+    return None
+
+
+def is_implausible_dominant_hom_alt(
+    row: object,
+    inheritance: str | None,
+    *,
+    expected_freq_max: float = DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX,
+) -> bool:
+    """Return true for rare dominant hom-alt calls without population support."""
+    if getattr(row, "zygosity", None) != ZYG_HOM_ALT or (inheritance or "").upper() != "AD":
+        return False
+    hom_count = getattr(row, "gnomad_homozygous_count", None)
+    if hom_count is not None and hom_count > 0:
+        return False
+
+    af = effective_gnomad_af(row)
+    if af is None:
+        return False
+    return af * af <= expected_freq_max

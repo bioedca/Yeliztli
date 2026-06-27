@@ -699,6 +699,102 @@ class TestExtractCardiovascularVariants:
         assert fh.status == FH_STATUS_NEGATIVE
         assert fh.is_positive is False
 
+    def test_suppresses_implausible_dominant_hom_alt(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Rare AD hom-alt calls without gnomAD homozygotes are likely artifacts."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ldlr_rare_hom",
+                        "chrom": "19",
+                        "pos": 11210001,
+                        "ref": "G",
+                        "alt": "A",
+                        "genotype": "AA",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 4,
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "gnomad_af_popmax": 2e-5,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 1
+        assert fh.status == FH_STATUS_NEGATIVE
+
+    def test_keeps_dominant_hom_alt_when_gnomad_homozygotes_are_observed(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ldlr_observed_hom",
+                        "chrom": "19",
+                        "pos": 11210002,
+                        "ref": "G",
+                        "alt": "A",
+                        "genotype": "AA",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 4,
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "gnomad_af_popmax": 2e-5,
+                        "gnomad_homozygous_count": 1,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_ldlr_observed_hom"]
+        assert result.hom_alt_plausibility_suppressed == 0
+
+    def test_keeps_recessive_hom_alt_even_when_rare(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_abcg5_rare_hom",
+                        "chrom": "2",
+                        "pos": 44050000,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "TT",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "ABCG5",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "Sitosterolemia",
+                        "gnomad_af_popmax": 2e-5,
+                        "gnomad_homozygous_count": 0,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_abcg5_rare_hom"]
+        assert result.hom_alt_plausibility_suppressed == 0
+
     def test_ldlr_golden_fixture(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
     ) -> None:

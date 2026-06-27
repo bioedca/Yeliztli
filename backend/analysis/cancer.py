@@ -61,7 +61,7 @@ from backend.analysis.inheritance import (
     classify_disease_status,
 )
 from backend.analysis.insilico_tiers import insilico_block
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, is_implausible_dominant_hom_alt
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -202,7 +202,6 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 # Policy guard for issue #837: only PMS2 exons currently modeled as
 # PMS2/PMS2CL-confounded are withheld from consumer cancer findings.
 _PMS2_PSEUDOGENE_CONFOUNDED_EXONS = frozenset({12, 13, 14, 15})
-_DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
 
 
 @dataclass
@@ -353,7 +352,7 @@ def extract_cancer_variants(
         if _is_pms2_pseudogene_confounded(row):
             pseudogene_suppressed += 1
             continue
-        if _is_implausible_dominant_hom_alt(row, gene_info):
+        if is_implausible_dominant_hom_alt(row, gene_info.inheritance):
             hom_alt_plausibility_suppressed += 1
             continue
 
@@ -409,27 +408,6 @@ def _is_pms2_pseudogene_confounded(row: sa.Row) -> bool:
     """Return true for PMS2 calls in exons that need PMS2/PMS2CL disambiguation."""
     gene_symbol = (row.gene_symbol or "").upper()
     return gene_symbol == "PMS2" and row.exon_number in _PMS2_PSEUDOGENE_CONFOUNDED_EXONS
-
-
-def _is_implausible_dominant_hom_alt(row: sa.Row, gene_info: CancerGene) -> bool:
-    """Return true for rare dominant hom-alt calls without population support."""
-    if row.zygosity != "hom_alt" or gene_info.inheritance.upper() != "AD":
-        return False
-    if row.gnomad_homozygous_count is not None and row.gnomad_homozygous_count > 0:
-        return False
-
-    af = _effective_gnomad_af(row)
-    if af is None:
-        return False
-    return af * af <= _DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX
-
-
-def _effective_gnomad_af(row: sa.Row) -> float | None:
-    """Return usable popmax AF, falling back to global AF."""
-    for af in (row.gnomad_af_popmax, row.gnomad_af_global):
-        if af is not None and 0 <= af <= 1:
-            return af
-    return None
 
 
 # ── Findings storage ─────────────────────────────────────────────────────

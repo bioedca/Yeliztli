@@ -63,7 +63,7 @@ from backend.analysis.inheritance import (
     classify_disease_status,
 )
 from backend.analysis.insilico_tiers import insilico_block
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, is_implausible_dominant_hom_alt
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -236,6 +236,7 @@ class CardiovascularAnalysisResult:
     variants: list[CardiovascularVariantResult] = field(default_factory=list)
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
+    hom_alt_plausibility_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -333,6 +334,9 @@ def extract_cardiovascular_variants(
                 annotated_variants.c.clinvar_conditions,
                 annotated_variants.c.revel,
                 annotated_variants.c.consequence,
+                annotated_variants.c.gnomad_af_popmax,
+                annotated_variants.c.gnomad_af_global,
+                annotated_variants.c.gnomad_homozygous_count,
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
@@ -350,9 +354,13 @@ def extract_cardiovascular_variants(
         rows = conn.execute(stmt).fetchall()
 
     variants: list[CardiovascularVariantResult] = []
+    hom_alt_plausibility_suppressed = 0
     for row in rows:
         gene_info = gene_map.get((row.gene_symbol or "").upper())
         if gene_info is None:
+            continue
+        if is_implausible_dominant_hom_alt(row, gene_info.inheritance):
+            hom_alt_plausibility_suppressed += 1
             continue
 
         evidence = _assign_evidence_level(
@@ -396,12 +404,14 @@ def extract_cardiovascular_variants(
         channelopathy_variants=len(
             [v for v in variants if v.cardiovascular_category == CATEGORY_CHANNELOPATHY]
         ),
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
     )
 
     return CardiovascularAnalysisResult(
         variants=variants,
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
     )
 
 
