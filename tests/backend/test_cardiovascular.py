@@ -1801,11 +1801,127 @@ class TestKCNQ1ConditionScope:
 
         text = rows[0]["finding_text"]
         detail = json.loads(rows[0]["detail_json"])
-        assert "Pathogenic for Long QT Syndrome Type 1" in text
+        assert "Pathogenic for Long QT syndrome 1" in text
+        assert "Short QT" not in text
         assert "Jervell and Lange-Nielsen" not in text
+        assert detail["conditions"] == ["Long QT syndrome 1"]
+        assert not any("Short QT" in condition for condition in detail["conditions"])
         assert "Jervell and Lange-Nielsen Syndrome" not in detail["conditions"]
         assert detail["inheritance"] == "AD"
         assert detail["disease_status"] == DISEASE_AFFECTED
+
+
+class TestVariantSpecificCardiovascularConditionScope:
+    """Variant-dependent cardiac phenotypes must not inherit opposite gene labels (#1089)."""
+
+    def test_scn5a_brugada_variant_excludes_lqt3_panel_condition(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                {
+                    "rsid": "rs28937318",
+                    "chrom": "3",
+                    "pos": 38589553,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "SCN5A",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 1,
+                    "clinvar_accession": "VCV000009390",
+                    "clinvar_conditions": "Brugada syndrome",
+                    "annotation_coverage": 2,
+                }
+            ],
+        )
+
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Brugada syndrome" in text
+        assert "Long QT" not in text
+        assert "Cardiac Conduction Disease" not in text
+        assert detail["conditions"] == ["Brugada syndrome"]
+
+    def test_kcnq1_short_qt_variant_excludes_long_qt_panel_condition(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        row = _kcnq1_variant("rs_kcnq1_short_qt", 2570400, "AG", "het")
+        row["clinvar_accession"] = "VCV000067072"
+        row["clinvar_conditions"] = "Short QT syndrome type 2"
+
+        _, rows = _store_and_fetch(panel, sample_engine, [row])
+
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Short QT syndrome type 2" in text
+        assert "Long QT" not in text
+        assert detail["conditions"] == ["Short QT syndrome type 2"]
+
+    def test_myh7_dcm_variant_excludes_hcm_panel_condition(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                {
+                    "rsid": "rs_myh7_dcm",
+                    "chrom": "14",
+                    "pos": 23890000,
+                    "genotype": "AG",
+                    "zygosity": "het",
+                    "gene_symbol": "MYH7",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000143218",
+                    "clinvar_conditions": "Dilated cardiomyopathy 1S",
+                    "annotation_coverage": 2,
+                }
+            ],
+        )
+
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Dilated cardiomyopathy 1S" in text
+        assert "Hypertrophic Cardiomyopathy" not in text
+        assert "Hypertrophic cardiomyopathy" not in text
+        assert detail["conditions"] == ["Dilated cardiomyopathy 1S"]
+
+    def test_variant_scoped_gene_without_clinvar_condition_stays_generic(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                {
+                    "rsid": "rs_scn5a_no_condition",
+                    "chrom": "3",
+                    "pos": 38590000,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "SCN5A",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 1,
+                    "clinvar_accession": "VCV000000001",
+                    "clinvar_conditions": None,
+                    "annotation_coverage": 2,
+                }
+            ],
+        )
+
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Cardiovascular condition" in text
+        assert "Long QT" not in text
+        assert "Brugada" not in text
+        assert detail["conditions"] == []
 
 
 class TestAPOBConditionScope:

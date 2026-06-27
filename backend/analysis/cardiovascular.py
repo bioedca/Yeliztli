@@ -97,6 +97,15 @@ LOW_LDL_CONDITION_TERMS = (
     "abetalipoproteinemia",
     "abetalipoproteinaemia",
 )
+VARIANT_SCOPED_CONDITION_GENES = frozenset(
+    {
+        "KCNQ1",
+        "SCN5A",
+        "KCNH2",
+        "MYH7",
+        "TNNT2",
+    }
+)
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -307,13 +316,16 @@ def _variant_condition_scope(
     gene_info: CardiovascularGene, clinvar_conditions: str | None
 ) -> tuple[list[str], str]:
     """Return display conditions and cardiovascular category for one variant."""
+    variant_conditions = format_clinvar_conditions(clinvar_conditions)
+
     if gene_info.cardiovascular_category != CATEGORY_FH:
+        if gene_info.gene_symbol.upper() in VARIANT_SCOPED_CONDITION_GENES:
+            return variant_conditions, gene_info.cardiovascular_category
         return gene_info.conditions, gene_info.cardiovascular_category
 
     if not _is_low_ldl_condition_only(clinvar_conditions):
         return gene_info.conditions, gene_info.cardiovascular_category
 
-    variant_conditions = format_clinvar_conditions(clinvar_conditions)
     return variant_conditions or gene_info.conditions, CATEGORY_LIPID
 
 
