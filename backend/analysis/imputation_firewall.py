@@ -77,10 +77,6 @@ class FirewallReason(StrEnum):
     IMPUTED_RARE = "imputed_rare"  # imputed, DR2 ok, but MAF < RARE_MAF_THRESHOLD
 
 
-# Reasons that permit a variant to back a P/LP/carrier/monogenic call.
-_REPORTABLE_REASONS = frozenset({FirewallReason.GENOTYPED, FirewallReason.IMPUTED_PASS})
-
-
 @dataclass(frozen=True)
 class FirewallDecision:
     """Verdict for one variant: may it back a high-stakes (P/LP/carrier/monogenic) call?"""
