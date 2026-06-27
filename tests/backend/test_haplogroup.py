@@ -618,6 +618,25 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "CT"
         assert [s.haplogroup for s in path] == ["CT"]
 
+    def test_real_bundle_single_de_marker_is_not_terminal(self, bundle: HaplogroupBundle) -> None:
+        """#1079: one DE-specific SNP on sparse Y-array data is not enough to make
+        DE the terminal call. It can only support descent if a deeper child also has
+        independent support."""
+        genotypes = {
+            "rs2032652": "TT",  # one of CT's two defining markers
+            "rs2032602": "TT",  # DE-specific marker
+        }
+
+        terminal, path = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_terminal_specific_snps=2,
+        )
+
+        assert terminal.haplogroup == "CT"
+        assert [(s.haplogroup, s.snps_present, s.snps_total) for s in path] == [("CT", 1, 2)]
+
     def test_synthetic_shared_marker_children_do_not_over_resolve(self) -> None:
         """Two children that each re-list one of the parent's markers (the CT/DE,
         CT/F shape) are both refused when their own markers are untyped."""
@@ -776,6 +795,31 @@ class TestAssignHaplogroups:
         assert mt.haplogroup == "H1a"
         # Tree may walk deeper than R1b1a if child nodes also match
         assert y.haplogroup.startswith("R1b1a")
+
+    def test_y_single_de_marker_stops_at_ct(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """#1079: production Y assignment applies the terminal-support guard, so a
+        sparse XY sample with one CT marker plus one DE marker reports CT, not DE."""
+        rows = (
+            [
+                {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "TT"},
+                {"rsid": "rs2032602", "chrom": "Y", "pos": 14895148, "genotype": "TT"},
+            ]
+            + _Y_TYPED_PADDING
+            + _NONPAR_X_HOM_GENOTYPES
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        assert len(results) == 2
+        y = next(r for r in results if r.tree_type == "Y")
+        assert y.haplogroup == "CT"
+        assert [(s.haplogroup, s.snps_present, s.snps_total) for s in y.traversal_path] == [
+            ("CT", 1, 2)
+        ]
 
     def test_confidence_calculation(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
