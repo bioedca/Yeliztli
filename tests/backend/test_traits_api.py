@@ -66,25 +66,27 @@ PATHWAY_SUMMARY_FINDINGS = [
                         "coverage_note": None,
                     },
                     {
-                        "rsid": "rs4680",
-                        "gene": "COMT",
-                        "variant_name": "Val158Met",
-                        "genotype": "AG",
+                        "rsid": "rs242949",
+                        "gene": "CRHR1",
+                        "variant_name": "CRHR1 intronic",
+                        "genotype": "GT",
                         "category": "Moderate",
-                        "effect_summary": "Heterozygous — intermediate catecholamine clearance.",
+                        "effect_summary": "Associated with neuroticism measurement in GWAS.",
                         "evidence_level": 2,
                         "trait_domain": "neuroticism",
                         "coverage_note": None,
                     },
                     {
-                        "rsid": "rs1800955",
-                        "gene": "DRD4",
-                        "variant_name": "DRD4 -521C/T",
+                        "rsid": "rs2576037",
+                        "gene": "KATNAL2",
+                        "variant_name": "KATNAL2 intronic",
                         "genotype": "CT",
-                        "category": "Standard",
-                        "effect_summary": "One copy; associated with novelty seeking.",
+                        "category": "Moderate",
+                        "effect_summary": (
+                            "Associated with lower conscientiousness in discovery samples."
+                        ),
                         "evidence_level": 1,
-                        "trait_domain": "openness",
+                        "trait_domain": "conscientiousness",
                         "coverage_note": None,
                     },
                 ],
@@ -402,6 +404,10 @@ class TestPathwayDetail:
         assert openness["gene"] == "RASA1"
         assert openness["trait_domain"] == "openness"
         assert openness["category"] == "Moderate"
+        conscientiousness = next(s for s in snps if s["rsid"] == "rs2576037")
+        assert conscientiousness["gene"] == "KATNAL2"
+        assert conscientiousness["trait_domain"] == "conscientiousness"
+        assert conscientiousness["category"] == "Moderate"
 
     def test_missing_pathway_404(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/traits/pathway/nonexistent?sample_id=1")
