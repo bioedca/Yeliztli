@@ -29,6 +29,7 @@ itself gate findings (that is SW-C3).
 from __future__ import annotations
 
 import gzip
+import math
 import re
 import subprocess
 import time
@@ -58,6 +59,27 @@ WELL_IMPUTED_DR2 = 0.8
 _DR2_RE = re.compile(r"(?:^|;)DR2=([^;]+)")
 _AF_RE = re.compile(r"(?:^|;)AF=([^;]+)")
 _IMP_RE = re.compile(r"(?:^|;)IMP(?:;|$|=)")
+
+# Accepted chromosome tokens (autosomes + X). The panel ships 1-22 + X; this also
+# guards path construction — chrom is interpolated into panel/output paths, so a
+# token with a path separator or ``..`` must never reach those paths.
+_CHROM_RE = re.compile(r"^(?:[1-9]|1[0-9]|2[0-2]|X)$")
+
+
+def _normalize_chrom(chrom: str) -> str:
+    """Normalize + validate a chromosome token to ``1``..``22`` / ``X``.
+
+    Raises:
+        ValueError: the token is not a supported chromosome (also blocks a token
+            carrying a path separator or ``..`` from reaching a file path).
+    """
+    c = chrom.strip()
+    if c[:3].lower() == "chr":
+        c = c[3:]
+    c = c.upper()
+    if not _CHROM_RE.fullmatch(c):
+        raise ValueError(f"unsupported chromosome token: {chrom!r}")
+    return c
 
 
 def beagle_jar_path(lai_bundle_dir: Path) -> Path:
@@ -129,9 +151,13 @@ def _info_floats(info: str, regex: re.Pattern[str]) -> list[float | None]:
     for tok in m.group(1).split(","):
         tok = tok.strip()
         try:
-            out.append(float(tok))
+            val = float(tok)
         except ValueError:
             out.append(None)
+            continue
+        # DR2/AF are finite probabilities/correlations; drop nan/inf so they can't
+        # poison the quality summary (nan comparisons are always False).
+        out.append(val if math.isfinite(val) else None)
     return out
 
 
@@ -220,6 +246,7 @@ class ImputationRunner:
         )
 
     def _build_command(self, chrom: str, input_vcf: Path, out_prefix: Path) -> list[str]:
+        chrom = _normalize_chrom(chrom)
         cmd = [
             "java",
             f"-Xmx{self.java_mem}",
@@ -248,6 +275,7 @@ class ImputationRunner:
         (SW-C1). On Beagle failure / timeout / missing output, ``return_ok`` is
         False and the parse is skipped.
         """
+        chrom = _normalize_chrom(chrom)
         bref3 = panel_bref3_path(self.panel_dir, chrom)
         gen_map = panel_map_path(self.panel_dir, chrom)
         missing = [str(p) for p in (bref3, gen_map) if not p.exists()]
@@ -278,13 +306,21 @@ class ImputationRunner:
         runtime = time.monotonic() - start
 
         if proc.returncode != 0:
-            logger.error("imputation_failed", chrom=chrom, stderr=proc.stderr[-500:])
+            stderr_tail = proc.stderr[-500:]
+            # Beagle stderr can carry local paths / sample identifiers — log only its
+            # size, and keep the tail on the returned result for the caller to use.
+            logger.error(
+                "imputation_failed",
+                chrom=chrom,
+                returncode=proc.returncode,
+                stderr_chars=len(stderr_tail),
+            )
             return ImputationChromResult(
                 chrom=chrom,
                 output_vcf=None,
                 runtime_seconds=runtime,
                 return_ok=False,
-                stderr_tail=proc.stderr[-500:],
+                stderr_tail=stderr_tail,
             )
 
         out_vcf = Path(f"{out_prefix}.vcf.gz")

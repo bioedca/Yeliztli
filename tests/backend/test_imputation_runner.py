@@ -19,6 +19,7 @@ import backend.analysis.imputation_runner as ir_mod
 from backend.analysis.imputation_runner import (
     WELL_IMPUTED_DR2,
     ImputationRunner,
+    _normalize_chrom,
     beagle_jar_path,
     parse_imputed_vcf,
     summarize_dr2,
@@ -165,3 +166,35 @@ class TestImputeChromosome:
 class TestJarPath:
     def test_beagle_jar_path(self, tmp_path: Path) -> None:
         assert beagle_jar_path(tmp_path) == tmp_path / "beagle" / "beagle.jar"
+
+
+class TestChromValidation:
+    def test_normalizes_valid_tokens(self) -> None:
+        assert _normalize_chrom("chr22") == "22"
+        assert _normalize_chrom("X") == "X"
+        assert _normalize_chrom("chrx") == "X"
+        assert _normalize_chrom(" 7 ") == "7"
+
+    @pytest.mark.parametrize("bad", ["../etc", "22/x", "Y", "MT", "23", "0", ""])
+    def test_rejects_unsupported_or_unsafe(self, bad: str) -> None:
+        with pytest.raises(ValueError, match="unsupported chromosome"):
+            _normalize_chrom(bad)
+
+    def test_impute_chromosome_rejects_path_traversal(self, tmp_path: Path) -> None:
+        # A chrom carrying a path separator must never reach panel/output paths.
+        runner = _stub_runner(tmp_path)
+        with pytest.raises(ValueError, match="unsupported chromosome"):
+            runner.impute_chromosome("../../etc", tmp_path / "in.vcf.gz", tmp_path / "out")
+
+
+class TestNonFiniteFloats:
+    def test_nan_inf_dr2_af_become_none(self, tmp_path: Path) -> None:
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "22\t100\trsx\tA\tG\t.\tPASS\tDR2=nan;AF=inf;IMP\n"
+        )
+        [v] = list(parse_imputed_vcf(_write_gz(tmp_path / "nf.vcf.gz", vcf)))
+        assert v.dr2 is None  # nan dropped
+        assert v.af is None  # inf dropped
+        # A non-finite DR2 must not be counted as well-imputed.
+        assert summarize_dr2([v]).n_well_imputed == 0
