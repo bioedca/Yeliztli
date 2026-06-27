@@ -713,6 +713,23 @@ class TestAPOEFindingsContentCV:
         assert "lower effective hepatic ldl clearance" in text
         assert {"28276521", "18369154", "1939641"} <= set(cv.pmid_citations)
 
+    def test_e3_e4_ldlr_mechanism_pmids_are_scoped_to_e3_e4(self) -> None:
+        """Mechanism PMIDs for the ε3/ε4 text should not attach to every CV finding."""
+        mechanism_pmids = {"28276521", "18369154", "1939641"}
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+
+        for diplotype in ["ε2/ε2", "ε2/ε3", "ε2/ε4", "ε3/ε3", "ε4/ε4"]:
+            allele1, allele2 = (allele_map[allele] for allele in diplotype.split("/"))
+            result = APOEResult(
+                status=APOEStatus.DETERMINED,
+                allele1=allele1,
+                allele2=allele2,
+                diplotype=diplotype,
+            )
+            cv = generate_apoe_findings(result)[0]
+
+            assert mechanism_pmids.isdisjoint(cv.pmid_citations)
+
     def test_cv_conditions_include_statin(self) -> None:
         """All CV findings mention statin response in conditions."""
         result = APOEResult(

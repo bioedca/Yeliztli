@@ -835,9 +835,17 @@ _LIPID_DIETARY: dict[str, dict[str, Any]] = {
 }
 
 # PubMed citations shared across findings
-_CV_PMIDS = ["21460841", "9343467", "17309940", "28577312", "28276521", "18369154", "1939641"]
+_CV_PMIDS = ["21460841", "9343467", "17309940", "28577312"]
+_CV_E3_E4_MECHANISM_PMIDS = ["28276521", "18369154", "1939641"]
 _ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587", "37930705", "32818802"]
 _LIPID_DIETARY_PMIDS = ["9343467", "17309940", "26109578", "24820091"]
+
+
+def _cv_pmids_for_diplotype(diplotype: str) -> list[str]:
+    pmids = list(_CV_PMIDS)
+    if diplotype == "ε3/ε4":
+        pmids.extend(_CV_E3_E4_MECHANISM_PMIDS)
+    return pmids
 
 
 def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
@@ -872,7 +880,7 @@ def generate_apoe_findings(result: APOEResult) -> list[APOEFinding]:
             finding_text=cv_data["finding_text"],
             conditions=cv_data["conditions"],
             phenotype=cv_data["phenotype"],
-            pmid_citations=_CV_PMIDS,
+            pmid_citations=_cv_pmids_for_diplotype(diplotype),
             detail_json={
                 "diplotype": diplotype,
                 "risk_level": cv_data["risk_level"],
