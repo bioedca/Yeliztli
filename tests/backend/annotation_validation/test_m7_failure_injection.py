@@ -3,8 +3,8 @@
 Drives the engine into failure modes the happy-path suite never reaches:
 a crash mid-re-annotation (must not destroy the prior good result) and an
 unreadable reference DB (must be recorded as a failure, not silently treated as
-absent). The large-input streaming check (F39) is Phase-H / roadmap and is
-skipped with a pointer.
+absent). F39 keeps a bounded large-input batching regression in the active
+suite without requiring huge fixtures.
 """
 
 from __future__ import annotations
@@ -81,12 +81,32 @@ def test_unreadable_source_is_recorded(build_live_run, monkeypatch) -> None:
     assert result.clinvar_matched > 0
 
 
-# ── F39: large-input streaming / memory ceiling — Phase H (roadmap) ───────
+# ── F39: large-input batching / memory ceiling guard ──────────────────────
 
 
-@pytest.mark.skip(
-    reason="F39: yield_per/streaming is Phase H (WGS/WES roadmap); "
-    "chip-scale inputs are not memory-bound"
-)
-def test_large_input_uses_streaming() -> None:  # pragma: no cover
-    raise NotImplementedError
+def test_large_input_uses_bounded_batches(build_live_run, monkeypatch) -> None:
+    variants = [
+        {"rsid": f"rs_batch_{idx}", "chrom": "7", "pos": 1_000 + idx, "genotype": "AA"}
+        for idx in range(5)
+    ]
+    run = build_live_run(variants=variants, run_analyses=False)
+    batch_sizes: list[int] = []
+    progress_updates: list[tuple[int, int]] = []
+    original_bulk_upsert = engine_mod._bulk_upsert
+
+    def _record_bulk_upsert(sample_engine, rows, **kwargs):
+        batch_sizes.append(len(rows))
+        return original_bulk_upsert(sample_engine, rows, **kwargs)
+
+    monkeypatch.setattr(engine_mod, "_bulk_upsert", _record_bulk_upsert)
+    result = run_annotation(
+        run.sample_engine,
+        run.registry,
+        batch_size=2,
+        progress_callback=lambda done, total: progress_updates.append((done, total)),
+    )
+
+    assert result.total_variants == 5
+    assert result.batches_processed == 3
+    assert batch_sizes == [2, 2, 1]
+    assert progress_updates == [(2, 5), (4, 5), (5, 5)]
