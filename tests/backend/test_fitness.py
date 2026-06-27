@@ -1031,8 +1031,15 @@ class TestStoreFindingsIntegration:
         assert row is not None
         assert "not interpreted" in row.finding_text
         assert "strand-unresolved" not in row.finding_text
+        assert "No variants of concern among tested SNPs" not in row.finding_text
         detail = json.loads(row.detail_json)
         assert detail["indeterminate_snps"] == ["rs4341"]
+        assert detail["off_chip_snps"] == ["rs1049434"]
+        assert "No variants of concern among tested SNPs" not in detail["coverage_interpretation"]
+        assert (
+            "Standard result is based on interpreted SNPs only"
+            in detail["coverage_interpretation"]
+        )
 
     def test_standard_pathway_without_indeterminate_qualifies_missing_coverage(
         self,

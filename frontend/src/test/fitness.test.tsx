@@ -202,6 +202,27 @@ describe("PathwayCard", () => {
     expect(caveat).toHaveTextContent(/1 variant\b/)
   })
 
+  it("keeps missing-coverage caveat neutral when indeterminate_snps are present", () => {
+    render(
+      <PathwayCard
+        pathway={{
+          ...INDETERMINATE_PATHWAY,
+          total_snps: 2,
+          missing_snps: ["rs1049434"],
+        }}
+        onClick={onClick}
+      />,
+    )
+
+    expect(screen.getByTestId("pathway-coverage-caveat")).toHaveTextContent(
+      "Standard result is based on interpreted SNPs only; 1 tracked SNP (1 off-chip) not assessed.",
+    )
+    expect(screen.getByTestId("pathway-coverage-caveat")).not.toHaveTextContent(
+      "No variants of concern among tested SNPs",
+    )
+    expect(screen.getByTestId("pathway-indeterminate-caveat")).toBeInTheDocument()
+  })
+
   it("does not call unmodeled-allele indeterminate variants strand-unresolved", () => {
     render(
       <PathwayCard

@@ -58,6 +58,7 @@ def coverage_interpretation(
     level: str,
     called_count: int,
     missing_snps: Iterable[Any],
+    indeterminate_count: int = 0,
     standard_limited_phrase: str = "No variants of concern among tested SNPs",
 ) -> str | None:
     """Return a concise caveat when pathway coverage is incomplete."""
@@ -69,6 +70,10 @@ def coverage_interpretation(
     if called_count <= 0:
         return f"No tracked SNPs assessed; {not_assessed} not assessed."
     if level == STANDARD_LEVEL:
+        if indeterminate_count > 0:
+            return (
+                f"Standard result is based on interpreted SNPs only; {not_assessed} not assessed."
+            )
         return f"{standard_limited_phrase}; {not_assessed} not assessed."
     return f"{level} result is based on tested SNPs only; {not_assessed} not assessed."
 
@@ -79,6 +84,7 @@ def pathway_summary_text(
     level: str,
     called_count: int,
     missing_snps: Iterable[Any],
+    indeterminate_count: int = 0,
     standard_complete_phrase: str = "Standard (no variants of concern)",
     standard_limited_phrase: str = "No variants of concern among tested SNPs",
 ) -> str:
@@ -95,6 +101,7 @@ def pathway_summary_text(
         level=level,
         called_count=called_count,
         missing_snps=missing_snps,
+        indeterminate_count=indeterminate_count,
         standard_limited_phrase=standard_limited_phrase,
     )
     if interpretation is None:
@@ -107,6 +114,7 @@ def coverage_detail(
     level: str,
     called_count: int,
     missing_snps: Iterable[Any],
+    indeterminate_count: int = 0,
     standard_limited_phrase: str = "No variants of concern among tested SNPs",
 ) -> dict[str, Any]:
     """Build detail_json fields shared by pathway summary findings."""
@@ -121,6 +129,7 @@ def coverage_detail(
         level=level,
         called_count=called_count,
         missing_snps=missing,
+        indeterminate_count=indeterminate_count,
         standard_limited_phrase=standard_limited_phrase,
     )
     if interpretation is not None:

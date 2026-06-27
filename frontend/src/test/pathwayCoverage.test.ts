@@ -33,6 +33,21 @@ describe("pathwayCoverage", () => {
     )
   })
 
+  it("does not claim no variants of concern when observed SNPs are indeterminate", () => {
+    const pathway = {
+      level: "Standard",
+      called_snps: 1,
+      total_snps: 2,
+      missing_snps: ["rs1049434"],
+      no_call_snps: [],
+      indeterminate_snps: ["rs4341"],
+    }
+
+    expect(pathwayCoverageCaveat(pathway)).toBe(
+      "Standard result is based on interpreted SNPs only; 1 tracked SNP (1 off-chip) not assessed.",
+    )
+  })
+
   it("keeps complete Standard coverage unchanged", () => {
     const pathway = {
       level: "Standard",

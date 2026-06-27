@@ -703,6 +703,7 @@ def store_fitness_findings(
                 level=pr.level,
                 called_count=called_count,
                 missing_snps=pr.missing_snps,
+                indeterminate_count=len(indeterminate),
             ),
             "snp_details": [
                 {

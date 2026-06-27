@@ -4,6 +4,7 @@ interface PathwayCoverageSummary {
   total_snps: number
   missing_snps?: string[]
   no_call_snps?: string[]
+  indeterminate_snps?: string[]
 }
 
 function plural(count: number, noun: string): string {
@@ -16,6 +17,10 @@ function noCallSet(pathway: PathwayCoverageSummary): Set<string> {
 
 function missingSnps(pathway: PathwayCoverageSummary): string[] {
   return pathway.missing_snps ?? []
+}
+
+function indeterminateCount(pathway: PathwayCoverageSummary): number {
+  return pathway.indeterminate_snps?.length ?? 0
 }
 
 function notAssessedLabel(pathway: PathwayCoverageSummary): string {
@@ -56,6 +61,9 @@ export function pathwayCoverageCaveat(pathway: PathwayCoverageSummary): string |
     return `No tracked SNPs were assessed; ${notAssessed} not assessed.`
   }
   if (pathway.level === "Standard") {
+    if (indeterminateCount(pathway) > 0) {
+      return `Standard result is based on interpreted SNPs only; ${notAssessed} not assessed.`
+    }
     return `No variants of concern among tested SNPs; ${notAssessed} not assessed.`
   }
   return `${pathway.level} result is based on tested SNPs only; ${notAssessed} not assessed.`
