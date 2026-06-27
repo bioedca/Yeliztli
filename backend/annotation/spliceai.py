@@ -40,6 +40,7 @@ Guardrails:
 from __future__ import annotations
 
 import gzip
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -131,13 +132,21 @@ def normalize_chrom(chrom: str) -> str:
 
 
 def _float_or_none(val: str) -> float | None:
+    """Parse a delta score → float in [0, 1], or None if missing/invalid.
+
+    Rejects non-finite (``nan``/``inf``) and out-of-range values so they cannot
+    slip past the min-DS threshold check (``nan`` comparisons are always False).
+    """
     val = val.strip()
     if not val or val in (".", "NA"):
         return None
     try:
-        return float(val)
+        parsed = float(val)
     except ValueError:
         return None
+    if not math.isfinite(parsed) or parsed < 0.0 or parsed > 1.0:
+        return None
+    return parsed
 
 
 def _int_or_none(val: str) -> int | None:
@@ -146,7 +155,7 @@ def _int_or_none(val: str) -> int | None:
         return None
     try:
         return int(float(val))
-    except ValueError:
+    except (OverflowError, ValueError):  # OverflowError: int(float("inf"))
         return None
 
 
@@ -254,9 +263,17 @@ def ingest_spliceai_vcf(
                     skipped_below += 1
                     continue
                 # Precomputed files are single-ALT, but stay robust to multi-allelic
-                # rows: prefer the SpliceAI entry's own ALLELE if it is one of the
-                # VCF ALTs, else fall back to the (single) VCF ALT.
-                this_alt = e["allele"] if e["allele"] in alts else (alts[0] if alts else "")
+                # rows: prefer the SpliceAI entry's own ALLELE; fall back to the VCF
+                # ALT only when it is unambiguous (exactly one). An unmatched entry
+                # on a multi-allelic row would otherwise be stored under the wrong
+                # allele, so skip it instead.
+                if e["allele"] in alts:
+                    this_alt = e["allele"]
+                elif len(alts) == 1:
+                    this_alt = alts[0]
+                else:
+                    skipped_bad += 1
+                    continue
                 rows.append(
                     {
                         "chrom": chrom,

@@ -107,6 +107,21 @@ class TestParseSpliceaiInfo:
         # A key that merely ends in "SpliceAI" must not be picked up.
         assert parse_spliceai_info("XSpliceAI=A|GENE|0.9|0|0|0|1|2|3|4") == []
 
+    def test_rejects_non_finite_and_out_of_range_scores(self) -> None:
+        # nan/inf must not slip past parsing (nan would bypass the min-DS check);
+        # a DS outside [0, 1] is invalid; an inf delta position must not raise.
+        [e] = parse_spliceai_info("SpliceAI=A|G|nan|inf|0.50|1.50|inf|2|3|4")
+        assert e["ds_ag"] is None  # nan rejected
+        assert e["ds_al"] is None  # inf rejected
+        assert e["ds_dg"] == 0.50
+        assert e["ds_dl"] is None  # 1.50 out of [0, 1]
+        assert e["ds_max"] == 0.50  # max over the only finite, in-range score
+        assert e["dp_ag"] is None  # inf delta position → None, not OverflowError
+
+    def test_all_scores_non_finite_drops_entry(self) -> None:
+        # No parseable delta score → the entry is dropped entirely.
+        assert parse_spliceai_info("SpliceAI=A|G|nan|inf|inf|nan|1|2|3|4") == []
+
 
 class TestIngestion:
     def test_loads_with_default_floor(self, tmp_path: Path) -> None:
@@ -161,6 +176,34 @@ class TestIngestion:
         create_spliceai_tables(engine)
         create_spliceai_tables(engine)  # must not error
         assert _count(engine) == 0
+
+    def test_multiallelic_matched_allele_stored(self, tmp_path: Path) -> None:
+        # Multi-allelic row whose SpliceAI ALLELE matches one ALT → stored under it.
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "8\t8000\t.\tA\tC,T\t.\t.\tSpliceAI=T|GENE8|0.90|0|0|0|1|2|3|4\n"
+        )
+        engine = _engine(tmp_path)
+        stats = ingest_spliceai_vcf(_write(tmp_path, "ma.vcf", vcf), engine)
+        assert stats.loaded == 1
+        row = lookup_spliceai_by_variant("8", 8000, "A", "T", engine)
+        assert row is not None and row["ds_max"] == 0.90
+        # And it is NOT findable under the other ALT (no wrong-allele storage).
+        assert lookup_spliceai_by_variant("8", 8000, "A", "C", engine) is None
+
+    def test_multiallelic_unmatched_allele_skipped(self, tmp_path: Path) -> None:
+        # Multi-allelic row whose SpliceAI ALLELE matches NEITHER ALT must be
+        # skipped (a bad row), never stored under an arbitrary ALT.
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "8\t8000\t.\tA\tC,T\t.\t.\tSpliceAI=G|GENE8|0.90|0|0|0|1|2|3|4\n"
+        )
+        engine = _engine(tmp_path)
+        with pytest.raises(ValueError, match="zero SpliceAI rows"):
+            ingest_spliceai_vcf(_write(tmp_path, "ma.vcf", vcf), engine)
+        # Nothing was stored under either ALT.
+        assert lookup_spliceai_by_variant("8", 8000, "A", "C", engine) is None
+        assert lookup_spliceai_by_variant("8", 8000, "A", "T", engine) is None
 
 
 class TestLookup:
