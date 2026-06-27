@@ -144,15 +144,17 @@ def _source_ids_from_merged_sample(
             source_sample_ids_raw=prov_row.source_sample_ids,
         )
         return []
-    try:
-        return [int(source_id) for source_id in raw_source_ids]
-    except (TypeError, ValueError):
+    if not all(
+        isinstance(source_id, int) and not isinstance(source_id, bool)
+        for source_id in raw_source_ids
+    ):
         logger.warning(
             "lai_merged_provenance_malformed",
             sample_id=sample_id,
             source_sample_ids_raw=prov_row.source_sample_ids,
         )
         return []
+    return raw_source_ids
 
 
 def _source_file_formats_have_ancestrydna(registry: object, source_sample_ids: list[int]) -> bool:

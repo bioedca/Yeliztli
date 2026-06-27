@@ -117,10 +117,12 @@ def _build_lai_gate_registry(
     *,
     source_file_formats: tuple[str, str],
     lai_bundle_version: str,
+    source_sample_ids: list[object] | None = None,
 ) -> SimpleNamespace:
     """Reference DB + merged sample DB fixture for LAI soft-gate wrappers."""
     reference_engine = sa.create_engine("sqlite://")
     reference_metadata.create_all(reference_engine)
+    raw_source_sample_ids = [1, 2] if source_sample_ids is None else source_sample_ids
     merged_db_path = tmp_path / "sample_3.db"
     sample_engines = {
         merged_db_path: sa.create_engine(f"sqlite:///{merged_db_path}"),
@@ -131,7 +133,7 @@ def _build_lai_gate_registry(
             merge_provenance.insert().values(
                 id=1,
                 strategy="prefer_23andme",
-                source_sample_ids=json.dumps([1, 2]),
+                source_sample_ids=json.dumps(raw_source_sample_ids),
                 source_file_hashes=json.dumps(["hash-1", "hash-2"]),
                 concordance_summary=json.dumps(
                     {
@@ -355,6 +357,17 @@ class TestMergedSampleSoftGate:
         with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
             assert is_degraded_for_sample(3) is False
             assert is_degraded_globally() is False
+
+    def test_merged_string_source_id_is_malformed_and_clear(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "ancestrydna_v2.0"),
+            lai_bundle_version="v1.0.0",
+            source_sample_ids=[1, "2"],
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(3) is False
 
     def test_merged_ancestrydna_v2_bundle_is_clear(self, tmp_path: Path):
         registry = _build_lai_gate_registry(
