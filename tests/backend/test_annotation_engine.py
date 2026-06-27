@@ -1413,6 +1413,43 @@ class TestGnomadAnnotationLookupIntegration:
         assert "rs_user_id" in result
         assert result["rs_user_id"]["gnomad_af_global"] == pytest.approx(0.02)
 
+    def test_position_fallback_with_null_reference_rsid(self, gnomad_engine: sa.Engine) -> None:
+        """Exact coordinate lookup recovers gnomAD rows that have no dbSNP rsID."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "(NULL, '1', 10108, 'C', "
+                    "'CAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCT', "
+                    "0.00019821605550049553, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0)"
+                )
+            )
+
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, "
+                    "genotype TEXT, ref TEXT, alt TEXT)"
+                )
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO t VALUES ("
+                    "'sample_no_rsid', '1', 10108, 'ID', 'C', "
+                    "'CAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCT')"
+                )
+            )
+            row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
+
+        result = _lookup_gnomad(["sample_no_rsid"], {"sample_no_rsid": row}, gnomad_engine)
+
+        assert result["sample_no_rsid"]["gnomad_af_global"] == pytest.approx(
+            0.00019821605550049553
+        )
+
     def test_position_lookup_beats_ambiguous_shared_rsid(self, gnomad_engine: sa.Engine) -> None:
         """Exact allele coordinates select the carried ALT at shared-rsID sites."""
         with gnomad_engine.begin() as conn:

@@ -78,7 +78,7 @@ ULTRA_RARE_AF_THRESHOLD = 0.001
 
 CREATE_TABLE_SQL = """\
 CREATE TABLE IF NOT EXISTS gnomad_af (
-    rsid             TEXT NOT NULL,
+    rsid             TEXT,
     chrom            TEXT NOT NULL,
     pos              INTEGER NOT NULL,
     ref              TEXT NOT NULL,
@@ -120,7 +120,7 @@ _INSERT_GNOMAD_SQL = sa.text(
 class GnomADRecord:
     """A single parsed gnomAD variant record."""
 
-    rsid: str
+    rsid: str | None
     chrom: str
     pos: int
     ref: str
@@ -155,7 +155,7 @@ class LoadStats:
 class GnomADAnnotation:
     """gnomAD annotation data for a single variant."""
 
-    rsid: str
+    rsid: str | None
     af_global: float | None
     af_afr: float | None
     af_amr: float | None
@@ -275,13 +275,15 @@ def _extract_rsids(var_id: str) -> list[str]:
     return [vid for vid in var_id.split(";") if vid.startswith("rs")]
 
 
-def _rsid_for_alt(rsids: list[str], alt_index: int, alt_count: int) -> str:
+def _rsid_for_alt(rsids: list[str], alt_index: int, alt_count: int) -> str | None:
     """Choose the best rsID available for an ALT-specific row.
 
     gnomAD's VCF ID column is site-level, not a structured per-ALT field. When
     the number of rsIDs matches the number of ALTs, keep that order; otherwise
     use the first rsID and let the coordinate primary key disambiguate rows.
     """
+    if not rsids:
+        return None
     if len(rsids) == alt_count:
         return rsids[alt_index]
     return rsids[0]
@@ -360,10 +362,9 @@ def parse_gnomad_vcf_records(line: str) -> tuple[list[GnomADRecord], str | None]
     except (ValueError, TypeError):
         return [], "malformed"
 
-    # Extract rsid from ID column
+    # Extract optional rsID from the ID column. gnomAD rows are keyed by
+    # coordinates; many rare/recent variants have no dbSNP rsID yet.
     rsids = _extract_rsids(var_id)
-    if not rsids:
-        return [], "no_rsid"
 
     alts = alt.split(",")
     if any(not allele for allele in alts):
@@ -486,7 +487,9 @@ def iter_gnomad_vcf(
 def _create_gnomad_table(engine: sa.Engine, *, recreate_legacy_rsid_pk: bool = False) -> None:
     """Create only the gnomad_af table (no indexes). Safe to call repeatedly."""
     with engine.begin() as conn:
-        if recreate_legacy_rsid_pk and _gnomad_table_primary_key(conn) == ("rsid",):
+        if recreate_legacy_rsid_pk and (
+            _gnomad_table_primary_key(conn) == ("rsid",) or _gnomad_rsid_is_not_null(conn)
+        ):
             conn.execute(sa.text("DROP TABLE gnomad_af"))
         conn.execute(sa.text(CREATE_TABLE_SQL))
         existing_cols = _gnomad_table_columns(conn)
@@ -503,6 +506,12 @@ def _gnomad_table_primary_key(conn: sa.Connection) -> tuple[str, ...]:
 def _gnomad_table_columns(conn: sa.Connection) -> set[str]:
     """Return column names for the local gnomad_af table."""
     return {row[1] for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))}
+
+
+def _gnomad_rsid_is_not_null(conn: sa.Connection) -> bool:
+    """Return whether the local gnomad_af.rsid column still has NOT NULL."""
+    rows = conn.execute(sa.text("PRAGMA table_info(gnomad_af)")).fetchall()
+    return any(row[1] == "rsid" and bool(row[3]) for row in rows)
 
 
 def _gnomad_af_select_sql(conn: sa.Connection) -> str:
@@ -622,7 +631,7 @@ def load_gnomad_from_csv(
                 stats.total_lines += 1
                 batch.append(
                     {
-                        "rsid": row["rsid"],
+                        "rsid": row.get("rsid") or None,
                         "chrom": row["chrom"],
                         "pos": int(row["pos"]),
                         "ref": row["ref"],

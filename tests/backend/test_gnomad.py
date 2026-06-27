@@ -123,13 +123,19 @@ class TestParseGnomadVcfLine:
         assert record is not None
         assert record.chrom == "1"
 
-    def test_no_rsid_skipped(self):
-        """Lines without an rsid are skipped."""
+    def test_no_rsid_loaded_for_coordinate_lookup(self):
+        """Lines without an rsid are loaded with a NULL rsid."""
         line = "1\t100\t.\tA\tG\t.\tPASS\tAF=0.05"
         record, skip = parse_gnomad_vcf_line(line)
 
-        assert record is None
-        assert skip == "no_rsid"
+        assert skip is None
+        assert record is not None
+        assert record.rsid is None
+        assert record.chrom == "1"
+        assert record.pos == 100
+        assert record.ref == "A"
+        assert record.alt == "G"
+        assert record.af_global == pytest.approx(0.05)
 
     def test_multiallelic_split_per_alt_info(self):
         """Multi-allelic ALT fields are split and keep matching INFO values."""
@@ -233,10 +239,10 @@ class TestIterGnomadVcf:
         for row, stats in iter_gnomad_vcf(vcf_path):
             rows.append(row)
 
-        assert len(rows) == 2  # rs111 and rs222 (no rsid skipped)
+        assert len(rows) == 3  # rs111, no-rsid chr1:200, and rs222
         assert stats.total_lines == 3
-        assert stats.variants_loaded == 2
-        assert stats.skipped_no_rsid == 1
+        assert stats.variants_loaded == 3
+        assert stats.skipped_no_rsid == 0
 
         # Verify first row
         assert rows[0]["rsid"] == "rs111"
@@ -323,6 +329,49 @@ class TestCreateGnomadTables:
             cols = {row[1] for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))}
         assert "af_asj" in cols
 
+    def test_recreates_not_null_coordinate_table_on_clear_load(self, tmp_path: Path):
+        """A rebuild drops the post-#1122 coordinate schema that still required rsid."""
+        engine = sa.create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE gnomad_af ("
+                    "rsid TEXT NOT NULL, chrom TEXT NOT NULL, pos INTEGER NOT NULL, "
+                    "ref TEXT NOT NULL, alt TEXT NOT NULL, af_global REAL, af_afr REAL, "
+                    "af_amr REAL, af_asj REAL, af_eas REAL, af_eur REAL, af_fin REAL, "
+                    "af_sas REAL, homozygous_count INTEGER DEFAULT 0, "
+                    "PRIMARY KEY (chrom, pos, ref, alt))"
+                )
+            )
+
+        vcf_content = textwrap.dedent("""\
+            ##fileformat=VCFv4.2
+            #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
+            1\t200\t.\tC\tT\t.\tPASS\tAF=0.10
+        """)
+        vcf_path = tmp_path / "gnomad.vcf.gz"
+        with gzip.open(vcf_path, "wt") as f:
+            f.write(vcf_content)
+
+        stats = load_gnomad_from_vcf(vcf_path, engine, clear_existing=True)
+
+        assert stats.variants_loaded == 1
+        with engine.connect() as conn:
+            rsid_col = next(
+                row
+                for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))
+                if row[1] == "rsid"
+            )
+            stored = conn.execute(sa.text("SELECT rsid, af_global FROM gnomad_af")).fetchone()
+        assert rsid_col[3] == 0
+        assert stored is not None
+        assert stored.rsid is None
+        assert stored.af_global == pytest.approx(0.10)
+
 
 # ── CSV loading tests ───────────────────────────────────────────────────
 
@@ -393,8 +442,8 @@ class TestLoadGnomadFromVcf:
             count = conn.execute(sa.text("SELECT COUNT(*) FROM gnomad_af")).scalar()
         assert count == 2
 
-    def test_skips_no_rsid_and_splits_multiallelic(self, gnomad_engine: sa.Engine, tmp_path: Path):
-        """Variants without rsid are skipped, while multiallelic ALT rows are split."""
+    def test_loads_no_rsid_and_splits_multiallelic(self, gnomad_engine: sa.Engine, tmp_path: Path):
+        """Variants without rsid are loaded, while multiallelic ALT rows are split."""
         vcf_content = textwrap.dedent("""\
             ##fileformat=VCFv4.2
             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
@@ -408,16 +457,18 @@ class TestLoadGnomadFromVcf:
 
         stats = load_gnomad_from_vcf(vcf_path, gnomad_engine)
 
-        assert stats.variants_loaded == 3
-        assert stats.skipped_no_rsid == 1
+        assert stats.variants_loaded == 4
+        assert stats.skipped_no_rsid == 0
         assert stats.skipped_multiallelic == 0
         assert stats.multiallelic_sites_split == 1
         assert stats.multiallelic_records_loaded == 2
 
         results = lookup_gnomad_by_positions(
-            [("1", 300, "G", "A"), ("1", 300, "G", "T")],
+            [("1", 200, "C", "T"), ("1", 300, "G", "A"), ("1", 300, "G", "T")],
             gnomad_engine,
         )
+        assert results[("1", 200, "C", "T")].rsid is None
+        assert results[("1", 200, "C", "T")].af_global == pytest.approx(0.10)
         assert results[("1", 300, "G", "A")].af_global == pytest.approx(0.20)
         assert results[("1", 300, "G", "A")].af_afr == pytest.approx(0.01)
         assert results[("1", 300, "G", "A")].homozygous_count == 4
