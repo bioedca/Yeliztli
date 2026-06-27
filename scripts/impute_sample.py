@@ -24,6 +24,20 @@ from backend.analysis.imputation_runner import beagle_jar_path
 from backend.db.connection import get_registry
 
 
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {value}")
+    return n
+
+
+def _positive_float(value: str) -> float:
+    f = float(value)
+    if f <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive number, got {value}")
+    return f
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -49,8 +63,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Restrict to specific autosome(s) (repeatable). Default: all 1-22.",
     )
     parser.add_argument("--java-mem", default="8g", help="Beagle JVM heap (default 8g).")
-    parser.add_argument("--nthreads", type=int, default=None, help="Beagle nthreads.")
-    parser.add_argument("--timeout", type=float, default=3600.0, help="Per-chrom seconds.")
+    parser.add_argument("--nthreads", type=_positive_int, default=None, help="Beagle nthreads.")
+    parser.add_argument(
+        "--timeout", type=_positive_float, default=3600.0, help="Per-chrom seconds."
+    )
     args = parser.parse_args(argv)
 
     sample_db: Path = args.sample_db

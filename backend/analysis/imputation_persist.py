@@ -117,6 +117,11 @@ def impute_and_persist_sample(
     imputed variants to the sample DB. Chromosomes whose input produced no usable
     sites, or whose Beagle run failed, are skipped (their failure is recorded in
     ``chrom_results``). Returns counts plus the DR2/firewall summaries.
+
+    **Partial-failure safety.** ``persist_imputed_variants`` replaces the whole
+    table, so it runs **only when every attempted chromosome succeeded** — if any
+    Beagle run failed, persistence is skipped (``n_persisted == 0``) so a partial
+    run can never overwrite a complete prior snapshot with a partial one.
     """
     work_dir = Path(work_dir)
     input_result = write_imputation_input_vcfs(
@@ -137,8 +142,21 @@ def impute_and_persist_sample(
             all_variants.extend(parse_imputed_vcf(res.output_vcf))
 
     quality = summarize_dr2(all_variants)
+    quality.chrom_runtimes = {r.chrom: r.runtime_seconds for r in chrom_results if r.return_ok}
     firewall = summarize_firewall(all_variants)
-    n_persisted = persist_imputed_variants(sample_engine, all_variants)
+
+    failed_chroms = [r.chrom for r in chrom_results if not r.return_ok]
+    if failed_chroms:
+        # A full-table replace with only the surviving chromosomes' variants would
+        # silently overwrite a complete prior snapshot — refuse and preserve it.
+        logger.warning(
+            "impute_partial_failure_persist_skipped",
+            failed_chroms=failed_chroms,
+            n_input_sites=input_result.n_emitted,
+        )
+        n_persisted = 0
+    else:
+        n_persisted = persist_imputed_variants(sample_engine, all_variants)
 
     logger.info(
         "impute_and_persist_complete",
@@ -146,6 +164,7 @@ def impute_and_persist_sample(
         chromosomes=len(input_result.vcf_paths),
         n_imputed=quality.n_imputed,
         n_persisted=n_persisted,
+        failed_chroms=failed_chroms,
     )
     return ImputePersistResult(
         n_input_sites=input_result.n_emitted,

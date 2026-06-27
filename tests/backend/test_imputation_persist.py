@@ -104,14 +104,15 @@ _FAKE_IMPUTED_VCF = (
 )
 
 
-def _stub_panel_and_jar(tmp_path: Path) -> tuple[Path, Path]:
+def _stub_panel_and_jar(tmp_path: Path, *, chroms: tuple[str, ...] = ("22",)) -> tuple[Path, Path]:
     jar = tmp_path / "lai" / "beagle" / "beagle.jar"
     jar.parent.mkdir(parents=True)
     jar.touch()
     panel = tmp_path / "panel"
     panel.mkdir()
-    (panel / "chr22.1kg.phase3.v5a.b37.bref3").touch()
-    (panel / "plink.chr22.GRCh37.map").touch()
+    for c in chroms:
+        (panel / f"chr{c}.1kg.phase3.v5a.b37.bref3").touch()
+        (panel / f"plink.chr{c}.GRCh37.map").touch()
     return panel, jar
 
 
@@ -168,6 +169,62 @@ class TestImputeAndPersistSample:
             "A",
             0.95,
         )
+
+    def test_partial_failure_skips_persist_and_preserves_prior(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        # Reference-aligned input on two chromosomes.
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert(),
+                [
+                    {
+                        "rsid": "rsA",
+                        "chrom": "21",
+                        "pos": 100,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "zygosity": "het",
+                    },
+                    {
+                        "rsid": "rsB",
+                        "chrom": "22",
+                        "pos": 200,
+                        "ref": "A",
+                        "alt": "G",
+                        "genotype": "AG",
+                        "zygosity": "het",
+                    },
+                ],
+            )
+        # A complete prior snapshot that must survive a partial re-run.
+        persist_imputed_variants(sample_engine, [_iv(pos=999, dr2=0.95, af=0.40, imputed=True)])
+        assert [r["pos"] for r in _read_rows(sample_engine)] == [999]
+
+        def fake_run(cmd, **_kw):  # noqa: ANN001, ANN202
+            out_prefix = next(a.split("=", 1)[1] for a in cmd if a.startswith("out="))
+            if out_prefix.endswith("imputed_chr21"):
+                return SimpleNamespace(returncode=1, stdout="", stderr="boom")  # chr21 fails
+            with gzip.open(Path(out_prefix + ".vcf.gz"), "wt", encoding="utf-8") as fh:
+                fh.write(_FAKE_IMPUTED_VCF)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(ir_mod.subprocess, "run", fake_run)
+        panel, jar = _stub_panel_and_jar(tmp_path, chroms=("21", "22"))
+
+        result = impute_and_persist_sample(
+            sample_engine,
+            tmp_path / "work",
+            panel_dir=panel,
+            beagle_jar=jar,
+            chromosomes=("21", "22"),
+        )
+
+        assert any(not r.return_ok for r in result.chrom_results)  # chr21 failed
+        assert result.n_persisted == 0  # persistence skipped on partial failure
+        # The prior snapshot is preserved (not overwritten by chr22-only data).
+        assert [r["pos"] for r in _read_rows(sample_engine)] == [999]
 
     def test_missing_jar_raises(self, tmp_path: Path) -> None:
         panel = tmp_path / "panel"

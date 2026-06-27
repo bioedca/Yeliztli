@@ -934,9 +934,18 @@ imputed_variants = sa.Table(
     sa.Column("pos", sa.Integer, nullable=False),
     sa.Column("ref", sa.Text, nullable=False),
     sa.Column("alt", sa.Text, nullable=False),
-    sa.Column("dr2", sa.Float, comment="Beagle dosage R^2 imputation quality (0-1)"),
-    sa.Column("af", sa.Float, comment="Beagle estimated ALT allele frequency (0-1)"),
+    # Only firewall-cleared rows are ever persisted, so dr2/af are always present and
+    # in [0, 1]; enforce that at the schema level so a bad insert can't slip a null /
+    # out-of-range quality value past the firewall guarantee.
+    sa.Column(
+        "dr2", sa.Float, nullable=False, comment="Beagle dosage R^2 imputation quality (0-1)"
+    ),
+    sa.Column(
+        "af", sa.Float, nullable=False, comment="Beagle estimated ALT allele frequency (0-1)"
+    ),
     sa.PrimaryKeyConstraint("chrom", "pos", "alt"),
+    sa.CheckConstraint("dr2 >= 0 AND dr2 <= 1", name="ck_imputed_variants_dr2_range"),
+    sa.CheckConstraint("af >= 0 AND af <= 1", name="ck_imputed_variants_af_range"),
 )
 
 # ── Merge Provenance (single-row, present only on merged samples) ─────
