@@ -540,7 +540,9 @@ class TestBigFivePersonality:
         )
         coordinates = json.loads(coordinate_path.read_text(encoding="utf-8"))["rsids"]
 
-        for snp in self._get_personality_snps(panel_data):
+        snps = self._get_personality_snps(panel_data)
+        assert snps
+        for snp in snps:
             expected = BIG_FIVE_SUPPORTED_LOCI[snp["trait_domain"]]
             assert snp["rsid"] == expected["rsid"]
             assert snp["gene"] == expected["gene"]
