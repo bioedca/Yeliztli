@@ -499,6 +499,19 @@ describe("VariantTable", () => {
       expect(screen.getByText("1.00e-5")).toBeInTheDocument()
     })
   })
+
+  it("labels source-uncovered gnomAD rows as not assessed", async () => {
+    const page = makeVariantPage(1)
+    page.items[0].gnomad_af_global = null
+    page.items[0].gnomad_source_status = "source_uncovered"
+    setupFetchMock(page, makeCountResponse(1))
+
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Not assessed")).toBeInTheDocument()
+    })
+  })
 })
 
 describe("VariantToolbar", () => {

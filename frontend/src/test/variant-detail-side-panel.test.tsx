@@ -215,6 +215,25 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     expect(screen.getByText("MANE Select")).toBeInTheDocument()
   })
 
+  it("labels source-uncovered gnomAD frequency as not assessed", async () => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariantDetail,
+        gnomad_af_global: null,
+        gnomad_source_status: "source_uncovered",
+      }),
+    }))
+
+    render(
+      <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("Not assessed")).toBeInTheDocument()
+    })
+  })
+
   it("maps the single-char PolyPhen-2 code 'D' to 'Probably Damaging' in the damaging colour (#680)", async () => {
     // The backend stores the raw dbNSFP code ("D"), not "probably_damaging";
     // pre-fix the full-word check never matched, so a probably-damaging call
