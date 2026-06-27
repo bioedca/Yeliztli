@@ -82,18 +82,21 @@ def _iter_gene_rows(
 
         rsid = obj.get("rsid")
         gene = obj.get("gene")
-        if isinstance(rsid, str) and isinstance(gene, str) and gene.strip():
-            variant_name = obj.get("variant_name")
-            rows.append(
-                PanelGeneRow(
-                    panel=panel,
-                    path=path,
-                    rsid=rsid,
-                    declared_gene=gene,
-                    variant_name=variant_name if isinstance(variant_name, str) else None,
-                    context=_context_label(next_context),
+        if isinstance(rsid, str) and isinstance(gene, str):
+            rsid = rsid.strip()
+            gene = gene.strip()
+            if rsid and gene:
+                variant_name = obj.get("variant_name")
+                rows.append(
+                    PanelGeneRow(
+                        panel=panel,
+                        path=path,
+                        rsid=rsid,
+                        declared_gene=gene,
+                        variant_name=variant_name if isinstance(variant_name, str) else None,
+                        context=_context_label(next_context),
+                    )
                 )
-            )
 
         for key, value in obj.items():
             rows.extend(_iter_gene_rows(value, panel, next_context, f"{path}.{key}"))
@@ -293,11 +296,11 @@ class TestPanelDeclaredGeneCoordinates:
                 if row.panel == panel and row.rsid == rsid and row.declared_gene == declared_gene
             ]
             assert matches, f"{panel}|{rsid}|{declared_gene}"
-            row = matches[0]
-            symbols = _declared_gene_symbols(row.declared_gene, aliases)
-            assert any(_overlaps(rsid_coords[row.rsid], genes[symbol]) for symbol in symbols), (
-                row.key
-            )
+            for row in matches:
+                symbols = _declared_gene_symbols(row.declared_gene, aliases)
+                assert any(
+                    _overlaps(rsid_coords[row.rsid], genes[symbol]) for symbol in symbols
+                ), row.key
 
         rasa1_rows = [
             row
