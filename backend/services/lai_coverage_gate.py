@@ -204,8 +204,9 @@ def is_degraded_globally() -> bool:
 
     Powers the dashboard-mounted ``<AppUpdateBanner>`` (Plan §6.7) — the
     banner surfaces once per install, independent of which sample is
-    currently selected. Walks ``samples.file_format`` (reference DB only;
-    no per-sample DB opens).
+    currently selected. Direct vendor checks stay in the reference DB;
+    ``merged_v1`` rows open their per-sample DB once to read merge
+    provenance.
     """
     bundle_version = _read_installed_lai_version()
     if not lai_bundle_below_v2(bundle_version):

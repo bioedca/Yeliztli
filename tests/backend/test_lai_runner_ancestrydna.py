@@ -358,12 +358,17 @@ class TestMergedSampleSoftGate:
             assert is_degraded_for_sample(3) is False
             assert is_degraded_globally() is False
 
-    def test_merged_string_source_id_is_malformed_and_clear(self, tmp_path: Path):
+    @pytest.mark.parametrize("bad_source_id", ["2", 2.0, True])
+    def test_merged_non_integer_source_id_is_malformed_and_clear(
+        self,
+        tmp_path: Path,
+        bad_source_id: object,
+    ):
         registry = _build_lai_gate_registry(
             tmp_path,
             source_file_formats=("23andme_v5", "ancestrydna_v2.0"),
             lai_bundle_version="v1.0.0",
-            source_sample_ids=[1, "2"],
+            source_sample_ids=[1, bad_source_id],
         )
 
         with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
