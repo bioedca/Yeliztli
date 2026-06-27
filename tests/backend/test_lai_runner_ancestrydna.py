@@ -19,6 +19,9 @@ the flag, regardless of bundle version.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -27,9 +30,18 @@ import sqlalchemy as sa
 from backend.analysis.lai import _read_sample_file_format, _read_sample_genotypes
 from backend.analysis.lai_runner import LAIRunner
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import raw_variants, sample_metadata_table
+from backend.db.tables import (
+    database_versions,
+    merge_provenance,
+    raw_variants,
+    reference_metadata,
+    sample_metadata_table,
+    samples,
+)
 from backend.services.lai_coverage_gate import (
     file_format_has_ancestrydna,
+    is_degraded_for_sample,
+    is_degraded_globally,
     is_lai_coverage_degraded,
     lai_bundle_below_v2,
 )
@@ -98,6 +110,84 @@ def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
         src = site.get("source", "") or ""
         counts.setdefault(src, {"hits": 0, "drops": 0})["hits"] += 1
     return counts
+
+
+def _build_lai_gate_registry(
+    tmp_path: Path,
+    *,
+    source_file_formats: tuple[str, str],
+    lai_bundle_version: str,
+) -> SimpleNamespace:
+    """Reference DB + merged sample DB fixture for LAI soft-gate wrappers."""
+    reference_engine = sa.create_engine("sqlite://")
+    reference_metadata.create_all(reference_engine)
+    merged_db_path = tmp_path / "sample_3.db"
+    sample_engines = {
+        merged_db_path: sa.create_engine(f"sqlite:///{merged_db_path}"),
+    }
+    create_sample_tables(sample_engines[merged_db_path], is_merged_sample=True)
+    with sample_engines[merged_db_path].begin() as conn:
+        conn.execute(
+            merge_provenance.insert().values(
+                id=1,
+                strategy="prefer_23andme",
+                source_sample_ids=json.dumps([1, 2]),
+                source_file_hashes=json.dumps(["hash-1", "hash-2"]),
+                concordance_summary=json.dumps(
+                    {
+                        "match": 0,
+                        "filled_nocall": 0,
+                        "discordant": 0,
+                        "unique_S1": 0,
+                        "unique_S2": 0,
+                        "collapsed_rsid": 0,
+                    }
+                ),
+            )
+        )
+
+    with reference_engine.begin() as conn:
+        conn.execute(
+            database_versions.insert().values(
+                db_name="lai_bundle",
+                version=lai_bundle_version,
+            )
+        )
+        conn.execute(
+            samples.insert(),
+            [
+                {
+                    "id": 1,
+                    "name": "source-1",
+                    "db_path": "sample_1.db",
+                    "file_format": source_file_formats[0],
+                    "file_hash": "hash-1",
+                },
+                {
+                    "id": 2,
+                    "name": "source-2",
+                    "db_path": "sample_2.db",
+                    "file_format": source_file_formats[1],
+                    "file_hash": "hash-2",
+                },
+                {
+                    "id": 3,
+                    "name": "merged",
+                    "db_path": "sample_3.db",
+                    "file_format": "merged_v1",
+                    "file_hash": "merged-hash",
+                },
+            ],
+        )
+
+    def get_sample_engine(sample_db_path: Path) -> sa.Engine:
+        return sample_engines[Path(sample_db_path)]
+
+    return SimpleNamespace(
+        reference_engine=reference_engine,
+        settings=SimpleNamespace(data_dir=tmp_path),
+        get_sample_engine=get_sample_engine,
+    )
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────
@@ -238,3 +328,41 @@ class TestSoftGate:
         """Defensive: an empty file_format never degrades."""
         assert is_lai_coverage_degraded(None, "v1.0.0") is False
         assert is_lai_coverage_degraded("", "v1.0.0") is False
+
+
+class TestMergedSampleSoftGate:
+    """Merged samples inherit AncestryDNA LAI warnings from source provenance."""
+
+    def test_merged_23andme_ancestrydna_pre_v2_is_degraded(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "ancestrydna_v2.0"),
+            lai_bundle_version="v1.0.0",
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(2) is True
+            assert is_degraded_for_sample(3) is True
+            assert is_degraded_globally() is True
+
+    def test_merged_23andme_only_pre_v2_is_clear(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "23andme_v4"),
+            lai_bundle_version="v1.0.0",
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(3) is False
+            assert is_degraded_globally() is False
+
+    def test_merged_ancestrydna_v2_bundle_is_clear(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "ancestrydna_v2.0"),
+            lai_bundle_version="v2.0.0",
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(3) is False
+            assert is_degraded_globally() is False
