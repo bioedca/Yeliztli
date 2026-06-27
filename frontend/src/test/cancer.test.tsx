@@ -248,6 +248,8 @@ describe("VariantCard", () => {
     const caveat = screen.getByTestId("cancer-clinical-caveat")
     expect(caveat).toHaveTextContent("parent-of-origin")
     expect(caveat).toHaveTextContent("paternal inheritance")
+    const button = screen.getByRole("button", { name: "SDHD rs28934575 — Pathogenic" })
+    expect(button).toHaveAttribute("aria-describedby", caveat.id)
   })
 
   it("renders evidence stars", () => {

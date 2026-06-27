@@ -900,6 +900,7 @@ class TestStoreCancerFindings:
         assert len(fetched) == 1
         assert "parent-of-origin" in fetched[0]["clinical_caveat"]
         assert "paternal inheritance" in fetched[0]["clinical_caveat"]
+        assert {"15064708", "23493432"} <= set(fetched[0]["pmids"])
 
     def test_clears_previous_findings_on_rerun(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine

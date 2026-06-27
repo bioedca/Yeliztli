@@ -150,12 +150,12 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
 
 
 @lru_cache(maxsize=1)
-def _cancer_clinical_caveats_by_gene() -> dict[str, str]:
-    """Return curated user-facing caveats keyed by gene symbol."""
+def _cancer_panel_metadata_by_gene() -> dict[str, tuple[str, tuple[str, ...]]]:
+    """Return current panel caveats and PMIDs keyed by gene symbol."""
     return {
-        gene.gene_symbol.upper(): gene.clinical_caveat
+        gene.gene_symbol.upper(): (gene.clinical_caveat, tuple(gene.pmids))
         for gene in load_cancer_panel().genes
-        if gene.clinical_caveat
+        if gene.clinical_caveat or gene.pmids
     }
 
 
@@ -203,9 +203,13 @@ def _fetch_cancer_findings(
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Failed to parse pmid_citations for finding id=%s", row.id)
 
-        clinical_caveat = detail.get("clinical_caveat") or _cancer_clinical_caveats_by_gene().get(
-            (row.gene_symbol or "").upper()
+        current_panel_caveat, current_panel_pmids = _cancer_panel_metadata_by_gene().get(
+            (row.gene_symbol or "").upper(),
+            ("", ()),
         )
+        clinical_caveat = detail.get("clinical_caveat") or current_panel_caveat or None
+        if clinical_caveat:
+            pmids = [*pmids, *(pmid for pmid in current_panel_pmids if pmid not in pmids)]
 
         result.append(
             {
