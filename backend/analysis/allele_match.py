@@ -204,6 +204,55 @@ def match_effect_allele_dosage(
     return AlleleMatch(None, UNRESOLVED, "n/a")
 
 
+def imputed_effect_dosage(
+    ref: str,
+    alt: str,
+    alt_dosage: float,
+    effect_allele: str,
+    other_allele: str | None,
+) -> float | None:
+    """Orient an imputed ALT dose to a weight's effect allele, or ``None`` to drop.
+
+    The imputed variant carries the panel's plus-strand ``(ref, alt)`` and a
+    continuous ALT dose in [0, 2] (Beagle ``DS``). Returns the **effect-allele**
+    dose, harmonizing the weight's ``{effect, other}`` frame against ``{ref, alt}``
+    on the reference strand, then the complemented strand — the continuous-dose
+    analogue of :func:`match_effect_allele_dosage`.
+
+    Conservative by design, two ways:
+
+    - **Requires ``other_allele``** — a lone effect allele can't be strand-resolved
+      (the legacy literal-count path that :func:`match_effect_allele_dosage` keeps
+      for hand-curated weights would *introduce* a strand inversion here), so a
+      weight without ``other_allele`` is dropped (returns ``None``).
+    - **Drops strand-ambiguous palindromes** (``other == complement(effect)``):
+      the zygosity rule that rescues a palindromic heterozygote needs a discrete
+      genotype; a continuous dose can't be oriented, so it's dropped, never taken
+      at face value.
+
+    Returns ``None`` when ``ref``/``alt``/alleles aren't single-base A/C/G/T, when
+    ``ref == alt``, or when the weight's pair fits neither strand.
+    """
+    if other_allele is None:
+        return None
+    ea = effect_allele.strip().upper()
+    oa = other_allele.strip().upper()
+    r = ref.strip().upper()
+    a = alt.strip().upper()
+    if any(x not in COMPLEMENT for x in (ea, oa, r, a)):
+        return None
+    if r == a:
+        return None
+    if oa == COMPLEMENT[ea]:  # strand-ambiguous palindrome → undecidable for a dose
+        return None
+    pair = {ea, oa}
+    if pair == {r, a}:  # reference strand: ALT dose is the alt-allele dose
+        return alt_dosage if ea == a else 2.0 - alt_dosage
+    if pair == {COMPLEMENT[r], COMPLEMENT[a]}:  # complemented strand
+        return alt_dosage if ea == COMPLEMENT[a] else 2.0 - alt_dosage
+    return None  # alleles fit neither strand (different/triallelic variant)
+
+
 def canonical_alleles(
     genotype: str | None,
     ref: str | None,

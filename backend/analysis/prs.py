@@ -63,6 +63,7 @@ from backend.analysis.allele_match import (
     MISSING_FREQ,
     NO_CALL,
     UNRESOLVED,
+    imputed_effect_dosage,
     match_effect_allele_dosage,
 )
 from backend.analysis.ancestry import ancestry_covered
@@ -72,11 +73,14 @@ from backend.analysis.prs_calibration import (
     continuous_reference_distribution,
 )
 from backend.analysis.return_framing import prs_return_framing
-from backend.db.tables import annotated_variants, findings
+from backend.db.tables import annotated_variants, findings, imputed_variants
 
 logger = structlog.get_logger(__name__)
 
 PRS_HIGHER_IS_RISK = "risk"
+# Match-status marker for a contribution scored from a firewall-cleared imputed
+# dosage rather than a typed genotype (SW-C5).
+IMPUTED_MATCH_STATUS = "imputed"
 PRS_HIGHER_IS_PROTECTIVE = "protective"
 PRS_HIGHER_IS_VALUES = frozenset({PRS_HIGHER_IS_RISK, PRS_HIGHER_IS_PROTECTIVE})
 
@@ -221,10 +225,12 @@ class PRSSNPContribution:
     effect_allele: str
     weight: float
     genotype: str | None
-    dosage: int  # 0, 1, or 2 copies of effect allele
+    # Effect-allele copies: an integer 0/1/2 for a typed call, or a continuous
+    # [0, 2] dose for an imputed one (SW-C5).
+    dosage: float
     contribution: float  # weight * dosage
-    match_status: str = MATCHED_REF  # allele_match status (matched_ref/flip/no_call/…)
-    strand: str = "ref"  # "ref" | "flip" | "n/a"
+    match_status: str = MATCHED_REF  # allele_match status (matched_ref/flip/no_call/imputed/…)
+    strand: str = "ref"  # "ref" | "flip" | "n/a" | "imputed"
 
 
 @dataclass
@@ -274,6 +280,13 @@ class PRSResult:
     snps_used: int = 0
     snps_total: int = 0
     coverage_fraction: float = 0.0
+    # SW-C5: imputation-aware coverage. ``snps_used`` counts typed AND imputed
+    # scored variants (so ``coverage_fraction`` and ``is_sufficient`` reflect the
+    # combined reach); ``snps_used_imputed`` discloses the imputed subset (0 when no
+    # imputation has been persisted → behaviour identical to the typed-only path).
+    # ``coverage_tier`` flags whether the percentile leans on imputed common variants.
+    snps_used_imputed: int = 0
+    coverage_tier: str = "typed_only"  # "typed_only" | "imputed"
     # Harmonization disclosure (EXPANSION_STRATEGY.md §10): weight SNPs present
     # in the sample but excluded from / adjusted in the score, surfaced rather
     # than silently dropped.
@@ -445,6 +458,66 @@ def _load_sample_genotypes(
     return rsid_geno, rsid_af, pos_geno, pos_af
 
 
+def _load_imputed_dosages(
+    weight_set: PRSWeightSet,
+    sample_engine: sa.Engine,
+) -> dict[tuple[str | None, int], list[tuple[str, str, float]]]:
+    """Load firewall-cleared imputed ``(ref, alt, dosage)`` keyed by ``(norm_chrom, pos)``.
+
+    The fallback dosages the PRS scorer uses for weight SNPs the array did not type
+    (SW-C5). ``imputed_variants`` is positional only (no rsID), so weights without a
+    chrom/pos can't be rescued. Empty when no imputation has been persisted —
+    scoring is then typed-only, identical to the pre-SW-C5 behaviour.
+    """
+    wanted = {
+        (_norm_chrom(w.chrom), w.pos) for w in weight_set.weights if w.chrom and w.pos is not None
+    }
+    if not wanted:
+        return {}
+    out: dict[tuple[str | None, int], list[tuple[str, str, float]]] = {}
+    with sample_engine.connect() as conn:
+        if not sa.inspect(conn).has_table("imputed_variants"):
+            return {}
+        rows = conn.execute(
+            sa.select(
+                imputed_variants.c.chrom,
+                imputed_variants.c.pos,
+                imputed_variants.c.ref,
+                imputed_variants.c.alt,
+                imputed_variants.c.dosage,
+            )
+        ).fetchall()
+    for r in rows:
+        if r.dosage is None:
+            continue
+        key = (_norm_chrom(r.chrom), r.pos)
+        if key in wanted:
+            out.setdefault(key, []).append((r.ref, r.alt, r.dosage))
+    return out
+
+
+def _imputed_dosage_for_weight(
+    imputed_dose: dict[tuple[str | None, int], list[tuple[str, str, float]]],
+    weight: PRSSNPWeight,
+) -> float | None:
+    """Effect-allele dose for ``weight`` from its imputed candidates, or ``None``.
+
+    Tries each imputed ALT allele at the weight's position, harmonized to the
+    weight's effect-allele frame (:func:`imputed_effect_dosage`); returns the first
+    that resolves, else ``None`` (no imputed coverage / allele mismatch / palindrome).
+    """
+    if not weight.chrom or weight.pos is None:
+        return None
+    candidates = imputed_dose.get((_norm_chrom(weight.chrom), weight.pos))
+    if not candidates:
+        return None
+    for ref, alt, alt_dose in candidates:
+        dose = imputed_effect_dosage(ref, alt, alt_dose, weight.effect_allele, weight.other_allele)
+        if dose is not None:
+            return dose
+    return None
+
+
 def compute_prs(
     weight_set: PRSWeightSet,
     sample_engine: sa.Engine,
@@ -468,10 +541,12 @@ def compute_prs(
     # (chrom, pos) — required for genome-wide PGS Catalog scores whose harmonized
     # files omit hm_rsID (SW-B4).
     rsid_geno, rsid_af, pos_geno, pos_af = _load_sample_genotypes(weight_set, sample_engine)
+    imputed_dose = _load_imputed_dosages(weight_set, sample_engine)
 
     contributions: list[PRSSNPContribution] = []
     raw_score = 0.0
     snps_used = 0
+    snps_used_imputed = 0
     snps_no_call = 0
     snps_ambiguous_dropped = 0
     snps_strand_flipped = 0
@@ -495,31 +570,63 @@ def compute_prs(
         # snps_used — identical to the historical "missing" treatment — and
         # disclosed via the counters below.
         scored = match.status in (MATCHED_REF, MATCHED_FLIP) and match.dosage is not None
-        dosage = match.dosage if scored else 0
-        contribution = w.weight * dosage
-
         if scored:
             snps_used += 1
-            raw_score += contribution
+            raw_score += w.weight * match.dosage
             if match.status == MATCHED_FLIP:
                 snps_strand_flipped += 1
-        elif present:
-            # Present in the sample but not scored → tally why.
+            contributions.append(
+                PRSSNPContribution(
+                    rsid=w.rsid,
+                    effect_allele=w.effect_allele,
+                    weight=w.weight,
+                    genotype=genotype,
+                    dosage=match.dosage,
+                    contribution=w.weight * match.dosage,
+                    match_status=match.status,
+                    strand=match.strand,
+                )
+            )
+            continue
+
+        # SW-C5: the array did not score this SNP — fall back to a firewall-cleared
+        # imputed dosage (well-imputed AND common) when one is available. This is
+        # what lifts coverage above the withholding threshold for imputable scores.
+        imp_dose = _imputed_dosage_for_weight(imputed_dose, w)
+        if imp_dose is not None:
+            snps_used += 1
+            snps_used_imputed += 1
+            raw_score += w.weight * imp_dose
+            contributions.append(
+                PRSSNPContribution(
+                    rsid=w.rsid,
+                    effect_allele=w.effect_allele,
+                    weight=w.weight,
+                    genotype=None,
+                    dosage=imp_dose,
+                    contribution=w.weight * imp_dose,
+                    match_status=IMPUTED_MATCH_STATUS,
+                    strand=IMPUTED_MATCH_STATUS,
+                )
+            )
+            continue
+
+        # Neither typed nor imputed → disclose the typed status; no contribution.
+        if present:
             if match.status == NO_CALL:
                 snps_no_call += 1
             elif match.status in (AMBIGUOUS_DROPPED, MISSING_FREQ):
                 snps_ambiguous_dropped += 1
             elif match.status == UNRESOLVED:
                 snps_unresolved += 1
-
         contributions.append(
             PRSSNPContribution(
                 rsid=w.rsid,
                 effect_allele=w.effect_allele,
                 weight=w.weight,
                 genotype=genotype,
-                dosage=dosage,
-                contribution=contribution if scored else 0.0,
+                dosage=0,
+                contribution=0.0,
                 match_status=match.status,
                 strand=match.strand,
             )
@@ -527,14 +634,17 @@ def compute_prs(
 
     snps_total = weight_set.snp_count
     coverage_fraction = snps_used / snps_total if snps_total > 0 else 0.0
+    coverage_tier = IMPUTED_MATCH_STATUS if snps_used_imputed > 0 else "typed_only"
 
     logger.info(
         "prs_computed",
         trait=weight_set.trait,
         raw_score=round(raw_score, 6),
         snps_used=snps_used,
+        snps_used_imputed=snps_used_imputed,
         snps_total=snps_total,
         coverage=round(coverage_fraction, 3),
+        coverage_tier=coverage_tier,
         no_call=snps_no_call,
         ambiguous_dropped=snps_ambiguous_dropped,
         strand_flipped=snps_strand_flipped,
@@ -554,8 +664,10 @@ def compute_prs(
         raw_score=raw_score,
         higher_is=normalize_prs_higher_is(weight_set.higher_is),
         snps_used=snps_used,
+        snps_used_imputed=snps_used_imputed,
         snps_total=snps_total,
         coverage_fraction=coverage_fraction,
+        coverage_tier=coverage_tier,
         snps_no_call=snps_no_call,
         snps_ambiguous_dropped=snps_ambiguous_dropped,
         snps_strand_flipped=snps_strand_flipped,
@@ -649,13 +761,13 @@ def compute_prs_bootstrap_ci(
         return result
 
     # Extract contributions from SNPs that were actually scored (resolved to a
-    # real dosage). No-call / strand-ambiguous-dropped / unresolved SNPs carry a
-    # non-None genotype but contributed 0 to the score, so they must not dilute
-    # the bootstrap resample.
+    # real dosage — typed on either strand, or imputed). No-call /
+    # strand-ambiguous-dropped / unresolved SNPs contributed 0 to the score, so
+    # they must not dilute the bootstrap resample.
     used_contributions = [
         c
         for c in result.contributions
-        if c.match_status in (MATCHED_REF, MATCHED_FLIP) and c.genotype is not None
+        if c.match_status in (MATCHED_REF, MATCHED_FLIP, IMPUTED_MATCH_STATUS)
     ]
     if not used_contributions:
         result.bootstrap_ci_lower = result.percentile
@@ -1133,8 +1245,10 @@ def store_prs_findings(
             "source_pmid": r.source_pmid,
             "sample_size": r.sample_size,
             "snps_used": r.snps_used,
+            "snps_used_imputed": r.snps_used_imputed,
             "snps_total": r.snps_total,
             "coverage_fraction": r.coverage_fraction,
+            "coverage_tier": r.coverage_tier,
             "snps_no_call": r.snps_no_call,
             "snps_ambiguous_dropped": r.snps_ambiguous_dropped,
             "snps_strand_flipped": r.snps_strand_flipped,

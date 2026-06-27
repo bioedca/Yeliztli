@@ -13,6 +13,8 @@ Covers EXPANSION_STRATEGY.md §10 harmonization (proposal #4):
 
 from __future__ import annotations
 
+import pytest
+
 from backend.analysis.allele_match import (
     AMBIGUOUS_DROPPED,
     MATCHED_FLIP,
@@ -20,6 +22,7 @@ from backend.analysis.allele_match import (
     MISSING_FREQ,
     NO_CALL,
     UNRESOLVED,
+    imputed_effect_dosage,
     match_effect_allele_dosage,
     risk_dosage,
 )
@@ -236,3 +239,38 @@ class TestRiskDosageNoComplement:
         # The flag defaults to True, preserving nuclear strand-flip resolution.
         assert risk_dosage("C", "G", "A") == 1
         assert risk_dosage("TC", "A", "G") == 1
+
+
+class TestImputedEffectDosage:
+    """Orient a continuous imputed ALT dose to a weight's effect allele (SW-C5)."""
+
+    def test_reference_strand_effect_is_alt(self) -> None:
+        # Panel ref=A alt=G, ALT dose 1.4; effect=G (the alt) → dose passes through.
+        assert imputed_effect_dosage("A", "G", 1.4, "G", "A") == pytest.approx(1.4)
+
+    def test_reference_strand_effect_is_ref(self) -> None:
+        # effect=A (the ref) → effect dose is 2 - alt_dose.
+        assert imputed_effect_dosage("A", "G", 1.4, "A", "G") == pytest.approx(0.6)
+
+    def test_complemented_strand(self) -> None:
+        # Weight on the opposite strand: panel ref=A alt=G; weight effect=C other=T
+        # (= complement of G/A). effect C = complement(alt G) → passes the ALT dose.
+        assert imputed_effect_dosage("A", "G", 1.4, "C", "T") == pytest.approx(1.4)
+        # effect=T = complement(ref A) → 2 - alt_dose.
+        assert imputed_effect_dosage("A", "G", 1.4, "T", "C") == pytest.approx(0.6)
+
+    def test_palindrome_dropped(self) -> None:
+        # effect/other complementary (A/T) → strand-ambiguous for a continuous dose.
+        assert imputed_effect_dosage("A", "T", 1.0, "A", "T") is None
+
+    def test_requires_other_allele(self) -> None:
+        assert imputed_effect_dosage("A", "G", 1.0, "G", None) is None
+
+    def test_allele_mismatch_dropped(self) -> None:
+        # Weight {C,T} matches neither {A,G} nor its complement {T,C}? T,C IS the
+        # complement of A,G → that's a flip, not a mismatch. Use a real mismatch.
+        assert imputed_effect_dosage("A", "G", 1.0, "C", "A") is None
+
+    def test_non_snp_or_equal_alleles_dropped(self) -> None:
+        assert imputed_effect_dosage("AT", "G", 1.0, "G", "A") is None  # ref not single-base
+        assert imputed_effect_dosage("A", "A", 1.0, "A", "A") is None  # ref == alt

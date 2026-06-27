@@ -35,7 +35,7 @@ from backend.analysis.prs import (
     run_prs,
     store_prs_findings,
 )
-from backend.db.tables import annotated_variants, findings
+from backend.db.tables import annotated_variants, findings, imputed_variants
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -1665,3 +1665,88 @@ class TestPRSResult:
             bootstrap_ci_upper=60.0,
         )
         assert result.has_bootstrap_ci is True
+
+
+class TestImputationAwareCoverage:
+    """SW-C5: firewall-cleared imputed dosages lift PRS coverage above the gate."""
+
+    @staticmethod
+    def _weight_set() -> PRSWeightSet:
+        # 4 positional SNPs (rsID + chrom/pos + other_allele so imputed matching works).
+        return PRSWeightSet(
+            name="Imputed-aware test",
+            trait="t2d",
+            module="metabolic",
+            source_ancestry="EUR",
+            source_study="Test 2026",
+            source_pmid="1",
+            sample_size=1000,
+            weights=[
+                PRSSNPWeight("rs1", "G", 0.5, other_allele="A", chrom="1", pos=100),
+                PRSSNPWeight("rs2", "T", 0.3, other_allele="C", chrom="2", pos=200),
+                PRSSNPWeight("rs3", "A", 0.2, other_allele="G", chrom="3", pos=300),
+                PRSSNPWeight("rs4", "C", 0.1, other_allele="T", chrom="4", pos=400),
+            ],
+            reference_mean=0.5,
+            reference_std=0.2,
+        )
+
+    def test_imputed_dosage_lifts_coverage_and_unwithholds(self, sample_engine: sa.Engine) -> None:
+        ws = self._weight_set()
+        # Only rs1 is directly typed → 1/4 = 25% typed coverage (below the 50% gate).
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AG"}],
+            )
+            # rs2, rs3 are imputed (firewall-cleared, with dosage); rs4 stays missing.
+            conn.execute(
+                sa.insert(imputed_variants),
+                [
+                    # rs2 effect=T is the ALT → dose passes through (DS 1.5).
+                    {
+                        "chrom": "2",
+                        "pos": 200,
+                        "ref": "C",
+                        "alt": "T",
+                        "dr2": 0.9,
+                        "af": 0.3,
+                        "dosage": 1.5,
+                    },
+                    # rs3 effect=A is the REF → effect dose is 2 - DS (2 - 0.4).
+                    {
+                        "chrom": "3",
+                        "pos": 300,
+                        "ref": "A",
+                        "alt": "G",
+                        "dr2": 0.95,
+                        "af": 0.4,
+                        "dosage": 0.4,
+                    },
+                ],
+            )
+
+        result = compute_prs(ws, sample_engine)
+
+        assert result.snps_used == 3  # rs1 typed + rs2/rs3 imputed
+        assert result.snps_used_imputed == 2
+        assert result.coverage_fraction == pytest.approx(0.75)
+        assert result.coverage_tier == "imputed"
+        assert result.is_sufficient is True  # imputation lifted it past the 50% gate
+        # raw = rs1(0.5*1 typed het G) + rs2(0.3 * DS 1.5, effect=alt T)
+        #       + rs3(0.2 * (2-0.4), effect=ref A) = 0.5 + 0.45 + 0.32
+        assert result.raw_score == pytest.approx(0.5 + 0.3 * 1.5 + 0.2 * (2 - 0.4))
+
+    def test_graceful_without_imputed_variants(self, sample_engine: sa.Engine) -> None:
+        ws = self._weight_set()
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AG"}],
+            )
+        result = compute_prs(ws, sample_engine)
+        # No imputed_variants → typed-only, exactly as before SW-C5.
+        assert result.snps_used == 1
+        assert result.snps_used_imputed == 0
+        assert result.coverage_tier == "typed_only"
+        assert result.is_sufficient is False

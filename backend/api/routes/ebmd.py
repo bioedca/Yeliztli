@@ -38,8 +38,10 @@ class EbmdPrsResponse(BaseModel):
     higher_is: str = PRS_HIGHER_IS_PROTECTIVE
     percentile: float | None = None
     snps_used: int = 0
+    snps_used_imputed: int = 0  # subset of snps_used scored from imputation (SW-C5)
     snps_total: int = 0
     coverage_fraction: float = 0.0
+    coverage_tier: str = "typed_only"  # "typed_only" | "imputed"
     is_sufficient: bool = False
     source_study: str = ""
     source_pmid: str = ""
@@ -111,8 +113,10 @@ def get_ebmd_prs(
             higher_is=d.get("higher_is", PRS_HIGHER_IS_PROTECTIVE),
             percentile=row.prs_percentile,
             snps_used=d.get("snps_used", 0),
+            snps_used_imputed=d.get("snps_used_imputed", 0),
             snps_total=d.get("snps_total", 0),
             coverage_fraction=d.get("coverage_fraction", 0.0),
+            coverage_tier=d.get("coverage_tier", "typed_only"),
             is_sufficient=d.get("is_sufficient", False),
             source_study=d.get("source_study", ""),
             source_pmid=d.get("source_pmid", ""),
