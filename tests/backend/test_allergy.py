@@ -727,6 +727,29 @@ class TestHistamineCombined:
         assert "HNMT" not in result.histamine_combined.combined_text
         assert "AOC1 coverage is incomplete" in result.histamine_combined.combined_text
 
+    def test_aoc1_coverage_note_handles_no_calls(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """No-call AOC1 SNPs are unavailable coverage, not off-array misses."""
+        _seed_variants(
+            sample_engine,
+            [
+                ("rs10156191", "7", 150554592, "CT"),
+                ("rs1049742", "7", 150554553, "--"),
+                ("rs11558538", "2", 138759649, "CC"),
+            ],
+        )
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+        assert result.histamine_combined is not None
+        text = result.histamine_combined.combined_text
+        assert "DAO-deficiency coverage was unavailable" in text
+        assert "3 tracked SNPs (2 off-chip, 1 no-call)" in text
+        assert "not assessed on this array" not in text
+
     def test_neither_variant(
         self,
         panel: AllergyPanel,

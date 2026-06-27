@@ -694,8 +694,8 @@ def _compute_histamine_combined(
     )
     aoc1_coverage_note = (
         " AOC1 coverage is incomplete: "
-        f"{format_not_assessed(aoc1_missing_results)} in the DAO-deficiency set "
-        "not assessed on this array; absence of detected AOC1 variants applies "
+        "DAO-deficiency coverage was unavailable for "
+        f"{format_not_assessed(aoc1_missing_results)}; absence of detected AOC1 variants applies "
         "only to tested SNPs."
         if aoc1_missing_results
         else ""
