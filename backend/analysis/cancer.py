@@ -203,6 +203,26 @@ def load_cancer_panel(panel_path: Path | None = None) -> CancerPanel:
 # PMS2/PMS2CL-confounded are withheld from consumer cancer findings.
 _PMS2_PSEUDOGENE_CONFOUNDED_EXONS = frozenset({12, 13, 14, 15})
 
+_NON_CANCER_CONDITION_TERMS_BY_GENE = {
+    "RET": (
+        "hirschsprung",
+        "aganglionic megacolon",
+        "aganglionosis",
+    ),
+}
+
+_CANCER_CONDITION_TERMS_BY_GENE = {
+    "RET": (
+        "multiple endocrine neoplasia",
+        "men2",
+        "men 2",
+        "medullary thyroid",
+        "pheochromocytoma",
+        "phaeochromocytoma",
+        "paraganglioma",
+    ),
+}
+
 
 @dataclass
 class CancerVariantResult:
@@ -236,6 +256,7 @@ class CancerAnalysisResult:
     variants_in_panel_genes: int = 0
     pseudogene_suppressed: int = 0
     hom_alt_plausibility_suppressed: int = 0
+    condition_mismatch_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -344,6 +365,7 @@ def extract_cancer_variants(
     variants: list[CancerVariantResult] = []
     pseudogene_suppressed = 0
     hom_alt_plausibility_suppressed = 0
+    condition_mismatch_suppressed = 0
     for row in rows:
         gene_symbol = (row.gene_symbol or "").upper()
         gene_info = gene_map.get(gene_symbol)
@@ -354,6 +376,9 @@ def extract_cancer_variants(
             continue
         if is_implausible_dominant_hom_alt(row, gene_info.inheritance):
             hom_alt_plausibility_suppressed += 1
+            continue
+        if _is_non_cancer_condition_mismatch(row.clinvar_conditions, gene_info):
+            condition_mismatch_suppressed += 1
             continue
 
         evidence = _assign_evidence_level(
@@ -392,6 +417,7 @@ def extract_cancer_variants(
         pathogenic_variants=len(variants),
         pseudogene_suppressed=pseudogene_suppressed,
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
+        condition_mismatch_suppressed=condition_mismatch_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
@@ -401,6 +427,7 @@ def extract_cancer_variants(
         variants_in_panel_genes=total_in_panel,
         pseudogene_suppressed=pseudogene_suppressed,
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
+        condition_mismatch_suppressed=condition_mismatch_suppressed,
     )
 
 
@@ -408,6 +435,28 @@ def _is_pms2_pseudogene_confounded(row: sa.Row) -> bool:
     """Return true for PMS2 calls in exons that need PMS2/PMS2CL disambiguation."""
     gene_symbol = (row.gene_symbol or "").upper()
     return gene_symbol == "PMS2" and row.exon_number in _PMS2_PSEUDOGENE_CONFOUNDED_EXONS
+
+
+def _is_non_cancer_condition_mismatch(
+    clinvar_conditions: str | None,
+    gene_info: CancerGene,
+) -> bool:
+    """Return true when ClinVar names only a known non-cancer condition for a panel gene."""
+    condition_text = (clinvar_conditions or "").lower()
+    if not condition_text:
+        return False
+
+    gene_symbol = gene_info.gene_symbol.upper()
+    non_cancer_terms = _NON_CANCER_CONDITION_TERMS_BY_GENE.get(gene_symbol, ())
+    if not any(term in condition_text for term in non_cancer_terms):
+        return False
+
+    cancer_terms = [
+        *_CANCER_CONDITION_TERMS_BY_GENE.get(gene_symbol, ()),
+        *(term.lower() for term in gene_info.syndromes),
+        *(term.lower() for term in gene_info.cancer_types),
+    ]
+    return not any(term in condition_text for term in cancer_terms)
 
 
 # ── Findings storage ─────────────────────────────────────────────────────

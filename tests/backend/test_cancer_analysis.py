@@ -293,6 +293,77 @@ class TestExtractCancerVariants:
         assert "rs_pms2_exon11_reportable" in rsids
         assert result.pseudogene_suppressed == 0
 
+    def test_suppresses_ret_hirschsprung_only_condition(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """RET Hirschsprung-only P/LP rows must not be framed as MEN2 cancer findings."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs1588866040",
+                        "chrom": "10",
+                        "pos": 43614920,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "RET",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 1,
+                        "clinvar_accession": "VCV000692052",
+                        "clinvar_conditions": "Hirschsprung disease, susceptibility to, 1",
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.variants_in_panel_genes == 1
+        assert result.condition_mismatch_suppressed == 1
+
+        assert store_cancer_findings(result, sample_engine) == 0
+        with sample_engine.connect() as conn:
+            stored = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.module == "cancer")
+            ).scalar_one()
+        assert stored == 0
+
+    def test_keeps_ret_when_clinvar_condition_includes_men2(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """A mixed RET condition string still reports when it names the cancer syndrome."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ret_mixed_men2_hscr",
+                        "chrom": "10",
+                        "pos": 43614921,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "RET",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000RET",
+                        "clinvar_conditions": (
+                            "Multiple endocrine neoplasia type 2A|Hirschsprung disease"
+                        ),
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cancer_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.variants] == ["rs_ret_mixed_men2_hscr"]
+        assert result.condition_mismatch_suppressed == 0
+        assert result.variants[0].syndromes == ["Multiple Endocrine Neoplasia Type 2 (MEN2)"]
+
     def test_brca1_golden_fixture(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine
     ) -> None:
