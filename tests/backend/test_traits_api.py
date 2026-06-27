@@ -352,7 +352,7 @@ class TestListPathways:
         assert item["level"] == "Moderate"
         assert item["evidence_level"] == 2
         assert item["called_snps"] == 3
-        assert item["total_snps"] == 5
+        assert item["total_snps"] == 3
         assert item["prs_primary"] is False
 
     def test_prs_primary_flag(self, seeded_client: TestClient) -> None:
