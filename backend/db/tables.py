@@ -919,6 +919,26 @@ watched_variants = sa.Table(
     sa.Column("notes", sa.Text, server_default=""),
 )
 
+# ── Imputed Variants (Wave C) ─────────────────────────────────────────
+# Firewall-cleared imputed variants for the sample: the markers Beagle imputed
+# (backend.analysis.imputation_runner) that PASSED the SW-C3 MAF/r² firewall
+# (DR2 >= WELL_IMPUTED_DR2 AND MAF >= RARE_MAF_THRESHOLD), i.e. the only imputed
+# variants allowed to back a P/LP/carrier/monogenic finding. Quarantined imputed
+# variants are never persisted here. Populated by
+# backend.analysis.imputation_persist.persist_imputed_variants after a run. The
+# composite (chrom, pos, alt) PK keeps one row per ALT (multi-allelic-safe).
+imputed_variants = sa.Table(
+    "imputed_variants",
+    sample_metadata_obj,
+    sa.Column("chrom", sa.Text, nullable=False),
+    sa.Column("pos", sa.Integer, nullable=False),
+    sa.Column("ref", sa.Text, nullable=False),
+    sa.Column("alt", sa.Text, nullable=False),
+    sa.Column("dr2", sa.Float, comment="Beagle dosage R^2 imputation quality (0-1)"),
+    sa.Column("af", sa.Float, comment="Beagle estimated ALT allele frequency (0-1)"),
+    sa.PrimaryKeyConstraint("chrom", "pos", "alt"),
+)
+
 # ── Merge Provenance (single-row, present only on merged samples) ─────
 # AncestryDNA Plan §10.4c. Created on every sample DB but only populated by
 # the merge service on merged samples. CheckConstraint enforces single row.

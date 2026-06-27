@@ -34,7 +34,9 @@ logger = structlog.get_logger(__name__)
 #      (missense pathogenicity prediction metadata; never ACMG evidence)
 # v13: Add gnomad_af_asj to annotated_variants
 #      (gnomAD r2.1 ASJ population for population-max AF and ancestry display)
-SAMPLE_SCHEMA_VERSION = 13
+# v14: Add imputed_variants table (Wave C — firewall-cleared imputed variants;
+#      created on existing sample DBs via create_all(checkfirst=True))
+SAMPLE_SCHEMA_VERSION = 14
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
