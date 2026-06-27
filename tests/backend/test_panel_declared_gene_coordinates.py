@@ -35,6 +35,7 @@ _COORDINATE_EXCLUDED_PANEL_FILES = {
 @dataclass(frozen=True)
 class PanelGeneRow:
     panel: str
+    path: str
     rsid: str
     declared_gene: str
     variant_name: str | None
@@ -42,7 +43,7 @@ class PanelGeneRow:
 
     @property
     def key(self) -> str:
-        return f"{self.panel}|{self.rsid}|{self.declared_gene}"
+        return f"{self.panel}|{self.path}|{self.rsid}|{self.declared_gene}"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -68,7 +69,9 @@ def _context_label(context: dict[str, str]) -> str:
     return " / ".join(parts) or "<root>"
 
 
-def _iter_gene_rows(obj: object, panel: str, context: dict[str, str]) -> list[PanelGeneRow]:
+def _iter_gene_rows(
+    obj: object, panel: str, context: dict[str, str], path: str
+) -> list[PanelGeneRow]:
     rows: list[PanelGeneRow] = []
     if isinstance(obj, dict):
         next_context = dict(context)
@@ -84,6 +87,7 @@ def _iter_gene_rows(obj: object, panel: str, context: dict[str, str]) -> list[Pa
             rows.append(
                 PanelGeneRow(
                     panel=panel,
+                    path=path,
                     rsid=rsid,
                     declared_gene=gene,
                     variant_name=variant_name if isinstance(variant_name, str) else None,
@@ -91,18 +95,18 @@ def _iter_gene_rows(obj: object, panel: str, context: dict[str, str]) -> list[Pa
                 )
             )
 
-        for value in obj.values():
-            rows.extend(_iter_gene_rows(value, panel, next_context))
+        for key, value in obj.items():
+            rows.extend(_iter_gene_rows(value, panel, next_context, f"{path}.{key}"))
     elif isinstance(obj, list):
-        for value in obj:
-            rows.extend(_iter_gene_rows(value, panel, context))
+        for index, value in enumerate(obj):
+            rows.extend(_iter_gene_rows(value, panel, context, f"{path}[{index}]"))
     return rows
 
 
 def _panel_gene_rows() -> list[PanelGeneRow]:
     rows: list[PanelGeneRow] = []
     for path in _panel_files():
-        rows.extend(_iter_gene_rows(_load_json(path), path.name, {}))
+        rows.extend(_iter_gene_rows(_load_json(path), path.name, {}, "$"))
     return rows
 
 
@@ -174,8 +178,9 @@ class TestPanelDeclaredGeneCoordinates:
         allowed = fixture.get("allowed_non_overlaps")
         assert isinstance(allowed, dict)
         for key, rec in allowed.items():
-            panel, rsid, declared_gene = key.split("|", 2)
+            panel, row_path, rsid, declared_gene = key.split("|", 3)
             assert rec.get("panel") == panel, key
+            assert rec.get("path") == row_path, key
             assert rec.get("rsid") == rsid, key
             assert rec.get("declared_gene") == declared_gene, key
             assert rec.get("kind") in {
@@ -227,8 +232,8 @@ class TestPanelDeclaredGeneCoordinates:
                 continue
 
             offenders.append(
-                f"{row.panel}: {row.context}: {row.rsid} ({_format_rsid_coord(rsid_coord)}) "
-                f"declares {row.declared_gene!r}"
+                f"{row.panel}: {row.path}: {row.context}: {row.rsid} "
+                f"({_format_rsid_coord(rsid_coord)}) declares {row.declared_gene!r}"
                 f"{f' / {row.variant_name}' if row.variant_name else ''}; expected overlap with "
                 f"{_format_gene_loci(symbols, genes)} or explicit allowlist key {row.key!r}"
             )
@@ -278,12 +283,28 @@ class TestPanelDeclaredGeneCoordinates:
         rows = {row.key: row for row in _panel_gene_rows()}
 
         intragenic_rows = [
-            "methylation_panel.json|rs1677693|DHFR",
-            "traits_panel.json|rs2576037|KATNAL2",
+            ("methylation_panel.json", "rs1677693", "DHFR"),
+            ("traits_panel.json", "rs2576037", "KATNAL2"),
         ]
-        for key in intragenic_rows:
-            row = rows[key]
+        for panel, rsid, declared_gene in intragenic_rows:
+            matches = [
+                row
+                for row in rows.values()
+                if row.panel == panel and row.rsid == rsid and row.declared_gene == declared_gene
+            ]
+            assert matches, f"{panel}|{rsid}|{declared_gene}"
+            row = matches[0]
             symbols = _declared_gene_symbols(row.declared_gene, aliases)
-            assert any(_overlaps(rsid_coords[row.rsid], genes[symbol]) for symbol in symbols), key
+            assert any(_overlaps(rsid_coords[row.rsid], genes[symbol]) for symbol in symbols), (
+                row.key
+            )
 
-        assert "traits_panel.json|rs1477268|RASA1" in allowed
+        rasa1_rows = [
+            row
+            for row in rows.values()
+            if row.panel == "traits_panel.json"
+            and row.rsid == "rs1477268"
+            and row.declared_gene == "RASA1"
+        ]
+        assert rasa1_rows
+        assert all(row.key in allowed for row in rasa1_rows)

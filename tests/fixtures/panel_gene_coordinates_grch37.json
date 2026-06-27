@@ -1190,138 +1190,157 @@
     }
   },
   "allowed_non_overlaps": {
-    "allergy_panel.json|rs2395029|HLA-B": {
+    "allergy_panel.json|$.pathways[1].snps[0]|rs2395029|HLA-B": {
       "panel": "allergy_panel.json",
       "rsid": "rs2395029",
       "declared_gene": "HLA-B",
       "kind": "proxy",
-      "reason": "HLA-B*57:01 proxy marker; the proxy rsID is outside the HLA-B gene body but is intentionally declared as an HLA-B allele proxy."
+      "reason": "HLA-B*57:01 proxy marker; the proxy rsID is outside the HLA-B gene body but is intentionally declared as an HLA-B allele proxy.",
+      "path": "$.pathways[1].snps[0]"
     },
-    "allergy_panel.json|rs7454108|HLA-DQB1": {
-      "panel": "allergy_panel.json",
-      "rsid": "rs7454108",
-      "declared_gene": "HLA-DQB1",
-      "kind": "proxy",
-      "reason": "HLA-DQ8 proxy marker; the proxy rsID is outside the HLA-DQB1 gene body but is intentionally declared as an HLA-DQB1 allele proxy."
-    },
-    "allergy_panel.json|rs9263726|HLA-B": {
+    "allergy_panel.json|$.pathways[1].snps[3]|rs9263726|HLA-B": {
       "panel": "allergy_panel.json",
       "rsid": "rs9263726",
       "declared_gene": "HLA-B",
       "kind": "proxy",
-      "reason": "HLA-B*58:01 proxy marker; the proxy rsID is outside the HLA-B gene body but is intentionally declared as an HLA-B allele proxy."
+      "reason": "HLA-B*58:01 proxy marker; the proxy rsID is outside the HLA-B gene body but is intentionally declared as an HLA-B allele proxy.",
+      "path": "$.pathways[1].snps[3]"
     },
-    "gene_health_panel.json|rs10166942|TRPM8": {
-      "panel": "gene_health_panel.json",
-      "rsid": "rs10166942",
-      "declared_gene": "TRPM8",
-      "kind": "upstream",
-      "reason": "TRPM8 upstream marker; row is explicitly labeled upstream rather than intragenic."
-    },
-    "gene_health_panel.json|rs17782313|MC4R": {
-      "panel": "gene_health_panel.json",
-      "rsid": "rs17782313",
-      "declared_gene": "MC4R",
-      "kind": "downstream",
-      "reason": "MC4R downstream marker; row is explicitly labeled downstream rather than intragenic."
-    },
-    "gene_health_panel.json|rs3135388|HLA-DRB1": {
-      "panel": "gene_health_panel.json",
-      "rsid": "rs3135388",
-      "declared_gene": "HLA-DRB1",
+    "allergy_panel.json|$.pathways[2].snps[1]|rs7454108|HLA-DQB1": {
+      "panel": "allergy_panel.json",
+      "rsid": "rs7454108",
+      "declared_gene": "HLA-DQB1",
       "kind": "proxy",
-      "reason": "HLA-DRB1*15:01 proxy marker; the proxy rsID is outside the HLA-DRB1 gene body but intentionally tags the HLA-DRB1 allele."
+      "reason": "HLA-DQ8 proxy marker; the proxy rsID is outside the HLA-DQB1 gene body but is intentionally declared as an HLA-DQB1 allele proxy.",
+      "path": "$.pathways[2].snps[1]"
     },
-    "gene_health_panel.json|rs356219|SNCA": {
+    "gene_health_panel.json|$.pathways[0].snps[2]|rs356219|SNCA": {
       "panel": "gene_health_panel.json",
       "rsid": "rs356219",
       "declared_gene": "SNCA",
       "kind": "utr",
-      "reason": "SNCA 3 prime UTR-labeled marker outside the GRCh37 gene interval in the Ensembl lookup."
+      "reason": "SNCA 3 prime UTR-labeled marker outside the GRCh37 gene interval in the Ensembl lookup.",
+      "path": "$.pathways[0].snps[2]"
     },
-    "gene_health_panel.json|rs4236601|CAV1/CAV2": {
+    "gene_health_panel.json|$.pathways[0].snps[3]|rs3135388|HLA-DRB1": {
       "panel": "gene_health_panel.json",
-      "rsid": "rs4236601",
-      "declared_gene": "CAV1/CAV2",
-      "kind": "intergenic",
-      "reason": "CAV1-CAV2 intergenic marker; row declares the two-gene interval rather than an intragenic variant."
+      "rsid": "rs3135388",
+      "declared_gene": "HLA-DRB1",
+      "kind": "proxy",
+      "reason": "HLA-DRB1*15:01 proxy marker; the proxy rsID is outside the HLA-DRB1 gene body but intentionally tags the HLA-DRB1 allele.",
+      "path": "$.pathways[0].snps[3]"
     },
-    "gene_health_panel.json|rs6822844|IL2/IL21": {
+    "gene_health_panel.json|$.pathways[0].snps[6]|rs747302|DRD4": {
       "panel": "gene_health_panel.json",
-      "rsid": "rs6822844",
-      "declared_gene": "IL2/IL21",
-      "kind": "intergenic",
-      "reason": "IL2-IL21 intergenic marker; row declares the two-gene interval rather than an intragenic variant."
+      "rsid": "rs747302",
+      "declared_gene": "DRD4",
+      "kind": "proxy",
+      "reason": "DRD4 exon III VNTR proxy marker; the rsID is adjacent to but outside the DRD4 gene body.",
+      "path": "$.pathways[0].snps[6]"
     },
-    "gene_health_panel.json|rs6910071|HLA-DRB1": {
+    "gene_health_panel.json|$.pathways[0].snps[9]|rs10166942|TRPM8": {
+      "panel": "gene_health_panel.json",
+      "rsid": "rs10166942",
+      "declared_gene": "TRPM8",
+      "kind": "upstream",
+      "reason": "TRPM8 upstream marker; row is explicitly labeled upstream rather than intragenic.",
+      "path": "$.pathways[0].snps[9]"
+    },
+    "gene_health_panel.json|$.pathways[1].snps[5]|rs17782313|MC4R": {
+      "panel": "gene_health_panel.json",
+      "rsid": "rs17782313",
+      "declared_gene": "MC4R",
+      "kind": "downstream",
+      "reason": "MC4R downstream marker; row is explicitly labeled downstream rather than intragenic.",
+      "path": "$.pathways[1].snps[5]"
+    },
+    "gene_health_panel.json|$.pathways[2].snps[0]|rs6910071|HLA-DRB1": {
       "panel": "gene_health_panel.json",
       "rsid": "rs6910071",
       "declared_gene": "HLA-DRB1",
       "kind": "proxy",
-      "reason": "HLA-DRB1 shared-epitope proxy marker; the proxy rsID is outside the HLA-DRB1 gene body but intentionally declared as an HLA-DRB1 tag."
+      "reason": "HLA-DRB1 shared-epitope proxy marker; the proxy rsID is outside the HLA-DRB1 gene body but intentionally declared as an HLA-DRB1 tag.",
+      "path": "$.pathways[2].snps[0]"
     },
-    "gene_health_panel.json|rs747302|DRD4": {
-      "panel": "gene_health_panel.json",
-      "rsid": "rs747302",
-      "declared_gene": "DRD4",
-      "kind": "proxy",
-      "reason": "DRD4 exon III VNTR proxy marker; the rsID is adjacent to but outside the DRD4 gene body."
-    },
-    "gene_health_panel.json|rs9273363|HLA-DQB1": {
+    "gene_health_panel.json|$.pathways[2].snps[3]|rs9273363|HLA-DQB1": {
       "panel": "gene_health_panel.json",
       "rsid": "rs9273363",
       "declared_gene": "HLA-DQB1",
       "kind": "locus_marker",
-      "reason": "HLA-DQ region marker explicitly caveated in variant_name as not a validated single-SNP T1D proxy."
+      "reason": "HLA-DQ region marker explicitly caveated in variant_name as not a validated single-SNP T1D proxy.",
+      "path": "$.pathways[2].snps[3]"
     },
-    "methylation_panel.json|rs41303970|GCLM": {
+    "gene_health_panel.json|$.pathways[2].snps[8]|rs6822844|IL2/IL21": {
+      "panel": "gene_health_panel.json",
+      "rsid": "rs6822844",
+      "declared_gene": "IL2/IL21",
+      "kind": "intergenic",
+      "reason": "IL2-IL21 intergenic marker; row declares the two-gene interval rather than an intragenic variant.",
+      "path": "$.pathways[2].snps[8]"
+    },
+    "gene_health_panel.json|$.pathways[3].snps[4]|rs4236601|CAV1/CAV2": {
+      "panel": "gene_health_panel.json",
+      "rsid": "rs4236601",
+      "declared_gene": "CAV1/CAV2",
+      "kind": "intergenic",
+      "reason": "CAV1-CAV2 intergenic marker; row declares the two-gene interval rather than an intragenic variant.",
+      "path": "$.pathways[3].snps[4]"
+    },
+    "methylation_panel.json|$.pathways[2].snps[3]|rs41303970|GCLM": {
       "panel": "methylation_panel.json",
       "rsid": "rs41303970",
       "declared_gene": "GCLM",
       "kind": "promoter",
-      "reason": "GCLM promoter marker (-588C>T); row is explicitly promoter-labeled rather than intragenic."
+      "reason": "GCLM promoter marker (-588C>T); row is explicitly promoter-labeled rather than intragenic.",
+      "path": "$.pathways[2].snps[3]"
     },
-    "methylation_panel.json|rs8007267|GCH1": {
+    "methylation_panel.json|$.pathways[3].snps[5]|rs8007267|GCH1": {
       "panel": "methylation_panel.json",
       "rsid": "rs8007267",
       "declared_gene": "GCH1",
       "kind": "utr",
-      "reason": "GCH1 5 prime UTR-labeled marker outside the GRCh37 gene interval in the Ensembl lookup."
+      "reason": "GCH1 5 prime UTR-labeled marker outside the GRCh37 gene interval in the Ensembl lookup.",
+      "path": "$.pathways[3].snps[5]"
     },
-    "nutrigenomics_panel.json|rs10741657|CYP2R1": {
+    "nutrigenomics_panel.json|$.pathways[1].snps[3]|rs10741657|CYP2R1": {
       "panel": "nutrigenomics_panel.json",
       "rsid": "rs10741657",
       "declared_gene": "CYP2R1",
       "kind": "promoter",
-      "reason": "CYP2R1 promoter marker; row is explicitly promoter-labeled rather than intragenic."
+      "reason": "CYP2R1 promoter marker; row is explicitly promoter-labeled rather than intragenic.",
+      "path": "$.pathways[1].snps[3]"
     },
-    "skin_panel.json|rs1799750|MMP1": {
+    "skin_panel.json|$.pathways[2].snps[1]|rs1799750|MMP1": {
       "panel": "skin_panel.json",
       "rsid": "rs1799750",
       "declared_gene": "MMP1",
       "kind": "promoter",
-      "reason": "MMP1 1G/2G promoter indel; row is explicitly promoter-labeled rather than intragenic."
+      "reason": "MMP1 1G/2G promoter indel; row is explicitly promoter-labeled rather than intragenic.",
+      "path": "$.pathways[2].snps[1]"
     },
-    "sleep_panel.json|rs2858884|HLA-DQB1": {
+    "sleep_panel.json|$.pathways[2].snps[0]|rs2858884|HLA-DQB1": {
       "panel": "sleep_panel.json",
       "rsid": "rs2858884",
       "declared_gene": "HLA-DQB1",
       "kind": "locus_marker",
-      "reason": "HLA-DQ region marker explicitly caveated in variant_name as not a DQB1*06:02 proxy."
+      "reason": "HLA-DQ region marker explicitly caveated in variant_name as not a DQB1*06:02 proxy.",
+      "path": "$.pathways[2].snps[0]"
     },
-    "traits_panel.json|rs1477268|RASA1": {
+    "traits_panel.json|$.pathways[1].snps[1]|rs1477268|RASA1": {
       "panel": "traits_panel.json",
       "rsid": "rs1477268",
       "declared_gene": "RASA1",
       "kind": "locus_marker",
-      "reason": "5q14.3 RASA1-region openness marker from the Big Five source locus; row is region-labeled rather than intragenic."
+      "reason": "5q14.3 RASA1-region openness marker from the Big Five source locus; row is region-labeled rather than intragenic.",
+      "path": "$.pathways[1].snps[1]"
     },
-    "traits_panel.json|rs747302|DRD4": {
+    "traits_panel.json|$.pathways[2].snps[1]|rs747302|DRD4": {
       "panel": "traits_panel.json",
       "rsid": "rs747302",
       "declared_gene": "DRD4",
       "kind": "proxy",
-      "reason": "DRD4 exon III VNTR proxy marker; the rsID is adjacent to but outside the DRD4 gene body."
+      "reason": "DRD4 exon III VNTR proxy marker; the rsID is adjacent to but outside the DRD4 gene body.",
+      "path": "$.pathways[2].snps[1]"
     }
   }
 }
