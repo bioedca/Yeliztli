@@ -381,7 +381,8 @@ def _lookup_gnomad(
     # Exact allele lookup first. gnomAD is stored one row per ALT, and an rsID
     # may be shared by several alternate alleles at the same position.
     positions: list[tuple[str, int, str, str]] = []
-    pos_to_rsid: dict[tuple[str, int, str, str], str] = {}
+    pos_to_rsids: dict[tuple[str, int, str, str], list[str]] = {}
+    rsids_with_exact_coords: set[str] = set()
     for rsid in rsids:
         raw = raw_by_rsid.get(rsid)
         if raw is None:
@@ -392,17 +393,19 @@ def _lookup_gnomad(
         alt = getattr(raw, "alt", None)
         if chrom and pos is not None and ref and alt:
             key = (chrom, pos, ref, alt)
-            positions.append(key)
-            pos_to_rsid[key] = rsid
+            if key not in pos_to_rsids:
+                positions.append(key)
+            pos_to_rsids.setdefault(key, []).append(rsid)
+            rsids_with_exact_coords.add(rsid)
 
     if positions:
         pos_matches = lookup_gnomad_by_positions(positions, gnomad_engine)
         for key, annot in pos_matches.items():
-            rsid = pos_to_rsid[key]
-            results[rsid] = _annot_to_dict(annot)
+            for rsid in pos_to_rsids[key]:
+                results[rsid] = _annot_to_dict(annot)
 
     # Fallback: rsid-based lookup for rows without exact allele coordinates.
-    unmatched = [r for r in rsids if r not in results]
+    unmatched = [r for r in rsids if r not in results and r not in rsids_with_exact_coords]
     if unmatched:
         rsid_matches = lookup_gnomad_by_rsids(unmatched, gnomad_engine)
         for rsid, annot in rsid_matches.items():
