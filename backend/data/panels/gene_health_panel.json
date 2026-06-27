@@ -666,19 +666,19 @@
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "No PTPN22 R620W variant. Normal lymphoid tyrosine phosphatase function and T-cell receptor signaling threshold."
+              "effect_summary": "No PTPN22 R620W variant. Reference lymphoid tyrosine phosphatase function and T-cell receptor signaling."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "One copy of PTPN22 R620W. Gain-of-function variant that lowers the T-cell activation threshold. Associated with increased risk of multiple autoimmune conditions including rheumatoid arthritis (OR ~1.8), type 1 diabetes (OR ~1.9), and SLE."
+              "effect_summary": "One copy of PTPN22 R620W. Gain-of-function variant that dampens T-cell receptor signaling, raising the stimulus needed for T-cell activation. Associated with increased risk of multiple autoimmune conditions including rheumatoid arthritis (OR ~1.8), type 1 diabetes (OR ~1.9), and SLE."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "One copy of PTPN22 R620W. Gain-of-function variant that lowers the T-cell activation threshold. Associated with increased risk of multiple autoimmune conditions including rheumatoid arthritis (OR ~1.8), type 1 diabetes (OR ~1.9), and SLE."
+              "effect_summary": "One copy of PTPN22 R620W. Gain-of-function variant that dampens T-cell receptor signaling, raising the stimulus needed for T-cell activation. Associated with increased risk of multiple autoimmune conditions including rheumatoid arthritis (OR ~1.8), type 1 diabetes (OR ~1.9), and SLE."
             },
             "AA": {
               "category": "Elevated",
-              "effect_summary": "Homozygous PTPN22 R620W. Strongly enhanced autoimmune susceptibility across multiple conditions. Substantially lowered T-cell activation threshold and impaired negative selection. Associated with RA, T1D, SLE, and other autoimmune diseases."
+              "effect_summary": "Two copies of PTPN22 R620W. Elevated autoimmune susceptibility across multiple conditions. R620W is modeled as a gain-of-function variant that dampens T-cell receptor signaling, which may impair thymic negative selection of autoreactive cells. Associated with RA, T1D, SLE, and other autoimmune diseases."
             }
           },
           "evidence_level": 3,

@@ -279,6 +279,30 @@ class TestPanelLoading:
         assert cross_modules.get("rs747302") == "traits"
         assert cross_modules.get("rs6822844") == "allergy"
 
+    def test_ptpn22_r620w_dampens_tcr_signaling_not_lowers_threshold(
+        self,
+        panel: GeneHealthPanel,
+    ) -> None:
+        """#1076: PTPN22 R620W must not invert the TCR-signaling mechanism."""
+        ptpn22 = next(
+            snp for pathway in panel.pathways for snp in pathway.snps if snp.rsid == "rs2476601"
+        )
+        all_text = " ".join(
+            effect["effect_summary"] for effect in ptpn22.genotype_effects.values()
+        ).lower()
+
+        assert "lowers the t-cell activation threshold" not in all_text
+        assert "lowered t-cell activation threshold" not in all_text
+        assert "dampens t-cell receptor signaling" in all_text
+        assert "raising the stimulus needed for t-cell activation" in all_text
+        assert "thymic negative selection" in all_text
+        assert ptpn22.risk_allele == "A"
+        assert ptpn22.ref_allele == "G"
+        assert _score_snp(ptpn22, "GG").category == STANDARD
+        assert _score_snp(ptpn22, "GA").category == MODERATE
+        assert _score_snp(ptpn22, "AG").category == MODERATE
+        assert _score_snp(ptpn22, "AA").category == ELEVATED
+
     def test_amd_recommendations_do_not_trigger_areds2_from_genotype_alone(
         self,
         panel: GeneHealthPanel,
