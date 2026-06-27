@@ -294,6 +294,7 @@ class RiskPanel:
     sex_stratified: bool = False
     ancestry_gate: dict[str, Any] | None = None
     disclaimer_key: str | None = None
+    emit_off_chip_disclosures: bool = False
 
     def locus(self, rsid: str) -> RiskLocus | None:
         return next((loc for loc in self.loci if loc.rsid == rsid), None)
@@ -476,6 +477,12 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             )
         )
 
+    emit_off_chip_disclosures = data.get("emit_off_chip_disclosures", False)
+    if not isinstance(emit_off_chip_disclosures, bool):
+        raise ValueError(
+            f"Panel '{data['module']}' field 'emit_off_chip_disclosures' must be a boolean."
+        )
+
     return RiskPanel(
         module=data["module"],
         version=data["version"],
@@ -487,6 +494,7 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
         sex_stratified=data.get("sex_stratified", False),
         ancestry_gate=data.get("ancestry_gate"),
         disclaimer_key=data.get("disclaimer_key"),
+        emit_off_chip_disclosures=emit_off_chip_disclosures,
     )
 
 
@@ -1187,6 +1195,80 @@ def _render_discordance(
     )
 
 
+def _pmids_for_locus(panel: RiskPanel, rsid: str) -> list[str]:
+    """Unique PMIDs from models that directly depend on ``rsid``."""
+    pmids: list[str] = []
+    seen: set[str] = set()
+    for model in panel.genotype_models:
+        if rsid not in _model_rsids(model):
+            continue
+        for pmid in model.pmids:
+            if pmid not in seen:
+                seen.add(pmid)
+                pmids.append(pmid)
+    return pmids
+
+
+def _render_off_chip_disclosure(
+    panel: RiskPanel,
+    loc: RiskLocus,
+    dosages: dict[str, int | None],
+    readouts: dict[str, ProbeReadout],
+    sex: str | None,
+) -> RiskCall:
+    """Indeterminate coverage disclosure for an opt-in high-impact absent locus."""
+    genotype_call = readouts.get(loc.rsid).genotype if loc.rsid in readouts else None
+    finding_text = (
+        f"{loc.label} ({loc.rsid}) was not assessed on this array, so this result "
+        f"cannot rule out the {loc.label} risk allele. This is an indeterminate "
+        f"coverage disclosure, not a positive genotype call."
+    )
+    detail = {
+        "model_id": f"off_chip_{loc.rsid}",
+        "classification": f"{loc.label} not assessed (off-chip)",
+        "genotype_calls": {loc.rsid: genotype_call},
+        "dosages": {loc.rsid: dosages.get(loc.rsid)},
+        "evidence_stars": 1,
+        "indeterminate": True,
+        "partial_genotype": True,
+        "untyped_loci": [loc.rsid],
+        "caveats": [
+            CAVEAT_REGISTRY["off_chip_partial"],
+            CAVEAT_REGISTRY["negative_not_clear"],
+        ],
+        "sex_used": sex,
+    }
+    return RiskCall(
+        model_id=f"off_chip_{loc.rsid}",
+        gene_symbol=loc.gene_symbol,
+        rsid=loc.rsid,
+        risk_classification=f"{loc.label} not assessed (off-chip)",
+        evidence_stars=1,
+        finding_text=finding_text,
+        zygosity=None,
+        detail=detail,
+        pmids=_pmids_for_locus(panel, loc.rsid),
+    )
+
+
+def _off_chip_disclosures(
+    panel: RiskPanel,
+    dosages: dict[str, int | None],
+    readouts: dict[str, ProbeReadout],
+    sex: str | None,
+    reasons: dict[str, str],
+) -> list[RiskCall]:
+    if not panel.emit_off_chip_disclosures:
+        return []
+    return [
+        _render_off_chip_disclosure(panel, loc, dosages, readouts, sex)
+        for loc in panel.loci
+        if loc.off_chip_risk == "high"
+        and dosages.get(loc.rsid) is None
+        and reasons.get(loc.rsid) == INDETERMINATE_OFF_CHIP
+    ]
+
+
 def classify(
     panel: RiskPanel,
     dosages: dict[str, int | None],
@@ -1243,6 +1325,10 @@ def classify(
             indeterminate = _maybe_partial_disclosure(panel, dosages, readouts, sex)
         if indeterminate is not None:
             calls = [indeterminate]
+        else:
+            calls = _off_chip_disclosures(
+                panel, dosages, readouts, sex, assessment.indeterminate_reasons
+            )
 
     # Ancestry gate (e.g. APOL1): suppress or caveat calls outside the validated
     # ancestry so risk is never overstated for non-target populations. Some

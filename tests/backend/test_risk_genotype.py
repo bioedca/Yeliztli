@@ -204,6 +204,96 @@ class TestClassify:
             "rsUN": INDETERMINATE_UNRESOLVED,
         }
 
+    def test_opt_in_high_impact_off_chip_locus_surfaces_disclosure(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [{"rsid": "rsA", "chrom": "6", "pos": 1, "genotype": "GG"}])
+        model = GenotypeModel(
+            id="b_carrier",
+            match={"rsB": {"dosage": 1}},
+            risk_classification="B carrier",
+            evidence_stars=3,
+            finding_text="B carrier {genotype}",
+            pmids=["12345"],
+        )
+        panel = RiskPanel(
+            module="testmod",
+            version="1.0.0",
+            description="",
+            category="risk_genotype",
+            loci=[
+                RiskLocus(
+                    rsid="rsA",
+                    gene_symbol="GENEA",
+                    label="A",
+                    risk_allele="A",
+                    ref_allele="G",
+                ),
+                RiskLocus(
+                    rsid="rsB",
+                    gene_symbol="GENEB",
+                    label="B high-impact",
+                    risk_allele="T",
+                    ref_allele="C",
+                    off_chip_risk="high",
+                ),
+            ],
+            genotype_models=[model],
+            emit_off_chip_disclosures=True,
+        )
+
+        readouts = read_genotypes(panel, sample_engine)
+        dosages = compute_dosages(panel, readouts)
+        assessment = classify(panel, dosages, readouts)
+
+        assert len(assessment.calls) == 1
+        call = assessment.calls[0]
+        assert call.model_id == "off_chip_rsB"
+        assert call.risk_classification == "B high-impact not assessed (off-chip)"
+        assert call.rsid == "rsB"
+        assert call.pmids == ["12345"]
+        assert call.detail["indeterminate"] is True
+        assert call.detail["untyped_loci"] == ["rsB"]
+        assert "not assessed on this array" in call.finding_text
+        assert "not a positive genotype call" in call.finding_text
+
+    def test_opt_in_off_chip_disclosure_does_not_fire_for_no_call(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [{"rsid": "rsB", "chrom": "6", "pos": 2, "genotype": "--"}])
+        model = GenotypeModel(
+            id="b_carrier",
+            match={"rsB": {"dosage": 1}},
+            risk_classification="B carrier",
+            evidence_stars=3,
+            finding_text="B carrier {genotype}",
+        )
+        panel = RiskPanel(
+            module="testmod",
+            version="1.0.0",
+            description="",
+            category="risk_genotype",
+            loci=[
+                RiskLocus(
+                    rsid="rsB",
+                    gene_symbol="GENEB",
+                    label="B high-impact",
+                    risk_allele="T",
+                    ref_allele="C",
+                    off_chip_risk="high",
+                )
+            ],
+            genotype_models=[model],
+            emit_off_chip_disclosures=True,
+        )
+
+        readouts = read_genotypes(panel, sample_engine)
+        dosages = compute_dosages(panel, readouts)
+        assessment = classify(panel, dosages, readouts)
+
+        assert assessment.calls == []
+        assert assessment.indeterminate_reasons == {"rsB": INDETERMINATE_NO_CALL}
+
 
 class TestAncestryGate:
     def _gated_panel(self) -> RiskPanel:
@@ -461,6 +551,27 @@ class TestLoadRiskPanelGuards:
         path = tmp_path / "bad_pmid.json"
         path.write_text(json.dumps(bad))
         with pytest.raises(ValueError, match="non-numeric PMID"):
+            load_risk_panel(path)
+
+    def test_rejects_non_boolean_off_chip_disclosure_flag(self, tmp_path) -> None:
+        bad = {
+            "module": "x",
+            "version": "1.0.0",
+            "emit_off_chip_disclosures": "yes",
+            "loci": [{"rsid": "rsA", "gene_symbol": "G", "risk_allele": "A", "ref_allele": "G"}],
+            "genotype_models": [
+                {
+                    "id": "m",
+                    "match": {"rsA": {"dosage": 1}},
+                    "risk_classification": "carrier",
+                    "evidence_stars": 2,
+                    "finding_text": "x",
+                }
+            ],
+        }
+        path = tmp_path / "bad_off_chip_flag.json"
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError, match="emit_off_chip_disclosures"):
             load_risk_panel(path)
 
     def test_rejects_non_ascii_digit_pmid(self, tmp_path) -> None:

@@ -4,6 +4,7 @@
   "category": "risk_genotype",
   "description": "Inherited thrombophilia risk-genotype panel: Factor V Leiden (rs6025) and Prothrombin G20210A (rs1799963). Both are minus-strand cross-vendor pitfalls (23andMe reports rs6025 on the minus strand) — calls are strand-harmonized. Relative VTE risk is always paired with absolute context. EXPANSION_STRATEGY.md §6 / roadmap #24.",
   "evaluation": "first_match",
+  "emit_off_chip_disclosures": true,
   "sex_stratified": false,
   "ancestry_gate": null,
   "disclaimer_key": "THROMBOPHILIA",
@@ -15,7 +16,7 @@
       "risk_allele": "A",
       "ref_allele": "G",
       "canonical_strand": "minus",
-      "off_chip_risk": "low"
+      "off_chip_risk": "high"
     },
     {
       "rsid": "rs1799963",
@@ -24,7 +25,7 @@
       "risk_allele": "A",
       "ref_allele": "G",
       "canonical_strand": "minus",
-      "off_chip_risk": "low"
+      "off_chip_risk": "high"
     }
   ],
   "genotype_models": [

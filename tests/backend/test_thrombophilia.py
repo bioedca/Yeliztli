@@ -144,6 +144,55 @@ class TestNegativeAndIndeterminate:
         a = assess_thrombophilia(panel, sample_engine)
         assert a.calls == []
 
+    def test_fvl_reference_f2_off_chip_surfaces_prothrombin_disclosure(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        # 23andMe-v5-shaped thrombophilia gap: FVL is assessed/reference, while
+        # Prothrombin G20210A is absent from the array. This must not look like a
+        # clean negative thrombophilia result.
+        _seed(sample_engine, [_fvl("GG")])
+        a = assess_thrombophilia(panel, sample_engine)
+
+        assert len(a.calls) == 1
+        call = a.calls[0]
+        assert call.model_id == "off_chip_rs1799963"
+        assert call.risk_classification == "Prothrombin G20210A not assessed (off-chip)"
+        assert call.rsid == "rs1799963"
+        assert call.gene_symbol == "F2"
+        assert call.zygosity is None
+        assert call.detail["indeterminate"] is True
+        assert call.detail["untyped_loci"] == ["rs1799963"]
+        assert call.detail["genotype_calls"] == {"rs1799963": None}
+        assert call.detail["dosages"] == {"rs1799963": None}
+        assert "rs1799963" in a.indeterminate_loci
+        assert a.indeterminate_reasons["rs1799963"] == "off_chip"
+        assert "not assessed on this array" in call.finding_text
+        assert "not a positive genotype call" in call.finding_text
+        assert "heterozygous" not in call.risk_classification.lower()
+        assert "One or more interrogated positions were not typed" in " ".join(
+            call.detail["caveats"]
+        )
+
+    def test_f2_off_chip_disclosure_is_stored_as_visible_finding(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [_fvl("GG")])
+        assessment = assess_thrombophilia(panel, sample_engine)
+        count = store_thrombophilia_findings(assessment, sample_engine)
+
+        assert count == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.module == "thrombophilia")
+            ).fetchone()
+
+        assert row.conditions == "Prothrombin G20210A not assessed (off-chip)"
+        assert row.rsid == "rs1799963"
+        detail = json.loads(row.detail_json)
+        assert detail["indeterminate"] is True
+        assert detail["indeterminate_reasons"]["rs1799963"] == "off_chip"
+        assert detail["untyped_loci"] == ["rs1799963"]
+
     def test_off_chip_f2_indeterminate_fvl_unaffected(
         self, panel, sample_engine: sa.Engine
     ) -> None:
