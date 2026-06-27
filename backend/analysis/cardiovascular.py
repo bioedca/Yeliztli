@@ -103,6 +103,7 @@ VARIANT_SCOPED_CONDITION_GENES = frozenset(
         "SCN5A",
         "KCNH2",
         "MYH7",
+        "LMNA",
         "TNNT2",
     }
 )

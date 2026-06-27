@@ -1892,6 +1892,37 @@ class TestVariantSpecificCardiovascularConditionScope:
         assert "Hypertrophic cardiomyopathy" not in text
         assert detail["conditions"] == ["Dilated cardiomyopathy 1S"]
 
+    def test_lmna_dcm_variant_excludes_other_laminopathy_panel_conditions(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                {
+                    "rsid": "rs_lmna_dcm_probe",
+                    "chrom": "1",
+                    "pos": 156108322,
+                    "genotype": "AG",
+                    "zygosity": "het",
+                    "gene_symbol": "LMNA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000066908",
+                    "clinvar_conditions": "Dilated cardiomyopathy 1A",
+                    "annotation_coverage": 2,
+                }
+            ],
+        )
+
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Dilated cardiomyopathy 1A" in text
+        assert "Emery-Dreifuss" not in text
+        assert "Cardiac Conduction Disease" not in text
+        assert detail["conditions"] == ["Dilated cardiomyopathy 1A"]
+
     def test_variant_scoped_gene_without_clinvar_condition_stays_generic(
         self, panel: CardiovascularPanel, sample_engine: sa.Engine
     ) -> None:
