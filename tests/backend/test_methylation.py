@@ -530,7 +530,7 @@ class TestCHDHRS9001Direction:
         assert chdh.risk_allele == "G"
         assert chdh.ref_allele == "T"
 
-    @pytest.mark.parametrize("genotype", ["TT", "GT", "TG", "GG"])
+    @pytest.mark.parametrize("genotype", ["TT", "GT", "TG", "GG", "AA", "AC", "CA", "CC"])
     def test_rs9001_genotypes_are_standard(self, panel: MethylationPanel, genotype: str) -> None:
         result = _score_snp(self._get_chdh_rs9001(panel), genotype)
         all_text = f"{result.effect_summary} {result.recommendation_text}".lower()
@@ -875,14 +875,16 @@ class TestScorePathways:
         # GWAS matches
         assert "rs1801133" in result.gwas_matched_rsids
 
-    def test_chdh_rs9001_tt_reference_stays_standard(
+    @pytest.mark.parametrize("genotype", ["TT", "GT", "TG", "GG", "AA", "AC", "CA", "CC"])
+    def test_chdh_rs9001_genotypes_stay_standard(
         self,
+        genotype: str,
         panel: MethylationPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Issue #1072: rs9001 TT is reference Glu40/Glu40, not a CHDH concern."""
-        _seed_variants(sample_engine, [("rs9001", "3", 53857917, "TT")])
+        """Issue #1072: rs9001 genotypes are informational, not CHDH concerns."""
+        _seed_variants(sample_engine, [("rs9001", "3", 53857917, genotype)])
 
         result = score_methylation_pathways(panel, sample_engine, reference_engine)
         choline = next(pr for pr in result.pathway_results if pr.pathway_id == "choline_betaine")
