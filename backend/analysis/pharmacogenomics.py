@@ -101,6 +101,13 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
     "NUDT15": ("*3.002", "*6", "*9"),
 }
 
+# Issue #1081: for CYP2C9 and CYP2B6, an untyped reduced/no-function marker can
+# make the direct reference-filled call clinically milder than the worst
+# plausible CPIC phenotype. Keep this policy scoped to the reproduced genes so
+# existing gene-specific caveats (e.g. NUDT15 non-SNV alleles) do not change
+# alert semantics without separate review.
+CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2C9", "CYP2B6"})
+
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
 # below requires each allele to have its own heterozygous defining marker so
@@ -190,6 +197,15 @@ class StarAlleleResult:
     # was not assayed/callable on the array (the reference *1 fill is an assumption,
     # not an observation). SW-E1.
     indeterminate_alleles: list[str] = field(default_factory=list)
+    indeterminate_allele_rsids: dict[str, list[str]] = field(default_factory=dict)
+    reference_allele: str | None = None
+    # Conservative phenotype used for prescribing when an untyped defining marker
+    # could make the directly called phenotype less severe than the CPIC-worst
+    # plausible one. The direct diplotype/phenotype remain above for auditability.
+    conservative_diplotype: str | None = None
+    conservative_phenotype: str | None = None
+    conservative_activity_score: float | None = None
+    conservative_allele: str | None = None
 
     @property
     def coverage_assessed(self) -> int:
@@ -409,6 +425,118 @@ def _fetch_diplotype_phenotype(
     }
 
 
+@dataclass(frozen=True)
+class _ConservativePhenotype:
+    """Worst plausible phenotype from one untyped allele replacing a reference call."""
+
+    diplotype: str
+    phenotype: str
+    activity_score: float | None
+    ehr_notation: str | None
+    allele: str
+
+
+def _canonical_diplotype(allele1: str, allele2: str) -> str:
+    """Return a CPIC-sorted diplotype string for two star alleles."""
+    return "/".join(sorted([allele1, allele2], key=_allele_sort_key))
+
+
+def _conservative_alert_note(
+    result: StarAlleleResult,
+    conservative: _ConservativePhenotype,
+) -> str:
+    """Explain why prescribing alerts use a conservative phenotype."""
+    return (
+        f"Conservative prescribing alert uses {conservative.phenotype} because "
+        f"untyped {result.gene}{conservative.allele} could make "
+        f"{conservative.diplotype}; the directly called "
+        f"{result.diplotype} maps to {result.phenotype}."
+    )
+
+
+def _infer_conservative_phenotype(
+    result: StarAlleleResult,
+    reference_engine: sa.Engine,
+) -> _ConservativePhenotype | None:
+    """Return a lower-activity plausible phenotype from indeterminate alleles.
+
+    The caller fills unobserved chromosomes with the reference allele. For a
+    partial call, replacing one such reference-filled chromosome with an
+    indeterminate allele models the smallest clinically relevant uncertainty:
+    one untyped reduced/no-function allele may be present. If that plausible
+    diplotype has a lower CPIC activity score and a different phenotype, use it
+    for prescribing alerts rather than alerting on the milder direct call.
+    """
+    if (
+        result.gene not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
+        or result.call_confidence != CallConfidence.PARTIAL
+        or not result.phenotype
+        or result.activity_score is None
+        or not result.indeterminate_alleles
+    ):
+        return None
+
+    reference_allele = result.reference_allele or "*1"
+    called_alleles = [result.allele1, result.allele2]
+    reference_slots = [
+        index for index, allele in enumerate(called_alleles) if allele == reference_allele
+    ]
+    if not reference_slots:
+        return None
+
+    candidates: list[_ConservativePhenotype] = []
+    for indeterminate_allele in result.indeterminate_alleles:
+        if indeterminate_allele in called_alleles:
+            continue
+        allele_rsids = set(result.indeterminate_allele_rsids.get(indeterminate_allele, []))
+        if allele_rsids & result.involved_rsids:
+            continue
+
+        for index in reference_slots:
+            plausible = called_alleles.copy()
+            plausible[index] = indeterminate_allele
+            plausible_diplotype = _canonical_diplotype(plausible[0], plausible[1])
+            if plausible_diplotype == result.diplotype:
+                continue
+
+            diplo_data = _fetch_diplotype_phenotype(
+                result.gene, plausible_diplotype, reference_engine
+            )
+            if diplo_data is None:
+                continue
+
+            activity_score = diplo_data["activity_score"]
+            phenotype = diplo_data["phenotype"]
+            if (
+                activity_score is None
+                or activity_score >= result.activity_score
+                or phenotype == result.phenotype
+            ):
+                continue
+
+            candidates.append(
+                _ConservativePhenotype(
+                    diplotype=plausible_diplotype,
+                    phenotype=phenotype,
+                    activity_score=activity_score,
+                    ehr_notation=diplo_data["ehr_notation"],
+                    allele=indeterminate_allele,
+                )
+            )
+
+    if not candidates:
+        return None
+
+    return sorted(
+        candidates,
+        key=lambda candidate: (
+            candidate.activity_score if candidate.activity_score is not None else float("inf"),
+            candidate.diplotype,
+            candidate.allele,
+        ),
+    )[0]
+
+
 def _assess_call_confidence(
     gene: str,
     all_defining_rsids: set[str],
@@ -595,6 +723,7 @@ def call_star_alleles_for_gene(
     # genotypes). Use the full (rsid, ref, alt) key because NUDT15 rs746071566
     # has multiple non-equivalent definitions under one rsid.
     remaining_alts: dict[_VariantKey, int] = {}
+    observed_variant_alt_counts: dict[_VariantKey, int] = {}
     observed_alt_counts: dict[str, int] = {}
     uncalled_rsids: set[str] = set()
 
@@ -611,6 +740,7 @@ def call_star_alleles_for_gene(
                 uncalled_rsids.add(rsid)
             else:
                 remaining_alts[key] = alt_count
+                observed_variant_alt_counts[key] = alt_count
                 observed_alt_counts[rsid] = max(observed_alt_counts.get(rsid, 0), alt_count)
 
     assessed_rsids = all_defining_rsids - missing_rsids - uncalled_rsids
@@ -674,13 +804,31 @@ def call_star_alleles_for_gene(
     # SNP array cannot type). Surface these so a "Normal"/reference call is not
     # mistaken for confident exclusion of every star allele.
     unusable_rsids = missing_rsids | uncalled_rsids
-    snp_indeterminate_alleles = {
-        a["allele_name"]
-        for a in non_ref_alleles
-        if a["allele_name"] not in called_alleles
-        and any(v["rsid"] in unusable_rsids for v in a["defining_variants"])
-    }
+    snp_indeterminate_alleles = set()
+    for allele in non_ref_alleles:
+        if allele["allele_name"] in called_alleles:
+            continue
+
+        has_unusable_marker = False
+        excluded_by_typed_reference = False
+        for variant in allele["defining_variants"]:
+            if variant["rsid"] in unusable_rsids:
+                has_unusable_marker = True
+                continue
+            if observed_variant_alt_counts.get(_variant_key(variant), 0) == 0:
+                excluded_by_typed_reference = True
+                break
+
+        if has_unusable_marker and not excluded_by_typed_reference:
+            snp_indeterminate_alleles.add(allele["allele_name"])
     indeterminate_alleles = sorted(snp_indeterminate_alleles | structural_uncallable)
+    indeterminate_allele_rsids = {
+        allele["allele_name"]: sorted({v["rsid"] for v in allele["defining_variants"]})
+        for allele in non_ref_alleles
+        if allele["allele_name"] in indeterminate_alleles
+    }
+    for allele_name in structural_uncallable:
+        indeterminate_allele_rsids.setdefault(allele_name, [])
     if indeterminate_alleles:
         confidence_note = (
             f"{confidence_note} Cannot exclude {', '.join(indeterminate_alleles)} — "
@@ -739,7 +887,7 @@ def call_star_alleles_for_gene(
         if call_confidence == CallConfidence.COMPLETE:
             call_confidence = CallConfidence.PARTIAL
 
-    return StarAlleleResult(
+    result = StarAlleleResult(
         gene=gene,
         allele1=allele1,
         allele2=allele2,
@@ -755,7 +903,20 @@ def call_star_alleles_for_gene(
         call_confidence=call_confidence,
         confidence_note=confidence_note,
         indeterminate_alleles=indeterminate_alleles,
+        indeterminate_allele_rsids=indeterminate_allele_rsids,
+        reference_allele=ref_allele_name,
     )
+    conservative = _infer_conservative_phenotype(result, reference_engine)
+    if conservative is not None:
+        result.conservative_diplotype = conservative.diplotype
+        result.conservative_phenotype = conservative.phenotype
+        result.conservative_activity_score = conservative.activity_score
+        result.conservative_allele = conservative.allele
+        note = _conservative_alert_note(result, conservative)
+        if note not in result.confidence_note:
+            result.confidence_note = f"{result.confidence_note} {note}".strip()
+
+    return result
 
 
 def call_all_star_alleles(
@@ -940,6 +1101,14 @@ class PrescribingAlert:
     coverage_total: int = 0
     # Star alleles that could not be excluded (defining variant unassayed). SW-E1.
     indeterminate_alleles: list[str] = field(default_factory=list)
+    indeterminate_allele_rsids: dict[str, list[str]] = field(default_factory=dict)
+    # True when ``phenotype``/``activity_score`` come from the conservative
+    # lower-activity phenotype rather than the directly called diplotype.
+    conservative_alert: bool = False
+    called_phenotype: str | None = None
+    called_activity_score: float | None = None
+    conservative_diplotype: str | None = None
+    conservative_allele: str | None = None
 
 
 def _fetch_guidelines_for_gene_phenotype(
@@ -1043,9 +1212,21 @@ def generate_prescribing_alerts(
             )
             continue
 
+        conservative = _infer_conservative_phenotype(result, reference_engine)
+        alert_phenotype = conservative.phenotype if conservative else result.phenotype
+        alert_activity_score = (
+            conservative.activity_score if conservative else result.activity_score
+        )
+        alert_ehr_notation = conservative.ehr_notation if conservative else result.ehr_notation
+        confidence_note = result.confidence_note
+        if conservative is not None:
+            note = _conservative_alert_note(result, conservative)
+            if note not in confidence_note:
+                confidence_note = f"{confidence_note} {note}".strip()
+
         # Look up matching guidelines
         guidelines = _fetch_guidelines_for_gene_phenotype(
-            result.gene, result.phenotype, reference_engine
+            result.gene, alert_phenotype, reference_engine
         )
 
         if not guidelines:
@@ -1061,7 +1242,7 @@ def generate_prescribing_alerts(
                 logger.warning(
                     "pgx_phenotype_no_guideline_row",
                     gene=result.gene,
-                    phenotype=result.phenotype,
+                    phenotype=alert_phenotype,
                     diplotype=result.diplotype,
                     covered_phenotypes=sorted(covered_phenotypes),
                 )
@@ -1080,19 +1261,25 @@ def generate_prescribing_alerts(
                 gene=result.gene,
                 drug=guideline["drug"],
                 diplotype=result.diplotype,
-                phenotype=result.phenotype,
+                phenotype=alert_phenotype,
                 recommendation=guideline["recommendation"],
                 classification=guideline["classification"],
                 guideline_url=guideline["guideline_url"],
                 call_confidence=result.call_confidence,
-                confidence_note=result.confidence_note,
+                confidence_note=confidence_note,
                 evidence_level=evidence_level,
-                activity_score=result.activity_score,
-                ehr_notation=result.ehr_notation,
+                activity_score=alert_activity_score,
+                ehr_notation=alert_ehr_notation,
                 involved_rsids=sorted(result.involved_rsids),
                 coverage_assessed=result.coverage_assessed,
                 coverage_total=result.defining_rsid_count,
                 indeterminate_alleles=result.indeterminate_alleles,
+                indeterminate_allele_rsids=result.indeterminate_allele_rsids,
+                conservative_alert=conservative is not None,
+                called_phenotype=result.phenotype if conservative is not None else None,
+                called_activity_score=result.activity_score if conservative is not None else None,
+                conservative_diplotype=conservative.diplotype if conservative else None,
+                conservative_allele=conservative.allele if conservative else None,
             )
             alerts.append(alert)
 
@@ -1100,11 +1287,12 @@ def generate_prescribing_alerts(
                 "pgx_prescribing_alert",
                 gene=result.gene,
                 drug=guideline["drug"],
-                phenotype=result.phenotype,
+                phenotype=alert_phenotype,
                 recommendation=guideline["recommendation"],
                 classification=guideline["classification"],
                 call_confidence=result.call_confidence.value,
                 evidence_level=evidence_level,
+                conservative_alert=conservative is not None,
             )
 
     # Sort by gene, then drug for deterministic output
@@ -1118,11 +1306,14 @@ def _build_finding_text(alert: PrescribingAlert) -> str:
     Format: "{Gene} {diplotype}: {phenotype} -- {drug}: {recommendation}"
     If call confidence is Partial, appends a provisional note.
     """
-    text = (
-        f"{alert.gene} {alert.diplotype}: {alert.phenotype} -- "
-        f"{alert.drug}: {alert.recommendation}"
-    )
-    if alert.call_confidence == CallConfidence.PARTIAL:
+    diplotype = alert.diplotype
+    if alert.conservative_alert and alert.conservative_diplotype:
+        diplotype = f"{diplotype} (possible {alert.conservative_diplotype})"
+
+    text = f"{alert.gene} {diplotype}: {alert.phenotype} -- {alert.drug}: {alert.recommendation}"
+    if alert.conservative_alert:
+        text += " (conservative partial call -- see call confidence note)"
+    elif alert.call_confidence == CallConfidence.PARTIAL:
         text += " (provisional -- see call confidence note)"
     return text
 
@@ -1159,10 +1350,23 @@ def store_prescribing_alerts(
                 "total": alert.coverage_total,
             },
             "indeterminate_alleles": alert.indeterminate_alleles,
+            "indeterminate_allele_rsids": alert.indeterminate_allele_rsids,
         }
         gene_caveat = _GENE_INTERPRETATION_CAVEATS.get(alert.gene)
         if gene_caveat:
             detail["gene_caveat"] = gene_caveat
+        if alert.conservative_alert:
+            detail.update(
+                {
+                    "conservative_alert": True,
+                    "called_phenotype": alert.called_phenotype,
+                    "called_activity_score": alert.called_activity_score,
+                    "conservative_diplotype": alert.conservative_diplotype,
+                    "conservative_phenotype": alert.phenotype,
+                    "conservative_activity_score": alert.activity_score,
+                    "conservative_allele": alert.conservative_allele,
+                }
+            )
 
         rows.append(
             {

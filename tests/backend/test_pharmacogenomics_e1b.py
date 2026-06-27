@@ -203,6 +203,56 @@ def test_cyp2b6_missing_star18_site_is_indeterminate(reference_engine: sa.Engine
     assert "*18" in result.confidence_note
 
 
+def test_cyp2b6_missing_star9_marker_uses_conservative_intermediate_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """A missing rs3745274 marker must not emit a Normal efavirenz alert."""
+    genotypes = {"rs2279343": "AA", "rs28399499": "TT"}
+
+    result = _call("CYP2B6", genotypes, reference_engine)
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert result.indeterminate_alleles == ["*9"]
+    assert result.conservative_diplotype == "*1/*9"
+    assert result.conservative_phenotype == "Intermediate Metabolizer"
+
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert len(efv) == 1
+    assert efv[0].diplotype == "*1/*1"
+    assert efv[0].phenotype == "Intermediate Metabolizer"
+    assert efv[0].called_phenotype == "Normal Metabolizer"
+    assert efv[0].conservative_alert is True
+    assert efv[0].conservative_diplotype == "*1/*9"
+    assert "consider a reduced dose" in efv[0].recommendation
+
+
+def test_cyp2b6_missing_star6_marker_does_not_double_count_star9_copy(
+    reference_engine: sa.Engine,
+) -> None:
+    """Do not turn one observed rs3745274 alt copy into both *9 and possible *6."""
+    genotypes = {"rs3745274": "GT", "rs28399499": "TT"}
+
+    result = _call("CYP2B6", genotypes, reference_engine)
+    assert result.diplotype == "*1/*9"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.indeterminate_alleles == ["*6"]
+    assert result.conservative_phenotype is None
+
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert len(efv) == 1
+    assert efv[0].phenotype == "Intermediate Metabolizer"
+    assert efv[0].conservative_alert is False
+
+
 def test_cyp2b6_star18_is_intermediate(reference_engine: sa.Engine) -> None:
     # 983T>C het only -> *1/*18, not a silent *1/*1 normal call.
     result = _call("CYP2B6", _cyp2b6_geno(rs28399499="TC"), reference_engine)

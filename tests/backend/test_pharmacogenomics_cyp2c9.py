@@ -23,10 +23,12 @@ CYP2C9 ``*6`` caveat — rs9332131 is a single-base deletion. The caller can typ
 the allele when raw data represents the site with D/I tokens (``DI`` ->
 ``*1/*6``, ``DD`` -> ``*6/*6``, ``II`` -> observed reference). If rs9332131 is
 absent or present in an unsupported base-coded form, ``*6`` remains
-indeterminate and CYP2C9 is PARTIAL confidence (``*6`` cannot be excluded).
-Alerts still fire for PARTIAL calls; only INSUFFICIENT is suppressed. All
-genotypes below are GRCh37 plus/forward strand; star-allele calling is keyed on
-rsid, so the chrom/pos are realistic but not load-bearing.
+indeterminate and CYP2C9 is PARTIAL confidence (``*6`` cannot be excluded). When
+an indeterminate allele can lower the CPIC activity score into a more severe
+phenotype, prescribing alerts use that conservative phenotype rather than the
+milder direct call. All genotypes below are GRCh37 plus/forward strand;
+star-allele calling is keyed on rsid, so the chrom/pos are realistic but not
+load-bearing.
 """
 
 from __future__ import annotations
@@ -253,7 +255,9 @@ def test_star3_calls_use_no_function_activity(
     assert result.phenotype == phenotype
     assert result.activity_score == activity_score
 
-    sample = _make_sample(_cyp2c9_genotypes(**overrides))
+    sample_genotypes = _cyp2c9_genotypes(**overrides)
+    sample_genotypes.setdefault("rs9332131", "II")
+    sample = _make_sample(sample_genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
     alerts = generate_prescribing_alerts(results, reference_engine)
 
@@ -314,6 +318,63 @@ def test_compound_het_star2_star3_is_phase_flagged(reference_engine: sa.Engine) 
     assert "unphased" in result.confidence_note
 
 
+def test_untyped_star2_with_typed_star3_uses_conservative_poor_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """A missing CYP2C9*2 marker must not emit milder *1/*3 IM dosing alerts."""
+    genotypes = _cyp2c9_genotypes(rs1057910="AC", rs9332131="II")
+    del genotypes["rs1799853"]
+
+    result = _call_cyp2c9(reference_engine, genotypes)
+    assert result.diplotype == "*1/*3"
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert result.indeterminate_alleles == ["*2"]
+    assert result.conservative_diplotype == "*2/*3"
+    assert result.conservative_phenotype == "Poor Metabolizer"
+    assert result.conservative_activity_score == 0.5
+    assert "Conservative prescribing alert uses Poor Metabolizer" in result.confidence_note
+
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    cyp2c9_alerts = [a for a in alerts if a.gene == "CYP2C9"]
+    assert {a.drug for a in cyp2c9_alerts} == {"warfarin", "phenytoin"}
+    assert {a.phenotype for a in cyp2c9_alerts} == {"Poor Metabolizer"}
+    assert {a.conservative_diplotype for a in cyp2c9_alerts} == {"*2/*3"}
+    assert {a.called_phenotype for a in cyp2c9_alerts} == {"Intermediate Metabolizer"}
+    assert all(a.conservative_alert for a in cyp2c9_alerts)
+    warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
+    phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
+    assert "50-75%" in warfarin.recommendation
+    assert "50%" in phenytoin.recommendation
+
+
+def test_untyped_star2_with_reference_star3_does_not_emit_poor_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """A missing CYP2C9*2 marker alone must not fabricate a Poor phenotype."""
+    genotypes = _cyp2c9_genotypes(rs9332131="II")
+    del genotypes["rs1799853"]
+
+    result = _call_cyp2c9(reference_engine, genotypes)
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.indeterminate_alleles == ["*2"]
+    assert result.conservative_diplotype == "*1/*2"
+    assert result.conservative_phenotype == "Intermediate Metabolizer"
+
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    cyp2c9_alerts = [a for a in alerts if a.gene == "CYP2C9"]
+    assert cyp2c9_alerts
+    assert {a.phenotype for a in cyp2c9_alerts} == {"Intermediate Metabolizer"}
+    assert "Poor Metabolizer" not in {a.phenotype for a in cyp2c9_alerts}
+
+
 @pytest.mark.parametrize(
     ("overrides", "diplotype", "phenotype"),
     [
@@ -332,7 +393,9 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
 ) -> None:
     """End-to-end patient-safety guard: CYP2C9 carriers get warfarin + phenytoin
     alerts instead of being silently skipped (the issue-#14 defect)."""
-    sample = _make_sample(_cyp2c9_genotypes(**overrides))
+    sample_genotypes = _cyp2c9_genotypes(**overrides)
+    sample_genotypes.setdefault("rs9332131", "II")
+    sample = _make_sample(sample_genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
     alerts = generate_prescribing_alerts(results, reference_engine)
 
@@ -341,16 +404,13 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     drugs = {a.drug for a in cyp2c9_alerts}
     assert {"warfarin", "phenytoin"} <= drugs
     expected_confidence = (
-        CallConfidence.COMPLETE if "rs9332131" in overrides else CallConfidence.PARTIAL
+        CallConfidence.PARTIAL if diplotype == "*2/*5" else CallConfidence.COMPLETE
     )
     for alert in cyp2c9_alerts:
         assert alert.diplotype == diplotype
         assert alert.phenotype == phenotype
         assert alert.call_confidence == expected_confidence
-        if "rs9332131" in overrides:
-            assert "*6" not in alert.indeterminate_alleles
-        else:
-            assert "*6" in alert.indeterminate_alleles
+        assert "*6" not in alert.indeterminate_alleles
 
 
 def test_star6_base_coded_indel_is_uncalled_and_indeterminate(
