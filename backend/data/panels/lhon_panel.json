@@ -16,7 +16,6 @@
       "label": "m.11778G>A (p.Arg340His)",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false
@@ -29,7 +28,6 @@
       "label": "m.3460G>A (p.Ala52Thr)",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false,
@@ -44,7 +42,6 @@
       "label": "m.14484T>C (p.Met64Val)",
       "risk_allele": "C",
       "ref_allele": "T",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false,

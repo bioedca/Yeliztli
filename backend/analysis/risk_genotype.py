@@ -189,9 +189,8 @@ class RiskLocus:
     rsid: str
     gene_symbol: str
     label: str  # e.g. "C282Y"
-    risk_allele: str  # rsID-anchored, on the strand named by canonical_strand
+    risk_allele: str  # rsID-anchored allele token used for dosage matching.
     ref_allele: str
-    canonical_strand: str = "plus"  # "plus" | "minus" (minus flags cross-vendor pitfalls)
     off_chip_risk: str = "low"  # "high" → may be absent on arrays (e.g. indels)
     allele_type: str = ALLELE_TYPE_SNV  # "snv" | "indel" (indel uses literal I/D tokens)
     # Whether a Watson–Crick-complemented observation may be accepted as a
@@ -365,7 +364,6 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
             label=loc.get("label", loc["rsid"]),
             risk_allele=loc["risk_allele"].upper(),
             ref_allele=loc["ref_allele"].upper(),
-            canonical_strand=loc.get("canonical_strand", "plus"),
             off_chip_risk=loc.get("off_chip_risk", "low"),
             allele_type=loc.get("allele_type", ALLELE_TYPE_SNV),
             allow_strand_complement=loc.get("allow_strand_complement", True),

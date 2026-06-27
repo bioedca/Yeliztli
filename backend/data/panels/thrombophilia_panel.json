@@ -15,7 +15,6 @@
       "label": "Factor V Leiden (R506Q)",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "minus",
       "off_chip_risk": "high"
     },
     {
@@ -24,7 +23,6 @@
       "label": "Prothrombin G20210A",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "minus",
       "off_chip_risk": "high"
     }
   ],

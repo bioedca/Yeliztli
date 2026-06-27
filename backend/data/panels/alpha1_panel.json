@@ -14,7 +14,6 @@
       "label": "Pi*Z (E342K)",
       "risk_allele": "T",
       "ref_allele": "C",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     },
     {
@@ -23,7 +22,6 @@
       "label": "Pi*S (E264V)",
       "risk_allele": "A",
       "ref_allele": "T",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     }
   ],

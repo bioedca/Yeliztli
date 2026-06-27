@@ -14,7 +14,6 @@
       "label": "Y402H",
       "risk_allele": "C",
       "ref_allele": "T",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     },
     {
@@ -23,7 +22,6 @@
       "label": "A69S",
       "risk_allele": "T",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     }
   ],

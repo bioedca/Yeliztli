@@ -14,7 +14,6 @@
       "label": "C282Y",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     },
     {
@@ -23,7 +22,6 @@
       "label": "H63D",
       "risk_allele": "G",
       "ref_allele": "C",
-      "canonical_strand": "plus",
       "off_chip_risk": "low"
     }
   ],

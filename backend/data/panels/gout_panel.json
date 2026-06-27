@@ -14,7 +14,6 @@
       "label": "Q141K",
       "risk_allele": "T",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "low",
       "allele_type": "snv"
     },
@@ -24,7 +23,6 @@
       "label": "urate transporter (GLUT9)",
       "risk_allele": "T",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "low",
       "allele_type": "snv"
     }

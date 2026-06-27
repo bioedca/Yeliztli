@@ -16,7 +16,6 @@
       "label": "m.1555A>G",
       "risk_allele": "G",
       "ref_allele": "A",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false,
@@ -31,7 +30,6 @@
       "label": "m.1494C>T",
       "risk_allele": "T",
       "ref_allele": "C",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false,
@@ -46,7 +44,6 @@
       "label": "m.1095T>C",
       "risk_allele": "C",
       "ref_allele": "T",
-      "canonical_strand": "plus",
       "off_chip_risk": "high",
       "allele_type": "snv",
       "allow_strand_complement": false

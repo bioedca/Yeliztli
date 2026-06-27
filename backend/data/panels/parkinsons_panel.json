@@ -14,7 +14,6 @@
       "label": "G2019S (p.Gly2019Ser)",
       "risk_allele": "A",
       "ref_allele": "G",
-      "canonical_strand": "plus",
       "off_chip_risk": "low",
       "allele_type": "snv"
     }
