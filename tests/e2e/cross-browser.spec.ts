@@ -14,7 +14,7 @@
  *   - axe-core WCAG 2.1 AA compliance per browser
  */
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { bypassSetup } from './helpers'
 
@@ -78,6 +78,10 @@ const IGNORED_CONSOLE_PATTERNS = [
 
 function isIgnoredConsoleMessage(text: string): boolean {
   return IGNORED_CONSOLE_PATTERNS.some((p) => text.includes(p))
+}
+
+async function expectAppChromeSettled(page: Page) {
+  await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
 }
 
 // ── 1. Page rendering: no JS errors, correct h1 heading ────────────────
@@ -402,42 +406,43 @@ test.describe('P4-26d: Cross-browser — WCAG 2.1 AA compliance', () => {
 
 // ── 8. Visual screenshot comparison ────────────────────────────────────
 test.describe('P4-26d: Cross-browser — visual screenshots', () => {
-  // Capture screenshots for key pages; failures saved as artifacts
+  test.skip(
+    ({ browserName }) => browserName === 'webkit',
+    'WebKit visual baselines are tracked separately from this smoke-baseline set',
+  )
+
   const screenshotPages = [
     { path: '/', name: 'dashboard' },
     { path: '/variants', name: 'variants' },
-    { path: '/settings', name: 'settings' },
+    { path: '/settings/general', name: 'settings' },
     { path: '/pharmacogenomics', name: 'pharmacogenomics' },
   ]
 
   for (const pg of screenshotPages) {
-    test(`capture ${pg.name} screenshot`, async ({ page, browserName }) => {
+    test(`capture ${pg.name} screenshot`, async ({ page }) => {
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
+      await expectAppChromeSettled(page)
 
-      await page.screenshot({
-        path: `test-results/screenshots/${browserName}-${pg.name}.png`,
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      await expect(page).toHaveScreenshot(`${pg.name}.png`, {
         fullPage: true,
       })
-
-      // Verify page loaded (screenshot is for visual comparison, not assertion)
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     })
   }
 
   // Dark mode screenshots
   for (const pg of screenshotPages) {
-    test(`capture ${pg.name} dark mode screenshot`, async ({ page, browserName }) => {
+    test(`capture ${pg.name} dark mode screenshot`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: 'dark' })
       await page.goto(pg.path)
       await page.waitForLoadState('networkidle')
-
-      await page.screenshot({
-        path: `test-results/screenshots/${browserName}-${pg.name}-dark.png`,
-        fullPage: true,
-      })
+      await expectAppChromeSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      await expect(page).toHaveScreenshot(`${pg.name}-dark.png`, {
+        fullPage: true,
+      })
     })
   }
 })
