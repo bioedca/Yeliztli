@@ -68,9 +68,12 @@ describe("PathwayCard", () => {
     expect(screen.getByText("Moderate")).toBeInTheDocument()
   })
 
-  it("shows Standard badge for Standard level", () => {
+  it("qualifies Standard badge when SNP coverage is incomplete", () => {
     render(<PathwayCard pathway={QUALITY_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Standard")).toBeInTheDocument()
+    expect(screen.getByText("Tested Standard")).toBeInTheDocument()
+    expect(screen.getByTestId("pathway-coverage-caveat")).toHaveTextContent(
+      "No variants of concern among tested SNPs; 1 tracked SNP (1 off-chip) not assessed.",
+    )
   })
 
   it("renders evidence stars", () => {

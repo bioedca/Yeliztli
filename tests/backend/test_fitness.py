@@ -1034,14 +1034,13 @@ class TestStoreFindingsIntegration:
         detail = json.loads(row.detail_json)
         assert detail["indeterminate_snps"] == ["rs4341"]
 
-    def test_standard_pathway_without_indeterminate_still_no_concern(
+    def test_standard_pathway_without_indeterminate_qualifies_missing_coverage(
         self,
         panel: FitnessPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """A genuinely Standard pathway (no indeterminate calls) keeps the
-        'no variants of concern' wording (#270 — don't over-trigger)."""
+        """A Standard pathway with missing SNPs is qualified even without indeterminate calls."""
         # MCT1 rs1049434 TT is the non-palindromic, scoreable Standard call for
         # the power pathway's MCT1 entry; pair with ACE II-proxy → Standard.
         _seed_variants(
@@ -1061,7 +1060,11 @@ class TestStoreFindingsIntegration:
                 )
             ).fetchone()
         assert row is not None
-        assert "Standard (no variants of concern)" in row.finding_text
+        assert "Standard (no variants of concern)" not in row.finding_text
+        assert "No variants of concern among tested SNPs" in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["off_chip_snps"] == ["rs1049434"]
+        assert "coverage_interpretation" in detail
 
     def test_actn3_finding_includes_three_state_detail(
         self,

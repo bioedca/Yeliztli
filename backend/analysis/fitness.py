@@ -44,6 +44,7 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
+from backend.analysis.pathway_coverage import coverage_detail, format_not_assessed
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -679,18 +680,30 @@ def store_fitness_findings(
                 f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
                 f"observed but not interpreted (indeterminate) — see SNP details"
             )
+            if pr.missing_snps:
+                finding_text += f"; {format_not_assessed(pr.missing_snps)} not assessed"
         else:
-            finding_text = f"{pr.pathway_name} — Standard (no variants of concern)"
+            coverage = coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+            )
+            finding_text = (
+                f"{pr.pathway_name} — {coverage['coverage_interpretation']}"
+                if "coverage_interpretation" in coverage
+                else f"{pr.pathway_name} — Standard (no variants of concern)"
+            )
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
             "indeterminate_snps": [s.rsid for s in indeterminate],
-            "missing_snps": [s.rsid for s in pr.missing_snps],
-            # Preserve missing_snps as the historical union while exposing
-            # on-array failed calls separately for actionable UI labels.
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
+            **coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+            ),
             "snp_details": [
                 {
                     "rsid": s.rsid,

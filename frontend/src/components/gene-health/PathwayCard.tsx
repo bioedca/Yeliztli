@@ -8,8 +8,9 @@
 import { cn } from "@/lib/utils"
 import type { PathwaySummary } from "@/types/gene-health"
 import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
+import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Info } from "lucide-react"
 
 interface PathwayCardProps {
   pathway: PathwaySummary
@@ -31,6 +32,8 @@ const PATHWAY_DESCRIPTIONS: Record<string, string> = {
 export default function PathwayCard({ pathway, onClick, selected }: PathwayCardProps) {
   const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard
   const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || ""
+  const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
+  const coverageCaveat = pathwayCoverageCaveat(pathway)
 
   return (
     <button
@@ -43,7 +46,7 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${pathway.pathway_name} — ${config.label}`}
+      aria-label={`${pathway.pathway_name} — ${levelLabel}`}
       aria-pressed={!!selected}
       data-selected={selected || undefined}
     >
@@ -56,9 +59,22 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
             config.badge,
           )}
         >
-          {config.label}
+          {levelLabel}
         </span>
       </div>
+
+      {coverageCaveat && (
+        <p
+          className={cn(
+            "mb-3 inline-flex items-start gap-1.5 rounded-md px-2 py-1 text-xs",
+            "bg-muted text-muted-foreground",
+          )}
+          data-testid="pathway-coverage-caveat"
+        >
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{coverageCaveat}</span>
+        </p>
+      )}
 
       {/* Description */}
       {description && (

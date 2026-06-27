@@ -1585,6 +1585,59 @@ class TestFindingsStorage:
         detail = json.loads(histamine[0].detail_json)
         assert detail.get("de_emphasize") is True
 
+    def test_histamine_standard_summary_qualifies_off_chip_aoc1_variants(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#1091: a Standard histamine result with off-chip AOC1 SNPs is not a panel negative."""
+        _seed_variants(sample_engine, [("rs11558538", "2", 138759649, "CC")])
+        _seed_hla_proxies(reference_engine)
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        histamine_pr = next(
+            pr for pr in result.pathway_results if pr.pathway_id == "histamine_metabolism"
+        )
+        assert histamine_pr.level == STANDARD
+        assert len(histamine_pr.called_snps) == 1
+        assert len(histamine_pr.missing_snps) == 4
+        assert result.histamine_combined is not None
+        assert result.histamine_combined.aoc1_snps_assessed == 0
+        assert set(result.histamine_combined.aoc1_off_chip_snps) == {
+            "rs10156191",
+            "rs1049742",
+            "rs1049793",
+            "rs2052129",
+        }
+        assert "AOC1 coverage is incomplete" in result.histamine_combined.combined_text
+        assert "all four main AOC1 DAO-deficiency variants" not in (
+            result.histamine_combined.combined_text
+        )
+
+        store_allergy_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "pathway_summary",
+                    findings.c.pathway == "Histamine Metabolism",
+                )
+            ).one()
+
+        assert "Standard (no variants of concern)" not in row.finding_text
+        assert "No variants of concern among tested SNPs" in row.finding_text
+        assert "4 tracked SNPs (4 off-chip) not assessed" in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert set(detail["off_chip_snps"]) == {
+            "rs10156191",
+            "rs1049742",
+            "rs1049793",
+            "rs2052129",
+        }
+        assert detail["no_call_snps"] == []
+        assert "No variants of concern among tested SNPs" in detail["coverage_interpretation"]
+
     def test_hla_proxy_lookup_in_findings(
         self,
         panel: AllergyPanel,

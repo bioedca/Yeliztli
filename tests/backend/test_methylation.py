@@ -1323,8 +1323,14 @@ class TestStoreFindingsIntegration:
             ).first()
         assert row is not None
         assert row.pathway_level == STANDARD
-        assert row.finding_text == "Folate & MTHFR — Standard (no variants of concern)"
+        assert row.finding_text == (
+            "Folate & MTHFR — No variants of concern among tested SNPs; "
+            "5 tracked SNPs (5 off-chip) not assessed."
+        )
         detail = json.loads(row.detail_json)
+        assert set(detail["off_chip_snps"]) == {s.rsid for s in folate.missing_snps}
+        assert len(detail["off_chip_snps"]) == 5
+        assert "No variants of concern among tested SNPs" in detail["coverage_interpretation"]
         assert detail["additive_promoted"] is False
         assert detail["moderate_snp_count"] == 0
         assert detail["multiple_moderate_findings"] is False

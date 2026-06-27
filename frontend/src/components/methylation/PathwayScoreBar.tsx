@@ -8,8 +8,9 @@
 import { cn } from "@/lib/utils"
 import type { PathwaySummary, PathwayLevel } from "@/types/methylation"
 import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
+import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { ChevronRight, TrendingUp } from "lucide-react"
+import { ChevronRight, Info, TrendingUp } from "lucide-react"
 
 interface PathwayScoreBarProps {
   pathway: PathwaySummary
@@ -26,6 +27,8 @@ const BAR_WIDTH: Record<PathwayLevel, string> = {
 export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayScoreBarProps) {
   const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard
   const barWidth = BAR_WIDTH[pathway.level] || BAR_WIDTH.Standard
+  const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
+  const coverageCaveat = pathwayCoverageCaveat(pathway)
 
   return (
     <button
@@ -38,7 +41,7 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${pathway.pathway_name} — ${config.label}`}
+      aria-label={`${pathway.pathway_name} — ${levelLabel}`}
       data-selected={selected || undefined}
     >
       {/* Header: pathway name + level badge */}
@@ -60,10 +63,23 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
               config.badge,
             )}
           >
-            {config.label}
+            {levelLabel}
           </span>
         </div>
       </div>
+
+      {coverageCaveat && (
+        <p
+          className={cn(
+            "mb-3 inline-flex items-start gap-1.5 rounded-md px-2 py-1 text-xs",
+            "bg-muted text-muted-foreground",
+          )}
+          data-testid="pathway-coverage-caveat"
+        >
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{coverageCaveat}</span>
+        </p>
+      )}
 
       {/* Score bar */}
       <div className="mb-3">

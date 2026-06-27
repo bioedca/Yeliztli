@@ -47,6 +47,7 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
+from backend.analysis.pathway_coverage import coverage_detail, coverage_interpretation
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -715,7 +716,14 @@ def store_methylation_findings(
             if pr.level == MODERATE and multiple_moderate_findings:
                 level_text += " (multiple moderate findings)"
         else:
-            level_text = "Standard (no variants of concern)"
+            level_text = (
+                coverage_interpretation(
+                    level=pr.level,
+                    called_count=called_count,
+                    missing_snps=pr.missing_snps,
+                )
+                or "Standard (no variants of concern)"
+            )
 
         finding_text = f"{pr.pathway_name} — {level_text}"
 
@@ -723,8 +731,11 @@ def store_methylation_findings(
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
-            "missing_snps": [s.rsid for s in pr.missing_snps],
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
+            **coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+            ),
             "additive_promoted": pr.additive_promoted,
             "moderate_snp_count": moderate_count,
             "multiple_moderate_findings": multiple_moderate_findings,

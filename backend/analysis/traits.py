@@ -51,6 +51,7 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
+from backend.analysis.pathway_coverage import coverage_detail, pathway_summary_text
 from backend.analysis.prs import (
     PRSResult,
     PRSSNPWeight,
@@ -751,10 +752,13 @@ def store_traits_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
-        finding_text = (
-            f"{pr.pathway_name} — {pr.level} consideration"
-            if pr.level != STANDARD
-            else f"{pr.pathway_name} — Standard (no variants of note)"
+        finding_text = pathway_summary_text(
+            pathway_name=pr.pathway_name,
+            level=pr.level,
+            called_count=called_count,
+            missing_snps=pr.missing_snps,
+            standard_complete_phrase="Standard (no variants of note)",
+            standard_limited_phrase="No variants of note among tested SNPs",
         )
 
         detail = {
@@ -762,8 +766,12 @@ def store_traits_findings(
             "called_snps": called_count,
             "total_snps": total_count,
             "prs_primary": pr.prs_primary,
-            "missing_snps": [s.rsid for s in pr.missing_snps],
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == NO_CALL],
+            **coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+                standard_limited_phrase="No variants of note among tested SNPs",
+            ),
             "snp_details": [
                 {
                     "rsid": s.rsid,

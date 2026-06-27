@@ -47,6 +47,12 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
+from backend.analysis.pathway_coverage import (
+    coverage_detail,
+    format_not_assessed,
+    missing_rsid_groups,
+    pathway_summary_text,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -227,6 +233,9 @@ class HistamineCombinedResult:
     aoc1_risk_allele_count: int = 0
     aoc1_homozygous_risk_count: int = 0
     aoc1_snps_assessed: int = 0
+    aoc1_not_assessed_snps: list[str] = field(default_factory=list)
+    aoc1_no_call_snps: list[str] = field(default_factory=list)
+    aoc1_off_chip_snps: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -637,12 +646,14 @@ def _compute_histamine_combined(
     aoc1_snps_assessed = 0
     aoc1_cat = STANDARD
     rs10156191_result = None
+    aoc1_missing_results: list[SNPResult] = []
     for s in histamine_pr.snp_results:
         if s.rsid not in aoc1_risk_alleles:
             continue
         if s.rsid == "rs10156191":
             rs10156191_result = s
         if not s.present_in_sample or not s.genotype:
+            aoc1_missing_results.append(s)
             continue
         # A strand-indeterminate palindromic homozygote (e.g. rs1049793 CC/GG,
         # #436) has an unresolvable allele dosage, so it must not contribute to
@@ -673,12 +684,21 @@ def _compute_histamine_combined(
     hnmt_cat = hnmt_result.category if hnmt_result and hnmt_result.present_in_sample else STANDARD
 
     aoc1_present = aoc1_risk_allele_count > 0
+    aoc1_not_assessed, aoc1_no_call, aoc1_off_chip = missing_rsid_groups(aoc1_missing_results)
     load_phrase = (
         f"Cumulative AOC1 load: {aoc1_risk_allele_count} DAO-deficiency risk "
         f"allele(s) across {aoc1_snps_assessed} assessed SNP(s) "
         f"({aoc1_homozygous_risk_count} homozygous); a higher load — especially "
         "the homozygous count — is more predictive of reduced DAO activity than "
         "any single variant."
+    )
+    aoc1_coverage_note = (
+        " AOC1 coverage is incomplete: "
+        f"{format_not_assessed(aoc1_missing_results)} in the DAO-deficiency set "
+        "not assessed on this array; absence of detected AOC1 variants applies "
+        "only to tested SNPs."
+        if aoc1_missing_results
+        else ""
     )
 
     # Build combined text
@@ -696,15 +716,15 @@ def _compute_histamine_combined(
     elif hnmt_cat != STANDARD:
         combined_text = (
             "HNMT variant detected. Reduced intracellular histamine inactivation. "
-            "Evidence is at the candidate gene level."
+            f"Evidence is at the candidate gene level.{aoc1_coverage_note}"
         )
     else:
         combined_text = (
             "No panel-tracked AOC1/HNMT risk genotypes detected. This candidate-gene "
-            "panel (all four main AOC1 DAO-deficiency variants) does not "
+            "assessment does not "
             "rule out reduced DAO activity or histamine intolerance, which depend on "
             "additional variants and non-genetic factors (diet, medications, "
-            "clinical phenotype)."
+            f"clinical phenotype).{aoc1_coverage_note}"
         )
 
     return HistamineCombinedResult(
@@ -717,6 +737,9 @@ def _compute_histamine_combined(
         aoc1_risk_allele_count=aoc1_risk_allele_count,
         aoc1_homozygous_risk_count=aoc1_homozygous_risk_count,
         aoc1_snps_assessed=aoc1_snps_assessed,
+        aoc1_not_assessed_snps=aoc1_not_assessed,
+        aoc1_no_call_snps=aoc1_no_call,
+        aoc1_off_chip_snps=aoc1_off_chip,
     )
 
 
@@ -1182,20 +1205,22 @@ def store_allergy_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
-        finding_text = (
-            f"{pr.pathway_name} — {pr.level} consideration"
-            if pr.level != STANDARD
-            else f"{pr.pathway_name} — Standard (no variants of concern)"
+        finding_text = pathway_summary_text(
+            pathway_name=pr.pathway_name,
+            level=pr.level,
+            called_count=called_count,
+            missing_snps=pr.missing_snps,
         )
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
-            "missing_snps": [s.rsid for s in pr.missing_snps],
-            # Preserve missing_snps as the historical union while exposing
-            # on-array failed calls separately for actionable UI labels.
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
+            **coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+            ),
             "snp_details": [
                 _stored_snp_detail(
                     s,
@@ -1339,6 +1364,9 @@ def store_allergy_findings(
                         "aoc1_risk_allele_count": hc.aoc1_risk_allele_count,
                         "aoc1_homozygous_risk_count": hc.aoc1_homozygous_risk_count,
                         "aoc1_snps_assessed": hc.aoc1_snps_assessed,
+                        "aoc1_not_assessed_snps": hc.aoc1_not_assessed_snps,
+                        "aoc1_no_call_snps": hc.aoc1_no_call_snps,
+                        "aoc1_off_chip_snps": hc.aoc1_off_chip_snps,
                     }
                 ),
             }

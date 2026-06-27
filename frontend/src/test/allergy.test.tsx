@@ -136,6 +136,27 @@ describe("PathwayCard", () => {
     expect(screen.getByText("Standard")).toBeInTheDocument()
   })
 
+  it("qualifies Standard histamine cards when AOC1 SNPs are off-chip", () => {
+    render(
+      <PathwayCard
+        pathway={{
+          ...HISTAMINE_PATHWAY,
+          called_snps: 1,
+          total_snps: 5,
+          missing_snps: ["rs10156191", "rs1049742", "rs1049793", "rs2052129"],
+          no_call_snps: [],
+        }}
+        onClick={onClick}
+      />,
+    )
+
+    expect(screen.getByText("Tested Standard")).toBeInTheDocument()
+    expect(screen.getByTestId("pathway-coverage-caveat")).toHaveTextContent(
+      "No variants of concern among tested SNPs; 4 tracked SNPs (4 off-chip) not assessed.",
+    )
+    expect(screen.queryByText("Standard")).not.toBeInTheDocument()
+  })
+
   it("renders evidence stars", () => {
     render(<PathwayCard pathway={ATOPIC_PATHWAY} onClick={onClick} />)
     expect(screen.getByLabelText("3 of 4 stars evidence")).toBeInTheDocument()

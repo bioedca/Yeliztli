@@ -44,6 +44,7 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
+from backend.analysis.pathway_coverage import coverage_detail, pathway_summary_text
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -775,21 +776,22 @@ def store_gene_health_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
-        finding_text = (
-            f"{pr.pathway_name} — {pr.level} consideration"
-            if pr.level != STANDARD
-            else f"{pr.pathway_name} — Standard (no variants of concern)"
+        finding_text = pathway_summary_text(
+            pathway_name=pr.pathway_name,
+            level=pr.level,
+            called_count=called_count,
+            missing_snps=pr.missing_snps,
         )
 
         detail: dict = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
-            "missing_snps": [s.rsid for s in pr.missing_snps],
-            # On-chip no-calls within the missing set (#900): rendered distinctly
-            # from genuinely off-chip SNPs, which have opposite remediations. The
-            # off-chip subset is missing_snps minus this list.
-            "no_call_snps": [s.rsid for s in pr.missing_snps if s.coverage_status == "no_call"],
+            **coverage_detail(
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+            ),
             "snp_details": [
                 {
                     "rsid": s.rsid,
