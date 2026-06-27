@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -46,10 +47,12 @@ class PanelGeneRow:
         return f"{self.panel}|{self.path}|{self.rsid}|{self.declared_gene}"
 
 
+@cache
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@lru_cache(maxsize=1)
 def _panel_files() -> list[Path]:
     files = [
         path
@@ -106,17 +109,20 @@ def _iter_gene_rows(
     return rows
 
 
-def _panel_gene_rows() -> list[PanelGeneRow]:
+@lru_cache(maxsize=1)
+def _panel_gene_rows() -> tuple[PanelGeneRow, ...]:
     rows: list[PanelGeneRow] = []
     for path in _panel_files():
         rows.extend(_iter_gene_rows(_load_json(path), path.name, {}, "$"))
-    return rows
+    return tuple(rows)
 
 
+@lru_cache(maxsize=1)
 def _gene_fixture() -> dict[str, Any]:
     return _load_json(GENE_COORDINATE_FIXTURE)
 
 
+@lru_cache(maxsize=1)
 def _rsid_coordinate_fixture() -> dict[str, Any]:
     return _load_json(RSID_COORDINATE_FIXTURE)
 
