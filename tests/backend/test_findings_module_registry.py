@@ -29,7 +29,11 @@ import importlib
 import json
 import pkgutil
 import re
+import traceback
+import types
 from pathlib import Path
+
+import pytest
 
 import backend.analysis as analysis_pkg
 from backend.analysis.run_all import _get_modules
@@ -57,15 +61,22 @@ _NON_FINDINGS_MODULES = {
 def _module_constants() -> set[str]:
     """Every ``MODULE`` / ``MODULE_NAME`` string declared by a backend.analysis module."""
     found: set[str] = set()
+    import_failures: list[tuple[str, str]] = []
     for info in pkgutil.iter_modules(analysis_pkg.__path__):
         try:
             mod = importlib.import_module(f"backend.analysis.{info.name}")
-        except Exception:  # pragma: no cover - an unimportable module is not a findings source
+        except Exception:
+            import_failures.append((f"backend.analysis.{info.name}", traceback.format_exc()))
             continue
         for attr in ("MODULE", "MODULE_NAME"):
             value = getattr(mod, attr, None)
             if isinstance(value, str) and value:
                 found.add(value)
+    assert not import_failures, (
+        "Failed to import backend.analysis modules while discovering "
+        "MODULE/MODULE_NAME constants:\n\n"
+        + "\n\n".join(f"{module_name}:\n{trace}" for module_name, trace in import_failures)
+    )
     return found
 
 
@@ -113,6 +124,30 @@ def test_signals_are_non_vacuous() -> None:
     assert len(_panel_modules()) >= 10
     assert len(_run_all_modules()) >= 20
     assert len(_registry_keys()) >= 25
+
+
+def test_module_constants_report_import_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A broken analysis import must fail the parity guard instead of disappearing."""
+    module_infos = [
+        pkgutil.ModuleInfo(None, "working_module", False),
+        pkgutil.ModuleInfo(None, "broken_module", False),
+    ]
+
+    monkeypatch.setattr(pkgutil, "iter_modules", lambda _path: iter(module_infos))
+
+    def import_module(module_name: str) -> object:
+        if module_name == "backend.analysis.broken_module":
+            raise RuntimeError("import-time failure")
+        return types.SimpleNamespace(MODULE="working")
+
+    monkeypatch.setattr(importlib, "import_module", import_module)
+
+    with pytest.raises(AssertionError) as exc_info:
+        _module_constants()
+
+    message = str(exc_info.value)
+    assert "backend.analysis.broken_module" in message
+    assert "RuntimeError: import-time failure" in message
 
 
 def test_registry_matches_findings_module_set() -> None:
