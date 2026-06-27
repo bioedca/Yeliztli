@@ -57,12 +57,11 @@
 : "${BCFTOOLS_THREADS:=4}"
 : "${ADMIXTURE_K_LIST:=7 12 20}"
 : "${ADMIXTURE_SEED:=42}"  # locked — re-running with this seed reproduces labels (Plan §6.3 step 4)
-# Reference-panel selection (phase 04c). The old SINGLE_ANCESTRY_THRESHOLD=0.95
-# ADMIXTURE cutoff is DEPRECATED — it dropped 767/770 EUR samples (intermediate
+# Reference-panel selection (phase 04c). The old 0.95 max-Q ADMIXTURE cutoff is
+# DEPRECATED — it dropped 767/770 EUR samples (intermediate
 # continental groups never reach 0.95 on one component) → gnomix trained on 3
 # Europeans → all Europeans misclassified. Selection is now by curated
 # genetic_region with a light outlier floor + a per-region composition gate.
-: "${SINGLE_ANCESTRY_THRESHOLD:=0.95}"   # DEPRECATED/unused (see 04c --threshold)
 : "${SINGLE_ANCESTRY_MIN_Q:=0.5}"        # light admixture-outlier floor (0 = off)
 # Class balance for continentally-intermediate groups. MID is genetically
 # adjacent to EUR and the panel is ~5x EUR-heavy (738 vs 152), so an uncapped
