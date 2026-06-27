@@ -3,7 +3,7 @@
     "source": "Ensembl GRCh37 REST: https://grch37.rest.ensembl.org/variation/human/{rsid}",
     "assembly": "GRCh37",
     "strand": "+1 (plus). allele_string is taken from the primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT, not an MHC/haplotype contig).",
-    "accessed": "2026-06-16 (rs202676 added for #750; rs144012689 added for #709; rs585800 and rs3199966 added for #717; rs2858884 added for #608 on 2026-06-14; earlier entries 2026-06-13) | 2026-06-16: extended to full categorical-panel SNV coverage for #775 \u2014 112 loci added via one Ensembl GRCh37 batch lookup (POST /variation/human), allele_string from each variant's primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT).",
+    "accessed": "2026-06-16 (rs202676 added for #750; rs144012689 added for #709; rs585800 and rs3199966 added for #717; rs2858884 added for #608 on 2026-06-14; earlier entries 2026-06-13) | 2026-06-16: extended to full categorical-panel SNV coverage for #775 \u2014 112 loci added via one Ensembl GRCh37 batch lookup (POST /variation/human), allele_string from each variant's primary chromosomal mapping (seq_region_name in 1-22/X/Y/MT). | 2026-06-26: Big-Five traits rows replaced for #1070; added rs242949/rs1477268/rs2576037 and removed stale rs1396862/rs2164273/rs2572431/rs2389621/rs9611519.",
     "purpose": "Reference plus-strand alleles for the categorical-panel strand guard (tests/backend/test_categorical_panel_strand.py). Each categorical-panel locus's curated {risk_allele, ref_allele} must be strand-consistent with these real alleles: both plus-strand or both Watson-Crick complements, never mixed. A mixed pair (e.g. rs4236601 risk=A plus + ref=C=complement-of-G) drops real heterozygous carriers in lookup_by_genotype. See issues #538 / #491.",
     "coverage_note": "Full categorical-panel SNV coverage (#775): every single-base-ACGT locus across allergy/fitness/gene_health/methylation/nutrigenomics/skin/sleep/traits is seeded with its real Ensembl GRCh37 plus-strand alleles, so the strand guard (test_ref_risk_strand_consistent) and the bi-allelic real-heterozygote-resolves guard cover the whole set, not just the #538/#608/#709/#717/#750 subset. EXCLUDED (not strand-checkable from the allele set): (1) indels \u2014 rs1799750 (MMP1, CC/C), rs70991108 (DHFR), rs80338939 (GJB2 35delG, CCCCCC/CCCCC/CCCCCCC) \u2014 guarded instead by the indel-polarity guard (#508/#736); (2) rs9273363 (HLA-DQB1, tri-allelic C/A/G, demoted #731) \u2014 see blind_spot_note. 4-allelic loci (e.g. rs4341, rs1061170) are included but pass the set-based check trivially (every complement is real); they rely on per-genotype coverage. Extend with one Ensembl GRCh37 lookup per new rsid.",
     "blind_spot_note": "The set-based strand check is UNDECIDABLE for some multi-allelic loci: when every curated allele's Watson-Crick complement is also a real allele, a mixed-strand pair false-passes. rs9273363 (HLA-DQB1, C/A/G) was the flagship case \u2014 the old mis-stranded panel pair {C, T} complemented to {G, A}, both real, so it read 'consistent' even though T was the complement of the real A; and being tri-allelic it gets no bi-allelic het-resolves check either. #731 re-keyed it to the correct plus-strand {A, C} AND demoted it to a non-diagnostic HLA-DQ region marker (its single-SNP T1D direction was contested in the GWAS Catalog, so no risk is inferred). It is still NOT listed here \u2014 it remains tri-allelic, so the set check still cannot validate it; it is covered instead by an observed-genotype-resolves test in test_gene_health.py. rs4341 (4-allelic) has the same undecidability."
@@ -67,6 +67,10 @@
   "rs234706": {
     "allele_string": "G/A",
     "location": "21:44485350"
+  },
+  "rs242949": {
+    "allele_string": "G/A/C/T",
+    "location": "17:43911716"
   },
   "rs324011": {
     "allele_string": "C/A/T",
@@ -144,9 +148,9 @@
     "allele_string": "G/A",
     "location": "16:31276811"
   },
-  "rs1396862": {
-    "allele_string": "G/A",
-    "location": "17:43902997"
+  "rs1477268": {
+    "allele_string": "T/C",
+    "location": "5:86427866"
   },
   "rs1544410": {
     "allele_string": "C/A/G/T",
@@ -232,10 +236,6 @@
     "allele_string": "C/T",
     "location": "9:22033366"
   },
-  "rs2164273": {
-    "allele_string": "A/C/G/T",
-    "location": "8:11168499"
-  },
   "rs2187668": {
     "allele_string": "C/T",
     "location": "6:32605884"
@@ -276,10 +276,6 @@
     "allele_string": "T/G",
     "location": "2:66781453"
   },
-  "rs2389621": {
-    "allele_string": "G/A",
-    "location": "4:119387212"
-  },
   "rs2395029": {
     "allele_string": "T/G",
     "location": "6:31431780"
@@ -292,9 +288,9 @@
     "allele_string": "A/G/T",
     "location": "1:114377568"
   },
-  "rs2572431": {
+  "rs2576037": {
     "allele_string": "C/G/T",
-    "location": "8:11105077"
+    "location": "18:44585420"
   },
   "rs2858884": {
     "allele_string": "A/C",
@@ -391,10 +387,6 @@
   "rs9357271": {
     "allele_string": "T/A/C/G",
     "location": "6:38365873"
-  },
-  "rs9611519": {
-    "allele_string": "C/G/T",
-    "location": "22:41613188"
   },
   "rs9939609": {
     "allele_string": "T/A",

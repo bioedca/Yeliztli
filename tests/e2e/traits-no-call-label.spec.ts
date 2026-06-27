@@ -15,8 +15,8 @@ function jsonRoute(payload: unknown, status = 200) {
   return { status, contentType: 'application/json', body: JSON.stringify(payload) }
 }
 
-const OFF_CHIP_RSID = 'rs2164273'
-const NO_CALL_RSID = 'rs1396862'
+const OFF_CHIP_RSID = 'rs1477268'
+const NO_CALL_RSID = 'rs242949'
 
 const SUMMARY = {
   pathway_id: 'personality_big_five',
@@ -25,7 +25,7 @@ const SUMMARY = {
   evidence_level: 1,
   prs_primary: false,
   called_snps: 0,
-  total_snps: 5,
+  total_snps: 3,
   missing_snps: [OFF_CHIP_RSID, NO_CALL_RSID],
   no_call_snps: [NO_CALL_RSID],
   pmids: [],

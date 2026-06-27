@@ -2,7 +2,7 @@
 
 Covers:
   - Panel JSON loading and structural validation
-  - All 7 curated individual SNPs present with correct genes
+  - All 5 curated individual SNPs present with correct genes
   - 3 pathways (Cognitive Ability & Educational Attainment [PRS-primary],
     Personality Dimensions, Behavioral Traits)
   - 2 PRS weight sets (educational attainment Okbay 2022, cognitive ability
@@ -34,13 +34,11 @@ PANEL_PATH = (
 
 VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 
-# 7 individual SNPs across personality + behavioral pathways
+# 5 individual SNPs across personality + behavioral pathways
 EXPECTED_RSIDS = {
-    "rs1396862",  # CRHR1 neuroticism
-    "rs2164273",  # WSCD2 extraversion
-    "rs2572431",  # CTNNA2 openness
-    "rs9611519",  # 5q14.3 agreeableness
-    "rs2389621",  # KATNAL2 conscientiousness
+    "rs242949",  # CRHR1 neuroticism
+    "rs1477268",  # RASA1-region openness
+    "rs2576037",  # KATNAL2 conscientiousness
     "rs993137",  # CADM2 risk tolerance
     "rs747302",  # DRD4 VNTR proxy
 }
@@ -53,12 +51,40 @@ EXPECTED_PATHWAYS = {
 
 EXPECTED_GENES = {
     "CRHR1",
-    "WSCD2",
-    "CTNNA2",
-    "LOC101928162",
+    "RASA1",
     "KATNAL2",
     "CADM2",
     "DRD4",
+}
+
+BIG_FIVE_SUPPORTED_LOCI = {
+    "neuroticism": {
+        "rsid": "rs242949",
+        "gene": "CRHR1",
+        "chrom": "17",
+        "gene_start": 43699267,
+        "gene_end": 43913194,
+        "flank_bp": 0,
+        "pmids": {"29942085"},
+    },
+    "openness": {
+        "rsid": "rs1477268",
+        "gene": "RASA1",
+        "chrom": "5",
+        "gene_start": 86563705,
+        "gene_end": 86687748,
+        "flank_bp": 200_000,
+        "pmids": {"21173776"},
+    },
+    "conscientiousness": {
+        "rsid": "rs2576037",
+        "gene": "KATNAL2",
+        "chrom": "18",
+        "gene_start": 44497455,
+        "gene_end": 44627658,
+        "flank_bp": 0,
+        "pmids": {"21173776"},
+    },
 }
 
 
@@ -116,7 +142,7 @@ class TestPanelStructure:
 
 class TestSNPCoverage:
     def test_all_expected_rsids_present(self, panel_data: dict) -> None:
-        """All 7 curated individual SNPs from the PRD must be present."""
+        """All curated individual SNPs from the PRD must be present."""
         all_rsids = set()
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
@@ -131,9 +157,9 @@ class TestSNPCoverage:
         assert all_genes == EXPECTED_GENES
 
     def test_total_individual_snp_count(self, panel_data: dict) -> None:
-        """7 curated individual SNPs total across personality + behavioral pathways."""
+        """5 curated individual SNPs total across personality + behavioral pathways."""
         count = sum(len(p["snps"]) for p in panel_data["pathways"])
-        assert count == 7
+        assert count == 5
 
 
 # ── SNP field validation tests ──────────────────────────────────────────
@@ -460,13 +486,11 @@ class TestDRD4Proxy:
 
 
 class TestBigFivePersonality:
-    """Validate Big Five personality dimension SNPs."""
+    """Validate supported Big Five personality dimension SNPs."""
 
-    BIG_FIVE_DOMAINS = {
+    SUPPORTED_DOMAINS = {
         "neuroticism",
-        "extraversion",
         "openness",
-        "agreeableness",
         "conscientiousness",
     }
 
@@ -476,29 +500,56 @@ class TestBigFivePersonality:
                 return pw["snps"]
         pytest.fail("personality_big_five pathway not found")
 
-    def test_five_personality_snps(self, panel_data: dict) -> None:
+    def test_supported_personality_snps(self, panel_data: dict) -> None:
         snps = self._get_personality_snps(panel_data)
-        assert len(snps) == 5
+        assert len(snps) == 3
 
-    def test_all_big_five_domains_covered(self, panel_data: dict) -> None:
-        """Each Big Five dimension should have at least one SNP."""
+    def test_supported_big_five_domains_covered(self, panel_data: dict) -> None:
+        """Only trait-matched, paper-supported Big Five SNP rows are curated."""
         snps = self._get_personality_snps(panel_data)
         domains = {s["trait_domain"] for s in snps}
-        assert domains == self.BIG_FIVE_DOMAINS
+        assert domains == self.SUPPORTED_DOMAINS
+        assert "extraversion" not in domains
+        assert "agreeableness" not in domains
 
     def test_neuroticism_snp_present(self, panel_data: dict) -> None:
         snps = self._get_personality_snps(panel_data)
         neuro = [s for s in snps if s["trait_domain"] == "neuroticism"]
         assert len(neuro) == 1
-        assert neuro[0]["rsid"] == "rs1396862"
+        assert neuro[0]["rsid"] == "rs242949"
         assert neuro[0]["gene"] == "CRHR1"
 
-    def test_extraversion_snp_present(self, panel_data: dict) -> None:
+    def test_openness_snp_present(self, panel_data: dict) -> None:
         snps = self._get_personality_snps(panel_data)
-        extra = [s for s in snps if s["trait_domain"] == "extraversion"]
-        assert len(extra) == 1
-        assert extra[0]["rsid"] == "rs2164273"
-        assert extra[0]["gene"] == "WSCD2"
+        openness = [s for s in snps if s["trait_domain"] == "openness"]
+        assert len(openness) == 1
+        assert openness[0]["rsid"] == "rs1477268"
+        assert openness[0]["gene"] == "RASA1"
+
+    def test_conscientiousness_snp_present(self, panel_data: dict) -> None:
+        snps = self._get_personality_snps(panel_data)
+        conscientiousness = [s for s in snps if s["trait_domain"] == "conscientiousness"]
+        assert len(conscientiousness) == 1
+        assert conscientiousness[0]["rsid"] == "rs2576037"
+        assert conscientiousness[0]["gene"] == "KATNAL2"
+
+    def test_big_five_loci_match_declared_gene_region(self, panel_data: dict) -> None:
+        """Regression guard for #1070: Big-Five rsIDs must match their declared locus."""
+        coordinate_path = (
+            Path(__file__).resolve().parent.parent / "fixtures" / "panel_rsid_coordinates.json"
+        )
+        coordinates = json.loads(coordinate_path.read_text(encoding="utf-8"))["rsids"]
+
+        for snp in self._get_personality_snps(panel_data):
+            expected = BIG_FIVE_SUPPORTED_LOCI[snp["trait_domain"]]
+            assert snp["rsid"] == expected["rsid"]
+            assert snp["gene"] == expected["gene"]
+            assert set(snp["pmids"]) == expected["pmids"]
+
+            coord = coordinates[snp["rsid"]]
+            assert coord["chrom"] == expected["chrom"]
+            flank = expected["flank_bp"]
+            assert expected["gene_start"] - flank <= coord["start"] <= expected["gene_end"] + flank
 
 
 # ── Risk tolerance tests ──────────────────────────────────────────────
@@ -651,11 +702,7 @@ class TestPathwayAllocation:
     def test_personality_big_five_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "personality_big_five")
         rsids = {s["rsid"] for s in pw["snps"]}
-        assert "rs1396862" in rsids  # CRHR1 neuroticism
-        assert "rs2164273" in rsids  # WSCD2 extraversion
-        assert "rs2572431" in rsids  # CTNNA2 openness
-        assert "rs9611519" in rsids  # agreeableness
-        assert "rs2389621" in rsids  # KATNAL2 conscientiousness
+        assert rsids == {"rs242949", "rs1477268", "rs2576037"}
 
     def test_behavioral_traits_snps(self, panel_data: dict) -> None:
         pw = self._get_pathway(panel_data, "behavioral_traits")

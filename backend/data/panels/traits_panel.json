@@ -1,7 +1,7 @@
 {
   "module": "traits",
   "version": "1.0.0",
-  "description": "Curated Traits & Personality SNP panel for Yeliztli (P3-62). PRS-primary module with weight sets for educational attainment (Okbay et al. 2022) and cognitive ability (Savage et al. 2018). Individual SNPs for neuroticism (CRHR1 rs1396862), extraversion (WSCD2 rs2164273), and risk tolerance (CADM2 rs993137). DRD4 rs747302 proxy for dopamine receptor variation with coverage caveat. All findings hard-capped at ★★☆☆ (Moderate Evidence). Associative language only — no directive claims.",
+  "description": "Curated Traits & Personality SNP panel for Yeliztli (P3-62). PRS-primary module with weight sets for educational attainment (Okbay et al. 2022) and cognitive ability (Savage et al. 2018). Individual SNPs for neuroticism (CRHR1 rs242949), openness (RASA1-region rs1477268), conscientiousness (KATNAL2 rs2576037), and risk tolerance (CADM2 rs993137). DRD4 rs747302 proxy for dopamine receptor variation with coverage caveat. All findings hard-capped at ★★☆☆ (Moderate Evidence). Associative language only — no directive claims.",
   "evidence_cap": 2,
   "module_disclaimer": "Traits & Personality findings reflect statistical associations observed in large population studies. They do not predict individual outcomes. Behavioral traits are shaped by complex interactions between many genes, environment, culture, and personal experience. These results are for research and educational purposes only.",
   "pathways": [
@@ -15,160 +15,98 @@
     {
       "id": "personality_big_five",
       "name": "Personality Dimensions (Big Five)",
-      "description": "Individual SNPs associated with Big Five personality dimensions. GWAS effect sizes for personality traits are very small, and these variants collectively explain only a tiny fraction of personality variation.",
+      "description": "Individual SNPs associated with selected Big Five personality dimensions from trait-matched GWAS. The curated single-SNP rows cover neuroticism, openness, and conscientiousness only; extraversion and agreeableness currently have no supported single-SNP rows. GWAS effect sizes for personality traits are very small, and these variants collectively explain only a tiny fraction of personality variation.",
       "snps": [
         {
-          "rsid": "rs1396862",
+          "rsid": "rs242949",
           "gene": "CRHR1",
-          "variant_name": "CRHR1 intergenic (neuroticism)",
+          "variant_name": "CRHR1 intronic (neuroticism)",
           "hgvs_protein": null,
           "risk_allele": "T",
-          "ref_allele": "C",
-          "genotype_effects": {
-            "CC": {
-              "category": "Standard",
-              "effect_summary": "No risk allele at CRHR1 neuroticism locus. No association with increased neuroticism at this variant."
-            },
-            "CT": {
-              "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Associated with modestly higher neuroticism scores in GWAS meta-analyses. Effect size is very small (β ≈ 0.01 SD)."
-            },
-            "TC": {
-              "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Associated with modestly higher neuroticism scores in GWAS meta-analyses. Effect size is very small (β ≈ 0.01 SD)."
-            },
-            "TT": {
-              "category": "Moderate",
-              "effect_summary": "Two copies of the T allele. Associated with modestly higher neuroticism scores. Note: individual SNP effects on personality are very small and do not determine personality."
-            }
-          },
-          "evidence_level": 2,
-          "pmids": ["29942085"],
-          "recommendation_text": "CRHR1 region variants have been associated with neuroticism in large GWAS meta-analyses (Nagel et al. 2018, N>449,000). Individual SNP effects are extremely small and should not be interpreted as deterministic. Neuroticism is a normal personality dimension influenced by many genetic and environmental factors.",
-          "trait_domain": "neuroticism",
-          "associative_language": true
-        },
-        {
-          "rsid": "rs2164273",
-          "gene": "WSCD2",
-          "variant_name": "WSCD2 intergenic (extraversion)",
-          "hgvs_protein": null,
-          "risk_allele": "A",
           "ref_allele": "G",
           "genotype_effects": {
             "GG": {
               "category": "Standard",
-              "effect_summary": "No association with increased extraversion at this locus."
+              "effect_summary": "No modeled T effect allele at the CRHR1 neuroticism-associated locus."
             },
-            "GA": {
+            "GT": {
               "category": "Moderate",
-              "effect_summary": "One copy of the A allele. Associated with modestly higher extraversion scores in GWAS studies. Effect size is very small."
+              "effect_summary": "One copy of the T allele at rs242949. This CRHR1-region locus is associated with neuroticism measurement in GWAS Catalog/Nagel et al. 2018; the cataloged direction is lower neuroticism z-score, so do not interpret it as higher neuroticism."
             },
-            "AG": {
+            "TG": {
               "category": "Moderate",
-              "effect_summary": "One copy of the A allele. Associated with modestly higher extraversion scores in GWAS studies. Effect size is very small."
+              "effect_summary": "One copy of the T allele at rs242949. This CRHR1-region locus is associated with neuroticism measurement in GWAS Catalog/Nagel et al. 2018; the cataloged direction is lower neuroticism z-score, so do not interpret it as higher neuroticism."
             },
-            "AA": {
+            "TT": {
               "category": "Moderate",
-              "effect_summary": "Two copies of the A allele. Associated with modestly higher extraversion scores. Individual SNP effects on personality are very small and non-deterministic."
+              "effect_summary": "Two copies of the T allele at rs242949. This CRHR1-region locus is associated with neuroticism measurement in GWAS Catalog/Nagel et al. 2018; the cataloged direction is lower neuroticism z-score. Individual SNP effects on personality are very small and non-deterministic."
             }
           },
           "evidence_level": 2,
           "pmids": ["29942085"],
-          "recommendation_text": "WSCD2 region variants have been associated with extraversion in large GWAS meta-analyses (Nagel et al. 2018). Extraversion is a complex personality dimension influenced by many genetic and environmental factors. Individual SNP effects are not predictive.",
-          "trait_domain": "extraversion",
+          "recommendation_text": "Nagel et al. 2018 is a neuroticism-only GWAS meta-analysis (N>449,000). GWAS Catalog records rs242949 in the CRHR1 region for neuroticism measurement; individual SNP effects are extremely small and should not be interpreted as deterministic. Neuroticism is a normal personality dimension influenced by many genetic and environmental factors.",
+          "trait_domain": "neuroticism",
           "associative_language": true
         },
         {
-          "rsid": "rs2572431",
-          "gene": "CTNNA2",
-          "variant_name": "CTNNA2 intergenic (openness)",
+          "rsid": "rs1477268",
+          "gene": "RASA1",
+          "variant_name": "5q14.3 RASA1-region (openness)",
           "hgvs_protein": null,
           "risk_allele": "C",
           "ref_allele": "T",
           "genotype_effects": {
             "TT": {
               "category": "Standard",
-              "effect_summary": "No association with increased openness to experience at this locus."
+              "effect_summary": "No C effect allele at the 5q14.3 RASA1-region openness locus."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "One copy of the C allele. Associated with modestly higher openness to experience scores in GWAS."
+              "effect_summary": "One copy of the C allele. de Moor et al. 2012 reported this allele at rs1477268 as associated with higher openness to experience in discovery samples; the locus did not replicate significantly, and the effect is very small."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "One copy of the C allele. Associated with modestly higher openness to experience scores in GWAS."
+              "effect_summary": "One copy of the C allele. de Moor et al. 2012 reported this allele at rs1477268 as associated with higher openness to experience in discovery samples; the locus did not replicate significantly, and the effect is very small."
             },
             "CC": {
               "category": "Moderate",
-              "effect_summary": "Two copies of the C allele. Associated with modestly higher openness. Individual SNP effects are very small."
+              "effect_summary": "Two copies of the C allele. de Moor et al. 2012 reported this allele at rs1477268 as associated with higher openness to experience in discovery samples; the locus did not replicate significantly, and the effect is very small."
             }
           },
           "evidence_level": 1,
-          "pmids": ["29942085"],
-          "recommendation_text": "CTNNA2 variants have been associated with openness to experience. Evidence is preliminary — effect sizes are very small and replication is limited.",
+          "pmids": ["21173776"],
+          "recommendation_text": "de Moor et al. 2012 reported genome-wide-significant discovery-stage association for openness near RASA1 on 5q14.3 (rs1477268/rs2032794), but in silico replication was not significant. Treat this as research-interest only.",
           "trait_domain": "openness",
           "associative_language": true
         },
         {
-          "rsid": "rs9611519",
-          "gene": "LOC101928162",
-          "variant_name": "5q14.3 intergenic (agreeableness)",
-          "hgvs_protein": null,
-          "risk_allele": "C",
-          "ref_allele": "T",
-          "genotype_effects": {
-            "TT": {
-              "category": "Standard",
-              "effect_summary": "No association with increased agreeableness at this locus."
-            },
-            "TC": {
-              "category": "Moderate",
-              "effect_summary": "One copy of the C allele. Weak association with higher agreeableness in exploratory GWAS analyses."
-            },
-            "CT": {
-              "category": "Moderate",
-              "effect_summary": "One copy of the C allele. Weak association with higher agreeableness in exploratory GWAS analyses."
-            },
-            "CC": {
-              "category": "Moderate",
-              "effect_summary": "Two copies of the C allele. Weak association with higher agreeableness. Evidence is preliminary."
-            }
-          },
-          "evidence_level": 1,
-          "pmids": ["29942085"],
-          "recommendation_text": "Agreeableness GWAS findings have limited replication. Individual variants explain negligible personality variance. This result is for research interest only.",
-          "trait_domain": "agreeableness",
-          "associative_language": true
-        },
-        {
-          "rsid": "rs2389621",
+          "rsid": "rs2576037",
           "gene": "KATNAL2",
-          "variant_name": "KATNAL2 intergenic (conscientiousness)",
+          "variant_name": "KATNAL2 intronic (conscientiousness)",
           "hgvs_protein": null,
           "risk_allele": "T",
           "ref_allele": "C",
           "genotype_effects": {
             "CC": {
               "category": "Standard",
-              "effect_summary": "No association with altered conscientiousness at this locus."
+              "effect_summary": "No T effect allele at the KATNAL2 conscientiousness locus."
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Weak association with conscientiousness in exploratory GWAS analyses."
+              "effect_summary": "One copy of the T allele. de Moor et al. 2012 reported this allele at rs2576037 as associated with lower conscientiousness in discovery samples; replication direction was consistent but not significant, and the effect is very small."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "One copy of the T allele. Weak association with conscientiousness in exploratory GWAS analyses."
+              "effect_summary": "One copy of the T allele. de Moor et al. 2012 reported this allele at rs2576037 as associated with lower conscientiousness in discovery samples; replication direction was consistent but not significant, and the effect is very small."
             },
             "TT": {
               "category": "Moderate",
-              "effect_summary": "Two copies of the T allele. Weak association with conscientiousness. Evidence is preliminary."
+              "effect_summary": "Two copies of the T allele. de Moor et al. 2012 reported this allele at rs2576037 as associated with lower conscientiousness in discovery samples; replication direction was consistent but not significant, and the effect is very small."
             }
           },
           "evidence_level": 1,
-          "pmids": ["29942085"],
-          "recommendation_text": "Conscientiousness GWAS findings have limited replication. Individual variants explain negligible personality variance. This result is for research interest only.",
+          "pmids": ["21173776"],
+          "recommendation_text": "de Moor et al. 2012 reported genome-wide-significant discovery-stage association for conscientiousness in KATNAL2 (rs2576037), with non-significant in silico replication but consistent effect direction. Treat this as research-interest only.",
           "trait_domain": "conscientiousness",
           "associative_language": true
         }

@@ -143,13 +143,11 @@ class TestPanelLoading:
 
     def test_panel_all_rsids(self, panel: TraitsPanel) -> None:
         rsids = panel.all_rsids()
-        assert len(rsids) == 7
+        assert len(rsids) == 5
         expected = {
-            "rs1396862",
-            "rs2164273",
-            "rs2572431",
-            "rs9611519",
-            "rs2389621",
+            "rs242949",
+            "rs1477268",
+            "rs2576037",
             "rs993137",
             "rs747302",
         }
@@ -331,7 +329,7 @@ class TestSNPScoring:
 
     def test_neuroticism_tt_moderate(self, panel: TraitsPanel) -> None:
         """CRHR1 neuroticism TT → Moderate (★★ evidence)."""
-        crhr1 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1396862")
+        crhr1 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs242949")
         result = _score_snp(crhr1, "TT")
         assert result.category == MODERATE
         assert result.trait_domain == "neuroticism"
@@ -351,11 +349,11 @@ class TestSNPScoring:
         assert result.trait_domain == "risk_tolerance"
 
     def test_openness_star1_capped(self, panel: TraitsPanel) -> None:
-        """CTNNA2 openness is ★☆ — should be capped at Moderate max."""
-        ctnna2 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs2572431")
-        assert ctnna2.evidence_level == 1
+        """RASA1-region openness is ★☆ — should be capped at Moderate max."""
+        rasa1 = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs1477268")
+        assert rasa1.evidence_level == 1
         # CC is Moderate in panel, but even if it was Elevated, it'd be capped
-        result = _score_snp(ctnna2, "CC")
+        result = _score_snp(rasa1, "CC")
         assert result.category in (MODERATE, STANDARD)
 
 
@@ -540,15 +538,13 @@ class TestScorePathways:
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Score pathways with all 7 individual SNPs genotyped."""
+        """Score pathways with all 5 individual SNPs genotyped."""
         _seed_variants(
             sample_engine,
             [
-                ("rs1396862", "17", 43895396, "TT"),  # CRHR1 neuroticism hom risk
-                ("rs2164273", "12", 108620485, "AA"),  # WSCD2 extraversion hom risk
-                ("rs2572431", "2", 80626556, "CC"),  # CTNNA2 openness hom
-                ("rs9611519", "5", 87854363, "CC"),  # agreeableness hom
-                ("rs2389621", "18", 44744620, "TT"),  # KATNAL2 conscientiousness hom
+                ("rs242949", "17", 43911716, "TT"),  # CRHR1 neuroticism hom effect
+                ("rs1477268", "5", 86427866, "CC"),  # RASA1-region openness hom effect
+                ("rs2576037", "18", 44585420, "TT"),  # KATNAL2 conscientiousness hom effect
                 ("rs993137", "3", 85011544, "CC"),  # CADM2 risk tolerance hom risk
                 ("rs747302", "11", 637371, "GG"),  # DRD4 VNTR proxy hom
             ],
@@ -556,15 +552,15 @@ class TestScorePathways:
         _seed_gwas(
             reference_engine,
             [
-                ("rs1396862", "Neuroticism"),
+                ("rs242949", "Neuroticism"),
                 ("rs993137", "Risk tolerance"),
             ],
         )
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
 
-        # Personality: neuroticism TT=Moderate (★★), extraversion AA=Moderate,
-        #   openness CC=Moderate (star1→capped), etc. → Moderate
+        # Personality: neuroticism TT=Moderate (★★), openness/conscientiousness
+        #   star1 calls cap at Moderate → pathway Moderate.
         personality = next(
             pr for pr in result.pathway_results if pr.pathway_id == "personality_big_five"
         )
@@ -577,7 +573,7 @@ class TestScorePathways:
         assert behavioral.level == MODERATE
 
         # GWAS matches
-        assert "rs1396862" in result.gwas_matched_rsids
+        assert "rs242949" in result.gwas_matched_rsids
         assert "rs993137" in result.gwas_matched_rsids
 
         # Cross-module findings should exist (DRD4 GG → Gene Health ADHD)
@@ -623,17 +619,17 @@ class TestScorePathways:
         reference_engine: sa.Engine,
     ) -> None:
         """On-array no-calls are tracked separately from off-chip missing SNPs."""
-        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "--")])
+        _seed_variants(sample_engine, [("rs242949", "17", 43911716, "--")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
 
         personality = next(
             pr for pr in result.pathway_results if pr.pathway_id == "personality_big_five"
         )
-        crhr1 = next(s for s in personality.missing_snps if s.rsid == "rs1396862")
-        wscd2 = next(s for s in personality.missing_snps if s.rsid == "rs2164273")
+        crhr1 = next(s for s in personality.missing_snps if s.rsid == "rs242949")
+        rasa1 = next(s for s in personality.missing_snps if s.rsid == "rs1477268")
         assert crhr1.coverage_status == NO_CALL
-        assert wscd2.coverage_status == NOT_ON_ARRAY
+        assert rasa1.coverage_status == NOT_ON_ARRAY
 
 
 # ── Findings storage tests ─────────────────────────────────────────────
@@ -650,7 +646,7 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1396862", "17", 43895396, "TT"),
+                ("rs242949", "17", 43911716, "TT"),
                 ("rs993137", "3", 85011544, "CC"),
                 ("rs747302", "11", 637371, "CG"),
             ],
@@ -725,7 +721,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """Stored pathway detail keeps missing_snps union and adds no_call_snps subset."""
-        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "--")])
+        _seed_variants(sample_engine, [("rs242949", "17", 43911716, "--")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
         store_traits_findings(result, sample_engine)
@@ -743,10 +739,10 @@ class TestStoreFindingsIntegration:
 
         assert row is not None
         detail = json.loads(row.detail_json)
-        assert "rs1396862" in detail["missing_snps"]
-        assert "rs2164273" in detail["missing_snps"]
-        assert detail["no_call_snps"] == ["rs1396862"]
-        assert "rs2164273" not in detail["no_call_snps"]
+        assert "rs242949" in detail["missing_snps"]
+        assert "rs1477268" in detail["missing_snps"]
+        assert detail["no_call_snps"] == ["rs242949"]
+        assert "rs1477268" not in detail["no_call_snps"]
 
     def test_drd4_finding_includes_coverage_note(
         self,
@@ -811,7 +807,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """Re-running store clears previous traits findings."""
-        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "TT")])
+        _seed_variants(sample_engine, [("rs242949", "17", 43911716, "TT")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
         store_traits_findings(result, sample_engine)
@@ -834,7 +830,7 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1396862", "17", 43895396, "TT"),
+                ("rs242949", "17", 43911716, "TT"),
                 ("rs993137", "3", 85011544, "CC"),
             ],
         )
@@ -910,7 +906,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """Findings include PubMed citations."""
-        _seed_variants(sample_engine, [("rs1396862", "17", 43895396, "TT")])
+        _seed_variants(sample_engine, [("rs242949", "17", 43911716, "TT")])
 
         result = score_traits_pathways(panel, sample_engine, reference_engine)
         store_traits_findings(result, sample_engine)
@@ -920,7 +916,7 @@ class TestStoreFindingsIntegration:
                 sa.select(findings).where(
                     sa.and_(
                         findings.c.module == MODULE_NAME,
-                        findings.c.rsid == "rs1396862",
+                        findings.c.rsid == "rs242949",
                     )
                 )
             ).first()
@@ -1015,13 +1011,13 @@ class TestUpdateAnnotationCoverageGwas:
     def test_sets_bit5_on_gwas_matched_variants(self) -> None:
         sample = self._make_sample_with_annotated(
             raw=[
-                {"rsid": "rs1396862", "chrom": "17", "pos": 43895396, "genotype": "TT"},
+                {"rsid": "rs242949", "chrom": "17", "pos": 43911716, "genotype": "TT"},
             ],
             annotated=[
                 {
-                    "rsid": "rs1396862",
+                    "rsid": "rs242949",
                     "chrom": "17",
-                    "pos": 43895396,
+                    "pos": 43911716,
                     "genotype": "TT",
                     "annotation_coverage": 0b001111,
                 },
@@ -1030,7 +1026,7 @@ class TestUpdateAnnotationCoverageGwas:
 
         result = TraitsResult(
             pathway_results=[],
-            gwas_matched_rsids=["rs1396862"],
+            gwas_matched_rsids=["rs242949"],
         )
 
         updated = update_annotation_coverage_gwas(result, sample)
@@ -1039,7 +1035,7 @@ class TestUpdateAnnotationCoverageGwas:
         with sample.connect() as conn:
             val = conn.execute(
                 sa.select(annotated_variants.c.annotation_coverage).where(
-                    annotated_variants.c.rsid == "rs1396862"
+                    annotated_variants.c.rsid == "rs242949"
                 )
             ).scalar()
 
