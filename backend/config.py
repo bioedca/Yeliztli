@@ -202,6 +202,15 @@ class Settings(BaseSettings):
             "unavailable (never fatal). Env: YELIZTLI_GLIMPSE_BIN_DIR."
         ),
     )
+    impute5_bin_dir: Path | None = Field(
+        default=None,
+        description=(
+            "Directory holding the IMPUTE5 binary (academic-use-only / BYO — never "
+            "bundled). When unset it is resolved from PATH; when neither resolves, "
+            "the engine is simply unavailable (never fatal). "
+            "Env: YELIZTLI_IMPUTE5_BIN_DIR."
+        ),
+    )
 
     # --- UI preferences ---
     theme: Literal["light", "dark", "system"] = "system"

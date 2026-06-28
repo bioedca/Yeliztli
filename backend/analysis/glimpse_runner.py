@@ -41,8 +41,6 @@ approach).
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
 import time
 from collections.abc import Iterator
@@ -51,11 +49,31 @@ from pathlib import Path
 
 import structlog
 
+from backend.analysis.imputation_engine import (
+    missing_binaries as _missing_binaries,
+)
+from backend.analysis.imputation_engine import resolve_binary
 from backend.analysis.imputation_vcf import (
     ImputedVariant,
     normalize_chrom,
     parse_engine_vcf,
 )
+
+__all__ = [
+    "DEFAULT_TIMEOUT",
+    "GLIMPSE_CHUNK",
+    "GLIMPSE_LIGATE",
+    "GLIMPSE_PHASE",
+    "REQUIRED_BINARIES",
+    "GlimpseChromResult",
+    "GlimpseChunk",
+    "GlimpseRunner",
+    "glimpse_available",
+    "missing_binaries",
+    "parse_chunk_file",
+    "parse_glimpse_vcf",
+    "resolve_binary",
+]
 
 logger = structlog.get_logger(__name__)
 
@@ -77,26 +95,9 @@ _QUALITY_KEY = "INFO"
 _AF_KEY = "RAF"
 
 
-def resolve_binary(name: str, bin_dir: Path | None = None) -> Path | None:
-    """Resolve a GLIMPSE2 binary by name from ``bin_dir`` then ``PATH``.
-
-    Returns the executable's path, or ``None`` when it cannot be found (so the
-    caller can report the engine unavailable rather than crash).
-    """
-    if bin_dir is not None:
-        candidate = Path(bin_dir) / name
-        # Require executability, not just existence, so a non-executable
-        # placeholder doesn't shadow a real binary on PATH (shutil.which below
-        # already enforces X_OK).
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate
-    found = shutil.which(name)
-    return Path(found) if found else None
-
-
 def missing_binaries(bin_dir: Path | None = None) -> list[str]:
     """Names of the required GLIMPSE2 binaries that cannot be resolved."""
-    return [n for n in REQUIRED_BINARIES if resolve_binary(n, bin_dir) is None]
+    return _missing_binaries(REQUIRED_BINARIES, bin_dir)
 
 
 def glimpse_available(bin_dir: Path | None = None) -> bool:
