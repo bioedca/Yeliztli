@@ -16,31 +16,46 @@ markers present only in the reference (i.e. imputed, not genotyped); FORMAT is
 ``GT:DS``. Imputation runs automatically when ``ref=`` has markers absent from
 ``gt=``; a genetic map is supplied for accurate recombination rates.
 
+The per-ALT result model (:class:`ImputedVariant`), the chromosome-token guard,
+and the VCF parser are the engine-agnostic ones in
+:mod:`backend.analysis.imputation_vcf` (shared with the SW-C7 GLIMPSE2 / IMPUTE5
+engines); :func:`parse_imputed_vcf` is the Beagle-specialised wrapper.
+
 **Runtime measurement.** :meth:`ImputationRunner.impute_chromosome` times each
 Beagle invocation (wall-clock) and ``scripts/run_imputation.py`` reports the
 total — so the per-laptop runtime the Wave C plan calls for is measured on
 whatever machine actually runs it.
 
-This module runs and parses imputation; it does not yet wire results into the
-per-sample DB or the annotation pipeline (a following slice), and it does not
-itself gate findings (that is SW-C3).
+This module runs and parses imputation; it does not itself gate findings (that is
+SW-C3, :mod:`backend.analysis.imputation_firewall`).
 """
 
 from __future__ import annotations
 
-import gzip
-import math
-import re
 import subprocess
 import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO
 
 import structlog
 
+from backend.analysis.imputation_vcf import ImputedVariant, parse_engine_vcf
+from backend.analysis.imputation_vcf import normalize_chrom as _normalize_chrom
 from backend.annotation.imputation_panel import panel_bref3_path, panel_map_path
+
+__all__ = [
+    "DEFAULT_JAVA_MEM",
+    "DEFAULT_TIMEOUT",
+    "WELL_IMPUTED_DR2",
+    "ImputationChromResult",
+    "ImputationRunner",
+    "ImputationSummary",
+    "ImputedVariant",
+    "beagle_jar_path",
+    "parse_imputed_vcf",
+    "summarize_dr2",
+]
 
 logger = structlog.get_logger(__name__)
 
@@ -52,37 +67,15 @@ DEFAULT_TIMEOUT = 3600.0
 
 # DR2 (dosage R²) is Beagle's imputation-quality metric in [0, 1]. DR2 >= 0.8 is a
 # deliberately conservative "well-imputed" cutoff (the looser GWAS convention is
-# r² ≈ 0.3–0.5; rigorous practice uses MAF-dependent thresholds — Naj 2019,
+# r²/info ≈ 0.3–0.5; rigorous practice uses MAF-dependent thresholds — Naj 2019,
 # DOI:10.1002/cphg.84). The SW-C3 firewall (backend.analysis.imputation_firewall)
 # combines it with a MAF floor: Beagle's estimated DR2 over-states quality at low
 # MAF (winner's curse), so DR2 >= 0.8 is necessary-but-not-sufficient for rare
-# variants. Shared constant so the runtime summary and the firewall agree.
+# variants. Shared constant so the runtime summary, the firewall, and the SW-C7
+# advanced engines all reuse the same conservative cutoff *value* — note the
+# GLIMPSE2/IMPUTE5 IMPUTE info score fills the same QC role but is a distinct
+# (information-theoretic) metric, not a literal DR2 (see imputation_vcf docstring).
 WELL_IMPUTED_DR2 = 0.8
-
-_DR2_RE = re.compile(r"(?:^|;)DR2=([^;]+)")
-_AF_RE = re.compile(r"(?:^|;)AF=([^;]+)")
-_IMP_RE = re.compile(r"(?:^|;)IMP(?:;|$|=)")
-
-# Accepted chromosome tokens (autosomes + X). The panel ships 1-22 + X; this also
-# guards path construction — chrom is interpolated into panel/output paths, so a
-# token with a path separator or ``..`` must never reach those paths.
-_CHROM_RE = re.compile(r"^(?:[1-9]|1[0-9]|2[0-2]|X)$")
-
-
-def _normalize_chrom(chrom: str) -> str:
-    """Normalize + validate a chromosome token to ``1``..``22`` / ``X``.
-
-    Raises:
-        ValueError: the token is not a supported chromosome (also blocks a token
-            carrying a path separator or ``..`` from reaching a file path).
-    """
-    c = chrom.strip()
-    if c[:3].lower() == "chr":
-        c = c[3:]
-    c = c.upper()
-    if not _CHROM_RE.fullmatch(c):
-        raise ValueError(f"unsupported chromosome token: {chrom!r}")
-    return c
 
 
 def beagle_jar_path(lai_bundle_dir: Path) -> Path:
@@ -90,18 +83,14 @@ def beagle_jar_path(lai_bundle_dir: Path) -> Path:
     return Path(lai_bundle_dir) / "beagle" / "beagle.jar"
 
 
-@dataclass(frozen=True)
-class ImputedVariant:
-    """One ALT allele of a marker in Beagle's imputed output VCF."""
+def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
+    """Yield :class:`ImputedVariant` per ALT from a Beagle imputed VCF (gz or plain).
 
-    chrom: str
-    pos: int
-    ref: str
-    alt: str
-    dr2: float | None  # dosage R² imputation quality (0-1)
-    af: float | None  # estimated ALT allele frequency
-    imputed: bool  # True = Beagle IMP flag (ref-only marker); False = genotyped
-    dosage: float | None = None  # estimated ALT dose (Beagle DS, per-sample, 0-2)
+    Beagle-specialised wrapper over
+    :func:`backend.analysis.imputation_vcf.parse_engine_vcf`: quality ``DR2``,
+    frequency ``AF``, imputed markers flagged by ``IMP``.
+    """
+    return parse_engine_vcf(vcf_path, quality_key="DR2", af_key="AF", imputed_flag_key="IMP")
 
 
 @dataclass
@@ -137,98 +126,6 @@ class ImputationSummary:
         if self.n_imputed == 0:
             return None
         return self.n_well_imputed / self.n_imputed
-
-
-def _open_maybe_gzip(path: Path) -> IO[str]:
-    p = Path(path)
-    if p.suffix == ".gz":
-        return gzip.open(p, "rt", encoding="utf-8")
-    return p.open("r", encoding="utf-8")
-
-
-def _info_floats(info: str, regex: re.Pattern[str]) -> list[float | None]:
-    """Parse a per-ALT (Number=A) comma-separated float INFO field → list."""
-    m = regex.search(info)
-    if not m:
-        return []
-    out: list[float | None] = []
-    for tok in m.group(1).split(","):
-        tok = tok.strip()
-        try:
-            val = float(tok)
-        except ValueError:
-            out.append(None)
-            continue
-        # DR2 and AF are both bounded in [0, 1]; drop nan/inf AND finite
-        # out-of-range values so a malformed entry (e.g. DR2=1.2, AF=-0.1) can't
-        # poison the quality summary or wrongly clear the well-imputed cutoff.
-        out.append(val if math.isfinite(val) and 0.0 <= val <= 1.0 else None)
-    return out
-
-
-def _sample_dosages(format_field: str, sample_field: str) -> list[float | None]:
-    """Parse the per-ALT ``DS`` (estimated ALT dose) from a sample's FORMAT column.
-
-    Beagle emits ``GT:DS`` with ``DS`` Number=A (one dose per ALT). Returns the
-    per-ALT doses, dropping any non-finite or out-of-[0, 2] value to ``None`` (a
-    diploid ALT dose is bounded in [0, 2]). Returns ``[]`` when ``DS`` is absent.
-    """
-    keys = format_field.split(":")
-    if "DS" not in keys:
-        return []
-    idx = keys.index("DS")
-    values = sample_field.split(":")
-    if idx >= len(values):
-        return []
-    out: list[float | None] = []
-    for tok in values[idx].split(","):
-        tok = tok.strip()
-        try:
-            val = float(tok)
-        except ValueError:
-            out.append(None)
-            continue
-        out.append(val if math.isfinite(val) and 0.0 <= val <= 2.0 else None)
-    return out
-
-
-def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
-    """Yield :class:`ImputedVariant` per ALT from a Beagle imputed VCF (gz or plain).
-
-    Extracts the per-ALT ``DR2`` / ``AF``, the ``IMP`` flag (present only on
-    imputed, ref-only markers), and the sample's per-ALT ``DS`` dosage. Multi-
-    allelic markers yield one record per ALT, each paired with its aligned
-    DR2/AF/dosage entry.
-    """
-    with _open_maybe_gzip(vcf_path) as fh:
-        for line in fh:
-            if not line or line.startswith("#"):
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 8:
-                continue
-            chrom, pos_raw, _id, ref, alt, _qual, _filter, info = parts[:8]
-            try:
-                pos = int(pos_raw)
-            except ValueError:
-                continue
-            imputed = bool(_IMP_RE.search(info))
-            dr2 = _info_floats(info, _DR2_RE)
-            af = _info_floats(info, _AF_RE)
-            # Per-sample dosage (single-sample imputed VCF: FORMAT=parts[8], sample=parts[9]).
-            dosage = _sample_dosages(parts[8], parts[9]) if len(parts) >= 10 else []
-            ref_u = ref.strip().upper()
-            for i, a in enumerate(alt.split(",")):
-                yield ImputedVariant(
-                    chrom=chrom.strip(),
-                    pos=pos,
-                    ref=ref_u,
-                    alt=a.strip().upper(),
-                    dr2=dr2[i] if i < len(dr2) else None,
-                    af=af[i] if i < len(af) else None,
-                    dosage=dosage[i] if i < len(dosage) else None,
-                    imputed=imputed,
-                )
 
 
 def summarize_dr2(variants: Iterable[ImputedVariant]) -> ImputationSummary:

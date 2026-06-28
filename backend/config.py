@@ -192,6 +192,17 @@ class Settings(BaseSettings):
         description="JVM memory allocation for Beagle phasing (e.g. '4g').",
     )
 
+    # --- Imputation advanced engines (SW-C7, opt-in / operator-installed) ---
+    glimpse_bin_dir: Path | None = Field(
+        default=None,
+        description=(
+            "Directory holding the GLIMPSE2 binaries (GLIMPSE2_chunk/_phase/"
+            "_ligate) for low-coverage-WGS imputation. When unset, they are "
+            "resolved from PATH; when neither resolves, the engine is simply "
+            "unavailable (never fatal). Env: YELIZTLI_GLIMPSE_BIN_DIR."
+        ),
+    )
+
     # --- UI preferences ---
     theme: Literal["light", "dark", "system"] = "system"
 
