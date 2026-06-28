@@ -292,7 +292,6 @@ class RiskPanel:
     evaluation: str = "first_match"  # "first_match" | "collect_all"
     sex_stratified: bool = False
     ancestry_gate: dict[str, Any] | None = None
-    disclaimer_key: str | None = None
     emit_off_chip_disclosures: bool = False
 
     def locus(self, rsid: str) -> RiskLocus | None:
@@ -491,7 +490,6 @@ def load_risk_panel(path: str | Path) -> RiskPanel:
         evaluation=data.get("evaluation", "first_match"),
         sex_stratified=data.get("sex_stratified", False),
         ancestry_gate=data.get("ancestry_gate"),
-        disclaimer_key=data.get("disclaimer_key"),
         emit_off_chip_disclosures=emit_off_chip_disclosures,
     )
 

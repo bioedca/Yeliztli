@@ -6,7 +6,6 @@
   "evaluation": "first_match",
   "sex_stratified": false,
   "ancestry_gate": null,
-  "disclaimer_key": "ALPHA1",
   "loci": [
     {
       "rsid": "rs28929474",

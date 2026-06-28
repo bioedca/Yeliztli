@@ -6,7 +6,6 @@
   "evaluation": "first_match",
   "sex_stratified": true,
   "ancestry_gate": null,
-  "disclaimer_key": "HEMOCHROMATOSIS",
   "loci": [
     {
       "rsid": "rs1800562",

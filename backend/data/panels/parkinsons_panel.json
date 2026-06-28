@@ -6,7 +6,6 @@
   "evaluation": "collect_all",
   "sex_stratified": false,
   "ancestry_gate": null,
-  "disclaimer_key": "PARKINSONS",
   "loci": [
     {
       "rsid": "rs34637584",

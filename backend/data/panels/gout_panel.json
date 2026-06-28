@@ -6,7 +6,6 @@
   "evaluation": "collect_all",
   "sex_stratified": false,
   "ancestry_gate": null,
-  "disclaimer_key": "GOUT",
   "loci": [
     {
       "rsid": "rs2231142",

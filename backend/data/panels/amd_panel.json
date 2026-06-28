@@ -6,7 +6,6 @@
   "evaluation": "first_match",
   "sex_stratified": false,
   "ancestry_gate": null,
-  "disclaimer_key": "AMD",
   "loci": [
     {
       "rsid": "rs1061170",

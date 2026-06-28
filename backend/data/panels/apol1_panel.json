@@ -12,7 +12,6 @@
     "suppress_indeterminate": true,
     "note": "APOL1 G1/G2 risk estimates are validated primarily in recent African-ancestry backgrounds. Top global ancestry does not prove local ancestry at APOL1, so this directly observed genotype is shown with extra validation caution when inferred African ancestry is absent or below 50%; confirm clinically before any medical action."
   },
-  "disclaimer_key": "APOL1",
   "loci": [
     {
       "rsid": "rs73885319",

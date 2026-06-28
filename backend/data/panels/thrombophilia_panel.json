@@ -7,7 +7,6 @@
   "emit_off_chip_disclosures": true,
   "sex_stratified": false,
   "ancestry_gate": null,
-  "disclaimer_key": "THROMBOPHILIA",
   "loci": [
     {
       "rsid": "rs6025",

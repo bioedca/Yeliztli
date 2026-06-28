@@ -9,6 +9,7 @@ idempotent storage that isolates other modules' findings.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
@@ -36,6 +37,8 @@ from backend.analysis.risk_genotype import (
 )
 from backend.api.routes.risk_common import fetch_risk_findings
 from backend.db.tables import findings, raw_variants
+
+PANEL_DATA_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "panels"
 
 
 def _panel(models: list[GenotypeModel], **kwargs) -> RiskPanel:
@@ -456,6 +459,15 @@ class TestAncestrySpecificOdds:
 
 
 class TestLoadRiskPanelGuards:
+    def test_curated_risk_genotype_panels_do_not_declare_disclaimer_key(self) -> None:
+        offenders: list[str] = []
+        for path in sorted(PANEL_DATA_DIR.glob("*_panel.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("category") == "risk_genotype" and "disclaimer_key" in data:
+                offenders.append(path.name)
+
+        assert offenders == []
+
     def test_rejects_empty_match(self, tmp_path) -> None:
         bad = {
             "module": "x",
