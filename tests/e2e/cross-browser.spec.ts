@@ -453,11 +453,6 @@ test.describe('P4-26d: Cross-browser — WCAG 2.1 AA compliance', () => {
 
 // ── 8. Visual screenshot comparison ────────────────────────────────────
 test.describe('P4-26d: Cross-browser — visual screenshots', () => {
-  test.skip(
-    ({ browserName }) => browserName === 'webkit',
-    'WebKit visual baselines are tracked separately from this smoke-baseline set',
-  )
-
   const screenshotPages = [
     { path: '/', name: 'dashboard' },
     { path: '/variants', name: 'variants' },
