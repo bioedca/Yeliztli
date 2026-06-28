@@ -41,6 +41,7 @@ approach).
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -84,7 +85,10 @@ def resolve_binary(name: str, bin_dir: Path | None = None) -> Path | None:
     """
     if bin_dir is not None:
         candidate = Path(bin_dir) / name
-        if candidate.is_file():
+        # Require executability, not just existence, so a non-executable
+        # placeholder doesn't shadow a real binary on PATH (shutil.which below
+        # already enforces X_OK).
+        if candidate.is_file() and os.access(candidate, os.X_OK):
             return candidate
     found = shutil.which(name)
     return Path(found) if found else None
@@ -193,6 +197,17 @@ class GlimpseRunner:
             runtime = time.monotonic() - start
             logger.error("glimpse_timeout", binary=cmd[0], timeout=timeout)
             return False, "timeout", runtime
+        except OSError as exc:
+            # Launch failures (non-executable, exec-format, vanished binary,
+            # permission denied) must become a structured step failure, not an
+            # uncaught exception.
+            runtime = time.monotonic() - start
+            logger.error(
+                "glimpse_exec_failed",
+                binary=Path(cmd[0]).name,
+                error_type=type(exc).__name__,
+            )
+            return False, type(exc).__name__, runtime
         runtime = time.monotonic() - start
         if proc.returncode != 0:
             stderr_tail = proc.stderr[-500:]
@@ -235,9 +250,12 @@ class GlimpseRunner:
                 ``reference``).
             timeout: per-step wall-clock ceiling (seconds).
 
-        Returns a :class:`GlimpseChromResult`; on any missing input, missing
-        chunks, or step failure/timeout, ``return_ok`` is False (the run never
-        raises for an engine/IO failure — only for an invalid ``chrom`` token).
+        Returns a :class:`GlimpseChromResult`; engine/IO runtime failures (a step
+        non-zero exit, timeout, launch error, missing chunks, or an unparseable
+        ligated VCF) set ``return_ok`` False rather than raising. Raises only for a
+        caller/setup error: an invalid ``chrom`` token (``ValueError``) or a
+        missing required input file (``FileNotFoundError``, mirroring
+        :meth:`backend.analysis.imputation_runner.ImputationRunner.impute_chromosome`).
         """
         chrom = normalize_chrom(chrom)
         input_gl = Path(input_gl)
@@ -352,7 +370,20 @@ class GlimpseRunner:
                 stderr_tail=stderr_tail or "no ligated VCF produced",
             )
 
-        n_total = sum(1 for _ in parse_glimpse_vcf(out_vcf))
+        try:
+            n_total = sum(1 for _ in parse_glimpse_vcf(out_vcf))
+        except (OSError, ValueError) as exc:
+            # A non-zero exit isn't the only failure mode: GLIMPSE2 can exit 0 yet
+            # leave a truncated/unparseable ligated VCF. Treat that as a failed run.
+            logger.error("glimpse_parse_failed", chrom=chrom, error_type=type(exc).__name__)
+            return GlimpseChromResult(
+                chrom=chrom,
+                output_vcf=None,
+                runtime_seconds=total_runtime,
+                return_ok=False,
+                n_chunks=len(chunks),
+                stderr_tail=f"failed to parse ligated VCF: {exc}",
+            )
         logger.info(
             "glimpse_chrom_complete",
             chrom=chrom,

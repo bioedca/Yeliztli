@@ -200,7 +200,15 @@ def parse_engine_vcf(
             quality = _info_floats(info, q_re)
             af = _info_floats(info, af_re)
             # Per-sample dosage (single-sample imputed VCF: FORMAT=parts[8], sample=parts[9]).
-            dosage = _sample_dosages(parts[8], parts[9]) if len(parts) >= 10 else []
+            # The imputation pipeline is single-sample by contract; a multi-sample row
+            # would mis-associate dosages downstream, so reject it loudly rather than
+            # silently taking only the first sample.
+            if len(parts) > 10:
+                raise ValueError(
+                    f"expected a single-sample imputed VCF, found {len(parts) - 9} "
+                    f"samples in {vcf_path}"
+                )
+            dosage = _sample_dosages(parts[8], parts[9]) if len(parts) == 10 else []
             ref_u = ref.strip().upper()
             for i, a in enumerate(alt.split(",")):
                 yield ImputedVariant(

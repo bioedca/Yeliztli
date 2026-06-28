@@ -48,7 +48,9 @@ def _stub_bin_dir(tmp_path: Path) -> Path:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name in REQUIRED_BINARIES:
-        (bin_dir / name).touch()
+        p = bin_dir / name
+        p.touch()
+        p.chmod(0o755)  # resolution requires X_OK, not just existence
     return bin_dir
 
 
@@ -82,6 +84,13 @@ class TestAvailability:
     def test_resolve_prefers_bin_dir(self, tmp_path: Path) -> None:
         bin_dir = _stub_bin_dir(tmp_path)
         assert resolve_binary("GLIMPSE2_phase", bin_dir) == bin_dir / "GLIMPSE2_phase"
+
+    def test_non_executable_not_resolved(self, tmp_path: Path) -> None:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "GLIMPSE2_phase").touch()  # exists but not executable
+        # Not on PATH either → unresolved (a non-executable placeholder is ignored).
+        assert resolve_binary("GLIMPSE2_phase", bin_dir) is None
 
     def test_constructor_raises_when_missing(self, tmp_path: Path) -> None:
         empty = tmp_path / "empty"
@@ -209,6 +218,42 @@ class TestOrchestration:
         )
         res = runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out")
         assert res.return_ok is False
+
+    def test_exec_oserror_returns_not_ok(self, tmp_path: Path, monkeypatch) -> None:
+        runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))
+        gl, ref, gmap = _inputs(tmp_path)
+
+        def boom(cmd, **kw):  # noqa: ANN001, ANN202
+            raise PermissionError("cannot exec")
+
+        monkeypatch.setattr(gr_mod.subprocess, "run", boom)
+        res = runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out")
+        assert res.return_ok is False and res.stderr_tail == "PermissionError"
+
+    def test_unparseable_ligated_vcf_returns_not_ok(self, tmp_path: Path, monkeypatch) -> None:
+        # ligate exits 0 but emits a multi-sample VCF → parse raises → failed run.
+        multi_sample = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\n"
+            "22\t1\trs\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|0:0\t0|1:1\n"
+        )
+
+        def fake(cmd, **kw):  # noqa: ANN001, ANN202
+            binary = Path(cmd[0]).name
+            out = cmd[cmd.index("--output") + 1]
+            if binary == "GLIMPSE2_chunk":
+                Path(out).write_text(_CHUNKS, encoding="utf-8")
+            elif binary == "GLIMPSE2_phase":
+                Path(out).write_text("bcf", encoding="utf-8")
+            elif binary == "GLIMPSE2_ligate":
+                _write_gz(Path(out), multi_sample)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))
+        gl, ref, gmap = _inputs(tmp_path)
+        monkeypatch.setattr(gr_mod.subprocess, "run", fake)
+        res = runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out")
+        assert res.return_ok is False
+        assert "failed to parse ligated VCF" in res.stderr_tail
 
     def test_missing_input_raises(self, tmp_path: Path) -> None:
         runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))

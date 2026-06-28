@@ -108,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     total = ImputationSummary()
     fw_total = FirewallSummary()
     failures: list[str] = []
-    for c in args.chrom:
+    # Dedupe (preserve order) so a repeated --chrom can't double-count / overwrite.
+    for c in dict.fromkeys(args.chrom):
         input_gl = args.input_gl_dir / args.input_gl_template.format(chrom=c)
         reference = args.reference_dir / args.reference_template.format(chrom=c)
         gmap = args.map_dir / args.map_template.format(chrom=c)
@@ -122,9 +123,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"chr{c}: FAILED ({res.stderr_tail})", file=sys.stderr, flush=True)
             failures.append(c)
             continue
-        variants = list(parse_glimpse_vcf(res.output_vcf))
-        s = summarize_dr2(variants)
-        fw = summarize_firewall(variants)
+        # Two streaming passes (O(1) memory) rather than materializing every marker
+        # of a whole chromosome into a list.
+        s = summarize_dr2(parse_glimpse_vcf(res.output_vcf))
+        fw = summarize_firewall(parse_glimpse_vcf(res.output_vcf))
         total.n_total += s.n_total
         total.n_imputed += s.n_imputed
         total.n_well_imputed += s.n_well_imputed

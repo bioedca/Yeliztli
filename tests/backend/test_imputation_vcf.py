@@ -137,6 +137,23 @@ class TestMalformedAndMissing:
         )
         assert v.dr2 == 0.9 and v.af is None and v.dosage is None
 
+    def test_multi_sample_row_rejected(self, tmp_path: Path) -> None:
+        # The imputation pipeline is single-sample; a 2-sample row must fail loudly
+        # rather than silently associating dosages with only the first sample.
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\n"
+            "22\t100\trsx\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|0:0\t0|1:1\n"
+        )
+        with pytest.raises(ValueError, match="single-sample"):
+            list(
+                parse_engine_vcf(
+                    _write(tmp_path / "ms.vcf", vcf),
+                    quality_key="INFO",
+                    af_key="RAF",
+                    imputed_flag_key=None,
+                )
+            )
+
     def test_dosage_out_of_range_dropped(self, tmp_path: Path) -> None:
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
