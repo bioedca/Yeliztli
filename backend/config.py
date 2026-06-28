@@ -212,6 +212,25 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- HLA / HIBAG (Wave D, opt-in / operator-installed R runtime) ---
+    hibag_rscript: Path | None = Field(
+        default=None,
+        description=(
+            "Path to the Rscript executable (or its directory) for the HIBAG HLA "
+            "imputation engine. When unset, Rscript is resolved from PATH; when "
+            "absent the engine is unavailable and the single-tag HLA proxy remains "
+            "the fallback (never fatal). Env: YELIZTLI_HIBAG_RSCRIPT."
+        ),
+    )
+    hibag_model_dir: Path | None = Field(
+        default=None,
+        description=(
+            "Directory holding the BYO, user-fetched, ancestry-specific HIBAG "
+            "pre-fit model files ({ancestry}-HLA4.RData) — never bundled. When "
+            "unset or empty the engine is unavailable. Env: YELIZTLI_HIBAG_MODEL_DIR."
+        ),
+    )
+
     # --- UI preferences ---
     theme: Literal["light", "dark", "system"] = "system"
 
