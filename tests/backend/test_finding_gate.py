@@ -16,7 +16,20 @@ import pathlib
 import pytest
 
 from backend.analysis import finding_gate
-from backend.analysis.finding_gate import is_surfaceable
+from backend.analysis.finding_gate import imputed_variant_surfaceable, is_surfaceable
+from backend.analysis.imputation_runner import ImputedVariant
+
+
+def _iv(
+    *,
+    imputed: bool = True,
+    dr2: float | None = 0.95,
+    af: float | None = 0.30,
+) -> ImputedVariant:
+    """Build an ImputedVariant for firewall-gate tests (defaults: imputed, well+common)."""
+    return ImputedVariant(
+        chrom="1", pos=100, ref="A", alt="G", dr2=dr2, af=af, imputed=imputed, dosage=1.0
+    )
 
 
 @pytest.mark.parametrize(
@@ -71,4 +84,50 @@ def test_caller_set_matches_documented_scope() -> None:
     assert callers == {"rare_variant_finder.py"}, (
         "is_surfaceable caller set drifted from the documented scope (#851) — update "
         f"finding_gate.py's docstring and this guard together. Found: {sorted(callers)}"
+    )
+
+
+@pytest.mark.parametrize(
+    "imputed,dr2,af,expected",
+    [
+        # A directly genotyped (non-imputed) marker always passes — the firewall N/A.
+        (False, None, None, True),
+        (False, 0.10, 0.0001, True),
+        # Imputed AND well-imputed AND common → passes.
+        (True, 0.95, 0.30, True),
+        (True, 0.80, 0.01, True),  # exactly at both thresholds (inclusive)
+        # Imputed but quarantined: low / missing DR2, or rare / missing AF.
+        (True, 0.79, 0.30, False),  # below DR2 floor
+        (True, None, 0.30, False),  # missing DR2
+        (True, 0.95, 0.005, False),  # rare (MAF < 1%)
+        (True, 0.95, 0.999, False),  # rare via the high-AF fold (MAF = 0.001)
+        (True, 0.95, None, False),  # missing AF
+    ],
+)
+def test_imputed_variant_surfaceable(
+    imputed: bool, dr2: float | None, af: float | None, expected: bool
+) -> None:
+    """The firewall gate mirrors imputation_firewall.assess_variant().reportable."""
+    assert imputed_variant_surfaceable(_iv(imputed=imputed, dr2=dr2, af=af)) is expected
+
+
+def test_imputed_variant_surfaceable_caller_set() -> None:
+    """SW-C6: the docstring states only ``imputed_findings`` wires the firewall gate.
+
+    Lock that doc↔code agreement the same way ``test_caller_set_matches_documented_scope``
+    pins ``is_surfaceable``: if a new generator opts into the imputed-finding firewall
+    gate (or the sole caller is removed) without updating the finding_gate docstring's
+    scope note, this fails — keeping the "rule lives in one place" doc honest.
+    """
+    analysis_dir = pathlib.Path(finding_gate.__file__).resolve().parent
+    callers = {
+        py.name
+        for py in analysis_dir.glob("*.py")
+        if py.name != "finding_gate.py"
+        and "imputed_variant_surfaceable" in py.read_text(encoding="utf-8")
+    }
+    assert callers == {"imputed_findings.py"}, (
+        "imputed_variant_surfaceable caller set drifted from the documented scope "
+        "(SW-C6) — update finding_gate.py's docstring and this guard together. "
+        f"Found: {sorted(callers)}"
     )

@@ -100,6 +100,7 @@ def _get_modules() -> list[tuple[str, Callable]]:
         ("gene_health", _run_gene_health),
         ("qc", _run_qc),
         ("rare_variants", _run_rare_variants),
+        ("imputed_variants", _run_imputed_variants),
     ]
 
 
@@ -446,3 +447,16 @@ def _run_rare_variants(sample_engine: Engine, registry: DBRegistry) -> int:
         RareVariantFilter(carried_only=True, inferred_sex=inferred_sex), sample_engine
     )
     return store_rare_variant_findings(result, sample_engine)
+
+
+def _run_imputed_variants(sample_engine: Engine, registry: DBRegistry) -> int:
+    # SW-C6: surface firewall-cleared imputed common variants at ClinVar P/LP loci the
+    # chip did not type, labeled imputed-not-typed. A no-op (0 findings) on samples with
+    # no persisted imputation, so it is byte-identical to not running for typed-only data.
+    from backend.analysis.imputed_findings import (
+        find_imputed_clinvar_findings,
+        store_imputed_findings,
+    )
+
+    result = find_imputed_clinvar_findings(sample_engine, registry.reference_engine)
+    return store_imputed_findings(result, sample_engine)

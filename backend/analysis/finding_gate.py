@@ -23,9 +23,21 @@ set so the doc and code can't drift apart again.
 Biological sex is inferred once per run via
 :func:`backend.services.sex_inference.infer_biological_sex` and threaded in, so
 this module stays a pure predicate with no DB access.
+
+**Firewall gate (SW-C6).** :func:`imputed_variant_surfaceable` is the sibling gate
+for *imputed*-backed findings: an imputed variant may back a finding only when it
+clears the SW-C3 MAF/r² firewall (:func:`backend.analysis.imputation_firewall.assess_variant`).
+Its caller set (``imputed_findings`` only) is pinned by the same
+``tests/backend/test_finding_gate.py`` guard, so this doc and the code can't drift.
+Like :func:`is_surfaceable` it stays a pure predicate (the firewall has no DB access).
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.analysis.imputation_runner import ImputedVariant
 
 _Y_CHROMS: frozenset[str] = frozenset({"Y", "CHRY"})
 
@@ -50,3 +62,34 @@ def is_surfaceable(chrom: str | None, inferred_sex: str | None) -> bool:
     if chrom_norm in _Y_CHROMS and inferred_sex == "XX":
         return False
     return True
+
+
+def imputed_variant_surfaceable(variant: ImputedVariant) -> bool:
+    """Enforce the SW-C3 MAF/r² firewall at the finding gate (SW-C6).
+
+    An *imputed* variant may back a finding only when it clears the firewall
+    (:func:`backend.analysis.imputation_firewall.assess_variant` — well-imputed
+    ``DR2 >= 0.8`` **and** common ``MAF >= 1%``). This is the shared chokepoint a
+    generator that surfaces imputed variants (``imputed_findings``) consults before
+    emitting a finding, so the firewall rule lives in one place rather than being
+    re-derived per module — the same discipline :func:`is_surfaceable` follows for
+    the sex/chromosome rule. A genotyped (non-imputed) variant always passes: the
+    firewall does not apply to a directly observed call.
+
+    **Defense in depth.** ``imputed_variants`` only ever stores firewall-cleared
+    rows (:func:`backend.analysis.imputation_persist.persist_imputed_variants` drops
+    quarantined markers), so in the normal path every row already clears this gate.
+    Re-asserting here means a finding can *never* rest on an imputed variant that
+    fails the firewall — even if a future code path builds one from another source,
+    or a stale/out-of-range row somehow slips past persistence.
+
+    Args:
+        variant: the imputed (or genotyped) marker backing a candidate finding.
+
+    Returns:
+        ``True`` if the variant may back a finding, ``False`` if the firewall
+        quarantines it (imputed and rare / low-DR2 / missing DR2 or AF).
+    """
+    from backend.analysis.imputation_firewall import assess_variant
+
+    return assess_variant(variant).reportable

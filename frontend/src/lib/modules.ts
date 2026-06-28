@@ -167,6 +167,15 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     route: "/rare-variants",
     color: "text-orange-700 dark:text-orange-400",
   },
+  // SW-C6: ClinVar P/LP findings recovered from firewall-cleared imputed common
+  // variants the chip did not type (labeled imputed-not-typed, confirm clinically).
+  // No dedicated page yet — surfaces in the All Findings list, so non-navigable.
+  imputed_variants: {
+    label: "Imputed Variants",
+    icon: Dna,
+    route: null,
+    color: "text-amber-600 dark:text-amber-400",
+  },
   // Panel-only risk modules — no dedicated page, so non-navigable (route: null).
   amd: {
     label: "AMD",
