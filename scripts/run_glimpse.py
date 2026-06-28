@@ -37,6 +37,7 @@ from backend.analysis.glimpse_runner import (
 from backend.analysis.imputation_firewall import FirewallSummary, summarize_firewall
 from backend.analysis.imputation_runner import ImputationSummary, summarize_dr2
 from backend.annotation.imputation_panel import PANEL_CHROMOSOMES
+from backend.config import get_settings
 
 
 def _accumulate_firewall(total: FirewallSummary, part: FirewallSummary) -> None:
@@ -86,12 +87,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nthreads", type=int, default=None, help="GLIMPSE2 --threads.")
     parser.add_argument("--timeout", type=float, default=3600.0, help="Per-step seconds.")
     args = parser.parse_args(argv)
+    # Honor settings (env YELIZTLI_GLIMPSE_BIN_DIR / config) when --bin-dir is unset.
+    bin_dir = args.bin_dir or get_settings().glimpse_bin_dir
 
     if args.check:
-        if glimpse_available(args.bin_dir):
+        if glimpse_available(bin_dir):
             print("GLIMPSE2: available (all binaries resolved).")
             return 0
-        print(f"GLIMPSE2: UNAVAILABLE — missing {missing_binaries(args.bin_dir)}", file=sys.stderr)
+        print(f"GLIMPSE2: UNAVAILABLE — missing {missing_binaries(bin_dir)}", file=sys.stderr)
         return 1
 
     if not args.chrom:
@@ -99,11 +102,11 @@ def main(argv: list[str] | None = None) -> int:
     for needed in ("input_gl_dir", "reference_dir", "map_dir"):
         if getattr(args, needed) is None:
             parser.error(f"--{needed.replace('_', '-')} is required")
-    if not glimpse_available(args.bin_dir):
-        parser.error(f"GLIMPSE2 unavailable — missing {missing_binaries(args.bin_dir)}")
+    if not glimpse_available(bin_dir):
+        parser.error(f"GLIMPSE2 unavailable — missing {missing_binaries(bin_dir)}")
 
     out_dir = args.out_dir or Path("glimpse_out")
-    runner = GlimpseRunner(bin_dir=args.bin_dir, nthreads=args.nthreads)
+    runner = GlimpseRunner(bin_dir=bin_dir, nthreads=args.nthreads)
 
     total = ImputationSummary()
     fw_total = FirewallSummary()

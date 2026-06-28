@@ -27,11 +27,13 @@ class TestResolveBinary:
         _exe(tmp_path / "tool")
         assert resolve_binary("tool", tmp_path) == tmp_path / "tool"
 
-    def test_non_executable_ignored(self, tmp_path: Path) -> None:
-        (tmp_path / "tool").touch()  # exists but not executable, not on PATH
+    def test_non_executable_ignored(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "tool").touch()  # exists but not executable
+        monkeypatch.setenv("PATH", "")  # isolate: tmp_path is the only candidate
         assert resolve_binary("tool", tmp_path) is None
 
-    def test_absent_returns_none(self, tmp_path: Path) -> None:
+    def test_absent_returns_none(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("PATH", "")
         assert resolve_binary("definitely-not-a-real-binary-xyz", tmp_path) is None
 
     def test_falls_back_to_path(self, tmp_path: Path, monkeypatch) -> None:

@@ -36,6 +36,7 @@ from backend.analysis.impute5_runner import (
     parse_impute5_vcf,
 )
 from backend.annotation.imputation_panel import PANEL_CHROMOSOMES
+from backend.config import get_settings
 
 
 def _accumulate_firewall(total: FirewallSummary, part: FirewallSummary) -> None:
@@ -87,12 +88,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nthreads", type=int, default=None, help="IMPUTE5 --threads.")
     parser.add_argument("--timeout", type=float, default=3600.0, help="Per-region seconds.")
     args = parser.parse_args(argv)
+    # Honor settings (env YELIZTLI_IMPUTE5_BIN_DIR / config) when --bin-dir is unset.
+    bin_dir = args.bin_dir or get_settings().impute5_bin_dir
 
     if args.check:
-        if impute5_available(args.bin_dir):
+        if impute5_available(bin_dir):
             print("IMPUTE5: available (impute5 resolved).")
             return 0
-        print(f"IMPUTE5: UNAVAILABLE — missing {missing_binaries(args.bin_dir)}", file=sys.stderr)
+        print(f"IMPUTE5: UNAVAILABLE — missing {missing_binaries(bin_dir)}", file=sys.stderr)
         return 1
 
     if not args.chrom:
@@ -100,11 +103,11 @@ def main(argv: list[str] | None = None) -> int:
     for needed in ("target_dir", "reference_dir", "map_dir"):
         if getattr(args, needed) is None:
             parser.error(f"--{needed.replace('_', '-')} is required")
-    if not impute5_available(args.bin_dir):
-        parser.error(f"IMPUTE5 unavailable — missing {missing_binaries(args.bin_dir)}")
+    if not impute5_available(bin_dir):
+        parser.error(f"IMPUTE5 unavailable — missing {missing_binaries(bin_dir)}")
 
     out_dir = args.out_dir or Path("impute5_out")
-    runner = Impute5Runner(bin_dir=args.bin_dir, nthreads=args.nthreads)
+    runner = Impute5Runner(bin_dir=bin_dir, nthreads=args.nthreads)
 
     total = ImputationSummary()
     fw_total = FirewallSummary()

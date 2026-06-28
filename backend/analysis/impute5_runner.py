@@ -104,13 +104,30 @@ def parse_impute5_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
 def _validate_region(region: str, what: str) -> str:
     """Validate an IMPUTE5 region token; return it stripped.
 
+    Checks both the ``contig`` / ``contig:start[-end]`` shape and the coordinate
+    bounds (``start >= 1`` and, when an end is given, ``end >= start``) so a
+    zero-length or reversed interval fails fast here rather than at the engine.
+
     Raises:
-        ValueError: the token is not a ``contig`` / ``contig:start-end`` shape.
+        ValueError: the token is malformed or the interval is invalid.
     """
     token = region.strip()
     if not _REGION_RE.fullmatch(token):
         raise ValueError(f"invalid {what} region token: {region!r}")
+    if ":" in token:
+        coords = token.split(":", 1)[1]
+        start_s, _, end_s = coords.partition("-")
+        start = int(start_s)
+        if start < 1:
+            raise ValueError(f"invalid {what} region interval (start < 1): {region!r}")
+        if end_s and int(end_s) < start:
+            raise ValueError(f"invalid {what} region interval (end < start): {region!r}")
     return token
+
+
+def _region_contig(region: str) -> str:
+    """Normalized contig of a region token (``22:1-100`` → ``22``)."""
+    return normalize_chrom(region.split(":", 1)[0])
 
 
 @dataclass
@@ -214,6 +231,12 @@ class Impute5Runner:
         chrom = normalize_chrom(chrom)
         region_tok = _validate_region(region, "imputation") if region else chrom
         buf_tok = _validate_region(buffer_region, "buffer") if buffer_region else None
+        # The output is named/labelled by chrom, so the region (and buffer) must be
+        # on that same contig — otherwise the result would be mislabelled.
+        if region is not None and _region_contig(region_tok) != chrom:
+            raise ValueError(f"imputation region {region_tok!r} is not on chr{chrom}")
+        if buf_tok is not None and _region_contig(buf_tok) != chrom:
+            raise ValueError(f"buffer region {buf_tok!r} is not on chr{chrom}")
         target = Path(target)
         reference = Path(reference)
         gmap = Path(gmap)
@@ -223,7 +246,13 @@ class Impute5Runner:
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_vcf = out_dir / f"imputed_chr{chrom}.vcf.gz"
+        # Key the output filename by the region too, so several region-level runs of
+        # the same chromosome into one out_dir don't overwrite each other.
+        if region is None:
+            out_vcf = out_dir / f"imputed_chr{chrom}.vcf.gz"
+        else:
+            region_suffix = re.sub(r"[^0-9A-Za-z._-]+", "_", region_tok)
+            out_vcf = out_dir / f"imputed_chr{chrom}_{region_suffix}.vcf.gz"
         cmd = [
             str(self._impute5),
             "--h",

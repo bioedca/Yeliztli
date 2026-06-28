@@ -237,3 +237,26 @@ class TestImputeRegion:
         target, ref, gmap = _inputs(tmp_path)
         with pytest.raises(ValueError, match="invalid imputation region"):
             runner.impute_region("22", target, ref, gmap, tmp_path / "out", region="22; rm -rf /")
+
+    def test_reversed_interval_raises(self, tmp_path: Path) -> None:
+        runner = Impute5Runner(bin_dir=_stub_bin_dir(tmp_path))
+        target, ref, gmap = _inputs(tmp_path)
+        with pytest.raises(ValueError, match="end < start"):
+            runner.impute_region("22", target, ref, gmap, tmp_path / "out", region="22:200-100")
+
+    def test_region_contig_mismatch_raises(self, tmp_path: Path) -> None:
+        runner = Impute5Runner(bin_dir=_stub_bin_dir(tmp_path))
+        target, ref, gmap = _inputs(tmp_path)
+        with pytest.raises(ValueError, match="not on chr22"):
+            runner.impute_region("22", target, ref, gmap, tmp_path / "out", region="3:1-100")
+
+    def test_region_runs_get_distinct_output_files(self, tmp_path: Path, monkeypatch) -> None:
+        runner = Impute5Runner(bin_dir=_stub_bin_dir(tmp_path))
+        target, ref, gmap = _inputs(tmp_path)
+        monkeypatch.setattr(i5_mod.subprocess, "run", self._fake_run())
+        out = tmp_path / "out"
+        r1 = runner.impute_region("22", target, ref, gmap, out, region="22:1-1000000")
+        r2 = runner.impute_region("22", target, ref, gmap, out, region="22:1000001-2000000")
+        assert r1.output_vcf != r2.output_vcf  # region-keyed → no overwrite
+        assert r1.output_vcf is not None and r1.output_vcf.exists()
+        assert r2.output_vcf is not None and r2.output_vcf.exists()
