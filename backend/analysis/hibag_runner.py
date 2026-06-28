@@ -114,8 +114,13 @@ def available_ancestry_models(model_dir: Path | None) -> list[str]:
 
 
 def resolve_model(model_dir: Path | None, ancestry: str) -> Path | None:
-    """Path to the ``{ancestry}-HLA4.RData`` model, or ``None`` if absent."""
-    if model_dir is None:
+    """Path to the ``{ancestry}-HLA4.RData`` model, or ``None`` if absent.
+
+    ``ancestry`` must be one of :data:`KNOWN_ANCESTRIES` — this both matches
+    :func:`available_ancestry_models` and prevents a free-form value (e.g.
+    ``../../etc``) from steering the path outside ``model_dir``.
+    """
+    if model_dir is None or ancestry not in KNOWN_ANCESTRIES:
         return None
     candidate = Path(model_dir) / _model_filename(ancestry)
     return candidate if candidate.is_file() else None
@@ -184,6 +189,11 @@ def _to_float(value: str | None) -> float | None:
     return f if math.isfinite(f) else None
 
 
+# The column contract the R script writes; the parser fails closed if the header
+# does not carry all of these (a malformed/empty TSV must not read as success).
+_REQUIRED_TSV_COLUMNS = ("locus", "sample.id", "allele1", "allele2", "prob", "matching")
+
+
 def parse_hibag_tsv(
     tsv_path: Path, *, prob_threshold: float = RECOMMENDED_PROB_THRESHOLD
 ) -> list[HLACall]:
@@ -191,10 +201,17 @@ def parse_hibag_tsv(
 
     A call is flagged ``low_confidence`` when ``prob`` is missing or below
     ``prob_threshold``.
+
+    Raises:
+        ValueError: the header is missing a required column (broken contract).
     """
     calls: list[HLACall] = []
     with Path(tsv_path).open("r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
+        header = set(reader.fieldnames or ())
+        missing = [c for c in _REQUIRED_TSV_COLUMNS if c not in header]
+        if missing:
+            raise ValueError(f"HIBAG output missing columns: {missing}")
         for row in reader:
             locus = (row.get("locus") or "").strip()
             if not locus:
@@ -298,16 +315,11 @@ class HibagRunner:
 
         plink_prefix = Path(plink_prefix)
         model = Path(model)
-        missing = [
-            str(p)
-            for p in (
-                plink_prefix.with_suffix(".bed"),
-                plink_prefix.with_suffix(".bim"),
-                plink_prefix.with_suffix(".fam"),
-                model,
-            )
-            if not p.exists()
-        ]
+        # APPEND the PLINK extensions (a prefix may contain dots, e.g. a cohort
+        # name); ``with_suffix`` would replace the trailing ``.foo`` and mismatch
+        # the R script, which uses ``paste0(prefix, ".bed")``.
+        plink_files = [Path(f"{plink_prefix}{ext}") for ext in (".bed", ".bim", ".fam")]
+        missing = [str(p) for p in (*plink_files, model) if not p.exists()]
         if missing:
             raise FileNotFoundError(f"HIBAG inputs missing: {missing}")
 
@@ -341,6 +353,14 @@ class HibagRunner:
                 return_ok=False,
                 runtime_seconds=runtime,
                 stderr_tail=f"failed to parse HLA-call output: {exc}",
+            )
+        if not calls:
+            # A well-formed but empty result means nothing was called — fail closed
+            # rather than returning a successful run with zero HLA calls.
+            return HibagResult(
+                return_ok=False,
+                runtime_seconds=runtime,
+                stderr_tail="HIBAG produced no HLA calls",
             )
         logger.info(
             "hibag_predict_complete", runtime_seconds=round(runtime, 1), n_calls=len(calls)

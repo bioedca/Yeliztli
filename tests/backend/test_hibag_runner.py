@@ -25,6 +25,15 @@ from backend.analysis.hibag_runner import (
     parse_hibag_tsv,
     resolve_model,
 )
+from backend.config import Settings
+
+
+def test_blank_hibag_settings_become_none(tmp_path: Path) -> None:
+    # Empty env/config values must disable the engine, not resolve to Path('.').
+    settings = Settings(data_dir=tmp_path, hibag_rscript="", hibag_model_dir="  ")
+    assert settings.hibag_rscript is None
+    assert settings.hibag_model_dir is None
+
 
 _TSV = (
     "locus\tsample.id\tallele1\tallele2\tprob\tmatching\n"
@@ -51,10 +60,10 @@ def _model_dir(tmp_path: Path, *ancestries: str) -> Path:
     return d
 
 
-def _plink(tmp_path: Path) -> Path:
-    prefix = tmp_path / "sample"
+def _plink(tmp_path: Path, name: str = "sample") -> Path:
+    prefix = tmp_path / name
     for ext in (".bed", ".bim", ".fam"):
-        prefix.with_suffix(ext).touch()
+        Path(f"{prefix}{ext}").touch()  # append (a prefix may contain dots)
     return prefix
 
 
@@ -92,6 +101,12 @@ class TestModelResolution:
         d = _model_dir(tmp_path, "European")
         assert resolve_model(d, "European") == d / "European-HLA4.RData"
         assert resolve_model(d, "Asian") is None
+
+    def test_resolve_model_rejects_unknown_ancestry(self, tmp_path: Path) -> None:
+        d = _model_dir(tmp_path, "European")
+        # A free-form / traversal value is rejected before touching the filesystem.
+        assert resolve_model(d, "../../etc/passwd") is None
+        assert resolve_model(d, "Klingon") is None
 
 
 class TestRuntimeStatus:
@@ -138,6 +153,13 @@ class TestParseTsv:
 
     def test_threshold_is_0_5(self) -> None:
         assert RECOMMENDED_PROB_THRESHOLD == 0.5
+
+    def test_missing_column_raises(self, tmp_path: Path) -> None:
+        tsv = tmp_path / "bad.tsv"
+        # Header lacks allele2/prob/matching → broken contract → fail closed.
+        tsv.write_text("locus\tsample.id\tallele1\nA\tS1\t02:01\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="missing columns"):
+            parse_hibag_tsv(tsv)
 
 
 class TestConstructor:
@@ -248,6 +270,32 @@ class TestPredict:
         monkeypatch.setattr(hb_mod.subprocess, "run", self._fake_run(write=False))
         res = runner.predict(prefix, model, tmp_path / "out", loci=["A"])
         assert res.return_ok is False
+
+    def test_empty_calls_returns_not_ok(self, tmp_path: Path, monkeypatch) -> None:
+        runner = self._runner(tmp_path)
+        prefix = _plink(tmp_path)
+        model = tmp_path / "m.RData"
+        model.touch()
+        header_only = "locus\tsample.id\tallele1\tallele2\tprob\tmatching\n"
+
+        def fake(cmd, **kw):  # noqa: ANN001, ANN202
+            Path(cmd[cmd.index("--out") + 1]).write_text(header_only, encoding="utf-8")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(hb_mod.subprocess, "run", fake)
+        res = runner.predict(prefix, model, tmp_path / "out", loci=["A"])
+        assert res.return_ok is False and "no HLA calls" in res.stderr_tail
+
+    def test_dotted_prefix_found(self, tmp_path: Path, monkeypatch) -> None:
+        # A prefix containing dots must resolve <prefix>.bed/.bim/.fam (append),
+        # not suffix-replace — regression guard for the with_suffix bug.
+        runner = self._runner(tmp_path)
+        prefix = _plink(tmp_path, name="co.hort.v2")
+        model = tmp_path / "m.RData"
+        model.touch()
+        monkeypatch.setattr(hb_mod.subprocess, "run", self._fake_run())
+        res = runner.predict(prefix, model, tmp_path / "out", loci=["A"])
+        assert res.return_ok is True
 
     def test_predict_for_ancestry_resolves_model(self, tmp_path: Path, monkeypatch) -> None:
         model_dir = _model_dir(tmp_path, "European")

@@ -76,9 +76,18 @@ mobj <- tryCatch(
   error = function(e) die(sprintf("could not load model: %s", conditionMessage(e)))
 )
 # The model file is either a named list keyed by locus, or a single per-locus
-# object — select per locus accordingly.
+# object. A single object carries no locus identity, so it can only answer ONE
+# requested locus — reject a multi-locus request against it rather than reusing
+# the same model for every locus (which would mislabel calls).
+is_named_list <- is.list(mobj) && !is.null(names(mobj))
+if (!is_named_list && length(loci) > 1) {
+  die("model is a single per-locus object but multiple --loci were requested")
+}
 select_model <- function(locus) {
-  if (is.list(mobj) && !is.null(names(mobj)) && locus %in% names(mobj)) {
+  if (is_named_list) {
+    if (!(locus %in% names(mobj))) {
+      die(sprintf("model has no entry for locus %s", locus))
+    }
     hlaModelFromObj(mobj[[locus]])
   } else {
     hlaModelFromObj(mobj)
@@ -96,15 +105,23 @@ for (locus in loci) {
     error = function(e) die(sprintf("prediction failed for %s: %s", locus, conditionMessage(e)))
   )
   df <- pred$value  # sample.id, allele1, allele2, prob, matching
-  if (is.null(df) || nrow(df) == 0) next
+  # A requested locus that yields no call is an error, not a silent omission —
+  # otherwise a partial TSV would still exit 0 and look complete.
+  if (is.null(df) || nrow(df) == 0) {
+    die(sprintf("no HLA call produced for locus %s", locus))
+  }
   df <- cbind(locus = locus, df)
   frames[[locus]] <- df
 }
 
 if (length(frames) == 0) die("no HLA calls produced")
 out <- do.call(rbind, frames)
-# Keep a stable column contract for the Python parser.
+# Enforce the column contract the Python parser depends on: fail fast if any is
+# missing rather than trimming to whatever HIBAG happened to emit.
 cols <- c("locus", "sample.id", "allele1", "allele2", "prob", "matching")
-cols <- cols[cols %in% colnames(out)]
+missing_cols <- setdiff(cols, colnames(out))
+if (length(missing_cols) > 0) {
+  die(sprintf("HIBAG output missing columns: %s", paste(missing_cols, collapse = ", ")))
+}
 out <- out[, cols, drop = FALSE]
 write.table(out, file = args[["out"]], sep = "\t", row.names = FALSE, quote = FALSE, na = "NA")

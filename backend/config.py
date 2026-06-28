@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 try:
@@ -230,6 +230,19 @@ class Settings(BaseSettings):
             "unset or empty the engine is unavailable. Env: YELIZTLI_HIBAG_MODEL_DIR."
         ),
     )
+
+    @field_validator("hibag_rscript", "hibag_model_dir", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value: object) -> object:
+        """Treat a blank env/config value as unset (fail closed for the HLA engine).
+
+        Without this an empty ``YELIZTLI_HIBAG_*`` would coerce to ``Path('.')``
+        (the CWD) rather than ``None``, so the engine could look for Rscript/models
+        in the working directory instead of reporting itself unavailable.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     # --- UI preferences ---
     theme: Literal["light", "dark", "system"] = "system"
