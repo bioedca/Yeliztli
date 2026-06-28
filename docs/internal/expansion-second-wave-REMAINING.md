@@ -1,13 +1,14 @@
 # Expansion Second-Wave — Remaining Implementation Inventory
 
-> **Generated:** 2026-06-10. **Last updated:** 2026-06-27 (bioedca fork) — the entire
+> **Generated:** 2026-06-10. **Last updated:** 2026-06-28 (bioedca fork) — the entire
 > **tractable** second-wave set is merged (SW-A11, SW-F1, SW-E1(+E1b), SW-A12, SW-E6 +
 > warfarin layer, all of Wave B, **SW-E2** #1055, **SW-F3** #1053/#1056, **SW-F2**
-> #1083/#1088), **and most of Wave C is now merged too**: **SW-C1** (#1096, panel fetch),
+> #1083/#1088), **and Wave C is now all-but-one merged**: **SW-C1** (#1096, panel fetch),
 > **SW-C2** (#1100, Beagle phase+impute runtime), **SW-C3** (#1110, MAF/r² firewall), input-prep
-> glue (#1112), persist-DR2 (#1128), and **SW-C5** (#1169/#1173, imputation-aware PRS scoring —
-> percentiles un-withhold on combined typed+imputed coverage). Only **SW-C6 / SW-C4 / SW-C7** and
-> Wave D remain — see §4/§5/§12.
+> glue (#1112), persist-DR2 (#1128), **SW-C5** (#1169/#1173, imputation-aware PRS scoring —
+> percentiles un-withhold on combined typed+imputed coverage), **SW-C6** (#1183, imputed common
+> ClinVar P/LP variants as a firewall-gated finding source), and **SW-C4** (#1184, per-sample
+> imputation reachability report). Only **SW-C7** (tooling-gated) and Wave D remain — see §4/§5/§12.
 > **Source of truth:** the 42-PR second-wave plan (Waves A–F).
 > **External-input plan:** verified licensing/fetch tier per dataset — referenced below as
 > *[ext-strategy]*.
@@ -31,11 +32,11 @@
 |------|-----|------|---------|-----------|
 | **A** — cross-cutting rigor + greenfield directly-typed | 12 | 12 | — | 0 |
 | **B** — PGS Catalog at scale | 8 | 8 | — | 0 ✅ **COMPLETE** |
-| **C** — Imputation foundation | 7 | 4 (C1/C2/C3/C5) | — | 3 (C4/C6/C7) |
+| **C** — Imputation foundation | 7 | 6 (C1/C2/C3/C4/C5/C6) | — | 1 (C7, tooling-gated) |
 | **D** — HLA / HIBAG | 6 | 0 | — | 6 (**owner-gated**) |
 | **E** — Pharmacogenomics expansion | 6 | 6 | — | 0 ✅ |
 | **F** — Deeper variant interpretation | 3 | 3 (F1/F2/F3) | — | 0 ✅ |
-| **Total** | **42** | **33** | — | **9 (Wave C: 3, Wave D: 6 owner-gated)** |
+| **Total** | **42** | **35** | — | **7 (Wave C: 1 tooling-gated, Wave D: 6 owner-gated)** |
 
 > **Wave C foundation + SW-C5 merged (bioedca fork, 2026-06-27).** Shipped: **SW-C1** (#1096)
 > fetches/verifies the 1000G Phase 3 v5a bref3 panel; **SW-C2** (#1100) runs local Beagle
@@ -46,12 +47,15 @@
 > `imputation_persist.py` + `scripts/impute_sample.py`) imputes a sample end-to-end and stores
 > firewall-cleared imputed variants; and **SW-C5** (#1169 dosage pipeline + #1173 PRS scoring)
 > makes PRSs score from firewall-cleared imputed dosages, **un-withholding percentiles** on
-> combined typed+imputed coverage (the Wave B promise). **Validated on real data** — a real
-> chr22 sample imputed against the shipped panel via SLURM; the shipped parse/firewall/score
-> path handled 430k real records. *Learning: the "tail" is mostly pure-code with graceful
-> degradation (empty `imputed_variants` → typed-only), not runtime-blocked.* Remaining:
-> **SW-C6** (imputed variants as a finding source + enforce the firewall on findings),
-> **SW-C4** (reachability labels), **SW-C7** (GLIMPSE/IMPUTE5, tooling-gated). See §4 / §8 / §12.
+> combined typed+imputed coverage (the Wave B promise); **SW-C6** (#1183) makes those
+> firewall-cleared imputed common variants a *finding source* at ClinVar P/LP loci the chip did
+> not type (labeled imputed-not-typed, firewall re-asserted at `finding_gate`); and **SW-C4**
+> (#1184) reports per-sample imputation reachability (panel coverage + backbone density +
+> realized-imputed count). **Validated on real data** — a real chr22 sample imputed against the
+> shipped panel via SLURM; the shipped parse/firewall/score path handled 430k real records.
+> *Learning: the "tail" is mostly pure-code with graceful degradation (empty `imputed_variants` →
+> typed-only / no imputed findings), not runtime-blocked.* Remaining: only **SW-C7**
+> (GLIMPSE/IMPUTE5, tooling-gated — needs the external engines). See §4 / §8 / §12.
 
 **Wave B completed (bioedca fork, 2026-06-11)** — all 8 merged + the score bundle + frontends:
 - **SW-B1/B2** (#100/#116, earlier) — PGS Catalog GRCh37 ingestion + ancestry-continuous calibration.
@@ -71,14 +75,14 @@ layer; **SW-F2** (#1083/#1088) BYO SpliceAI splice-prediction layer + variant-de
 
 **Done previously:** rest of Wave A; Wave E PGx trio (E5 DPYD, E3 CYP2D6 CNV, E4 med-safety report).
 
-**Bottom line:** **Waves A, B, E, and F are complete, and most of Wave C is merged**
-(SW-C1 #1096, SW-C2 #1100, SW-C3 #1110, input-prep glue #1112, persist-DR2 #1128, and the
-SW-C5 imputation-aware PRS scoring in #1169/#1173). The remaining work is **9 PRs** — **SW-C6 /
-SW-C4 / SW-C7** (§4) and Wave D HLA/HIBAG (×6, §5). SW-C6/C4 are **pure-code + graceful-degradation**
-features (validate output shape via a cluster run; only the per-laptop runtime measurement needs
-the user's hardware); SW-C7 needs the GLIMPSE/IMPUTE5 tools; **Wave D** is the sole
-infrastructure-first track (R/Bioconductor subprocess + user-fetched HIBAG models, not obtainable
-here), parked pending an owner decision.
+**Bottom line:** **Waves A, B, E, and F are complete, and Wave C is all-but-one merged**
+(SW-C1 #1096, SW-C2 #1100, SW-C3 #1110, input-prep glue #1112, persist-DR2 #1128, SW-C5
+imputation-aware PRS scoring #1169/#1173, **SW-C6** #1183 imputed-ClinVar finding source +
+firewall-at-gate, and **SW-C4** #1184 reachability report). The remaining work is **7 PRs** —
+**SW-C7** (§4) and Wave D HLA/HIBAG (×6, §5), **both infrastructure-first**: SW-C7 needs the
+external GLIMPSE/IMPUTE5 engines and **Wave D** needs an R/Bioconductor subprocess + user-fetched
+HIBAG models (not obtainable here), so both are parked pending provisioning (and, for Wave D, an
+owner decision).
 
 > **Wave-B coverage caveat:** the disease PRSs are genome-wide; on un-imputed array data only
 > ~35–57% of each score's variants are typed, so percentiles are *withheld* (coverage reported)
@@ -115,30 +119,30 @@ GRCh37-harmonized scores (T2D PGS000713, multi-ancestry BMI PGS005198, LDL-C PGS
 
 ---
 
-## 4. Wave C — Imputation foundation (C1/C2/C3/C5 + persist MERGED; C4/C6/C7 remain)
+## 4. Wave C — Imputation foundation (C1–C6 MERGED; only C7 remains, tooling-gated)
 
-> **Foundation + SW-C5 merged (2026-06-27); the tail is mostly pure-code.** SW-C1/C2/C3, the
-> input-prep glue, persist-DR2, and SW-C5 (imputation-aware PRS scoring) now ship.
-> **Learning:** these did **not** require the runtime provisioned locally — they are pure code
-> with **graceful degradation** (empty `imputed_variants` → typed-only, byte-identical to the
-> prior path), tested with Beagle mocked, and **validated against a real chr22 SLURM run** for
-> output-shape correctness. The remaining items (C4/C6/C7) follow the same pattern: pure code +
-> graceful degradation, validate output shape via a cluster run. Only the per-laptop **runtime
-> measurement** genuinely needs the user's hardware; SW-C7 also needs the GLIMPSE/IMPUTE5 tools.
+> **C1–C6 merged (2026-06-27/28); only SW-C7 remains.** SW-C1/C2/C3, the input-prep glue,
+> persist-DR2, SW-C5 (imputation-aware PRS scoring), **SW-C6** (imputed common ClinVar P/LP
+> variants as a firewall-gated finding source), and **SW-C4** (per-sample reachability report)
+> all ship. **Learning:** these did **not** require the runtime provisioned locally — they are
+> pure code with **graceful degradation** (empty `imputed_variants` → typed-only / no imputed
+> findings, byte-identical to the prior path), tested with Beagle mocked, and **validated against
+> a real chr22 SLURM run** for output-shape correctness. Only **SW-C7** remains — it needs the
+> external GLIMPSE/IMPUTE5 engines (tooling-gated), not just imputed data.
 
 `SW-C1` is the foundation; the firewall (`SW-C3`) is the safety gate the **uplift** track
-(`SW-C6`) must sit behind once imputed variants become a *source* of findings.
+(`SW-C6`, now merged) sits behind now that imputed variants are a *source* of findings.
 
 | PR | # | Goal | Depends on | Status / Needs |
 |----|---|------|------------|----------------|
 | **SW-C1** | 1 | Ship 1000G imputation reference panel (bref3) via manifest/bundles | — | ✅ **Done** (#1096) — 1000G Phase 3 v5a (native b37 bref3), SHA-256-pinned manifest, opt-in `scripts/fetch_imputation_panel.py` (~8.5 GB, not auto-fetched). |
 | **SW-C2** | 2 | Local Beagle 5.x phase+impute, per-variant DR2/r² parsed (reuse vendored Beagle JAR); **measure laptop runtime** | SW-C1 | ✅ **Done** (#1100) — `imputation_runner.py` (subprocess, GPL-isolated; DR2/AF/IMP/DS parse verified vs a real Beagle 5.5 run) + `scripts/run_imputation.py`. *Only the per-laptop runtime measurement still needs the user's hardware.* |
-| **SW-C3** | 3 | Hard MAF/r² firewall — imputed rare (MAF<1%) quarantined from P/LP/carrier/monogenic | SW-C2 | ✅ **Done** (#1110) — `imputation_firewall.py` policy (`assess_variant`; DR2≥0.8 **and** MAF≥1%); evidence-verified thresholds. *Enforcement on findings pending (C6 makes imputed variants a finding source first).* |
+| **SW-C3** | 3 | Hard MAF/r² firewall — imputed rare (MAF<1%) quarantined from P/LP/carrier/monogenic | SW-C2 | ✅ **Done** (#1110) — `imputation_firewall.py` policy (`assess_variant`; DR2≥0.8 **and** MAF≥1%); evidence-verified thresholds. *Now enforced at the finding gate via `finding_gate.imputed_variant_surfaceable` (SW-C6 #1183).* |
 | **(glue)** | — | Sample DB `annotated_variants` → per-chromosome GRCh37 input VCFs the runtime consumes | SW-C1/2 | ✅ **Done** (#1112) — `imputation_input.py` + `scripts/prepare_imputation_input.py` (reference-aligned biallelic SNPs, autosomes 1-22; X deferred). |
 | **(persist)** | — | Impute a sample end-to-end + persist firewall-cleared imputed variants (chrom/pos/ref/alt/dr2/af/**dosage**) to the sample DB | SW-C2/3 | ✅ **Done** (#1128 persist + driver, #1169 dosage column) — `imputation_persist.py` (`persist_imputed_variants`, `impute_and_persist_sample`) + `scripts/impute_sample.py`; `imputed_variants` table (schema v16). |
-| **SW-C4** | 47 | Imputation-feasibility / reachability labels | SW-C1/2/3 | ⏳ **Remaining** — pure code + graceful degradation (reports reachability from panel coverage); validate shape via a cluster run. |
+| **SW-C4** | 47 | Imputation-feasibility / reachability labels | SW-C1/2/3 | ✅ **Done** (#1184) — `imputation_reachability.py` (`panel_covers`, `summarize_sample_reachability`) + `GET /api/imputation/reachability`: structural panel coverage (on/off-panel chromosomes) + descriptive backbone density (per-chrom typed-loci count + median gap) + realized-imputed count. Factual report, no invented threshold; graceful. Per-locus LD-aware reachability vs the actual panel sites is a later cluster-validated refinement. |
 | **SW-C5** | 7 | Honest PRS coverage gating (genotyped-fraction + imputed-r² tier) | SW-C2/3, SW-B1 | ✅ **Done** (#1169 dosage pipeline / #1173 PRS scoring) — PRSs score from firewall-cleared imputed dosages (`imputed_effect_dosage`), `snps_used_imputed` + `coverage_tier` un-withhold percentiles on combined coverage; graceful typed-only when no imputation persisted. Surfaced in metabolic/eBMD/FH responses. |
-| **SW-C6** | 32 | Imputation-aware AF + GWAS/ClinVar common-variant uplift | SW-C2/3 | ⏳ **Remaining (next)** — make imputed common variants a finding source at GWAS/ClinVar loci (labeled imputed-not-typed) + **enforce the SW-C3 firewall** at `finding_gate`. Pure code + graceful degradation; high-stakes (changes surfaced findings). |
+| **SW-C6** | 32 | Imputation-aware AF + GWAS/ClinVar common-variant uplift | SW-C2/3 | ✅ **Done** (#1183) — `imputed_findings.py` makes firewall-cleared imputed common variants a finding source at **ClinVar** P/LP loci the chip did not type (labeled imputed-not-typed, dosage→carriage, exact-allele match, evidence capped at 2, confirm-clinically caveat) + **enforces the SW-C3 firewall** at `finding_gate.imputed_variant_surfaceable`. Graceful (no imputation → no findings). **GWAS-association uplift deferred** — GWAS is not yet a finding source even for typed variants (separate concern). |
 | **SW-C7** | 53 | Advanced engines (GLIMPSE/IMPUTE5 — verify redistribution licenses) + per-sample reach report | SW-C1 | ⏳ **Tooling-gated** — GLIMPSE=MIT (bundleable), IMPUTE5=academic-only (BYO); needs the external tools. |
 
 ---
@@ -189,27 +193,27 @@ Coordinate tightly with the validation/Phase-F effort.
 
 ---
 
-## 8. Tractability split — current state (2026-06-27)
+## 8. Tractability split — current state (2026-06-28)
 
 **✅ Done (no longer remaining):** all of Wave A; all of Wave B (+ the `pgs_scores.db` bundle +
 frontends); all of Wave E (incl. SW-E2 #1055); all of Wave F (SW-F1, SW-F3 #1053/#1056, SW-F2
-PRs #1083/#1088); **and most of Wave C** — SW-C1 #1096, SW-C2 #1100, SW-C3 #1110, the input-prep
-glue #1112, persist-DR2 #1128, the imputed-dosage pipeline #1169, and **SW-C5** #1173
-(imputation-aware PRS scoring). All merged with green CI; `main` stays releasable. (The earlier
-PCA-fix gate on SW-B2/B4/B5 was resolved as those landed — Wave B is COMPLETE.)
+PRs #1083/#1088); **and all of Wave C except SW-C7** — SW-C1 #1096, SW-C2 #1100, SW-C3 #1110, the
+input-prep glue #1112, persist-DR2 #1128, the imputed-dosage pipeline #1169, **SW-C5** #1173
+(imputation-aware PRS scoring), **SW-C6** #1183 (imputed common ClinVar P/LP variants as a
+firewall-gated finding source), and **SW-C4** #1184 (per-sample reachability report). All merged
+with green CI; `main` stays releasable. (The earlier PCA-fix gate on SW-B2/B4/B5 was resolved as
+those landed — Wave B is COMPLETE.)
 
-**Learning (revised 2026-06-27):** the earlier "runtime-gated" framing of the Wave C tail was
-**too pessimistic.** SW-C5 + persist-DR2 shipped as **pure code with graceful degradation** (empty
-`imputed_variants` → typed-only, byte-identical to the prior path), unit-tested with Beagle
-mocked, and **validated for output-shape correctness against a real chr22 SLURM run**. The
-remaining Wave C items can follow the same recipe — only the per-laptop **runtime measurement**
-genuinely needs the user's hardware, and SW-C7 needs the external GLIMPSE/IMPUTE5 tools.
+**Learning (revised 2026-06-28):** the earlier "runtime-gated" framing of the Wave C tail was
+**too pessimistic.** SW-C5, persist-DR2, SW-C6, and SW-C4 all shipped as **pure code with graceful
+degradation** (empty `imputed_variants` → typed-only / no imputed findings, byte-identical to the
+prior path), unit-tested with Beagle mocked, and **validated for output-shape correctness against
+a real chr22 SLURM run**. Only SW-C7 needs the external GLIMPSE/IMPUTE5 tools provisioned.
 
 **Remaining work:**
-- **Wave C** (×3): **SW-C6** (make imputed common variants a finding source at GWAS/ClinVar loci +
-  enforce the SW-C3 firewall at `finding_gate` — high-stakes, changes surfaced findings),
-  **SW-C4** (reachability labels), **SW-C7** (GLIMPSE/IMPUTE5 — tooling-gated). C6/C4 are
-  pure-code + graceful-degradation features; validate output shape via a cluster run.
+- **Wave C** (×1): **SW-C7** (GLIMPSE/IMPUTE5 advanced engines — **tooling-gated**: needs the
+  external engines provisioned, not just imputed data). *(SW-C6's GWAS-association uplift was
+  deferred as a separate concern — GWAS is not yet a finding source even for typed variants.)*
 - **Wave D** (HLA/HIBAG, ×6) — needs an **R/Bioconductor subprocess** (GPL-isolated) running the
   HIBAG classifier, plus **user-fetched classifier models** (no-license / proprietary-derived →
   never bundleable, and not obtainable here). SW-D1 (the R-subprocess engine) is the foundation
@@ -263,30 +267,25 @@ track (§4/§5/§12).
 
 ---
 
-## 12. Recommended next sequence (as of 2026-06-27)
+## 12. Recommended next sequence (as of 2026-06-28)
 
-Waves A, B, E, F are complete, and **most of Wave C is merged** — SW-C1 #1096, SW-C2 #1100,
-SW-C3 #1110, input-prep #1112, persist-DR2 #1128, dosage #1169, and **SW-C5** #1173 (PRS scoring).
-What remains:
+Waves A, B, E, F are complete, and **Wave C is all-but-one merged** — SW-C1 #1096, SW-C2 #1100,
+SW-C3 #1110, input-prep #1112, persist-DR2 #1128, dosage #1169, **SW-C5** #1173 (PRS scoring),
+**SW-C6** #1183 (imputed ClinVar finding source + firewall at the gate), and **SW-C4** #1184
+(reachability report). What remains is **2 blocked tracks**:
 
-1. **Wave C (×3), in priority order — pure code + graceful degradation.**
-   - **SW-C6 (next):** make firewall-cleared imputed common variants a *finding source* at
-     GWAS/ClinVar loci (labeled imputed-not-typed), and **enforce the SW-C3 firewall** at
-     `finding_gate`. High-stakes (changes what's surfaced to users) — reuse `imputed_variants` +
-     `imputed_effect_dosage`/`assess_variant`; gate on `coverage`/labeling decisions.
-   - **SW-C4:** imputation-feasibility / reachability labels (reporting; lower-risk).
-   - **SW-C7:** GLIMPSE (MIT) / IMPUTE5 (academic-only BYO) advanced engines — **tooling-gated**
-     (needs the external engines, not just imputed data).
-   Build **C6 and C4** as pure code with graceful degradation (empty `imputed_variants` →
-   unchanged), then **validate output shape against a real SLURM run** (panel fetch + Beagle on a
-   real sample — the recipe used for SW-C5); only the per-laptop *runtime measurement* needs the
-   user's hardware. **SW-C7** additionally requires provisioning GLIMPSE/IMPUTE5 first.
+1. **Wave C — SW-C7 only (tooling-gated).** GLIMPSE (MIT, bundleable) / IMPUTE5 (academic-only
+   BYO) advanced engines + per-sample reach report. Needs the external engines **provisioned
+   first** (not just imputed data), so it is not a pure-code PR today — mirror the Beagle
+   `imputation_runner.py` subprocess seam once a GLIMPSE binary is available, and validate the
+   output shape on a cluster run. *(SW-C6's GWAS-association uplift is a separate, still-open
+   concern: GWAS is not yet a finding source even for typed variants.)*
 2. **Wave D — HLA/HIBAG (×6).** Stand up an R/Bioconductor subprocess (GPL-isolated) + a BYO path
    for the user-fetched HIBAG classifier models (never bundleable, not obtainable here), then
    SW-D1 (core engine, proxy fallback retained) → SW-D2–D6. Needs the R-subprocess seam + an
    owner go-ahead.
 
-**Wave C** (C6/C4) resumes any time as pure-code + graceful-degradation PRs (C7 waits on its
-external tools); **Wave D** remains infrastructure-first — it cannot be reduced to clean, green,
-atomic PRs until its R/Bioconductor runtime + user-fetched HIBAG models exist, so it stays parked
-pending an owner decision and the provisioned runtime.
+Both remaining tracks are **infrastructure-first** — neither reduces to a clean, green, atomic
+pure-code PR until its external runtime/dataset is provisioned (GLIMPSE/IMPUTE5 for SW-C7; the
+R/Bioconductor runtime + user-fetched HIBAG models for Wave D), so both stay parked pending that
+provisioning and (for Wave D) an owner decision.
