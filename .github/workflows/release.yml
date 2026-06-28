@@ -314,4 +314,4 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run benchmarks
-        run: python -m pytest tests/backend/test_benchmark.py -v --tb=short -m "slow or benchmark" || true
+        run: python -m pytest tests/backend/test_benchmark.py -v --tb=short -m "slow or benchmark"
