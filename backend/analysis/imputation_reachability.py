@@ -80,8 +80,8 @@ class ChromReachability:
     """Typed-backbone density on one panel-covered chromosome."""
 
     chrom: str  # normalized panel chromosome ("1".."22", "X")
-    typed_markers: int  # directly-typed markers on this chromosome
-    median_gap_bp: int | None  # median spacing between adjacent typed markers (None if < 2)
+    typed_markers: int  # unique directly-typed loci on this chromosome
+    median_gap_bp: int | None  # median spacing between adjacent typed loci (None if < 2)
 
 
 @dataclass
@@ -91,9 +91,9 @@ class ReachabilitySummary:
     panel_version: str
     panel_build: str
     panel_chromosomes: list[str]
-    typed_total: int  # all directly-typed markers
-    typed_on_panel: int  # typed markers on panel-covered chromosomes (imputable backbone)
-    typed_off_panel: int  # typed markers on uncovered chromosomes (structurally unreachable)
+    typed_total: int  # unique directly-typed loci (chrom, pos)
+    typed_on_panel: int  # typed loci on panel-covered chromosomes (imputable backbone)
+    typed_off_panel: int  # typed loci on uncovered chromosomes (structurally unreachable)
     imputation_run: bool  # whether firewall-cleared imputed variants are persisted
     imputed_reachable: int  # firewall-cleared imputed sites recovered (realized reachability)
     per_chromosome: list[ChromReachability] = field(default_factory=list)
@@ -129,19 +129,24 @@ def summarize_sample_reachability(sample_engine: sa.Engine) -> ReachabilitySumma
     """
     with sample_engine.connect() as conn:
         rows = conn.execute(
-            sa.select(annotated_variants.c.chrom, annotated_variants.c.pos)
+            sa.select(annotated_variants.c.chrom, annotated_variants.c.pos).distinct()
         ).fetchall()
 
-    typed_total = len(rows)
+    # Count unique (chrom, pos) loci, not rows: annotated_variants is rsid-unique, so a
+    # single locus can carry multiple rows (multi-allelic / merged rsIDs). Reachability
+    # and backbone density are locus properties — two rows at one position are one
+    # backbone marker (and a zero gap would skew the density), so dedupe on the locus.
+    typed_loci: set[tuple[str | None, int]] = {(_norm_chrom(r.chrom), r.pos) for r in rows}
+
     on_panel_positions: dict[str, list[int]] = {}
     typed_off_panel = 0
-    for r in rows:
-        norm = _norm_chrom(r.chrom)
+    for norm, pos in typed_loci:
         if norm is not None and norm in _PANEL_CHROMS:
-            on_panel_positions.setdefault(norm, []).append(r.pos)
+            on_panel_positions.setdefault(norm, []).append(pos)
         else:
             typed_off_panel += 1
 
+    typed_total = len(typed_loci)
     typed_on_panel = typed_total - typed_off_panel
 
     # Per panel chromosome, in the panel's own chromosome order, for chromosomes the

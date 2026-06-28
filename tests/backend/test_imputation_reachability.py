@@ -150,6 +150,24 @@ def test_median_gap(sample_engine: sa.Engine) -> None:
     assert by_chrom["2"].typed_markers == 1
 
 
+def test_dedupes_loci(sample_engine: sa.Engine) -> None:
+    # annotated_variants is rsid-unique: two rsIDs at one (chrom, pos) are one locus,
+    # so they count once and never produce a spurious zero-gap density.
+    _seed_typed(
+        sample_engine,
+        [
+            _typed("rs1", "1", 1000),
+            _typed("rs1_alt", "1", 1000),  # same locus, different rsID
+            _typed("rs2", "1", 1300),
+        ],
+    )
+    s = summarize_sample_reachability(sample_engine)
+    assert s.typed_total == 2  # not 3
+    by_chrom = {c.chrom: c for c in s.per_chromosome}
+    assert by_chrom["1"].typed_markers == 2
+    assert by_chrom["1"].median_gap_bp == 300  # one gap (1000->1300), no zero gap
+
+
 def test_per_chromosome_in_panel_order(sample_engine: sa.Engine) -> None:
     # Seeded out of order; report follows the panel's chromosome order.
     _seed_typed(
