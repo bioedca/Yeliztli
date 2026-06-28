@@ -51,6 +51,7 @@ from backend.api.routes.genes import router as genes_router
 from backend.api.routes.gout import router as gout_router
 from backend.api.routes.hemochromatosis import router as hemochromatosis_router
 from backend.api.routes.igv_tracks import router as igv_tracks_router
+from backend.api.routes.imputation import router as imputation_router
 from backend.api.routes.individuals import router as individuals_router
 from backend.api.routes.ingest import router as ingest_router
 from backend.api.routes.kinship import router as kinship_router
@@ -236,6 +237,7 @@ def create_app() -> FastAPI:
     api_router.include_router(genes_router)
     api_router.include_router(uniprot_cache_router)
     api_router.include_router(igv_tracks_router)
+    api_router.include_router(imputation_router)
     api_router.include_router(individuals_router)
     api_router.include_router(ingest_router)
     api_router.include_router(kinship_router)
