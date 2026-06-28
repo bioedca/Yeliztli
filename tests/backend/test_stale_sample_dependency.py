@@ -112,6 +112,7 @@ _FULLY_OPT_OUT_MODULES = frozenset(
         "databases",
         "ebmd",
         "encode_ccres",
+        "hla",  # SW-D1: GET /api/hla/status is bare runtime status (no sample_id)
         "individuals",  # added in Phase 2 (step 47); no `sample_id` today
         "ingest",
         "nuclear",
