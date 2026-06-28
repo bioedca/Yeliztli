@@ -126,10 +126,6 @@ class AnnotationResult:
     invalid_rsids: int = 0
     rows_written: int = 0
 
-    @property
-    def validated(self) -> int:
-        return self.valid_rsids + self.merged_rsids
-
 
 def _is_valid_rsid(rsid: str) -> bool:
     """Check if a string matches the standard dbSNP rsid format (rs\\d+)."""
