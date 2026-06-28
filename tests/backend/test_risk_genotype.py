@@ -460,12 +460,15 @@ class TestAncestrySpecificOdds:
 
 class TestLoadRiskPanelGuards:
     def test_curated_risk_genotype_panels_do_not_declare_disclaimer_key(self) -> None:
+        scanned: list[str] = []
         offenders: list[str] = []
         for path in sorted(PANEL_DATA_DIR.glob("*_panel.json")):
+            scanned.append(path.name)
             data = json.loads(path.read_text(encoding="utf-8"))
             if data.get("category") == "risk_genotype" and "disclaimer_key" in data:
                 offenders.append(path.name)
 
+        assert scanned, f"No panel JSON files found under {PANEL_DATA_DIR}"
         assert offenders == []
 
     def test_rejects_empty_match(self, tmp_path) -> None:
