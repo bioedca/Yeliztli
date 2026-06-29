@@ -184,6 +184,35 @@ class TestOtherCriteria:
         assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN)) is None
         assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN - eps)) is None
 
+    @pytest.mark.parametrize("rsid", ["rs1800562", "rs1799945", "rs72474224"])
+    def test_ba1_skipped_for_clingen_exception_variant(self, rsid: str) -> None:
+        # ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383): common but with
+        # evidence of pathogenicity → BA1 (stand-alone benign) must not fire at MAF > 5%,
+        # even well above the cutoff (#1243).
+        assert criterion_ba1(AcmgEvidence(rsid=rsid, gnomad_af_popmax=0.07)) is None
+
+    def test_ba1_exception_variant_not_force_drafted_benign(self) -> None:
+        # HFE C282Y (rs1800562) at popmax 5.14% — the canonical Pathogenic hereditary-
+        # hemochromatosis allele must not be force-drafted Benign by BA1 alone (#1243).
+        result = classify_acmg(
+            AcmgEvidence(
+                rsid="rs1800562",
+                gene_symbol="HFE",
+                consequence="missense_variant",
+                gnomad_af_popmax=0.0514,
+            )
+        )
+        assert result.classification != BENIGN
+        assert not any(c.code == "BA1" for c in result.criteria)
+
+    def test_ba1_still_applies_to_common_non_exception_variant(self) -> None:
+        # A common variant NOT on the exception list still gets BA1 → Benign (no regression).
+        result = classify_acmg(
+            AcmgEvidence(rsid="rs99999999", consequence="missense_variant", gnomad_af_popmax=0.20)
+        )
+        assert result.classification == BENIGN
+        assert any(c.code == "BA1" for c in result.criteria)
+
     def test_bs1_above_1pct(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)).points == -4
 

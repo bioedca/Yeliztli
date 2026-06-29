@@ -101,6 +101,22 @@ BENIGN = "Benign"
 # ── Criterion thresholds (general defaults; documented + cited) ────────────────
 # BA1: MAF > 5% is stand-alone benign (Ghosh 2018, ClinGen SVI; PMID 30311383).
 BA1_AF_MIN = 0.05
+# ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383, DOI 10.1002/humu.23642):
+# variants with population MAF > 5% for which there is evidence of pathogenicity, so the
+# stand-alone benign rule BA1 must NOT be applied — the full evidence is weighed instead.
+# Without this, common-but-pathogenic variants (e.g. HFE C282Y, the canonical hereditary-
+# hemochromatosis allele) are force-drafted Benign, overriding all pathogenic evidence
+# (#1243). Keyed by rsID. This is the high-frequency, high-impact subset this draft engine
+# reaches via popmax > 5%, each rsID verified against dbSNP / the repo hemochromatosis panel;
+# the SVI list is living/curated and the ≥2,000-allele + founder-population (Finnish/ASJ)
+# clauses of the refined rule are tracked separately.
+_BA1_EXCEPTION_RSIDS: frozenset[str] = frozenset(
+    {
+        "rs1800562",  # HFE c.845G>A p.Cys282Tyr (C282Y) — hereditary hemochromatosis
+        "rs1799945",  # HFE c.187C>G p.His63Asp (H63D) — hereditary hemochromatosis
+        "rs72474224",  # GJB2 c.109G>A p.Val37Ile (V37I) — nonsyndromic hearing loss
+    }
+)
 # BS1: "allele frequency greater than expected for the disorder" — a general 1%
 # default (gene/disease-specific thresholds would be stricter; flagged as general).
 BS1_AF_MIN = 0.01
@@ -310,6 +326,11 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
     af = _effective_af(ev)
     if af is not None and af > BA1_AF_MIN:
+        if ev.rsid in _BA1_EXCEPTION_RSIDS:
+            # On the ClinGen SVI BA1 exception list: common but with evidence of
+            # pathogenicity, so the stand-alone benign rule does not apply and the
+            # full evidence decides the classification (Ghosh 2018; #1243).
+            return None
         return AcmgCriterion(
             "BA1",
             "benign",
