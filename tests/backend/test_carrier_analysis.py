@@ -250,6 +250,65 @@ class TestExtractCarrierVariants:
         assert cftr[0].zygosity == "het"
         assert cftr[0].clinvar_significance == "Pathogenic"
 
+    def test_duplicate_probe_rows_at_same_cftr_allele_collapse_to_one_finding(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """#1160: rsID plus i-ID rows for one carried allele must not double count."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "i4000295",
+                        "chrom": "7",
+                        "pos": 117171029,
+                        "ref": "A",
+                        "alt": "G",
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 3,
+                        "clinvar_accession": "VCV000007105",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                    {
+                        "rsid": "rs78655421",
+                        "chrom": "7",
+                        "pos": 117171029,
+                        "ref": "A",
+                        "alt": "G",
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 3,
+                        "clinvar_accession": "VCV000007105",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                ],
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.variants[0].rsid == "rs78655421"
+
+        count = store_carrier_findings(result, sample_engine)
+        assert count == 1
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.rsid, findings.c.finding_text).where(
+                    findings.c.module == "carrier"
+                )
+            ).fetchall()
+
+        assert [row.rsid for row in rows] == ["rs78655421"]
+        assert "i4000295" not in rows[0].finding_text
+
     def test_t3_37_hom_plp_excluded(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:

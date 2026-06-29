@@ -414,6 +414,23 @@ def _carrier_row_zygosity(row: sa.Row, gene: CarrierGene) -> str | None:
     )
 
 
+def _carrier_variant_dedupe_key(row: sa.Row, zygosity: str) -> tuple[object, ...]:
+    """Return a key for one biological carried allele, not one array probe row."""
+    chrom = (row.chrom or "").strip().casefold()
+    ref = (row.ref or "").strip().upper()
+    alt = (row.alt or "").strip().upper()
+    gene_symbol = (row.gene_symbol or "").strip().upper()
+    if not chrom or row.pos is None or not ref or not alt:
+        return ("rsid", (row.rsid or "").strip().casefold())
+    return ("allele", gene_symbol, chrom, int(row.pos), ref, alt, zygosity)
+
+
+def _carrier_rsid_preference_key(row: sa.Row) -> tuple[int, str]:
+    """Prefer public dbSNP rsIDs over array probe IDs for duplicate allele rows."""
+    rsid = (row.rsid or "").strip()
+    return (0 if rsid.casefold().startswith("rs") else 1, rsid.casefold())
+
+
 def extract_carrier_variants(
     panel: CarrierPanel,
     sample_engine: sa.Engine,
@@ -451,6 +468,8 @@ def extract_carrier_variants(
         stmt = (
             sa.select(
                 annotated_variants.c.rsid,
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
                 annotated_variants.c.gene_symbol,
                 annotated_variants.c.genotype,
                 annotated_variants.c.ref,
@@ -475,6 +494,8 @@ def extract_carrier_variants(
         rows = conn.execute(stmt).fetchall()
 
     variants: list[CarrierVariantResult] = []
+    carrier_rows: dict[tuple[object, ...], tuple[sa.Row, CarrierGene, str]] = {}
+    carrier_rows_seen = 0
     hom_skipped = 0
     pseudogene_suppressed = 0
 
@@ -496,6 +517,21 @@ def extract_carrier_variants(
             hom_skipped += 1
             continue
 
+        carrier_rows_seen += 1
+        dedupe_key = _carrier_variant_dedupe_key(row, zygosity)
+        existing = carrier_rows.get(dedupe_key)
+        if existing is None or _carrier_rsid_preference_key(row) < _carrier_rsid_preference_key(
+            existing[0]
+        ):
+            carrier_rows[dedupe_key] = (row, gene_info, zygosity)
+
+    for row, gene_info, zygosity in sorted(
+        carrier_rows.values(),
+        key=lambda item: (
+            (item[0].gene_symbol or "").strip().upper(),
+            _carrier_rsid_preference_key(item[0]),
+        ),
+    ):
         evidence = _assign_carrier_evidence_level(
             row.clinvar_significance or "",
             row.clinvar_review_stars or 0,
@@ -528,6 +564,7 @@ def extract_carrier_variants(
         panel_genes=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         carrier_variants=len(variants),
+        duplicate_carrier_rows=carrier_rows_seen - len(carrier_rows),
         homozygous_plp_skipped=hom_skipped,
         pseudogene_suppressed=pseudogene_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
