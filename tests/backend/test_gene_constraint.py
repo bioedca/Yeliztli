@@ -76,13 +76,13 @@ class TestThreshold:
     # pLI comparison decides. The broad cases above hit 0.95 and 0.0, but not the
     # cutoff itself or nearby values that catch threshold drift.
     def test_pli_just_above_cutoff_is_constrained(self) -> None:
-        assert is_lof_constrained(None, 0.91) is True
+        assert is_lof_constrained(None, 0.9001) is True
 
     def test_pli_at_cutoff_is_not_constrained(self) -> None:
         assert is_lof_constrained(None, 0.9) is False
 
     def test_pli_just_below_cutoff_is_not_constrained(self) -> None:
-        assert is_lof_constrained(None, 0.85) is False
+        assert is_lof_constrained(None, 0.8999) is False
 
 
 class TestLookup:
