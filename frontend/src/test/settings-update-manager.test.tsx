@@ -527,6 +527,35 @@ describe('Re-annotation Banner', () => {
     expect(screen.getByText('Dismiss (reference data)')).toBeInTheDocument()
   })
 
+  it('counts distinct samples when summarizing reclassification prompts', async () => {
+    setupFetchMocks({
+      prompts: [
+        {
+          id: 3,
+          sample_id: 1,
+          db_name: 'clinvar',
+          db_version: '20260601',
+          candidate_count: 2,
+          created_at: '2026-06-29T03:00:00Z',
+        },
+        {
+          id: 4,
+          sample_id: 1,
+          db_name: 'gwas_catalog',
+          db_version: '20260601',
+          candidate_count: 1,
+          created_at: '2026-06-29T03:00:00Z',
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Re-annotation recommended')).toBeInTheDocument()
+    expect(
+      screen.getByText(/3 potential reclassifications across 1 sample\./),
+    ).toBeInTheDocument()
+  })
+
   it('has dismiss button for each prompt', async () => {
     setupFetchMocks({
       prompts: [

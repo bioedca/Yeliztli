@@ -710,8 +710,21 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
         def _run_version_staleness_check() -> None:
             from backend.db.update_manager import get_current_version, run_precheck_all_samples
 
-            version = get_current_version(registry.reference_engine, db_name) or "unknown"
-            run_precheck_all_samples(registry, db_name=db_name, db_version=version)
+            version: str | None = None
+            try:
+                version = get_current_version(registry.reference_engine, db_name) or "unknown"
+                run_precheck_all_samples(registry, db_name=db_name, db_version=version)
+            except Exception as exc:
+                logger.warning(
+                    "database_update_staleness_check_failed",
+                    extra={
+                        "job_id": job_id,
+                        "db_name": db_name,
+                        "db_version": version,
+                        "reference_engine": str(registry.reference_engine.url),
+                        "error": str(exc),
+                    },
+                )
 
         # VEP bundle uses a dedicated download-from-GitHub path
         if db_name == "vep_bundle":

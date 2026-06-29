@@ -86,9 +86,17 @@ def _parse_reference_versions(value: str | None) -> dict[str, str] | None:
 
     versions: dict[str, str] = {}
     for db_name, raw in parsed.items():
-        version = raw.get("version") if isinstance(raw, dict) else raw
-        if isinstance(db_name, str) and isinstance(version, str) and version:
-            versions[db_name] = version
+        if not isinstance(db_name, str):
+            return None
+        if isinstance(raw, dict):
+            version = raw.get("version")
+        elif isinstance(raw, str):
+            version = raw
+        else:
+            return None
+        if not isinstance(version, str) or not version:
+            return None
+        versions[db_name] = version
     return versions
 
 

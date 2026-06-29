@@ -15,6 +15,7 @@ Locks the staleness service contract:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -32,7 +33,7 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
-from backend.services.staleness import is_sample_stale
+from backend.services.staleness import _parse_reference_versions, is_sample_stale
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -227,8 +228,6 @@ class TestIsSampleStale:
 
 def _repo_manifest_vep_version() -> str:
     """Read the vep_bundle ``version`` straight from the repo manifest."""
-    import json
-
     repo_manifest = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
     data = json.loads(repo_manifest.read_text(encoding="utf-8"))
     return data["bundles"]["vep_bundle"]["version"]
@@ -269,3 +268,19 @@ class TestG1ReannotationBump:
         _make_sample_db(staleness_env["settings"], seed_version=installed)
 
         assert is_sample_stale(staleness_env["sample_id"]) is False
+
+
+class TestReferenceVersionSnapshotParsing:
+    def test_reference_snapshot_parses_compact_and_provenance_shapes(self):
+        assert _parse_reference_versions(
+            json.dumps(
+                {
+                    "gnomad": "4.1.0",
+                    "clinvar": {"version": "20260601", "source": "metadata"},
+                }
+            )
+        ) == {"gnomad": "4.1.0", "clinvar": "20260601"}
+
+    def test_reference_snapshot_rejects_unsupported_nonempty_shapes(self):
+        assert _parse_reference_versions(json.dumps({"gnomad": {"source": "metadata"}})) is None
+        assert _parse_reference_versions(json.dumps({"gnomad": 41})) is None

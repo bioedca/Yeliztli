@@ -379,11 +379,16 @@ reannotation_prompts = sa.Table(
     sa.Column(
         "stale_databases",
         sa.Text,
+        nullable=False,
         server_default="[]",
         comment="JSON array of reference DBs newer than the sample annotation snapshot",
     ),
     sa.Column("dismissed", sa.Boolean, server_default=sa.text("0")),
     sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "prompt_type IN ('reclassification', 'version_staleness')",
+        name="ck_reannotation_prompts_prompt_type",
+    ),
 )
 
 sa.Index("idx_reannotation_sample", reannotation_prompts.c.sample_id)

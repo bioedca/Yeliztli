@@ -26,27 +26,33 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "reannotation_prompts",
-        sa.Column(
-            "prompt_type",
-            sa.Text,
-            nullable=False,
-            server_default="reclassification",
-            comment="reclassification | version_staleness",
-        ),
-    )
-    op.add_column(
-        "reannotation_prompts",
-        sa.Column(
-            "stale_databases",
-            sa.Text,
-            server_default="[]",
-            comment="JSON array of reference DBs newer than the sample annotation snapshot",
-        ),
-    )
+    with op.batch_alter_table("reannotation_prompts") as batch_op:
+        batch_op.add_column(
+            sa.Column(
+                "prompt_type",
+                sa.Text,
+                nullable=False,
+                server_default="reclassification",
+                comment="reclassification | version_staleness",
+            ),
+        )
+        batch_op.add_column(
+            sa.Column(
+                "stale_databases",
+                sa.Text,
+                nullable=False,
+                server_default="[]",
+                comment="JSON array of reference DBs newer than the sample annotation snapshot",
+            ),
+        )
+        batch_op.create_check_constraint(
+            "ck_reannotation_prompts_prompt_type",
+            "prompt_type IN ('reclassification', 'version_staleness')",
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("reannotation_prompts", "stale_databases")
-    op.drop_column("reannotation_prompts", "prompt_type")
+    with op.batch_alter_table("reannotation_prompts") as batch_op:
+        batch_op.drop_constraint("ck_reannotation_prompts_prompt_type", type_="check")
+        batch_op.drop_column("stale_databases")
+        batch_op.drop_column("prompt_type")

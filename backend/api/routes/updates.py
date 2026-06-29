@@ -8,7 +8,7 @@ and checking for app updates via GitHub Releases API.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -82,7 +82,7 @@ class ReannotationPrompt(BaseModel):
     candidate_count: int
     watched_count: int = 0
     watched_details: list[WatchedReclassification] = []
-    prompt_type: str = "reclassification"
+    prompt_type: Literal["reclassification", "version_staleness"] = "reclassification"
     stale_databases: list[StaleDatabase] = []
     created_at: str | None
 

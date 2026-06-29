@@ -137,6 +137,7 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
     0,
   )
   const reclassificationDbNames = [...new Set(reclassificationPrompts.map((p) => p.db_name))]
+  const reclassificationSampleCount = new Set(reclassificationPrompts.map((p) => p.sample_id)).size
   const staleDatabases = versionPrompts.flatMap((p) => p.stale_databases ?? [])
   const staleDbNames = [...new Set(staleDatabases.map((db) => db.db_name))]
   const versionSampleCount = new Set(versionPrompts.map((p) => p.sample_id)).size
@@ -176,8 +177,8 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
               <>
                 {reclassificationDbNames.join(' + ')} updated with {totalCandidates} potential
                 reclassification{totalCandidates !== 1 ? 's' : ''} across{' '}
-                {reclassificationPrompts.length} sample
-                {reclassificationPrompts.length !== 1 ? 's' : ''}.{' '}
+                {reclassificationSampleCount} sample
+                {reclassificationSampleCount !== 1 ? 's' : ''}.{' '}
               </>
             )}
             {versionPrompts.length > 0 && (

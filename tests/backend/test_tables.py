@@ -105,8 +105,16 @@ class TestReferenceMetadata:
         cols = {c.name: c for c in reannotation_prompts.columns}
         assert isinstance(cols["prompt_type"].type, sa.Text)
         assert isinstance(cols["stale_databases"].type, sa.Text)
+        assert cols["prompt_type"].nullable is False
+        assert cols["stale_databases"].nullable is False
         assert cols["prompt_type"].server_default is not None
         assert cols["stale_databases"].server_default is not None
+        checks = {
+            c.name: c
+            for c in reannotation_prompts.constraints
+            if isinstance(c, sa.CheckConstraint)
+        }
+        assert "ck_reannotation_prompts_prompt_type" in checks
 
     def test_database_versions_pk(self):
         pk_cols = [c.name for c in database_versions.primary_key.columns]
