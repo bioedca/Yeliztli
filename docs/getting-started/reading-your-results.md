@@ -34,6 +34,11 @@ The **[module reference](../modules/index.md)** explains what each module report
 interpret it. Some modules (wellness/trait scores) are intentionally **capped** at lower
 ratings, and some report **categorical levels** rather than numeric risk.
 
+Some ClinVar records are intentionally withheld from findings. Variants marked
+**Conflicting classifications of pathogenicity** are not shown as definitive findings; see
+[ClinVar classifications that conflict](../modules/interpretation-reference.md#clinvar-classifications-that-conflict)
+and review them in the [Variant Explorer](../features/variant-explorer.md).
+
 ## The Findings Explorer
 
 Beyond the per-module pages, the **Findings Explorer** lets you search and filter findings

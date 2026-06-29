@@ -13,6 +13,9 @@ The Variant Explorer is the central table for browsing every variant in your sam
 - Toggle between **all variants** and **annotated only**.
 - Use the advanced filter panel for specific criteria — gene, consequence, allele frequency,
   ClinVar significance, and more.
+- Search ClinVar significance for `conflicting` to review variants ClinVar marks as
+  **Conflicting classifications of pathogenicity**; these variants are not shown as
+  pathogenic-variant findings.
 - Filter by the **tags** you've applied (see below).
 
 ## Column presets

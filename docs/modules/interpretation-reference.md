@@ -43,6 +43,18 @@ ACMG/AMP framework. Read these with the inheritance pattern in mind:
 - **Negatives aren't clearance.** Arrays type specific variants, not whole genes — a negative
   result doesn't exclude untyped variants.
 
+#### ClinVar classifications that conflict
+
+Yeliztli reports pathogenic-variant findings only when ClinVar has a clear
+Pathogenic/Likely-Pathogenic classification. It deliberately does **not** turn records labelled
+**Conflicting classifications of pathogenicity** into findings, because the submitted clinical
+interpretations disagree and should not be presented as a definitive finding.[^clinvar-conflict]
+
+That means "no findings" does **not** mean "no variants with any pathogenic-leaning ClinVar
+evidence." To review contested records, open the
+[Variant Explorer](../features/variant-explorer.md) and filter or search ClinVar significance
+for `conflicting`.
+
 ### Categorical pathway levels
 
 The wellness modules ([nutrigenomics](wellness/nutrigenomics.md),
@@ -123,3 +135,4 @@ limitations.
 [^2]: [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).
 [^3]: [Variable prediction accuracy of polygenic scores within an ancestry group](https://consensus.app/papers/details/dcbc46184d195a21965cf4614828d104/) (Mostafavi et al., 2019, *eLife*).
 [^4]: [Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort](https://consensus.app/papers/details/41027bd6083a52a7adc632d041a4a299/) (Privé et al., 2022, *Am. J. Hum. Genet.*).
+[^clinvar-conflict]: [ClinVar: improving access to variant interpretations and supporting evidence](https://doi.org/10.1093/nar/gkx1153) (Landrum et al., 2018, *Nucleic Acids Research*) describes ClinVar as a public archive of submitted clinical-significance interpretations for human variants.
