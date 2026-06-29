@@ -56,6 +56,22 @@ class TestThreshold:
     def test_both_none(self) -> None:
         assert is_lof_constrained(None, None) is False
 
+    # Bracket the LOEUF_CONSTRAINED_MAX (0.35) cutoff itself (#1220). The cases
+    # above only reach 0.16 (below) and 0.50/0.66 (above), leaving the whole
+    # [0.16, 0.50) interval — which contains 0.35 — unprobed, so a drifted cutoff
+    # (e.g. 0.20) or a `<` → `<=` slip ships green. pli is None here so the PLI
+    # branch short-circuits and only the LOEUF comparison decides.
+    def test_loeuf_just_below_cutoff_is_constrained(self) -> None:
+        # Flips to False the moment the cutoff drifts below 0.34 — kills value drift.
+        assert is_lof_constrained(0.34, None) is True
+
+    def test_loeuf_at_cutoff_is_not_constrained(self) -> None:
+        # Strict `<`: exactly 0.35 is NOT constrained — flips to True under `<=`.
+        assert is_lof_constrained(0.35, None) is False
+
+    def test_loeuf_just_above_cutoff_is_not_constrained(self) -> None:
+        assert is_lof_constrained(0.40, None) is False
+
 
 class TestLookup:
     def test_constrained_gene(self, reference_engine: sa.Engine) -> None:
