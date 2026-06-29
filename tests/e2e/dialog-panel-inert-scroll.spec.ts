@@ -59,7 +59,7 @@ test.describe('slide-in detail panel modal isolation (#846)', () => {
     await page.goto('/carrier-status?sample_id=1')
     await waitForReactHydration(page)
 
-    const findingsRegion = page.locator('section[aria-label="Carrier status findings"]')
+    const findingsRegion = page.locator('section[aria-label="Carrier and affected-status findings"]')
     const mainContent = page.locator('#main-content')
     const card = page.getByTestId('carrier-variant-card').filter({ hasText: 'CFTR' })
 
