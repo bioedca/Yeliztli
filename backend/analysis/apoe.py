@@ -674,12 +674,13 @@ _CV_RISK: dict[str, dict[str, Any]] = {
 
 # ── Per-diplotype Alzheimer's risk content ───────────────────────────────
 #
-# Relative risk estimates from Genin et al. 2011 (PMID: 21460841) and
-# Farrer et al. 1997 (PMID: 9343467). These are approximate population-
-# level odds ratios vs ε3/ε3 reference. Belloy et al. 2023 (PMID: 37930705)
-# shows APOE-AD effect sizes differ across age, sex, race/ethnicity, and
-# ancestry strata; Lumsden et al. 2020 (PMID: 32818802) is a White British UK
-# Biobank PheWAS, so reused numeric estimates must preserve population context.
+# Relative risk estimates are Farrer et al. 1997 (PMID: 9343467) approximate
+# population-level odds ratios vs ε3/ε3 reference. Genin et al. 2011
+# (PMID: 21556001) is retained for lifetime-risk context, but is not the source
+# of the OR table. Belloy et al. 2023 (PMID: 37930705) shows APOE-AD effect
+# sizes differ across age, sex, race/ethnicity, and ancestry strata; Lumsden et
+# al. 2020 (PMID: 32818802) is a White British UK Biobank PheWAS, so reused
+# numeric estimates must preserve population context.
 
 _ALZHEIMERS_RISK_CONTEXT = (
     "These numeric estimates are population-aggregate approximations; APOE "
@@ -753,7 +754,7 @@ _ALZHEIMERS_RISK: dict[str, dict[str, Any]] = {
     },
     "ε4/ε4": {
         "finding_text": (
-            "APOE ε4/ε4 is associated with approximately 8–12× the risk of "
+            "APOE ε4/ε4 is associated with approximately 15× the risk of "
             "late-onset Alzheimer's disease relative to ε3/ε3. "
             "Approximately 2–3% of the general population is ε4 homozygous. "
             "Despite this elevated relative risk, the absolute lifetime risk "
@@ -763,7 +764,7 @@ _ALZHEIMERS_RISK: dict[str, dict[str, Any]] = {
             "for individuals who wish to discuss the implications of this result."
         ),
         "relative_risk": "substantially_elevated",
-        "approximate_or": 11.6,
+        "approximate_or": 14.9,
         "phenotype": "Alzheimer's disease risk (substantially elevated vs reference)",
     },
 }
@@ -841,7 +842,7 @@ _CV_PMIDS = [
     "31153375",  # APOE polymorphisms and statin lipid-response context
 ]
 _CV_E3_E4_MECHANISM_PMIDS = ["28276521", "18369154", "1939641"]
-_ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587", "37930705", "32818802"]
+_ALZHEIMERS_PMIDS = ["9343467", "21556001", "24162737", "23571587", "37930705", "32818802"]
 # APOE-genotype × dietary-fat lipid-response citations for the lipid/dietary
 # finding. Each PMID is an APOE-genotype-specific dietary-fat / serum-lipid
 # response source that substantiates the saturated-fat / LDL-response claims in

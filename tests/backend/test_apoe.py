@@ -762,8 +762,9 @@ class TestAPOEFindingsContentCV:
         )
         cv, alzheimers, _lipid = generate_apoe_findings(result)
 
-        assert {"21460841", "9343467"} <= set(alzheimers.pmid_citations)
-        assert {"21460841", "9343467"}.isdisjoint(cv.pmid_citations)
+        assert {"9343467", "21556001"} <= set(alzheimers.pmid_citations)
+        assert {"9343467", "21556001"}.isdisjoint(cv.pmid_citations)
+        assert "21460841" not in alzheimers.pmid_citations
 
     def test_cv_conditions_include_statin(self) -> None:
         """All CV findings mention statin response in conditions."""
@@ -782,6 +783,49 @@ class TestAPOEFindingsContentCV:
 class TestAPOEFindingsContentAlzheimers:
     """Test Alzheimer's risk finding content specifics."""
 
+    @pytest.mark.parametrize(
+        ("diplotype", "expected_or"),
+        [
+            ("ε2/ε2", 0.6),
+            ("ε2/ε3", 0.6),
+            ("ε2/ε4", 2.6),
+            ("ε3/ε3", 1.0),
+            ("ε3/ε4", 3.2),
+            ("ε4/ε4", 14.9),
+        ],
+    )
+    def test_alzheimers_or_estimates_match_cited_table(
+        self, diplotype: str, expected_or: float
+    ) -> None:
+        """Pin APOE Alzheimer's ORs to the Farrer-sourced per-genotype table."""
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+        allele1, allele2 = diplotype.split("/")
+        result = APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=allele_map[allele1],
+            allele2=allele_map[allele2],
+            diplotype=diplotype,
+        )
+
+        alz = generate_apoe_findings(result)[1]
+
+        assert alz.detail_json["approximate_or"] == expected_or
+
+    def test_alzheimers_pmids_use_apoe_relevant_sources(self) -> None:
+        """The Alzheimer finding must not cite the Naj non-APOE loci GWAS as Genin."""
+        result = APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=APOEAllele.E3,
+            allele2=APOEAllele.E4,
+            diplotype="ε3/ε4",
+        )
+
+        alz = generate_apoe_findings(result)[1]
+
+        assert "9343467" in alz.pmid_citations  # Farrer APOE-AD OR meta-analysis.
+        assert "21556001" in alz.pmid_citations  # Genin APOE lifetime-risk context.
+        assert "21460841" not in alz.pmid_citations  # Naj non-APOE AD loci GWAS.
+
     def test_e4_e4_alzheimers_golden_fixture_t3_18(self) -> None:
         """T3-18: ε4/ε4 Alzheimer's finding with caveats and non-actionable framing."""
         result = APOEResult(
@@ -796,12 +840,12 @@ class TestAPOEFindingsContentAlzheimers:
         assert alz.category == APOE_FINDING_ALZHEIMERS
         assert alz.evidence_level == 4
         assert "Alzheimer" in alz.finding_text
-        assert "8–12×" in alz.finding_text
+        assert "15×" in alz.finding_text
         assert "not a diagnosis" in alz.finding_text.lower()
         assert "probabilistic" in alz.finding_text.lower()
         assert alz.detail_json["non_actionable"] is True
         assert "not a diagnosis" in alz.detail_json["caveats"].lower()
-        assert alz.detail_json["approximate_or"] == 11.6
+        assert alz.detail_json["approximate_or"] == 14.9
         assert alz.detail_json["relative_risk"] == "substantially_elevated"
 
     def test_e3_e4_alzheimers_moderate_risk(self) -> None:
