@@ -16,7 +16,7 @@
  * of opening an EventSource for an empty job id.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Loader2, X } from "lucide-react"
 
@@ -25,6 +25,7 @@ import {
   useMergeCommit,
   useMergePreview,
 } from "@/api/individuals"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import type {
   ConcordanceSummary,
   LinkedSample,
@@ -77,6 +78,7 @@ export function MergeWizard({
   onClose,
 }: MergeWizardProps) {
   const navigate = useNavigate()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState<WizardStep>("strategy")
   const [strategy, setStrategy] = useState<MergeStrategy>("flag_only")
   const [displayName, setDisplayName] = useState(
@@ -85,6 +87,7 @@ export function MergeWizard({
 
   const previewMutation = useMergePreview()
   const commitMutation = useMergeCommit()
+  useDialogFocus(dialogRef)
 
   // Bind to the annotation SSE channel once a job id arrives. The hook
   // tolerates null and tears down its EventSource when the id resets.
@@ -165,10 +168,12 @@ export function MergeWizard({
       data-testid="merge-wizard-overlay"
     >
       <div
+        ref={dialogRef}
         className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xl mx-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="merge-wizard-title"
+        tabIndex={-1}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 id="merge-wizard-title" className="font-medium text-sm">

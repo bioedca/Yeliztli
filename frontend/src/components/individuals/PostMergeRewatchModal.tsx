@@ -22,12 +22,13 @@
  *   5. Modal is dismissible; does NOT block dashboard rendering.
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { useAnnotationProgress } from "@/api/annotation"
 import { useMigrateFromSources, SamplesApiError } from "@/api/samples"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import type { MigrateFromSourcesCandidate } from "@/types/individuals"
 
 interface PostMergeRewatchModalProps {
@@ -86,7 +87,9 @@ export function PostMergeRewatchModal({
   onClose,
 }: PostMergeRewatchModalProps) {
   const queryClient = useQueryClient()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const progress = useAnnotationProgress(jobId, mergedSampleId)
+  useDialogFocus(dialogRef)
 
   // Annotation cascade is finished when SSE reports complete OR no jobId
   // was provided AND the user opened the modal manually. Plan §10.6
@@ -290,10 +293,12 @@ export function PostMergeRewatchModal({
       data-testid="rewatch-modal-overlay"
     >
       <div
+        ref={dialogRef}
         className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl mx-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rewatch-modal-title"
+        tabIndex={-1}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 id="rewatch-modal-title" className="font-medium text-sm">

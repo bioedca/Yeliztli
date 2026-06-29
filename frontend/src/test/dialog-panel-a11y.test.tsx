@@ -5,6 +5,8 @@
  *    move focus into themselves on open.
  */
 
+import { readdirSync, readFileSync } from "node:fs"
+import { join, relative, sep } from "node:path"
 import { useRef, type ComponentType } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "./test-utils"
@@ -25,6 +27,126 @@ import type { CarrierVariant } from "@/types/carrier"
 import type { CancerVariant } from "@/types/cancer"
 import type { CardiovascularVariant } from "@/types/cardiovascular"
 import type { RareVariant } from "@/types/rare-variants"
+
+// ── Self-discovering production dialog guard (#1251) ────────────────────────
+
+const SOURCE_ROOT = join(process.cwd(), "src")
+const ROLE_DIALOG_RE = /\brole\s*=\s*["']dialog["']/
+const ARIA_MODAL_TRUE_RE = /\baria-modal\s*=\s*(?:"true"|'true'|\{\s*true\s*\})/
+const DIALOG_OPENING_TAG_RE =
+  /<[A-Za-z][\w:.]*(?=[^>]*\brole\s*=\s*["']dialog["'])(?=[^>]*\baria-modal\s*=\s*(?:"true"|'true'|\{\s*true\s*\}))[^>]*>/gs
+const USE_DIALOG_FOCUS_IMPORT_RE =
+  /import\s*\{[^}]*\buseDialogFocus\b[^}]*\}\s*from\s*["']@\/hooks\/useDialogFocus["']/
+const TAB_INDEX_MINUS_ONE_RE = /\btabIndex\s*=\s*\{\s*-1\s*\}/
+const REF_ATTRIBUTE_RE = /\bref\s*=\s*\{\s*([A-Za-z_$][\w$]*)\s*\}/
+
+const KNOWN_MODAL_DIALOG_SOURCES = [
+  "components/allergy/PathwayDetailPanel.tsx",
+  "components/cancer/VariantDetailPanel.tsx",
+  "components/cardiovascular/VariantDetailPanel.tsx",
+  "components/carrier/VariantDetailPanel.tsx",
+  "components/fitness/PathwayDetailPanel.tsx",
+  "components/gene-health/PathwayDetailPanel.tsx",
+  "components/individuals/MergeWizard.tsx",
+  "components/individuals/PostMergeRewatchModal.tsx",
+  "components/methylation/PathwayDetailPanel.tsx",
+  "components/nutrigenomics/PathwayDetailPanel.tsx",
+  "components/pharmacogenomics/DrugDetailPanel.tsx",
+  "components/rare-variants/VariantDetailPanel.tsx",
+  "components/sleep/PathwayDetailPanel.tsx",
+  "components/skin/PathwayDetailPanel.tsx",
+  "components/traits/PathwayDetailPanel.tsx",
+  "components/variant-detail/VariantDetailSidePanel.tsx",
+  "pages/ReportBuilder.tsx",
+] as const
+
+type DialogSource = {
+  path: string
+  source: string
+  dialogOpeningTags: string[]
+}
+
+function collectProductionTsxFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const absolutePath = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      return entry.name === "test" ? [] : collectProductionTsxFiles(absolutePath)
+    }
+    return entry.isFile() && entry.name.endsWith(".tsx") ? [absolutePath] : []
+  })
+}
+
+function toSourceRelativePath(filePath: string): string {
+  return relative(SOURCE_ROOT, filePath).split(sep).join("/")
+}
+
+function stripTsComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function useDialogFocusCallForRef(refName: string): RegExp {
+  return new RegExp(
+    `\\buseDialogFocus\\s*\\(\\s*${escapeRegExp(refName)}(?:\\s*[,\\)])`,
+  )
+}
+
+function discoverModalDialogSources(): DialogSource[] {
+  return collectProductionTsxFiles(SOURCE_ROOT)
+    .map((filePath) => ({
+      path: toSourceRelativePath(filePath),
+      source: stripTsComments(readFileSync(filePath, "utf8")),
+    }))
+    .filter(
+      ({ source }) => ROLE_DIALOG_RE.test(source) && ARIA_MODAL_TRUE_RE.test(source),
+    )
+    .map(({ path, source }) => ({
+      path,
+      source,
+      dialogOpeningTags: source.match(DIALOG_OPENING_TAG_RE) ?? [],
+    }))
+    .sort((a, b) => a.path.localeCompare(b.path))
+}
+
+describe("production modal dialogs wire focus management (#1251)", () => {
+  it("discovers every modal dialog source and requires useDialogFocus", () => {
+    const dialogSources = discoverModalDialogSources()
+    const discoveredPaths = dialogSources.map(({ path }) => path)
+    const missingExpectedSources = KNOWN_MODAL_DIALOG_SOURCES.filter(
+      (path) => !discoveredPaths.includes(path),
+    )
+    const violations: string[] = []
+
+    for (const { path, source, dialogOpeningTags } of dialogSources) {
+      if (!USE_DIALOG_FOCUS_IMPORT_RE.test(source)) {
+        violations.push(`${path}: import useDialogFocus from @/hooks/useDialogFocus`)
+      }
+      if (dialogOpeningTags.length === 0) {
+        violations.push(`${path}: expose role="dialog" and aria-modal="true" on a JSX tag`)
+      }
+      for (const tag of dialogOpeningTags) {
+        const refName = tag.match(REF_ATTRIBUTE_RE)?.[1]
+        if (!refName) {
+          violations.push(`${path}: add a ref={...} to ${tag}`)
+        } else if (!useDialogFocusCallForRef(refName).test(source)) {
+          violations.push(`${path}: call useDialogFocus(${refName}, ...) for ${tag}`)
+        }
+        if (!TAB_INDEX_MINUS_ONE_RE.test(tag)) {
+          violations.push(`${path}: add tabIndex={-1} to ${tag}`)
+        }
+      }
+    }
+
+    expect(discoveredPaths.length).toBeGreaterThan(0)
+    expect(missingExpectedSources).toEqual([])
+    expect(violations).toEqual([])
+  })
+})
 
 // ── useDialogFocus ──────────────────────────────────────────────────────────
 

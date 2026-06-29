@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { useFindingsSummary } from "@/api/findings"
 import { useGenerateReport, useExportFhir, fetchReportPreview } from "@/api/reports"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
@@ -99,7 +100,9 @@ export default function ReportBuilder() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
+  const previewDialogRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  useDialogFocus(previewDialogRef, previewHtml !== null)
 
   const summaryQuery = useFindingsSummary(sampleId)
   const generateMutation = useGenerateReport()
@@ -510,10 +513,12 @@ export default function ReportBuilder() {
       {/* Preview modal */}
       {previewHtml && (
         <div
+          ref={previewDialogRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           role="dialog"
           aria-label="Report preview"
           aria-modal="true"
+          tabIndex={-1}
         >
           <div className="relative flex h-[90vh] w-[90vw] max-w-5xl flex-col rounded-lg bg-background shadow-xl">
             {/* Modal header */}
