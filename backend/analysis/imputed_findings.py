@@ -53,6 +53,7 @@ import structlog
 from backend.analysis.clinvar_significance import primary_pathogenic_classification
 from backend.analysis.evidence import assign_clinvar_evidence_level
 from backend.analysis.finding_gate import imputed_variant_surfaceable
+from backend.analysis.imputation_input import AUTOSOMAL_INPUT_CHROMOSOMES
 from backend.analysis.imputation_runner import ImputedVariant
 from backend.db.tables import annotated_variants, clinvar_variants, findings, imputed_variants
 
@@ -62,6 +63,7 @@ AlleleKey = tuple[str | None, int, str, str]
 
 # ``findings.module`` value for this source.
 IMPUTED_MODULE = "imputed_variants"
+_DIPLOID_IMPUTED_FINDING_CHROMOSOMES = frozenset(AUTOSOMAL_INPUT_CHROMOSOMES)
 # ``findings.category`` for an imputed common variant matching a ClinVar P/LP record.
 IMPUTED_CLINVAR_PATHOGENIC_CATEGORY = "imputed_clinvar_pathogenic"
 # Imputed P/LP calls are statistically inferred, not directly observed, so they are
@@ -148,15 +150,17 @@ class ImputedClinVarFinding:
 def _load_carried_imputed_variants(
     sample_engine: sa.Engine,
 ) -> list[tuple[ImputedVariant, int]]:
-    """Firewall-cleared imputed variants the individual carries, as ``(variant, copies)``.
+    """Firewall-cleared autosomal imputed variants carried as ``(variant, copies)``.
 
     Graceful degradation: returns ``[]`` when ``imputed_variants`` is absent (a sample
     DB predating Wave C) or empty (no imputation persisted) — so this whole module is a
     no-op there, byte-identical to not running it. Rows with a missing best-guess
     genotype, or with best-guess hom-reference ``GT`` (``best_guess_copies == 0``),
     carry nothing and are dropped. ``DS`` is retained as dosage metadata only; it is
-    never rounded into a clinical genotype. The SW-C3 firewall is re-asserted at the
-    gate over each surviving row (defense in depth).
+    never rounded into a clinical genotype. Chromosome X is suppressed until this
+    finding source can carry ploidy/sex and label hemizygous calls correctly. The
+    SW-C3 firewall is re-asserted at the gate over each surviving row (defense in
+    depth).
     """
     with sample_engine.connect() as conn:
         inspector = sa.inspect(conn)
@@ -181,6 +185,8 @@ def _load_carried_imputed_variants(
 
     carried: list[tuple[ImputedVariant, int]] = []
     for r in rows:
+        if _norm_chrom(r.chrom) not in _DIPLOID_IMPUTED_FINDING_CHROMOSOMES:
+            continue
         if r.best_guess_copies is None:
             continue
         try:

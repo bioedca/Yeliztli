@@ -226,6 +226,39 @@ def test_missing_dosage_with_gt_carriage_still_surfaces(
     assert results[0].dosage is None
 
 
+def test_x_imputed_carriage_is_suppressed_until_ploidy_aware_labeling(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    _seed_imputed(
+        sample_engine,
+        [
+            _imp(
+                chrom="X",
+                pos=100_000_000,
+                ref="A",
+                alt="G",
+                best_guess_copies=1,
+            )
+        ],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [
+            _cv(
+                chrom="X",
+                pos=100_000_000,
+                ref="A",
+                alt="G",
+                rsid="rsX",
+                accession="VCV00000000X",
+                gene_symbol="XGENE",
+            )
+        ],
+    )
+
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
 def test_legacy_table_without_best_guess_withholds_instead_of_rounding_ds(
     sample_engine: sa.Engine, reference_engine: sa.Engine
 ) -> None:

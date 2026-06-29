@@ -1832,6 +1832,45 @@ class TestImputationAwareCoverage:
         #       + rs3(0.2 * (2-0.4), effect=ref A) = 0.5 + 0.45 + 0.32
         assert result.raw_score == pytest.approx(0.5 + 0.3 * 1.5 + 0.2 * (2 - 0.4))
 
+    def test_x_imputed_dosage_is_not_used_until_ploidy_aware_scoring(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        ws = PRSWeightSet(
+            name="X imputed PRS guard",
+            trait="test",
+            module="metabolic",
+            source_ancestry="EUR",
+            source_study="Test 2026",
+            source_pmid="1",
+            sample_size=1000,
+            weights=[PRSSNPWeight("rsX", "A", 1.0, other_allele="G", chrom="X", pos=100_000_000)],
+            reference_mean=0.0,
+            reference_std=1.0,
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(imputed_variants),
+                [
+                    {
+                        "chrom": "X",
+                        "pos": 100_000_000,
+                        "ref": "A",
+                        "alt": "G",
+                        "dr2": 0.95,
+                        "af": 0.3,
+                        "dosage": 0.0,
+                    }
+                ],
+            )
+
+        result = compute_prs(ws, sample_engine)
+
+        assert result.raw_score == 0.0
+        assert result.snps_used == 0
+        assert result.snps_used_imputed == 0
+        assert result.coverage_tier == "typed_only"
+        assert [c.match_status for c in result.contributions] == ["no_call"]
+
     @pytest.mark.parametrize(
         "row",
         [

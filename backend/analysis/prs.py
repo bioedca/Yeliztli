@@ -69,6 +69,7 @@ from backend.analysis.allele_match import (
 from backend.analysis.ancestry import ancestry_covered
 from backend.analysis.evidence import PRS_EVIDENCE_LEVEL
 from backend.analysis.finding_gate import imputed_variant_surfaceable
+from backend.analysis.imputation_input import AUTOSOMAL_INPUT_CHROMOSOMES
 from backend.analysis.imputation_runner import ImputedVariant
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
@@ -83,6 +84,7 @@ PRS_HIGHER_IS_RISK = "risk"
 # Match-status marker for a contribution scored from a firewall-cleared imputed
 # dosage rather than a typed genotype (SW-C5).
 IMPUTED_MATCH_STATUS = "imputed"
+_DIPLOID_IMPUTED_PRS_CHROMOSOMES = frozenset(AUTOSOMAL_INPUT_CHROMOSOMES)
 # Contribution ``match_status`` values that actually entered ``raw_score``: a typed
 # genotype matched on the reference or complemented strand, or a firewall-cleared
 # imputed dosage. Used to keep ancestry-continuous calibration over the *same* variant
@@ -479,7 +481,10 @@ def _load_imputed_dosages(
     scoring is then typed-only, identical to the pre-SW-C5 behaviour.
     """
     wanted = {
-        (_norm_chrom(w.chrom), w.pos) for w in weight_set.weights if w.chrom and w.pos is not None
+        (norm_chrom, w.pos)
+        for w in weight_set.weights
+        if w.chrom and w.pos is not None
+        if (norm_chrom := _norm_chrom(w.chrom)) in _DIPLOID_IMPUTED_PRS_CHROMOSOMES
     }
     if not wanted:
         return {}
