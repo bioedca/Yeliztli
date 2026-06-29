@@ -214,8 +214,8 @@ _PSEUDOGENE_UNRELIABLE_GENES = frozenset({"GBA"})
 _COPY_NUMBER_INCOMPLETE_GENE_CAVEATS = {
     "SMN1": (
         "Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 "
-        "dosage, so this result is not a complete SMA carrier screen. Confirm "
-        "carrier status with clinical SMN1 dosage testing such as qPCR or MLPA."
+        "dosage/copy-number. Confirm SMN1 status with clinical testing that "
+        "includes dosage/CNV assessment, such as qPCR or MLPA."
     )
 }
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"

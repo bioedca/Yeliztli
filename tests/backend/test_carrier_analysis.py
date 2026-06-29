@@ -689,12 +689,101 @@ class TestExtractCarrierVariants:
         assert variant.gene_symbol == "SMN1"
         assert variant.copy_number_limited is True
         assert variant.copy_number_caveat is not None
-        assert "not a complete SMA carrier screen" in variant.copy_number_caveat
-        assert "dosage testing" in variant.copy_number_caveat
+        assert "SMN1 exon 7 dosage/copy-number" in variant.copy_number_caveat
+        assert "dosage/CNV assessment" in variant.copy_number_caveat
         text = _carrier_finding_text(variant)
         assert "Copy-number not assessed" in text
-        assert "not a complete SMA carrier screen" in text
+        assert "dosage/CNV assessment" in text
         assert "typically unaffected" not in text
+
+    def test_smn1_homozygous_finding_uses_neutral_copy_number_caveat(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """SMN1 affected-status findings need dosage caveats, not carrier-only wording."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs121909192",
+                    "chrom": "5",
+                    "pos": 70247773,
+                    "genotype": "AA",
+                    "zygosity": "hom",
+                    "gene_symbol": "SMN1",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000012345",
+                    "clinvar_conditions": "Spinal muscular atrophy",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.affected_status_findings == 1
+        assert result.copy_number_disclosed == 1
+        variant = result.variants[0]
+        assert variant.finding_type == "affected_homozygous"
+        assert variant.copy_number_limited is True
+        text = _carrier_finding_text(variant)
+        assert "affected-status result" in text
+        assert "Copy-number not assessed" in text
+        assert "dosage/CNV assessment" in text
+        assert "Confirm carrier status" not in text
+        assert "not a complete SMA carrier screen" not in text
+
+    def test_smn1_possible_compound_het_uses_neutral_copy_number_caveat(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """SMN1 compound-het warnings keep affected-status framing plus dosage caveat."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs121909192",
+                        "chrom": "5",
+                        "pos": 70247773,
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "SMN1",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000012345",
+                        "clinvar_conditions": "Spinal muscular atrophy",
+                        "annotation_coverage": 2,
+                    },
+                    {
+                        "rsid": "rs104893941",
+                        "chrom": "5",
+                        "pos": 70247790,
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "SMN1",
+                        "clinvar_significance": "Likely pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000012346",
+                        "clinvar_conditions": "Spinal muscular atrophy",
+                        "annotation_coverage": 2,
+                    },
+                ],
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.possible_compound_heterozygous_findings == 1
+        assert result.copy_number_disclosed == 1
+        variant = result.variants[0]
+        assert variant.finding_type == "possible_compound_heterozygote"
+        assert variant.copy_number_limited is True
+        text = _carrier_finding_text(variant)
+        assert "If these variants are in trans" in text
+        assert "Copy-number not assessed" in text
+        assert "dosage/CNV assessment" in text
+        assert "Confirm carrier status" not in text
+        assert "not a complete SMA carrier screen" not in text
 
     def test_smn1_reference_homozygous_rows_do_not_create_clear_result(
         self, panel: CarrierPanel, sample_engine: sa.Engine
@@ -1005,15 +1094,15 @@ class TestStoreCarrierFindings:
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings).where(findings.c.gene_symbol == "SMN1")).one()
         assert "Copy-number not assessed" in row.finding_text
-        assert "not a complete SMA carrier screen" in row.finding_text
+        assert "dosage/CNV assessment" in row.finding_text
         assert "typically unaffected" not in row.finding_text
         detail = json.loads(row.detail_json)
         assert detail["copy_number_limited"] is True
-        assert "dosage testing" in detail["copy_number_caveat"]
+        assert "dosage/CNV assessment" in detail["copy_number_caveat"]
 
         api_row = _fetch_carrier_findings(sample_engine)[0]
         assert api_row["copy_number_limited"] is True
-        assert "not a complete SMA carrier screen" in api_row["copy_number_caveat"]
+        assert "SMN1 exon 7 dosage/copy-number" in api_row["copy_number_caveat"]
 
     def test_detail_json_has_clinvar_data(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine

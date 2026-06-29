@@ -5,12 +5,16 @@
  * Shows BRCA1/2 cross-link banner when cross_links includes "cancer".
  */
 
+import { useId } from "react"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceCardConfig } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
-import type { CarrierVariant } from "@/types/carrier"
+import {
+  DEFAULT_COPY_NUMBER_CAVEAT,
+  INHERITANCE_LABELS,
+  type CarrierVariant,
+} from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { INHERITANCE_LABELS } from "@/types/carrier"
 import { Link } from "react-router-dom"
 import { Info } from "lucide-react"
 
@@ -22,6 +26,7 @@ interface VariantCardProps {
 }
 
 export default function VariantCard({ variant, onClick, selected, sampleId }: VariantCardProps) {
+  const copyNumberCaveatId = useId()
   const config = getClinvarSignificanceCardConfig(variant.clinvar_significance)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
@@ -29,7 +34,10 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
   const isHomozygousAffected = findingType === "affected_homozygous"
   const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
   const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
-  const hasCopyNumberCaveat = Boolean(variant.copy_number_caveat)
+  const copyNumberCaveat =
+    variant.copy_number_caveat ??
+    (variant.copy_number_limited ? DEFAULT_COPY_NUMBER_CAVEAT : null)
+  const hasCopyNumberCaveat = Boolean(copyNumberCaveat)
   // A heterozygous P/LP variant means different things by inheritance mode: for
   // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is
   // NOT a silent recessive-carrier state, so we drop the "carrier" framing there
@@ -66,6 +74,7 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
       )}
       onClick={onClick}
       aria-label={`${variant.gene_symbol} ${variant.rsid} — ${a11yDescriptor}, ${variant.clinvar_significance}`}
+      aria-describedby={hasCopyNumberCaveat ? copyNumberCaveatId : undefined}
       data-testid="carrier-variant-card"
     >
       {/* Header: gene + significance badge */}
@@ -149,13 +158,14 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
       {/* Copy-number limitation warning */}
       {hasCopyNumberCaveat && (
         <div
+          id={copyNumberCaveatId}
           className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3"
           data-testid="carrier-copy-number-caveat"
         >
           <div className="flex items-start gap-2">
             <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true" />
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              {variant.copy_number_caveat}
+              {copyNumberCaveat}
             </p>
           </div>
         </div>

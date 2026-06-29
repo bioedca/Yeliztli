@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { render, screen } from "./test-utils"
 import VariantDetailPanel from "@/components/carrier/VariantDetailPanel"
 import VariantCard from "@/components/carrier/VariantCard"
-import type { CarrierVariant } from "@/types/carrier"
+import { DEFAULT_COPY_NUMBER_CAVEAT, type CarrierVariant } from "@/types/carrier"
 
 const CFTR_VARIANT: CarrierVariant = {
   rsid: "rs113993960",
@@ -143,8 +143,7 @@ const HBB_VARIANT_CASED_RSID: CarrierVariant = {
   rsid: " RS334 ",
 }
 
-const SMN1_COPY_NUMBER_CAVEAT =
-  "Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 dosage, so this result is not a complete SMA carrier screen. Confirm carrier status with clinical SMN1 dosage testing such as qPCR or MLPA."
+const SMN1_COPY_NUMBER_CAVEAT = DEFAULT_COPY_NUMBER_CAVEAT
 
 const SMN1_VARIANT: CarrierVariant = {
   rsid: "rs121909192",
@@ -163,6 +162,11 @@ const SMN1_VARIANT: CarrierVariant = {
   notes: "Point mutations account for a minority of pathogenic SMN1 alleles.",
   copy_number_limited: true,
   copy_number_caveat: SMN1_COPY_NUMBER_CAVEAT,
+}
+
+const SMN1_FLAG_ONLY_VARIANT: CarrierVariant = {
+  ...SMN1_VARIANT,
+  copy_number_caveat: null,
 }
 
 describe("Carrier VariantDetailPanel", () => {
@@ -241,10 +245,30 @@ describe("Carrier VariantDetailPanel", () => {
       />,
     )
 
-    expect(screen.getByTestId("carrier-copy-number-caveat-panel")).toBeInTheDocument()
+    const panel = screen.getByTestId("carrier-detail-panel")
+    const caveatPanel = screen.getByTestId("carrier-copy-number-caveat-panel")
+    const describedBy = panel.getAttribute("aria-describedby")
+    expect(caveatPanel).toBeInTheDocument()
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)).toBe(caveatPanel)
     expect(screen.getByText(/copy-number not assessed/i)).toBeInTheDocument()
-    expect(screen.getByText(/not a complete SMA carrier screen/i)).toBeInTheDocument()
-    expect(screen.getByText(/dosage testing/i)).toBeInTheDocument()
+    expect(screen.getByText(/dosage\/CNV assessment/i)).toBeInTheDocument()
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
+  })
+
+  it("uses the default SMN1 copy-number caveat when only the limitation flag is set", () => {
+    render(
+      <VariantDetailPanel
+        variant={SMN1_FLAG_ONLY_VARIANT}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId("carrier-copy-number-caveat-panel")).toHaveTextContent(
+      /SMN1 exon 7 dosage\/copy-number/i,
+    )
     expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
   })
 
@@ -387,8 +411,21 @@ describe("Carrier VariantCard genotype-line label (#540)", () => {
   it("shows SMN1 copy-number limitation on carrier cards", () => {
     render(<VariantCard variant={SMN1_VARIANT} onClick={vi.fn()} sampleId={1} />)
 
-    expect(screen.getByTestId("carrier-copy-number-caveat")).toBeInTheDocument()
+    const card = screen.getByTestId("carrier-variant-card")
+    const caveat = screen.getByTestId("carrier-copy-number-caveat")
+    const describedBy = card.getAttribute("aria-describedby")
+    expect(caveat).toBeInTheDocument()
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)).toBe(caveat)
     expect(screen.getByText(/copy-number not assessed/i)).toBeInTheDocument()
-    expect(screen.getByText(/not a complete SMA carrier screen/i)).toBeInTheDocument()
+    expect(screen.getByText(/dosage\/CNV assessment/i)).toBeInTheDocument()
+  })
+
+  it("uses the default SMN1 copy-number caveat on cards when only the flag is set", () => {
+    render(<VariantCard variant={SMN1_FLAG_ONLY_VARIANT} onClick={vi.fn()} sampleId={1} />)
+
+    expect(screen.getByTestId("carrier-copy-number-caveat")).toHaveTextContent(
+      /SMN1 exon 7 dosage\/copy-number/i,
+    )
   })
 })

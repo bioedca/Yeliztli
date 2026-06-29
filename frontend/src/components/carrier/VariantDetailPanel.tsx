@@ -5,14 +5,17 @@
  * and BRCA1/2 cross-link to cancer module.
  */
 
-import { useRef } from "react"
+import { useId, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
-import type { CarrierVariant } from "@/types/carrier"
+import {
+  DEFAULT_COPY_NUMBER_CAVEAT,
+  INHERITANCE_LABELS,
+  type CarrierVariant,
+} from "@/types/carrier"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { INHERITANCE_LABELS } from "@/types/carrier"
 import { Link } from "react-router-dom"
 import { X, ExternalLink, Info } from "lucide-react"
 
@@ -29,13 +32,17 @@ export default function VariantDetailPanel({
   geneNote,
   onClose,
 }: VariantDetailPanelProps) {
+  const copyNumberCaveatId = useId()
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
   const findingType = variant.finding_type ?? "carrier"
   const isHomozygousAffected = findingType === "affected_homozygous"
   const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
   const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
-  const hasCopyNumberCaveat = Boolean(variant.copy_number_caveat)
+  const copyNumberCaveat =
+    variant.copy_number_caveat ??
+    (variant.copy_number_limited ? DEFAULT_COPY_NUMBER_CAVEAT : null)
+  const hasCopyNumberCaveat = Boolean(copyNumberCaveat)
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
   const isAutosomalRecessive = variant.inheritance === "AR"
@@ -85,6 +92,7 @@ export default function VariantDetailPanel({
       role="dialog"
       aria-modal="true"
       aria-label={panelAriaLabel}
+      aria-describedby={hasCopyNumberCaveat ? copyNumberCaveatId : undefined}
       tabIndex={-1}
       data-testid="carrier-detail-panel"
     >
@@ -111,6 +119,7 @@ export default function VariantDetailPanel({
             "rounded-md border p-3 mb-5",
             bannerSurfaceClass,
           )}
+          id={hasCopyNumberCaveat ? copyNumberCaveatId : undefined}
           data-testid={hasCopyNumberCaveat ? "carrier-copy-number-caveat-panel" : undefined}
         >
           <p
@@ -126,7 +135,7 @@ export default function VariantDetailPanel({
                 an affected-status result, not typical carrier status. Review
                 this result with a clinician or genetics professional and
                 confirm with clinical-grade testing.
-                {variant.copy_number_caveat ? ` ${variant.copy_number_caveat}` : ""}
+                {copyNumberCaveat ? ` ${copyNumberCaveat}` : ""}
               </>
             ) : isPossibleCompoundHet ? (
               <>
@@ -135,7 +144,7 @@ export default function VariantDetailPanel({
                 affected status rather than an unaffected carrier state.{" "}
                 {variant.phase_caveat ??
                   "Genotyping arrays do not phase these variants, so clinical testing is needed."}
-                {variant.copy_number_caveat ? ` ${variant.copy_number_caveat}` : ""}
+                {copyNumberCaveat ? ` ${copyNumberCaveat}` : ""}
               </>
             ) : shouldMentionCancerModule ? (
               <>
@@ -162,7 +171,7 @@ export default function VariantDetailPanel({
             ) : hasCopyNumberCaveat ? (
               <>
                 Heterozygous {variant.gene_symbol} point-variant finding.{" "}
-                {variant.copy_number_caveat} Review this result with a genetics
+                {copyNumberCaveat} Review this result with a genetics
                 professional; this information may be relevant for family planning.
               </>
             ) : isAutosomalRecessive ? (

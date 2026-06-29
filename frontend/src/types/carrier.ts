@@ -1,5 +1,8 @@
 /** Carrier status module API types (P3-38). */
 
+export const DEFAULT_COPY_NUMBER_CAVEAT =
+  "Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 dosage/copy-number. Confirm SMN1 status with clinical testing that includes dosage/CNV assessment, such as qPCR or MLPA."
+
 interface CarrierComponentVariant {
   rsid: string
   chrom: string | null

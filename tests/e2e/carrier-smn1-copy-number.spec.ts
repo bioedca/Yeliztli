@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 const SMN1_COPY_NUMBER_CAVEAT =
-  'Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 dosage, so this result is not a complete SMA carrier screen. Confirm carrier status with clinical SMN1 dosage testing such as qPCR or MLPA.'
+  'Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 dosage/copy-number. Confirm SMN1 status with clinical testing that includes dosage/CNV assessment, such as qPCR or MLPA.'
 
 const CARRIER_DISCLAIMER = {
   title: 'About carrier status',
@@ -74,15 +74,23 @@ test.describe('Carrier Status SMN1 copy-number disclosure (#1257)', () => {
 
     const smn1Card = page.getByTestId('carrier-variant-card').filter({ hasText: 'SMN1' })
     await expect(smn1Card).toBeVisible()
+    const cardDescribedBy = await smn1Card.getAttribute('aria-describedby')
+    expect(cardDescribedBy).toBeTruthy()
+    await expect(page.locator(`[id="${cardDescribedBy}"]`)).toContainText(/dosage\/CNV assessment/i)
     await expect(smn1Card.getByTestId('carrier-copy-number-caveat')).toContainText(
-      /not a complete SMA carrier screen/i,
+      /SMN1 exon 7 dosage\/copy-number/i,
     )
 
     await smn1Card.click()
     const detailPanel = page.getByTestId('carrier-detail-panel')
     await expect(detailPanel).toBeVisible()
+    const panelDescribedBy = await detailPanel.getAttribute('aria-describedby')
+    expect(panelDescribedBy).toBeTruthy()
+    await expect(page.locator(`[id="${panelDescribedBy}"]`)).toContainText(
+      /dosage\/CNV assessment/i,
+    )
     await expect(detailPanel.getByTestId('carrier-copy-number-caveat-panel')).toContainText(
-      /dosage testing/i,
+      /dosage\/CNV assessment/i,
     )
     await expect(detailPanel.getByText(/heterozygous carrier - typically unaffected/i)).toHaveCount(0)
   })
