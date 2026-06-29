@@ -147,8 +147,8 @@ describe('StorageStep — Step 15 disk-space pre-check', () => {
             Promise.resolve({
               status: 'ok',
               path: '/home/test/.yeliztli',
-              free_space_gb: 50,
-              message: 'OK',
+              free_space_gb: 100,
+              message: '100.0 GB free - sufficient for Yeliztli reference setup.',
             }),
         })
       }

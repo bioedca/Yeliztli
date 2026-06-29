@@ -76,7 +76,8 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           Peak setup use is higher than steady-state size because the dbNSFP
           source archive is removed only after a successful build. The VEP bundle
           is approximately 600 MB on 0.2.0+ to cover both 23andMe v5 and
-          AncestryDNA v2.0 rsIDs.
+          AncestryDNA v2.0 rsIDs. Advanced installs may stage large archives on
+          a separate download volume.
         </p>
         <ul className="text-xs text-muted-foreground space-y-1 pt-1">
           <li className="flex items-start justify-between gap-4">

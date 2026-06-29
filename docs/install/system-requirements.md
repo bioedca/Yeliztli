@@ -30,6 +30,10 @@ After a successful dbNSFP build, Yeliztli removes the transient source ZIP. If a
 interrupted after the download completes, the archive may remain so the next run can resume
 without downloading another ~50 GB.
 
+Advanced installs can set `YELIZTLI_DOWNLOAD_STAGING_DIR` to put transient source archives
+on a different filesystem. In that layout, the setup check evaluates persistent database
+space in `data_dir` separately from dbNSFP staging space.
+
 See **[reference data](reference-data.md)** for the full list of bundles and sources, with
 licenses.
 

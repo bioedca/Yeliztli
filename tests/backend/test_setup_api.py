@@ -1008,6 +1008,32 @@ class TestAssessDiskSpace:
         assert status == "ok"
         assert "reference setup" in message
 
+    def test_separate_download_staging_uses_split_thresholds(self) -> None:
+        from backend.api.routes.setup import _assess_storage_space
+
+        status, message = _assess_storage_space(
+            25 * 1024**3,
+            100 * 1024**3,
+            staging_separate=True,
+        )
+
+        assert status == "warning"
+        assert "Data directory: 25.0 GB free" in message
+        assert "Download staging: 100.0 GB free" in message
+
+    def test_separate_download_staging_blocks_archive_shortfall(self) -> None:
+        from backend.api.routes.setup import _assess_storage_space
+
+        status, message = _assess_storage_space(
+            35 * 1024**3,
+            45 * 1024**3,
+            staging_separate=True,
+        )
+
+        assert status == "blocked"
+        assert "download staging space" in message
+        assert "50 GB" in message
+
 
 class TestStorageInfo:
     """Tests for the storage info endpoint."""

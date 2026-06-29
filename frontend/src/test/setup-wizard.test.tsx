@@ -528,8 +528,9 @@ describe('StorageStep', () => {
         Promise.resolve(
           mockStorageInfo({
             status: 'warning',
-            free_space_gb: 7,
-            message: 'Low disk space (7.0 GB free).',
+            free_space_gb: 70,
+            message:
+              'Limited disk space (70.0 GB free). Full reference setup can peak above 60 GB; 80 GB or more is recommended.',
           }),
         ),
     })
@@ -548,9 +549,9 @@ describe('StorageStep', () => {
         Promise.resolve(
           mockStorageInfo({
             status: 'blocked',
-            free_space_gb: 2,
+            free_space_gb: 50,
             message:
-              'Insufficient disk space. Yeliztli requires at least 5 GB free. Current: 2.0 GB.',
+              'Insufficient disk space. Full reference setup needs at least 60 GB free because dbNSFP stages a ~50 GB archive while building a ~10+ GB database. Current: 50.0 GB.',
           }),
         ),
     })

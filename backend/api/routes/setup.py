@@ -1113,10 +1113,26 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
 
 # ── P1-19c: Storage path + disk space check ──────────────────────
 
-# Full reference setup peaks well above the steady-state DB footprint because
-# dbNSFP stages a ~50 GB source archive while building a ~10+ GB SQLite DB.
+# Default single-volume thresholds: full reference setup peaks well above the
+# steady-state DB footprint because dbNSFP stages a ~50 GB source archive while
+# building a ~10+ GB SQLite DB.
 _WARN_THRESHOLD_GB = 80
 _BLOCK_THRESHOLD_GB = 60
+_PERSISTENT_WARN_THRESHOLD_GB = 30
+_PERSISTENT_BLOCK_THRESHOLD_GB = 20
+_STAGING_WARN_THRESHOLD_GB = 60
+_STAGING_BLOCK_THRESHOLD_GB = 50
+
+
+def _existing_ancestor(path: Path) -> Path:
+    """Return *path* or the nearest existing ancestor."""
+    check_path = path
+    while not check_path.exists():
+        parent = check_path.parent
+        if parent == check_path:
+            break
+        check_path = parent
+    return check_path
 
 
 def _get_disk_space(path: Path) -> tuple[int, int]:
@@ -1127,15 +1143,17 @@ def _get_disk_space(path: Path) -> tuple[int, int]:
 
     Returns (free_bytes, total_bytes).
     """
-    check_path = path
-    while not check_path.exists():
-        parent = check_path.parent
-        if parent == check_path:
-            break
-        check_path = parent
-
+    check_path = _existing_ancestor(path)
     usage = shutil.disk_usage(check_path)
     return usage.free, usage.total
+
+
+def _on_different_filesystems(left: Path, right: Path) -> bool:
+    """Best-effort check for whether two paths consume independent free space."""
+    try:
+        return _existing_ancestor(left).stat().st_dev != _existing_ancestor(right).stat().st_dev
+    except OSError:
+        return False
 
 
 def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "blocked"], str]:
@@ -1157,6 +1175,47 @@ def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "block
             f"Consider freeing space or choosing a different path.",
         )
     return "ok", f"{free_gb:.1f} GB free - sufficient for Yeliztli reference setup."
+
+
+def _assess_storage_space(
+    data_free_bytes: int,
+    staging_free_bytes: int,
+    *,
+    staging_separate: bool,
+) -> tuple[Literal["ok", "warning", "blocked"], str]:
+    """Assess persistent DB space and transient download-staging space."""
+    if not staging_separate:
+        return _assess_disk_space(data_free_bytes)
+
+    data_gb = data_free_bytes / (1024**3)
+    staging_gb = staging_free_bytes / (1024**3)
+    if data_gb < _PERSISTENT_BLOCK_THRESHOLD_GB:
+        return (
+            "blocked",
+            f"Insufficient persistent storage. Yeliztli needs at least "
+            f"{_PERSISTENT_BLOCK_THRESHOLD_GB} GB free in the data directory for "
+            f"built reference databases. Current: {data_gb:.1f} GB.",
+        )
+    if staging_gb < _STAGING_BLOCK_THRESHOLD_GB:
+        return (
+            "blocked",
+            f"Insufficient download staging space. dbNSFP needs at least "
+            f"{_STAGING_BLOCK_THRESHOLD_GB} GB free in the download staging directory "
+            f"for its source archive. Current: {staging_gb:.1f} GB.",
+        )
+    if data_gb < _PERSISTENT_WARN_THRESHOLD_GB or staging_gb < _STAGING_WARN_THRESHOLD_GB:
+        return (
+            "warning",
+            f"Limited storage headroom. Data directory: {data_gb:.1f} GB free "
+            f"({_PERSISTENT_WARN_THRESHOLD_GB} GB recommended for built databases). "
+            f"Download staging: {staging_gb:.1f} GB free "
+            f"({_STAGING_WARN_THRESHOLD_GB} GB recommended for dbNSFP).",
+        )
+    return (
+        "ok",
+        f"{data_gb:.1f} GB free in the data directory and {staging_gb:.1f} GB free "
+        f"in download staging - sufficient for Yeliztli reference setup.",
+    )
 
 
 # Roots whose contents are conventionally wiped on reboot. A data dir here (or
@@ -1251,7 +1310,13 @@ async def storage_info() -> StorageInfoResponse:
     free_bytes, total_bytes = _get_disk_space(data_dir)
     free_gb = free_bytes / (1024**3)
     total_gb = total_bytes / (1024**3)
-    status, message = _assess_disk_space(free_bytes)
+    downloads_dir = settings.downloads_dir
+    staging_free_bytes, _ = _get_disk_space(downloads_dir)
+    status, message = _assess_storage_space(
+        free_bytes,
+        staging_free_bytes,
+        staging_separate=_on_different_filesystems(data_dir, downloads_dir),
+    )
     volatile = _is_volatile_path(data_dir)
     volatile_message = _VOLATILE_PATH_MESSAGE if volatile else None
 
@@ -1325,10 +1390,19 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
             detail=f"Directory at {resolved} is not writable.",
         )
 
-    # Check disk space
+    # Check disk space. A configured download_staging_dir can place large
+    # transient archives on a different filesystem while persistent DBs stay
+    # under the selected data_dir.
+    settings = get_settings()
+    downloads_dir = settings.download_staging_dir or (resolved / "downloads")
     free_bytes, _ = _get_disk_space(resolved)
     free_gb = free_bytes / (1024**3)
-    status, message = _assess_disk_space(free_bytes)
+    staging_free_bytes, _ = _get_disk_space(downloads_dir)
+    status, message = _assess_storage_space(
+        free_bytes,
+        staging_free_bytes,
+        staging_separate=_on_different_filesystems(resolved, downloads_dir),
+    )
 
     # Persist the chosen path so it survives a restart, and bust the settings
     # cache so subsequent reads in this process use it immediately.
