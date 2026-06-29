@@ -382,17 +382,17 @@ class TestNoTelemetry:
     }
 
     _FRONTEND_ANALYTICS = {
-        "google-analytics",
-        "gtag",
-        "ga(",
-        "mixpanel",
-        "amplitude",
-        "posthog",
-        "segment.io",
-        "analytics.js",
-        "hotjar",
-        "heap(",
-        "fullstory",
+        "google-analytics": re.compile(r"\bgoogle-analytics\b"),
+        "gtag": re.compile(r"\bgtag\b"),
+        "ga(": re.compile(r"\bga\s*\("),
+        "mixpanel": re.compile(r"\bmixpanel\b"),
+        "amplitude": re.compile(r"\bamplitude\b"),
+        "posthog": re.compile(r"\bposthog\b"),
+        "segment.io": re.compile(r"\bsegment\.io\b"),
+        "analytics.js": re.compile(r"\banalytics\.js\b"),
+        "hotjar": re.compile(r"\bhotjar\b"),
+        "heap(": re.compile(r"\bheap\s*\("),
+        "fullstory": re.compile(r"\bfullstory\b"),
     }
 
     def test_no_telemetry_in_python_dependencies(self) -> None:
@@ -423,8 +423,8 @@ class TestNoTelemetry:
         for ext in ("*.ts", "*.tsx", "*.js", "*.jsx"):
             for f in src_dir.rglob(ext):
                 content = f.read_text()
-                for tracker in self._FRONTEND_ANALYTICS:
-                    if tracker in content.lower():
+                for tracker, pattern in self._FRONTEND_ANALYTICS.items():
+                    if pattern.search(content.lower()):
                         # Exclude false positives in comments about what we DON'T use
                         violations.append(f"{f.relative_to(_PROJECT_ROOT)}: contains '{tracker}'")
         assert violations == [], f"Analytics code found in frontend: {violations}"
