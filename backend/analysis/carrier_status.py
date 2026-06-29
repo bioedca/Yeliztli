@@ -420,15 +420,30 @@ def _carrier_variant_dedupe_key(row: sa.Row, zygosity: str) -> tuple[object, ...
     ref = (row.ref or "").strip().upper()
     alt = (row.alt or "").strip().upper()
     gene_symbol = (row.gene_symbol or "").strip().upper()
+    rsid = (row.rsid or "").strip().casefold()
     if not chrom or row.pos is None or not ref or not alt:
-        return ("rsid", (row.rsid or "").strip().casefold())
+        if rsid:
+            return ("rsid", gene_symbol, rsid, zygosity)
+        return (
+            "incomplete_allele",
+            gene_symbol,
+            chrom,
+            row.pos,
+            ref,
+            alt,
+            (row.genotype or "").strip().upper(),
+            (row.clinvar_accession or "").strip().casefold(),
+            zygosity,
+        )
     return ("allele", gene_symbol, chrom, int(row.pos), ref, alt, zygosity)
 
 
 def _carrier_rsid_preference_key(row: sa.Row) -> tuple[int, str]:
     """Prefer public dbSNP rsIDs over array probe IDs for duplicate allele rows."""
     rsid = (row.rsid or "").strip()
-    return (0 if rsid.casefold().startswith("rs") else 1, rsid.casefold())
+    normalized = rsid.casefold()
+    is_dbsnp_rsid = normalized.startswith("rs") and normalized[2:].isdigit()
+    return (0 if is_dbsnp_rsid else 1, normalized)
 
 
 def extract_carrier_variants(
