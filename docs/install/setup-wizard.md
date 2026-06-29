@@ -19,8 +19,9 @@ See [backup & restore](backup-restore.md).
 ## Step 3 — Storage path
 
 Choose where Yeliztli stores everything. The default is `~/.yeliztli/`. The wizard shows
-available disk space and warns when it is low (a warning under ~10 GB; setup is blocked
-under ~5 GB). See [system requirements](system-requirements.md) for why.
+available disk space and warns when it is low (a warning under ~80 GB; setup is blocked
+under ~60 GB). The larger threshold accounts for dbNSFP's transient source archive during
+setup; see [system requirements](system-requirements.md) for the breakdown.
 
 ## Step 4 — External services
 

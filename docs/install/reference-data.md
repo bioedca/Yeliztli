@@ -28,24 +28,26 @@ These are downloaded from the original providers. Each retains its own license �
 attribution list lives in the repository
 [`NOTICE`](https://github.com/bioedca/Yeliztli/blob/main/NOTICE) file.
 
-| Source | Purpose | License |
-|--------|---------|---------|
-| **ClinVar** (NCBI) | Clinical variant classifications | Public domain |
-| **dbNSFP** | In-silico pathogenicity predictions (REVEL, CADD, …) | Academic / non-commercial |
-| **CPIC** | Pharmacogenomics allele & guideline data | CC0-1.0 |
-| **ClinGen** | Gene–disease validity & dosage | CC0-1.0 |
-| **PharmVar** | Pharmacogene star-allele definitions | Open |
-| **AlphaMissense** | Missense pathogenicity predictions | CC-BY-4.0 |
-| **GWAS Catalog** (EBI) | Trait/disease associations for risk modules | Open |
-| **dbSNP** (NCBI) | rsID merge/identity resolution | Public domain |
-| **Mondo / HPO** (Monarch) | Disease & phenotype associations | Open |
-| **PharmGKB** | Clinical drug annotations | CC-BY-SA-4.0 |
-| **FDA drug labels** (via PharmGKB) | Pharmacogenomic labeling | CC-BY-SA-4.0 |
-| **GTEx** | Tissue eQTLs for functional context | Open-access summary stats |
+| Source | Purpose | Approx. setup footprint | License |
+|--------|---------|-------------------------|---------|
+| **ClinVar** (NCBI) | Clinical variant classifications | ~250 MB | Public domain |
+| **dbNSFP** | In-silico pathogenicity predictions (REVEL, CADD, ...) | ~50 GB transient ZIP + ~10+ GB built DB | Academic / non-commercial |
+| **CPIC** | Pharmacogenomics allele & guideline data | ~5 MB | CC0-1.0 |
+| **ClinGen** | Gene-disease validity & dosage | ~1 MB | CC0-1.0 |
+| **PharmVar** | Pharmacogene star-allele definitions | Small metadata source | Open |
+| **AlphaMissense** | Missense pathogenicity predictions | ~3.5 GB when installed | CC-BY-4.0 |
+| **GWAS Catalog** (EBI) | Trait/disease associations for risk modules | ~100 MB | Open |
+| **dbSNP** (NCBI) | rsID merge/identity resolution | ~20 MB | Public domain |
+| **Mondo / HPO** (Monarch) | Disease & phenotype associations | ~15 MB | Open |
+| **PharmGKB** | Clinical drug annotations | Small metadata source | CC-BY-SA-4.0 |
+| **FDA drug labels** (via PharmGKB) | Pharmacogenomic labeling | Small metadata source | CC-BY-SA-4.0 |
+| **GTEx** | Tissue eQTLs for functional context | ~3 GB when installed | Open-access summary stats |
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use
-    complies with its terms.
+    complies with its terms. Its setup footprint is also large: the source archive is removed
+    after a successful build, but an interrupted build may keep the completed archive so setup
+    can resume without starting another large download.
 
 ## Updating reference data
 

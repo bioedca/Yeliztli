@@ -382,6 +382,14 @@ def test_vep_bundle_registry_entry_reflects_v2_0_0_sizing() -> None:
     assert "AncestryDNA" in entry.description
 
 
+def test_dbnsfp_registry_entry_reflects_full_release_sizing() -> None:
+    """dbNSFP's size hint should reflect the full built DB, not a seed fixture."""
+    from backend.db.database_registry import DATABASES
+
+    entry = DATABASES["dbnsfp"]
+    assert entry.expected_size_bytes >= 10_000_000_000
+
+
 def test_vep_bundle_registry_url_points_at_v2_0_0_release() -> None:
     """Phase 0i (PR-0z) rewrites the fallback URL from the non-existent
     ``raw.githubusercontent.com/.../bundles/vep_bundle.db`` path to the v2.0.0

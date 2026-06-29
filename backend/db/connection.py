@@ -122,7 +122,7 @@ class DBRegistry:
 
     @property
     def dbnsfp_engine(self) -> sa.Engine:
-        """Lazy-loaded dbNSFP engine (read-only, ~1.5 GB)."""
+        """Lazy-loaded dbNSFP engine (read-only, ~10+ GB for the full release)."""
         if self._dbnsfp_engine is None:
             self._dbnsfp_engine = self._create_engine(
                 self._settings.dbnsfp_db_path,

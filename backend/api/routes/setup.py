@@ -1113,9 +1113,10 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
 
 # ── P1-19c: Storage path + disk space check ──────────────────────
 
-# Thresholds per PRD §2.18
-_WARN_THRESHOLD_GB = 10
-_BLOCK_THRESHOLD_GB = 5
+# Full reference setup peaks well above the steady-state DB footprint because
+# dbNSFP stages a ~50 GB source archive while building a ~10+ GB SQLite DB.
+_WARN_THRESHOLD_GB = 80
+_BLOCK_THRESHOLD_GB = 60
 
 
 def _get_disk_space(path: Path) -> tuple[int, int]:
@@ -1143,17 +1144,19 @@ def _assess_disk_space(free_bytes: int) -> tuple[Literal["ok", "warning", "block
     if free_gb < _BLOCK_THRESHOLD_GB:
         return (
             "blocked",
-            f"Insufficient disk space. Yeliztli requires at least "
-            f"{_BLOCK_THRESHOLD_GB} GB free. Current: {free_gb:.1f} GB.",
+            f"Insufficient disk space. Full reference setup needs at least "
+            f"{_BLOCK_THRESHOLD_GB} GB free because dbNSFP stages a ~50 GB "
+            f"archive while building a ~10+ GB database. Current: {free_gb:.1f} GB.",
         )
     if free_gb < _WARN_THRESHOLD_GB:
         return (
             "warning",
-            f"Low disk space ({free_gb:.1f} GB free). Yeliztli reference "
-            f"databases require ~4 GB, and sample data needs additional headroom. "
+            f"Limited disk space ({free_gb:.1f} GB free). Full reference setup "
+            f"can peak above {_BLOCK_THRESHOLD_GB} GB; {_WARN_THRESHOLD_GB} GB "
+            f"or more is recommended for dbNSFP, other references, and sample data. "
             f"Consider freeing space or choosing a different path.",
         )
-    return "ok", f"{free_gb:.1f} GB free — sufficient for Yeliztli."
+    return "ok", f"{free_gb:.1f} GB free - sufficient for Yeliztli reference setup."
 
 
 # Roots whose contents are conventionally wiped on reboot. A data dir here (or

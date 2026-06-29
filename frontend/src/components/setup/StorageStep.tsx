@@ -1,9 +1,9 @@
 /** Step 3: Storage path + disk space check.
  *
  * P1-19c: Lets users configure the storage path (defaults to ~/.yeliztli).
- * Checks disk space and warns/blocks per PRD §2.18:
- *   - Warn if < 10 GB free
- *   - Block if < 5 GB free
+ * Checks disk space against the full reference setup peak:
+ *   - Warn if < 80 GB free
+ *   - Block if < 60 GB free
  */
 
 import { useCallback, useState } from 'react'
@@ -60,7 +60,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
         </h2>
         <p className="text-sm text-muted-foreground">
           Choose where Yeliztli stores databases, samples, and configuration.
-          Reference databases require approximately 4 GB of disk space.
+          Full reference setup needs at least 60 GB free; 80 GB or more is recommended.
         </p>
       </div>
 
@@ -73,30 +73,35 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           Reference database size breakdown
         </h3>
         <p className="text-xs text-muted-foreground">
-          Required core (~4 GB) plus optional bundles. The VEP bundle alone is
-          approximately 600 MB on 0.2.0+ to cover both 23andMe v5 and
+          Peak setup use is higher than steady-state size because the dbNSFP
+          source archive is removed only after a successful build. The VEP bundle
+          is approximately 600 MB on 0.2.0+ to cover both 23andMe v5 and
           AncestryDNA v2.0 rsIDs.
         </p>
         <ul className="text-xs text-muted-foreground space-y-1 pt-1">
-          <li className="flex items-center justify-between">
-            <span>gnomAD allele frequencies</span>
-            <span className="font-medium text-foreground">~2 GB</span>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">dbNSFP source archive (transient)</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~50 GB</span>
           </li>
-          <li className="flex items-center justify-between">
-            <span>dbNSFP pathogenicity scores</span>
-            <span className="font-medium text-foreground">~1.5 GB</span>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">dbNSFP built database</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~10+ GB</span>
           </li>
-          <li className="flex items-center justify-between">
-            <span>VEP bundle (23andMe v5 ∪ AncestryDNA v2.0)</span>
-            <span className="font-medium text-foreground">~600 MB</span>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">gnomAD allele frequencies</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~2 GB</span>
           </li>
-          <li className="flex items-center justify-between">
-            <span>LAI bundle (chromosome painting, optional)</span>
-            <span className="font-medium text-foreground">~500 MB</span>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">VEP bundle and PGS scores</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~700 MB</span>
           </li>
-          <li className="flex items-center justify-between">
-            <span>ClinVar, CPIC, GWAS, dbSNP, MONDO/HPO, ENCODE cCREs</span>
-            <span className="font-medium text-foreground">~420 MB</span>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">LAI bundle (chromosome painting, optional)</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~1.7 GB</span>
+          </li>
+          <li className="flex items-start justify-between gap-4">
+            <span className="min-w-0">ClinVar, CPIC, GWAS, dbSNP, MONDO/HPO, ENCODE cCREs</span>
+            <span className="shrink-0 text-right font-medium text-foreground">~420 MB</span>
           </li>
         </ul>
       </div>

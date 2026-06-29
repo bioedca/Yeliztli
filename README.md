@@ -44,7 +44,7 @@ For native services, Docker, and WSL2, see the **[install guide](docs/install/in
 ## Requirements
 
 - **Python 3.12+**, **Node 20+**
-- A few GB of free disk for reference data (the setup wizard warns below ~10 GB)
+- At least ~60 GB free disk for full reference setup; ~80 GB recommended for headroom
 - macOS, Linux, or Windows via **WSL2**; **Java 8+** optional for Tier-2 ancestry
 
 ## License & attribution

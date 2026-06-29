@@ -316,7 +316,7 @@ DATABASES: dict[str, DatabaseInfo] = {
         ),
         url="",
         filename="dbnsfp.db",
-        expected_size_bytes=1_500_000_000,  # ~1.5 GB
+        expected_size_bytes=12_000_000_000,  # ~10+ GB built DB; source ZIP is ~50 GB transient
         required=True,
         phase=2,
         build_mode="pipeline",

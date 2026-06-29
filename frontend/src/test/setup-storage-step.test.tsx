@@ -3,7 +3,7 @@
  * Covers:
  * - Per-DB size breakdown is rendered
  * - VEP bundle ~600 MB callout names AncestryDNA v2.0 union catalog
- * - Existing "approximately 4 GB" hint remains for the high-level summary
+ * - High-level summary uses the real full-reference setup threshold
  * - Continue button drives `useSetStoragePath` and onNext (non-blocked path)
  * - Custom location radio surfaces the custom path input
  */
@@ -26,12 +26,12 @@ afterEach(() => {
 function mockStorageInfo(overrides: Record<string, unknown> = {}) {
   return {
     data_dir: '/home/test/.yeliztli',
-    free_space_bytes: 50 * 1024 * 1024 * 1024,
-    free_space_gb: 50,
-    total_space_bytes: 100 * 1024 * 1024 * 1024,
-    total_space_gb: 100,
+    free_space_bytes: 100 * 1024 * 1024 * 1024,
+    free_space_gb: 100,
+    total_space_bytes: 200 * 1024 * 1024 * 1024,
+    total_space_gb: 200,
     status: 'ok' as const,
-    message: '50.0 GB free — sufficient for Yeliztli.',
+    message: '100.0 GB free - sufficient for Yeliztli reference setup.',
     path_exists: true,
     path_writable: true,
     volatile: false,
@@ -41,7 +41,7 @@ function mockStorageInfo(overrides: Record<string, unknown> = {}) {
 }
 
 describe('StorageStep — Step 15 disk-space pre-check', () => {
-  it('keeps the 4 GB headline summary', async () => {
+  it('shows the full-reference disk-space headline summary', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockStorageInfo()),
@@ -54,7 +54,7 @@ describe('StorageStep — Step 15 disk-space pre-check', () => {
     })
 
     expect(
-      screen.getByText(/approximately 4 GB of disk space/i),
+      screen.getByText(/at least 60 GB free; 80 GB or more is recommended/i),
     ).toBeInTheDocument()
   })
 
@@ -110,7 +110,10 @@ describe('StorageStep — Step 15 disk-space pre-check', () => {
     expect(breakdown).toHaveTextContent(/reference database size breakdown/i)
     expect(breakdown).toHaveTextContent(/gnomAD/i)
     expect(breakdown).toHaveTextContent(/dbNSFP/i)
+    expect(breakdown).toHaveTextContent(/50 GB/)
+    expect(breakdown).toHaveTextContent(/10\+ GB/)
     expect(breakdown).toHaveTextContent(/LAI bundle/i)
+    expect(breakdown).toHaveTextContent(/1\.7 GB/)
   })
 
   it('calls out the ~600 MB VEP bundle for AncestryDNA v2.0', async () => {

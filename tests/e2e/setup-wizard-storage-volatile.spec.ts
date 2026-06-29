@@ -83,12 +83,12 @@ async function routeToStorageStep(page: Page, storage: StorageInfoOverrides): Pr
       contentType: 'application/json',
       body: JSON.stringify({
         data_dir: storage.data_dir,
-        free_space_bytes: 100_000_000_000,
-        free_space_gb: 100,
+        free_space_bytes: 120_000_000_000,
+        free_space_gb: 120,
         total_space_bytes: 500_000_000_000,
         total_space_gb: 500,
         status: 'ok',
-        message: '100.0 GB free — sufficient for Yeliztli.',
+        message: '120.0 GB free - sufficient for Yeliztli reference setup.',
         path_exists: true,
         path_writable: true,
         volatile: storage.volatile,
@@ -130,5 +130,7 @@ test('omits the volatile-storage warning for a persistent location', async ({ pa
 
   // Storage info has loaded (disk panel rendered) but no volatile warning shows.
   await expect(page.getByText(/Disk Space OK/i)).toBeVisible()
+  await expect(page.getByText(/at least 60 GB free/i)).toBeVisible()
+  await expect(page.getByText('dbNSFP source archive (transient)')).toBeVisible()
   await expect(page.getByText('Volatile storage location')).toHaveCount(0)
 })

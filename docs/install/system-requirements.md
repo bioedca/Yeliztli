@@ -6,21 +6,29 @@
 | **Node.js** | 20+ | Needed to build (or hot-reload) the frontend. |
 | **Operating system** | macOS (Apple Silicon or Intel), Linux, or Windows via **WSL2** | Native Windows (outside WSL2) is not supported — see [WSL2](wsl2.md). |
 | **RAM** | ~1 GB free | More is helpful while annotating a large file. |
-| **Free disk space** | ~5 GB to start; **~10 GB recommended** | See the breakdown below. |
+| **Free disk space** | ~60 GB for full reference setup; **~80 GB recommended** | See the peak-vs-steady-state breakdown below. |
 | **Java** | 8+ *(optional)* | Only required for chromosome-level ancestry painting (the Tier-2 LAI bundle). |
 
 ## Disk space, realistically
 
 The application itself is small, but the **reference databases** it downloads during setup
-are not. The setup wizard **warns** when less than ~10 GB is free and **blocks** setup below
-~5 GB, which is a good guide to plan around:
+are not. The setup wizard **warns** when less than ~80 GB is free and **blocks** setup below
+~60 GB, because peak setup usage is higher than the final steady-state footprint:
 
-| Component | Approx. size |
-|-----------|--------------|
-| Core reference bundles (gnomAD allele frequencies, VEP consequences, PGS scores) | ~2.5 GB |
-| Additional annotation sources (ClinVar, dbNSFP, AlphaMissense, GWAS Catalog, …) | ~1–1.5 GB |
+| Component | Approx. setup footprint |
+|-----------|-------------------------|
+| **dbNSFP** source archive while building | ~50 GB transient ZIP |
+| **dbNSFP** built SQLite database | ~10+ GB steady-state |
+| gnomAD allele frequencies | ~1.95 GB |
+| VEP consequences + PGS scores | ~700 MB |
+| ClinVar, CPIC, GWAS Catalog, dbSNP, MONDO/HPO, ENCODE cCREs | ~420 MB |
 | Optional ancestry **LAI bundle** (Tier-2 chromosome painting) | ~1.7 GB |
+| Optional AlphaMissense or GTEx context databases | ~3-3.5 GB each when installed |
 | Your samples | varies (typically tens to a few hundred MB each) |
+
+After a successful dbNSFP build, Yeliztli removes the transient source ZIP. If a build is
+interrupted after the download completes, the archive may remain so the next run can resume
+without downloading another ~50 GB.
 
 See **[reference data](reference-data.md)** for the full list of bundles and sources, with
 licenses.
