@@ -849,6 +849,16 @@ class TestClassifyWithConfidence:
         assert _classify_with_confidence(0.54, clean)[0] == UNCERTAIN
         assert _classify_with_confidence(0.55, clean) == ("EUR", "confident", [])
 
+    def test_margin_ratio_boundary(self) -> None:
+        # The margin cutoff is exactly 3.0: just below is ADMIXED, just above is confident.
+        just_below = {"EUR": 100.0, "AFR": 299.0, "EAS": 800.0, "CSA": 900.0}
+        pop, status, flags = _classify_with_confidence(1.0, just_below)
+        assert pop == ADMIXED and status == "admixed"
+        assert "low_centroid_margin" in flags
+
+        just_above = {"EUR": 100.0, "AFR": 301.0, "EAS": 800.0, "CSA": 900.0}
+        assert _classify_with_confidence(1.0, just_above) == ("EUR", "confident", [])
+
 
 # ── Findings storage tests ───────────────────────────────────────────────
 
