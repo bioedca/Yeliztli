@@ -7,6 +7,7 @@ import AdmixtureBar from "@/components/ancestry/AdmixtureBar"
 import PCAScatter from "@/components/ancestry/PCAScatter"
 import HaplogroupCard from "@/components/ancestry/HaplogroupCard"
 import AnalysisDetails from "@/components/ancestry/AnalysisDetails"
+import { humanizeAncestryCodes } from "@/components/ancestry/constants"
 import ChromosomePainting from "@/components/charts/ChromosomePainting"
 import AncestryPieChart from "@/components/charts/AncestryPieChart"
 import type {
@@ -127,11 +128,25 @@ describe("AncestryResultCard", () => {
     expect(screen.getByTestId("top-population-badge")).toHaveTextContent("European")
   })
 
-  it("renders finding text", () => {
+  it("renders the summary with humanized population names, consistent with the badge/ranking (#1225)", () => {
     render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
+    // The summary humanizes codes (EUR→European, AMR→Admixed American, EAS→East
+    // Asian) instead of leaking the raw backend codes the badge/ranking never show.
     expect(
-      screen.getByText(/Inferred ancestry: EUR 82%/),
+      screen.getByText(
+        /Inferred ancestry: European 82%, Admixed American 11%, East Asian 4%/,
+      ),
     ).toBeInTheDocument()
+  })
+
+  it("does not leak raw 3-letter population codes in the summary, and keeps the coverage suffix (#1225)", () => {
+    render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
+    const summary = screen.getByText(/Inferred ancestry:/)
+    // No raw enum/dev code (EUR/MID/AMR/…) survives in the user-facing summary.
+    expect(summary.textContent).not.toMatch(/\b(AFR|AMR|CSA|EAS|EUR|MID|OCE)\b/)
+    // Humanizing the codes must not drop the backend-authored markers/coverage
+    // suffix (a structured rebuild from fractions would have lost it).
+    expect(summary.textContent).toMatch(/4,500\/5,000 markers, 90% coverage/)
   })
 
   it("renders SNP coverage stats", () => {
@@ -234,6 +249,39 @@ describe("AncestryResultCard", () => {
   it("has accessible test id", () => {
     render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
     expect(screen.getByTestId("ancestry-result-card")).toBeInTheDocument()
+  })
+})
+
+// ── humanizeAncestryCodes ───────────────────────────────────────────
+
+describe("humanizeAncestryCodes (#1225)", () => {
+  it("replaces every population code with its display label", () => {
+    expect(
+      humanizeAncestryCodes("Inferred ancestry: EUR 72%, MID 27%, AMR 1%"),
+    ).toBe("Inferred ancestry: European 72%, Middle Eastern 27%, Admixed American 1%")
+  })
+
+  it("preserves the admixed / low-confidence framing while humanizing the codes", () => {
+    expect(
+      humanizeAncestryCodes(
+        "Admixed / low-confidence ancestry (no single population): EUR 50%, AMR 50%",
+      ),
+    ).toBe(
+      "Admixed / low-confidence ancestry (no single population): European 50%, Admixed American 50%",
+    )
+  })
+
+  it("leaves a code-free sentence (e.g. an uncertain finding) untouched", () => {
+    const text = "Ancestry could not be confidently determined (low coverage)"
+    expect(humanizeAncestryCodes(text)).toBe(text)
+  })
+
+  it("only rewrites whole-word codes, leaving look-alike substrings alone", () => {
+    // "EURO" / "AMReadme" are not the EUR / AMR codes; the markers/coverage
+    // numbers carry no letters, so nothing else is touched.
+    expect(humanizeAncestryCodes("EURO MID-range (4500/5000)")).toBe(
+      "EURO Middle Eastern-range (4500/5000)",
+    )
   })
 })
 

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { formatNumber } from "@/lib/format"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import type { AncestryFindingResponse } from "@/types/ancestry"
-import { POPULATION_COLORS, POPULATION_LABELS } from "./constants"
+import { POPULATION_COLORS, POPULATION_LABELS, humanizeAncestryCodes } from "./constants"
 
 interface AncestryResultCardProps {
   finding: AncestryFindingResponse
@@ -79,7 +79,7 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
           </div>
 
           <p className="text-sm text-muted-foreground mb-3">
-            {finding.finding_text}
+            {humanizeAncestryCodes(finding.finding_text)}
           </p>
 
           <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
