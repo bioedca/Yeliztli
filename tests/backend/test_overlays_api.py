@@ -281,6 +281,34 @@ class TestApplyOverlay:
         resp = overlay_client.post(f"/api/overlays/{overlay_id}/apply?sample_id=999")
         assert resp.status_code == 404
 
+    def test_apply_overlay_with_deleted_backing_file(
+        self, overlay_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Config row survives but the on-disk backing file is gone → actionable 404.
+
+        The config lives in the reference DB; the file lives on disk under
+        ``data_dir/overlays/overlay_{id}.txt``. They can drift apart (volatile/staging
+        data_dir, disk cleanup, partial restore, manual deletion). When the file is gone,
+        ``_load_overlay_file`` returns ``None`` and the route's second 404 guard must fire
+        with re-upload guidance — without it, ``None`` flows into the parser and raises an
+        ``AttributeError`` (not ``ValueError``) → an opaque 500 instead. Pins that guard.
+        """
+        content = b"1\t99999\t100001\ttest_region\t42\n"
+        resp = overlay_client.post(
+            "/api/overlays/upload?name=Deleted+Backing+File",
+            files={"file": ("test.bed", io.BytesIO(content), "text/plain")},
+        )
+        overlay_id = resp.json()["overlay"]["id"]
+
+        # Delete the backing file out from under the surviving config row.
+        file_path = tmp_data_dir / "overlays" / f"overlay_{overlay_id}.txt"
+        assert file_path.exists()  # upload wrote it where the route will look
+        file_path.unlink()
+
+        resp = overlay_client.post(f"/api/overlays/{overlay_id}/apply?sample_id=1")
+        assert resp.status_code == 404
+        assert "re-upload" in resp.json()["detail"].lower()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Integration test T4-14: overlay annotations visible in variant table
