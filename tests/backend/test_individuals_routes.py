@@ -34,17 +34,15 @@ round-trip in step 46.
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.db.connection import DBRegistry, reset_registry
+from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, apoe_gate, reference_metadata, samples
 from backend.db.tables import findings as findings_table
@@ -218,26 +216,6 @@ def individuals_client(tmp_data_dir: Path) -> TestClient:
         reset_registry()
 
 
-@pytest.fixture
-def individuals_registry(tmp_path: Path) -> Generator[DBRegistry, None, None]:
-    """Temporary registry patched into the individuals route module."""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    (data_dir / "samples").mkdir()
-
-    settings = Settings(data_dir=data_dir, wal_mode=False)
-    ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
-    reference_metadata.create_all(ref_engine)
-    ref_engine.dispose()
-
-    registry = DBRegistry(settings)
-    with patch("backend.api.routes.individuals.get_registry", return_value=registry):
-        yield registry
-
-    registry.dispose_all()
-    reset_registry()
-
-
 # ── (a) Happy paths ──────────────────────────────────────────────────
 
 
@@ -313,26 +291,23 @@ class TestHappyPaths:
         assert resp.status_code == 422
 
     def test_patch_explicit_null_display_name_returns_422(
-        self, individuals_registry: DBRegistry
+        self, individuals_client: TestClient
     ) -> None:
-        from backend.api.routes.individuals import (
-            IndividualCreate,
-            IndividualUpdate,
-            create_individual,
-            get_individual,
-            update_individual,
+        ind_id = individuals_client.post(
+            "/api/individuals", json={"display_name": "Original"}
+        ).json()["id"]
+
+        resp = individuals_client.patch(
+            f"/api/individuals/{ind_id}",
+            json={"display_name": None},
         )
 
-        created = create_individual(IndividualCreate(display_name="Original"))
-        body = IndividualUpdate(display_name=None)
+        assert resp.status_code == 422
+        assert "null" in resp.json()["detail"].lower()
 
-        assert "display_name" in body.model_fields_set
-        with pytest.raises(HTTPException) as excinfo:
-            update_individual(created.id, body)
-
-        assert excinfo.value.status_code == 422
-        assert "null" in str(excinfo.value.detail).lower()
-        assert get_individual(created.id).display_name == "Original"
+        after = individuals_client.get(f"/api/individuals/{ind_id}")
+        assert after.status_code == 200
+        assert after.json()["display_name"] == "Original"
 
     def test_link_and_unlink_sample(self, individuals_client: TestClient) -> None:
         sample1_id = individuals_client.sample1_id  # type: ignore[attr-defined]
