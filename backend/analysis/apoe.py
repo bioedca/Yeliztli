@@ -834,8 +834,12 @@ _LIPID_DIETARY: dict[str, dict[str, Any]] = {
     },
 }
 
-# PubMed citations shared across findings
-_CV_PMIDS = ["21460841", "9343467", "17309940", "28577312"]
+# PubMed citations shared across APOE cardiovascular findings.
+_CV_PMIDS = [
+    "33970359",  # APOE lipoprotein metabolism, atherosclerosis, dysbetalipoproteinemia
+    "34467996",  # dysbetalipoproteinemia/remnant cholesterol and APOE E2/E2 context
+    "31153375",  # APOE polymorphisms and statin lipid-response context
+]
 _CV_E3_E4_MECHANISM_PMIDS = ["28276521", "18369154", "1939641"]
 _ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587", "37930705", "32818802"]
 _LIPID_DIETARY_PMIDS = ["9343467", "17309940", "26109578", "24820091"]

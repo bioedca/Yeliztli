@@ -730,6 +730,41 @@ class TestAPOEFindingsContentCV:
 
             assert mechanism_pmids.isdisjoint(cv.pmid_citations)
 
+    @pytest.mark.parametrize(
+        "diplotype",
+        TestAPOEFindingsGeneration.ALL_DIPLOTYPES,
+        ids=TestAPOEFindingsGeneration.ALL_DIPLOTYPES,
+    )
+    def test_cv_pmids_are_lipid_cardiovascular_scoped(self, diplotype: str) -> None:
+        """Shared CV PMIDs must support APOE lipid/CV interpretation, not unrelated claims."""
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+        allele1, allele2 = (allele_map[allele] for allele in diplotype.split("/"))
+        result = APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=allele1,
+            allele2=allele2,
+            diplotype=diplotype,
+        )
+
+        cv = generate_apoe_findings(result)[0]
+        cv_pmids = set(cv.pmid_citations)
+
+        assert {"33970359", "34467996", "31153375"} <= cv_pmids
+        assert {"21460841", "9343467", "17309940", "28577312"}.isdisjoint(cv_pmids)
+
+    def test_alzheimers_pmids_remain_scoped_to_alzheimers_finding(self) -> None:
+        """Alzheimer's APOE PMIDs should remain on the Alzheimer's finding, not CV."""
+        result = APOEResult(
+            status=APOEStatus.DETERMINED,
+            allele1=APOEAllele.E3,
+            allele2=APOEAllele.E4,
+            diplotype="ε3/ε4",
+        )
+        cv, alzheimers, _lipid = generate_apoe_findings(result)
+
+        assert {"21460841", "9343467"} <= set(alzheimers.pmid_citations)
+        assert {"21460841", "9343467"}.isdisjoint(cv.pmid_citations)
+
     def test_cv_conditions_include_statin(self) -> None:
         """All CV findings mention statin response in conditions."""
         result = APOEResult(
