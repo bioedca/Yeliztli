@@ -35,10 +35,10 @@
 | **A** — cross-cutting rigor + greenfield directly-typed | 12 | 12 | — | 0 |
 | **B** — PGS Catalog at scale | 8 | 8 | — | 0 ✅ **COMPLETE** |
 | **C** — Imputation foundation | 7 | 7 (C1–C7) | — | 0 ✅ **COMPLETE** |
-| **D** — HLA / HIBAG | 6 | 0 | — | 6 (**owner-gated**) |
+| **D** — HLA / HIBAG | 6 | 1 (D1 #1197) | — | 5 (D2–D6; **paused at foundation** — owner-gated) |
 | **E** — Pharmacogenomics expansion | 6 | 6 | — | 0 ✅ |
 | **F** — Deeper variant interpretation | 3 | 3 (F1/F2/F3) | — | 0 ✅ |
-| **Total** | **42** | **36** | — | **6 (Wave D HLA/HIBAG, owner-gated)** |
+| **Total** | **42** | **37** | — | **5 (Wave D D2–D6; paused at the SW-D1 foundation, owner-gated)** |
 
 > **Wave C foundation + SW-C5 merged (bioedca fork, 2026-06-27).** Shipped: **SW-C1** (#1096)
 > fetches/verifies the 1000G Phase 3 v5a bref3 panel; **SW-C2** (#1100) runs local Beagle
@@ -85,11 +85,14 @@ layer; **SW-F2** (#1083/#1088) BYO SpliceAI splice-prediction layer + variant-de
 **Bottom line:** **Waves A, B, C, E, and F are all complete** (Wave C closed out with
 **SW-C7** #1192 GLIMPSE2 / #1194 IMPUTE5, on top of SW-C1 #1096, SW-C2 #1100, SW-C3 #1110,
 input-prep glue #1112, persist-DR2 #1128, SW-C5 #1169/#1173, **SW-C6** #1183, **SW-C4** #1184).
-The remaining work is **6 PRs** — **Wave D HLA/HIBAG** (×6, §5): the **SW-D1 R-subprocess seam is
-pure-code-tractable now** (`detect_rscript()` + GPL-isolated `.R` script + graceful degradation,
-proxy fallback retained), with only the real HLA-call validation deferred to a run with R + a BYO
-model; the clinically-sensitive SW-D2–D5 report layers depend on D1 and warrant owner sign-off on
-scope/framing before surfacing real HLA-derived clinical claims.
+**Wave D's SW-D1 foundation is also merged** (#1197 — the R-subprocess HIBAG engine seam shipped as
+pure code: `detect_rscript()` + a GPL-isolated `.R` script + `GET /api/hla/status` + graceful
+degradation, single-tag HLA proxy retained as fallback). The remaining work is **5 PRs** —
+**Wave D D2–D6** (§5), **PAUSED at the foundation by owner decision (2026-06-28)**: the clinically-
+sensitive SW-D2–D5 report layers (drug-hypersensitivity, celiac/narcolepsy rule-out, autoimmune,
+viewer) + the sample→PLINK input-prep glue resume as a dedicated owner-reviewed clinical pass once
+an R/HIBAG runtime + BYO models are provisioned to validate them (building them now would be
+speculative — no live data path). SW-D6 (DEEP*HLA) is explicitly low-priority.
 
 > **Wave-B coverage caveat:** the disease PRSs are genome-wide; on un-imputed array data only
 > ~35–57% of each score's variants are typed, so percentiles are *withheld* (coverage reported)
@@ -157,17 +160,23 @@ GRCh37-harmonized scores (T2D PGS000713, multi-ancestry BMI PGS005198, LDL-C PGS
 
 ---
 
-## 5. Wave D — HLA / HIBAG (6 remaining) — ⏸ SEPARATELY-SCHEDULED
+## 5. Wave D — HLA / HIBAG (SW-D1 DONE; D2–D6 ⏸ PAUSED AT FOUNDATION)
 
-> **Deferred by owner decision (2026-06-11):** the whole HLA/HIBAG track is parked — it needs an
-> R/Bioconductor subprocess design (GPL isolation) plus user-fetched classifier models that are
-> never bundleable. Resume as its own track after the R-subprocess seam exists.
+> **SW-D1 foundation merged (#1197, 2026-06-28); D2–D5 paused by owner decision (2026-06-28).**
+> The R-subprocess HIBAG engine seam itself was **pure code** (the SW-C7 / SW-F2 lesson) and is
+> shipped. The remaining **SW-D2–D5 are clinical-report layers** that surface real HLA-derived
+> clinical claims (drug-hypersensitivity contraindications, celiac/narcolepsy rule-outs, autoimmune
+> susceptibility); the owner chose to **pause at the foundation** rather than generate that
+> clinically-sensitive logic before an R/HIBAG runtime + BYO models are provisioned to validate it
+> (building it now would be speculative — no live data path). Resume D2–D5 as a dedicated,
+> owner-reviewed clinical pass once the runtime + a model are available.
 
-Needs an **R subprocess** (GPL-isolated) + **user-fetched classifier models** (no-license / proprietary-derived → never bundle — *[ext-strategy]* §HIBAG). `SW-D1` is the foundation.
+Needs an **R subprocess** (GPL-isolated — **done** in SW-D1) + **user-fetched classifier models**
+(no-license / proprietary-derived → never bundle — *[ext-strategy]* §HIBAG).
 
 | PR | # | Goal | Depends on |
 |----|---|------|------------|
-| **SW-D1** | 17 | Core HIBAG engine (R subprocess; ancestry/locus-gated posteriors; African/admixed capped to 2-field). Supersedes the single-tag HLA proxy (keep proxy fallback) | — |
+| **SW-D1** | 17 | Core HIBAG engine (R subprocess; ancestry/locus-gated posteriors; African/admixed flagged low-confidence — models are already 2-field). Supersedes the single-tag HLA proxy (keep proxy fallback) | ✅ **Done** (#1197) — `backend/analysis/r/hibag_predict.R` (GPL-isolated Rscript, invoked by path; `hlaBED2Geno`→`hlaModelFromObj`→`hlaPredict`→TSV; ships in wheel) + `backend/analysis/hibag_runner.py` (`detect_rscript`, `hibag_runtime_status`/`hibag_available` never-fatal, BYO `{ancestry}-HLA4.RData` models, `prob>=0.5` gate + `low_confidence` flag, fail-closed parse, `predict`/`predict_for_ancestry`) + `GET /api/hla/status` + config `hibag_rscript`/`hibag_model_dir`. Single-tag proxy retained as fallback. Accuracy ancestry-dependent, lowest African; `matching` = QC not confidence (Zheng 2014 PMID:23712092). Real HLA-call validation deferred to a run with R + Bioconductor HIBAG + a BYO model. *(Sample→PLINK input-prep glue = sibling slice, deferred with D2–D5.)* |
 | **SW-D2** | 18 | HLA drug-hypersensitivity (B*57:01, B*15:02, A*31:01, B*58:01, B*13:01) — imputed, confirm-with-clinical-HLA banner | SW-D1 |
 | **SW-D3** | 19 | Celiac (DQ2.5/DQ8) + narcolepsy (DQB1*06:02) high-NPV rule-OUT reports | SW-D1 |
 | **SW-D4** | 36, 42 | Autoimmune susceptibility (B*27, DRB1 shared epitope, C*06:02, T1D DR-DQ) + celiac/RA card | SW-D1 |
@@ -222,19 +231,19 @@ never fatal), unit-tested with the engines **mocked**, and **validated for outpu
 against a real chr22 SLURM run** (the GLIMPSE2/IMPUTE5 real-run shape check is deferred to a cluster
 run once a build is provisioned). Wave C is COMPLETE.
 
-**Remaining work:**
-- **Wave D** (HLA/HIBAG, ×6) — needs an **R/Bioconductor subprocess** (GPL-isolated) running the
-  HIBAG classifier, plus **user-fetched classifier models** (no-license / proprietary-derived →
-  never bundleable). SW-D1 (the R-subprocess engine) is the foundation and can keep the existing
-  single-tag HLA proxy as a fallback. **Following the SW-C7 / SW-F2 precedent, the R-subprocess
-  seam itself is pure code** (`detect_rscript()` + a GPL-isolated `.R` script invoked by path +
-  graceful degradation when R/HIBAG/models are absent); only the real HLA-call validation needs the
-  R runtime + a BYO model provisioned. *(SW-C6's GWAS-association uplift remains a separate deferred
-  concern — GWAS is not yet a finding source even for typed variants.)*
-
-Wave D's **clinical-report layers** (SW-D2–D5) still need the R runtime + a BYO model provisioned
-to validate real HLA calls, and SW-D2/D4 are clinically sensitive — so Wave D resumes as its own
-scheduled track (§5/§12) even though the SW-D1 R-subprocess seam itself is pure code.
+**Remaining work — Wave D D2–D6 only (SW-D1 foundation DONE #1197):**
+- **SW-D1 shipped** as pure code (the SW-C7 / SW-F2 precedent held): `detect_rscript()` + a
+  GPL-isolated `.R` script invoked by path + graceful degradation when R/HIBAG/models are absent,
+  single-tag HLA proxy retained as the fallback. Only the real HLA-call validation needs the R
+  runtime + a BYO model provisioned.
+- **SW-D2–D5 are PAUSED at the foundation (owner decision, 2026-06-28).** They are clinical-report
+  layers surfacing real HLA-derived clinical claims (drug-hypersensitivity contraindications,
+  celiac/narcolepsy rule-outs, autoimmune susceptibility); building them — and the sample→PLINK
+  input-prep glue — before the R/HIBAG runtime + models exist would be **speculative** (no live
+  data path to validate against, the repo's "no live data flow → dead code" anti-pattern), and they
+  warrant a dedicated owner-reviewed clinical pass. SW-D6 (DEEP*HLA) is explicitly low-priority.
+- *(SW-C6's GWAS-association uplift remains a separate deferred concern — GWAS is not yet a finding
+  source even for typed variants.)*
 
 ---
 
@@ -282,23 +291,23 @@ scheduled track (§5/§12) even though the SW-D1 R-subprocess seam itself is pur
 
 ## 12. Recommended next sequence (as of 2026-06-28)
 
-Waves A, B, C, E, F are **all complete** — Wave C closed out with SW-C7 (#1192 GLIMPSE2 / #1194
-IMPUTE5). The **only** remaining track is:
+Waves A, B, C, E, F are **all complete**, and **Wave D's SW-D1 foundation is merged** (#1197). The
+remaining track is **Wave D D2–D6, PAUSED at the foundation by owner decision (2026-06-28):**
 
-1. **Wave D — HLA/HIBAG (×6).** Stand up an R/Bioconductor subprocess (GPL-isolated) + a BYO path
-   for the user-fetched HIBAG classifier models (never bundleable), then **SW-D1** (core engine,
-   proxy fallback retained) → SW-D2–D6.
-   - **SW-D1 (foundation) is pure-code-tractable now**, following the SW-C7 / SW-F2 precedent:
-     `detect_rscript()` runtime detection + a GPL-isolated `.R` script invoked by path + an output
-     parser + a status route + graceful degradation when R/HIBAG/models are absent (engine simply
-     *unavailable*, never fatal; the single-tag HLA proxy stays the fallback). The sample→PLINK
-     input-prep is a sibling glue slice (mirrors the SW-C1/2 input-prep #1112). Real HLA-call
-     validation is **deferred to a run with R + a BYO model provisioned** (mirrors SW-C2's deferred
-     runtime measurement).
-   - **SW-D2–D5 are clinical-report layers** (drug-hypersensitivity, celiac/narcolepsy rule-out,
-     autoimmune, raw viewer) that depend on D1 and are **clinically sensitive** — confirm scope /
-     framing with the owner before surfacing real HLA-derived clinical claims. SW-D6 (DEEP*HLA) is
-     explicitly low-priority/deferred.
+1. **SW-D1 (HIBAG R-subprocess engine) — ✅ DONE (#1197).** The seam was pure code (the SW-C7 /
+   SW-F2 precedent held): `detect_rscript()` + a GPL-isolated `.R` script invoked by path + a TSV
+   parser + `GET /api/hla/status` + graceful degradation (engine *unavailable*, never fatal; the
+   single-tag HLA proxy stays the fallback). Real HLA-call validation is deferred to a run with R +
+   the Bioconductor HIBAG package + a BYO model.
+2. **SW-D2–D5 (clinical-report layers) + the sample→PLINK input-prep glue — PAUSED.** They depend on
+   D1 and surface **real HLA-derived clinical claims** (drug-hypersensitivity contraindications,
+   celiac/narcolepsy rule-outs, autoimmune susceptibility). The owner chose to **pause at the
+   foundation**: building them before the R/HIBAG runtime + models exist would be speculative (no
+   live data path to validate, the repo's "no live data flow → dead code" anti-pattern), and they
+   warrant a dedicated owner-reviewed clinical pass (each HLA-drug/disease association evidence-
+   verified). **To resume:** provision R ≥ 4 + Bioconductor `HIBAG` + a BYO ancestry model, validate
+   SW-D1's output shape on a real run, then build the input-prep glue → SW-D2–D5 with owner sign-off.
+   SW-D6 (DEEP*HLA) is explicitly low-priority/deferred.
 
 *(SW-C6's GWAS-association uplift is a separate, still-open concern: GWAS is not yet a finding
 source even for typed variants.)*
