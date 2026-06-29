@@ -26,6 +26,7 @@ import {
 
 import { useGeneDetail } from "@/api/gene-detail"
 import { parseSampleId, formatAlleleFrequency } from "@/lib/format"
+import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
@@ -292,7 +293,9 @@ export default function GeneDetailPage() {
                       {v.genotype ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-xs">
-                      {v.clinvar_significance ?? "—"}
+                      <span className={getClinvarSignificanceTextClass(v.clinvar_significance)}>
+                        {v.clinvar_significance ?? "—"}
+                      </span>
                       {v.clinvar_review_stars != null && (
                         <span className="ml-1 text-amber-500 text-[10px]">
                           {renderStars(v.clinvar_review_stars)}

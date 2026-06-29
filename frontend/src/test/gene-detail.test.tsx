@@ -6,11 +6,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { render as rtlRender, within } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
+import GeneDetailPage from "@/pages/GeneDetailPage"
+import { useGeneDetail } from "@/api/gene-detail"
+import { ThemeProvider } from "@/lib/ThemeContext"
 import { NightingaleViewer } from "@/components/gene-detail"
 import { PopulationAFChart } from "@/components/gene-detail"
 import type {
+  GeneDetailResponse,
   ProteinDomain,
   ProteinFeature,
   GeneVariantSummary,
@@ -20,6 +27,8 @@ import type {
 // ── Mock Nightingale custom elements (Web Components not available in jsdom) ──
 
 beforeEach(() => {
+  mockUseGeneDetail.mockReset()
+
   // Register mock custom elements if not already defined
   for (const tag of [
     "nightingale-manager",
@@ -51,6 +60,12 @@ vi.mock("react-plotly.js", () => ({
     <div data-testid="plotly-chart" data-props={JSON.stringify(props)} />
   ),
 }))
+
+vi.mock("@/api/gene-detail", () => ({
+  useGeneDetail: vi.fn(),
+}))
+
+const mockUseGeneDetail = vi.mocked(useGeneDetail)
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -127,6 +142,73 @@ const BRCA1_AF_DATA: PopulationAFSummary[] = [
     gnomad_af_sas: 0.0,
   },
 ]
+
+function mockGeneDetail(data: GeneDetailResponse) {
+  mockUseGeneDetail.mockReturnValue({
+    data,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useGeneDetail>)
+}
+
+function renderGeneDetailPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  })
+
+  return rtlRender(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/genes/BRCA1?sample_id=1"]}>
+          <Routes>
+            <Route path="/genes/:symbol" element={<GeneDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  )
+}
+
+// ── GeneDetailPage tests ──────────────────────────────────────────
+
+describe("GeneDetailPage", () => {
+  it("applies ClinVar severity text colors in the variants table", () => {
+    mockGeneDetail({
+      gene_symbol: "BRCA1",
+      uniprot: null,
+      uniprot_error: null,
+      phenotypes: [],
+      literature: [],
+      literature_errors: [],
+      population_af: [],
+      variants: [
+        BRCA1_VARIANTS[0],
+        BRCA1_VARIANTS[2],
+        {
+          ...BRCA1_VARIANTS[1],
+          rsid: "rs-conflicting",
+          clinvar_significance: "Conflicting interpretations of pathogenicity",
+        },
+      ],
+    })
+
+    renderGeneDetailPage()
+
+    expect(mockUseGeneDetail).toHaveBeenCalledWith("BRCA1", 1)
+    const table = screen.getByTestId("gene-variants-table")
+
+    expect(within(table).getByText("Pathogenic")).toHaveClass("text-red-600")
+    expect(within(table).getByText("Benign")).toHaveClass("text-green-600")
+    expect(
+      within(table).getByText("Conflicting interpretations of pathogenicity"),
+    ).toHaveClass("text-yellow-600")
+  })
+})
 
 // ── NightingaleViewer tests ──────────────────────────────────────────
 
