@@ -7,8 +7,10 @@ and population databases and organises the results into focused analysis modules
 pharmacogenomics, ancestry, carrier status, hereditary-risk panels, wellness traits, and
 more.
 
-Your genome never leaves your computer: Yeliztli runs on `localhost` with **no telemetry,
-no cloud processing, and no outbound variant data**.
+Your genome never leaves your computer: Yeliztli runs on `localhost` with **no cloud
+processing and no outbound variant data** — your genotypes are never uploaded. It does make a
+few non-genomic connections by default (such as an app-version check); see
+**[Privacy & data handling](privacy.md)** for the complete accounting.
 
 ![The Yeliztli dashboard, showing the analysis-module overview for a loaded sample](assets/img/dashboard.png)
 

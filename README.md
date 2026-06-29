@@ -6,8 +6,10 @@ Upload the raw data file from a consumer genotyping service (**23andMe** or **An
 and Yeliztli annotates your variants against public clinical and population databases and
 organises the results into focused analysis modules — pharmacogenomics, ancestry, carrier
 status, hereditary-risk panels, wellness traits, and more. **Your genome never leaves your
-computer**: Yeliztli runs on `localhost` with no telemetry, no cloud processing, and no
-outbound variant data.
+computer**: Yeliztli runs on `localhost` with no cloud processing and no outbound variant
+data — your genotypes are never uploaded. (It does make a few non-genomic connections by
+default, such as an app-version check; see [Privacy & data handling](docs/privacy.md) for the
+full accounting.)
 
 ![The Yeliztli dashboard](docs/assets/img/dashboard.png)
 
