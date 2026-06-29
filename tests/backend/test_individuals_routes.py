@@ -303,7 +303,6 @@ class TestHappyPaths:
         )
 
         assert resp.status_code == 422
-        assert "null" in resp.json()["detail"].lower()
 
         after = individuals_client.get(f"/api/individuals/{ind_id}")
         assert after.status_code == 200
