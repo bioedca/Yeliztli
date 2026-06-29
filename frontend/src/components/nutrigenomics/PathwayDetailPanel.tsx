@@ -4,7 +4,8 @@
  * effect summaries, recommendations, and PubMed literature links.
  */
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { useNutrigenomicsPathwayDetail } from "@/api/nutrigenomics"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -93,6 +94,8 @@ export default function PathwayDetailPanel({
   onClose,
 }: PathwayDetailPanelProps) {
   const detailQuery = useNutrigenomicsPathwayDetail(pathwayId, sampleId)
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
 
   // Distinguish on-chip no-calls from genuinely off-chip SNPs within the missing
   // set (#900): they have opposite remediations (a no-call may be re-testable; an
@@ -120,9 +123,11 @@ export default function PathwayDetailPanel({
         "flex flex-col",
         "animate-in slide-in-from-right duration-200",
       )}
+      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-label={`${pathwayName} pathway details`}
+      tabIndex={-1}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b px-6 py-4">

@@ -5,7 +5,8 @@
  * and PubMed literature links.
  */
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
+import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { getModuleMeta } from "@/lib/modules"
@@ -130,6 +131,8 @@ export default function PathwayDetailPanel({
   onClose,
 }: PathwayDetailPanelProps) {
   const detailQuery = useTraitsPathwayDetail(pathwayId, sampleId)
+  const panelRef = useRef<HTMLElement>(null)
+  useDialogFocus(panelRef)
   const noCallSnps = detailQuery.data?.no_call_snps ?? []
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
@@ -151,9 +154,11 @@ export default function PathwayDetailPanel({
         "flex flex-col",
         "animate-in slide-in-from-right duration-200",
       )}
+      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-label={`${pathwayName} pathway details`}
+      tabIndex={-1}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b px-6 py-4">

@@ -5,7 +5,7 @@
  *    move focus into themselves on open.
  */
 
-import { useRef } from "react"
+import { useRef, type ComponentType } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { render, screen, fireEvent } from "./test-utils"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
@@ -14,6 +14,13 @@ import CarrierPanel from "@/components/carrier/VariantDetailPanel"
 import CancerPanel from "@/components/cancer/VariantDetailPanel"
 import CardiovascularPanel from "@/components/cardiovascular/VariantDetailPanel"
 import RareVariantPanel from "@/components/rare-variants/VariantDetailPanel"
+import NutrigenomicsPathwayPanel from "@/components/nutrigenomics/PathwayDetailPanel"
+import TraitsPathwayPanel from "@/components/traits/PathwayDetailPanel"
+import MethylationPathwayPanel from "@/components/methylation/PathwayDetailPanel"
+import SkinPathwayPanel from "@/components/skin/PathwayDetailPanel"
+import AllergyPathwayPanel from "@/components/allergy/PathwayDetailPanel"
+import SleepPathwayPanel from "@/components/sleep/PathwayDetailPanel"
+import FitnessPathwayPanel from "@/components/fitness/PathwayDetailPanel"
 import type { CarrierVariant } from "@/types/carrier"
 import type { CancerVariant } from "@/types/cancer"
 import type { CardiovascularVariant } from "@/types/cardiovascular"
@@ -256,4 +263,50 @@ describe("slide-in detail panels expose dialog semantics (#703)", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true")
     expect(dialog.contains(document.activeElement)).toBe(true)
   })
+})
+
+// ── Categorical pathway detail panels wire useDialogFocus (#1216) ────────────
+
+/** The seven categorical-pathway slide-in panels. gene-health's was migrated in
+ *  #703/#846; these siblings declared role="dialog" + aria-modal but never wired
+ *  useDialogFocus, so they were modals in name only (no focus-in / trap / restore
+ *  / inert). Each must now behave like the variant panels above. */
+type PathwayPanelProps = {
+  pathwayId: string
+  pathwayName: string
+  sampleId: number
+  onClose: () => void
+}
+
+const PATHWAY_PANELS: ReadonlyArray<readonly [string, ComponentType<PathwayPanelProps>]> = [
+  ["nutrigenomics", NutrigenomicsPathwayPanel],
+  ["traits", TraitsPathwayPanel],
+  ["methylation", MethylationPathwayPanel],
+  ["skin", SkinPathwayPanel],
+  ["allergy", AllergyPathwayPanel],
+  ["sleep", SleepPathwayPanel],
+  ["fitness", FitnessPathwayPanel],
+]
+
+describe("categorical pathway detail panels expose dialog semantics + focus-in (#1216)", () => {
+  it.each(PATHWAY_PANELS)(
+    "%s pathway panel is a focusable modal dialog and moves focus into itself",
+    (_name, Panel) => {
+      render(
+        <Panel
+          pathwayId="folate_metabolism"
+          pathwayName="Folate Metabolism"
+          sampleId={1}
+          onClose={vi.fn()}
+        />,
+      )
+      const dialog = screen.getByRole("dialog")
+      expect(dialog).toHaveAttribute("aria-modal", "true")
+      // tabIndex={-1} makes the container itself a programmatic focus target —
+      // the focus-in fallback when the panel has no focusable child yet.
+      expect(dialog).toHaveAttribute("tabindex", "-1")
+      // useDialogFocus moved focus into the panel on open (the #1216 contract).
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    },
+  )
 })
