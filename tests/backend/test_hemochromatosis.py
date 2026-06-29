@@ -45,6 +45,19 @@ def _xy_chr_rows() -> list[dict]:
 
 
 class TestC282YHomozygous:
+    def test_homozygous_penetrance_liver_disease_source_values(self, panel) -> None:
+        model = next(m for m in panel.genotype_models if m.id == "c282y_homozygous")
+        by_sex = model.penetrance["by_sex"]
+
+        assert by_sex["XY"] == (
+            "In men, cumulative haemochromatosis diagnosis reached 56.4% by age 80 "
+            "(liver disease ~20.3%)."
+        )
+        assert by_sex["XX"] == (
+            "In women, cumulative haemochromatosis diagnosis reached 40.5% by age 80 "
+            "(liver disease ~8.9%)."
+        )
+
     def test_homozygous_finding_sex_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
         # Only the HFE SNP seeded → no chrX/chrY → sex indeterminate → both
         # penetrance figures shown.

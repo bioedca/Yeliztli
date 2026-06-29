@@ -34,7 +34,7 @@
       "penetrance": {
         "by_sex": {
           "XY": "In men, cumulative haemochromatosis diagnosis reached 56.4% by age 80 (liver disease ~20.3%).",
-          "XX": "In women, cumulative haemochromatosis diagnosis reached 40.5% by age 80 (liver disease ~8.3%)."
+          "XX": "In women, cumulative haemochromatosis diagnosis reached 40.5% by age 80 (liver disease ~8.9%)."
         }
       },
       "finding_text": "HFE C282Y homozygous ({genotype}) — the genotype most strongly associated with hereditary haemochromatosis (iron overload). {penetrance_text} Penetrance is reduced and sex-dependent, and most C282Y homozygotes are undiagnosed (~88% of men, ~97% of women at enrolment in UK Biobank). The condition is treatable by phlebotomy; discuss ferritin and transferrin-saturation testing with a clinician.",
