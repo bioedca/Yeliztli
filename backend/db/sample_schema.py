@@ -40,7 +40,9 @@ logger = structlog.get_logger(__name__)
 #      (distinguish observed AFs from variants not assessed by the exome-only source)
 # v16: Add dosage column to imputed_variants (SW-C5 — Beagle DS, for PRS scoring;
 #      added on existing sample DBs via ALTER TABLE in _add_missing_columns)
-SAMPLE_SCHEMA_VERSION = 16
+# v17: Add best_guess_copies column to imputed_variants (SW-C6 — FORMAT GT/MAP
+#      ALT copy count for imputed ClinVar carriage; DS remains PRS metadata)
+SAMPLE_SCHEMA_VERSION = 17
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -374,6 +376,29 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         )
                     )
                 logger.info("imputed_variants_dosage_column_added", from_version=from_version)
+                added = True
+
+    if from_version < 17:
+        # SW-C6: per-sample best-guess genotype copies from FORMAT GT. Nullable so
+        # old imputation snapshots are not silently converted from DS rounding; the
+        # ClinVar finding source withholds rows without this discrete call.
+        inspector = sa.inspect(engine)
+        if "imputed_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("imputed_variants")}
+            if "best_guess_copies" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(
+                        sa.text(
+                            "ALTER TABLE imputed_variants "
+                            "ADD COLUMN best_guess_copies INTEGER "
+                            "CHECK (best_guess_copies IS NULL OR "
+                            "best_guess_copies IN (0, 1, 2))"
+                        )
+                    )
+                logger.info(
+                    "imputed_variants_best_guess_copies_column_added",
+                    from_version=from_version,
+                )
                 added = True
 
     return added

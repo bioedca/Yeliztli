@@ -28,7 +28,7 @@ class TestPanelCoverageSchema:
 
     def test_schema_version_is_current(self) -> None:
         """SAMPLE_SCHEMA_VERSION tracks the latest additive sample DB migration."""
-        assert SAMPLE_SCHEMA_VERSION == 16
+        assert SAMPLE_SCHEMA_VERSION == 17
 
     def test_table_created_on_new_sample(self, sample_engine: sa.Engine) -> None:
         """panel_coverage exists in freshly created sample DBs."""

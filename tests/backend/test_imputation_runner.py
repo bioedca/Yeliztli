@@ -86,6 +86,15 @@ class TestParse:
         assert by_id[(20000500, "A")].dosage == 1.0
         assert by_id[(20000500, "T")].dosage == 1.0
 
+    def test_parses_per_alt_gt_best_guess_copies(self, tmp_path: Path) -> None:
+        vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)
+        by_id = {(v.pos, v.alt): v for v in parse_imputed_vcf(vcf)}
+        assert by_id[(20000146, "A")].best_guess_copies == 0
+        assert by_id[(20000428, "T")].best_guess_copies == 1
+        # Multi-allelic rs3 "1|2" carries one copy of each ALT.
+        assert by_id[(20000500, "A")].best_guess_copies == 1
+        assert by_id[(20000500, "T")].best_guess_copies == 1
+
     def test_dosage_none_when_no_ds_or_out_of_range(self, tmp_path: Path) -> None:
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"

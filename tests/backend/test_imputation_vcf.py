@@ -64,6 +64,7 @@ class TestBeagleShape:
         by_pos = {v.pos: v for v in variants}
         assert by_pos[100].imputed is True and by_pos[100].dr2 == 0.95
         assert by_pos[100].af == 0.30 and by_pos[100].dosage == 1.0
+        assert by_pos[100].best_guess_copies == 1
         assert by_pos[200].imputed is False  # typed marker (no IMP flag)
 
 
@@ -83,9 +84,12 @@ class TestGlimpseShape:
         assert v.dr2 == 0.95  # INFO score lands in the dr2 quality slot
         assert v.af == 0.30  # RAF (panel), NOT the degenerate single-sample AF=0.50
         assert v.dosage == 1.0  # DS from GT:DS:GP
+        assert v.best_guess_copies == 1
         # Multi-allelic: per-ALT INFO/RAF align to each ALT.
         assert by_key[(300, "A")].dr2 == 0.70 and by_key[(300, "A")].af == 0.05
         assert by_key[(300, "T")].dr2 == 0.30 and by_key[(300, "T")].af == 0.02
+        assert by_key[(300, "A")].best_guess_copies == 1
+        assert by_key[(300, "T")].best_guess_copies == 1
         assert by_key[(300, "A")].imputed is True
 
 
@@ -101,6 +105,7 @@ class TestImpute5Shape:
         )
         assert v.imputed is True
         assert v.dr2 == 0.88 and v.af == 0.30 and v.dosage == 1.0
+        assert v.best_guess_copies == 1
 
 
 class TestMalformedAndMissing:
@@ -136,6 +141,7 @@ class TestMalformedAndMissing:
             )
         )
         assert v.dr2 == 0.9 and v.af is None and v.dosage is None
+        assert v.best_guess_copies == 1
 
     def test_multi_sample_row_rejected(self, tmp_path: Path) -> None:
         # The imputation pipeline is single-sample; a 2-sample row must fail loudly
@@ -168,6 +174,52 @@ class TestMalformedAndMissing:
             )
         )
         assert v.dosage is None
+
+    def test_best_guess_copies_come_from_gt_not_ds_rounding(self, tmp_path: Path) -> None:
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+            # DS would round down, but GT is heterozygous.
+            "22\t100\trsa\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|1:0.49\n"
+            # DS is exactly the boundary, but GT is homozygous reference.
+            "22\t200\trsb\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|0:0.5\n"
+            # DS is closer to het than hom-alt, but GT is homozygous ALT.
+            "22\t300\trsc\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t1|1:1.49\n"
+        )
+        by_pos = {
+            v.pos: v
+            for v in parse_engine_vcf(
+                _write(tmp_path / "gt.vcf", vcf),
+                quality_key="INFO",
+                af_key="RAF",
+                imputed_flag_key=None,
+            )
+        }
+        assert by_pos[100].dosage == 0.49
+        assert by_pos[100].best_guess_copies == 1
+        assert by_pos[200].dosage == 0.5
+        assert by_pos[200].best_guess_copies == 0
+        assert by_pos[300].dosage == 1.49
+        assert by_pos[300].best_guess_copies == 2
+
+    def test_missing_or_malformed_gt_does_not_invent_best_guess(self, tmp_path: Path) -> None:
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+            "22\t100\trsa\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tDS\t1.0\n"
+            "22\t200\trsb\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t.|1:1.0\n"
+        )
+        by_pos = {
+            v.pos: v
+            for v in parse_engine_vcf(
+                _write(tmp_path / "missing-gt.vcf", vcf),
+                quality_key="INFO",
+                af_key="RAF",
+                imputed_flag_key=None,
+            )
+        }
+        assert by_pos[100].dosage == 1.0
+        assert by_pos[100].best_guess_copies is None
+        assert by_pos[200].dosage == 1.0
+        assert by_pos[200].best_guess_copies is None
 
 
 class TestNormalizeChrom:

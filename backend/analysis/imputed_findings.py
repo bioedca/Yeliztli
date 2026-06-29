@@ -17,12 +17,13 @@ clinical-grade confirmation.
   before it can back a finding (well-imputed ``DR2 >= 0.8`` **and** common
   ``MAF >= 1%``) — defense in depth over the persistence-time filter, so an imputed
   P/LP call can never rest on a rare or low-quality imputed dosage.
-* **Carriage only.** The continuous Beagle dosage (ALT dose 0–2) is hard-called to
-  a best-guess copy count by rounding — the standard best-guess genotype, which for a
-  well-imputed (``R² > 0.8``) variant coincides with the max-posterior call (Naj 2019,
-  DOI:10.1002/cphg.84; Marchini & Howie 2010, PMID:20517342; accessed 2026-06-27).
-  Only an individual carrying ≥ 1 copy of the ALT (= the ClinVar) allele gets a
-  finding; hom-reference and missing-dosage rows surface nothing.
+* **Carriage only.** The discrete FORMAT ``GT`` best-guess / MAP genotype supplies
+  the ALT copy count for clinical carriage. The continuous ``DS`` dosage remains
+  metadata (and PRS input), but it is not rounded into a clinical genotype because
+  dosage is an expected ALT count and can disagree with the max-posterior call
+  (Marchini & Howie 2010, PMID:20517342; accessed 2026-06-29). Only an individual
+  carrying ≥ 1 copy of the ALT (= the ClinVar) allele gets a finding; hom-reference
+  and missing-GT rows surface nothing.
 * **Exact-allele match.** The imputed ``(chrom, pos, ref, alt)`` must match a
   ClinVar record exactly, so the finding rests on *that* allele's classification —
   not a higher-star benign record at a multi-allelic site.
@@ -63,8 +64,8 @@ IMPUTED_CLINVAR_PATHOGENIC_CATEGORY = "imputed_clinvar_pathogenic"
 # Imputed P/LP calls are statistically inferred, not directly observed, so they are
 # capped below the high-confidence (≥3-star) headline tier regardless of the ClinVar
 # review-star evidence the same variant would earn if directly typed: imputation is
-# reliable for common, well-imputed variants, but a best-guess dosage hard-call is still
-# an inference. The firewall + this cap + the caveat keep it appropriately framed.
+# reliable for common, well-imputed variants, but an imputed best-guess GT call is
+# still an inference. The firewall + this cap + the caveat keep it appropriately framed.
 IMPUTED_EVIDENCE_CAP = 2
 # Disclosure carried with every imputed clinical finding. Statistically imputed variants
 # entering clinical interpretation have low positive predictive value and must be
@@ -106,7 +107,7 @@ class ImputedClinVarFinding:
     alt: str
     dr2: float
     af: float
-    dosage: float
+    dosage: float | None
     copies: int  # best-guess ALT copy count (1 = het, 2 = hom-alt)
     zygosity: str  # "het" | "hom_alt"
     rsid: str | None
@@ -125,12 +126,19 @@ def _load_carried_imputed_variants(
 
     Graceful degradation: returns ``[]`` when ``imputed_variants`` is absent (a sample
     DB predating Wave C) or empty (no imputation persisted) — so this whole module is a
-    no-op there, byte-identical to not running it. Rows with a missing or best-guess
-    hom-reference dosage (``round(dosage) < 1``) carry nothing and are dropped, and the
-    SW-C3 firewall is re-asserted at the gate over each surviving row (defense in depth).
+    no-op there, byte-identical to not running it. Rows with a missing best-guess
+    genotype, or with best-guess hom-reference ``GT`` (``best_guess_copies == 0``),
+    carry nothing and are dropped. ``DS`` is retained as dosage metadata only; it is
+    never rounded into a clinical genotype. The SW-C3 firewall is re-asserted at the
+    gate over each surviving row (defense in depth).
     """
     with sample_engine.connect() as conn:
-        if not sa.inspect(conn).has_table(imputed_variants.name):
+        inspector = sa.inspect(conn)
+        if not inspector.has_table(imputed_variants.name):
+            return []
+        existing_cols = {c["name"] for c in inspector.get_columns(imputed_variants.name)}
+        if "best_guess_copies" not in existing_cols:
+            logger.info("imputed_variants_best_guess_copies_missing")
             return []
         rows = conn.execute(
             sa.select(
@@ -141,15 +149,19 @@ def _load_carried_imputed_variants(
                 imputed_variants.c.dr2,
                 imputed_variants.c.af,
                 imputed_variants.c.dosage,
+                imputed_variants.c.best_guess_copies,
             )
         ).fetchall()
 
     carried: list[tuple[ImputedVariant, int]] = []
     for r in rows:
-        if r.dosage is None:
+        if r.best_guess_copies is None:
             continue
-        copies = round(r.dosage)
-        if copies < 1:
+        try:
+            copies = int(r.best_guess_copies)
+        except (TypeError, ValueError):
+            continue
+        if copies not in (1, 2):
             continue  # best-guess hom-reference: not a carrier of the ALT allele
         variant = ImputedVariant(
             chrom=r.chrom,
@@ -160,10 +172,11 @@ def _load_carried_imputed_variants(
             af=r.af,
             imputed=True,
             dosage=r.dosage,
+            best_guess_copies=copies,
         )
         if not imputed_variant_surfaceable(variant):
             continue  # firewall at the gate (defense in depth over persistence)
-        carried.append((variant, min(copies, 2)))
+        carried.append((variant, copies))
     return carried
 
 
@@ -292,7 +305,7 @@ def find_imputed_clinvar_findings(
                         alt=variant.alt,
                         dr2=variant.dr2 if variant.dr2 is not None else 0.0,
                         af=variant.af if variant.af is not None else 0.0,
-                        dosage=variant.dosage if variant.dosage is not None else 0.0,
+                        dosage=variant.dosage,
                         copies=copies,
                         zygosity="hom_alt" if copies >= 2 else "het",
                         rsid=row.rsid,

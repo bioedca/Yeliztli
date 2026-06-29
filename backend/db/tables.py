@@ -953,11 +953,22 @@ imputed_variants = sa.Table(
     # variant is still stored even if DS was malformed (PRS scoring skips null doses);
     # only the dr2/af firewall fields are hard-required.
     sa.Column("dosage", sa.Float, comment="Beagle estimated ALT dose (DS, 0-2)"),
+    # Best-guess ALT copies from FORMAT GT. ClinVar carriage uses this discrete
+    # MAP call; DS remains a continuous dosage metadata/PRS field.
+    sa.Column(
+        "best_guess_copies",
+        sa.Integer,
+        comment="ALT copies from imputed FORMAT GT best-guess genotype (0, 1, 2)",
+    ),
     sa.PrimaryKeyConstraint("chrom", "pos", "alt"),
     sa.CheckConstraint("dr2 >= 0 AND dr2 <= 1", name="ck_imputed_variants_dr2_range"),
     sa.CheckConstraint("af >= 0 AND af <= 1", name="ck_imputed_variants_af_range"),
     sa.CheckConstraint(
         "dosage IS NULL OR (dosage >= 0 AND dosage <= 2)", name="ck_imputed_variants_dosage_range"
+    ),
+    sa.CheckConstraint(
+        "best_guess_copies IS NULL OR best_guess_copies IN (0, 1, 2)",
+        name="ck_imputed_variants_best_guess_copies",
     ),
 )
 

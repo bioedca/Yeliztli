@@ -90,6 +90,8 @@ class ImputedVariant:
     af: float | None  # population (reference-panel) ALT allele frequency
     imputed: bool  # True = imputed posterior; False = directly typed (Beagle only)
     dosage: float | None = None  # estimated ALT dose (FORMAT DS, per-sample, 0-2)
+    # ALT copies in the sample FORMAT GT best-guess genotype / MAP call.
+    best_guess_copies: int | None = None
 
 
 def _compile_info_value_re(key: str) -> re.Pattern[str]:
@@ -158,6 +160,44 @@ def _sample_dosages(format_field: str, sample_field: str) -> list[float | None]:
     return out
 
 
+def _sample_best_guess_copies(
+    format_field: str, sample_field: str, *, n_alts: int
+) -> list[int | None]:
+    """Parse per-ALT copy counts from the sample's ``GT`` best-guess genotype.
+
+    ``GT`` uses allele indexes where ``0`` is REF and ``1..n`` are the ALT alleles.
+    Returns one ALT-copy count per ALT, ``[]`` when ``GT`` is absent, and ``None``
+    for every ALT when the genotype is missing or malformed.
+    """
+    keys = format_field.split(":")
+    if "GT" not in keys:
+        return []
+    idx = keys.index("GT")
+    values = sample_field.split(":")
+    if idx >= len(values):
+        return []
+    gt = values[idx].strip()
+    if not gt:
+        return [None] * n_alts
+
+    counts = [0] * n_alts
+    for tok in re.split(r"[|/]", gt):
+        allele = tok.strip()
+        if allele in {"", "."}:
+            return [None] * n_alts
+        try:
+            allele_idx = int(allele)
+        except ValueError:
+            return [None] * n_alts
+        if allele_idx < 0 or allele_idx > n_alts:
+            return [None] * n_alts
+        if allele_idx == 0:
+            continue
+        counts[allele_idx - 1] += 1
+
+    return [copies if 0 <= copies <= 2 else None for copies in counts]
+
+
 def parse_engine_vcf(
     vcf_path: Path,
     *,
@@ -177,9 +217,9 @@ def parse_engine_vcf(
       (Beagle ``IMP``). When ``None`` (GLIMPSE2 / IMPUTE5), **every** marker is
       treated as imputed.
 
-    The sample's per-ALT ``DS`` dosage is read from FORMAT when present.
-    Multi-allelic markers yield one record per ALT, each paired with its aligned
-    quality / AF / dosage entry.
+    The sample's per-ALT ``DS`` dosage and ``GT`` best-guess ALT copy count are
+    read from FORMAT when present. Multi-allelic markers yield one record per ALT,
+    each paired with its aligned quality / AF / dosage / copy-count entry.
     """
     q_re = _compile_info_value_re(quality_key)
     af_re = _compile_info_value_re(af_key)
@@ -208,9 +248,15 @@ def parse_engine_vcf(
                     f"expected a single-sample imputed VCF, found {len(parts) - 9} "
                     f"samples in {vcf_path}"
                 )
+            alts = alt.split(",")
             dosage = _sample_dosages(parts[8], parts[9]) if len(parts) == 10 else []
+            best_guess = (
+                _sample_best_guess_copies(parts[8], parts[9], n_alts=len(alts))
+                if len(parts) == 10
+                else []
+            )
             ref_u = ref.strip().upper()
-            for i, a in enumerate(alt.split(",")):
+            for i, a in enumerate(alts):
                 yield ImputedVariant(
                     chrom=chrom.strip(),
                     pos=pos,
@@ -219,5 +265,6 @@ def parse_engine_vcf(
                     dr2=quality[i] if i < len(quality) else None,
                     af=af[i] if i < len(af) else None,
                     dosage=dosage[i] if i < len(dosage) else None,
+                    best_guess_copies=best_guess[i] if i < len(best_guess) else None,
                     imputed=imputed,
                 )

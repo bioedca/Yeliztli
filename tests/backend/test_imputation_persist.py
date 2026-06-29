@@ -43,9 +43,18 @@ def _iv(
     ref: str = "A",
     alt: str = "G",
     dosage: float | None = 1.0,
+    best_guess_copies: int | None = 1,
 ) -> ImputedVariant:
     return ImputedVariant(
-        chrom="22", pos=pos, ref=ref, alt=alt, dr2=dr2, af=af, imputed=imputed, dosage=dosage
+        chrom="22",
+        pos=pos,
+        ref=ref,
+        alt=alt,
+        dr2=dr2,
+        af=af,
+        imputed=imputed,
+        dosage=dosage,
+        best_guess_copies=best_guess_copies,
     )
 
 
@@ -71,12 +80,23 @@ class TestPersist:
             (500, 0.88, 0.97),
         }
 
-    def test_dosage_round_trips(self, sample_engine: sa.Engine) -> None:
+    def test_dosage_and_best_guess_round_trip(self, sample_engine: sa.Engine) -> None:
         persist_imputed_variants(
-            sample_engine, [_iv(pos=100, dr2=0.95, af=0.30, imputed=True, dosage=1.37)]
+            sample_engine,
+            [
+                _iv(
+                    pos=100,
+                    dr2=0.95,
+                    af=0.30,
+                    imputed=True,
+                    dosage=1.37,
+                    best_guess_copies=2,
+                )
+            ],
         )
         rows = _read_rows(sample_engine)
         assert rows[0]["dosage"] == 1.37
+        assert rows[0]["best_guess_copies"] == 2
 
     def test_replace_semantics(self, sample_engine: sa.Engine) -> None:
         persist_imputed_variants(sample_engine, [_iv(pos=100, dr2=0.95, af=0.30, imputed=True)])
@@ -179,14 +199,15 @@ class TestImputeAndPersistSample:
 
         rows = _read_rows(sample_engine)
         assert len(rows) == 1
-        # DS=1 from the rs1 sample column round-trips as dosage.
+        # DS=1 and GT=0|1 from the rs1 sample column round-trip as separate fields.
         assert (
             rows[0]["chrom"],
             rows[0]["pos"],
             rows[0]["alt"],
             rows[0]["dr2"],
             rows[0]["dosage"],
-        ) == ("22", 100, "A", 0.95, 1.0)
+            rows[0]["best_guess_copies"],
+        ) == ("22", 100, "A", 0.95, 1.0, 1)
 
     def test_partial_failure_skips_persist_and_preserves_prior(
         self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
@@ -273,3 +294,29 @@ class TestDosageMigration:
         cols_after = {c["name"] for c in sa.inspect(engine).get_columns("imputed_variants")}
         assert added is True
         assert "dosage" in cols_after
+        assert "best_guess_copies" in cols_after
+
+
+class TestBestGuessCopiesMigration:
+    def test_add_missing_columns_adds_best_guess_to_pre_v17_table(self) -> None:
+        from backend.db.sample_schema import _add_missing_columns
+
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE imputed_variants ("
+                    "chrom TEXT NOT NULL, pos INTEGER NOT NULL, ref TEXT NOT NULL, "
+                    "alt TEXT NOT NULL, dr2 REAL NOT NULL, af REAL NOT NULL, "
+                    "dosage REAL CHECK (dosage IS NULL OR (dosage >= 0 AND dosage <= 2)), "
+                    "PRIMARY KEY (chrom, pos, alt))"
+                )
+            )
+        cols_before = {c["name"] for c in sa.inspect(engine).get_columns("imputed_variants")}
+        assert "dosage" in cols_before
+        assert "best_guess_copies" not in cols_before
+
+        added = _add_missing_columns(engine, from_version=16)
+        cols_after = {c["name"] for c in sa.inspect(engine).get_columns("imputed_variants")}
+        assert added is True
+        assert "best_guess_copies" in cols_after

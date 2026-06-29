@@ -2,10 +2,10 @@
 
 Covers the safety posture that makes imputed P/LP findings defensible:
 graceful degradation (no imputation → no findings), the firewall re-asserted at
-the finding gate, carriage hard-called from dosage, exact-allele ClinVar matching,
-exclusion of chip-typed loci, the evidence-level cap, and the imputed-not-typed
-label + confirm-clinically caveat. Mirrors the in-memory SQLite fixture pattern
-used across the backend suite.
+the finding gate, carriage taken from the imputed GT best-guess genotype,
+exact-allele ClinVar matching, exclusion of chip-typed loci, the evidence-level
+cap, and the imputed-not-typed label + confirm-clinically caveat. Mirrors the
+in-memory SQLite fixture pattern used across the backend suite.
 """
 
 from __future__ import annotations
@@ -35,9 +35,23 @@ from backend.db.tables import (
 HFE = {"chrom": "6", "pos": 26093141, "ref": "G", "alt": "A"}
 
 
-def _imp(*, dr2: float = 0.95, af: float = 0.05, dosage: float | None = 1.0, **over) -> dict:
+def _imp(
+    *,
+    dr2: float = 0.95,
+    af: float = 0.05,
+    dosage: float | None = 1.0,
+    best_guess_copies: int | None = 1,
+    **over,
+) -> dict:
     """An ``imputed_variants`` row (defaults: HFE C282Y, well-imputed, common, het)."""
-    return {**HFE, "dr2": dr2, "af": af, "dosage": dosage, **over}
+    return {
+        **HFE,
+        "dr2": dr2,
+        "af": af,
+        "dosage": dosage,
+        "best_guess_copies": best_guess_copies,
+        **over,
+    }
 
 
 def _cv(
@@ -131,15 +145,16 @@ def test_surfaces_imputed_pathogenic(
     assert "33589468" in json.loads(row.pmid_citations)
 
 
-def test_hom_alt_dosage_sets_zygosity(
+def test_best_guess_hom_alt_sets_zygosity(
     sample_engine: sa.Engine, reference_engine: sa.Engine
 ) -> None:
-    _seed_imputed(sample_engine, [_imp(dosage=1.8)])  # round(1.8) == 2
+    _seed_imputed(sample_engine, [_imp(dosage=1.2, best_guess_copies=2)])
     _seed_clinvar(reference_engine, [_cv()])
     results = find_imputed_clinvar_findings(sample_engine, reference_engine)
     assert len(results) == 1
     assert results[0].zygosity == "hom_alt"
     assert results[0].copies == 2
+    assert results[0].dosage == 1.2
 
 
 # ── Firewall enforced at the gate (defense in depth) ──────────────────────
@@ -161,21 +176,75 @@ def test_firewall_quarantines_rare(sample_engine: sa.Engine, reference_engine: s
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
 
 
-# ── Carriage hard-called from dosage ──────────────────────────────────────
+# ── Carriage comes from GT best-guess genotype, not rounded DS ─────────────
 
 
-def test_hom_reference_dosage_not_a_carrier(
+def test_best_guess_hom_reference_not_a_carrier(
     sample_engine: sa.Engine, reference_engine: sa.Engine
 ) -> None:
-    _seed_imputed(sample_engine, [_imp(dosage=0.2)])  # round(0.2) == 0
+    _seed_imputed(sample_engine, [_imp(dosage=1.0, best_guess_copies=0)])
     _seed_clinvar(reference_engine, [_cv()])
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
 
 
-def test_missing_dosage_not_a_carrier(
+def test_missing_best_guess_not_a_carrier(
     sample_engine: sa.Engine, reference_engine: sa.Engine
 ) -> None:
-    _seed_imputed(sample_engine, [_imp(dosage=None)])
+    _seed_imputed(sample_engine, [_imp(dosage=1.8, best_guess_copies=None)])
+    _seed_clinvar(reference_engine, [_cv()])
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_gt_het_surfaces_when_dosage_would_round_to_zero(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    _seed_imputed(sample_engine, [_imp(dosage=0.49, best_guess_copies=1)])
+    _seed_clinvar(reference_engine, [_cv()])
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+    assert len(results) == 1
+    assert results[0].zygosity == "het"
+    assert results[0].copies == 1
+    assert results[0].dosage == 0.49
+
+
+def test_dosage_half_boundary_does_not_create_carrier(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    _seed_imputed(sample_engine, [_imp(dosage=0.5, best_guess_copies=0)])
+    _seed_clinvar(reference_engine, [_cv()])
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_missing_dosage_with_gt_carriage_still_surfaces(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    _seed_imputed(sample_engine, [_imp(dosage=None, best_guess_copies=1)])
+    _seed_clinvar(reference_engine, [_cv()])
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+    assert len(results) == 1
+    assert results[0].dosage is None
+
+
+def test_legacy_table_without_best_guess_withholds_instead_of_rounding_ds(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    imputed_variants.drop(sample_engine)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE imputed_variants ("
+                "chrom TEXT NOT NULL, pos INTEGER NOT NULL, ref TEXT NOT NULL, "
+                "alt TEXT NOT NULL, dr2 REAL NOT NULL, af REAL NOT NULL, dosage REAL, "
+                "PRIMARY KEY (chrom, pos, alt))"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO imputed_variants "
+                "(chrom, pos, ref, alt, dr2, af, dosage) "
+                "VALUES ('6', 26093141, 'G', 'A', 0.95, 0.05, 1.8)"
+            )
+        )
     _seed_clinvar(reference_engine, [_cv()])
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
 
