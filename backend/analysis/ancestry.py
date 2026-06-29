@@ -152,6 +152,11 @@ POPULATION_LABELS: dict[str, str] = {
 }
 
 
+def population_display_label(population: str) -> str:
+    """Return the user-facing display label for a population code."""
+    return POPULATION_LABELS.get(population, population)
+
+
 # ── Data classes ──────────────────────────────────────────────────────────
 
 
@@ -1114,8 +1119,16 @@ def store_ancestry_findings(
 
     # Build admixture summary for finding text (top 3 contributions)
     sorted_admixture = sorted(result.admixture_fractions.items(), key=lambda x: x[1], reverse=True)
-    admixture_parts = [f"{pop} {frac:.0%}" for pop, frac in sorted_admixture[:3] if frac >= 0.01]
-    admixture_summary = ", ".join(admixture_parts) if admixture_parts else result.top_population
+    admixture_parts = [
+        f"{population_display_label(pop)} {frac:.0%}"
+        for pop, frac in sorted_admixture[:3]
+        if frac >= 0.01
+    ]
+    admixture_summary = (
+        ", ".join(admixture_parts)
+        if admixture_parts
+        else population_display_label(result.top_population)
+    )
     # Honest headline: never assert a single population for an admixed/between-clusters
     # sample (the NNLS breakdown follows as supporting detail, not a verdict).
     if result.classification_status == "admixed":
@@ -1196,7 +1209,9 @@ def store_ancestry_findings(
         "module": "ancestry",
         "category": "knn_admixture",
         "evidence_level": ANCESTRY_EVIDENCE_LEVEL,
-        "finding_text": (f"kNN admixture estimate (k=15): {result.top_population}"),
+        "finding_text": (
+            f"kNN admixture estimate (k=15): {population_display_label(result.top_population)}"
+        ),
         "detail_json": json.dumps(knn_detail),
     }
 

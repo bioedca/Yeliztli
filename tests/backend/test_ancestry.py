@@ -16,6 +16,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -25,6 +26,7 @@ import sqlalchemy as sa
 
 from backend.analysis.ancestry import (
     ADMIXED,
+    POPULATION_LABELS,
     UNCERTAIN,
     AncestryAIM,
     AncestryBundle,
@@ -47,6 +49,7 @@ from backend.analysis.ancestry import (
     get_pca_coordinates,
     infer_ancestry,
     load_ancestry_bundle,
+    population_display_label,
     store_ancestry_findings,
 )
 from backend.db.tables import annotated_variants, findings, raw_variants
@@ -60,6 +63,38 @@ BUNDLE_PATH = (
     / "panels"
     / "ancestry_pca_bundle.npz"
 )
+FRONTEND_ANCESTRY_CONSTANTS = (
+    Path(__file__).resolve().parent.parent.parent
+    / "frontend"
+    / "src"
+    / "components"
+    / "ancestry"
+    / "constants.ts"
+)
+
+
+def _frontend_population_labels() -> dict[str, str]:
+    text = FRONTEND_ANCESTRY_CONSTANTS.read_text(encoding="utf-8")
+    body = re.search(
+        r"export const POPULATION_LABELS: Record<string, string> = \{(.*?)\n\}",
+        text,
+        re.DOTALL,
+    )
+    assert body, "could not locate POPULATION_LABELS in frontend ancestry constants"
+    return dict(re.findall(r"^\s+([A-Z]{3}): \"([^\"]+)\",?$", body.group(1), re.MULTILINE))
+
+
+def test_frontend_population_labels_match_backend_constant() -> None:
+    assert FRONTEND_ANCESTRY_CONSTANTS.exists(), (
+        f"frontend ancestry constants not found at {FRONTEND_ANCESTRY_CONSTANTS} "
+        "- update this cross-stack parity guard if the file moved."
+    )
+    assert _frontend_population_labels() == POPULATION_LABELS
+
+
+def test_population_display_label_falls_back_to_unknown_code() -> None:
+    assert population_display_label("EUR") == "European"
+    assert population_display_label("UNKNOWN") == "UNKNOWN"
 
 
 @pytest.fixture()
@@ -1004,7 +1039,46 @@ class TestStoreAncestryFindings:
                 .where(findings.c.module == "ancestry")
                 .where(findings.c.category == "nnls_admixture")
             ).fetchone()
-        assert result.top_population in row.finding_text
+        assert population_display_label(result.top_population) in row.finding_text
+        assert result.top_population not in row.finding_text
+
+        detail = json.loads(row.detail_json)
+        assert detail["top_population"] == result.top_population
+
+    def test_admixture_finding_text_humanizes_codes_but_keeps_detail_codes(
+        self,
+        small_bundle: AncestryBundle,
+        eur_sample: sa.Engine,
+    ) -> None:
+        result = infer_ancestry(small_bundle, eur_sample)
+        store_ancestry_findings(result, eur_sample)
+
+        with eur_sample.connect() as conn:
+            rows = {
+                row.category: row
+                for row in conn.execute(
+                    sa.select(findings)
+                    .where(findings.c.module == "ancestry")
+                    .where(findings.c.category.in_(("nnls_admixture", "knn_admixture")))
+                ).fetchall()
+            }
+
+        nnls_text = rows["nnls_admixture"].finding_text
+        visible_admixture_codes = [
+            pop for pop, frac in result.admixture_fractions.items() if frac >= 0.01
+        ]
+        assert visible_admixture_codes
+        for pop in visible_admixture_codes:
+            assert population_display_label(pop) in nnls_text
+            assert pop not in nnls_text
+
+        nnls_detail = json.loads(rows["nnls_admixture"].detail_json)
+        assert nnls_detail["top_population"] == result.top_population
+        assert set(nnls_detail["admixture_fractions"]) == set(result.admixture_fractions)
+
+        knn_text = rows["knn_admixture"].finding_text
+        assert population_display_label(result.top_population) in knn_text
+        assert result.top_population not in knn_text
 
 
 # ── PCA coordinates for visualization (P3-25) ────────────────────────────
