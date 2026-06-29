@@ -1,6 +1,20 @@
 /** Carrier status module API types (P3-38). */
 
-/** A single heterozygous P/LP variant in the carrier panel. */
+export interface CarrierComponentVariant {
+  rsid: string
+  chrom: string | null
+  pos: number | null
+  ref: string | null
+  alt: string | null
+  genotype: string | null
+  zygosity: string
+  clinvar_significance: string | null
+  clinvar_review_stars: number
+  clinvar_accession: string | null
+  clinvar_conditions: string | null
+}
+
+/** A single carrier-module carrier or affected-status finding in the panel. */
 export interface CarrierVariant {
   rsid: string
   gene_symbol: string
@@ -17,9 +31,14 @@ export interface CarrierVariant {
   cross_links: string[]
   pmids: string[]
   notes: string
+  category?: string | null
+  finding_type?: "carrier" | "affected_homozygous" | "possible_compound_heterozygote"
+  variant_ids?: string[]
+  component_variants?: CarrierComponentVariant[]
+  phase_caveat?: string | null
 }
 
-/** All carrier findings for a sample. */
+/** All carrier-module findings for a sample. */
 export interface CarrierVariantsListResponse {
   items: CarrierVariant[]
   total: number

@@ -1,9 +1,10 @@
 """Carrier status gene panel definition, loader, and analysis module.
 
-Implements P3-35 (panel) and P3-36 (het P/LP filtering):
+Implements P3-35 (panel) and P3-36 (carrier and affected-status filtering):
   - P3-35: Curated carrier gene panel with expected ClinVar entries.
   - P3-36: Extract heterozygous ClinVar Pathogenic/Likely pathogenic variants
-    in carrier panel genes. Homozygous P/LP = disease (out of scope).
+    in carrier panel genes, and surface autosomal-recessive homozygous or
+    possible compound-heterozygous P/LP patterns as affected-status findings.
 
 Curated panel of 7 genes associated with autosomal recessive conditions
 relevant to reproductive carrier screening:
@@ -41,6 +42,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -51,6 +53,7 @@ from backend.analysis.clinvar_significance import (
     LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
     LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
     is_low_penetrance_or_risk_allele,
+    is_pathogenic_primary,
     low_penetrance_or_risk_allele_filter,
     pathogenic_significance_filter,
 )
@@ -209,7 +212,13 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 # than turning a questionable array call into a carrier result (#221).
 _PSEUDOGENE_UNRELIABLE_GENES = frozenset({"GBA"})
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
+_AUTOSOMAL_RECESSIVE_AFFECTED_CATEGORY = "autosomal_recessive_affected"
+_AUTOSOMAL_RECESSIVE_COMPOUND_HET_CATEGORY = "autosomal_recessive_possible_compound_heterozygote"
 _DUAL_ROLE_CARRIER_CATEGORY = "autosomal_dominant_dual_role_carrier"
+_FINDING_TYPE_CARRIER = "carrier"
+_FINDING_TYPE_AFFECTED_HOMOZYGOUS = "affected_homozygous"
+_FINDING_TYPE_POSSIBLE_COMPOUND_HET = "possible_compound_heterozygote"
+_AFFECTED_HOMOZYGOUS_ZYGOSITIES = frozenset({"hom", "hom_alt"})
 # Re-verifiable provenance for the I/D indel polarity used below (#256). The
 # vendor I/D token convention is the same one applied to GJB2 35delG
 # (gene_health_panel.json) and APOL1 G2 (apol1_panel.json) — kept here as a
@@ -254,7 +263,7 @@ _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str
 
 @dataclass
 class CarrierVariantResult:
-    """A single heterozygous P/LP variant found in the carrier gene panel."""
+    """A single user-facing carrier-module finding."""
 
     rsid: str
     gene_symbol: str
@@ -271,6 +280,10 @@ class CarrierVariantResult:
     pmids: list[str]
     notes: str
     clinvar_low_penetrance_or_risk_allele: bool = False
+    finding_type: str = _FINDING_TYPE_CARRIER
+    variant_ids: list[str] = field(default_factory=list)
+    component_variants: list[dict[str, object]] = field(default_factory=list)
+    phase_caveat: str | None = None
 
 
 @dataclass
@@ -281,13 +294,15 @@ class CarrierAnalysisResult:
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
     homozygous_plp_skipped: int = 0
+    affected_status_findings: int = 0
+    possible_compound_heterozygous_findings: int = 0
     # P/LP rows dropped because the gene is pseudogene-confounded from array data
     # (GBA1/GBAP1) and not reportable as a carrier finding (#221).
     pseudogene_suppressed: int = 0
 
     @property
     def carrier_count(self) -> int:
-        """Number of heterozygous P/LP carrier variants found."""
+        """Number of carrier-module findings found."""
         return len(self.variants)
 
     @property
@@ -335,6 +350,10 @@ def _has_personal_risk_context(variant: CarrierVariantResult) -> bool:
 
 def _carrier_finding_category(variant: CarrierVariantResult) -> str:
     """Return the storage category for a carrier finding."""
+    if variant.finding_type == _FINDING_TYPE_AFFECTED_HOMOZYGOUS:
+        return _AUTOSOMAL_RECESSIVE_AFFECTED_CATEGORY
+    if variant.finding_type == _FINDING_TYPE_POSSIBLE_COMPOUND_HET:
+        return _AUTOSOMAL_RECESSIVE_COMPOUND_HET_CATEGORY
     if variant.clinvar_low_penetrance_or_risk_allele:
         return LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
     if _has_personal_risk_context(variant):
@@ -342,9 +361,35 @@ def _carrier_finding_category(variant: CarrierVariantResult) -> str:
     return _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY
 
 
+def _variant_id_text(variant: CarrierVariantResult) -> str:
+    """Return a compact display list for one or more component variants."""
+    return ", ".join(variant.variant_ids or [variant.rsid])
+
+
 def _carrier_finding_text(variant: CarrierVariantResult) -> str:
     """Build the user-facing carrier finding text for one variant."""
     condition_text = ", ".join(variant.conditions) if variant.conditions else "carrier status"
+    variant_text = _variant_id_text(variant)
+    if variant.finding_type == _FINDING_TYPE_AFFECTED_HOMOZYGOUS:
+        return (
+            f"{variant.gene_symbol}: A homozygous {variant.clinvar_significance.lower()} "
+            f"variant ({variant_text}) is present in an autosomal-recessive disease gene "
+            f"associated with {condition_text}. This is an affected-status result, not a "
+            "typical carrier finding. Review this result with a clinician or genetics "
+            "professional and confirm with clinical-grade testing."
+        )
+    if variant.finding_type == _FINDING_TYPE_POSSIBLE_COMPOUND_HET:
+        caveat = variant.phase_caveat or (
+            "Genotyping arrays do not phase these variants, so clinical testing is needed "
+            "to determine whether they are on opposite chromosomes."
+        )
+        return (
+            f"{variant.gene_symbol}: Two distinct {variant.clinvar_significance.lower()} "
+            f"variants ({variant_text}) were found in an autosomal-recessive disease gene "
+            f"associated with {condition_text}. If these variants are in trans, this pattern "
+            "is consistent with affected status rather than an unaffected carrier state. "
+            f"{caveat} Review this result with a clinician or genetics professional."
+        )
     base = (
         f"{variant.gene_symbol}: You carry one copy of a "
         f"{variant.clinvar_significance.lower()} variant ({variant.rsid}) "
@@ -446,26 +491,158 @@ def _carrier_rsid_preference_key(row: sa.Row) -> tuple[int, str]:
     return (0 if is_dbsnp_rsid else 1, normalized)
 
 
+def _unique_join(values: list[str | None]) -> str:
+    """Join non-empty values while preserving first-seen order."""
+    seen: set[str] = set()
+    kept: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        normalized = value.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        kept.append(normalized)
+    return "; ".join(kept)
+
+
+def _component_variant_from_row(row: sa.Row, zygosity: str) -> dict[str, object]:
+    """Return serializable component detail for an aggregate carrier finding."""
+    return {
+        "rsid": row.rsid,
+        "chrom": row.chrom,
+        "pos": row.pos,
+        "ref": row.ref,
+        "alt": row.alt,
+        "genotype": row.genotype,
+        "zygosity": zygosity,
+        "clinvar_significance": row.clinvar_significance,
+        "clinvar_review_stars": row.clinvar_review_stars or 0,
+        "clinvar_accession": row.clinvar_accession,
+        "clinvar_conditions": row.clinvar_conditions,
+    }
+
+
+def _variant_ids_from_rows(rows: list[sa.Row]) -> list[str]:
+    """Return stable component variant IDs for display and storage."""
+    return [(row.rsid or "").strip() for row in rows if (row.rsid or "").strip()]
+
+
+def _evidence_level_for_rows(rows: list[sa.Row], gene_info: CarrierGene) -> int:
+    """Return conservative aggregate evidence across component variant rows."""
+    levels = [
+        _assign_carrier_evidence_level(
+            row.clinvar_significance or "",
+            row.clinvar_review_stars or 0,
+            gene_info.evidence_level,
+        )
+        for row in rows
+    ]
+    return min(levels) if levels else gene_info.evidence_level
+
+
+def _build_carrier_variant_result(
+    row: sa.Row,
+    gene_info: CarrierGene,
+    zygosity: str,
+) -> CarrierVariantResult:
+    """Build a standard single-variant carrier finding."""
+    evidence = _assign_carrier_evidence_level(
+        row.clinvar_significance or "",
+        row.clinvar_review_stars or 0,
+        gene_info.evidence_level,
+    )
+    lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
+    variant_ids = _variant_ids_from_rows([row])
+
+    return CarrierVariantResult(
+        rsid=row.rsid,
+        gene_symbol=row.gene_symbol,
+        genotype=row.genotype or "",
+        zygosity=zygosity,
+        clinvar_significance=row.clinvar_significance,
+        clinvar_review_stars=row.clinvar_review_stars or 0,
+        clinvar_accession=row.clinvar_accession,
+        clinvar_conditions=row.clinvar_conditions,
+        conditions=gene_info.conditions,
+        inheritance=gene_info.inheritance,
+        evidence_level=evidence,
+        cross_links=gene_info.cross_links,
+        pmids=gene_info.pmids,
+        notes=gene_info.notes,
+        clinvar_low_penetrance_or_risk_allele=lower_penetrance,
+        finding_type=_FINDING_TYPE_CARRIER,
+        variant_ids=variant_ids,
+        component_variants=[_component_variant_from_row(row, zygosity)],
+    )
+
+
+def _build_aggregate_carrier_result(
+    entries: list[tuple[sa.Row, str]],
+    gene_info: CarrierGene,
+    *,
+    finding_type: str,
+    zygosity: str,
+    phase_caveat: str | None = None,
+) -> CarrierVariantResult:
+    """Build a single affected-status finding from multiple component rows."""
+    sorted_entries = sorted(entries, key=lambda entry: _carrier_rsid_preference_key(entry[0]))
+    sorted_rows = [entry[0] for entry in sorted_entries]
+    variant_ids = _variant_ids_from_rows(sorted_rows)
+    genotype = "; ".join(
+        f"{row.rsid}:{row.genotype}" for row in sorted_rows if row.rsid and row.genotype
+    )
+    significances = _unique_join([row.clinvar_significance for row in sorted_rows])
+    accessions = _unique_join([row.clinvar_accession for row in sorted_rows]) or None
+    clinvar_conditions = _unique_join([row.clinvar_conditions for row in sorted_rows]) or None
+
+    return CarrierVariantResult(
+        rsid=", ".join(variant_ids),
+        gene_symbol=gene_info.gene_symbol,
+        genotype=genotype,
+        zygosity=zygosity,
+        clinvar_significance=significances,
+        clinvar_review_stars=min((row.clinvar_review_stars or 0) for row in sorted_rows),
+        clinvar_accession=accessions,
+        clinvar_conditions=clinvar_conditions,
+        conditions=gene_info.conditions,
+        inheritance=gene_info.inheritance,
+        evidence_level=_evidence_level_for_rows(sorted_rows, gene_info),
+        cross_links=gene_info.cross_links,
+        pmids=gene_info.pmids,
+        notes=gene_info.notes,
+        finding_type=finding_type,
+        variant_ids=variant_ids,
+        component_variants=[
+            _component_variant_from_row(row, component_zygosity)
+            for row, component_zygosity in sorted_entries
+        ],
+        phase_caveat=phase_caveat,
+    )
+
+
 def extract_carrier_variants(
     panel: CarrierPanel,
     sample_engine: sa.Engine,
 ) -> CarrierAnalysisResult:
-    """Extract heterozygous ClinVar P/LP variants in the carrier gene panel.
+    """Extract carrier and affected-status findings in the carrier gene panel.
 
     Queries annotated_variants for variants where:
       1. gene_symbol is in the carrier panel genes
       2. clinvar_significance is Pathogenic or Likely pathogenic
-      3. zygosity is 'het' (heterozygous only — homozygous = disease)
+      3. zygosity indicates heterozygous carriage, homozygous affected status,
+         or multiple possible compound-heterozygous AR variants.
 
-    Homozygous P/LP variants are counted but excluded from carrier findings,
-    as they represent affected status rather than carrier status.
+    Homozygous AR P/LP variants and AR genes with two or more distinct
+    heterozygous P/LP variants are surfaced as affected-status findings rather
+    than ordinary "typically unaffected" carrier findings.
 
     Args:
         panel: Loaded CarrierPanel.
         sample_engine: SQLAlchemy engine for the sample database.
 
     Returns:
-        CarrierAnalysisResult with all het P/LP variants found.
+        CarrierAnalysisResult with all carrier-module findings found.
     """
     gene_symbols = panel.all_gene_symbols()
     gene_map = {g.gene_symbol.upper(): g for g in panel.genes}
@@ -510,6 +687,7 @@ def extract_carrier_variants(
 
     variants: list[CarrierVariantResult] = []
     carrier_rows: dict[tuple[object, ...], tuple[sa.Row, CarrierGene, str]] = {}
+    homozygous_affected_rows: dict[tuple[object, ...], tuple[sa.Row, CarrierGene, str]] = {}
     carrier_rows_seen = 0
     hom_skipped = 0
     pseudogene_suppressed = 0
@@ -526,8 +704,25 @@ def extract_carrier_variants(
             pseudogene_suppressed += 1
             continue
 
-        # P3-36: Heterozygous only — homozygous P/LP = affected, not carrier
+        # P3-36: Ordinary carrier rows are heterozygous; AR homozygous P/LP rows
+        # are affected-status signals and must not be labeled "typically unaffected."
         zygosity = _carrier_row_zygosity(row, gene_info)
+        lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        high_penetrance_plp = is_pathogenic_primary(row.clinvar_significance)
+        if (
+            gene_info.inheritance == "AR"
+            and high_penetrance_plp
+            and not lower_penetrance
+            and zygosity in _AFFECTED_HOMOZYGOUS_ZYGOSITIES
+        ):
+            dedupe_key = _carrier_variant_dedupe_key(row, "hom_alt")
+            existing = homozygous_affected_rows.get(dedupe_key)
+            if existing is None or _carrier_rsid_preference_key(
+                row
+            ) < _carrier_rsid_preference_key(existing[0]):
+                homozygous_affected_rows[dedupe_key] = (row, gene_info, "hom_alt")
+            continue
+
         if zygosity != "het":
             hom_skipped += 1
             continue
@@ -540,39 +735,77 @@ def extract_carrier_variants(
         ):
             carrier_rows[dedupe_key] = (row, gene_info, zygosity)
 
-    for row, gene_info, zygosity in sorted(
-        carrier_rows.values(),
-        key=lambda item: (
-            (item[0].gene_symbol or "").strip().upper(),
-            _carrier_rsid_preference_key(item[0]),
-        ),
-    ):
-        evidence = _assign_carrier_evidence_level(
-            row.clinvar_significance or "",
-            row.clinvar_review_stars or 0,
-            gene_info.evidence_level,
-        )
-        lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
+    homozygous_by_gene: dict[str, list[tuple[sa.Row, CarrierGene, str]]] = defaultdict(list)
+    for row, gene_info, zygosity in homozygous_affected_rows.values():
+        homozygous_by_gene[gene_info.gene_symbol.upper()].append((row, gene_info, zygosity))
 
+    het_plp_by_gene: dict[str, list[tuple[sa.Row, CarrierGene, str]]] = defaultdict(list)
+    for row, gene_info, zygosity in carrier_rows.values():
+        if (
+            gene_info.inheritance == "AR"
+            and is_pathogenic_primary(row.clinvar_significance)
+            and not is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        ):
+            het_plp_by_gene[gene_info.gene_symbol.upper()].append((row, gene_info, zygosity))
+
+    affected_genes = set(homozygous_by_gene)
+    compound_het_genes = {
+        gene_symbol
+        for gene_symbol, entries in het_plp_by_gene.items()
+        if gene_symbol not in affected_genes and len(entries) >= 2
+    }
+
+    for gene_symbol, entries in homozygous_by_gene.items():
+        gene_info = entries[0][1]
         variants.append(
-            CarrierVariantResult(
-                rsid=row.rsid,
-                gene_symbol=row.gene_symbol,
-                genotype=row.genotype or "",
-                zygosity=zygosity,
-                clinvar_significance=row.clinvar_significance,
-                clinvar_review_stars=row.clinvar_review_stars or 0,
-                clinvar_accession=row.clinvar_accession,
-                clinvar_conditions=row.clinvar_conditions,
-                conditions=gene_info.conditions,
-                inheritance=gene_info.inheritance,
-                evidence_level=evidence,
-                cross_links=gene_info.cross_links,
-                pmids=gene_info.pmids,
-                notes=gene_info.notes,
-                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
+            _build_aggregate_carrier_result(
+                [(entry[0], entry[2]) for entry in entries],
+                gene_info,
+                finding_type=_FINDING_TYPE_AFFECTED_HOMOZYGOUS,
+                zygosity="hom_alt",
             )
         )
+
+    for gene_symbol, entries in het_plp_by_gene.items():
+        if gene_symbol not in compound_het_genes:
+            continue
+        gene_info = entries[0][1]
+        variants.append(
+            _build_aggregate_carrier_result(
+                [(entry[0], entry[2]) for entry in entries],
+                gene_info,
+                finding_type=_FINDING_TYPE_POSSIBLE_COMPOUND_HET,
+                zygosity="possible_compound_heterozygous",
+                phase_caveat=(
+                    "Genotyping arrays do not phase these variants, so this result cannot "
+                    "distinguish in-trans affected status from same-chromosome variants."
+                ),
+            )
+        )
+
+    for row, gene_info, zygosity in carrier_rows.values():
+        gene_symbol = gene_info.gene_symbol.upper()
+        if (
+            gene_symbol in affected_genes
+            and is_pathogenic_primary(row.clinvar_significance)
+            and not is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        ):
+            continue
+        if (
+            gene_symbol in compound_het_genes
+            and is_pathogenic_primary(row.clinvar_significance)
+            and not is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        ):
+            continue
+        variants.append(_build_carrier_variant_result(row, gene_info, zygosity))
+
+    variants.sort(
+        key=lambda variant: (
+            variant.gene_symbol.upper(),
+            variant.finding_type,
+            (variant.rsid or "").casefold(),
+        )
+    )
 
     logger.info(
         "carrier_variants_extracted",
@@ -581,6 +814,8 @@ def extract_carrier_variants(
         carrier_variants=len(variants),
         duplicate_carrier_rows=carrier_rows_seen - len(carrier_rows),
         homozygous_plp_skipped=hom_skipped,
+        affected_status_findings=len(affected_genes),
+        possible_compound_heterozygous_findings=len(compound_het_genes),
         pseudogene_suppressed=pseudogene_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
@@ -590,6 +825,8 @@ def extract_carrier_variants(
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         homozygous_plp_skipped=hom_skipped,
+        affected_status_findings=len(affected_genes),
+        possible_compound_heterozygous_findings=len(compound_het_genes),
         pseudogene_suppressed=pseudogene_suppressed,
     )
 
@@ -603,10 +840,11 @@ def store_carrier_findings(
 ) -> int:
     """Store carrier status findings in the sample database.
 
-    Creates one finding per heterozygous P/LP variant with module='carrier'.
-    Classic autosomal-recessive findings use reproductive framing language;
-    dual-role BRCA1/2 findings preserve reproductive context without hiding
-    their personal hereditary-cancer-risk implications.
+    Creates one finding per carrier-module result with module='carrier'.
+    Classic autosomal-recessive carrier findings use reproductive framing
+    language; AR affected-status findings avoid "typically unaffected" carrier
+    wording; dual-role BRCA1/2 findings preserve reproductive context without
+    hiding their personal hereditary-cancer-risk implications.
 
     BRCA1/2 findings are stored with cross_links in detail_json,
     enabling the UI to show a dual-role banner linking to the
@@ -634,6 +872,10 @@ def store_carrier_findings(
             "genotype": v.genotype,
             "notes": v.notes,
             "clinvar_low_penetrance_or_risk_allele": (v.clinvar_low_penetrance_or_risk_allele),
+            "finding_type": v.finding_type,
+            "variant_ids": v.variant_ids,
+            "component_variants": v.component_variants,
+            "phase_caveat": v.phase_caveat,
         }
 
         rows.append(
@@ -645,7 +887,7 @@ def store_carrier_findings(
                 "rsid": v.rsid,
                 "finding_text": finding_text,
                 "conditions": v.clinvar_conditions,
-                "zygosity": "het",
+                "zygosity": v.zygosity,
                 "clinvar_significance": v.clinvar_significance,
                 "pmid_citations": json.dumps(
                     [

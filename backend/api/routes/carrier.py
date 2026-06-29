@@ -1,7 +1,8 @@
 """Carrier status findings API (P3-36).
 
-Heterozygous ClinVar P/LP variants from the 7-gene carrier panel with
-reproductive framing.  BRCA1/2 dual-role cross-links to cancer module.
+ClinVar P/LP findings from the 7-gene carrier panel with reproductive framing,
+affected-status handling for autosomal-recessive genotypes, and BRCA1/2
+dual-role cross-links to cancer module.
 
 GET  /api/analysis/carrier/disclaimer                         — Carrier disclaimer
 GET  /api/analysis/carrier/variants?sample_id=N               — All carrier findings
@@ -17,7 +18,7 @@ from typing import Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -37,7 +38,7 @@ router = APIRouter(prefix="/analysis/carrier", tags=["carrier"])
 
 
 class CarrierVariantResponse(BaseModel):
-    """A single heterozygous P/LP variant in the carrier panel."""
+    """A single carrier-module finding in the carrier panel."""
 
     rsid: str
     gene_symbol: str
@@ -47,13 +48,18 @@ class CarrierVariantResponse(BaseModel):
     clinvar_accession: str | None = None
     clinvar_review_stars: int = 0
     clinvar_conditions: str | None = None
-    conditions: list[str] = []
+    conditions: list[str] = Field(default_factory=list)
     inheritance: str = "AR"
     clinvar_low_penetrance_or_risk_allele: bool = False
     evidence_level: int = 1
-    cross_links: list[str] = []
-    pmids: list[str] = []
+    cross_links: list[str] = Field(default_factory=list)
+    pmids: list[str] = Field(default_factory=list)
     notes: str = ""
+    category: str | None = None
+    finding_type: str = "carrier"
+    variant_ids: list[str] = Field(default_factory=list)
+    component_variants: list[dict[str, Any]] = Field(default_factory=list)
+    phase_caveat: str | None = None
 
 
 class CarrierVariantsListResponse(BaseModel):
@@ -69,7 +75,7 @@ class CarrierDisclaimerResponse(BaseModel):
 
     title: str
     text: str
-    gene_notes: dict[str, str] = {}
+    gene_notes: dict[str, str] = Field(default_factory=dict)
 
 
 class CarrierRunResponse(BaseModel):
@@ -79,6 +85,8 @@ class CarrierRunResponse(BaseModel):
     panel_genes_checked: int
     variants_in_panel_genes: int
     homozygous_plp_skipped: int
+    affected_status_findings: int = 0
+    possible_compound_heterozygous_findings: int = 0
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -154,6 +162,11 @@ def _fetch_carrier_findings(
                 "cross_links": detail.get("cross_links", []),
                 "pmids": pmids,
                 "notes": detail.get("notes", ""),
+                "category": row.category,
+                "finding_type": detail.get("finding_type", "carrier"),
+                "variant_ids": detail.get("variant_ids", [row.rsid] if row.rsid else []),
+                "component_variants": detail.get("component_variants", []),
+                "phase_caveat": detail.get("phase_caveat"),
             }
         )
 
@@ -192,9 +205,8 @@ def list_carrier_variants(
 ) -> CarrierVariantsListResponse:
     """List all carrier status findings for a sample.
 
-    Returns heterozygous Pathogenic and Likely pathogenic variants in the
-    7-gene carrier panel, sorted by evidence level (highest first).
-    Homozygous P/LP variants are excluded (affected, not carrier).
+    Returns carrier and affected-status Pathogenic/Likely pathogenic findings
+    in the 7-gene carrier panel, sorted by evidence level (highest first).
 
     Example: ``GET /api/analysis/carrier/variants?sample_id=1``
     """
@@ -227,8 +239,8 @@ def run_carrier_analysis(
 ) -> CarrierRunResponse:
     """Run or re-run carrier status extraction for a sample.
 
-    Loads the curated carrier panel, extracts heterozygous ClinVar P/LP
-    variants from annotated_variants, and stores findings with
+    Loads the curated carrier panel, extracts ClinVar P/LP carrier and
+    affected-status findings from annotated_variants, and stores findings with
     reproductive framing.
 
     Example: ``POST /api/analysis/carrier/run?sample_id=1``
@@ -244,10 +256,13 @@ def run_carrier_analysis(
     panel = load_carrier_panel()
     result = extract_carrier_variants(panel, sample_engine)
     count = store_carrier_findings(result, sample_engine)
+    possible_compound_findings = result.possible_compound_heterozygous_findings
 
     return CarrierRunResponse(
         findings_count=count,
         panel_genes_checked=result.panel_genes_checked,
         variants_in_panel_genes=result.variants_in_panel_genes,
         homozygous_plp_skipped=result.homozygous_plp_skipped,
+        affected_status_findings=result.affected_status_findings,
+        possible_compound_heterozygous_findings=possible_compound_findings,
     )

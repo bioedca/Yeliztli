@@ -1,7 +1,7 @@
 /** Carrier variant detail slide-in panel (P3-38).
  *
- * Shows full details for a selected carrier het P/LP variant including
- * ClinVar data, conditions, inheritance, per-gene notes, PMIDs,
+ * Shows full details for a selected carrier-module finding including ClinVar
+ * data, conditions, inheritance, per-gene notes, PMIDs, affected-status context,
  * and BRCA1/2 cross-link to cancer module.
  */
 
@@ -31,6 +31,10 @@ export default function VariantDetailPanel({
 }: VariantDetailPanelProps) {
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
+  const findingType = variant.finding_type ?? "carrier"
+  const isHomozygousAffected = findingType === "affected_homozygous"
+  const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
+  const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
   const isAutosomalRecessive = variant.inheritance === "AR"
@@ -40,6 +44,26 @@ export default function VariantDetailPanel({
   // Keep the panel's accessible name inheritance-aware too: a dominant-risk gene
   // (BRCA1/2) is not announced as a "carrier" — consistent with VariantCard. (#540)
   const isDominant = variant.inheritance === "AD"
+  const componentVariants = variant.component_variants ?? []
+  const hasComponentVariants = componentVariants.length > 1
+  const genotypeZygosityNote = isHomozygousAffected
+    ? "(homozygous affected-status)"
+    : isPossibleCompoundHet
+      ? "(possible compound heterozygote)"
+      : "(heterozygous)"
+  const panelAriaLabel = isAffectedStatus
+    ? `${variant.gene_symbol} affected-status finding detail`
+    : `${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`
+  const bannerSurfaceClass = isAffectedStatus
+    ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+    : usesPersonalRiskStyle
+      ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+      : "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-800"
+  const bannerTextClass = isAffectedStatus
+    ? "text-amber-800 dark:text-amber-300"
+    : usesPersonalRiskStyle
+      ? "text-blue-800 dark:text-blue-300"
+      : "text-teal-800 dark:text-teal-300"
   const panelRef = useRef<HTMLElement>(null)
   useDialogFocus(panelRef)
 
@@ -53,7 +77,7 @@ export default function VariantDetailPanel({
       )}
       role="dialog"
       aria-modal="true"
-      aria-label={`${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`}
+      aria-label={panelAriaLabel}
       tabIndex={-1}
       data-testid="carrier-detail-panel"
     >
@@ -78,20 +102,32 @@ export default function VariantDetailPanel({
         <div
           className={cn(
             "rounded-md border p-3 mb-5",
-            usesPersonalRiskStyle
-              ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
-              : "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-800",
+            bannerSurfaceClass,
           )}
         >
           <p
             className={cn(
               "text-sm",
-              usesPersonalRiskStyle
-                ? "text-blue-800 dark:text-blue-300"
-                : "text-teal-800 dark:text-teal-300",
+              bannerTextClass,
             )}
           >
-            {shouldMentionCancerModule ? (
+            {isHomozygousAffected ? (
+              <>
+                Homozygous {variant.gene_symbol}{" "}
+                {variant.clinvar_significance.toLowerCase()} finding. This is
+                an affected-status result, not typical carrier status. Review
+                this result with a clinician or genetics professional and
+                confirm with clinical-grade testing.
+              </>
+            ) : isPossibleCompoundHet ? (
+              <>
+                Two distinct {variant.gene_symbol} variants in an autosomal-recessive
+                disease gene. If they are in trans, this pattern is consistent with
+                affected status rather than an unaffected carrier state.{" "}
+                {variant.phase_caveat ??
+                  "Genotyping arrays do not phase these variants, so clinical testing is needed."}
+              </>
+            ) : shouldMentionCancerModule ? (
               <>
                 Heterozygous {variant.gene_symbol} variant. This information may
                 be relevant for family planning and may also indicate personal
@@ -166,8 +202,34 @@ export default function VariantDetailPanel({
             <h3 className="text-sm font-semibold text-foreground mb-2">Genotype</h3>
             <p className="text-sm font-mono text-foreground">
               {variant.genotype}
-              <span className="text-muted-foreground ml-2">(heterozygous)</span>
+              <span className="text-muted-foreground ml-2">{genotypeZygosityNote}</span>
             </p>
+          </section>
+        )}
+
+        {/* Component variants for aggregate affected-status findings */}
+        {hasComponentVariants && (
+          <section className="mb-5" data-testid="carrier-component-variants">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Component Variants</h3>
+            <ul className="space-y-2">
+              {componentVariants.map((component, index) => {
+                const componentId =
+                  component.rsid ||
+                  [component.chrom, component.pos].filter((part) => part != null).join(":") ||
+                  `variant ${index + 1}`
+                return (
+                  <li
+                    key={`${componentId}-${index}`}
+                    className="border-l-2 border-amber-300 pl-3 text-sm"
+                  >
+                    <div className="font-mono text-foreground">{componentId}</div>
+                    <div className="text-muted-foreground">
+                      {component.genotype ?? "Genotype unavailable"} · {component.zygosity}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           </section>
         )}
 

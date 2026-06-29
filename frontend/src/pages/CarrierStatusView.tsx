@@ -1,11 +1,11 @@
 /** Carrier status module page (P3-38).
  *
- * Displays heterozygous P/LP carrier variants from the 7-gene panel
- * with reproductive framing. Gene cards show per-variant details.
+ * Displays carrier-module findings from the 7-gene panel with reproductive
+ * framing and affected-status warnings. Gene cards show per-variant details.
  * BRCA1/2 dual-role cross-link banners link to Cancer module.
  *
- * PRD E2E flow: Carrier page shows het P/LP gene cards with
- * reproductive framing and BRCA1/2 cross-link to Cancer.
+ * PRD E2E flow: Carrier page shows P/LP gene cards with reproductive framing,
+ * affected-status context, and BRCA1/2 cross-link to Cancer.
  */
 
 import { useEffect, useState } from "react"
@@ -41,6 +41,11 @@ export default function CarrierStatusView() {
 
   const variantsQuery = useCarrierVariants(sampleId)
   const disclaimerQuery = useCarrierDisclaimer()
+  const affectedStatusCount =
+    variantsQuery.data?.items.filter((variant) =>
+      variant.finding_type === "affected_homozygous" ||
+      variant.finding_type === "possible_compound_heterozygote"
+    ).length ?? 0
 
   // No sample selected
   if (sampleId == null) {
@@ -120,9 +125,15 @@ export default function CarrierStatusView() {
             <div className="rounded-lg border bg-card p-4 mb-6" data-testid="carrier-summary">
               <div className="flex items-center gap-6 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Carrier variants: </span>
+                  <span className="text-muted-foreground">Findings: </span>
                   <span className="font-semibold">{variantsQuery.data.total}</span>
                 </div>
+                {affectedStatusCount > 0 && (
+                  <div>
+                    <span className="text-muted-foreground">Affected-status: </span>
+                    <span className="font-semibold">{affectedStatusCount}</span>
+                  </div>
+                )}
                 <div>
                   <span className="text-muted-foreground">Genes: </span>
                   <span className="font-semibold">
@@ -135,9 +146,9 @@ export default function CarrierStatusView() {
 
           {/* Gene cards grid */}
           <section aria-label="Carrier status findings">
-            <h2 className="text-lg font-semibold mb-3">Carrier Findings</h2>
+            <h2 className="text-lg font-semibold mb-3">Carrier and Affected-Status Findings</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Heterozygous pathogenic and likely pathogenic variants in the 7-gene carrier panel
+              Pathogenic and likely pathogenic findings in the 7-gene carrier panel
             </p>
 
             {variantsQuery.data && variantsQuery.data.items.length > 0 ? (

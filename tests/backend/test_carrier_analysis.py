@@ -2,14 +2,15 @@
 
 Covers:
   - Het P/LP extraction from annotated variants in carrier panel genes
-  - Homozygous P/LP exclusion (disease, not carrier)
+  - Homozygous P/LP affected-status findings (not ordinary carriers)
+  - Possible compound-heterozygous affected-status findings with phase caveats
   - Evidence level assignment based on ClinVar review stars
   - Findings storage (module='carrier', category split by carrier context)
   - BRCA1/2 dual-role cross-links to cancer module
   - Reproductive framing in finding text
   - Empty results when no P/LP variants exist
   - T3-36: Het CFTR P/LP → carrier finding
-  - T3-37: Homozygous CFTR P/LP → NO carrier finding
+  - T3-37: Homozygous CFTR P/LP → affected-status finding
   - T3-38: BRCA1 het P/LP → both cancer AND carrier findings
 """
 
@@ -81,20 +82,6 @@ def sample_with_carrier_variants(sample_engine: sa.Engine) -> sa.Engine:
             "clinvar_review_stars": 2,
             "clinvar_accession": "VCV000015333",
             "clinvar_conditions": "Sickle cell disease",
-            "annotation_coverage": 2,
-        },
-        # T3-37: CFTR homozygous Pathogenic — should NOT produce carrier finding
-        {
-            "rsid": "rs75961395",
-            "chrom": "7",
-            "pos": 117559600,
-            "genotype": "TT",
-            "zygosity": "hom",
-            "gene_symbol": "CFTR",
-            "clinvar_significance": "Pathogenic",
-            "clinvar_review_stars": 2,
-            "clinvar_accession": "VCV000007106",
-            "clinvar_conditions": "Cystic fibrosis",
             "annotation_coverage": 2,
         },
         # T3-38: BRCA1 het Pathogenic — dual-role (cancer + carrier)
@@ -309,14 +296,120 @@ class TestExtractCarrierVariants:
         assert [row.rsid for row in rows] == ["rs78655421"]
         assert "i4000295" not in rows[0].finding_text
 
-    def test_t3_37_hom_plp_excluded(
-        self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
+    def test_t3_37_hom_plp_produces_affected_status_finding(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
     ) -> None:
-        """T3-37: Homozygous CFTR P/LP → NO carrier finding (disease)."""
-        result = extract_carrier_variants(panel, sample_with_carrier_variants)
-        rsids = {v.rsid for v in result.variants}
-        assert "rs75961395" not in rsids
-        assert result.homozygous_plp_skipped == 1
+        """T3-37: Homozygous CFTR P/LP → affected-status finding."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs75961395",
+                    "chrom": "7",
+                    "pos": 117559600,
+                    "genotype": "TT",
+                    "zygosity": "hom",
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000007106",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.affected_status_findings == 1
+        assert result.homozygous_plp_skipped == 0
+        variant = result.variants[0]
+        assert variant.rsid == "rs75961395"
+        assert variant.finding_type == "affected_homozygous"
+        assert variant.zygosity == "hom_alt"
+        assert variant.variant_ids == ["rs75961395"]
+        assert variant.component_variants[0]["zygosity"] == "hom_alt"
+
+        count = store_carrier_findings(result, sample_engine)
+        assert count == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == "carrier")).one()
+        assert row.category == "autosomal_recessive_affected"
+        assert row.zygosity == "hom_alt"
+        assert "affected-status" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["finding_type"] == "affected_homozygous"
+        assert detail["variant_ids"] == ["rs75961395"]
+        assert detail["component_variants"][0]["rsid"] == "rs75961395"
+        assert detail["component_variants"][0]["zygosity"] == "hom_alt"
+
+    def test_two_distinct_cftr_het_plp_rows_produce_compound_het_finding(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Two distinct AR P/LP het rows become one affected-status warning."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs78655421",
+                        "chrom": "7",
+                        "pos": 117171029,
+                        "ref": "A",
+                        "alt": "G",
+                        "genotype": "AG",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 3,
+                        "clinvar_accession": "VCV000007105",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                    {
+                        "rsid": "i4000299",
+                        "chrom": "7",
+                        "pos": 117199683,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "CFTR",
+                        "clinvar_significance": "Likely pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_accession": "VCV000007107",
+                        "clinvar_conditions": "Cystic fibrosis",
+                        "annotation_coverage": 2,
+                    },
+                ],
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.possible_compound_heterozygous_findings == 1
+        variant = result.variants[0]
+        assert variant.finding_type == "possible_compound_heterozygote"
+        assert variant.zygosity == "possible_compound_heterozygous"
+        assert set(variant.variant_ids) == {"rs78655421", "i4000299"}
+        assert {component["zygosity"] for component in variant.component_variants} == {"het"}
+        assert variant.phase_caveat is not None
+        assert "do not phase" in variant.phase_caveat
+
+        count = store_carrier_findings(result, sample_engine)
+        assert count == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == "carrier")).one()
+        assert row.category == "autosomal_recessive_possible_compound_heterozygote"
+        assert row.zygosity == "possible_compound_heterozygous"
+        assert "in trans" in row.finding_text
+        assert "affected status" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["finding_type"] == "possible_compound_heterozygote"
+        assert set(detail["variant_ids"]) == {"rs78655421", "i4000299"}
+        assert detail["phase_caveat"] == variant.phase_caveat
 
     def test_compound_pathogenic_primary_extracted_conflicting_excluded(
         self, panel: CarrierPanel, sample_engine: sa.Engine
@@ -374,7 +467,7 @@ class TestExtractCarrierVariants:
         reports a call at every probe regardless of carriage, so a ClinVar
         Pathogenic record where the individual carries ZERO copies of the ALT
         (homozygous reference) must be suppressed entirely. This is distinct from
-        T3-37, which excludes the homozygous-ALT (affected) case. A real het
+        T3-37, which emits the homozygous-ALT affected-status case. A real het
         carrier in the same gene is seeded alongside as a positive control, so the
         test proves the suppression is carriage-specific rather than a blanket
         drop — and that it holds through storage, not just extraction.

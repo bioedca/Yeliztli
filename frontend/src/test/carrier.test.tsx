@@ -23,6 +23,70 @@ const CFTR_VARIANT: CarrierVariant = {
   notes: "Most common autosomal recessive condition in populations of European descent.",
 }
 
+const CFTR_COMPOUND_VARIANT: CarrierVariant = {
+  ...CFTR_VARIANT,
+  rsid: "rs78655421, i4000299",
+  genotype: "rs78655421:AG; i4000299:CT",
+  zygosity: "possible_compound_heterozygous",
+  clinvar_significance: "Pathogenic",
+  finding_type: "possible_compound_heterozygote",
+  variant_ids: ["rs78655421", "i4000299"],
+  component_variants: [
+    {
+      rsid: "rs78655421",
+      chrom: "7",
+      pos: 117171029,
+      ref: "A",
+      alt: "G",
+      genotype: "AG",
+      zygosity: "het",
+      clinvar_significance: "Pathogenic",
+      clinvar_review_stars: 3,
+      clinvar_accession: "VCV000007105",
+      clinvar_conditions: "Cystic fibrosis",
+    },
+    {
+      rsid: "i4000299",
+      chrom: "7",
+      pos: 117199683,
+      ref: "C",
+      alt: "T",
+      genotype: "CT",
+      zygosity: "het",
+      clinvar_significance: "Likely pathogenic",
+      clinvar_review_stars: 2,
+      clinvar_accession: "VCV000007107",
+      clinvar_conditions: "Cystic fibrosis",
+    },
+  ],
+  phase_caveat:
+    "Genotyping arrays do not phase these variants, so this result cannot distinguish in-trans affected status from same-chromosome variants.",
+}
+
+const CFTR_HOMO_AFFECTED_VARIANT: CarrierVariant = {
+  ...CFTR_VARIANT,
+  rsid: "rs75961395",
+  genotype: "TT",
+  zygosity: "hom_alt",
+  finding_type: "affected_homozygous",
+  variant_ids: ["rs75961395"],
+  component_variants: [
+    {
+      rsid: "rs75961395",
+      chrom: "7",
+      pos: 117559600,
+      ref: null,
+      alt: null,
+      genotype: "TT",
+      zygosity: "hom_alt",
+      clinvar_significance: "Pathogenic",
+      clinvar_review_stars: 2,
+      clinvar_accession: "VCV000007106",
+      clinvar_conditions: "Cystic fibrosis",
+    },
+  ],
+}
+
 const BRCA1_VARIANT: CarrierVariant = {
   rsid: "rs80357906",
   gene_symbol: "BRCA1",
@@ -159,6 +223,44 @@ describe("Carrier VariantDetailPanel", () => {
     expect(screen.getByText(/sickle-cell trait/i)).toBeInTheDocument()
   })
 
+  it("uses affected-status wording for homozygous AR findings", () => {
+    render(
+      <VariantDetailPanel
+        variant={CFTR_HOMO_AFFECTED_VARIANT}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/affected-status result/i)).toBeInTheDocument()
+    expect(screen.getByText(/clinical-grade testing/i)).toBeInTheDocument()
+    expect(screen.getByText(/\(homozygous affected-status\)/i)).toBeInTheDocument()
+    const panel = screen.getByTestId("carrier-detail-panel")
+    expect(panel.getAttribute("aria-label")).toMatch(/CFTR affected-status finding detail/i)
+    expect(panel.getAttribute("aria-label")).not.toMatch(/carrier/i)
+  })
+
+  it("uses phase-aware affected-status wording for possible compound het findings", () => {
+    render(
+      <VariantDetailPanel
+        variant={CFTR_COMPOUND_VARIANT}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/if they are in trans/i)).toBeInTheDocument()
+    expect(screen.getByText(/do not phase these variants/i)).toBeInTheDocument()
+    expect(screen.getByText(/\(possible compound heterozygote\)/i)).toBeInTheDocument()
+    expect(screen.getByTestId("carrier-component-variants")).toBeInTheDocument()
+    expect(screen.getByText("rs78655421")).toBeInTheDocument()
+    expect(screen.getByText("i4000299")).toBeInTheDocument()
+  })
+
   it("keeps 'carrier variant detail' accessible name for AR genes (CFTR)", () => {
     render(
       <VariantDetailPanel variant={CFTR_VARIANT} sampleId={1} geneNote={undefined} onClose={vi.fn()} />,
@@ -219,5 +321,27 @@ describe("Carrier VariantCard genotype-line label (#540)", () => {
     render(<VariantCard variant={AD_NON_CANCER_VARIANT} onClick={vi.fn()} sampleId={1} />)
     expect(screen.queryByText(/\(heterozygous carrier\)/i)).not.toBeInTheDocument()
     expect(screen.getByText(/\(heterozygous\)/i)).toBeInTheDocument()
+  })
+
+  it("labels possible compound het cards as affected-status findings", () => {
+    render(<VariantCard variant={CFTR_COMPOUND_VARIANT} onClick={vi.fn()} sampleId={1} />)
+
+    expect(screen.queryByText(/\(heterozygous carrier\)/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/\(possible compound heterozygote\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/possible affected-status pattern/i)).toBeInTheDocument()
+    const card = screen.getByTestId("carrier-variant-card")
+    expect(card.getAttribute("aria-label")).toMatch(/possible compound heterozygote affected-status/i)
+    expect(card.getAttribute("aria-label")).not.toMatch(/carrier/i)
+  })
+
+  it("labels homozygous AR cards as affected-status findings", () => {
+    render(<VariantCard variant={CFTR_HOMO_AFFECTED_VARIANT} onClick={vi.fn()} sampleId={1} />)
+
+    expect(screen.queryByText(/\(heterozygous carrier\)/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/\(homozygous affected-status\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/affected-status result/i)).toBeInTheDocument()
+    const card = screen.getByTestId("carrier-variant-card")
+    expect(card.getAttribute("aria-label")).toMatch(/homozygous affected-status finding/i)
+    expect(card.getAttribute("aria-label")).not.toMatch(/carrier/i)
   })
 })

@@ -1,7 +1,7 @@
 /** Carrier status gene card (P3-38).
  *
- * Displays a single het P/LP carrier variant with gene symbol,
- * ClinVar significance, conditions, inheritance, and evidence level.
+ * Displays a carrier-module finding with gene symbol, ClinVar significance,
+ * conditions, inheritance, and evidence level.
  * Shows BRCA1/2 cross-link banner when cross_links includes "cancer".
  */
 
@@ -25,6 +25,10 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
   const config = getClinvarSignificanceCardConfig(variant.clinvar_significance)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCancerCrossLink = variant.cross_links.includes("cancer")
+  const findingType = variant.finding_type ?? "carrier"
+  const isHomozygousAffected = findingType === "affected_homozygous"
+  const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
+  const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
   // A heterozygous P/LP variant means different things by inheritance mode: for
   // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is
   // NOT a silent recessive-carrier state, so we drop the "carrier" framing there
@@ -32,10 +36,22 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
   // which uses plain "(heterozygous)" and conveys risk via its banner and the
   // cancer cross-link below. (#540)
   const isDominant = variant.inheritance === "AD"
-  const zygosityNote = isDominant ? "(heterozygous)" : "(heterozygous carrier)"
+  const zygosityNote = isHomozygousAffected
+    ? "(homozygous affected-status)"
+    : isPossibleCompoundHet
+      ? "(possible compound heterozygote)"
+      : isDominant
+        ? "(heterozygous)"
+        : "(heterozygous carrier)"
   // Keep the screen-reader announcement consistent with the visible label — a
   // dominant-risk variant is not announced as a "carrier" either. (#540)
-  const a11yDescriptor = isDominant ? "heterozygous variant" : "carrier"
+  const a11yDescriptor = isHomozygousAffected
+    ? "homozygous affected-status finding"
+    : isPossibleCompoundHet
+      ? "possible compound heterozygote affected-status finding"
+      : isDominant
+        ? "heterozygous variant"
+        : "carrier"
 
   return (
     <button
@@ -111,6 +127,23 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
           {INHERITANCE_LABELS[variant.inheritance] ?? variant.inheritance}
         </span>
       </div>
+
+      {/* Autosomal-recessive affected-status warning */}
+      {isAffectedStatus && (
+        <div
+          className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3"
+          data-testid="carrier-affected-status"
+        >
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true" />
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              {isPossibleCompoundHet
+                ? "Possible affected-status pattern; phase must be clinically confirmed."
+                : "Affected-status result; confirm with clinical-grade testing."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* BRCA1/2 cross-link to Cancer module (P3-38) */}
       {hasCancerCrossLink && (

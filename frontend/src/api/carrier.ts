@@ -7,8 +7,8 @@ import type {
 } from "@/types/carrier"
 
 /**
- * Carrier het P/LP variant findings for a sample.
- * Heterozygous pathogenic variants from the 7-gene carrier panel.
+ * Carrier-module P/LP findings for a sample.
+ * Includes heterozygous carrier findings and AR affected-status patterns.
  * Cached with staleTime: Infinity since annotation data doesn't change.
  */
 export function useCarrierVariants(sampleId: number | null) {
