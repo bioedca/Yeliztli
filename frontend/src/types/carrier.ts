@@ -1,6 +1,6 @@
 /** Carrier status module API types (P3-38). */
 
-export interface CarrierComponentVariant {
+interface CarrierComponentVariant {
   rsid: string
   chrom: string | null
   pos: number | null
