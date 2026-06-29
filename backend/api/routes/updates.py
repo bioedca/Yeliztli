@@ -68,6 +68,12 @@ class WatchedReclassification(BaseModel):
     new_significance: str
 
 
+class StaleDatabase(BaseModel):
+    db_name: str
+    recorded_version: str | None = None
+    current_version: str
+
+
 class ReannotationPrompt(BaseModel):
     id: int
     sample_id: int
@@ -76,6 +82,8 @@ class ReannotationPrompt(BaseModel):
     candidate_count: int
     watched_count: int = 0
     watched_details: list[WatchedReclassification] = []
+    prompt_type: str = "reclassification"
+    stale_databases: list[StaleDatabase] = []
     created_at: str | None
 
 

@@ -37,6 +37,14 @@ const APP_UPDATE_RESPONSE = {
   error: null,
 }
 
+function jsonRoute(body: unknown, status = 200) {
+  return {
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  }
+}
+
 const UPDATE_AVAILABLE_LAI = {
   db_name: 'lai_bundle',
   latest_version: LAI_NEW_VERSION,
@@ -251,5 +259,139 @@ test.describe('Step 33 — UpdateManager "Update now" for LAI', () => {
     await expect(
       page.getByText(`${LAI_PRE_VERSION} → ${LAI_NEW_VERSION}`),
     ).toBeVisible()
+  })
+
+  test('shows a neutral reference-data staleness prompt without reclassification copy', async ({
+    page,
+  }) => {
+    let dismissedPromptId: number | null = null
+
+    await page.route('**/api/auth/status', async (route) => {
+      await route.fulfill(
+        jsonRoute({
+          auth_enabled: false,
+          has_password: false,
+          authenticated: true,
+        }),
+      )
+    })
+
+    await page.route('**/api/setup/status', async (route) => {
+      await route.fulfill(
+        jsonRoute({
+          needs_setup: false,
+          disclaimer_accepted: true,
+          has_databases: true,
+          has_samples: true,
+          data_dir: '/tmp/.yeliztli',
+        }),
+      )
+    })
+
+    await page.route('**/api/updates/status', async (route) => {
+      await route.fulfill(
+        jsonRoute([
+          {
+            db_name: 'gnomad',
+            display_name: 'gnomAD',
+            current_version: '4.1.0',
+            version_display: '4.1.0',
+            downloaded_at: '2026-04-07T00:00:00Z',
+            file_size_bytes: 211_000_000,
+            auto_update: false,
+            update_available: false,
+            update_download_window: null,
+          },
+        ]),
+      )
+    })
+
+    await page.route('**/api/updates/check', async (route) => {
+      await route.fulfill(
+        jsonRoute({
+          available: [],
+          up_to_date: ['gnomad'],
+          errors: [],
+          checked_at: '2026-05-08T12:00:00Z',
+        }),
+      )
+    })
+
+    await page.route('**/api/updates/history**', async (route) => {
+      await route.fulfill(jsonRoute([]))
+    })
+
+    await page.route('**/api/updates/prompts**', async (route) => {
+      const url = route.request().url()
+      if (route.request().method() === 'POST' && url.includes('/dismiss')) {
+        dismissedPromptId = Number(url.match(/prompts\/(\d+)\/dismiss/)?.[1] ?? 0)
+        await route.fulfill(jsonRoute({}))
+        return
+      }
+
+      await route.fulfill(
+        jsonRoute([
+          {
+            id: 17,
+            sample_id: 101,
+            db_name: 'reference_data',
+            db_version: 'multiple',
+            candidate_count: 0,
+            watched_count: 0,
+            watched_details: [],
+            prompt_type: 'version_staleness',
+            stale_databases: [
+              {
+                db_name: 'gnomad',
+                recorded_version: '2.1.1',
+                current_version: '4.1.0',
+              },
+              {
+                db_name: 'lai_bundle',
+                recorded_version: 'v1.0',
+                current_version: 'v1.1',
+              },
+            ],
+            created_at: '2026-05-08T12:00:00Z',
+          },
+        ]),
+      )
+    })
+
+    await page.route('**/api/updates/finding-changes**', async (route) => {
+      await route.fulfill(
+        jsonRoute({
+          sample_id: 101,
+          available: false,
+          release_deltas: [],
+          changed: [],
+          added: [],
+          removed: [],
+        }),
+      )
+    })
+
+    await page.route('**/api/updates/app-update', async (route) => {
+      await route.fulfill(jsonRoute(APP_UPDATE_RESPONSE))
+    })
+
+    await page.route('**/api/databases/health', async (route) => {
+      await route.fulfill(jsonRoute({ databases: [] }))
+    })
+
+    await page.goto('/settings/updates')
+    await page.waitForLoadState('domcontentloaded')
+
+    const banner = page.getByRole('alert')
+    await expect(banner).toBeVisible()
+    await expect(banner).toContainText('Reference data updated')
+    await expect(banner).toContainText(
+      'Reference data is newer than 1 analysis (gnomad + lai_bundle).',
+    )
+    await expect(banner).toContainText('Re-annotate to refresh findings.')
+    await expect(banner).not.toContainText('potential reclassification')
+
+    await banner.getByRole('button', { name: 'Dismiss (reference data)' }).click()
+    expect(dismissedPromptId).toBe(17)
   })
 })

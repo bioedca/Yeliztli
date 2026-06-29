@@ -130,25 +130,64 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
 
   if (prompts.length === 0) return null
 
-  const totalCandidates = prompts.reduce((sum, p) => sum + p.candidate_count, 0)
-  const dbNames = [...new Set(prompts.map((p) => p.db_name))]
+  const reclassificationPrompts = prompts.filter((p) => p.prompt_type !== 'version_staleness')
+  const versionPrompts = prompts.filter((p) => p.prompt_type === 'version_staleness')
+  const totalCandidates = reclassificationPrompts.reduce(
+    (sum, p) => sum + p.candidate_count,
+    0,
+  )
+  const reclassificationDbNames = [...new Set(reclassificationPrompts.map((p) => p.db_name))]
+  const staleDatabases = versionPrompts.flatMap((p) => p.stale_databases ?? [])
+  const staleDbNames = [...new Set(staleDatabases.map((db) => db.db_name))]
+  const versionSampleCount = new Set(versionPrompts.map((p) => p.sample_id)).size
+  const onlyVersionStaleness = versionPrompts.length > 0 && reclassificationPrompts.length === 0
+  const Icon = onlyVersionStaleness ? Clock : AlertTriangle
+  const tone = onlyVersionStaleness
+    ? {
+        container: 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30',
+        icon: 'text-sky-600 dark:text-sky-400',
+        heading: 'text-sky-800 dark:text-sky-200',
+        body: 'text-sky-700 dark:text-sky-300',
+        button:
+          'border-sky-400 dark:border-sky-600 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50',
+      }
+    : {
+        container: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30',
+        icon: 'text-amber-600 dark:text-amber-400',
+        heading: 'text-amber-800 dark:text-amber-200',
+        body: 'text-amber-700 dark:text-amber-300',
+        button:
+          'border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50',
+      }
 
   return (
     <div
-      className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-4"
+      className={cn('rounded-lg border p-4', tone.container)}
       role="alert"
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+        <Icon className={cn('h-5 w-5 shrink-0 mt-0.5', tone.icon)} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-            Re-annotation recommended
+          <p className={cn('text-sm font-medium', tone.heading)}>
+            {onlyVersionStaleness ? 'Reference data updated' : 'Re-annotation recommended'}
           </p>
-          <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-            {dbNames.join(' + ')} updated with {totalCandidates} potential
-            reclassification{totalCandidates !== 1 ? 's' : ''} across{' '}
-            {prompts.length} sample{prompts.length !== 1 ? 's' : ''}.
-            Re-annotate to update findings.
+          <p className={cn('mt-1 text-sm', tone.body)}>
+            {reclassificationPrompts.length > 0 && (
+              <>
+                {reclassificationDbNames.join(' + ')} updated with {totalCandidates} potential
+                reclassification{totalCandidates !== 1 ? 's' : ''} across{' '}
+                {reclassificationPrompts.length} sample
+                {reclassificationPrompts.length !== 1 ? 's' : ''}.{' '}
+              </>
+            )}
+            {versionPrompts.length > 0 && (
+              <>
+                Reference data is newer than {versionSampleCount} analysis
+                {versionSampleCount !== 1 ? 'es' : ''}
+                {staleDbNames.length > 0 ? ` (${staleDbNames.join(' + ')})` : ''}.{' '}
+              </>
+            )}
+            Re-annotate to refresh findings.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {prompts.map((p) => (
@@ -159,14 +198,13 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
                 disabled={dismissMutation.isPending && dismissMutation.variables === p.id}
                 className={cn(
                   'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium',
-                  'border border-amber-400 dark:border-amber-600',
-                  'text-amber-700 dark:text-amber-300',
-                  'hover:bg-amber-100 dark:hover:bg-amber-900/50',
+                  'border',
+                  tone.button,
                   'disabled:opacity-50',
                 )}
               >
                 <XCircle className="h-3 w-3" />
-                Dismiss ({p.db_name})
+                Dismiss ({p.prompt_type === 'version_staleness' ? 'reference data' : p.db_name})
               </button>
             ))}
           </div>

@@ -101,6 +101,13 @@ class TestReferenceMetadata:
         idx_names = {idx.name for idx in reannotation_prompts.indexes}
         assert "idx_reannotation_sample" in idx_names
 
+    def test_reannotation_prompt_version_staleness_columns(self):
+        cols = {c.name: c for c in reannotation_prompts.columns}
+        assert isinstance(cols["prompt_type"].type, sa.Text)
+        assert isinstance(cols["stale_databases"].type, sa.Text)
+        assert cols["prompt_type"].server_default is not None
+        assert cols["stale_databases"].server_default is not None
+
     def test_database_versions_pk(self):
         pk_cols = [c.name for c in database_versions.primary_key.columns]
         assert pk_cols == ["db_name"]

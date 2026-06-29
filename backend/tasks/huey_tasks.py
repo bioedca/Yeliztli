@@ -299,7 +299,13 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             # findings are fresh. A raise from run_all_analyses bypasses this
             # block via the except clause below, leaving annotation_state
             # untouched so the gate stays up.
+            from backend.services.staleness import (
+                REFERENCE_VERSION_SNAPSHOT_KEY,
+                read_current_reference_versions,
+            )
+
             bundle_version = result.coverage_stats.get("bundle_version") or "v1.0.0"
+            reference_versions = read_current_reference_versions(registry.reference_engine)
             with sample_engine.begin() as conn:
                 _upsert_annotation_state(conn, "vep_bundle_version", bundle_version)
                 _upsert_annotation_state(
@@ -307,12 +313,18 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                     "annotation_bundle_coverage_json",
                     json.dumps(result.coverage_stats),
                 )
+                _upsert_annotation_state(
+                    conn,
+                    REFERENCE_VERSION_SNAPSHOT_KEY,
+                    json.dumps(reference_versions),
+                )
             logger.info(
                 "annotation_state_upserted",
                 extra={
                     "job_id": job_id,
                     "sample_id": sample_id,
                     "vep_bundle_version": bundle_version,
+                    "reference_version_count": len(reference_versions),
                 },
             )
             analysis_ok = True
@@ -695,6 +707,12 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
 
         registry = get_registry()
 
+        def _run_version_staleness_check() -> None:
+            from backend.db.update_manager import get_current_version, run_precheck_all_samples
+
+            version = get_current_version(registry.reference_engine, db_name) or "unknown"
+            run_precheck_all_samples(registry, db_name=db_name, db_version=version)
+
         # VEP bundle uses a dedicated download-from-GitHub path
         if db_name == "vep_bundle":
             from backend.db.update_manager import run_vep_bundle_update
@@ -708,6 +726,7 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
             result = run_vep_bundle_update(registry.settings)
             if result is None:
                 raise RuntimeError("VEP bundle download failed or file is invalid")
+            _run_version_staleness_check()
             _update_job(
                 job_id,
                 status="complete",
@@ -762,6 +781,7 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
                     )
                     return
                 raise RuntimeError(f"{db_name} bundle update failed")
+            _run_version_staleness_check()
             _update_job(
                 job_id,
                 status="complete",
@@ -810,6 +830,8 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
                     build_fn(standalone_engine, settings.downloads_dir)
                 finally:
                     standalone_engine.dispose()
+
+        _run_version_staleness_check()
 
         msg = f"{db_name} update complete"
 

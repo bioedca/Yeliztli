@@ -16,6 +16,8 @@ function.
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 import structlog
 from packaging.version import InvalidVersion, Version
@@ -29,6 +31,10 @@ logger = structlog.get_logger(__name__)
 # annotated against the v1.0.0 bundle.
 _FALLBACK_SAMPLE_VERSION = "v1.0.0"
 
+# Per-sample annotation_state key holding the reference database versions used
+# by the latest successful annotation + analysis run.
+REFERENCE_VERSION_SNAPSHOT_KEY = "reference_versions_json"
+
 
 def _coerce_major(raw: str | None) -> int | None:
     """Return the semver major of ``raw`` or ``None`` when unparseable."""
@@ -38,6 +44,100 @@ def _coerce_major(raw: str | None) -> int | None:
         return Version(raw.lstrip("v")).major
     except InvalidVersion:
         return None
+
+
+def read_current_reference_versions(reference_engine: sa.Engine) -> dict[str, str]:
+    """Return current ``database_versions`` as ``{db_name: version}``.
+
+    The reference DB may be partially initialized in tests or first-run setup.
+    Missing/unreadable version state declines to raise so callers can avoid
+    turning an informational staleness signal into a hard failure.
+    """
+    try:
+        with reference_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(database_versions.c.db_name, database_versions.c.version)
+            ).fetchall()
+    except sa.exc.OperationalError as exc:
+        logger.warning(
+            "database_versions_unreadable",
+            reason="table_or_db_unreachable",
+            error=str(exc),
+        )
+        return {}
+    return {row.db_name: row.version for row in rows if row.version}
+
+
+def _parse_reference_versions(value: str | None) -> dict[str, str] | None:
+    """Parse a recorded reference-version snapshot.
+
+    Accepts either the compact ``{db: version}`` shape written by
+    ``annotation_state`` or the provenance-style ``{db: {version, ...}}`` shape.
+    Returns ``None`` when the blob is absent or malformed.
+    """
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+
+    versions: dict[str, str] = {}
+    for db_name, raw in parsed.items():
+        version = raw.get("version") if isinstance(raw, dict) else raw
+        if isinstance(db_name, str) and isinstance(version, str) and version:
+            versions[db_name] = version
+    return versions
+
+
+def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str] | None:
+    """Read the sample's recorded reference-version snapshot, if present."""
+    try:
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotation_state.c.value).where(
+                    annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY
+                )
+            ).fetchone()
+    except sa.exc.OperationalError as exc:
+        logger.warning(
+            "reference_versions_missing",
+            reason="table_or_db_unreachable",
+            error=str(exc),
+        )
+        return None
+    return _parse_reference_versions(row.value if row else None)
+
+
+def find_stale_reference_versions(
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+) -> list[dict[str, str | None]]:
+    """Return reference DBs newer/different than the sample annotation snapshot.
+
+    A missing recorded version for a currently-installed DB means that source was
+    absent from the successful annotation snapshot, so re-annotation may add or
+    refresh findings from it.
+    """
+    recorded = read_recorded_reference_versions(sample_engine)
+    if recorded is None:
+        return []
+
+    current = read_current_reference_versions(reference_engine)
+    stale: list[dict[str, str | None]] = []
+    for db_name, current_version in sorted(current.items()):
+        recorded_version = recorded.get(db_name)
+        if recorded_version != current_version:
+            stale.append(
+                {
+                    "db_name": db_name,
+                    "recorded_version": recorded_version,
+                    "current_version": current_version,
+                }
+            )
+    return stale
 
 
 def _read_installed_major() -> int | None:

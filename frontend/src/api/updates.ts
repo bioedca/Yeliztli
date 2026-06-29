@@ -54,6 +54,13 @@ export interface ReannotationPrompt {
   db_name: string
   db_version: string
   candidate_count: number
+  watched_count?: number
+  prompt_type?: 'reclassification' | 'version_staleness'
+  stale_databases?: Array<{
+    db_name: string
+    recorded_version: string | null
+    current_version: string
+  }>
   created_at: string | null
 }
 
@@ -357,6 +364,7 @@ export function useTriggerUpdate() {
       qc.invalidateQueries({ queryKey: DB_STATUS_KEY })
       qc.invalidateQueries({ queryKey: UPDATE_CHECK_KEY })
       qc.invalidateQueries({ queryKey: UPDATE_HISTORY_KEY })
+      qc.invalidateQueries({ queryKey: REANNOTATION_PROMPTS_KEY })
     },
   })
 }

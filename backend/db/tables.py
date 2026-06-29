@@ -369,6 +369,19 @@ reannotation_prompts = sa.Table(
         server_default="[]",
         comment="JSON array of watched variant reclassifications",
     ),
+    sa.Column(
+        "prompt_type",
+        sa.Text,
+        nullable=False,
+        server_default="reclassification",
+        comment="reclassification | version_staleness",
+    ),
+    sa.Column(
+        "stale_databases",
+        sa.Text,
+        server_default="[]",
+        comment="JSON array of reference DBs newer than the sample annotation snapshot",
+    ),
     sa.Column("dismissed", sa.Boolean, server_default=sa.text("0")),
     sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
 )

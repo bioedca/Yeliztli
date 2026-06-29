@@ -46,12 +46,18 @@ does **not** change results you already have.
 
 - **Updates don't re-annotate automatically.** Downloading newer ClinVar / gnomAD / etc. data
   leaves your existing samples' findings untouched until you re-annotate them.
-- **Only ClinVar changes prompt you.** Yeliztli proactively flags a sample for re-annotation
-  **only** when a ClinVar **significance** change affects one of its variants (or a variant you
-  are watching). Updates to every other database — gnomAD allele frequencies, dbNSFP
-  predictions, CPIC prescribing guidance, AlphaMissense, ClinGen, the GWAS catalog, the VEP
-  bundle — raise **no prompt**, so a finding's frequency, in-silico evidence, or dosing guidance
-  can quietly fall behind the data you just downloaded.
+- **Reference-data staleness prompts are broad and neutral.** After a successful annotation,
+  Yeliztli records the reference-database versions used for that sample. When any installed
+  reference database later moves beyond that snapshot, Settings shows a single per-sample
+  re-annotation indicator: "Reference data is newer than this analysis." Most database updates
+  will not change a given sample's findings; the prompt means the analysis snapshot is behind,
+  not that a clinical interpretation changed.
+- **ClinVar reclassification prompts remain specific.** Yeliztli still separately flags ClinVar
+  **significance** changes that affect one of a sample's variants (or a variant you are
+  watching). Those prompts identify potential reclassifications; the broader reference-data
+  prompt only says the sample should be re-annotated to refresh against newer sources such as
+  gnomAD allele frequencies, dbNSFP predictions, CPIC prescribing guidance, AlphaMissense,
+  ClinGen, the GWAS catalog, or the VEP bundle.
 - **Re-annotate to refresh.** To bring a sample's findings up to date after *any* reference-data
   update, re-annotate it: accept the re-annotation prompt when one appears, or re-run annotation
   for the sample. The status bar's reference-database versions (see
@@ -60,5 +66,4 @@ does **not** change results you already have.
 
 !!! warning "After updating databases, re-annotate to refresh findings"
     A reference-database update only affects *new* analyses. Existing findings keep showing the
-    older data — and you are notified automatically only for **ClinVar** reclassifications — until
-    you re-annotate the sample.
+    older data until you re-annotate the sample.

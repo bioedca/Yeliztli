@@ -497,6 +497,36 @@ describe('Re-annotation Banner', () => {
     expect(screen.getByText(/5 potential reclassification/)).toBeInTheDocument()
   })
 
+  it('shows neutral reference-data staleness prompt details', async () => {
+    setupFetchMocks({
+      prompts: [
+        {
+          id: 2,
+          sample_id: 1,
+          db_name: 'reference_data',
+          db_version: 'multiple',
+          candidate_count: 0,
+          prompt_type: 'version_staleness',
+          stale_databases: [
+            {
+              db_name: 'gnomad',
+              recorded_version: '2.1.1',
+              current_version: '4.1.0',
+            },
+          ],
+          created_at: '2026-06-29T03:00:00Z',
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Reference data updated')).toBeInTheDocument()
+    expect(screen.getByText(/Reference data is newer than 1 analysis/)).toBeInTheDocument()
+    expect(screen.getByText(/gnomad/)).toBeInTheDocument()
+    expect(screen.queryByText(/potential reclassification/)).not.toBeInTheDocument()
+    expect(screen.getByText('Dismiss (reference data)')).toBeInTheDocument()
+  })
+
   it('has dismiss button for each prompt', async () => {
     setupFetchMocks({
       prompts: [

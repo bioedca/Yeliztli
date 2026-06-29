@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from datetime import time as dt_time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,11 +29,13 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    annotation_state,
     auto_update_settings,
     clinvar_variants,
     database_versions,
     download_sessions,
     reference_metadata,
+    samples,
     watched_variants,
 )
 from backend.db.update_manager import (
@@ -56,10 +59,12 @@ from backend.db.update_manager import (
     get_update_history,
     parse_time_window,
     run_clinvar_update,
+    run_precheck_all_samples,
     run_scheduled_update_check,
     set_auto_update,
     should_download_now,
 )
+from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
 
 
 def _settings_for_test(tmp_path: Path) -> Settings:
@@ -644,6 +649,8 @@ class TestReannotationPrompts:
         assert len(prompts) == 1
         assert prompts[0]["watched_count"] == 0
         assert prompts[0]["watched_details"] == []
+        assert prompts[0]["prompt_type"] == "reclassification"
+        assert prompts[0]["stale_databases"] == []
 
     def test_update_prompt_with_watched_data(self, reference_engine):
         """Updating a prompt replaces watched data."""
@@ -697,6 +704,119 @@ class TestReannotationPrompts:
         prompts = get_active_prompts(reference_engine, sample_id=1)
         assert len(prompts) == 1
         assert prompts[0]["sample_id"] == 1
+
+    def test_non_clinvar_version_staleness_creates_single_neutral_prompt(
+        self,
+        db_registry,
+    ):
+        sample_rel = "samples/sample_1.db"
+        sample_path = db_registry.settings.data_dir / sample_rel
+        sample_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_engine = db_registry.get_sample_engine(sample_path)
+        create_sample_tables(sample_engine)
+
+        with db_registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.insert().values(
+                    id=1,
+                    name="test_sample",
+                    db_path=sample_rel,
+                    file_format="23andme_v5",
+                    file_hash="hash",
+                )
+            )
+            conn.execute(
+                database_versions.insert(),
+                [
+                    {"db_name": "clinvar", "version": "20260301"},
+                    {"db_name": "gnomad", "version": "2.1.1"},
+                    {"db_name": "dbnsfp", "version": "4.5"},
+                ],
+            )
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                    value=json.dumps(
+                        {
+                            "clinvar": "20260301",
+                            "gnomad": "2.1.1",
+                            "dbnsfp": "4.5",
+                        }
+                    ),
+                )
+            )
+
+        with db_registry.reference_engine.begin() as conn:
+            conn.execute(
+                database_versions.update()
+                .where(database_versions.c.db_name == "gnomad")
+                .values(version="4.1.0")
+            )
+
+        results = run_precheck_all_samples(
+            db_registry,
+            db_name="gnomad",
+            db_version="4.1.0",
+        )
+
+        assert len(results) == 1
+        assert results[0].candidate_count == 0
+        assert results[0].stale_databases == [
+            {
+                "db_name": "gnomad",
+                "recorded_version": "2.1.1",
+                "current_version": "4.1.0",
+            }
+        ]
+
+        prompts = get_active_prompts(db_registry.reference_engine)
+        assert len(prompts) == 1
+        assert prompts[0]["sample_id"] == 1
+        assert prompts[0]["db_name"] == "reference_data"
+        assert prompts[0]["candidate_count"] == 0
+        assert prompts[0]["prompt_type"] == "version_staleness"
+        assert prompts[0]["stale_databases"] == results[0].stale_databases
+
+    def test_current_reference_versions_do_not_create_staleness_prompt(
+        self,
+        db_registry,
+    ):
+        sample_rel = "samples/sample_1.db"
+        sample_path = db_registry.settings.data_dir / sample_rel
+        sample_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_engine = db_registry.get_sample_engine(sample_path)
+        create_sample_tables(sample_engine)
+
+        current_versions = {"gnomad": "2.1.1"}
+        with db_registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.insert().values(
+                    id=1,
+                    name="test_sample",
+                    db_path=sample_rel,
+                    file_format="23andme_v5",
+                    file_hash="hash",
+                )
+            )
+            conn.execute(database_versions.insert().values(db_name="gnomad", version="2.1.1"))
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                    value=json.dumps(current_versions),
+                )
+            )
+
+        results = run_precheck_all_samples(
+            db_registry,
+            db_name="gnomad",
+            db_version="2.1.1",
+        )
+
+        assert results == []
+        assert get_active_prompts(db_registry.reference_engine) == []
 
 
 # ═══════════════════════════════════════════════════════════════════════

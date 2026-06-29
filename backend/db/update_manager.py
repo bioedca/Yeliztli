@@ -46,6 +46,7 @@ from backend.db.tables import (
     update_history,
     watched_variants,
 )
+from backend.services.staleness import find_stale_reference_versions
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
@@ -107,6 +108,7 @@ class PreCheckResult:
     candidate_count: int
     reclassified_variants: list[dict] = field(default_factory=list)
     watched_reclassified: list[dict] = field(default_factory=list)
+    stale_databases: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -1187,6 +1189,7 @@ def run_precheck_single_sample(
             new_significances=new_significances,
         )
 
+    result.stale_databases = find_stale_reference_versions(sample_engine, reference_engine)
     return result
 
 
@@ -1356,8 +1359,10 @@ def run_precheck_all_samples(
                 new_significances=new_significances,
             )
 
-            if pre_check.candidate_count > 0 or pre_check.watched_reclassified:
+            has_reclassifications = pre_check.candidate_count > 0 or pre_check.watched_reclassified
+            if has_reclassifications or pre_check.stale_databases:
                 results.append(pre_check)
+            if has_reclassifications:
                 _create_reannotation_prompt(
                     engine,
                     sample_id=sample_row.id,
@@ -1366,6 +1371,12 @@ def run_precheck_all_samples(
                     candidate_count=pre_check.candidate_count,
                     watched_count=len(pre_check.watched_reclassified),
                     watched_details=pre_check.watched_reclassified,
+                )
+            if pre_check.stale_databases:
+                _create_version_staleness_prompt(
+                    engine,
+                    sample_id=sample_row.id,
+                    stale_databases=pre_check.stale_databases,
                 )
         except Exception as exc:
             logger.warning(
@@ -1403,6 +1414,7 @@ def _create_reannotation_prompt(
             sa.select(reannotation_prompts.c.id).where(
                 reannotation_prompts.c.sample_id == sample_id,
                 reannotation_prompts.c.db_name == db_name,
+                reannotation_prompts.c.prompt_type == "reclassification",
                 reannotation_prompts.c.dismissed == sa.false(),
             )
         ).fetchone()
@@ -1416,6 +1428,8 @@ def _create_reannotation_prompt(
                     candidate_count=candidate_count,
                     watched_count=watched_count,
                     watched_details=details_json,
+                    prompt_type="reclassification",
+                    stale_databases="[]",
                     created_at=datetime.now(UTC),
                 )
             )
@@ -1428,7 +1442,54 @@ def _create_reannotation_prompt(
                     candidate_count=candidate_count,
                     watched_count=watched_count,
                     watched_details=details_json,
+                    prompt_type="reclassification",
+                    stale_databases="[]",
                     dismissed=False,
+                )
+            )
+
+
+def _create_version_staleness_prompt(
+    engine: Engine,
+    *,
+    sample_id: int,
+    stale_databases: list[dict],
+) -> None:
+    """Create/update the neutral per-sample reference-version staleness prompt."""
+    if not stale_databases:
+        return
+    details_json = json.dumps(stale_databases)
+    with engine.begin() as conn:
+        existing = conn.execute(
+            sa.select(reannotation_prompts.c.id).where(
+                reannotation_prompts.c.sample_id == sample_id,
+                reannotation_prompts.c.prompt_type == "version_staleness",
+                reannotation_prompts.c.dismissed == sa.false(),
+            )
+        ).fetchone()
+
+        values = {
+            "db_name": "reference_data",
+            "db_version": "multiple",
+            "candidate_count": 0,
+            "watched_count": 0,
+            "watched_details": "[]",
+            "prompt_type": "version_staleness",
+            "stale_databases": details_json,
+            "created_at": datetime.now(UTC),
+        }
+        if existing:
+            conn.execute(
+                reannotation_prompts.update()
+                .where(reannotation_prompts.c.id == existing.id)
+                .values(**values)
+            )
+        else:
+            conn.execute(
+                reannotation_prompts.insert().values(
+                    sample_id=sample_id,
+                    dismissed=False,
+                    **values,
                 )
             )
 
@@ -1466,6 +1527,8 @@ def get_active_prompts(
             "candidate_count": row.candidate_count,
             "watched_count": row.watched_count or 0,
             "watched_details": _safe_parse_json_list(row.watched_details),
+            "prompt_type": row.prompt_type,
+            "stale_databases": _safe_parse_json_list(row.stale_databases),
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in rows
@@ -1668,6 +1731,8 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
             result = runner(settings)
             if result is None:
                 raise RuntimeError(f"{db_name} auto-update failed")
+            version = get_current_version(registry.reference_engine, db_name) or "unknown"
+            run_precheck_all_samples(registry, db_name=db_name, db_version=version)
         return
 
     from backend.db.database_registry import get_build_fn
