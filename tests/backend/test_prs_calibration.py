@@ -23,7 +23,35 @@ from backend.analysis.prs_calibration import (
     get_ancestry_fractions,
 )
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, findings
+from backend.db.tables import annotated_variants, findings, imputed_variants
+
+
+def _reference_with_gnomad(rows: list[dict]) -> sa.Engine:
+    """In-memory reference engine with a gnomad_af table seeded with ``rows``.
+
+    Each row needs chrom/pos/ref/alt; per-pop AF columns default to None.
+    """
+    from backend.annotation.gnomad import _INSERT_GNOMAD_SQL, _create_gnomad_table
+
+    engine = sa.create_engine("sqlite://")
+    _create_gnomad_table(engine)
+    with engine.begin() as conn:
+        for row in rows:
+            params: dict = {
+                "rsid": None,
+                "af_global": None,
+                "af_afr": None,
+                "af_amr": None,
+                "af_asj": None,
+                "af_eas": None,
+                "af_eur": None,
+                "af_fin": None,
+                "af_sas": None,
+                "homozygous_count": 0,
+            }
+            params.update(row)
+            conn.execute(_INSERT_GNOMAD_SQL, params)
+    return engine
 
 
 class TestEffectAlleleFrequency:
@@ -467,3 +495,143 @@ class TestRunPrsCalibrationProjectionLocksAllFields:
         assert wd["weight"] == 0.5
         assert wd["chrom"] == "1"
         assert wd["pos"] == 100
+
+
+class TestImputedCalibrationViaReference:
+    """Imputed-scored variants must enter the calibration distribution, not just the
+    raw score (#1236). They live in imputed_variants, not annotated_variants, so a
+    reference engine is needed to source their per-pop gnomAD AF; without one (or
+    without a gnomAD row) the variant stays uncalibrated rather than biasing the
+    moments over a typed-only set.
+    """
+
+    def _imputed_sample(self) -> sa.Engine:
+        # Ancestry finding (EUR) + an imputed-only variant at 1:999 (NOT in
+        # annotated_variants), so the calibration must resolve it via the reference.
+        engine = _sample_with_ancestry({"EUR": 1.0}, [])
+        with engine.begin() as conn:
+            conn.execute(
+                imputed_variants.insert().values(
+                    chrom="1", pos=999, ref="A", alt="G", dr2=0.95, af=0.3, dosage=1.0
+                )
+            )
+        return engine
+
+    def _weights(self) -> list[dict]:
+        # effect == alt (G) so the EUR effect-allele freq is the alt AF directly.
+        return [
+            {
+                "rsid": "",
+                "chrom": "1",
+                "pos": 999,
+                "effect_allele": "G",
+                "other_allele": "A",
+                "weight": 1.0,
+            }
+        ]
+
+    def test_imputed_variant_enters_distribution_via_reference(self) -> None:
+        sample = self._imputed_sample()
+        reference = _reference_with_gnomad(
+            [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
+        )
+        dist = continuous_reference_distribution(self._weights(), sample, reference)
+        assert dist is not None
+        assert dist.variants_used == 1 and dist.variants_total == 1
+        # effect=alt=G, EUR alt-AF 0.3 → p=0.3 → mean = 1*2*0.3 = 0.6.
+        assert math.isclose(dist.mean, 0.6, abs_tol=1e-6)
+
+    def test_without_reference_imputed_variant_is_not_calibrated(self) -> None:
+        # No reference engine → the imputed-only variant cannot be sourced; as the
+        # only carried variant the distribution is empty and is withheld (not
+        # standardized over a typed-only / empty set).
+        sample = self._imputed_sample()
+        assert continuous_reference_distribution(self._weights(), sample, None) is None
+
+    def test_reference_without_matching_gnomad_row_leaves_it_uncalibrated(self) -> None:
+        # Reference engine present but gnomAD has no row at 1:999 A>G → unresolved.
+        sample = self._imputed_sample()
+        reference = _reference_with_gnomad([])
+        assert continuous_reference_distribution(self._weights(), sample, reference) is None
+
+    def _mixed_sample(self) -> sa.Engine:
+        # A typed variant (rsTYP, genotype TT, in annotated_variants WITH gnomAD AF)
+        # that calibrates on its own, PLUS the imputed-only variant at 1:999. The
+        # typed variant alone clears the 50% coverage gate, so without the #1236
+        # guard the distribution would be built over typed-only while the raw score
+        # also includes the imputed contribution — the exact bias.
+        engine = _sample_with_ancestry(
+            {"EUR": 1.0},
+            [
+                {
+                    "rsid": "rsTYP",
+                    "chrom": "2",
+                    "pos": 500,
+                    "ref": "C",
+                    "alt": "T",
+                    "genotype": "TT",
+                    "gnomad_af_global": 0.4,
+                    "gnomad_af_eur": 0.4,
+                }
+            ],
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                imputed_variants.insert().values(
+                    chrom="1", pos=999, ref="A", alt="G", dr2=0.95, af=0.3, dosage=1.0
+                )
+            )
+        return engine
+
+    def _mixed_weight_set(self) -> PRSWeightSet:
+        return PRSWeightSet(
+            name="mixed regression",
+            trait="mixed_trait",
+            module="traits",
+            source_ancestry="EUR",
+            source_study="s",
+            source_pmid="0",
+            sample_size=1,
+            weights=[
+                PRSSNPWeight(
+                    rsid="rsTYP",
+                    effect_allele="T",
+                    other_allele="C",
+                    weight=1.0,
+                    chrom="2",
+                    pos=500,
+                ),
+                PRSSNPWeight(
+                    rsid="", effect_allele="G", other_allele="A", weight=1.0, chrom="1", pos=999
+                ),
+            ],
+            reference_mean=0.0,
+            reference_std=0.0,
+            calibrated=False,
+        )
+
+    def test_run_prs_withholds_percentile_when_imputed_uncalibrated(self) -> None:
+        # End-to-end safety net: the typed variant alone would clear the coverage
+        # gate and yield a (biased) distribution, but the imputed contribution in
+        # the raw score has no reference engine to calibrate it → withhold rather
+        # than standardize against typed-only moments (#1236).
+        result = run_prs(self._mixed_weight_set(), self._mixed_sample())  # no reference_engine
+        assert result.snps_used == 2
+        assert result.snps_used_imputed == 1
+        assert result.calibration_method is None
+        assert result.percentile is None
+
+    def test_run_prs_calibrates_imputed_when_reference_supplied(self) -> None:
+        # Preserve path: with a reference engine sourcing the imputed variant's
+        # per-pop gnomAD AF, BOTH the typed and imputed contributions enter the
+        # distribution and the percentile is emitted over the same set as the raw.
+        reference = _reference_with_gnomad(
+            [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
+        )
+        result = run_prs(
+            self._mixed_weight_set(), self._mixed_sample(), reference_engine=reference
+        )
+        assert result.snps_used_imputed == 1
+        assert result.calibration_method == "ancestry_continuous"
+        assert result.calibration_variants_used == 2  # typed + imputed both calibrated
+        assert result.percentile is not None

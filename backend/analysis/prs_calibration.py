@@ -228,6 +228,85 @@ def get_ancestry_fractions(sample_engine: sa.Engine) -> dict[str, float] | None:
     return {pop: f / total for pop, f in fracs.items() if f and f > 0}
 
 
+def _variant_entry(
+    ref: str, alt: str, per_pop_alt_af: dict[str, float | None], weight: dict
+) -> dict:
+    """Shape a calibration variant entry from a weight + its ref/alt + per-pop AF."""
+    return {
+        "effect_allele": weight["effect_allele"],
+        "other_allele": weight.get("other_allele"),
+        "ref": ref,
+        "alt": alt,
+        "weight": weight["weight"],
+        "per_pop_alt_af": per_pop_alt_af,
+    }
+
+
+def _resolve_imputed_against_reference(
+    weights: list[dict],
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+    af_cols: list[str],
+) -> list[dict]:
+    """Build calibration entries for scored variants absent from annotated_variants.
+
+    These are the imputed-only contributions SW-C5 adds to the raw score (#1236).
+    Their ref/alt come from the sample's ``imputed_variants``; their per-population
+    gnomAD AF from the reference DB (``lookup_gnomad_by_positions``). A variant
+    whose ref/alt or gnomAD AF can't be sourced is left out — it then sits in the
+    same coverage-tolerance bucket as before, never standardized over wrong moments.
+    """
+    from backend.annotation.gnomad import lookup_gnomad_by_positions
+    from backend.db.tables import imputed_variants
+
+    # (normalized chrom, pos) → weights at that locus.
+    by_locus: dict[tuple[str, int], list[dict]] = {}
+    for w in weights:
+        chrom = _norm_chrom(w.get("chrom"))
+        pos = w.get("pos")
+        if chrom is not None and pos is not None:
+            by_locus.setdefault((chrom, pos), []).append(w)
+    if not by_locus:
+        return []
+
+    # ref/alt from the sample's imputed_variants for those loci.
+    ref_alt: dict[tuple[str, int], tuple[str, str]] = {}
+    pos_values = sorted({pos for (_chrom, pos) in by_locus})
+    with sample_engine.connect() as conn:
+        if not sa.inspect(conn).has_table(imputed_variants.name):
+            return []
+        for i in range(0, len(pos_values), _POSITION_BATCH_SIZE):
+            batch = pos_values[i : i + _POSITION_BATCH_SIZE]
+            stmt = sa.select(
+                imputed_variants.c.chrom,
+                imputed_variants.c.pos,
+                imputed_variants.c.ref,
+                imputed_variants.c.alt,
+            ).where(imputed_variants.c.pos.in_(batch))
+            for r in conn.execute(stmt):
+                key = (_norm_chrom(r.chrom), r.pos)
+                if key in by_locus and r.ref and r.alt:
+                    ref_alt[key] = (r.ref, r.alt)
+    if not ref_alt:
+        return []
+
+    # Per-pop gnomAD AF by (chrom, pos, ref, alt). chrom is already normalized to
+    # the gnomad_af store form (strip "chr", upper) so the exact-tuple match lands.
+    positions = [(chrom, pos, ref, alt) for (chrom, pos), (ref, alt) in ref_alt.items()]
+    annotations = lookup_gnomad_by_positions(positions, reference_engine)
+
+    entries: list[dict] = []
+    for (chrom, pos), (ref, alt) in ref_alt.items():
+        ann = annotations.get((chrom, pos, ref, alt))
+        if ann is None:
+            continue
+        # af_cols are gnomad_af_<pop>; the annotation exposes them as af_<pop>.
+        per_pop = {col: getattr(ann, col.removeprefix("gnomad_"), None) for col in af_cols}
+        for w in by_locus[(chrom, pos)]:
+            entries.append(_variant_entry(ref, alt, per_pop, w))
+    return entries
+
+
 def continuous_reference_distribution(
     weights: list[dict],
     sample_engine: sa.Engine,
@@ -240,6 +319,14 @@ def continuous_reference_distribution(
     ref/alt and per-population gnomAD AFs are read from the sample's
     ``annotated_variants``. Returns ``None`` if ancestry is unknown or too few
     variants have a usable AF.
+
+    When ``reference_engine`` is supplied, scored variants that are **absent from
+    ``annotated_variants``** — the imputed-only contributions SW-C5 adds to the
+    raw score (#1236) — are resolved against the gnomAD reference: their ref/alt
+    come from the sample's ``imputed_variants`` and their per-population gnomAD AF
+    from the reference DB. This keeps the expected distribution over the *same*
+    typed+imputed set the raw score used; without it, imputed contributions would
+    inflate the raw score but be missing from the moments, biasing the z-score.
     """
     from backend.db.tables import annotated_variants
 
@@ -290,25 +377,29 @@ def continuous_reference_distribution(
                         rows_by_pos[key] = r
 
     variants: list[dict] = []
+    unresolved: list[dict] = []
 
-    def _append_variant(row: sa.Row | None, weight: dict) -> None:
+    def _append_from_annotated(row: sa.Row | None, weight: dict) -> None:
+        # Scored variants missing from annotated_variants (imputed-only) are held
+        # for reference-DB resolution rather than silently dropped (#1236).
         if row is None or row.ref is None or row.alt is None:
+            unresolved.append(weight)
             return
         variants.append(
-            {
-                "effect_allele": weight["effect_allele"],
-                "other_allele": weight.get("other_allele"),
-                "ref": row.ref,
-                "alt": row.alt,
-                "weight": weight["weight"],
-                "per_pop_alt_af": {c: getattr(row, c) for c in af_cols},
-            }
+            _variant_entry(row.ref, row.alt, {c: getattr(row, c) for c in af_cols}, weight)
         )
 
     for rsid, w in by_rsid.items():
-        _append_variant(rows_by_rsid.get(rsid), w)
+        _append_from_annotated(rows_by_rsid.get(rsid), w)
     for key, w in by_pos.items():
-        _append_variant(rows_by_pos.get(key), w)
+        _append_from_annotated(rows_by_pos.get(key), w)
+
+    if reference_engine is not None and unresolved:
+        variants.extend(
+            _resolve_imputed_against_reference(
+                unresolved, sample_engine, reference_engine, af_cols
+            )
+        )
 
     mean, std, n_used = expected_prs_mean_sd(variants, fractions)
     variants_total = len(by_rsid) + len(by_pos)

@@ -1073,6 +1073,7 @@ def run_prs(
     top_ancestry_fraction: float | None = None,
     n_bootstrap: int = 1000,
     rng_seed: int | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> PRSResult:
     """Run the complete PRS pipeline: compute → percentile → bootstrap → ancestry check.
 
@@ -1131,7 +1132,23 @@ def run_prs(
             for w, contrib in zip(weight_set.weights, result.contributions, strict=True)
             if contrib.match_status in _SCORED_MATCH_STATUSES
         ]
-        dist = continuous_reference_distribution(weights, sample_engine)
+        # SW-C5 imputed contributions enter raw_score but live in imputed_variants,
+        # not annotated_variants, so continuous_reference_distribution can only put
+        # them in the expected moments when a reference_engine is supplied to source
+        # their per-pop gnomAD AF (#1236). Without one, standardizing a raw score
+        # that includes imputed contributions against a typed-only distribution
+        # biases the z-score — so withhold the percentile rather than emit a biased
+        # one (cf. #7); raw_score + coverage are still reported. With a reference
+        # engine, those variants are calibrated and the percentile stands.
+        if result.snps_used_imputed > 0 and reference_engine is None:
+            dist = None
+            logger.info(
+                "prs_continuous_calibration_withheld_imputed",
+                trait=result.trait,
+                snps_used_imputed=result.snps_used_imputed,
+            )
+        else:
+            dist = continuous_reference_distribution(weights, sample_engine, reference_engine)
         if dist is not None:
             reference_mean = dist.mean
             reference_std = dist.std
