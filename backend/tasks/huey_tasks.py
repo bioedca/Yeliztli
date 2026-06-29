@@ -10,6 +10,7 @@ import json
 import os
 import uuid
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 import structlog
@@ -868,12 +869,16 @@ def create_backup_job() -> str:
 def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> None:
     """Huey background task: create a .tar.gz backup archive.
 
-    Archives sample DBs, config.toml, .disclaimer_accepted, and
-    optionally reference database files.
+    Archives sample DBs, config.toml, .disclaimer_accepted, a central sample
+    registry manifest, and optionally standalone reference files.
     """
     import tarfile
 
-    from backend.api.routes.backup import REFERENCE_DB_FILES
+    from backend.api.routes.backup import (
+        REFERENCE_DB_FILES,
+        REGISTRY_MANIFEST_FILE,
+        build_sample_registry_manifest,
+    )
 
     archive_path: Path | None = None
 
@@ -891,7 +896,7 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         archive_path = downloads_dir / filename
 
         # Collect files to archive
-        files_to_add: list[tuple[Path, str]] = []
+        files_to_add: list[tuple[Path | bytes, str]] = []
 
         # Config files. config.toml lives in the home dir (config_toml_path), the
         # single file Settings reads; the disclaimer flag stays under data_dir.
@@ -903,13 +908,18 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         if disclaimer_path.exists():
             files_to_add.append((disclaimer_path, ".disclaimer_accepted"))
 
+        # Central registry metadata. This is small and required for restored
+        # sample files to appear in the app; build it from the live connection
+        # so WAL-mode writes are included.
+        files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
+
         # Sample DB files
         samples_dir = data_dir / "samples"
         if samples_dir.exists():
             for sample_db in sorted(samples_dir.glob("sample_*.db")):
                 files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
-        # Optional reference DBs
+        # Optional standalone reference files
         if include_reference_dbs:
             for db_name in REFERENCE_DB_FILES:
                 db_path = data_dir / db_name
@@ -939,7 +949,12 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
 
         with tarfile.open(archive_path, "w:gz") as tf:
             for idx, (file_path, arcname) in enumerate(files_to_add):
-                tf.add(str(file_path), arcname=arcname)
+                if isinstance(file_path, bytes):
+                    info = tarfile.TarInfo(name=arcname)
+                    info.size = len(file_path)
+                    tf.addfile(info, BytesIO(file_path))
+                else:
+                    tf.add(str(file_path), arcname=arcname)
                 pct = 5.0 + (idx + 1) / total_files * 90.0
                 _update_job(
                     job_id,

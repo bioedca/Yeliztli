@@ -7,10 +7,14 @@ simple and fully under your control.
 
 From **Settings → Backup**, export a `.tar.gz` archive containing:
 
-- all sample databases and their metadata,
+- all sample databases,
+- the sample registry metadata that makes those samples appear in the app,
+  including custom sample names and individual groupings,
 - your configuration (`config.toml`),
-- optionally, the downloaded reference databases (these are large — see
-  [reference data](reference-data.md) — so you may prefer to re-download them instead).
+- optionally, standalone downloaded reference files such as gnomAD, dbNSFP,
+  VEP, and other large file-backed bundles (see [reference data](reference-data.md)).
+  Datasets stored inside `reference.db`, or installed as expanded directories,
+  are not archived wholesale and can be re-downloaded on the target machine instead.
 
 ## Restore a backup
 
@@ -20,12 +24,16 @@ You can restore either:
 - from **Settings → Backup → Import** on an existing install.
 
 A restore **merges** the archive into your current data directory — it selectively
-extracts `config.toml`, your `samples/`, and the disclaimer flag, and does **not** wipe or
-overwrite anything else. When an existing installation is detected, the wizard offers
-*Import Backup* (restore/merge) or *Skip — Start Fresh* (continue without restoring); skip
-simply advances the wizard and leaves your data untouched.
+extracts `config.toml`, your `samples/`, the disclaimer flag, the backed-up sample
+registry rows, and any optional standalone reference files included in the archive.
+It does not replace the whole registry database, so existing installations keep
+unrelated runtime/reference data. Reference-resident datasets can be downloaded
+again after restore. When an existing installation is detected, the wizard offers
+*Import Backup* (restore/merge) or *Skip — Start Fresh* (continue without
+restoring); skip simply advances the wizard and leaves your data untouched.
 
 !!! tip "Plain files, too"
-    Because everything is just files under the data directory, you can also back it up with
-    your normal file-backup or disk-snapshot tooling. Treat that directory as sensitive — it
-    contains your genetic data (see [Privacy](../privacy.md)).
+    Because everything is just files under the data directory, you can also back it
+    up with your normal file-backup or disk-snapshot tooling. A whole-directory copy
+    preserves every runtime file exactly as-is. Treat that directory as sensitive —
+    it contains your genetic data (see [Privacy](../privacy.md)).

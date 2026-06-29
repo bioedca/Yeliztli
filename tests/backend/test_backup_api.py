@@ -10,17 +10,22 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import io
+import json
 import tarfile
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 import sqlalchemy as sa
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
-from backend.db.tables import reference_metadata
+from backend.db.tables import individuals, reference_metadata, samples
 
 # ═══════════════════════════════════════════════════════════════════════
 # Helpers
@@ -53,8 +58,44 @@ def _seed_data_dir(tmp_data_dir: Path, settings: Settings) -> None:
     # reference.db
     ref_path = settings.reference_db_path
     engine = sa.create_engine(f"sqlite:///{ref_path}")
-    reference_metadata.create_all(engine)
-    engine.dispose()
+    try:
+        reference_metadata.create_all(engine)
+        now = datetime.now(UTC)
+        with engine.begin() as conn:
+            conn.execute(
+                individuals.insert().values(
+                    id=1,
+                    display_name="Test Individual",
+                    notes="Grouped by backup test",
+                    biological_sex="XX",
+                    created_at=now,
+                )
+            )
+            conn.execute(
+                samples.insert(),
+                [
+                    {
+                        "id": 1,
+                        "name": "Custom sample one",
+                        "db_path": "samples/sample_1.db",
+                        "file_format": "23andme_v5",
+                        "file_hash": "hash-one",
+                        "individual_id": 1,
+                        "created_at": now,
+                    },
+                    {
+                        "id": 2,
+                        "name": "Custom sample two",
+                        "db_path": "samples/sample_2.db",
+                        "file_format": "ancestrydna_v2",
+                        "file_hash": "hash-two",
+                        "individual_id": 1,
+                        "created_at": now,
+                    },
+                ],
+            )
+    finally:
+        engine.dispose()
 
     # config.toml
     (tmp_data_dir / "config.toml").write_text(
@@ -95,6 +136,17 @@ def _run_export(settings: Settings, include_refs: bool = False):
     return job_id, filename
 
 
+class _UploadBytes:
+    """Minimal async upload object for direct import_backup route tests."""
+
+    def __init__(self, filename: str, content: bytes) -> None:
+        self.filename = filename
+        self._file = io.BytesIO(content)
+
+    async def read(self, size: int = -1) -> bytes:
+        return self._file.read(size)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/backup/estimate
 # ═══════════════════════════════════════════════════════════════════════
@@ -124,7 +176,7 @@ class TestBackupEstimate:
     def test_estimate_with_reference_dbs(self, tmp_data_dir: Path) -> None:
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
         _seed_data_dir(tmp_data_dir, settings)
-        (tmp_data_dir / "clinvar.db").write_bytes(b"clinvar_data" * 500)
+        (tmp_data_dir / "gnomad_af.db").write_bytes(b"gnomad_data" * 500)
         (tmp_data_dir / "vep_bundle.db").write_bytes(b"vep_data" * 1000)
 
         with _make_client(settings):
@@ -230,14 +282,23 @@ class TestBackupExport:
 
         assert "config.toml" in names
         assert ".disclaimer_accepted" in names
+        assert "sample_registry.json" in names
         assert "samples/sample_1.db" in names
         assert "samples/sample_2.db" in names
         assert "clinvar.db" not in names
 
+        with tarfile.open(archive_path, "r:gz") as tf:
+            manifest = json.loads(tf.extractfile("sample_registry.json").read().decode())
+        assert [sample["name"] for sample in manifest["samples"]] == [
+            "Custom sample one",
+            "Custom sample two",
+        ]
+
     def test_export_with_reference_dbs(self, tmp_data_dir: Path) -> None:
-        """Export with include_reference_dbs includes ref DB files."""
+        """Export with include_reference_dbs includes standalone reference files."""
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
         _seed_data_dir(tmp_data_dir, settings)
+        (tmp_data_dir / "gnomad_af.db").write_bytes(b"gnomad_data" * 10)
         (tmp_data_dir / "clinvar.db").write_bytes(b"clinvar_data" * 10)
 
         with _make_client(settings):
@@ -249,8 +310,65 @@ class TestBackupExport:
         with tarfile.open(archive_path, "r:gz") as tf:
             names = tf.getnames()
 
-        assert "clinvar.db" in names
-        assert "reference.db" in names
+        assert "gnomad_af.db" in names
+        assert "clinvar.db" not in names
+        assert "reference.db" not in names
+        assert "sample_registry.json" in names
+
+    def test_export_registry_manifest_includes_wal_rows(self, tmp_data_dir: Path) -> None:
+        """Registry manifest is queried live, so WAL-mode rows are included."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=True)
+        samples_dir = tmp_data_dir / "samples"
+        samples_dir.mkdir(parents=True, exist_ok=True)
+        (tmp_data_dir / "downloads").mkdir(exist_ok=True)
+        (samples_dir / "sample_1.db").write_bytes(b"sample1_data")
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    samples.insert().values(
+                        id=1,
+                        name="WAL sample",
+                        db_path="samples/sample_1.db",
+                        file_format="23andme_v5",
+                        file_hash="wal-hash",
+                    )
+                )
+            _job_id, filename = _run_export(settings, include_refs=False)
+            reset_registry()
+
+        archive_path = settings.downloads_dir / filename
+        with tarfile.open(archive_path, "r:gz") as tf:
+            manifest = json.loads(tf.extractfile("sample_registry.json").read().decode())
+
+        assert manifest["samples"][0]["name"] == "WAL sample"
+
+    def test_export_registry_manifest_failure_is_fatal(
+        self, tmp_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A backup with sample DBs must not silently drop registry metadata."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        (tmp_data_dir / "samples").mkdir(parents=True, exist_ok=True)
+        (tmp_data_dir / "samples" / "sample_1.db").write_bytes(b"sample1_data")
+
+        def _boom():
+            raise sa.exc.SQLAlchemyError("registry unavailable")
+
+        monkeypatch.setattr("backend.db.connection.get_registry", _boom)
+
+        with _make_client(settings):
+            from backend.api.routes.backup import (
+                BackupRegistryManifestError,
+                build_sample_registry_manifest,
+            )
+
+            with pytest.raises(BackupRegistryManifestError):
+                build_sample_registry_manifest(tmp_data_dir)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -368,8 +486,10 @@ class TestBackupDownload:
 
 
 class TestBackupRoundTrip:
-    def test_export_then_import(self, tmp_data_dir: Path, tmp_path: Path) -> None:
-        """Export from one data dir, import into a fresh one."""
+    def test_export_then_import_restores_sample_registry(
+        self, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """Export/import preserves visible samples and individual groupings."""
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
         _seed_data_dir(tmp_data_dir, settings)
 
@@ -398,32 +518,174 @@ class TestBackupRoundTrip:
 
         with _make_client(fresh_settings):
             reset_registry()
-            from backend.main import create_app
+            from backend.api.routes.samples import list_samples
+            from backend.api.routes.setup import import_backup
 
-            app = create_app()
-            with TestClient(app) as tc:
-                resp = tc.post(
-                    "/api/setup/import-backup",
-                    files={
-                        "file": (
-                            filename,
-                            io.BytesIO(archive_content),
-                            "application/gzip",
-                        )
-                    },
-                )
+            import_result = asyncio.run(
+                import_backup(_UploadBytes(filename=filename, content=archive_content))
+            )
+            listed_samples = asyncio.run(list_samples())
             reset_registry()
 
-        assert resp.status_code == 200
-        import_data = resp.json()
-        assert import_data["success"] is True
-        assert import_data["samples_restored"] == 2
-        assert import_data["config_restored"] is True
+        assert import_result.success is True
+        assert import_result.samples_restored == 2
+        assert import_result.config_restored is True
 
         # Verify files exist in fresh dir
         assert (fresh_dir / "config.toml").exists()
         assert (fresh_dir / "samples" / "sample_1.db").exists()
         assert (fresh_dir / "samples" / "sample_2.db").exists()
+
+        assert sorted(sample.name for sample in listed_samples) == [
+            "Custom sample one",
+            "Custom sample two",
+        ]
+        assert {sample.db_path for sample in listed_samples} == {
+            "samples/sample_1.db",
+            "samples/sample_2.db",
+        }
+
+        engine = sa.create_engine(f"sqlite:///{fresh_settings.reference_db_path}")
+        try:
+            with engine.connect() as conn:
+                grouped = conn.execute(
+                    sa.select(
+                        individuals.c.display_name,
+                        individuals.c.biological_sex,
+                        samples.c.name,
+                    )
+                    .join(samples, samples.c.individual_id == individuals.c.id)
+                    .order_by(samples.c.id.asc())
+                ).fetchall()
+        finally:
+            engine.dispose()
+
+        assert [(row.display_name, row.biological_sex, row.name) for row in grouped] == [
+            ("Test Individual", "XX", "Custom sample one"),
+            ("Test Individual", "XX", "Custom sample two"),
+        ]
+
+    def test_import_allocates_new_sample_paths_on_existing_install(
+        self, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """Restoring sample_1.db into an install with sample_1.db keeps both."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _seed_data_dir(tmp_data_dir, settings)
+
+        with _make_client(settings):
+            reset_registry()
+            _job_id, filename = _run_export(settings, include_refs=False)
+            reset_registry()
+        archive_content = (settings.downloads_dir / filename).read_bytes()
+
+        existing_dir = tmp_path / "existing_install"
+        existing_dir.mkdir()
+        (existing_dir / "samples").mkdir()
+        (existing_dir / "downloads").mkdir()
+        (existing_dir / "logs").mkdir()
+        existing_settings = Settings(data_dir=existing_dir, wal_mode=False)
+        existing_sample = existing_dir / "samples" / "sample_1.db"
+        existing_sample.write_bytes(b"local-sample-one")
+        engine = sa.create_engine(f"sqlite:///{existing_settings.reference_db_path}")
+        try:
+            reference_metadata.create_all(engine)
+            with engine.begin() as conn:
+                conn.execute(
+                    samples.insert().values(
+                        id=1,
+                        name="Local sample one",
+                        db_path="samples/sample_1.db",
+                        file_format="23andme_v5",
+                        file_hash="local-hash",
+                    )
+                )
+        finally:
+            engine.dispose()
+
+        with _make_client(existing_settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+
+            result = asyncio.run(
+                import_backup(_UploadBytes(filename=filename, content=archive_content))
+            )
+            reset_registry()
+
+        assert result.samples_restored == 2
+        assert existing_sample.read_bytes() == b"local-sample-one"
+        assert (existing_dir / "samples" / "sample_2.db").exists()
+        assert (existing_dir / "samples" / "sample_3.db").exists()
+
+        engine = sa.create_engine(f"sqlite:///{existing_settings.reference_db_path}")
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    sa.select(samples.c.id, samples.c.name, samples.c.db_path).order_by(
+                        samples.c.id.asc()
+                    )
+                ).fetchall()
+        finally:
+            engine.dispose()
+
+        assert [(row.id, row.name, row.db_path) for row in rows] == [
+            (1, "Local sample one", "samples/sample_1.db"),
+            (2, "Custom sample one", "samples/sample_2.db"),
+            (3, "Custom sample two", "samples/sample_3.db"),
+        ]
+
+    def test_import_cleans_sample_files_when_registry_insert_fails(
+        self, tmp_data_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Moved sample DB files are removed if registry rows cannot be inserted."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _seed_data_dir(tmp_data_dir, settings)
+
+        with _make_client(settings):
+            reset_registry()
+            _job_id, filename = _run_export(settings, include_refs=False)
+            reset_registry()
+        archive_content = (settings.downloads_dir / filename).read_bytes()
+
+        fresh_dir = tmp_path / "failed_restore"
+        fresh_dir.mkdir()
+        (fresh_dir / "samples").mkdir()
+        (fresh_dir / "downloads").mkdir()
+        (fresh_dir / "logs").mkdir()
+        fresh_settings = Settings(data_dir=fresh_dir, wal_mode=False)
+
+        engine = sa.create_engine(f"sqlite:///{fresh_settings.reference_db_path}")
+        reference_metadata.create_all(engine)
+        engine.dispose()
+
+        def _boom(**_kwargs):
+            raise sa.exc.IntegrityError("insert", {}, Exception("simulated failure"))
+
+        monkeypatch.setattr("backend.api.routes.setup._insert_registry_rows", _boom)
+
+        with _make_client(fresh_settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(
+                    import_backup(_UploadBytes(filename=filename, content=archive_content))
+                )
+            reset_registry()
+
+        assert exc_info.value.status_code == 500
+        assert not (fresh_dir / "samples" / "sample_1.db").exists()
+        assert not (fresh_dir / "samples" / "sample_2.db").exists()
+
+        engine = sa.create_engine(f"sqlite:///{fresh_settings.reference_db_path}")
+        try:
+            with engine.connect() as conn:
+                sample_count = conn.execute(
+                    sa.select(sa.func.count()).select_from(samples)
+                ).scalar_one()
+        finally:
+            engine.dispose()
+
+        assert sample_count == 0
 
 
 def test_backup_includes_home_config_for_relocated_install(tmp_path: Path) -> None:

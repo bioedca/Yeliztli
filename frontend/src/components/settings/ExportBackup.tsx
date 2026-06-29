@@ -1,6 +1,6 @@
 /** Export Backup UI for Settings > General (P4-21c).
  *
- * Shows estimated archive size, optional reference DB inclusion,
+ * Shows estimated archive size, optional standalone reference file inclusion,
  * and triggers background export with progress polling.
  */
 
@@ -67,7 +67,7 @@ export default function ExportBackup() {
             <span className="text-muted-foreground">
               {estimate.data.sample_count} sample(s)
               {estimate.data.reference_db_count > 0 &&
-                `, ${estimate.data.reference_db_count} reference database(s) available`}
+                `, ${estimate.data.reference_db_count} standalone reference file(s) available`}
             </span>
           </div>
           <div className="text-sm text-muted-foreground">
@@ -90,15 +90,16 @@ export default function ExportBackup() {
             disabled={isExporting}
             className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
             data-testid="include-ref-dbs-checkbox"
-            aria-label="Include reference databases"
+            aria-label="Include standalone reference files"
           />
           <div>
             <span className="text-sm font-medium text-foreground">
-              Include reference databases
+              Include standalone reference files
             </span>
             <p className="text-xs text-muted-foreground mt-0.5">
-              ClinVar, gnomAD, dbNSFP, VEP bundle, etc. ({formatBytes(estimate.data.reference_bytes)}).
-              Not needed if you plan to re-download on the target machine.
+              gnomAD, dbNSFP, VEP, and other file-backed bundles
+              ({formatBytes(estimate.data.reference_bytes)}). Reference-resident
+              datasets and expanded directories can be re-downloaded on the target machine.
             </p>
           </div>
         </label>

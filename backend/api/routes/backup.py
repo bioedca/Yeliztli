@@ -9,29 +9,50 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
+import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.config import config_toml_path, get_settings
+from backend.db.database_registry import DATABASES
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
-# Reference DB filenames that can optionally be included in the archive.
-# Shared with the Huey task via import.
-REFERENCE_DB_FILES = (
-    "clinvar.db",
-    "vep_bundle.db",
-    "gnomad_af.db",
-    "dbnsfp.db",
-    "encode_ccres.db",
-    "reference.db",
+# The small central sample registry is part of every backup. It is exported as
+# JSON from the live SQLite connection instead of copying reference.db directly:
+# reference.db may be in WAL mode, and it also contains unrelated reference and
+# runtime tables.
+REGISTRY_MANIFEST_FILE = "sample_registry.json"
+
+# Standalone reference/annotation files that can optionally be included in the
+# archive. Reference-resident datasets are intentionally excluded because
+# copying reference.db wholesale would overwrite runtime/sample registry state.
+REFERENCE_DB_FILES = tuple(
+    db.filename for db in DATABASES.values() if db.target_db == "standalone" and db.filename
 )
+
+# Older archives may contain reference-resident datasets as standalone files.
+# Accept those on import for compatibility, but do not create new archives with
+# them.
+LEGACY_REFERENCE_DB_FILES = tuple(
+    db.filename for db in DATABASES.values() if db.target_db == "reference" and db.filename
+)
+RESTORABLE_REFERENCE_DB_FILES = tuple(
+    dict.fromkeys((*REFERENCE_DB_FILES, *LEGACY_REFERENCE_DB_FILES))
+)
+
+
+class BackupRegistryManifestError(RuntimeError):
+    """Raised when a backup cannot safely export sample registry metadata."""
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -95,13 +116,73 @@ def _collect_sample_files(data_dir: Path) -> list[Path]:
 
 
 def _collect_reference_files(data_dir: Path) -> list[Path]:
-    """Collect existing reference DB files."""
+    """Collect existing optional standalone reference files."""
     files = []
     for name in REFERENCE_DB_FILES:
         p = data_dir / name
         if p.exists():
             files.append(p)
     return files
+
+
+def _jsonable(value: Any) -> Any:
+    """Return a JSON-safe representation of a registry value."""
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
+
+
+def build_sample_registry_manifest(data_dir: Path) -> bytes:
+    """Serialize registry rows for the sample DBs included in this backup."""
+    from backend.db.connection import get_registry
+    from backend.db.tables import individuals, samples
+
+    sample_db_paths = [f"samples/{path.name}" for path in _collect_sample_files(data_dir)]
+    manifest: dict[str, Any] = {"version": 1, "individuals": [], "samples": []}
+    if not sample_db_paths:
+        return json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode()
+
+    try:
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            inspector = sa.inspect(conn)
+            if "samples" not in inspector.get_table_names():
+                raise BackupRegistryManifestError(
+                    "Sample registry table is missing; backup would lose sample metadata."
+                )
+            sample_rows = conn.execute(
+                sa.select(samples)
+                .where(samples.c.db_path.in_(sample_db_paths))
+                .order_by(samples.c.id.asc())
+            ).fetchall()
+            manifest["samples"] = [
+                {col.name: _jsonable(row._mapping[col.name]) for col in samples.c}
+                for row in sample_rows
+            ]
+            individual_ids = sorted(
+                {
+                    row._mapping["individual_id"]
+                    for row in sample_rows
+                    if row._mapping.get("individual_id") is not None
+                }
+            )
+            if individual_ids and "individuals" in inspector.get_table_names():
+                individual_rows = conn.execute(
+                    sa.select(individuals)
+                    .where(individuals.c.id.in_(individual_ids))
+                    .order_by(individuals.c.id.asc())
+                ).fetchall()
+                manifest["individuals"] = [
+                    {col.name: _jsonable(row._mapping[col.name]) for col in individuals.c}
+                    for row in individual_rows
+                ]
+    except (sa.exc.SQLAlchemyError, BackupRegistryManifestError) as exc:
+        logger.warning("backup_registry_manifest_skipped", error=str(exc))
+        raise BackupRegistryManifestError(
+            "Could not export the sample registry; backup would omit sample names/groupings."
+        ) from exc
+
+    return json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode()
 
 
 def _has_running_backup() -> bool:
@@ -139,7 +220,10 @@ async def backup_estimate() -> BackupEstimateResponse:
 
     config_path = config_toml_path()
     disclaimer_path = data_dir / ".disclaimer_accepted"
-    config_bytes = _get_file_size(config_path) + _get_file_size(disclaimer_path)
+    registry_manifest_bytes = len(build_sample_registry_manifest(data_dir))
+    config_bytes = (
+        _get_file_size(config_path) + _get_file_size(disclaimer_path) + registry_manifest_bytes
+    )
 
     ref_files = _collect_reference_files(data_dir)
     reference_bytes = sum(_get_file_size(f) for f in ref_files)
@@ -170,7 +254,7 @@ async def backup_export(
     """Start a backup export as a background Huey task.
 
     Creates a .tar.gz archive containing sample DBs, config.toml,
-    and optionally reference databases.
+    and optionally standalone reference files.
     """
     if _has_running_backup():
         raise HTTPException(

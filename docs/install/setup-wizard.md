@@ -12,8 +12,9 @@ is **not** a diagnostic tool. (The full statement is on the
 ## Step 2 — Import from backup (optional)
 
 If you have a previous Yeliztli backup (a `.tar.gz` archive), restore it here to bring back
-your samples, configuration, and optionally reference databases. Skip this for a fresh
-install. See [backup & restore](backup-restore.md).
+your samples, configuration, and any standalone reference files included in that archive.
+Reference-resident datasets can be downloaded again later. Skip this for a fresh install.
+See [backup & restore](backup-restore.md).
 
 ## Step 3 — Storage path
 

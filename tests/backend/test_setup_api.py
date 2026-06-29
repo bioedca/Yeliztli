@@ -672,11 +672,7 @@ def test_import_backup_is_transactional_on_failure(tmp_path: Path, monkeypatch) 
 def test_import_backup_leaves_no_partial_samples_on_commit_failure(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """A failure during the samples commit (move) leaves no partial sample set.
-
-    The first-run restore commits the staged samples as a single atomic directory
-    rename, so a failure there moves nothing into data_dir.
-    """
+    """A failure during the sample-file commit leaves no partial sample set."""
     import os
 
     home = tmp_path / "home"
@@ -689,8 +685,8 @@ def test_import_backup_leaves_no_partial_samples_on_commit_failure(
     real_replace = os.replace
 
     def _boom_on_samples(src, dst):
-        # Fail the atomic samples directory rename (dst is data_dir/samples).
-        if str(dst).rstrip("/").endswith("samples"):
+        # Fail the first staged sample move into data_dir/samples.
+        if Path(dst).name == "sample_000.db":
             raise OSError("simulated commit failure")
         return real_replace(src, dst)
 

@@ -14,7 +14,6 @@ Endpoints:
 
 from __future__ import annotations
 
-import errno
 import json
 import os
 import re
@@ -31,6 +30,10 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, field_validator
 
+from backend.api.routes.backup import (
+    REGISTRY_MANIFEST_FILE,
+    RESTORABLE_REFERENCE_DB_FILES,
+)
 from backend.config import (
     config_toml_path,
     config_write_lock,
@@ -377,8 +380,19 @@ async def detect_existing() -> DetectExistingResponse:
 # Max upload size: 5 GB (sample DBs can be large)
 _MAX_BACKUP_SIZE = 5 * 1024 * 1024 * 1024
 
-# Allowed top-level entries in a valid backup archive
-_ALLOWED_ARCHIVE_ENTRIES = {"config.toml", "samples", ".disclaimer_accepted"}
+# Allowed top-level entries in a valid backup archive. ``sample_registry.json``
+# is the current sample-registry payload; ``reference.db`` is accepted only for
+# legacy registry metadata. Optional standalone reference files are restored
+# only when present.
+_ALLOWED_ARCHIVE_ENTRIES = {
+    "config.toml",
+    "samples",
+    ".disclaimer_accepted",
+    REGISTRY_MANIFEST_FILE,
+    "reference.db",  # Legacy archives created before the registry manifest.
+    *RESTORABLE_REFERENCE_DB_FILES,
+}
+_SINGLE_FILE_ARCHIVE_ENTRIES = _ALLOWED_ARCHIVE_ENTRIES - {"samples"}
 
 
 def _validate_tar_member(member: tarfile.TarInfo) -> bool:
@@ -417,6 +431,8 @@ def _validate_archive_structure(tf: tarfile.TarFile) -> list[str]:
         top_level = member.name.split("/")[0]
         if top_level not in _ALLOWED_ARCHIVE_ENTRIES:
             issues.append(f"Unexpected entry: {top_level}")
+        elif top_level in _SINGLE_FILE_ARCHIVE_ENTRIES and member.name != top_level:
+            issues.append(f"Unexpected nested entry: {member.name}")
 
         if top_level == "samples":
             has_samples = True
@@ -604,17 +620,281 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
         )
 
 
+def _row_values(row: sa.Row, table: sa.Table, *, include_id: bool = True) -> dict:
+    """Return values from ``row`` for columns in ``table``."""
+    mapping = row._mapping
+    return {
+        col.name: mapping[col.name]
+        for col in table.c
+        if col.name in mapping and (include_id or col.name != "id")
+    }
+
+
+def _coerce_registry_values(raw: dict, table: sa.Table, *, include_id: bool = True) -> dict:
+    """Coerce JSON-loaded registry values for insertion into ``table``."""
+    values = {}
+    for col in table.c:
+        if col.name == "id" and not include_id:
+            continue
+        if col.name not in raw:
+            continue
+        value = raw[col.name]
+        if value is not None and isinstance(col.type, sa.DateTime) and isinstance(value, str):
+            value = datetime.fromisoformat(value)
+        values[col.name] = value
+    return values
+
+
+def _rows_match(row: sa.Row, values: dict) -> bool:
+    """Return whether an existing row already has the supplied values."""
+    mapping = row._mapping
+    return all(mapping.get(key) == value for key, value in values.items())
+
+
+def _load_registry_manifest(manifest_path: Path) -> tuple[list[dict], list[dict]]:
+    """Load registry rows from the current JSON backup manifest."""
+    try:
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "restore_registry_manifest_skipped",
+            manifest=str(manifest_path),
+            error=str(exc),
+        )
+        return [], []
+    if raw.get("version") != 1:
+        logger.warning(
+            "restore_registry_manifest_unsupported",
+            manifest=str(manifest_path),
+            version=raw.get("version"),
+        )
+        return [], []
+    return list(raw.get("individuals") or []), list(raw.get("samples") or [])
+
+
+def _load_legacy_registry_db(
+    backup_reference_db: Path,
+    restored_sample_db_paths: set[str],
+) -> tuple[list[dict], list[dict]]:
+    """Load registry rows from a legacy archived ``reference.db`` file."""
+    if not backup_reference_db.exists() or not restored_sample_db_paths:
+        return [], []
+
+    from backend.db.tables import individuals, samples
+
+    source_engine = sa.create_engine(f"sqlite:///{backup_reference_db}")
+    try:
+        with source_engine.connect() as source_conn:
+            inspector = sa.inspect(source_engine)
+            if "samples" not in inspector.get_table_names():
+                return [], []
+            source_sample_rows = source_conn.execute(
+                sa.select(samples)
+                .where(samples.c.db_path.in_(sorted(restored_sample_db_paths)))
+                .order_by(samples.c.id.asc())
+            ).fetchall()
+            source_samples = [_row_values(row, samples) for row in source_sample_rows]
+
+            individual_ids = sorted(
+                {
+                    row["individual_id"]
+                    for row in source_samples
+                    if row.get("individual_id") is not None
+                }
+            )
+            source_individuals = []
+            if individual_ids and "individuals" in inspector.get_table_names():
+                source_individual_rows = source_conn.execute(
+                    sa.select(individuals)
+                    .where(individuals.c.id.in_(individual_ids))
+                    .order_by(individuals.c.id.asc())
+                ).fetchall()
+                source_individuals = [
+                    _row_values(row, individuals) for row in source_individual_rows
+                ]
+            return source_individuals, source_samples
+    except sa.exc.SQLAlchemyError as exc:
+        logger.warning(
+            "restore_legacy_registry_skipped",
+            reference_db=str(backup_reference_db),
+            error=str(exc),
+        )
+        return [], []
+    finally:
+        source_engine.dispose()
+
+
+def _sample_id_from_path(db_path: str) -> int | None:
+    """Parse ``samples/sample_N.db`` to ``N`` when possible."""
+    match = re.fullmatch(r"samples/sample_(\d+)\.db", db_path)
+    return int(match.group(1)) if match else None
+
+
+def _default_sample_registry_row(member_name: str) -> dict:
+    """Best-effort registry row for legacy archives with no registry metadata."""
+    db_path = member_name
+    return {
+        "id": _sample_id_from_path(db_path),
+        "name": Path(member_name).name,
+        "db_path": db_path,
+        "file_format": None,
+        "file_hash": None,
+        "individual_id": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": None,
+    }
+
+
+def _next_available_sample_id(
+    *,
+    data_dir: Path,
+    existing_ids: set[int],
+    existing_paths: set[str],
+    used_ids: set[int],
+) -> int:
+    """Return the next sample id whose canonical path is unused."""
+    candidate = max(existing_ids | used_ids | {0}) + 1
+    while (
+        candidate in existing_ids
+        or candidate in used_ids
+        or f"samples/sample_{candidate}.db" in existing_paths
+        or (data_dir / "samples" / f"sample_{candidate}.db").exists()
+    ):
+        candidate += 1
+    return candidate
+
+
+def _plan_registry_rows(
+    *,
+    source_samples: list[dict],
+    staged_sample_members: list[str],
+    data_dir: Path,
+) -> tuple[dict[str, str], list[tuple[str, dict, int | None]]]:
+    """Plan backed-up sample rows without mutating the registry."""
+    from backend.db.tables import samples
+
+    sample_rows_by_path = {
+        row.get("db_path"): row
+        for row in source_samples
+        if row.get("db_path") in staged_sample_members
+    }
+    source_rows = [
+        sample_rows_by_path.get(member_name) or _default_sample_registry_row(member_name)
+        for member_name in staged_sample_members
+    ]
+
+    registry = get_registry()
+    final_paths: dict[str, str] = {}
+    planned_samples: list[tuple[str, dict, int | None]] = []
+    with registry.reference_engine.connect() as conn:
+        existing_ids = {
+            row.id
+            for row in conn.execute(sa.select(samples.c.id)).fetchall()
+            if row.id is not None
+        }
+        existing_paths = {
+            row.db_path
+            for row in conn.execute(sa.select(samples.c.db_path)).fetchall()
+            if row.db_path is not None
+        }
+    used_new_ids: set[int] = set()
+
+    for member_name, row in zip(staged_sample_members, source_rows, strict=True):
+        old_id = row.get("id")
+        old_individual_id = row.get("individual_id")
+        preferred_path = row.get("db_path") or member_name
+        preferred_id = old_id if isinstance(old_id, int) else _sample_id_from_path(preferred_path)
+
+        can_preserve = (
+            preferred_id is not None
+            and preferred_id not in existing_ids
+            and preferred_id not in used_new_ids
+            and preferred_path not in existing_paths
+            and not (data_dir / preferred_path).exists()
+        )
+        if can_preserve:
+            final_id = preferred_id
+            final_db_path = preferred_path
+        else:
+            final_id = _next_available_sample_id(
+                data_dir=data_dir,
+                existing_ids=existing_ids,
+                existing_paths=existing_paths,
+                used_ids=used_new_ids,
+            )
+            final_db_path = f"samples/sample_{final_id}.db"
+
+        used_new_ids.add(final_id)
+        existing_ids.add(final_id)
+        existing_paths.add(final_db_path)
+        final_paths[member_name] = final_db_path
+
+        values_with_id = _coerce_registry_values(row, samples)
+        values_with_id["id"] = final_id
+        values_with_id["db_path"] = final_db_path
+        planned_samples.append(
+            (
+                member_name,
+                values_with_id,
+                old_individual_id if isinstance(old_individual_id, int) else None,
+            )
+        )
+
+    return final_paths, planned_samples
+
+
+def _insert_registry_rows(
+    *,
+    source_individuals: list[dict],
+    planned_samples: list[tuple[str, dict, int | None]],
+) -> None:
+    """Insert backed-up registry rows in one transaction after sample files move."""
+    from backend.db.tables import individuals, samples
+
+    registry = get_registry()
+    individual_id_map: dict[int, int] = {}
+    with registry.reference_engine.begin() as conn:
+        for row in source_individuals:
+            old_id = row.get("id")
+            if old_id is None:
+                continue
+            values_with_id = _coerce_registry_values(row, individuals)
+            values_without_id = _coerce_registry_values(row, individuals, include_id=False)
+            existing = conn.execute(
+                sa.select(individuals).where(individuals.c.id == old_id)
+            ).fetchone()
+            if existing is None:
+                conn.execute(individuals.insert().values(values_with_id))
+                individual_id_map[old_id] = old_id
+            elif _rows_match(existing, values_with_id):
+                individual_id_map[old_id] = old_id
+            else:
+                result = conn.execute(individuals.insert().values(values_without_id))
+                individual_id_map[old_id] = int(result.inserted_primary_key[0])
+
+        for _member_name, values, old_individual_id in planned_samples:
+            insert_values = dict(values)
+            insert_values["individual_id"] = (
+                individual_id_map.get(old_individual_id) if old_individual_id is not None else None
+            )
+            conn.execute(samples.insert().values(insert_values))
+
+
 @router.post("/import-backup", response_model=ImportBackupResponse)
 async def import_backup(file: UploadFile) -> ImportBackupResponse:
     """Import data from a .tar.gz backup archive.
 
     Accepts a .tar.gz file containing:
     - samples/ directory with sample_*.db files
+    - sample_registry.json sample registry metadata (optional for legacy archives)
     - config.toml (optional)
     - .disclaimer_accepted (optional)
 
-    Extracts contents to the data directory. Reference DBs are NOT expected
-    in the archive — they will be re-downloaded in a later wizard step.
+    Extracts contents to the data directory. Backed-up ``individuals`` and
+    ``samples`` rows are merged into the active registry, with new sample IDs
+    allocated when paths collide. Optional standalone reference files are
+    restored when present; reference-resident datasets can be re-downloaded in a
+    later wizard step.
 
     Plan §7.6: before any extraction to ``data_dir``, sample DBs are
     inspected in an isolated staging directory and their recorded
@@ -687,9 +967,12 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     dir=data_dir, prefix=".import_staging_"
                 ) as staging:
                     staging_dir = Path(staging)
-                    staged_samples: list[tuple[Path, Path]] = []  # (staged, final)
+                    staged_samples: list[tuple[str, Path]] = []  # (member_name, staged)
                     staged_config: Path | None = None
                     staged_disclaimer: Path | None = None
+                    staged_registry_manifest: Path | None = None
+                    staged_legacy_registry: Path | None = None
+                    staged_reference_dbs: list[tuple[Path, Path]] = []
 
                     for member in tf.getmembers():
                         if not _validate_tar_member(member):
@@ -710,7 +993,13 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                         with staged.open("wb") as out:
                             shutil.copyfileobj(src, out)
                         if top_level == "samples" and member.name.endswith(".db"):
-                            staged_samples.append((staged, data_dir / member.name))
+                            staged_samples.append((member.name, staged))
+                        elif member.name == REGISTRY_MANIFEST_FILE:
+                            staged_registry_manifest = staged
+                        elif member.name == "reference.db":
+                            staged_legacy_registry = staged
+                        elif top_level in RESTORABLE_REFERENCE_DB_FILES:
+                            staged_reference_dbs.append((staged, data_dir / member.name))
                         elif member.name == "config.toml":
                             staged_config = staged
                         elif member.name == ".disclaimer_accepted":
@@ -718,29 +1007,72 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
 
                     # Idempotent v7→v8 / annotation_state / bundle-version upgrade
                     # on each staged sample, before it becomes visible in data_dir.
-                    for staged, _final in staged_samples:
+                    for _member_name, staged in staged_samples:
                         _upgrade_restored_sample_db(staged)
 
-                    # Commit. Move the staged samples into place as a SINGLE atomic
-                    # directory rename — onto the (startup-created) empty samples
-                    # dir or an absent one, so all samples appear together or not
-                    # at all, never a half-populated set. Only a NON-empty samples
-                    # dir (a rarer re-restore) raises ENOTEMPTY and falls back to a
-                    # per-file merge; any other error propagates so the restore
-                    # fails cleanly. Same filesystem (staging is under data_dir) →
-                    # os.replace is atomic.
-                    staged_samples_dir = staging_dir / "samples"
-                    final_samples_dir = data_dir / "samples"
-                    if staged_samples_dir.is_dir():
-                        try:
-                            os.replace(staged_samples_dir, final_samples_dir)
-                        except OSError as exc:
-                            if exc.errno != errno.ENOTEMPTY:
-                                raise
-                            for staged, final in staged_samples:
-                                final.parent.mkdir(parents=True, exist_ok=True)
-                                os.replace(staged, final)
-                        samples_restored = len(staged_samples)
+                    staged_sample_member_names = [member_name for member_name, _ in staged_samples]
+                    if staged_registry_manifest is not None:
+                        source_individuals, source_samples = _load_registry_manifest(
+                            staged_registry_manifest
+                        )
+                    elif staged_legacy_registry is not None:
+                        source_individuals, source_samples = _load_legacy_registry_db(
+                            staged_legacy_registry,
+                            set(staged_sample_member_names),
+                        )
+                    else:
+                        source_individuals, source_samples = [], []
+
+                    final_sample_paths, planned_sample_rows = _plan_registry_rows(
+                        source_samples=source_samples,
+                        staged_sample_members=staged_sample_member_names,
+                        data_dir=data_dir,
+                    )
+                    moved_sample_paths: list[Path] = []
+                    try:
+                        for member_name, staged in staged_samples:
+                            final_path = data_dir / final_sample_paths[member_name]
+                            if final_path.exists():
+                                raise HTTPException(
+                                    status_code=409,
+                                    detail=(
+                                        "Refusing to overwrite existing sample DB: "
+                                        f"{final_path.name}"
+                                    ),
+                                )
+                            final_path.parent.mkdir(parents=True, exist_ok=True)
+                            os.replace(staged, final_path)
+                            moved_sample_paths.append(final_path)
+                        _insert_registry_rows(
+                            source_individuals=source_individuals,
+                            planned_samples=planned_sample_rows,
+                        )
+                    except HTTPException:
+                        for moved_path in moved_sample_paths:
+                            moved_path.unlink(missing_ok=True)
+                        raise
+                    except Exception as exc:
+                        for moved_path in moved_sample_paths:
+                            moved_path.unlink(missing_ok=True)
+                        logger.warning(
+                            "backup_sample_restore_failed",
+                            moved_samples=len(moved_sample_paths),
+                            error=str(exc),
+                        )
+                        raise HTTPException(
+                            status_code=500,
+                            detail="Failed to restore sample files and registry metadata.",
+                        ) from exc
+                    samples_restored = len(staged_samples)
+
+                    if staged_registry_manifest is not None or staged_legacy_registry is not None:
+                        logger.info(
+                            "backup_registry_imported",
+                            samples_restored=len(final_sample_paths),
+                        )
+                    for staged, final in staged_reference_dbs:
+                        final.parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(staged, final)
                     # config.toml goes to the home dir (config_toml_path), which may
                     # be a different filesystem than a relocated data_dir, so copy
                     # that single small file.
