@@ -180,8 +180,12 @@ def _sample_best_guess_copies(
     if not gt:
         return [None] * n_alts
 
+    alleles = re.split(r"[|/]", gt)
+    if len(alleles) != 2:
+        return [None] * n_alts
+
     counts = [0] * n_alts
-    for tok in re.split(r"[|/]", gt):
+    for tok in alleles:
         allele = tok.strip()
         if allele in {"", "."}:
             return [None] * n_alts

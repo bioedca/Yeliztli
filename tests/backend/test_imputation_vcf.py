@@ -206,6 +206,8 @@ class TestMalformedAndMissing:
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
             "22\t100\trsa\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tDS\t1.0\n"
             "22\t200\trsb\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t.|1:1.0\n"
+            "22\t300\trsc\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t1:1.0\n"
+            "22\t400\trsd\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|1|1:1.0\n"
         )
         by_pos = {
             v.pos: v
@@ -220,6 +222,10 @@ class TestMalformedAndMissing:
         assert by_pos[100].best_guess_copies is None
         assert by_pos[200].dosage == 1.0
         assert by_pos[200].best_guess_copies is None
+        assert by_pos[300].dosage == 1.0
+        assert by_pos[300].best_guess_copies is None
+        assert by_pos[400].dosage == 1.0
+        assert by_pos[400].best_guess_copies is None
 
 
 class TestNormalizeChrom:
