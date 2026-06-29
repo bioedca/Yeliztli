@@ -68,6 +68,8 @@ from backend.analysis.allele_match import (
 )
 from backend.analysis.ancestry import ancestry_covered
 from backend.analysis.evidence import PRS_EVIDENCE_LEVEL
+from backend.analysis.finding_gate import imputed_variant_surfaceable
+from backend.analysis.imputation_runner import ImputedVariant
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
     continuous_reference_distribution,
@@ -483,6 +485,8 @@ def _load_imputed_dosages(
         imputed_variants.c.pos,
         imputed_variants.c.ref,
         imputed_variants.c.alt,
+        imputed_variants.c.dr2,
+        imputed_variants.c.af,
         imputed_variants.c.dosage,
     )
     with sample_engine.connect() as conn:
@@ -496,6 +500,18 @@ def _load_imputed_dosages(
                     continue
                 key = (_norm_chrom(r.chrom), r.pos)
                 if key in wanted:
+                    variant = ImputedVariant(
+                        chrom=r.chrom,
+                        pos=r.pos,
+                        ref=r.ref,
+                        alt=r.alt,
+                        dr2=r.dr2,
+                        af=r.af,
+                        imputed=True,
+                        dosage=r.dosage,
+                    )
+                    if not imputed_variant_surfaceable(variant):
+                        continue
                     out.setdefault(key, []).append((r.ref, r.alt, r.dosage))
     return out
 

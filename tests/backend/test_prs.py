@@ -1737,6 +1737,34 @@ class TestImputationAwareCoverage:
         #       + rs3(0.2 * (2-0.4), effect=ref A) = 0.5 + 0.45 + 0.32
         assert result.raw_score == pytest.approx(0.5 + 0.3 * 1.5 + 0.2 * (2 - 0.4))
 
+    @pytest.mark.parametrize(
+        "row",
+        [
+            pytest.param(
+                {"chrom": "2", "pos": 200, "ref": "C", "alt": "T", "dr2": 0.2, "af": 0.3},
+                id="low-dr2",
+            ),
+            pytest.param(
+                {"chrom": "2", "pos": 200, "ref": "C", "alt": "T", "dr2": 0.95, "af": 0.001},
+                id="rare-af",
+            ),
+        ],
+    )
+    def test_imputed_dosage_must_clear_firewall(
+        self, row: dict[str, object], sample_engine: sa.Engine
+    ) -> None:
+        ws = self._weight_set()
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(imputed_variants), [{**row, "dosage": 1.5}])
+
+        result = compute_prs(ws, sample_engine)
+
+        assert result.snps_used == 0
+        assert result.snps_used_imputed == 0
+        assert result.coverage_fraction == 0.0
+        assert result.coverage_tier == "typed_only"
+        assert result.raw_score == 0.0
+
     def test_graceful_without_imputed_variants(self, sample_engine: sa.Engine) -> None:
         ws = self._weight_set()
         with sample_engine.begin() as conn:
