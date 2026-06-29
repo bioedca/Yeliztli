@@ -850,11 +850,14 @@ class TestClassifyWithConfidence:
         assert _classify_with_confidence(0.55, clean) == ("EUR", "confident", [])
 
     def test_margin_ratio_boundary(self) -> None:
-        # The margin cutoff is exactly 3.0: just below is ADMIXED, just above is confident.
+        # The margin cutoff is exactly 3.0: below is ADMIXED, at/above is confident.
         just_below = {"EUR": 100.0, "AFR": 299.0, "EAS": 800.0, "CSA": 900.0}
         pop, status, flags = _classify_with_confidence(1.0, just_below)
         assert pop == ADMIXED and status == "admixed"
         assert "low_centroid_margin" in flags
+
+        exact_cutoff = {"EUR": 100.0, "AFR": 300.0, "EAS": 800.0, "CSA": 900.0}
+        assert _classify_with_confidence(1.0, exact_cutoff) == ("EUR", "confident", [])
 
         just_above = {"EUR": 100.0, "AFR": 301.0, "EAS": 800.0, "CSA": 900.0}
         assert _classify_with_confidence(1.0, just_above) == ("EUR", "confident", [])
