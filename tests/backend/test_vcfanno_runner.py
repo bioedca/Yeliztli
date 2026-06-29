@@ -345,3 +345,113 @@ class TestApplyOverlay:
 
         result = apply_overlay(parsed, 6, "Multi", sample_with_variants)
         assert result.variants_matched == 2
+
+    def test_vcf_allele_aware_attaches_to_correct_allele(self, sample_engine: sa.Engine) -> None:
+        """Two annotated variants at one position with different ALTs each receive only
+        their own allele's INFO annotation — not the other's (issue #1228).
+
+        Position-only matching cross-attaches: both records hit both rsIDs and the
+        dedup-by-rsid keeps the first, so both variants would get the C>G score.
+        """
+        from backend.annotation.vcfanno_runner import get_overlay_results
+        from backend.db.tables import annotated_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsG",
+                        "chrom": "1",
+                        "pos": 200000,
+                        "ref": "C",
+                        "alt": "G",
+                        "genotype": "CG",
+                        "annotation_coverage": 0,
+                    },
+                    {
+                        "rsid": "rsT",
+                        "chrom": "1",
+                        "pos": 200000,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "annotation_coverage": 0,
+                    },
+                ],
+            )
+        content = (
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t200000\t.\tC\tG\t.\tPASS\tSCORE=0.9\n"
+            "1\t200000\t.\tC\tT\t.\tPASS\tSCORE=0.1\n"
+        )
+        parsed = parse_vcf_overlay(content)
+        apply_overlay(parsed, 7, "Allele-aware", sample_engine)
+
+        results = {r["rsid"]: r for r in get_overlay_results(7, sample_engine)}
+        assert results["rsG"]["SCORE"] == 0.9
+        assert results["rsT"]["SCORE"] == 0.1  # not cross-attached from the C>G record
+        assert len(results) == 2
+
+    def test_vcf_allele_aware_skips_uncarried_alt(self, sample_engine: sa.Engine) -> None:
+        """A VCF overlay allele the sample doesn't carry attaches to nothing, even though
+        a different ALT exists at the same coordinate (issue #1228)."""
+        from backend.db.tables import annotated_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsG",
+                        "chrom": "1",
+                        "pos": 200000,
+                        "ref": "C",
+                        "alt": "G",
+                        "genotype": "CG",
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        content = (
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t200000\t.\tC\tA\t.\tPASS\tSCORE=0.5\n"  # sample carries C>G, not C>A
+        )
+        parsed = parse_vcf_overlay(content)
+        result = apply_overlay(parsed, 8, "Uncarried", sample_engine)
+        assert result.variants_matched == 0
+
+    def test_vcf_falls_back_to_position_when_alleles_null(self, sample_engine: sa.Engine) -> None:
+        """annotated_variants present but with null ref/alt → VCF overlay falls back to
+        (chrom, pos)-only matching rather than silently matching nothing (#1228).
+
+        Guards against gating allele-aware matching on ``bool(rows)`` alone: an empty
+        allele index would otherwise drop every VCF match to zero.
+        """
+        from backend.db.tables import annotated_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsNull",
+                        "chrom": "1",
+                        "pos": 300000,
+                        "ref": None,
+                        "alt": None,
+                        "genotype": "??",
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        content = (
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t300000\t.\tC\tG\t.\tPASS\tSCORE=0.7\n"
+        )
+        parsed = parse_vcf_overlay(content)
+        result = apply_overlay(parsed, 9, "Null-allele fallback", sample_engine)
+        assert result.variants_matched == 1  # position-only fallback, not zero

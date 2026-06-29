@@ -54,6 +54,12 @@ class OverlayRecord:
     start: int
     end: int
     annotations: dict[str, Any]
+    # VCF overlays retain the record's alleles so an allele-specific INFO annotation
+    # attaches only to the matching variant, not to every variant at the coordinate
+    # (issue #1228). ``alt`` may be a comma-separated multi-allelic list per the VCF
+    # spec. BED (region) records leave both ``None``.
+    ref: str | None = None
+    alt: str | None = None
 
 
 @dataclass
@@ -283,9 +289,15 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
         info_str = fields[7].strip()
         annot = _parse_vcf_info(info_str)
 
+        # Retain REF/ALT so allele-specific INFO attaches to the matching allele (#1228);
+        # fields 3 and 4 are guaranteed present by the ``len(fields) < 8`` check above.
+        ref = fields[3].strip()
+        alt = fields[4].strip()
         chrom = _normalise_chrom(chrom_raw)
         # VCF positions are 1-based, use pos as both start and end (point match)
-        records.append(OverlayRecord(chrom=chrom, start=pos, end=pos + 1, annotations=annot))
+        records.append(
+            OverlayRecord(chrom=chrom, start=pos, end=pos + 1, annotations=annot, ref=ref, alt=alt)
+        )
 
         if len(records) > MAX_OVERLAY_RECORDS:
             raise ValueError(
@@ -492,7 +504,10 @@ def apply_overlay(
 
     For BED overlays: matches variants whose (chrom, pos) falls within
     any overlay region [start, end).
-    For VCF overlays: matches variants by exact (chrom, pos).
+    For VCF overlays: matches variants allele-aware by exact (chrom, pos, ref, alt)
+    when sample alleles are available (annotated_variants), so an allele-specific INFO
+    value attaches only to the matching allele (#1228); falls back to (chrom, pos)-only
+    matching when only raw_variants (no ref/alt) are present.
 
     Matched annotations are stored in the ``variant_overlays`` table.
 
@@ -514,13 +529,27 @@ def apply_overlay(
     # source of truth for overlay-row removal with the delete route (#854).
     delete_overlay_results(overlay_id, sample_engine)
 
-    # Load all sample variant positions for intersection.
-    # Prefer annotated_variants (has ref/alt), fall back to raw_variants.
+    # Load sample variants for intersection. Prefer annotated_variants — it carries
+    # ref/alt, which lets VCF overlays match allele-aware so an allele-specific INFO
+    # value attaches only to the matching allele (#1228). Fall back to raw_variants
+    # (no ref/alt), where only position-only matching is possible.
+    alleles_available = False
     with sample_engine.connect() as conn:
         try:
             rows = conn.execute(
-                sa.select(av_table.c.rsid, av_table.c.chrom, av_table.c.pos)
+                sa.select(
+                    av_table.c.rsid,
+                    av_table.c.chrom,
+                    av_table.c.pos,
+                    av_table.c.ref,
+                    av_table.c.alt,
+                )
             ).fetchall()
+            # Enable allele-aware matching only if at least one row actually carries
+            # ref/alt. If annotated_variants exists but its ref/alt are all null/empty,
+            # keep the (chrom, pos) fallback rather than silently dropping every VCF
+            # match to an empty allele index (CodeRabbit #1228).
+            alleles_available = any((row.ref or "") and (row.alt or "") for row in rows)
         except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
             rows = []
 
@@ -536,11 +565,19 @@ def apply_overlay(
     if not rows:
         return result
 
-    # Build position index: (chrom, pos) -> list of rsids
+    # Position index (chrom, pos) -> rsids: used by BED ranges, and by VCF overlays
+    # only when alleles are unavailable (raw_variants fallback). When ref/alt are
+    # available, the allele index keys on (chrom, pos, REF, ALT) for allele-aware VCF
+    # matching (#1228).
     pos_index: dict[tuple[str, int], list[str]] = {}
+    allele_index: dict[tuple[str, int, str, str], list[str]] = {}
     for row in rows:
-        key = (row.chrom, row.pos)
-        pos_index.setdefault(key, []).append(row.rsid)
+        pos_index.setdefault((row.chrom, row.pos), []).append(row.rsid)
+        if alleles_available:
+            ref = (row.ref or "").upper()
+            alt = (row.alt or "").upper()
+            if ref and alt:
+                allele_index.setdefault((row.chrom, row.pos, ref, alt), []).append(row.rsid)
 
     result.records_checked = len(parsed.records)
 
@@ -549,8 +586,20 @@ def apply_overlay(
 
     for rec in parsed.records:
         if parsed.file_type == "vcf":
-            # VCF: exact position match (start == pos)
-            rsids = pos_index.get((rec.chrom, rec.start), [])
+            if alleles_available and rec.ref is not None and rec.alt is not None:
+                # Allele-aware: attach only to sample variant(s) whose exact
+                # (chrom, pos, ref, alt) matches this record. ALT may be a comma-
+                # separated multi-allelic list (VCF spec) — match any listed allele.
+                ref_u = rec.ref.upper()
+                rsids = [
+                    rsid
+                    for alt_tok in rec.alt.split(",")
+                    if (alt_u := alt_tok.strip().upper())
+                    for rsid in allele_index.get((rec.chrom, rec.start, ref_u, alt_u), [])
+                ]
+            else:
+                # No sample alleles available (raw_variants) — position-only match.
+                rsids = pos_index.get((rec.chrom, rec.start), [])
             for rsid in rsids:
                 matches.append(
                     {
