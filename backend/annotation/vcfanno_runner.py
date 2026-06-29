@@ -56,8 +56,9 @@ class OverlayRecord:
     annotations: dict[str, Any]
     # VCF overlays retain the record's alleles so an allele-specific INFO annotation
     # attaches only to the matching variant, not to every variant at the coordinate
-    # (issue #1228). ``alt`` may be a comma-separated multi-allelic list per the VCF
-    # spec. BED (region) records leave both ``None``.
+    # (issue #1228). The VCF parser emits one record per ALT allele so Number=A/R
+    # INFO values can be projected by allele index (#1268). BED records leave both
+    # ``None``.
     ref: str | None = None
     alt: str | None = None
 
@@ -247,6 +248,7 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
     records: list[OverlayRecord] = []
     info_ids: list[str] = []
     info_id_set: set[str] = set()
+    info_numbers: dict[str, str] = {}
 
     for line_num, line in enumerate(content.splitlines(), 1):
         line = line.strip()
@@ -262,6 +264,9 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
                     if info_id not in info_id_set:
                         info_ids.append(info_id)
                         info_id_set.add(info_id)
+                    number_match = re.search(r"Number=([^,>]+)", line)
+                    if number_match:
+                        info_numbers[info_id] = number_match.group(1)
             continue
 
         # Header line
@@ -285,25 +290,41 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
             warnings.append(f"Line {line_num}: Skipped (non-integer POS)")
             continue
 
-        # Parse INFO field
         info_str = fields[7].strip()
-        annot = _parse_vcf_info(info_str)
 
         # Retain REF/ALT so allele-specific INFO attaches to the matching allele (#1228);
         # fields 3 and 4 are guaranteed present by the ``len(fields) < 8`` check above.
         ref = fields[3].strip()
-        alt = fields[4].strip()
+        alt_field = fields[4].strip()
+        alts = [alt.strip() for alt in alt_field.split(",") if alt.strip()]
+        if not alts:
+            alts = [alt_field]
         chrom = _normalise_chrom(chrom_raw)
-        # VCF positions are 1-based, use pos as both start and end (point match)
-        records.append(
-            OverlayRecord(chrom=chrom, start=pos, end=pos + 1, annotations=annot, ref=ref, alt=alt)
-        )
 
-        if len(records) > MAX_OVERLAY_RECORDS:
-            raise ValueError(
-                f"Overlay file exceeds maximum of {MAX_OVERLAY_RECORDS} records. "
-                "Please reduce the file size."
+        for alt_index, alt in enumerate(alts):
+            annot = _parse_vcf_info(
+                info_str,
+                info_numbers=info_numbers,
+                alt_index=alt_index,
+                alt_count=len(alts),
             )
+            # VCF positions are 1-based, use pos as both start and end (point match)
+            records.append(
+                OverlayRecord(
+                    chrom=chrom,
+                    start=pos,
+                    end=pos + 1,
+                    annotations=annot,
+                    ref=ref,
+                    alt=alt,
+                )
+            )
+
+            if len(records) > MAX_OVERLAY_RECORDS:
+                raise ValueError(
+                    f"Overlay file exceeds maximum of {MAX_OVERLAY_RECORDS} records. "
+                    "Please reduce the file size."
+                )
 
     if not records:
         raise ValueError(
@@ -328,7 +349,13 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
     )
 
 
-def _parse_vcf_info(info_str: str) -> dict[str, Any]:
+def _parse_vcf_info(
+    info_str: str,
+    *,
+    info_numbers: dict[str, str] | None = None,
+    alt_index: int | None = None,
+    alt_count: int | None = None,
+) -> dict[str, Any]:
     """Parse a VCF INFO field into a dict of key-value pairs."""
     if info_str == "." or not info_str:
         return {}
@@ -340,12 +367,41 @@ def _parse_vcf_info(info_str: str) -> dict[str, Any]:
             continue
         if "=" in item:
             key, val = item.split("=", 1)
+            if info_numbers is not None and alt_index is not None and alt_count is not None:
+                val = _project_vcf_info_value(
+                    key,
+                    val,
+                    info_numbers=info_numbers,
+                    alt_index=alt_index,
+                    alt_count=alt_count,
+                )
             result[key] = _try_numeric(val)
         else:
             # Flag field (no value)
             result[item] = True
 
     return result
+
+
+def _project_vcf_info_value(
+    key: str,
+    val: str,
+    *,
+    info_numbers: dict[str, str],
+    alt_index: int,
+    alt_count: int,
+) -> str:
+    """Project allele-counted INFO values to the current ALT allele."""
+    number = info_numbers.get(key)
+    if number not in {"A", "R"}:
+        return val
+
+    values = [part.strip() for part in val.split(",")]
+    if number == "A" and len(values) == alt_count:
+        return values[alt_index]
+    if number == "R" and len(values) == alt_count + 1:
+        return values[alt_index + 1]
+    return val
 
 
 # ── Auto-detection ──────────────────────────────────────────────────
@@ -588,8 +644,9 @@ def apply_overlay(
         if parsed.file_type == "vcf":
             if alleles_available and rec.ref is not None and rec.alt is not None:
                 # Allele-aware: attach only to sample variant(s) whose exact
-                # (chrom, pos, ref, alt) matches this record. ALT may be a comma-
-                # separated multi-allelic list (VCF spec) — match any listed allele.
+                # (chrom, pos, ref, alt) matches this record. The parser emits one
+                # record per ALT; split here as a compatibility guard for manually
+                # constructed ParsedOverlay values that still carry multi-ALT text.
                 ref_u = rec.ref.upper()
                 rsids = [
                     rsid
