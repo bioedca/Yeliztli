@@ -149,8 +149,9 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
             "*3B/*3B",
             {"rs1800460": "TT"},
             "Poor Metabolizer",
-            "Start with drastically reduced doses (reduce by 50-75%) and titrate "
-            "based on myelosuppression; for nonmalignant conditions consider an "
+            "Start with drastically reduced doses (reduce daily dose by 10-fold "
+            "and dose thrice weekly instead of daily) and titrate based on "
+            "myelosuppression; for nonmalignant conditions consider an "
             "alternative agent.",
         ),
     ],
@@ -182,6 +183,10 @@ def test_actionable_tpmt_emits_thioguanine_alert(
     assert alert.diplotype == expected_diplotype
     assert alert.phenotype == phenotype
     assert alert.recommendation == recommendation
+    if phenotype == "Poor Metabolizer":
+        assert "10-fold" in alert.recommendation
+        assert "thrice weekly" in alert.recommendation
+        assert "50-75%" not in alert.recommendation
 
 
 def test_star3a_double_het_is_phase_ambiguous(reference_engine: sa.Engine) -> None:

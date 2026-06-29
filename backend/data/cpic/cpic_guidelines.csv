@@ -47,7 +47,7 @@ TPMT,azathioprine,Intermediate Metabolizer,Start at 30-70% of target dose. Titra
 TPMT,azathioprine,Poor Metabolizer,Reduce dose to 10% of standard or use alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 TPMT,thioguanine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 TPMT,thioguanine,Intermediate Metabolizer,Start with reduced doses (reduce by 30-50% of target) and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,thioguanine,Poor Metabolizer,Start with drastically reduced doses (reduce by 50-75%) and titrate based on myelosuppression; for nonmalignant conditions consider an alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,thioguanine,Poor Metabolizer,Start with drastically reduced doses (reduce daily dose by 10-fold and dose thrice weekly instead of daily) and titrate based on myelosuppression; for nonmalignant conditions consider an alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
 SLCO1B1,simvastatin,Normal function,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
 SLCO1B1,simvastatin,Decreased function,Use lower dose or alternative statin. Avoid 80mg dose.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
 SLCO1B1,simvastatin,Poor function,Avoid simvastatin. Use alternative statin such as pravastatin or rosuvastatin.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
