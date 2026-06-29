@@ -177,6 +177,13 @@ class TestListFindings:
         data = resp.json()
         levels = [f["evidence_level"] for f in data]
         assert levels == sorted(levels, reverse=True)
+        modules_by_level = {
+            level: [f["module"] for f in data if f["evidence_level"] == level]
+            for level in {f["evidence_level"] for f in data}
+        }
+        assert modules_by_level[4] == ["cancer", "cardiovascular", "pharmacogenomics"]
+        assert modules_by_level[3] == ["allergy", "carrier_status", "gene_health"]
+        assert modules_by_level[2] == ["ancestry", "nutrigenomics"]
 
     def test_filter_by_module(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1&module=cancer")
