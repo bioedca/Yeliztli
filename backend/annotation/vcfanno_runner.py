@@ -61,6 +61,10 @@ class OverlayRecord:
     # ``None``.
     ref: str | None = None
     alt: str | None = None
+    # When a sample has no allele data, VCF overlays fall back to position-only
+    # matching. In that mode there is no ALT index to choose, so preserve the
+    # original unprojected INFO dict instead of attaching the first ALT's value.
+    position_annotations: dict[str, Any] | None = None
 
 
 @dataclass
@@ -300,6 +304,7 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
         if not alts:
             alts = [alt_field]
         chrom = _normalise_chrom(chrom_raw)
+        position_annot = _parse_vcf_info(info_str)
 
         for alt_index, alt in enumerate(alts):
             annot = _parse_vcf_info(
@@ -317,6 +322,7 @@ def parse_vcf_overlay(content: str) -> ParsedOverlay:
                     annotations=annot,
                     ref=ref,
                     alt=alt,
+                    position_annotations=dict(position_annot),
                 )
             )
 
@@ -654,15 +660,21 @@ def apply_overlay(
                     if (alt_u := alt_tok.strip().upper())
                     for rsid in allele_index.get((rec.chrom, rec.start, ref_u, alt_u), [])
                 ]
+                annotations = rec.annotations
             else:
                 # No sample alleles available (raw_variants) — position-only match.
                 rsids = pos_index.get((rec.chrom, rec.start), [])
+                annotations = (
+                    rec.position_annotations
+                    if rec.position_annotations is not None
+                    else rec.annotations
+                )
             for rsid in rsids:
                 matches.append(
                     {
                         "rsid": rsid,
                         "overlay_id": overlay_id,
-                        "annotations": json.dumps(rec.annotations),
+                        "annotations": json.dumps(annotations),
                     }
                 )
         else:
