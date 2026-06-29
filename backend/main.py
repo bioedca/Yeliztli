@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from ipaddress import ip_address
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
@@ -88,7 +89,7 @@ from backend.api.routes.variants import router as variants_router
 from backend.api.routes.warfarin import router as warfarin_router
 from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
-from backend.config import get_settings
+from backend.config import Settings, get_settings
 from backend.data.hla_proxy_loader import load_hla_proxy_data
 from backend.db.connection import get_registry, reset_registry
 from backend.db.database_registry import (
@@ -104,6 +105,39 @@ from backend.tasks.huey_tasks import recover_orphaned_jobs
 logger = logging.getLogger(__name__)
 
 VERSION = "0.2.0"
+
+_LOOPBACK_HOSTNAMES = {"localhost", "localhost.localdomain"}
+
+
+def is_loopback_bind_host(host: str) -> bool:
+    """Return whether a configured bind host is limited to loopback."""
+    normalized = host.strip().lower()
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
+    if normalized in _LOOPBACK_HOSTNAMES:
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def warn_if_insecure_network_bind(settings: Settings) -> None:
+    """Warn when a non-loopback bind would expose unauthenticated genomic data."""
+    if is_loopback_bind_host(settings.host):
+        return
+    if settings.auth_enabled and settings.auth_password_hash.strip():
+        return
+
+    auth_state = "disabled" if not settings.auth_enabled else "enabled without a password"
+    logger.warning(
+        "SECURITY WARNING: Yeliztli is configured to bind to non-loopback host %r while "
+        "authentication is %s. Anyone who can reach this port can access samples, variants, "
+        "reports, and analyses without credentials. Keep YELIZTLI_HOST on 127.0.0.1, or "
+        "enable authentication and set a password before exposing the app.",
+        settings.host,
+        auth_state,
+    )
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────
@@ -152,6 +186,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     # Configure structured logging with DB persistence
     configure_logging(engine_getter=lambda: registry.reference_engine)
+    warn_if_insecure_network_bind(settings)
     # Mark any leftover in-progress download sessions as interrupted/stale
     cleanup_interrupted_sessions(registry.reference_engine)
     # Mark any orphaned jobs (worker killed mid-task) as failed

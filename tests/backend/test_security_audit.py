@@ -14,6 +14,7 @@ Additional security verifications:
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from unittest.mock import patch
@@ -72,6 +73,74 @@ class TestLocalhostBinding:
         content = compose_file.read_text()
         # Host-side port mapping must be 127.0.0.1:8000:8000
         assert "127.0.0.1:8000:8000" in content
+
+    def test_docker_compose_does_not_override_app_host_setting(self) -> None:
+        """Default Docker should not trip the app-level non-loopback host warning."""
+        compose_file = _PROJECT_ROOT / "docker-compose.yml"
+        content = compose_file.read_text()
+        assert "YELIZTLI_HOST=0.0.0.0" not in content
+        # The container still binds internally so Docker can publish the loopback-only port.
+        assert "uvicorn backend.main:app --host 0.0.0.0 --port 8000" in content
+
+    @pytest.mark.parametrize(
+        "host",
+        ["127.0.0.1", "127.10.20.30", "localhost", "localhost.localdomain", "::1", "[::1]"],
+    )
+    def test_loopback_bind_hosts_are_recognized(self, host: str) -> None:
+        """Loopback bind hosts do not trigger remote-exposure warnings."""
+        from backend.main import is_loopback_bind_host
+
+        assert is_loopback_bind_host(host)
+
+    @pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.10", "example.local", ""])
+    def test_non_loopback_bind_hosts_are_recognized(self, host: str) -> None:
+        """Non-loopback bind hosts are treated as network-exposed."""
+        from backend.main import is_loopback_bind_host
+
+        assert not is_loopback_bind_host(host)
+
+    @pytest.mark.parametrize(
+        ("auth_enabled", "auth_password_hash"),
+        [(False, ""), (True, ""), (True, "   ")],
+    )
+    def test_network_bind_without_effective_auth_warns(
+        self,
+        auth_enabled: bool,
+        auth_password_hash: str,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Non-loopback binds warn when auth is disabled or passwordless."""
+        from backend.main import warn_if_insecure_network_bind
+
+        settings = Settings(
+            data_dir=Path("/tmp/gi-test"),
+            host="0.0.0.0",
+            auth_enabled=auth_enabled,
+            auth_password_hash=auth_password_hash,
+        )
+        with caplog.at_level(logging.WARNING, logger="backend.main"):
+            warn_if_insecure_network_bind(settings)
+
+        assert "SECURITY WARNING" in caplog.text
+        assert "0.0.0.0" in caplog.text
+        assert "without credentials" in caplog.text
+
+    def test_network_bind_with_effective_auth_does_not_warn(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Non-loopback binds are not warned when auth has a password hash."""
+        from backend.main import warn_if_insecure_network_bind
+
+        settings = Settings(
+            data_dir=Path("/tmp/gi-test"),
+            host="0.0.0.0",
+            auth_enabled=True,
+            auth_password_hash="$2b$12$fakehash",
+        )
+        with caplog.at_level(logging.WARNING, logger="backend.main"):
+            warn_if_insecure_network_bind(settings)
+
+        assert "SECURITY WARNING" not in caplog.text
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -58,10 +58,11 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 
 | Setting | Env var | Default | Purpose |
 |---------|---------|---------|---------|
-| `host` | `YELIZTLI_HOST` | `127.0.0.1` | Bind address. Keep it on loopback for local-only access. |
+| `host` | `YELIZTLI_HOST` | `127.0.0.1` | Bind address. Keep it on loopback for local-only access; binding to `0.0.0.0`, `::`, a LAN IP, or a hostname makes the app reachable from other machines. |
 | `port` | `YELIZTLI_PORT` | `8000` | Server port. |
 | `data_dir` | `YELIZTLI_DATA_DIR` | `~/.yeliztli` | Where all databases, samples, and logs live. Set via the **env var only** — it cannot be configured in `config.toml`. |
-| `auth_enabled` | `YELIZTLI_AUTH_ENABLED` | `false` | Require a PIN/password to use the app. |
+| `auth_enabled` | `YELIZTLI_AUTH_ENABLED` | `false` | Require a PIN/password to use the app. This protects requests only when a password hash is also configured. |
+| `auth_password_hash` | `YELIZTLI_AUTH_PASSWORD_HASH` | `""` | bcrypt hash for the PIN/password. If this is empty, requests remain open even when `auth_enabled` is `true`. |
 | `pubmed_email` | `YELIZTLI_PUBMED_EMAIL` | `""` | Contact email for NCBI literature lookups. |
 | `omim_api_key` | `YELIZTLI_OMIM_API_KEY` | `""` | Optional OMIM enrichment key. |
 | `theme` | `YELIZTLI_THEME` | `system` | UI theme. |
@@ -70,3 +71,16 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 !!! note "Authoritative list"
     The complete, always-current set of settings (including paths derived from `data_dir`)
     is defined in [`backend/config.py`](https://github.com/bioedca/Yeliztli/blob/main/backend/config.py).
+
+## Exposing Yeliztli to your network
+
+Yeliztli's safe default is loopback-only: `host = "127.0.0.1"` serves the app only on the
+computer running it. If you change `host` to a non-loopback value such as `0.0.0.0`, `::`,
+or a LAN address, every reachable client can access the full API, including samples,
+variants, reports, and clinical findings.
+
+Before binding beyond loopback, enable authentication **and set a password**. Setting
+`auth_enabled = true` without a non-empty `auth_password_hash` is still passwordless and
+does not protect the API. For remote access, prefer a reverse proxy with TLS and avoid
+exposing uvicorn directly to the internet. At startup, Yeliztli logs a security warning when
+it sees a non-loopback bind without effective authentication.

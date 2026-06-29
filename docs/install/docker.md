@@ -17,6 +17,13 @@ This starts two services:
 
 Your data persists in a Docker volume named `yeliztli-data`.
 
+!!! warning "Keep the published port on loopback unless auth is configured"
+    The default Compose file publishes `127.0.0.1:8000:8000`, so only the Docker host can
+    reach Yeliztli. Do not change the published host address to `0.0.0.0`, `::`, or a LAN IP
+    unless authentication is enabled **and** a password has been set. `YELIZTLI_AUTH_ENABLED=true`
+    by itself is not enough if `YELIZTLI_AUTH_PASSWORD_HASH` is empty. For remote access, prefer
+    a TLS-terminating reverse proxy instead of exposing uvicorn directly.
+
 ## 2. Check health
 
 ```bash
@@ -72,6 +79,7 @@ services:
   api:
     environment:
       - YELIZTLI_AUTH_ENABLED=true
+      # Also set a password through the setup wizard or YELIZTLI_AUTH_PASSWORD_HASH.
       - YELIZTLI_LOG_LEVEL=DEBUG
 ```
 

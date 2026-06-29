@@ -10,6 +10,10 @@ machine.**
   computer you run it on.
 - Yeliztli serves its interface on `localhost` and, by default, binds only to the loopback
   address (`127.0.0.1`), so it is not reachable from other machines on your network.
+  If you override the bind host to a non-loopback address for remote access, enable
+  authentication and set a password first; otherwise anyone who can reach the port can use
+  the app and API without credentials. See
+  [Exposing Yeliztli to your network](install/configuration.md#exposing-yeliztli-to-your-network).
 - **Your genotypes are never uploaded.** There is no analytics, no crash reporting, and no
   outbound transfer of your variant data — your raw file, parsed genotypes, annotations, and
   findings never leave your machine, to Yeliztli's authors or anyone else. Yeliztli *does*
@@ -75,6 +79,8 @@ locally and needs no network once reference data is installed.
 - Yeliztli ships with **optional authentication**: you can require a PIN or password (stored
   only as a salted `bcrypt` hash) and set a session timeout, which is useful on a shared
   computer.
+- Authentication is effective only after a password hash exists. Turning on
+  `auth_enabled` without setting a password leaves the API open.
 - Because all data is stored in a local directory, standard operating-system file permissions
   and disk encryption apply — protect that directory the way you would any sensitive file.
 

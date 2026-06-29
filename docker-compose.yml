@@ -8,7 +8,6 @@ services:
       - yeliztli-data:/data
     environment:
       - YELIZTLI_DATA_DIR=/data
-      - YELIZTLI_HOST=0.0.0.0
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
