@@ -29,6 +29,7 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
   const isHomozygousAffected = findingType === "affected_homozygous"
   const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
   const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
+  const hasCopyNumberCaveat = Boolean(variant.copy_number_caveat)
   // A heterozygous P/LP variant means different things by inheritance mode: for
   // autosomal-dominant genes (BRCA1/2) it confers personal disease risk and is
   // NOT a silent recessive-carrier state, so we drop the "carrier" framing there
@@ -140,6 +141,21 @@ export default function VariantCard({ variant, onClick, selected, sampleId }: Va
               {isPossibleCompoundHet
                 ? "Possible affected-status pattern; phase must be clinically confirmed."
                 : "Affected-status result; confirm with clinical-grade testing."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Copy-number limitation warning */}
+      {hasCopyNumberCaveat && (
+        <div
+          className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3"
+          data-testid="carrier-copy-number-caveat"
+        >
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true" />
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              {variant.copy_number_caveat}
             </p>
           </div>
         </div>

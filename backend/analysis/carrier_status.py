@@ -211,6 +211,13 @@ def load_carrier_panel(panel_path: Path | None = None) -> CarrierPanel:
 # carrier status — a reproductive-risk finding — applies the same policy rather
 # than turning a questionable array call into a carrier result (#221).
 _PSEUDOGENE_UNRELIABLE_GENES = frozenset({"GBA"})
+_COPY_NUMBER_INCOMPLETE_GENE_CAVEATS = {
+    "SMN1": (
+        "Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 "
+        "dosage, so this result is not a complete SMA carrier screen. Confirm "
+        "carrier status with clinical SMN1 dosage testing such as qPCR or MLPA."
+    )
+}
 _AUTOSOMAL_RECESSIVE_CARRIER_CATEGORY = "autosomal_recessive_carrier"
 _AUTOSOMAL_RECESSIVE_AFFECTED_CATEGORY = "autosomal_recessive_affected"
 _AUTOSOMAL_RECESSIVE_COMPOUND_HET_CATEGORY = "autosomal_recessive_possible_compound_heterozygote"
@@ -284,6 +291,8 @@ class CarrierVariantResult:
     variant_ids: list[str] = field(default_factory=list)
     component_variants: list[dict[str, object]] = field(default_factory=list)
     phase_caveat: str | None = None
+    copy_number_limited: bool = False
+    copy_number_caveat: str | None = None
 
 
 @dataclass
@@ -299,6 +308,9 @@ class CarrierAnalysisResult:
     # P/LP rows dropped because the gene is pseudogene-confounded from array data
     # (GBA1/GBAP1) and not reportable as a carrier finding (#221).
     pseudogene_suppressed: int = 0
+    # Findings still reported but carrying a mandatory copy-number limitation
+    # disclosure because SNP arrays do not assay the main disease mechanism.
+    copy_number_disclosed: int = 0
 
     @property
     def carrier_count(self) -> int:
@@ -370,13 +382,14 @@ def _carrier_finding_text(variant: CarrierVariantResult) -> str:
     """Build the user-facing carrier finding text for one variant."""
     condition_text = ", ".join(variant.conditions) if variant.conditions else "carrier status"
     variant_text = _variant_id_text(variant)
+    copy_number_caveat = f"{variant.copy_number_caveat} " if variant.copy_number_caveat else ""
     if variant.finding_type == _FINDING_TYPE_AFFECTED_HOMOZYGOUS:
         return (
             f"{variant.gene_symbol}: A homozygous {variant.clinvar_significance.lower()} "
             f"variant ({variant_text}) is present in an autosomal-recessive disease gene "
             f"associated with {condition_text}. This is an affected-status result, not a "
-            "typical carrier finding. Review this result with a clinician or genetics "
-            "professional and confirm with clinical-grade testing."
+            f"typical carrier finding. {copy_number_caveat}Review this result with a "
+            "clinician or genetics professional and confirm with clinical-grade testing."
         )
     if variant.finding_type == _FINDING_TYPE_POSSIBLE_COMPOUND_HET:
         caveat = variant.phase_caveat or (
@@ -388,13 +401,21 @@ def _carrier_finding_text(variant: CarrierVariantResult) -> str:
             f"variants ({variant_text}) were found in an autosomal-recessive disease gene "
             f"associated with {condition_text}. If these variants are in trans, this pattern "
             "is consistent with affected status rather than an unaffected carrier state. "
-            f"{caveat} Review this result with a clinician or genetics professional."
+            f"{caveat} {copy_number_caveat}Review this result with a clinician or "
+            "genetics professional."
         )
     base = (
         f"{variant.gene_symbol}: You carry one copy of a "
         f"{variant.clinvar_significance.lower()} variant ({variant.rsid}) "
         f"associated with {condition_text}. "
     )
+    if variant.copy_number_caveat:
+        return (
+            base
+            + variant.copy_number_caveat
+            + " Review this result with a genetics professional. This may be relevant "
+            "for family planning."
+        )
     if variant.clinvar_low_penetrance_or_risk_allele:
         return (
             base + "ClinVar marks this as lower-penetrance/risk-allele, so it is "
@@ -523,6 +544,11 @@ def _component_variant_from_row(row: sa.Row, zygosity: str) -> dict[str, object]
     }
 
 
+def _copy_number_caveat_for_gene(gene_symbol: str | None) -> str | None:
+    """Return a mandatory caveat for genes whose main mechanism is copy number."""
+    return _COPY_NUMBER_INCOMPLETE_GENE_CAVEATS.get((gene_symbol or "").strip().upper())
+
+
 def _variant_ids_from_rows(rows: list[sa.Row]) -> list[str]:
     """Return stable component variant IDs for display and storage."""
     return [(row.rsid or "").strip() for row in rows if (row.rsid or "").strip()]
@@ -554,6 +580,7 @@ def _build_carrier_variant_result(
     )
     lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
     variant_ids = _variant_ids_from_rows([row])
+    copy_number_caveat = _copy_number_caveat_for_gene(gene_info.gene_symbol)
 
     return CarrierVariantResult(
         rsid=row.rsid,
@@ -574,6 +601,8 @@ def _build_carrier_variant_result(
         finding_type=_FINDING_TYPE_CARRIER,
         variant_ids=variant_ids,
         component_variants=[_component_variant_from_row(row, zygosity)],
+        copy_number_limited=copy_number_caveat is not None,
+        copy_number_caveat=copy_number_caveat,
     )
 
 
@@ -595,6 +624,7 @@ def _build_aggregate_carrier_result(
     significances = _unique_join([row.clinvar_significance for row in sorted_rows])
     accessions = _unique_join([row.clinvar_accession for row in sorted_rows]) or None
     clinvar_conditions = _unique_join([row.clinvar_conditions for row in sorted_rows]) or None
+    copy_number_caveat = _copy_number_caveat_for_gene(gene_info.gene_symbol)
 
     return CarrierVariantResult(
         rsid=", ".join(variant_ids),
@@ -618,6 +648,8 @@ def _build_aggregate_carrier_result(
             for row, component_zygosity in sorted_entries
         ],
         phase_caveat=phase_caveat,
+        copy_number_limited=copy_number_caveat is not None,
+        copy_number_caveat=copy_number_caveat,
     )
 
 
@@ -806,6 +838,7 @@ def extract_carrier_variants(
             (variant.rsid or "").casefold(),
         )
     )
+    copy_number_disclosed = sum(1 for variant in variants if variant.copy_number_limited)
 
     logger.info(
         "carrier_variants_extracted",
@@ -817,6 +850,7 @@ def extract_carrier_variants(
         affected_status_findings=len(affected_genes),
         possible_compound_heterozygous_findings=len(compound_het_genes),
         pseudogene_suppressed=pseudogene_suppressed,
+        copy_number_disclosed=copy_number_disclosed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
@@ -828,6 +862,7 @@ def extract_carrier_variants(
         affected_status_findings=len(affected_genes),
         possible_compound_heterozygous_findings=len(compound_het_genes),
         pseudogene_suppressed=pseudogene_suppressed,
+        copy_number_disclosed=copy_number_disclosed,
     )
 
 
@@ -876,6 +911,8 @@ def store_carrier_findings(
             "variant_ids": v.variant_ids,
             "component_variants": v.component_variants,
             "phase_caveat": v.phase_caveat,
+            "copy_number_limited": v.copy_number_limited,
+            "copy_number_caveat": v.copy_number_caveat,
         }
 
         rows.append(

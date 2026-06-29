@@ -143,6 +143,28 @@ const HBB_VARIANT_CASED_RSID: CarrierVariant = {
   rsid: " RS334 ",
 }
 
+const SMN1_COPY_NUMBER_CAVEAT =
+  "Copy-number not assessed: SNP-array data do not measure SMN1 exon 7 dosage, so this result is not a complete SMA carrier screen. Confirm carrier status with clinical SMN1 dosage testing such as qPCR or MLPA."
+
+const SMN1_VARIANT: CarrierVariant = {
+  rsid: "rs121909192",
+  gene_symbol: "SMN1",
+  genotype: "A/G",
+  zygosity: "het",
+  clinvar_significance: "Pathogenic",
+  clinvar_accession: "VCV000012345",
+  clinvar_review_stars: 2,
+  clinvar_conditions: "Spinal muscular atrophy",
+  conditions: ["Spinal Muscular Atrophy"],
+  inheritance: "AR",
+  evidence_level: 4,
+  cross_links: [],
+  pmids: ["35289093", "21673580"],
+  notes: "Point mutations account for a minority of pathogenic SMN1 alleles.",
+  copy_number_limited: true,
+  copy_number_caveat: SMN1_COPY_NUMBER_CAVEAT,
+}
+
 describe("Carrier VariantDetailPanel", () => {
   it("keeps classic AR carrier wording for CFTR", () => {
     render(
@@ -207,6 +229,23 @@ describe("Carrier VariantDetailPanel", () => {
     expect(screen.getByText(/kidney findings/i)).toBeInTheDocument()
     expect(screen.getByText(/exertional-stress/i)).toBeInTheDocument()
     expect(screen.getByText(/family planning/i)).toBeInTheDocument()
+  })
+
+  it("shows SMN1 copy-number limitation instead of plain unaffected carrier wording", () => {
+    render(
+      <VariantDetailPanel
+        variant={SMN1_VARIANT}
+        sampleId={1}
+        geneNote={undefined}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId("carrier-copy-number-caveat-panel")).toBeInTheDocument()
+    expect(screen.getByText(/copy-number not assessed/i)).toBeInTheDocument()
+    expect(screen.getByText(/not a complete SMA carrier screen/i)).toBeInTheDocument()
+    expect(screen.getByText(/dosage testing/i)).toBeInTheDocument()
+    expect(screen.queryByText(/typically unaffected/i)).not.toBeInTheDocument()
   })
 
   it("normalizes HBB HbS rsid casing and whitespace", () => {
@@ -343,5 +382,13 @@ describe("Carrier VariantCard genotype-line label (#540)", () => {
     const card = screen.getByTestId("carrier-variant-card")
     expect(card.getAttribute("aria-label")).toMatch(/homozygous affected-status finding/i)
     expect(card.getAttribute("aria-label")).not.toMatch(/carrier/i)
+  })
+
+  it("shows SMN1 copy-number limitation on carrier cards", () => {
+    render(<VariantCard variant={SMN1_VARIANT} onClick={vi.fn()} sampleId={1} />)
+
+    expect(screen.getByTestId("carrier-copy-number-caveat")).toBeInTheDocument()
+    expect(screen.getByText(/copy-number not assessed/i)).toBeInTheDocument()
+    expect(screen.getByText(/not a complete SMA carrier screen/i)).toBeInTheDocument()
   })
 })

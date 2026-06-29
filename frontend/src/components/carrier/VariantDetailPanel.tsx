@@ -35,6 +35,7 @@ export default function VariantDetailPanel({
   const isHomozygousAffected = findingType === "affected_homozygous"
   const isPossibleCompoundHet = findingType === "possible_compound_heterozygote"
   const isAffectedStatus = isHomozygousAffected || isPossibleCompoundHet
+  const hasCopyNumberCaveat = Boolean(variant.copy_number_caveat)
   const shouldMentionCancerModule = hasCancerCrossLink
   const isADOnly = variant.inheritance === "AD" && !hasCancerCrossLink
   const isAutosomalRecessive = variant.inheritance === "AR"
@@ -58,11 +59,15 @@ export default function VariantDetailPanel({
     : `${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`
   const bannerSurfaceClass = isAffectedStatus
     ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+    : hasCopyNumberCaveat
+      ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
     : usesPersonalRiskStyle
       ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
       : "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-800"
   const bannerTextClass = isAffectedStatus
     ? "text-amber-800 dark:text-amber-300"
+    : hasCopyNumberCaveat
+      ? "text-amber-800 dark:text-amber-300"
     : usesPersonalRiskStyle
       ? "text-blue-800 dark:text-blue-300"
       : "text-teal-800 dark:text-teal-300"
@@ -106,6 +111,7 @@ export default function VariantDetailPanel({
             "rounded-md border p-3 mb-5",
             bannerSurfaceClass,
           )}
+          data-testid={hasCopyNumberCaveat ? "carrier-copy-number-caveat-panel" : undefined}
         >
           <p
             className={cn(
@@ -120,6 +126,7 @@ export default function VariantDetailPanel({
                 an affected-status result, not typical carrier status. Review
                 this result with a clinician or genetics professional and
                 confirm with clinical-grade testing.
+                {variant.copy_number_caveat ? ` ${variant.copy_number_caveat}` : ""}
               </>
             ) : isPossibleCompoundHet ? (
               <>
@@ -128,6 +135,7 @@ export default function VariantDetailPanel({
                 affected status rather than an unaffected carrier state.{" "}
                 {variant.phase_caveat ??
                   "Genotyping arrays do not phase these variants, so clinical testing is needed."}
+                {variant.copy_number_caveat ? ` ${variant.copy_number_caveat}` : ""}
               </>
             ) : shouldMentionCancerModule ? (
               <>
@@ -150,6 +158,12 @@ export default function VariantDetailPanel({
                 risks such as rhabdomyolysis. Review with a clinician or genetics
                 professional; this information may also be relevant for family
                 planning.
+              </>
+            ) : hasCopyNumberCaveat ? (
+              <>
+                Heterozygous {variant.gene_symbol} point-variant finding.{" "}
+                {variant.copy_number_caveat} Review this result with a genetics
+                professional; this information may be relevant for family planning.
               </>
             ) : isAutosomalRecessive ? (
               <>

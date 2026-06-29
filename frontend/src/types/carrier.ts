@@ -36,6 +36,8 @@ export interface CarrierVariant {
   variant_ids?: string[]
   component_variants?: CarrierComponentVariant[]
   phase_caveat?: string | null
+  copy_number_limited?: boolean
+  copy_number_caveat?: string | null
 }
 
 /** All carrier-module findings for a sample. */

@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Heart, ChevronDown, ChevronUp } from "lucide-react"
+import { Heart, ChevronDown, ChevronUp, Info } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
@@ -103,6 +103,20 @@ export default function CarrierStatusView() {
           )}
         </div>
       )}
+
+      <div
+        className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 mb-6"
+        data-testid="smn1-copy-number-notice"
+      >
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            SMN1 copy-number is not assessed from SNP-array data. A result without an
+            SMN1 point mutation does not rule out SMA carrier status; standard SMA
+            carrier screening requires clinical SMN1 dosage testing.
+          </p>
+        </div>
+      </div>
 
       {/* Loading state */}
       {variantsQuery.isLoading && (

@@ -659,6 +659,76 @@ class TestExtractCarrierVariants:
         assert [v for v in result.variants if v.gene_symbol == "GBA"] == []
         assert result.pseudogene_suppressed >= 1
 
+    def test_smn1_point_mutation_finding_carries_copy_number_caveat(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """SMN1 point-mutation findings must not read like complete SMA screening."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs121909192",
+                    "chrom": "5",
+                    "pos": 70247773,
+                    "genotype": "AG",
+                    "zygosity": "het",
+                    "gene_symbol": "SMN1",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000012345",
+                    "clinvar_conditions": "Spinal muscular atrophy",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.carrier_count == 1
+        assert result.copy_number_disclosed == 1
+        variant = result.variants[0]
+        assert variant.gene_symbol == "SMN1"
+        assert variant.copy_number_limited is True
+        assert variant.copy_number_caveat is not None
+        assert "not a complete SMA carrier screen" in variant.copy_number_caveat
+        assert "dosage testing" in variant.copy_number_caveat
+        text = _carrier_finding_text(variant)
+        assert "Copy-number not assessed" in text
+        assert "not a complete SMA carrier screen" in text
+        assert "typically unaffected" not in text
+
+    def test_smn1_reference_homozygous_rows_do_not_create_clear_result(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """SMN1 hom-ref array rows must not become reassuring clear findings."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs121909192",
+                    "chrom": "5",
+                    "pos": 70247773,
+                    "genotype": "GG",
+                    "zygosity": "hom_ref",
+                    "gene_symbol": "SMN1",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000012345",
+                    "clinvar_conditions": "Spinal muscular atrophy",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.copy_number_disclosed == 0
+        assert store_carrier_findings(result, sample_engine) == 0
+        with sample_engine.connect() as conn:
+            smn1_rows = conn.execute(
+                sa.select(findings).where(findings.c.gene_symbol == "SMN1")
+            ).fetchall()
+        assert smn1_rows == []
+
     def test_brca2_0_star_capped(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:
@@ -904,6 +974,46 @@ class TestStoreCarrierFindings:
         assert "Cancer module" not in row.finding_text
         assert "cancer-predisposition" not in row.finding_text
         assert "genetics professional" in row.finding_text
+
+    def test_smn1_caveat_stored_in_finding_text_detail_and_api(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        from backend.api.routes.carrier import _fetch_carrier_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs121909192",
+                    "chrom": "5",
+                    "pos": 70247773,
+                    "genotype": "AG",
+                    "zygosity": "het",
+                    "gene_symbol": "SMN1",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 2,
+                    "clinvar_accession": "VCV000012345",
+                    "clinvar_conditions": "Spinal muscular atrophy",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        count = store_carrier_findings(result, sample_engine)
+
+        assert count == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.gene_symbol == "SMN1")).one()
+        assert "Copy-number not assessed" in row.finding_text
+        assert "not a complete SMA carrier screen" in row.finding_text
+        assert "typically unaffected" not in row.finding_text
+        detail = json.loads(row.detail_json)
+        assert detail["copy_number_limited"] is True
+        assert "dosage testing" in detail["copy_number_caveat"]
+
+        api_row = _fetch_carrier_findings(sample_engine)[0]
+        assert api_row["copy_number_limited"] is True
+        assert "not a complete SMA carrier screen" in api_row["copy_number_caveat"]
 
     def test_detail_json_has_clinvar_data(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine

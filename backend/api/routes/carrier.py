@@ -60,6 +60,8 @@ class CarrierVariantResponse(BaseModel):
     variant_ids: list[str] = Field(default_factory=list)
     component_variants: list[dict[str, Any]] = Field(default_factory=list)
     phase_caveat: str | None = None
+    copy_number_limited: bool = False
+    copy_number_caveat: str | None = None
 
 
 class CarrierVariantsListResponse(BaseModel):
@@ -87,6 +89,7 @@ class CarrierRunResponse(BaseModel):
     homozygous_plp_skipped: int
     affected_status_findings: int = 0
     possible_compound_heterozygous_findings: int = 0
+    copy_number_disclosed: int = 0
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -167,6 +170,8 @@ def _fetch_carrier_findings(
                 "variant_ids": detail.get("variant_ids", [row.rsid] if row.rsid else []),
                 "component_variants": detail.get("component_variants", []),
                 "phase_caveat": detail.get("phase_caveat"),
+                "copy_number_limited": bool(detail.get("copy_number_limited", False)),
+                "copy_number_caveat": detail.get("copy_number_caveat"),
             }
         )
 
@@ -265,4 +270,5 @@ def run_carrier_analysis(
         homozygous_plp_skipped=result.homozygous_plp_skipped,
         affected_status_findings=result.affected_status_findings,
         possible_compound_heterozygous_findings=possible_compound_findings,
+        copy_number_disclosed=result.copy_number_disclosed,
     )
