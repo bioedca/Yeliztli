@@ -1089,6 +1089,14 @@ def run_prs(
                 "chrom": w.chrom,
                 "pos": w.pos,
                 "effect_allele": w.effect_allele,
+                # Preserve the non-effect allele so continuous calibration can
+                # apply the same strand-aware allele-pair harmonization the raw
+                # score uses (compute_prs passes w.other_allele to
+                # match_effect_allele_dosage). Dropping it silently excluded
+                # reverse-strand non-palindromic variants from the expected
+                # mean/variance even though they were scored, biasing the
+                # percentile or shrinking calibration coverage (issue #1179).
+                "other_allele": w.other_allele,
                 "weight": w.weight,
             }
             for w in weight_set.weights

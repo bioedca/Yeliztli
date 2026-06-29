@@ -12,6 +12,7 @@ import math
 
 import sqlalchemy as sa
 
+from backend.analysis.prs import PRSSNPWeight, PRSWeightSet, run_prs
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
     ancestry_weighted_af,
@@ -302,3 +303,85 @@ class TestContinuousReferenceDistribution:
 
     def test_citation_present(self) -> None:
         assert "37198491" in PRS_CALIBRATION_PMIDS
+
+
+class TestRunPrsContinuousCalibrationPreservesOtherAllele:
+    """run_prs() must carry ``other_allele`` into continuous calibration (#1179).
+
+    The raw-score path (compute_prs) harmonizes strand using the weight's
+    ``other_allele``; the ancestry-continuous calibration path consumes the same
+    field. run_prs() rebuilt the calibration weight dicts and previously dropped
+    ``other_allele``, so a reverse-strand non-palindromic variant could be scored
+    in the raw sum yet excluded from the expected mean/variance — biasing the
+    percentile or withholding calibration by shrinking usable coverage. This pins
+    the caller end-to-end: the same oriented allele must reach both paths.
+    """
+
+    def _reverse_strand_engine(self) -> sa.Engine:
+        # Sample carries the variant on the G/A strand (genotype GG = two copies
+        # of complement(C)=G); the weight's effect/other is the reverse-strand
+        # C/T pair. EUR alt-AF 0.25 → effect-allele freq 0.75 → mean 1*2*0.75.
+        return _sample_with_ancestry(
+            {"EUR": 1.0},
+            [
+                {
+                    "rsid": "rsFLIP",
+                    "chrom": "1",
+                    "pos": 3,
+                    "ref": "G",
+                    "alt": "A",
+                    "genotype": "GG",
+                    "gnomad_af_global": 0.25,
+                    "gnomad_af_eur": 0.25,
+                }
+            ],
+        )
+
+    def _weight_set(self, *, other_allele: str | None) -> PRSWeightSet:
+        return PRSWeightSet(
+            name="Reverse-strand regression",
+            trait="regression_trait",
+            module="traits",
+            source_ancestry="EUR",
+            source_study="test",
+            source_pmid="0",
+            sample_size=1,
+            weights=[
+                PRSSNPWeight(
+                    rsid="rsFLIP",
+                    effect_allele="C",
+                    other_allele=other_allele,
+                    weight=1.0,
+                )
+            ],
+            reference_mean=0.0,
+            reference_std=0.0,
+            calibrated=False,  # force the ancestry-continuous calibration path
+        )
+
+    def test_reverse_strand_variant_reaches_continuous_calibration(self) -> None:
+        engine = self._reverse_strand_engine()
+        result = run_prs(self._weight_set(other_allele="T"), engine)
+
+        # The raw-score path scores the reverse-strand variant ...
+        assert result.snps_used == 1
+        # ... and continuous calibration must include the SAME variant, not drop
+        # it for lack of other_allele (the #1179 regression).
+        assert result.calibration_method == "ancestry_continuous"
+        assert result.calibration_variants_used == 1
+        assert result.calibration_variants_total == 1
+        assert math.isclose(result.calibration_reference_mean, 1.5)
+        assert math.isclose(result.calibration_reference_std, round(math.sqrt(0.375), 6))
+
+    def test_dropping_other_allele_would_withhold_calibration(self) -> None:
+        # Control: with other_allele absent the reverse-strand variant cannot be
+        # oriented against gnomAD ref/alt, so calibration is correctly withheld.
+        # This is exactly the silent state the bug produced for PGS weights that
+        # DO carry other_allele, demonstrating why preserving it matters.
+        engine = self._reverse_strand_engine()
+        result = run_prs(self._weight_set(other_allele=None), engine)
+
+        assert result.snps_used == 1  # raw score still computed
+        assert result.calibration_method is None
+        assert result.calibration_variants_used is None
+        assert result.percentile is None
