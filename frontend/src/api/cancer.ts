@@ -32,7 +32,7 @@ export function useCancerVariants(sampleId: number | null) {
 
 /**
  * Cancer PRS results (breast, prostate, colorectal, melanoma).
- * Secondary "Research Use Only" tier with bootstrap CI gauges.
+ * Secondary "Research Use Only" tier with percentile gauges.
  * Cached with staleTime: Infinity since PRS data doesn't change until re-annotation.
  */
 export function useCancerPRS(sampleId: number | null) {

@@ -440,8 +440,8 @@ class TestPRS:
         ea = next(i for i in data["items"] if i["trait"] == "educational_attainment")
         assert ea["is_sufficient"] is True
         assert ea["percentile"] == pytest.approx(62.3)
-        assert ea["bootstrap_ci_lower"] == pytest.approx(48.1)
-        assert ea["bootstrap_ci_upper"] == pytest.approx(74.5)
+        assert ea["bootstrap_ci_lower"] is None
+        assert ea["bootstrap_ci_upper"] is None
         assert ea["ancestry_mismatch"] is False
         assert ea["calibrated"] is True
 

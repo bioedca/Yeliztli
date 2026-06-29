@@ -1,8 +1,8 @@
 /** Cancer PRS gauge card (P3-18).
  *
  * Displays a single PRS result with a semicircular gauge showing
- * percentile with bootstrap CI as a shaded arc. Includes ancestry
- * mismatch amber warning and permanent "Research Use Only" badge.
+ * percentile. Includes ancestry mismatch amber warning and permanent
+ * "Research Use Only" badge.
  */
 
 import { cn } from "@/lib/utils"
@@ -15,16 +15,8 @@ interface PRSGaugeCardProps {
   prs: CancerPRS
 }
 
-/** Render a semicircular gauge with percentile needle and CI shaded arc. */
-function GaugeSVG({
-  percentile,
-  ciLower,
-  ciUpper,
-}: {
-  percentile: number
-  ciLower: number | null
-  ciUpper: number | null
-}) {
+/** Render a semicircular gauge with percentile needle. */
+function GaugeSVG({ percentile }: { percentile: number }) {
   const cx = 100
   const cy = 90
   const r = 70
@@ -49,9 +41,6 @@ function GaugeSVG({
   const needleX = cx + (r - 10) * Math.cos(needleAngle)
   const needleY = cy - (r - 10) * Math.sin(needleAngle)
 
-  const clampedLower = Math.max(0, ciLower ?? percentile)
-  const clampedUpper = Math.min(100, ciUpper ?? percentile)
-
   return (
     <svg viewBox="0 0 200 110" className="w-full max-w-[200px] mx-auto" aria-hidden="true">
       {/* Background arc */}
@@ -63,18 +52,6 @@ function GaugeSVG({
         className="text-muted/30"
         strokeLinecap="round"
       />
-
-      {/* CI shaded arc */}
-      {ciLower != null && ciUpper != null && (
-        <path
-          d={arcPath(clampedLower, clampedUpper)}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="12"
-          className="text-primary/30"
-          strokeLinecap="round"
-        />
-      )}
 
       {/* Needle */}
       <line
@@ -142,21 +119,12 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
       {/* Gauge visualization */}
       {prs.is_sufficient && prs.percentile != null ? (
         <div className="mb-3">
-          <GaugeSVG
-            percentile={prs.percentile}
-            ciLower={prs.bootstrap_ci_lower}
-            ciUpper={prs.bootstrap_ci_upper}
-          />
+          <GaugeSVG percentile={prs.percentile} />
           <div className="text-center mt-1">
             <p className="text-lg font-bold text-foreground">
               {Math.round(prs.percentile)}
               <span className="text-sm font-normal text-muted-foreground">th percentile</span>
             </p>
-            {prs.bootstrap_ci_lower != null && prs.bootstrap_ci_upper != null && (
-              <p className="text-xs text-muted-foreground">
-                95% CI: {Math.round(prs.bootstrap_ci_lower)}–{Math.round(prs.bootstrap_ci_upper)}th
-              </p>
-            )}
           </div>
         </div>
       ) : !prs.calibrated ? (

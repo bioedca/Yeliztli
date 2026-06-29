@@ -19,8 +19,8 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   pattern, and an evidence rating. For recessive genes, you're told whether you're a
   *carrier* versus *affected*. *BRCA1/BRCA2* findings cross-reference the
   [carrier module](carrier-status.md), where they also appear in a reproductive context.
-- **Polygenic scores** — shown as a **population percentile** with a confidence interval,
-  never as a raw score or an absolute risk. They are explicitly research-use-only.
+- **Polygenic scores** — shown as a **population percentile**, never as a raw score,
+  confidence interval, or absolute risk. They are explicitly research-use-only.
 
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your

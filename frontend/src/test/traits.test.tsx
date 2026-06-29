@@ -312,9 +312,12 @@ describe("TraitsPRSGaugeCard", () => {
     expect(screen.getByText("th percentile")).toBeInTheDocument()
   })
 
-  it("shows CI range for sufficient PRS", () => {
+  it("does not render legacy PRS CI fields", () => {
     render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("95% CI: 55–75th")).toBeInTheDocument()
+    expect(screen.getByText("65")).toBeInTheDocument()
+    expect(screen.getByText("th percentile")).toBeInTheDocument()
+    expect(screen.queryByText(/95% CI/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/interval/i)).not.toBeInTheDocument()
   })
 
   it("shows insufficient coverage message for insufficient PRS", () => {

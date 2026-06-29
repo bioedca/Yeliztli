@@ -8,7 +8,8 @@ Key design decisions (from PRD):
   - Weight sets tagged with source GWAS ancestry and sample size.
   - Scores expressed as population percentile + z-score (never raw PRS
     value or absolute lifetime risk).
-  - Bootstrap CI (1000 iterations, 95% confidence) for uncertainty.
+  - Individual PRS intervals are withheld unless a future implementation has
+    principled effect-size/posterior uncertainty inputs.
   - Ancestry mismatch warning field on every result (for P3-16).
   - "Research Use Only" tier — PRS findings are never displayed
     alongside monogenic ClinVar findings.
@@ -20,7 +21,6 @@ Usage::
         PRSResult,
         compute_prs,
         compute_prs_percentile,
-        compute_prs_bootstrap_ci,
         store_prs_findings,
     )
     from backend.analysis.ancestry import get_inferred_ancestry
@@ -43,7 +43,6 @@ Usage::
 
     result = compute_prs(weight_set, sample_engine)
     result = compute_prs_percentile(result)
-    result = compute_prs_bootstrap_ci(result)
 """
 
 from __future__ import annotations
@@ -52,7 +51,6 @@ import json
 import math
 from dataclasses import asdict, dataclass, field
 
-import numpy as np
 import sqlalchemy as sa
 import structlog
 
@@ -168,7 +166,7 @@ class PRSWeightSet:
         calibrated: Whether ``reference_mean``/``reference_std`` are a validated
             reference distribution for *this exact* shipped score (SNP subset,
             harmonization, and target ancestry). When ``False`` the engine
-            refuses to emit a population percentile / z-score / bootstrap CI,
+            refuses to emit a population percentile or z-score,
             because converting a raw weighted-allele sum through an
             uncalibrated mean/SD (e.g. the ``0.0``/``1.0`` placeholder) yields a
             number that looks calibrated but is not (see issue #7). Defaults to
@@ -263,9 +261,9 @@ class PRSResult:
         snps_total: Total SNPs in the weight set.
         coverage_fraction: snps_used / snps_total.
         contributions: Per-SNP contribution breakdown.
-        bootstrap_ci_lower: Lower bound of 95% CI (percentile).
-        bootstrap_ci_upper: Upper bound of 95% CI (percentile).
-        bootstrap_iterations: Number of bootstrap iterations performed.
+        bootstrap_ci_lower: Deprecated interval field; currently withheld.
+        bootstrap_ci_upper: Deprecated interval field; currently withheld.
+        bootstrap_iterations: Deprecated interval iteration count; always 0.
         ancestry_mismatch: Whether user's ancestry ≠ weight set ancestry.
         ancestry_warning_text: Warning text if ancestry mismatch.
         evidence_level: Star rating (PRS components = ★☆☆☆ = 1).
@@ -318,8 +316,8 @@ class PRSResult:
     multi_ancestry: bool = False
     development_ancestries: list[str] = field(default_factory=list)
     evidence_level: int = PRS_EVIDENCE_LEVEL  # PRS components = ★☆☆☆
-    # False → no validated reference distribution for this score, so percentile,
-    # z-score and bootstrap CI are deliberately withheld (left None). See #7.
+    # False → no validated reference distribution for this score, so percentile
+    # and z-score are deliberately withheld (left None). See #7.
     calibrated: bool = True
     higher_is: str = PRS_HIGHER_IS_RISK
     calibration_method: str | None = None
@@ -359,7 +357,7 @@ class PRSResult:
 
     @property
     def has_bootstrap_ci(self) -> bool:
-        """Whether bootstrap CI has been computed."""
+        """Whether legacy interval fields are populated."""
         return self.bootstrap_ci_lower is not None and self.bootstrap_ci_upper is not None
 
 
@@ -757,7 +755,7 @@ def compute_prs_percentile(
     return result
 
 
-# ── Bootstrap confidence interval ───────────────────────────────────────
+# ── PRS interval withholding ────────────────────────────────────────────
 
 
 def compute_prs_bootstrap_ci(
@@ -768,75 +766,38 @@ def compute_prs_bootstrap_ci(
     confidence_level: float = 0.95,
     rng_seed: int | None = None,
 ) -> PRSResult:
-    """Compute bootstrap confidence interval for PRS percentile.
+    """Withhold unsupported PRS interval fields.
 
-    Resamples the per-SNP contributions (with replacement) to estimate
-    the uncertainty in the PRS score, then converts each bootstrap
-    replicate to a percentile. The CI bounds are the 2.5th and 97.5th
-    percentiles of the bootstrap distribution.
+    The historical implementation resampled one individual's fixed per-SNP
+    contributions and labeled the resulting spread as a 95% CI. That is not a
+    defensible sampling process for an individual deterministic PRS. Valid
+    individual intervals require effect-size/posterior uncertainty inputs that
+    are not present in the current weight-set model (issue #1246).
 
     Args:
         result: PRSResult with contributions populated.
-        reference_mean: Mean PRS in the reference population.
-        reference_std: Std dev of PRS in the reference population.
-        n_iterations: Number of bootstrap iterations (default 1000).
-        confidence_level: CI confidence level (default 0.95).
-        rng_seed: Optional RNG seed for reproducibility.
+        reference_mean: Deprecated; retained for caller compatibility.
+        reference_std: Deprecated; retained for caller compatibility.
+        n_iterations: Deprecated; retained for caller compatibility.
+        confidence_level: Deprecated; retained for caller compatibility.
+        rng_seed: Deprecated; retained for caller compatibility.
 
     Returns:
-        Updated PRSResult with bootstrap_ci_lower/upper populated.
+        Updated PRSResult with interval fields explicitly withheld.
     """
-    if reference_std <= 0 or n_iterations <= 0 or not result.contributions:
-        result.bootstrap_ci_lower = result.percentile
-        result.bootstrap_ci_upper = result.percentile
-        result.bootstrap_iterations = 0
-        return result
-
-    # Extract contributions from SNPs that were actually scored (resolved to a
-    # real dosage — typed on either strand, or imputed). No-call /
-    # strand-ambiguous-dropped / unresolved SNPs contributed 0 to the score, so
-    # they must not dilute the bootstrap resample.
-    used_contributions = [
-        c
-        for c in result.contributions
-        if c.match_status in (MATCHED_REF, MATCHED_FLIP, IMPUTED_MATCH_STATUS)
-    ]
-    if not used_contributions:
-        result.bootstrap_ci_lower = result.percentile
-        result.bootstrap_ci_upper = result.percentile
-        result.bootstrap_iterations = 0
-        return result
-
-    contribution_values = np.array([c.contribution for c in used_contributions], dtype=np.float64)
-    n_snps = len(contribution_values)
-
-    rng = np.random.default_rng(rng_seed)
-
-    # Bootstrap: resample SNP contributions and compute percentile
-    bootstrap_percentiles = np.empty(n_iterations, dtype=np.float64)
-    sqrt2 = math.sqrt(2.0)
-
-    for i in range(n_iterations):
-        indices = rng.integers(0, n_snps, size=n_snps)
-        boot_score = contribution_values[indices].sum()
-        z = (boot_score - reference_mean) / reference_std
-        boot_pct = 0.5 * (1.0 + math.erf(z / sqrt2)) * 100.0
-        bootstrap_percentiles[i] = boot_pct
-
-    alpha = 1.0 - confidence_level
-    lower = float(np.percentile(bootstrap_percentiles, 100 * alpha / 2))
-    upper = float(np.percentile(bootstrap_percentiles, 100 * (1 - alpha / 2)))
-
-    result.bootstrap_ci_lower = round(lower, 2)
-    result.bootstrap_ci_upper = round(upper, 2)
-    result.bootstrap_iterations = n_iterations
+    result.bootstrap_ci_lower = None
+    result.bootstrap_ci_upper = None
+    result.bootstrap_iterations = 0
 
     logger.info(
-        "prs_bootstrap_ci_computed",
+        "prs_interval_withheld",
         trait=result.trait,
-        ci_lower=result.bootstrap_ci_lower,
-        ci_upper=result.bootstrap_ci_upper,
-        iterations=n_iterations,
+        reason="effect_size_uncertainty_inputs_unavailable",
+        reference_mean=reference_mean,
+        reference_std=reference_std,
+        requested_iterations=n_iterations,
+        requested_confidence_level=confidence_level,
+        rng_seed_set=rng_seed is not None,
     )
 
     return result
@@ -1178,7 +1139,7 @@ def run_prs(
         )
     else:
         # No validated reference distribution: withhold percentile / z-score /
-        # CI rather than emit a miscalibrated number (issue #7). raw_score and
+        # interval rather than emit a miscalibrated number (issue #7). raw_score and
         # coverage are still computed and surfaced as a research-use qualitative
         # state.
         logger.info(
@@ -1196,7 +1157,7 @@ def run_prs(
 # §12.4 polygenic trait-architecture education block (SW-A2 / roadmap #30).
 # Static context attached to every PRS finding so a percentile is never read as a
 # deterministic prediction. It is purely educational and never changes the score,
-# percentile, CI, or evidence level.
+# percentile, or evidence level.
 PRS_TRAIT_ARCHITECTURE: dict[str, str] = {
     "heritability": (
         "Twin-study heritability is larger than SNP heritability, which is larger "
@@ -1229,8 +1190,8 @@ def store_prs_findings(
     """Store PRS findings in the sample database.
 
     Creates one finding per PRS result with the appropriate module tag.
-    Findings include the "prs" category, z-score, percentile, bootstrap CI,
-    ancestry source tag, and mismatch warning.
+    Findings include the "prs" category, z-score, percentile, ancestry source
+    tag, and mismatch warning.
 
     Args:
         results: List of PRSResult objects to store.
@@ -1286,12 +1247,9 @@ def store_prs_findings(
         else:
             percentile_text = f"{r.percentile:.0f}th" if r.percentile is not None else "N/A"
             z_text = f"z = {r.z_score:.2f}" if r.z_score is not None else ""
-            ci_text = ""
-            if r.has_bootstrap_ci:
-                ci_text = f" (95% CI: {r.bootstrap_ci_lower:.0f}th–{r.bootstrap_ci_upper:.0f}th)"
 
             finding_text = (
-                f"{r.weight_set_name}: {percentile_text} percentile{ci_text}"
+                f"{r.weight_set_name}: {percentile_text} percentile"
                 f" [{z_text}]{orientation_suffix} — Research Use Only"
             )
 
@@ -1317,9 +1275,9 @@ def store_prs_findings(
             "orientation_note": orientation_note,
             "percentile": r.percentile,
             "z_score": r.z_score,
-            "bootstrap_ci_lower": r.bootstrap_ci_lower,
-            "bootstrap_ci_upper": r.bootstrap_ci_upper,
-            "bootstrap_iterations": r.bootstrap_iterations,
+            "bootstrap_ci_lower": None,
+            "bootstrap_ci_upper": None,
+            "bootstrap_iterations": 0,
             "calibration_method": r.calibration_method,
             "calibration_reference_mean": r.calibration_reference_mean,
             "calibration_reference_std": r.calibration_reference_std,

@@ -133,7 +133,7 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PRS gauge — semicircular arc with percentile, CI arc, and needle
+# PRS gauge — semicircular arc with percentile and needle
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -141,7 +141,7 @@ def _render_prs_gauge(
     finding: dict[str, Any],
     detail: dict[str, Any],
 ) -> str | None:
-    """Render a semicircular gauge for PRS percentile with bootstrap CI.
+    """Render a semicircular gauge for PRS percentile.
 
     Gauge geometry: semicircle (180 degrees) centered at (200, 220),
     radius 150.  0th percentile = left (180 deg), 100th = right (0 deg).
@@ -163,23 +163,6 @@ def _render_prs_gauge(
     percentile = max(0.0, min(100.0, percentile))
 
     z_score = detail.get("z_score") or finding.get("prs_score")
-    ci_lower_raw = detail.get("bootstrap_ci_lower")
-    ci_upper_raw = detail.get("bootstrap_ci_upper")
-    ci_lower = percentile
-    ci_upper = percentile
-    has_ci = False
-    if ci_lower_raw is not None and ci_upper_raw is not None:
-        try:
-            ci_lower = float(ci_lower_raw)
-            ci_upper = float(ci_upper_raw)
-        except (TypeError, ValueError):
-            has_ci = False
-        else:
-            ci_lower = max(0.0, min(100.0, ci_lower))
-            ci_upper = max(0.0, min(100.0, ci_upper))
-            if ci_lower > ci_upper:
-                ci_lower, ci_upper = ci_upper, ci_lower
-            has_ci = ci_lower != ci_upper
     trait_name = finding.get("phenotype") or detail.get("trait_name", "Trait")
 
     parts: list[str] = []
@@ -209,23 +192,6 @@ def _render_prs_gauge(
             stroke_width=track_width,
         )
     )
-
-    # CI shaded region (lighter teal, semi-transparent)
-    if has_ci:
-        ci_start_angle = _percentile_to_angle(ci_lower)
-        ci_end_angle = _percentile_to_angle(ci_upper)
-        parts.append(
-            _arc_path(
-                cx,
-                cy,
-                radius,
-                ci_start_angle,
-                ci_end_angle,
-                stroke=TEAL_LIGHT,
-                stroke_width=track_width,
-                opacity=0.35,
-            )
-        )
 
     # Filled arc to percentile position (teal)
     pct_angle = _percentile_to_angle(percentile)
@@ -273,11 +239,10 @@ def _render_prs_gauge(
         f'text-anchor="middle" {FONT_SMALL}>100</text>\n'
     )
 
-    # Z-score and CI line
+    # Z-score line
     footer_y = height - 30
     z_str = f"z = {float(z_score):.2f}" if z_score is not None else ""
-    ci_str = f"95% CI: {ci_lower:.0f} – {ci_upper:.0f}" if has_ci else ""
-    footer_parts = [s for s in (z_str, ci_str) if s]
+    footer_parts = [s for s in (z_str,) if s]
     if footer_parts:
         parts.append(
             f'  <text x="{cx}" y="{footer_y}" text-anchor="middle" '

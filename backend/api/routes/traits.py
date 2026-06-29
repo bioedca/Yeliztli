@@ -393,8 +393,7 @@ def list_prs(
     """List PRS results for the traits module.
 
     Returns educational attainment and cognitive ability PRS percentiles
-    with bootstrap CI, ancestry mismatch warnings, and "Research Use Only"
-    labels.
+    with ancestry mismatch warnings and "Research Use Only" labels.
 
     Example: ``GET /api/analysis/traits/prs?sample_id=1``
     """
@@ -412,8 +411,8 @@ def list_prs(
                 name=detail.get("name", ""),
                 percentile=detail.get("percentile", pf.get("prs_percentile")),
                 z_score=detail.get("z_score"),
-                bootstrap_ci_lower=detail.get("bootstrap_ci_lower"),
-                bootstrap_ci_upper=detail.get("bootstrap_ci_upper"),
+                bootstrap_ci_lower=None,
+                bootstrap_ci_upper=None,
                 source_ancestry=detail.get("source_ancestry", ""),
                 source_study=detail.get("source_study", ""),
                 snps_used=detail.get("snps_used", 0),

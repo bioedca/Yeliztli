@@ -2,11 +2,10 @@
 
 Covers:
   - T3-13: PRS calculator produces correct score from known weights and genotypes.
-  - T3-14: PRS percentile calculation with bootstrap CI is correct against
-    reference distribution.
+  - T3-14: PRS percentile calculation is correct against reference distribution.
   - Dosage counting (0/1/2 copies of effect allele).
   - z-score and percentile conversion.
-  - Bootstrap CI bounds are reasonable.
+  - Unsupported PRS interval fields are withheld.
   - Ancestry mismatch warning fires / does not fire.
   - Findings storage (module tag, category='prs', evidence_level=1).
   - Insufficient coverage handling.
@@ -437,14 +436,14 @@ class TestPercentileComputation:
         assert result.z_score == 0.0
 
 
-# ── Bootstrap CI tests ──────────────────────────────────────────────────
+# ── PRS interval withholding tests ──────────────────────────────────────
 
 
-class TestBootstrapCI:
-    """Test bootstrap confidence interval computation."""
+class TestPRSIntervalWithholding:
+    """Guard against reintroducing contribution-bootstrap PRS intervals."""
 
-    def test_bootstrap_ci_bounds(self) -> None:
-        """T3-14: Bootstrap CI bounds should bracket the point estimate."""
+    def test_bootstrap_ci_withheld_for_scored_contributions(self) -> None:
+        """Per-SNP contribution resampling must not produce a user-facing CI."""
         contributions = [
             PRSSNPContribution(
                 rsid=f"rs{i}",
@@ -472,6 +471,7 @@ class TestBootstrapCI:
             coverage_fraction=1.0,
             contributions=contributions,
         )
+
         result = compute_prs_bootstrap_ci(
             result,
             reference_mean=0.0,
@@ -480,194 +480,13 @@ class TestBootstrapCI:
             rng_seed=42,
         )
 
-        assert result.has_bootstrap_ci
-        assert result.bootstrap_ci_lower is not None
-        assert result.bootstrap_ci_upper is not None
-        assert result.bootstrap_ci_lower <= result.bootstrap_ci_upper
-        assert result.bootstrap_iterations == 1000
-
-    def test_bootstrap_ci_narrows_with_more_snps(self) -> None:
-        """CI should be narrower when more SNPs contribute.
-
-        Uses varying contributions so bootstrap resampling produces
-        meaningful variance (identical contributions yield zero CI width).
-        """
-        # Small weight set with varied contributions
-        small_weights = [0.8, 0.2, 0.6, 0.1, 0.3]
-        small_contribs = [
-            PRSSNPContribution(
-                rsid=f"rs{i}",
-                effect_allele="A",
-                weight=w,
-                genotype="AG",
-                dosage=1,
-                contribution=w,
-            )
-            for i, w in enumerate(small_weights)
-        ]
-        small_result = PRSResult(
-            weight_set_name="Small",
-            trait="test",
-            module="test",
-            source_ancestry="EUR",
-            source_study="Test",
-            source_pmid="123",
-            sample_size=1000,
-            raw_score=sum(small_weights),
-            snps_used=5,
-            snps_total=5,
-            coverage_fraction=1.0,
-            contributions=small_contribs,
-        )
-        small_result = compute_prs_bootstrap_ci(
-            small_result,
-            reference_mean=0.0,
-            reference_std=2.0,
-            n_iterations=1000,
-            rng_seed=42,
-        )
-
-        # Large weight set with the same total score but 100 varied contributions
-        large_weights = [(i % 5) * 0.01 + 0.01 for i in range(100)]
-        total = sum(large_weights)
-        large_contribs = [
-            PRSSNPContribution(
-                rsid=f"rs{i}",
-                effect_allele="A",
-                weight=w,
-                genotype="AG",
-                dosage=1,
-                contribution=w,
-            )
-            for i, w in enumerate(large_weights)
-        ]
-        large_result = PRSResult(
-            weight_set_name="Large",
-            trait="test",
-            module="test",
-            source_ancestry="EUR",
-            source_study="Test",
-            source_pmid="123",
-            sample_size=1000,
-            raw_score=total,
-            snps_used=100,
-            snps_total=100,
-            coverage_fraction=1.0,
-            contributions=large_contribs,
-        )
-        large_result = compute_prs_bootstrap_ci(
-            large_result,
-            reference_mean=0.0,
-            reference_std=2.0,
-            n_iterations=1000,
-            rng_seed=42,
-        )
-
-        small_width = small_result.bootstrap_ci_upper - small_result.bootstrap_ci_lower
-        large_width = large_result.bootstrap_ci_upper - large_result.bootstrap_ci_lower
-        assert small_width > 0  # Sanity check: small set has variance
-        assert large_width < small_width
-
-    def test_bootstrap_reproducible_with_seed(self) -> None:
-        """Same seed should give identical CI bounds."""
-        contributions = [
-            PRSSNPContribution(
-                rsid="rs1",
-                effect_allele="A",
-                weight=0.1,
-                genotype="AG",
-                dosage=1,
-                contribution=0.1,
-            ),
-            PRSSNPContribution(
-                rsid="rs2",
-                effect_allele="G",
-                weight=0.2,
-                genotype="GG",
-                dosage=2,
-                contribution=0.4,
-            ),
-        ]
-        result1 = PRSResult(
-            weight_set_name="Test",
-            trait="test",
-            module="test",
-            source_ancestry="EUR",
-            source_study="Test",
-            source_pmid="123",
-            sample_size=1000,
-            raw_score=0.5,
-            snps_used=2,
-            snps_total=2,
-            coverage_fraction=1.0,
-            contributions=list(contributions),
-        )
-        result2 = PRSResult(
-            weight_set_name="Test",
-            trait="test",
-            module="test",
-            source_ancestry="EUR",
-            source_study="Test",
-            source_pmid="123",
-            sample_size=1000,
-            raw_score=0.5,
-            snps_used=2,
-            snps_total=2,
-            coverage_fraction=1.0,
-            contributions=list(contributions),
-        )
-        result1 = compute_prs_bootstrap_ci(
-            result1,
-            reference_mean=0.0,
-            reference_std=1.0,
-            n_iterations=500,
-            rng_seed=99,
-        )
-        result2 = compute_prs_bootstrap_ci(
-            result2,
-            reference_mean=0.0,
-            reference_std=1.0,
-            n_iterations=500,
-            rng_seed=99,
-        )
-        assert result1.bootstrap_ci_lower == result2.bootstrap_ci_lower
-        assert result1.bootstrap_ci_upper == result2.bootstrap_ci_upper
-
-    def test_bootstrap_zero_iterations_returns_point_estimate(self) -> None:
-        """A disabled bootstrap should not try to percentile an empty sample."""
-        result = PRSResult(
-            weight_set_name="Test",
-            trait="test",
-            module="test",
-            source_ancestry="EUR",
-            source_study="Test",
-            source_pmid="123",
-            sample_size=1000,
-            raw_score=0.5,
-            percentile=72.0,
-            contributions=[
-                PRSSNPContribution(
-                    rsid="rs1",
-                    effect_allele="A",
-                    weight=0.1,
-                    genotype="AA",
-                    dosage=2,
-                    contribution=0.2,
-                )
-            ],
-        )
-        result = compute_prs_bootstrap_ci(
-            result,
-            reference_mean=0.0,
-            reference_std=1.0,
-            n_iterations=0,
-        )
-        assert result.bootstrap_ci_lower == 72.0
-        assert result.bootstrap_ci_upper == 72.0
+        assert result.has_bootstrap_ci is False
+        assert result.bootstrap_ci_lower is None
+        assert result.bootstrap_ci_upper is None
         assert result.bootstrap_iterations == 0
 
-    def test_bootstrap_zero_std_returns_point_estimate(self) -> None:
-        """Zero reference std should return point estimate as CI bounds."""
+    def test_bootstrap_ci_clears_stale_legacy_values(self) -> None:
+        """Historical interval values are cleared rather than passed through."""
         result = PRSResult(
             weight_set_name="Test",
             trait="test",
@@ -678,18 +497,19 @@ class TestBootstrapCI:
             sample_size=1000,
             raw_score=0.5,
             percentile=72.0,
-            contributions=[],
+            bootstrap_ci_lower=55.0,
+            bootstrap_ci_upper=88.0,
+            bootstrap_iterations=1000,
         )
-        result = compute_prs_bootstrap_ci(
-            result,
-            reference_mean=0.0,
-            reference_std=0.0,
-        )
-        assert result.bootstrap_ci_lower == 72.0
-        assert result.bootstrap_ci_upper == 72.0
 
-    def test_bootstrap_no_contributions_returns_point_estimate(self) -> None:
-        """No contributions should return point estimate as CI bounds."""
+        result = compute_prs_bootstrap_ci(result, reference_mean=0.0, reference_std=1.0)
+
+        assert result.bootstrap_ci_lower is None
+        assert result.bootstrap_ci_upper is None
+        assert result.bootstrap_iterations == 0
+
+    def test_bootstrap_ci_withheld_for_invalid_inputs(self) -> None:
+        """Withholding is independent of legacy bootstrap arguments."""
         result = PRSResult(
             weight_set_name="Test",
             trait="test",
@@ -700,24 +520,19 @@ class TestBootstrapCI:
             sample_size=1000,
             raw_score=0.0,
             percentile=50.0,
-            contributions=[
-                PRSSNPContribution(
-                    rsid="rs1",
-                    effect_allele="A",
-                    weight=0.1,
-                    genotype=None,
-                    dosage=0,
-                    contribution=0.0,
-                )
-            ],
+            contributions=[],
         )
+
         result = compute_prs_bootstrap_ci(
             result,
             reference_mean=0.0,
-            reference_std=1.0,
+            reference_std=0.0,
+            n_iterations=0,
         )
-        assert result.bootstrap_ci_lower == 50.0
-        assert result.bootstrap_ci_upper == 50.0
+
+        assert result.has_bootstrap_ci is False
+        assert result.bootstrap_ci_lower is None
+        assert result.bootstrap_ci_upper is None
 
 
 # ── Ancestry mismatch tests ────────────────────────────────────────────
@@ -800,7 +615,7 @@ class TestRunPRS:
     def test_full_pipeline(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:
-        """T3-13 + T3-14: Full pipeline produces correct score with CI."""
+        """T3-13 + T3-14: Full pipeline produces correct score without a CI."""
         result = run_prs(
             weight_set,
             sample_with_prs_variants,
@@ -819,9 +634,12 @@ class TestRunPRS:
         assert result.percentile is not None
         assert 70 < result.percentile < 76
 
-        # Bootstrap CI should exist
-        assert result.has_bootstrap_ci
-        assert result.bootstrap_ci_lower < result.bootstrap_ci_upper
+        # Individual intervals require effect-size uncertainty inputs that this
+        # weight-set model does not provide.
+        assert result.has_bootstrap_ci is False
+        assert result.bootstrap_ci_lower is None
+        assert result.bootstrap_ci_upper is None
+        assert result.bootstrap_iterations == 0
 
         # No ancestry mismatch
         assert result.ancestry_mismatch is False
@@ -838,8 +656,8 @@ class TestRunPRS:
         )
 
         assert result.percentile is not None
-        assert result.bootstrap_ci_lower == result.percentile
-        assert result.bootstrap_ci_upper == result.percentile
+        assert result.bootstrap_ci_lower is None
+        assert result.bootstrap_ci_upper is None
         assert result.bootstrap_iterations == 0
 
     def test_full_pipeline_with_mismatch(
@@ -877,7 +695,7 @@ class TestRunPRS:
         assert result.calibration_reference_std is not None
         assert result.z_score is not None
         assert result.percentile is not None
-        assert result.has_bootstrap_ci
+        assert result.has_bootstrap_ci is False
 
         store_prs_findings([result], sample_engine, module="cancer")
         with sample_engine.connect() as conn:
@@ -911,7 +729,7 @@ class TestRunPRS:
         assert result.calibration_variants_total == 2
         assert result.z_score is not None
         assert result.percentile is not None
-        assert result.has_bootstrap_ci
+        assert result.has_bootstrap_ci is False
 
     def test_uncalibrated_weight_set_without_ancestry_still_withholds_percentile(
         self, sample_engine: sa.Engine
@@ -1120,7 +938,7 @@ class TestStorePRSFindings:
         assert detail["source_ancestry"] == "EUR"
         assert detail["research_use_only"] is True
 
-    def test_detail_json_has_bootstrap_ci(
+    def test_detail_json_withholds_unsupported_interval(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:
         result = run_prs(
@@ -1137,7 +955,9 @@ class TestStorePRSFindings:
         detail = json.loads(row.detail_json)
         assert "bootstrap_ci_lower" in detail
         assert "bootstrap_ci_upper" in detail
-        assert detail["bootstrap_iterations"] == 100
+        assert detail["bootstrap_ci_lower"] is None
+        assert detail["bootstrap_ci_upper"] is None
+        assert detail["bootstrap_iterations"] == 0
 
     def test_detail_json_has_trait_architecture(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
@@ -1179,7 +999,9 @@ class TestStorePRSFindings:
         assert rf["research_use_only"] is True
         assert rf["source_population"] == "EUR"
         assert "EUR" in rf["source_population_label"]
-        assert "95% CI" in rf["ci_label"]
+        assert rf["ci_label"] == (
+            "PRS interval unavailable (effect-size uncertainty inputs are not available)"
+        )
 
     def test_detail_json_has_default_risk_orientation(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine

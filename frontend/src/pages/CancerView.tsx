@@ -186,7 +186,7 @@ export default function CancerView() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                Population percentile estimates derived from published GWAS with bootstrap confidence intervals
+                Population percentile estimates derived from published GWAS
               </p>
 
               {prsQuery.isError ? (

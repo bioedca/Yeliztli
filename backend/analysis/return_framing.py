@@ -4,14 +4,14 @@ One home for the two load-bearing return-of-results statements so they read
 identically everywhere they surface:
 
   - **PRS** results are *research-only*, must carry their **source population**,
-    and their **bootstrap CI is always paired** with the percentile — an explicit
-    "CI unavailable" rather than a bare point estimate.
+    and explicitly state that an individual interval is unavailable with the
+    current weight-set inputs.
   - An actionable **ClinVar Pathogenic / Likely-pathogenic** result is
     array-derived and must be **confirmed in a CLIA/accredited lab** with genetic
     counseling before any medical action (mirrors the APOE-gate framing).
 
 These are additive disclosure helpers: they never change a score, percentile,
-CI, evidence level, or ClinVar significance.
+evidence level, or ClinVar significance.
 """
 
 from __future__ import annotations
@@ -37,17 +37,17 @@ def prs_source_population_label(source_ancestry: str | None) -> str:
 
 
 def prs_ci_label(ci_lower: float | None, ci_upper: float | None) -> str:
-    """Bootstrap-CI label, always paired — explicit when unavailable."""
-    if ci_lower is not None and ci_upper is not None:
-        return f"95% CI {round(ci_lower)}–{round(ci_upper)}th percentile"
-    return "95% CI unavailable (insufficient data to bootstrap)"
+    """Legacy interval label; current PRS inputs do not support individual CIs."""
+    if ci_lower is not None or ci_upper is not None:
+        return "PRS interval unavailable (effect-size uncertainty inputs are not available)"
+    return "PRS interval unavailable (effect-size uncertainty inputs are not available)"
 
 
 def prs_return_framing(detail: dict[str, Any]) -> dict[str, Any]:
     """Consolidated responsible-return block for a PRS finding's ``detail_json``.
 
-    Pairs research-only + the source-population label + the (always-stated) CI so
-    a consumer can render them without re-deriving the framing.
+    Pairs research-only + the source-population label + the interval status so a
+    consumer can render them without re-deriving the framing.
     """
     return {
         "research_use_only": True,

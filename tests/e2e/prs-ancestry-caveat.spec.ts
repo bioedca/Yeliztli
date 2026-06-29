@@ -112,6 +112,7 @@ test.describe('PRS ancestry caveats render when ancestry inference has not run (
     const card = page.getByTestId('traits-prs-card')
     await expect(card).toBeVisible()
     await expect(card).toHaveClass(/border-amber-300/)
+    await expect(card.getByText(/95% CI/)).toHaveCount(0)
 
     const warning = card.getByTestId('ancestry-mismatch-warning')
     await expect(warning).toBeVisible()

@@ -147,17 +147,18 @@ def ancestry_finding() -> dict:
 class TestRenderFindingSvg:
     """Test the dispatcher routes to correct renderers."""
 
-    def test_prs_finding_generates_gauge(self, prs_finding):
+    def test_prs_finding_generates_gauge_without_legacy_ci(self, prs_finding):
         svg = render_finding_svg(prs_finding)
         assert svg is not None
         assert "<svg" in svg
         assert "72" in svg  # percentile value
-        assert "95% CI: 65 – 79" in svg
-        assert 'stroke="#14B8A6"' in svg
-        assert 'opacity="0.35"' in svg
+        assert "95% CI" not in svg
+        assert 'stroke="#14B8A6"' not in svg
+        assert 'opacity="0.35"' not in svg
+        assert 'stroke="#0D9488"' in svg
         assert "</svg>" in svg
 
-    def test_prs_gauge_without_bootstrap_ci_omits_ci_band(self, prs_finding):
+    def test_prs_gauge_without_interval_fields_omits_ci_band(self, prs_finding):
         detail = json.loads(prs_finding["detail_json"])
         detail.pop("bootstrap_ci_lower")
         detail.pop("bootstrap_ci_upper")
@@ -166,11 +167,13 @@ class TestRenderFindingSvg:
         svg = render_finding_svg(prs_finding)
 
         assert svg is not None
+        assert "<svg" in svg
+        assert "72" in svg
         assert "95% CI" not in svg
         assert 'stroke="#14B8A6"' not in svg
         assert 'opacity="0.35"' not in svg
 
-    def test_prs_gauge_with_collapsed_bootstrap_ci_omits_ci_band(self, prs_finding):
+    def test_prs_gauge_with_collapsed_legacy_ci_omits_ci_band(self, prs_finding):
         detail = json.loads(prs_finding["detail_json"])
         detail["bootstrap_ci_lower"] = 72.0
         detail["bootstrap_ci_upper"] = 72.0
@@ -179,11 +182,13 @@ class TestRenderFindingSvg:
         svg = render_finding_svg(prs_finding)
 
         assert svg is not None
+        assert "<svg" in svg
+        assert "72" in svg
         assert "95% CI" not in svg
         assert 'stroke="#14B8A6"' not in svg
         assert 'opacity="0.35"' not in svg
 
-    def test_prs_gauge_with_malformed_bootstrap_ci_omits_ci_band(self, prs_finding):
+    def test_prs_gauge_with_malformed_legacy_ci_omits_ci_band(self, prs_finding):
         detail = json.loads(prs_finding["detail_json"])
         detail["bootstrap_ci_lower"] = "not-a-number"
         prs_finding["detail_json"] = json.dumps(detail)
@@ -191,6 +196,8 @@ class TestRenderFindingSvg:
         svg = render_finding_svg(prs_finding)
 
         assert svg is not None
+        assert "<svg" in svg
+        assert "72" in svg
         assert "95% CI" not in svg
         assert 'stroke="#14B8A6"' not in svg
         assert 'opacity="0.35"' not in svg
@@ -354,7 +361,7 @@ class TestGenerateSvgsForSample:
             # svg_path is relative; file exists under sample_dir
             svg_path = tmp_path / rows[0].svg_path
             assert svg_path.exists()
-            assert "95% CI: 65 – 79" in svg_path.read_text()
+            assert "95% CI" not in svg_path.read_text()
 
     def test_withheld_prs_percentile_does_not_update_svg_path(self, sample_engine, tmp_path):
         with sample_engine.begin() as conn:

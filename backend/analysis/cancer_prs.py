@@ -8,8 +8,8 @@ displayed in a separate "Research Use Only" tier.
 Key decisions (from PRD P3-15):
   - Scores shown as population percentile + z-score, never raw PRS
     or absolute lifetime risk.
-  - Bootstrap CI (1000 iterations, 95% confidence) rendered as shaded
-    arc on gauge chart.
+  - Individual PRS intervals are withheld unless a future implementation has
+    principled effect-size/posterior uncertainty inputs.
   - Displayed in separate "Research Use Only" visual tier.
   - Each weight set tagged with source GWAS ancestry and sample size.
   - Evidence level = 1 (★☆☆☆) for all PRS components.
@@ -219,8 +219,8 @@ def run_cancer_prs(
     PRS outputs are emitted only when the caller provides the matching confident
     sex inference: breast cancer requires ``"XX"`` and prostate cancer requires
     ``"XY"``. Unknown/manual-review sex contexts suppress those numeric scores.
-    Each result includes raw score, z-score, percentile, bootstrap CI,
-    and ancestry mismatch check.
+    Each result includes raw score, z-score, percentile, and ancestry mismatch
+    check.
 
     Args:
         weight_sets: Cancer PRS weight sets from load_cancer_prs_weights.

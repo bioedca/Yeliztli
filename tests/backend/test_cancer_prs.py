@@ -3,7 +3,7 @@
 Covers:
   - Weight set loading from JSON (4 cancer types)
   - PRS computation for breast, prostate, colorectal, melanoma
-  - Bootstrap CI generation
+  - Unsupported PRS intervals are withheld
   - Ancestry mismatch propagation
   - Findings storage with module='cancer', category='prs'
   - Insufficient coverage handling
@@ -557,7 +557,7 @@ class TestRunCancerPRS:
     def test_uncalibrated_sets_withhold_percentile(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
-        """The bundled sets are uncalibrated, so percentile / z-score / CI are
+        """The bundled sets are uncalibrated, so percentile / z-score / interval are
         withheld even when coverage is sufficient — no miscalibrated number is
         emitted (issue #7). raw_score is still computed."""
         result = run_cancer_prs(
@@ -566,6 +566,7 @@ class TestRunCancerPRS:
             n_bootstrap=100,
             rng_seed=42,
         )
+        assert result.results
         for r in result.results:
             assert r.calibrated is False
             assert r.percentile is None
@@ -576,8 +577,7 @@ class TestRunCancerPRS:
     def test_calibrated_set_still_emits_percentile(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
-        """Guardrail is conditional: a weight set declaring a validated reference
-        distribution (calibrated=True) still produces a percentile + bootstrap CI."""
+        """A validated reference distribution produces a percentile, not an interval."""
         ws = replace(cancer_weight_sets[0], calibrated=True, reference_mean=0.5, reference_std=0.5)
         result = run_cancer_prs(
             [ws],
@@ -586,12 +586,13 @@ class TestRunCancerPRS:
             rng_seed=42,
         )
         r = result.results[0]
-        if r.is_sufficient:
-            assert r.calibrated is True
-            assert r.percentile is not None
-            assert 0 <= r.percentile <= 100
-            assert r.has_bootstrap_ci
-            assert r.bootstrap_ci_lower <= r.bootstrap_ci_upper
+        assert r.is_sufficient is True
+        assert r.calibrated is True
+        assert r.percentile is not None
+        assert 0 <= r.percentile <= 100
+        assert r.has_bootstrap_ci is False
+        assert r.bootstrap_ci_lower is None
+        assert r.bootstrap_ci_upper is None
 
     def test_all_evidence_level_is_1(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -958,7 +959,7 @@ class TestStoreCancerPRSFindings:
         assert "breast_cancer" not in stored_traits
         assert stored_traits == expected_traits
 
-    def test_detail_json_has_bootstrap_ci(
+    def test_detail_json_withholds_unsupported_interval(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
         prs_result = run_cancer_prs(
@@ -971,10 +972,14 @@ class TestStoreCancerPRSFindings:
 
         with sample_with_prs_snps.connect() as conn:
             rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
+        assert rows
         for row in rows:
             detail = json.loads(row.detail_json)
             assert "bootstrap_ci_lower" in detail
             assert "bootstrap_ci_upper" in detail
+            assert detail["bootstrap_ci_lower"] is None
+            assert detail["bootstrap_ci_upper"] is None
+            assert detail["bootstrap_iterations"] == 0
             assert detail["research_use_only"] is True
 
     def test_does_not_store_insufficient(

@@ -2,7 +2,7 @@
 
 ClinVar P/LP extraction results from the 28-gene cancer panel — monogenic
 pathogenic variants with accession, review stars, syndrome, and inheritance.
-Cancer PRS (breast, prostate, colorectal, melanoma) with bootstrap CI gauges.
+Cancer PRS (breast, prostate, colorectal, melanoma) as research-use percentiles.
 Module-specific disclaimer text (P3-17).
 
 GET  /api/analysis/cancer/disclaimer                         — Cancer module disclaimer
@@ -304,7 +304,7 @@ def list_cancer_prs(
     """List cancer PRS results for a sample.
 
     Returns PRS findings (breast, prostate, colorectal, melanoma) with
-    percentile, z-score, bootstrap CI, and ancestry mismatch status.
+    percentile, z-score, and ancestry mismatch status.
     Results are in the "Research Use Only" tier.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``
@@ -337,9 +337,9 @@ def list_cancer_prs(
                 calibrated=detail.get("calibrated", True),
                 percentile=row.prs_percentile,
                 z_score=detail.get("z_score"),
-                bootstrap_ci_lower=detail.get("bootstrap_ci_lower"),
-                bootstrap_ci_upper=detail.get("bootstrap_ci_upper"),
-                bootstrap_iterations=detail.get("bootstrap_iterations", 0),
+                bootstrap_ci_lower=None,
+                bootstrap_ci_upper=None,
+                bootstrap_iterations=0,
                 snps_used=detail.get("snps_used", 0),
                 snps_used_imputed=detail.get("snps_used_imputed", 0),
                 snps_total=detail.get("snps_total", 0),

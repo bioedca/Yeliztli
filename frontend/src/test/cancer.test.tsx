@@ -335,9 +335,12 @@ describe("PRSGaugeCard", () => {
     expect(screen.getByText("th percentile")).toBeInTheDocument()
   })
 
-  it("renders bootstrap CI range", () => {
+  it("does not render legacy PRS CI fields", () => {
     render(<PRSGaugeCard prs={BREAST_PRS} />)
-    expect(screen.getByText("95% CI: 65–80th")).toBeInTheDocument()
+    expect(screen.getByText("72")).toBeInTheDocument()
+    expect(screen.getByText("th percentile")).toBeInTheDocument()
+    expect(screen.queryByText(/95% CI/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/interval/i)).not.toBeInTheDocument()
   })
 
   it("renders SNP coverage", () => {

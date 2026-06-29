@@ -64,7 +64,7 @@ export function useTraitsPathwayDetail(
 /**
  * PRS results for the traits module.
  * Returns educational attainment and cognitive ability PRS percentiles
- * with bootstrap CI, ancestry mismatch warnings, and "Research Use Only" labels.
+ * with ancestry mismatch warnings and "Research Use Only" labels.
  * Cached with staleTime: Infinity since findings don't change until re-annotation.
  */
 export function useTraitsPRS(sampleId: number | null) {

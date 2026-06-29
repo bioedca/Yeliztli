@@ -28,14 +28,10 @@ Step 83 / MRG-09 (Plan §15.1). Covers the five sub-asserts MRG-09 names:
     mapping. The merged ``raw_variants`` rows carry ``source='S2'`` so the
     post-merge UI can render which side authored the component variants.
 
-  * **PRS CI re-validation within bounds.** A four-SNP PRS weight set
-    whose rsids are split across sources runs end-to-end on the merged
-    sample's ``annotated_variants``; the bootstrap CI returned by
-    ``compute_prs_bootstrap_ci`` is well-formed (``lower ≤ percentile ≤
-    upper``, both in ``[0, 100]``, ``iterations == 1000``). The merged
-    coverage_fraction must be strictly higher than the unmerged
-    coverage_fraction would have been on either source alone (the merge's
-    raison d'être for PRS).
+  * **PRS percentile re-validation.** A four-SNP PRS weight set whose rsids
+    are split across sources runs end-to-end on the merged sample's
+    ``annotated_variants``; the merged score reaches full coverage, produces a
+    calibrated percentile, and withholds unsupported individual interval fields.
 
   * **Haplogroup tree-walk completes on merged chrM/chrY.** The merged
     sample carries chrM rsids (mt tree-walk) plus chrY rsids that drive
@@ -710,11 +706,11 @@ class TestMergedSampleFullPipeline:
         """
         assert classify_zygosity("AT", "ATCT", "A") is None
 
-    def test_prs_ci_revalidation_within_bounds(
+    def test_prs_percentile_revalidation_withholds_interval(
         self,
         merged_pipeline: tuple[DBRegistry, int, int, int, sa.Engine],
     ) -> None:
-        """Four-SNP PRS on merged annotated_variants: CI well-formed.
+        """Four-SNP PRS on merged annotated_variants: percentile well-formed.
 
         ``compute_prs`` reads ``annotated_variants.genotype``, which the
         production pipeline populates only post-``run_annotation``. The
@@ -723,8 +719,8 @@ class TestMergedSampleFullPipeline:
         ``annotated_variants``; the source-sample DBs are not annotated
         here (MRG-09's contract is about the merged sample's PRS, not
         about comparing pre- vs post-merge PRS coverage on partially-
-        annotated sources). Locks the bootstrap-CI well-formedness
-        invariant on the merged sample end-to-end.
+        annotated sources). Locks percentile computation and interval
+        withholding on the merged sample end-to-end.
         """
         _registry, _s1_id, _s2_id, _merged_id, merged_engine = merged_pipeline
 
@@ -749,9 +745,8 @@ class TestMergedSampleFullPipeline:
             reference_std=0.5,
         )
 
-        # Merged sample — full coverage. Bootstrap CI re-validation runs
-        # against the merged sample's annotated_variants (populated by
-        # the fixture's ``run_annotation`` call).
+        # Merged sample — full coverage against annotated_variants populated by
+        # the fixture's ``run_annotation`` call.
         merged_result = compute_prs(weight_set, merged_engine)
         assert merged_result.coverage_fraction == pytest.approx(1.0)
         assert merged_result.snps_used == 4
@@ -764,19 +759,12 @@ class TestMergedSampleFullPipeline:
             weight_set.reference_std,
             rng_seed=42,
         )
-        # CI well-formed: lower ≤ percentile ≤ upper, both inside [0,100],
-        # iterations honoured.
-        assert merged_result.has_bootstrap_ci
-        assert merged_result.bootstrap_ci_lower is not None
-        assert merged_result.bootstrap_ci_upper is not None
-        assert (
-            merged_result.bootstrap_ci_lower
-            <= merged_result.percentile
-            <= merged_result.bootstrap_ci_upper
-        )
-        assert 0.0 <= merged_result.bootstrap_ci_lower <= 100.0
-        assert 0.0 <= merged_result.bootstrap_ci_upper <= 100.0
-        assert merged_result.bootstrap_iterations == 1000
+        assert merged_result.percentile is not None
+        assert 0.0 <= merged_result.percentile <= 100.0
+        assert merged_result.has_bootstrap_ci is False
+        assert merged_result.bootstrap_ci_lower is None
+        assert merged_result.bootstrap_ci_upper is None
+        assert merged_result.bootstrap_iterations == 0
 
     def test_haplogroup_tree_walk_completes_on_merged_chrm_chry(
         self,

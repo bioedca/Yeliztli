@@ -59,10 +59,12 @@ class TestSourcePopulationLabel:
 
 
 class TestCiLabel:
-    def test_paired_ci(self) -> None:
-        assert prs_ci_label(55.2, 74.8) == "95% CI 55–75th percentile"
+    def test_legacy_values_are_not_rendered_as_ci(self) -> None:
+        assert prs_ci_label(55.2, 74.8) == (
+            "PRS interval unavailable (effect-size uncertainty inputs are not available)"
+        )
 
-    def test_ci_always_stated_when_unavailable(self) -> None:
+    def test_interval_status_stated_when_missing(self) -> None:
         assert "unavailable" in prs_ci_label(None, None)
         assert "unavailable" in prs_ci_label(50.0, None)
 
@@ -75,7 +77,9 @@ class TestPrsReturnFraming:
         assert block["research_use_only"] is True
         assert block["source_population"] == "EAS"
         assert "EAS" in block["source_population_label"]
-        assert block["ci_label"] == "95% CI 40–60th percentile"
+        assert block["ci_label"] == (
+            "PRS interval unavailable (effect-size uncertainty inputs are not available)"
+        )
 
     def test_block_states_ci_unavailable_when_missing(self) -> None:
         block = prs_return_framing({"source_ancestry": "EUR"})
