@@ -7,7 +7,9 @@ Once annotation finishes, the **dashboard** is your home screen.
 ## The dashboard
 
 - **Status bar** (top) — the current sample, annotation status, and reference-database
-  versions.
+  versions. Those versions are the reference-data **snapshot** your findings were computed
+  against; updating databases later doesn't refresh existing results until you re-annotate — see
+  [how updates affect your results](../install/updating.md).
 - **Module cards** — a grid linking to each analysis module, with finding counts.
 - **High-confidence findings** — the strongest findings across all modules.
 - **QC summary** — a collapsible panel of sample-quality metrics (heterozygosity, call rate,
