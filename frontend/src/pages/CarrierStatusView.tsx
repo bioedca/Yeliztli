@@ -145,7 +145,7 @@ export default function CarrierStatusView() {
           )}
 
           {/* Gene cards grid */}
-          <section aria-label="Carrier status findings">
+          <section aria-label="Carrier and affected-status findings">
             <h2 className="text-lg font-semibold mb-3">Carrier and Affected-Status Findings</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Pathogenic and likely pathogenic findings in the 7-gene carrier panel

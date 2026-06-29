@@ -681,6 +681,7 @@ class TestMergedSampleFullPipeline:
         assert f508del_annotation is not None
         assert f508del_annotation.zygosity is None
 
+        component_rsids = set(carrier.variant_ids)
         # Source-attribution invariant — the merged raw_variants row at
         # each component rsid was authored by S2, so the merge service wrote
         # ``source='S2'`` and the post-merge UI can render that
@@ -691,10 +692,11 @@ class TestMergedSampleFullPipeline:
                     raw_variants.c.rsid,
                     raw_variants.c.source,
                     raw_variants.c.concordance,
-                ).where(raw_variants.c.rsid.in_(set(carrier.variant_ids)))
+                ).where(raw_variants.c.rsid.in_(component_rsids))
             ).fetchall()
+        assert len(rows) == len(component_rsids)
         provenance = {row.rsid: row for row in rows}
-        assert set(provenance) == set(carrier.variant_ids)
+        assert set(provenance) == component_rsids
         for row in provenance.values():
             assert row.source == "S2"
             assert row.concordance == "unique"

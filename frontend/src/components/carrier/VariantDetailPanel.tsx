@@ -50,7 +50,9 @@ export default function VariantDetailPanel({
     ? "(homozygous affected-status)"
     : isPossibleCompoundHet
       ? "(possible compound heterozygote)"
-      : "(heterozygous)"
+      : isDominant
+        ? "(heterozygous)"
+        : "(heterozygous carrier)"
   const panelAriaLabel = isAffectedStatus
     ? `${variant.gene_symbol} affected-status finding detail`
     : `${variant.gene_symbol} ${isDominant ? "variant" : "carrier variant"} detail`
