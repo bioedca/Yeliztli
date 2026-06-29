@@ -24,7 +24,7 @@ const PATHWAY_DESCRIPTIONS: Record<string, string> = {
   sleep_quality:
     "Sleep depth, duration needs, and restorative sleep efficiency.",
   sleep_disorders:
-    "Genetic susceptibility to insomnia, restless legs syndrome, and narcolepsy proxies.",
+    "HLA-region context for sleep-disorder genetics; no narcolepsy risk is inferred from rs2858884.",
 }
 
 export default function PathwayCard({ pathway, onClick, selected }: PathwayCardProps) {

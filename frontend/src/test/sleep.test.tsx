@@ -133,9 +133,11 @@ describe("PathwayCard", () => {
 
   it("renders pathway description for sleep_disorders", () => {
     render(<PathwayCard pathway={DISORDERS_PATHWAY} onClick={onClick} />)
-    expect(
-      screen.getByText(/Genetic susceptibility.*insomnia/),
-    ).toBeInTheDocument()
+    const card = screen.getByRole("button", {
+      name: "Sleep Disorders — Elevated",
+    })
+    expect(card).toHaveTextContent(/no narcolepsy risk is inferred from rs2858884/i)
+    expect(card).not.toHaveTextContent(/narcolepsy(?:[-\s]risk)? prox(?:y|ies)/i)
   })
 
   it("shows selected state when selected prop is true", () => {
