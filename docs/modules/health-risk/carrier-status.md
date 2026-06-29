@@ -29,5 +29,15 @@ they represent a disease state rather than carrier status.
 
 - *GBA* results are suppressed when derived from array data, because a nearby pseudogene
   (*GBAP1*) makes array genotyping of *GBA* unreliable.
+- *SMN1* (spinal muscular atrophy) is **not meaningfully screened from array data.** SMA
+  carrier status is a *copy-number* determination — the *SMN1* exon-7 deletion behind the
+  great majority of carriers — which a SNP array cannot measure; clinical screening uses
+  dosage assays (qPCR/MLPA) that detect ~96% of carriers, and ACOG/ACMG recommend it
+  pan-ethnically.[^smn1] This module checks only the rare intragenic *SMN1* point mutations
+  (~5% of pathogenic alleles), and only if they are on your chip — so **a negative or absent
+  *SMN1* result here does not reduce your chance of being an SMA carrier.** For reproductive
+  planning, seek clinical *SMN1* dosage carrier screening.
 - Carrier screening is not exhaustive — these are specific common variants, not full gene
   sequencing.
+
+[^smn1]: [The clinical utility of a risk-modifying SNP to detect carriers for spinal muscular atrophy with increased sensitivity](https://doi.org/10.1002/mgg3.1897) (Ware et al., 2022, *Mol. Genet. Genomic Med.*) — routine *SMN1* copy-number assessment detects ~96% of carriers; current guidelines recommend pan-ethnic SMA carrier screening.
