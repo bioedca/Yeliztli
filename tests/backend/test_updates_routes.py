@@ -8,9 +8,13 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.db.connection import get_registry
 from backend.db.tables import auto_update_settings
 from backend.db.update_manager import AUTO_UPDATE_DEFAULTS, get_auto_update
 
@@ -108,3 +112,43 @@ def test_get_status_reflects_persisted_auto_update(test_client: TestClient) -> N
         if db_name == "clinvar":
             continue
         assert statuses[db_name]["auto_update"] is default
+
+
+# ── update_check_interval == "off": no outbound update checks (#1241) ────────
+
+
+def test_check_off_returns_empty_without_outbound(test_client: TestClient) -> None:
+    """With checks off, GET /check returns an empty result and never calls
+    check_all_updates — so the dashboard's auto-poll makes no outbound manifest/
+    version fetch."""
+    get_registry().settings.update_check_interval = "off"
+    with patch("backend.api.routes.updates.check_all_updates") as spy:
+        resp = test_client.get("/api/updates/check")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] == []
+    assert data["up_to_date"] == []
+    assert data["errors"] == []
+    spy.assert_not_called()
+
+
+def test_check_enabled_invokes_update_check(test_client: TestClient) -> None:
+    """Control: with checks enabled the route DOES call check_all_updates, proving
+    the off-path's assert_not_called isn't a mis-targeted (vacuous) spy."""
+    get_registry().settings.update_check_interval = "daily"
+    result = MagicMock(available=[], up_to_date=[], errors=[], checked_at=datetime.now(UTC))
+    with patch("backend.api.routes.updates.check_all_updates", return_value=result) as spy:
+        resp = test_client.get("/api/updates/check")
+    assert resp.status_code == 200
+    spy.assert_called_once()
+
+
+def test_app_update_off_reports_no_update_without_outbound(test_client: TestClient) -> None:
+    """With checks off, GET /app-update reports no update and never calls the
+    GitHub Releases checker — so it makes no outbound request to github.com."""
+    get_registry().settings.update_check_interval = "off"
+    with patch("backend.utils.update_checker.check_app_update") as spy:
+        resp = test_client.get("/api/updates/app-update")
+    assert resp.status_code == 200
+    assert resp.json()["update_available"] is False
+    spy.assert_not_called()

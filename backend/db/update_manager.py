@@ -5,8 +5,12 @@ Checks for new versions of reference databases, downloads updates
 re-annotation prompts for affected samples.
 
 Scheduler behaviour (§2.20):
-- Always fires once on app startup regardless of config.
-- ``update_check_interval``: "startup" | "daily" | "weekly".
+- Fires once on app load, unless ``update_check_interval`` is ``"off"``.
+- ``update_check_interval``: "off" | "startup" | "daily" | "weekly". ``"off"``
+  disables all *automatic* checks — the periodic task and the dashboard's
+  auto-poll endpoints (``/api/updates/check``, ``/api/updates/app-update``) become
+  no-ops with no outbound GitHub version / manifest fetch, so the app can run
+  fully offline after setup (#1241).
 - Per-database auto-update toggles (most default on;
   VEP bundle default off).
 - ``update_download_window``: optional time window for >100 MB downloads.

@@ -176,7 +176,10 @@ class Settings(BaseSettings):
     omim_api_key: str = Field(default="", description="Optional OMIM API key for enrichment.")
 
     # --- Update manager ---
-    update_check_interval: Literal["startup", "daily", "weekly"] = "daily"
+    # "off" disables all *automatic* update checks (no outbound GitHub version /
+    # manifest fetch) so a user can run fully offline after setup (#1241); the
+    # periodic task and the dashboard's auto-poll endpoints become no-ops.
+    update_check_interval: Literal["off", "startup", "daily", "weekly"] = "daily"
     update_download_window: str | None = Field(
         default=None,
         description='Optional time window for large downloads, e.g. "02:00-06:00".',

@@ -329,6 +329,20 @@ class TestPeriodicUpdateCheck:
         mk_job.assert_not_called()
         run_task.assert_not_called()
 
+    def test_off_is_noop(self, huey_env: dict) -> None:
+        # "off" disables automatic checks entirely — no job dispatched, so no
+        # outbound manifest/version fetch is ever scheduled (#1241).
+        settings = SimpleNamespace(update_check_interval="off")
+        with (
+            patch("backend.config.get_settings", return_value=settings),
+            patch("backend.tasks.huey_tasks.create_update_check_job") as mk_job,
+            patch("backend.tasks.huey_tasks.run_update_check_task") as run_task,
+        ):
+            periodic_update_check.call_local()
+
+        mk_job.assert_not_called()
+        run_task.assert_not_called()
+
     def test_weekly_skips_when_recent(self, huey_env: dict) -> None:
         _seed_update_history(datetime.now(UTC) - timedelta(days=2))
         settings = SimpleNamespace(update_check_interval="weekly")

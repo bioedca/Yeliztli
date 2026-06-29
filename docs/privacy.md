@@ -53,18 +53,22 @@ all of them are user-initiated, so here is the complete accounting.
 ## Going fully offline
 
 You can avoid the **user-initiated** connections by not supplying the PubMed/OMIM keys and not
-starting reference downloads. The **automatic** connections are harder to switch off today:
+starting reference downloads. For the **automatic** connections:
 
-- The app-version and reference-data update checks have no in-app "off" setting yet —
-  `update_check_interval` offers only `startup`, `daily`, and `weekly`, so one of them will
-  run when you open the app.
-- The Genome Browser reaches the IGV.js hosted genome registry whenever you open it.
+- **Turn off the update checks.** Set `update_check_interval = "off"` in your `config.toml`
+  (or the `YELIZTLI_UPDATE_CHECK_INTERVAL=off` environment variable). This disables **both** the
+  app-version check (`api.github.com`) and the reference-data manifest check
+  (`raw.githubusercontent.com`): the daily scheduler becomes a no-op and the dashboard's
+  auto-checks return immediately without any outbound request. No update banner will appear; to
+  check again, set the value back to `startup`, `daily`, or `weekly`.
+- The Genome Browser still reaches the IGV.js hosted genome registry whenever you open it — this
+  is not yet configurable (tracked separately). If you do not open the Genome Browser, it makes
+  no connection.
 
-Until those become configurable, the reliable way to guarantee a fully offline session is to
-**block Yeliztli's network access at the operating-system or firewall level** after setup —
-that suppresses all of the automatic checks described above. The core analysis pipeline runs
-entirely locally and needs no network once reference data is installed; only the app-version
-check, the reference-data update check, and the Genome Browser's reference fetch are affected.
+For a hard guarantee that **nothing** leaves the machine, **block Yeliztli's network access at the
+operating-system or firewall level** after setup — that suppresses all of the automatic checks
+above, including the Genome Browser's reference fetch. The core analysis pipeline runs entirely
+locally and needs no network once reference data is installed.
 
 ## Access control on your own machine
 

@@ -1029,8 +1029,9 @@ def periodic_update_check() -> None:
 
     settings = get_settings()
 
-    if settings.update_check_interval == "startup":
-        # Startup-only: periodic task does nothing
+    if settings.update_check_interval in ("off", "startup"):
+        # "off": automatic update checks disabled — no outbound check ever (#1241).
+        # "startup": startup-only, so the periodic task does nothing.
         return
 
     if settings.update_check_interval == "weekly":

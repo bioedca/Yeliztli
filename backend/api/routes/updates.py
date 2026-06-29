@@ -7,6 +7,7 @@ and checking for app updates via GitHub Releases API.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -205,6 +206,13 @@ class AutoUpdateResponse(BaseModel):
 async def check_for_updates() -> UpdateCheckResponse:
     """Check all databases for available updates."""
     registry = get_registry()
+    if registry.settings.update_check_interval == "off":
+        # Automatic update checks disabled (#1241): return an empty result without
+        # the outbound manifest / version fetch, so the dashboard's auto-poll never
+        # contacts GitHub. Re-enable via the update_check_interval setting.
+        return UpdateCheckResponse(
+            available=[], up_to_date=[], errors=[], checked_at=datetime.now(UTC).isoformat()
+        )
     result = check_all_updates(registry.reference_engine, settings=registry.settings)
 
     return UpdateCheckResponse(
@@ -397,6 +405,13 @@ class AppUpdateResponse(BaseModel):
 @router.get("/app-update", response_model=AppUpdateResponse)
 async def check_app_update() -> AppUpdateResponse:
     """Check GitHub Releases API for a newer Yeliztli version."""
+    if get_registry().settings.update_check_interval == "off":
+        # Automatic update checks disabled (#1241): report no update without the
+        # outbound GitHub Releases request, so this never contacts github.com.
+        from backend.main import VERSION
+
+        return AppUpdateResponse(update_available=False, current_version=VERSION)
+
     from backend.utils.update_checker import check_app_update as _check
 
     info = await _check()
