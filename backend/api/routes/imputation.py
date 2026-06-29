@@ -35,17 +35,27 @@ class ChromReachabilityResponse(BaseModel):
 
 
 class ReachabilityResponse(BaseModel):
-    """A sample's imputation reachability/feasibility report."""
+    """A sample's imputation reachability/feasibility report.
+
+    Headline reachability (``typed_runtime_imputable`` / ``per_chromosome``) follows
+    the v1 runtime scope (autosomes); X is on the panel but runtime-deferred and is
+    surfaced separately (``typed_panel_runtime_deferred`` /
+    ``per_chromosome_runtime_deferred``) so it never overstates reachability (#1186).
+    """
 
     panel_version: str
     panel_build: str
     panel_chromosomes: list[str]
+    runtime_chromosomes: list[str]
     typed_total: int
     typed_on_panel: int
+    typed_runtime_imputable: int
+    typed_panel_runtime_deferred: int
     typed_off_panel: int
     imputation_run: bool
     imputed_reachable: int
     per_chromosome: list[ChromReachabilityResponse]
+    per_chromosome_runtime_deferred: list[ChromReachabilityResponse]
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -74,8 +84,11 @@ async def get_reachability(
         panel_version=summary.panel_version,
         panel_build=summary.panel_build,
         panel_chromosomes=summary.panel_chromosomes,
+        runtime_chromosomes=summary.runtime_chromosomes,
         typed_total=summary.typed_total,
         typed_on_panel=summary.typed_on_panel,
+        typed_runtime_imputable=summary.typed_runtime_imputable,
+        typed_panel_runtime_deferred=summary.typed_panel_runtime_deferred,
         typed_off_panel=summary.typed_off_panel,
         imputation_run=summary.imputation_run,
         imputed_reachable=summary.imputed_reachable,
@@ -86,5 +99,13 @@ async def get_reachability(
                 median_gap_bp=c.median_gap_bp,
             )
             for c in summary.per_chromosome
+        ],
+        per_chromosome_runtime_deferred=[
+            ChromReachabilityResponse(
+                chrom=c.chrom,
+                typed_markers=c.typed_markers,
+                median_gap_bp=c.median_gap_bp,
+            )
+            for c in summary.per_chromosome_runtime_deferred
         ],
     )
