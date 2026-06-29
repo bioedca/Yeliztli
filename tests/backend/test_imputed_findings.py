@@ -308,6 +308,7 @@ def test_minimal_repr_is_noop_for_snvs_and_trims_indels() -> None:
     assert _minimal_repr("1", 100, "C", "T") == ("1", 100, "C", "T")
     # Empty/missing allele → returned as-is (cannot claim a specific allele).
     assert _minimal_repr("1", 100, "", "") == ("1", 100, "", "")
+    assert _minimal_repr("1", 101, "T", "-") == ("1", 101, "T", "")
     # The same one-base deletion in two valid VCF spellings collapses to one form.
     assert _minimal_repr("1", 100, "GA", "G") == _minimal_repr("1", 100, "GAA", "GA")
     assert _minimal_repr("1", 100, "GAA", "GA") == ("1", 100, "GA", "G")
@@ -370,6 +371,231 @@ def test_chrom_prefix_normalized(sample_engine: sa.Engine, reference_engine: sa.
     _seed_imputed(sample_engine, [_imp(chrom="chr6")])
     _seed_clinvar(reference_engine, [_cv(chrom="6")])
     assert len(find_imputed_clinvar_findings(sample_engine, reference_engine)) == 1
+
+
+def test_typed_indel_exclusion_normalizes_vcf_padding(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """The chip-typed same deletion is excluded even when represented with less padding."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="AT", alt="A")],
+    )
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rsindel1", "chrom": "7", "pos": 101, "ref": "T", "alt": "-"}],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=100, ref="AT", alt="A", rsid="rsindel1")],
+    )
+
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_typed_repeated_anchor_deletion_exclusion_normalizes_vcf_padding(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """Repeated anchor sequence still collapses to the same typed deletion key."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="ATA", alt="A")],
+    )
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rsindel_repeat_typed", "chrom": "7", "pos": 101, "ref": "TA", "alt": "-"}],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=100, ref="ATA", alt="A", rsid="rsindel_repeat_typed")],
+    )
+
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_nonspecific_typed_indel_alleles_do_not_exclude_imputed(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """Nullable or dot typed alleles cannot claim the imputed deletion allele."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="AT", alt="A")],
+    )
+    _seed_typed(
+        sample_engine,
+        [
+            {"rsid": "rsindel_missing_alt", "chrom": "7", "pos": 101, "ref": "T", "alt": None},
+            {"rsid": "rsindel_dot_alt", "chrom": "7", "pos": 101, "ref": "T", "alt": "."},
+        ],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=100, ref="AT", alt="A", rsid="rsindel_not_typed")],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert results[0].rsid == "rsindel_not_typed"
+
+
+def test_clinvar_dot_alt_does_not_match_deletion(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """ClinVar dot ALT is non-specific and must not match a deletion sentinel."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="AT", alt="A")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=101, ref="T", alt=".", rsid="rsindel_dot_alt")],
+    )
+
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_clinvar_indel_match_normalizes_vcf_padding(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A padded imputed deletion matches ClinVar's trimmed representation."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="AT", alt="A")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=101, ref="T", alt="-", rsid="rsindel2", accession="VCVIND2")],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        100,
+        "AT",
+        "A",
+    )
+    assert results[0].rsid == "rsindel2"
+
+
+def test_clinvar_repeated_anchor_deletion_normalizes_vcf_padding(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A padded repeated-base deletion matches ClinVar after trimming the anchor."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="ATA", alt="A")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [
+            _cv(
+                chrom="7",
+                pos=101,
+                ref="TA",
+                alt="-",
+                rsid="rsindel_repeat",
+                accession="VCVIND_REPEAT",
+            )
+        ],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        100,
+        "ATA",
+        "A",
+    )
+    assert results[0].rsid == "rsindel_repeat"
+
+
+def test_clinvar_repeated_anchor_insertion_normalizes_vcf_padding(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A padded repeated-base insertion matches ClinVar after trimming the anchor."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=100, ref="A", alt="ATA")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [
+            _cv(
+                chrom="7",
+                pos=101,
+                ref="-",
+                alt="TA",
+                rsid="rsins_repeat",
+                accession="VCVINS_REPEAT",
+            )
+        ],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        100,
+        "A",
+        "ATA",
+    )
+    assert results[0].rsid == "rsins_repeat"
+
+
+def test_clinvar_padded_deletion_matches_trimmed_imputed(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A trimmed imputed deletion can still find ClinVar's padded representation."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=101, ref="T", alt="-")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=100, ref="AT", alt="A", rsid="rsindel_padded")],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        101,
+        "T",
+        "-",
+    )
+    assert results[0].rsid == "rsindel_padded"
+
+
+def test_clinvar_padded_insertion_matches_trimmed_imputed(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A trimmed imputed insertion can still find ClinVar's padded representation."""
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=101, ref="-", alt="TA")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=100, ref="A", alt="ATA", rsid="rsins_padded")],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        101,
+        "-",
+        "TA",
+    )
+    assert results[0].rsid == "rsins_padded"
 
 
 # ── Only ordinary high-penetrance P/LP surfaces ───────────────────────────

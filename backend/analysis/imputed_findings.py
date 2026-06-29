@@ -24,9 +24,10 @@ clinical-grade confirmation.
   (Marchini & Howie 2010, PMID:20517342; accessed 2026-06-29). Only an individual
   carrying ≥ 1 copy of the ALT (= the ClinVar) allele gets a finding; hom-reference
   and missing-GT rows surface nothing.
-* **Exact-allele match.** The imputed ``(chrom, pos, ref, alt)`` must match a
-  ClinVar record exactly, so the finding rests on *that* allele's classification —
-  not a higher-star benign record at a multi-allelic site.
+* **Allele-specific ClinVar match.** The imputed ``(chrom, pos, ref, alt)`` must match
+  a ClinVar record after reference-free minimal-representation normalization, so the
+  finding rests on *that* allele's classification — not a higher-star benign record at
+  a multi-allelic site.
 * **No duplication.** *Alleles* the chip directly typed are excluded — the typed
   generators (rare_variant_finder / carrier_status / cardiovascular) already own
   those; this layer only fills chip gaps. The exclusion is allele-specific, so a
@@ -56,6 +57,8 @@ from backend.analysis.imputation_runner import ImputedVariant
 from backend.db.tables import annotated_variants, clinvar_variants, findings, imputed_variants
 
 logger = structlog.get_logger(__name__)
+
+AlleleKey = tuple[str | None, int, str, str]
 
 # ``findings.module`` value for this source.
 IMPUTED_MODULE = "imputed_variants"
@@ -95,6 +98,29 @@ def _norm_chrom(chrom: str | None) -> str | None:
     if c[:3].lower() == "chr":
         c = c[3:]
     return c.upper()
+
+
+def _allele_text(allele: str | None) -> str:
+    """Uppercase allele text, using ``""`` for empty/deletion sentinels."""
+    text = (allele or "").strip().upper()
+    return "" if text in {"", "-"} else text
+
+
+def _has_specific_allele(allele: str | None) -> bool:
+    """Return whether a typed row allele can identify a concrete variant allele."""
+    if allele is None:
+        return False
+    return str(allele).strip() not in {"", "."}
+
+
+def _raw_allele_key(
+    chrom: str | None,
+    pos: int,
+    ref: str | None,
+    alt: str | None,
+) -> AlleleKey:
+    """Return the source allele key with chromosome/text normalization only."""
+    return (_norm_chrom(chrom), int(pos), _allele_text(ref), _allele_text(alt))
 
 
 @dataclass(frozen=True)
@@ -180,36 +206,61 @@ def _load_carried_imputed_variants(
     return carried
 
 
-def _minimal_repr(
-    chrom: str | None, pos: int, ref: str, alt: str
-) -> tuple[str | None, int, str, str]:
+def _minimal_repr(chrom: str | None, pos: int, ref: str | None, alt: str | None) -> AlleleKey:
     """Reduce an allele to its parsimonious minimal representation for comparison.
 
     The same biological indel can be written several valid ways in VCF (different
     anchor base, trailing context); the array-, imputation-, and ClinVar-derived
     tables come from independent pipelines and need not agree. This trims the bases
-    REF and ALT share — right-most first (position-preserving), then left-most
-    (advancing ``pos``) — the reference-free half of variant normalization
-    (Tan et al. 2015, PMID:25701572, DOI:10.1093/bioinformatics/btv112).
+    REF and ALT share — right-most context bases first (position-preserving), then
+    left-most anchor bases (advancing ``pos``) — the reference-free half of variant
+    normalization (Tan et al. 2015, PMID:25701572, DOI:10.1093/bioinformatics/btv112).
 
     **SNVs are returned unchanged** (single-base alleles have nothing to trim), so
     this is a no-op on this module's SNV-dominated traffic; it only collapses the
     differing-anchor / trailing-context indel spellings two sources can disagree on
-    (issue #1218). It does **not** left-align across a repeat (that needs the
+    (issues #1218/#1252). It does **not** left-align across a repeat (that needs the
     reference sequence), so equivalence is resolved only up to parsimony.
     """
+    pos = int(pos)
+    ref = _allele_text(ref)
+    alt = _allele_text(alt)
     if not ref or not alt:
         return (chrom, pos, ref, alt)
-    # Trim a shared suffix base (position-preserving) while both alleles keep ≥1 base.
+    # Trim shared trailing context, preserving pos, while both alleles keep >=1 base.
     while len(ref) > 1 and len(alt) > 1 and ref[-1] == alt[-1]:
         ref, alt = ref[:-1], alt[:-1]
-    # Trim a shared prefix base, advancing pos, while both alleles keep ≥1 base.
+    # Trim shared anchor bases, advancing pos, while both alleles keep >=1 base.
     while len(ref) > 1 and len(alt) > 1 and ref[0] == alt[0]:
         ref, alt, pos = ref[1:], alt[1:], pos + 1
     return (chrom, pos, ref, alt)
 
 
-def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, str]]:
+def _empty_allele_repr(chrom: str | None, pos: int, ref: str | None, alt: str | None) -> AlleleKey:
+    """Return an internal key that can compare padded VCF alleles to ``-`` sentinels."""
+    pos = int(pos)
+    ref = _allele_text(ref)
+    alt = _allele_text(alt)
+    if not ref or not alt:
+        return (chrom, pos, ref, alt)
+    while ref and alt and ref[0] == alt[0] and (len(ref) > 1 or len(alt) > 1):
+        ref, alt, pos = ref[1:], alt[1:], pos + 1
+    while ref and alt and ref[-1] == alt[-1] and (len(ref) > 1 or len(alt) > 1):
+        ref, alt = ref[:-1], alt[:-1]
+    return (chrom, pos, ref, alt)
+
+
+def _allele_match_keys(
+    chrom: str | None, pos: int, ref: str | None, alt: str | None
+) -> set[AlleleKey]:
+    """Return all reference-free allele keys used for typed/ClinVar comparison."""
+    return {
+        _minimal_repr(chrom, pos, ref, alt),
+        _empty_allele_repr(chrom, pos, ref, alt),
+    }
+
+
+def _typed_alleles(sample_engine: sa.Engine) -> set[AlleleKey]:
     """Minimal-representation ``(norm_chrom, pos, ref, alt)`` the chip directly typed.
 
     Imputed findings only fill chip gaps, so an allele already in ``annotated_variants``
@@ -224,8 +275,8 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, 
     ALT that exactly matches a separate ClinVar P/LP record is a genuine chip gap, not a
     duplicate — so a typed allele must not suppress a different imputed allele that merely
     shares its coordinate (issue #1187). ``ref``/``alt`` are nullable in
-    ``annotated_variants``; a row missing either cannot claim a specific allele, so it
-    normalizes to ``""`` and will not match any real imputed allele key.
+    ``annotated_variants``; a row missing either, or carrying a dot allele, cannot claim
+    a specific allele and is not allowed to exclude an imputed finding.
 
     Keys are reduced to their :func:`_minimal_repr` so a typed indel still excludes an
     imputed candidate written with a different (but equivalent) anchor/trailing context
@@ -240,10 +291,11 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, 
                 annotated_variants.c.alt,
             )
         ).fetchall()
-    return {
-        _minimal_repr(_norm_chrom(r.chrom), r.pos, (r.ref or "").upper(), (r.alt or "").upper())
-        for r in rows
-    }
+    keys: set[AlleleKey] = set()
+    for r in rows:
+        if _has_specific_allele(r.ref) and _has_specific_allele(r.alt):
+            keys.update(_allele_match_keys(_norm_chrom(r.chrom), r.pos, r.ref, r.alt))
+    return keys
 
 
 def find_imputed_clinvar_findings(
@@ -270,29 +322,35 @@ def find_imputed_clinvar_findings(
     # Index carried imputed variants by exact allele key; drop chip-typed alleles.
     # The drop is allele-specific: only an imputed candidate whose exact
     # ``(chrom, pos, ref, alt)`` was directly typed is excluded, so a different ALT at a
-    # coordinate the chip typed for another allele still surfaces (issue #1187). The
-    # exclusion test compares minimal representations (issue #1218) so an indel the chip
-    # typed still excludes the same indel written with a different anchor/trailing context;
-    # ``allele_key`` itself stays the raw imputed spelling because the downstream ClinVar
-    # match is an exact ``(chrom, pos, ref, alt)`` lookup keyed on the imputed positions.
-    by_allele: dict[tuple[str | None, int, str, str], tuple[ImputedVariant, int]] = {}
+    # coordinate the chip typed for another allele still surfaces (issue #1187). Compare
+    # minimal representations so anchor/trailing-context differences do not turn a typed
+    # indel into a duplicate imputed finding (issue #1218), and do not make the
+    # downstream ClinVar match a false negative when ClinVar uses the paired spelling
+    # (issue #1252). The original imputed ref/alt remain on the emitted finding.
+    by_allele: dict[AlleleKey, tuple[ImputedVariant, int]] = {}
+    query_positions: set[tuple[str | None, int]] = set()
     for variant, copies in carried:
-        allele_key = (
-            _norm_chrom(variant.chrom),
-            variant.pos,
-            variant.ref.upper(),
-            variant.alt.upper(),
-        )
-        if _minimal_repr(*allele_key) in typed:
+        raw_key = _raw_allele_key(variant.chrom, variant.pos, variant.ref, variant.alt)
+        allele_keys = _allele_match_keys(*raw_key)
+        if typed.intersection(allele_keys):
             continue
-        by_allele[allele_key] = (variant, copies)
+        query_positions.add((raw_key[0], raw_key[1]))
+        for allele_key in allele_keys:
+            by_allele.setdefault(allele_key, (variant, copies))
+            # Fetch ClinVar rows at raw, minimal, and one-base-left positions: the same
+            # indel can be stored in padded VCF form or local ``-`` sentinel form.
+            query_positions.add((allele_key[0], allele_key[1]))
+            if "" in allele_key[2:]:
+                left_anchor_pos = allele_key[1] - 1
+                if left_anchor_pos > 0:
+                    query_positions.add((allele_key[0], left_anchor_pos))
     if not by_allele:
         return []
 
-    positions = sorted({(nchrom, pos) for (nchrom, pos, _ref, _alt) in by_allele})
+    positions = sorted(query_positions)
 
     results: list[ImputedClinVarFinding] = []
-    seen: set[tuple[str | None, int, str, str]] = set()
+    seen: set[AlleleKey] = set()
     with reference_engine.connect() as conn:
         # Batch the (chrom, pos) lookups under SQLite's bound-variable limit, mirroring
         # backend.annotation.clinvar.lookup_clinvar_by_positions.
@@ -319,17 +377,18 @@ def find_imputed_clinvar_findings(
                 # lower-penetrance / risk-allele tier).
                 if primary_pathogenic_classification(row.significance) is None:
                     continue
-                key = (
-                    _norm_chrom(row.chrom),
-                    row.pos,
-                    (row.ref or "").upper(),
-                    (row.alt or "").upper(),
-                )
-                match = by_allele.get(key)
-                if match is None or key in seen:
+                match = None
+                for key in _allele_match_keys(_norm_chrom(row.chrom), row.pos, row.ref, row.alt):
+                    match = by_allele.get(key)
+                    if match is not None:
+                        break
+                if match is None:
                     continue
-                seen.add(key)
                 variant, copies = match
+                seen_key = _raw_allele_key(variant.chrom, variant.pos, variant.ref, variant.alt)
+                if seen_key in seen:
+                    continue
+                seen.add(seen_key)
                 stars = row.review_stars or 0
                 evidence_level = min(
                     assign_clinvar_evidence_level(row.significance, stars),
