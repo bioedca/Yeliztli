@@ -25,9 +25,10 @@ Biological sex is inferred once per run via
 this module stays a pure predicate with no DB access.
 
 **Firewall gate (SW-C6).** :func:`imputed_variant_surfaceable` is the sibling gate
-for *imputed*-backed findings: an imputed variant may back a finding only when it
-clears the SW-C3 MAF/r² firewall (:func:`backend.analysis.imputation_firewall.assess_variant`).
-Its caller set (``imputed_findings`` only) is pinned by the same
+for imputed-backed downstream use: an imputed variant may back a finding or PRS
+dosage only when it clears the SW-C3 MAF/r² firewall
+(:func:`backend.analysis.imputation_firewall.assess_variant`). Its caller set
+(``imputed_findings`` and ``prs``) is pinned by the same
 ``tests/backend/test_finding_gate.py`` guard, so this doc and the code can't drift.
 Like :func:`is_surfaceable` it stays a pure predicate (the firewall has no DB access).
 """
@@ -69,19 +70,20 @@ def imputed_variant_surfaceable(variant: ImputedVariant) -> bool:
 
     An *imputed* variant may back a finding only when it clears the firewall
     (:func:`backend.analysis.imputation_firewall.assess_variant` — well-imputed
-    ``DR2 >= 0.8`` **and** common ``MAF >= 1%``). This is the shared chokepoint a
-    generator that surfaces imputed variants (``imputed_findings``) consults before
-    emitting a finding, so the firewall rule lives in one place rather than being
-    re-derived per module — the same discipline :func:`is_surfaceable` follows for
-    the sex/chromosome rule. A genotyped (non-imputed) variant always passes: the
-    firewall does not apply to a directly observed call.
+    ``DR2 >= 0.8`` **and** common ``MAF >= 1%``). This is the shared chokepoint
+    downstream consumers that surface or score imputed variants consult before
+    emitting a finding or counting an imputed PRS dosage, so the firewall rule lives
+    in one place rather than being re-derived per module — the same discipline
+    :func:`is_surfaceable` follows for the sex/chromosome rule. A genotyped
+    (non-imputed) variant always passes: the firewall does not apply to a directly
+    observed call.
 
     **Defense in depth.** ``imputed_variants`` only ever stores firewall-cleared
     rows (:func:`backend.analysis.imputation_persist.persist_imputed_variants` drops
     quarantined markers), so in the normal path every row already clears this gate.
-    Re-asserting here means a finding can *never* rest on an imputed variant that
-    fails the firewall — even if a future code path builds one from another source,
-    or a stale/out-of-range row somehow slips past persistence.
+    Re-asserting here means a finding or PRS contribution can *never* rest on an
+    imputed variant that fails the firewall — even if a future code path builds one
+    from another source, or a stale/out-of-range row somehow slips past persistence.
 
     Args:
         variant: the imputed (or genotyped) marker backing a candidate finding.

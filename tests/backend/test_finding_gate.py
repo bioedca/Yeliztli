@@ -112,11 +112,11 @@ def test_imputed_variant_surfaceable(
 
 
 def test_imputed_variant_surfaceable_caller_set() -> None:
-    """SW-C6: the docstring states only ``imputed_findings`` wires the firewall gate.
+    """SW-C6: the docstring states which modules wire the firewall gate.
 
     Lock that doc↔code agreement the same way ``test_caller_set_matches_documented_scope``
-    pins ``is_surfaceable``: if a new generator opts into the imputed-finding firewall
-    gate (or the sole caller is removed) without updating the finding_gate docstring's
+    pins ``is_surfaceable``: if a new consumer opts into the imputed firewall
+    gate (or an existing caller is removed) without updating the finding_gate docstring's
     scope note, this fails — keeping the "rule lives in one place" doc honest.
     """
     analysis_dir = pathlib.Path(finding_gate.__file__).resolve().parent
@@ -126,7 +126,7 @@ def test_imputed_variant_surfaceable_caller_set() -> None:
         if py.name != "finding_gate.py"
         and "imputed_variant_surfaceable" in py.read_text(encoding="utf-8")
     }
-    assert callers == {"imputed_findings.py"}, (
+    assert callers == {"imputed_findings.py", "prs.py"}, (
         "imputed_variant_surfaceable caller set drifted from the documented scope "
         "(SW-C6) — update finding_gate.py's docstring and this guard together. "
         f"Found: {sorted(callers)}"
