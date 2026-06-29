@@ -2,7 +2,7 @@
   "module": "gout",
   "version": "1.0.0",
   "category": "risk_genotype",
-  "description": "Gout / serum-urate panel: ABCG2 Q141K (rs2231142; urate-transporter risk allele T on the GRCh37 plus strand, 23andMe-plus = TT homozygous risk) + SLC2A9 (rs13129697; urate-raising allele T, the common allele; G is urate-lowering). ABCG2 gout odds are larger in East Asian ancestry (selected via odds_ratio_by_ancestry). Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. Risk modifier, not a diagnosis; no dietary/treatment recommendations. EXPANSION_STRATEGY.md §9 / roadmap #43.",
+  "description": "Gout / serum-urate panel: ABCG2 Q141K (rs2231142; urate-transporter risk allele T on the GRCh37 plus strand, 23andMe-plus = TT homozygous risk) + SLC2A9 (rs13129697; urate-raising allele T, the common allele; G is urate-lowering). ABCG2 gout odds are larger in Asian-ancestry meta-analysis strata (selected via odds_ratio_by_ancestry). Common risk alleles, not ClinVar P/LP -> clinvar_significance=NULL. Risk modifier, not a diagnosis; no dietary/treatment recommendations. EXPANSION_STRATEGY.md §9 / roadmap #43.",
   "evaluation": "collect_all",
   "sex_stratified": false,
   "ancestry_gate": null,
@@ -35,14 +35,14 @@
       "zygosity": "hom_alt",
       "evidence_stars": 2,
       "odds_ratio_by_ancestry": {
-        "EAS": "Gout odds ratio ~4.56 for the homozygous Q141K genotype (TT vs GG) in East Asian ancestry",
-        "AFR": "Gout odds ratio ~2.8 for the homozygous Q141K genotype; note the Q141K risk allele is rare in African ancestry",
-        "default": "Gout odds ratio ~2.80 for the homozygous Q141K genotype (TT vs GG) in European ancestry"
+        "EAS": "Gout odds ratio ~4.53 for the homozygous Q141K genotype (TT vs GG), using Asian-ancestry pooled genotype estimates",
+        "AFR": "African-ancestry evidence is sparse; a meta-analysis estimated ~1.76x gout odds per Q141K risk allele, and homozygous Q141K is rare in African ancestry",
+        "default": "Gout odds ratio ~3.24 for the homozygous Q141K genotype (TT vs GG), using Caucasian/European pooled genotype estimates"
       },
       "absolute_risk_context": "These are relative odds, not an absolute or lifetime risk. Gout is multifactorial and most people carrying this genotype never develop gout. This is a risk modifier, not a diagnosis.",
       "finding_text": "ABCG2 Q141K homozygous (rs2231142 {genotype}) — both copies carry the urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["31578528"]
+      "pmids": ["33087043", "24777469"]
     },
     {
       "id": "abcg2_heterozygous",
@@ -52,13 +52,14 @@
       "zygosity": "het",
       "evidence_stars": 2,
       "odds_ratio_by_ancestry": {
-        "EAS": "Roughly 2–2.5x higher gout odds for one Q141K risk allele, with effects larger in East Asian ancestry",
-        "default": "Roughly 1.7–2x higher gout odds for one Q141K risk allele"
+        "EAS": "Gout odds ratio ~2.10 for one Q141K risk allele, using Asian-ancestry pooled genotype estimates",
+        "AFR": "African-ancestry evidence is sparse; a meta-analysis estimated ~1.76x gout odds per Q141K risk allele",
+        "default": "Gout odds ratio ~1.64 for one Q141K risk allele, using Caucasian/European pooled genotype estimates"
       },
       "absolute_risk_context": "These are relative odds, not an absolute or lifetime risk. Gout is multifactorial and most people carrying one risk allele never develop gout. This is a risk modifier, not a diagnosis.",
       "finding_text": "ABCG2 Q141K heterozygous (rs2231142 {genotype}) — you carry one urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
-      "pmids": ["31578528"]
+      "pmids": ["33087043", "24777469"]
     },
     {
       "id": "slc2a9_urate_homozygous",

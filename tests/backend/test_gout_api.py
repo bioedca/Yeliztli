@@ -108,7 +108,7 @@ class TestRunAndList:
         assert listing.status_code == 200
         item = listing.json()["items"][0]
         assert item["gene_symbol"] == "ABCG2"
-        assert "4.56" in item["odds_ratio"]  # ancestry-selected East Asian band
+        assert "4.53" in item["odds_ratio"]  # ancestry-selected Asian-ancestry band
 
     def test_run_idempotent(self, client: TestClient) -> None:
         client.post("/api/analysis/gout/run?sample_id=1")

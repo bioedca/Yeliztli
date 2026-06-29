@@ -604,7 +604,7 @@ allele never develop gout.
 
 2. **Relative risk, with absolute context.** The ABCG2 Q141K allele is \
 associated with roughly 2-fold higher gout odds per risk allele (and larger \
-effects in East Asian ancestry), but the absolute lifetime risk for most \
+effects in Asian-ancestry cohorts), but the absolute lifetime risk for most \
 carriers remains modest.
 
 3. **Ancestry context.** The reported effect sizes differ by ancestry; the \

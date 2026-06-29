@@ -76,7 +76,7 @@ class TestABCG2:
         abcg2 = [c for c in a.calls if c.gene_symbol == "ABCG2"]
         assert len(abcg2) == 1
         assert "homozygous" in abcg2[0].risk_classification.lower()
-        assert "2.80" in abcg2[0].finding_text  # European band
+        assert "3.24" in abcg2[0].finding_text  # European/Caucasian band
         assert abcg2[0].evidence_stars == 2
 
     def test_homozygous_east_asian_larger_band(self, panel, sample_engine: sa.Engine) -> None:
@@ -84,7 +84,7 @@ class TestABCG2:
         _seed(sample_engine, [_abcg2("TT"), _slc2a9("GG")])
         a = assess_gout(panel, sample_engine)
         abcg2 = [c for c in a.calls if c.gene_symbol == "ABCG2"][0]
-        assert "4.56" in abcg2.finding_text  # larger East Asian OR band
+        assert "4.53" in abcg2.finding_text  # larger Asian-ancestry OR band
 
     def test_minus_strand_equivalent(self, panel, sample_engine: sa.Engine) -> None:
         # "AA" is the reverse-strand complement of plus-strand homozygous-risk "TT".
@@ -180,6 +180,20 @@ class TestCollectAll:
         assert genes == {"ABCG2", "SLC2A9"}
 
 
+class TestCitationProvenance:
+    def test_abcg2_gout_or_models_cite_abcg2_meta_analyses_not_tin_urate_gwas(self, panel) -> None:
+        models = {model.id: model for model in panel.genotype_models}
+        for model_id in ("abcg2_homozygous", "abcg2_heterozygous"):
+            pmids = set(models[model_id].pmids)
+            assert pmids == {"33087043", "24777469"}
+            assert "31578528" not in pmids
+
+    def test_slc2a9_urate_models_keep_tin_urate_gwas(self, panel) -> None:
+        models = {model.id: model for model in panel.genotype_models}
+        for model_id in ("slc2a9_urate_homozygous", "slc2a9_urate_heterozygous"):
+            assert models[model_id].pmids == ["31578528"]
+
+
 class TestNoDietPrescriptionGuardrail:
     def test_findings_and_disclaimer_have_no_diet_prescription(
         self, panel, sample_engine: sa.Engine
@@ -211,3 +225,6 @@ class TestStorageGuardrails:
         assert row.clinvar_significance is None
         assert row.gene_symbol == "ABCG2"
         assert row.evidence_level <= 3
+        detail = json.loads(row.detail_json)
+        assert "3.24" in detail["odds_ratio"]
+        assert json.loads(row.pmid_citations) == ["33087043", "24777469"]
