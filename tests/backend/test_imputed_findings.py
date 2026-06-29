@@ -180,7 +180,7 @@ def test_missing_dosage_not_a_carrier(
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
 
 
-# ── Exact-allele match + no duplication of typed loci ─────────────────────
+# ── Exact-allele match + no duplication of typed alleles ──────────────────
 
 
 def test_allele_mismatch_no_finding(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:
@@ -190,12 +190,44 @@ def test_allele_mismatch_no_finding(sample_engine: sa.Engine, reference_engine: 
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
 
 
-def test_typed_locus_excluded(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:
-    """A locus the chip directly typed is owned by the typed generators — excluded."""
-    _seed_imputed(sample_engine, [_imp()])
-    _seed_typed(sample_engine, [{"rsid": "rs1800562", "chrom": "6", "pos": 26093141}])
+def test_typed_allele_excluded(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:
+    """The *same* allele the chip directly typed is owned by the typed generators —
+    excluded so the imputed layer doesn't duplicate it."""
+    _seed_imputed(sample_engine, [_imp()])  # imputed HFE G>A
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "ref": "G", "alt": "A"}],
+    )
     _seed_clinvar(reference_engine, [_cv()])
     assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_typed_different_allele_does_not_suppress(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A typed *different* ALT at the same coordinate must not suppress a firewall-cleared
+    imputed exact ClinVar P/LP allele (issue #1187).
+
+    ClinVar classifications are allele-specific (Landrum 2016, PMID:26582918), and the
+    typed generators own only the allele the chip typed — here G>A. A separate imputed
+    G>C that exactly matches its own ClinVar Pathogenic record is a genuine chip gap, so
+    it must still surface despite sharing the coordinate with the typed G>A."""
+    _seed_imputed(sample_engine, [_imp(alt="C")])  # imputed G>C (chip missed this allele)
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rs1800562", "chrom": "6", "pos": 26093141, "ref": "G", "alt": "A"}],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(alt="C", accession="VCV000000001", rsid="rs1800562")],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+    assert len(results) == 1
+    f = results[0]
+    assert (f.chrom, f.pos, f.ref, f.alt) == ("6", 26093141, "G", "C")
+    assert f.clinvar_significance == "Pathogenic"
+    assert f.evidence_level <= IMPUTED_EVIDENCE_CAP
 
 
 def test_chrom_prefix_normalized(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:

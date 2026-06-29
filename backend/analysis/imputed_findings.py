@@ -26,9 +26,11 @@ clinical-grade confirmation.
 * **Exact-allele match.** The imputed ``(chrom, pos, ref, alt)`` must match a
   ClinVar record exactly, so the finding rests on *that* allele's classification —
   not a higher-star benign record at a multi-allelic site.
-* **No duplication.** Loci the chip directly typed are excluded — the typed
+* **No duplication.** *Alleles* the chip directly typed are excluded — the typed
   generators (rare_variant_finder / carrier_status / cardiovascular) already own
-  those; this layer only fills chip gaps.
+  those; this layer only fills chip gaps. The exclusion is allele-specific, so a
+  *different* imputed ALT that exactly matches a separate ClinVar P/LP record still
+  surfaces even when the chip typed another allele at the same coordinate (#1187).
 * **Lower confidence by construction.** Imputed P/LP findings are capped at
   evidence level 2 (:data:`IMPUTED_EVIDENCE_CAP`) so they never headline the
   high-confidence (≥ 3★) set, and every finding carries a confirm-clinically caveat.
@@ -165,18 +167,36 @@ def _load_carried_imputed_variants(
     return carried
 
 
-def _typed_positions(sample_engine: sa.Engine) -> set[tuple[str | None, int]]:
-    """``(norm_chrom, pos)`` the chip directly typed (from ``annotated_variants``).
+def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, str]]:
+    """``(norm_chrom, pos, ref, alt)`` the chip directly typed (from ``annotated_variants``).
 
-    Imputed findings only fill chip gaps, so a locus already in ``annotated_variants``
+    Imputed findings only fill chip gaps, so an allele already in ``annotated_variants``
     — owned by the directly-typed finding generators — is excluded to avoid duplicating
-    or conflicting with a typed finding at the same position.
+    or conflicting with a typed finding for *that same allele*.
+
+    The match is allele-specific, **not coordinate-only**. ClinVar records clinical
+    significance for specific variant interpretations, not for coordinates (Landrum 2016,
+    PMID:26582918, DOI:10.1093/nar/gkv1222), and this module already rests every finding
+    on an exact ``(chrom, pos, ref, alt)`` ClinVar match. At a multi-allelic locus the
+    typed generators own only the allele the chip actually typed; a *different* imputed
+    ALT that exactly matches a separate ClinVar P/LP record is a genuine chip gap, not a
+    duplicate — so a typed allele must not suppress a different imputed allele that merely
+    shares its coordinate (issue #1187). ``ref``/``alt`` are nullable in
+    ``annotated_variants``; a row missing either cannot claim a specific allele, so it
+    normalizes to ``""`` and will not match any real imputed allele key.
     """
     with sample_engine.connect() as conn:
         rows = conn.execute(
-            sa.select(annotated_variants.c.chrom, annotated_variants.c.pos)
+            sa.select(
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
+            )
         ).fetchall()
-    return {(_norm_chrom(r.chrom), r.pos) for r in rows}
+    return {
+        (_norm_chrom(r.chrom), r.pos, (r.ref or "").upper(), (r.alt or "").upper()) for r in rows
+    }
 
 
 def find_imputed_clinvar_findings(
@@ -185,9 +205,10 @@ def find_imputed_clinvar_findings(
 ) -> list[ImputedClinVarFinding]:
     """Surface firewall-cleared imputed common variants at ClinVar P/LP loci.
 
-    For each imputed variant the individual carries (and the chip did **not** type),
-    look up ClinVar by exact ``(chrom, pos, ref, alt)`` and, when the record's primary
-    classification is (Likely) Pathogenic, emit a finding labeled imputed-not-typed.
+    For each imputed variant the individual carries (at an allele the chip did **not**
+    directly type), look up ClinVar by exact ``(chrom, pos, ref, alt)`` and, when the
+    record's primary classification is (Likely) Pathogenic, emit a finding labeled
+    imputed-not-typed.
     Lower-penetrance / risk-allele and "Conflicting classifications" records are
     excluded — they are not ordinary high-penetrance P/LP
     (:mod:`backend.analysis.clinvar_significance`). Returns an empty list when no
@@ -197,18 +218,23 @@ def find_imputed_clinvar_findings(
     if not carried:
         return []
 
-    typed = _typed_positions(sample_engine)
+    typed = _typed_alleles(sample_engine)
 
-    # Index carried imputed variants by exact allele key; drop chip-typed loci.
+    # Index carried imputed variants by exact allele key; drop chip-typed alleles.
+    # The drop is allele-specific: only an imputed candidate whose exact
+    # ``(chrom, pos, ref, alt)`` was directly typed is excluded, so a different ALT at a
+    # coordinate the chip typed for another allele still surfaces (issue #1187).
     by_allele: dict[tuple[str | None, int, str, str], tuple[ImputedVariant, int]] = {}
     for variant, copies in carried:
-        nchrom = _norm_chrom(variant.chrom)
-        if (nchrom, variant.pos) in typed:
-            continue
-        by_allele[(nchrom, variant.pos, variant.ref.upper(), variant.alt.upper())] = (
-            variant,
-            copies,
+        allele_key = (
+            _norm_chrom(variant.chrom),
+            variant.pos,
+            variant.ref.upper(),
+            variant.alt.upper(),
         )
+        if allele_key in typed:
+            continue
+        by_allele[allele_key] = (variant, copies)
     if not by_allele:
         return []
 
