@@ -28,43 +28,42 @@ from backend.db.tables import annotated_variants, findings
 
 class TestRevelThresholds:
     @pytest.mark.parametrize(
-        ("revel", "tier"),
+        ("revel", "tier", "criterion", "strength"),
         [
-            (0.95, "PP3_Strong"),
-            (0.932, "PP3_Strong"),  # closed lower bound
-            (0.80, "PP3_Moderate"),
-            (0.773, "PP3_Moderate"),  # closed lower bound
-            (0.70, "PP3_Supporting"),
-            (0.644, "PP3_Supporting"),  # closed lower bound
-            (0.50, None),  # indeterminate gap
-            (0.30, None),  # still gap (>0.290)
-            (0.290, "BP4_Supporting"),  # closed upper bound of BP4_Supporting
-            (0.25, "BP4_Supporting"),
-            (0.183, "BP4_Moderate"),  # closed upper bound
-            (0.10, "BP4_Moderate"),
-            (0.016, "BP4_Strong"),  # closed upper bound
-            (0.010, "BP4_Strong"),
-            (0.003, "BP4_VeryStrong"),  # closed upper bound
-            (0.002, "BP4_VeryStrong"),
+            (0.95, "PP3_Strong", "PP3", "Strong"),
+            (0.932, "PP3_Strong", "PP3", "Strong"),  # closed lower bound
+            (0.80, "PP3_Moderate", "PP3", "Moderate"),
+            (0.773, "PP3_Moderate", "PP3", "Moderate"),  # closed lower bound
+            (0.70, "PP3_Supporting", "PP3", "Supporting"),
+            (0.644, "PP3_Supporting", "PP3", "Supporting"),  # closed lower bound
+            (0.50, None, None, None),  # indeterminate gap
+            (0.30, None, None, None),  # still gap (>0.290)
+            (0.290, "BP4_Supporting", "BP4", "Supporting"),  # closed upper bound
+            (0.25, "BP4_Supporting", "BP4", "Supporting"),
+            (0.183, "BP4_Moderate", "BP4", "Moderate"),  # closed upper bound
+            (0.10, "BP4_Moderate", "BP4", "Moderate"),
+            (0.016, "BP4_Strong", "BP4", "Strong"),  # closed upper bound
+            (0.010, "BP4_Strong", "BP4", "Strong"),
+            (0.003, "BP4_VeryStrong", "BP4", "Very Strong"),  # closed upper bound
+            (0.002, "BP4_VeryStrong", "BP4", "Very Strong"),
         ],
     )
-    def test_missense_thresholds(self, revel: float, tier: str | None) -> None:
+    def test_missense_thresholds(
+        self,
+        revel: float,
+        tier: str | None,
+        criterion: str | None,
+        strength: str | None,
+    ) -> None:
         result = revel_to_acmg_tier(revel, is_missense=True)
-        assert (result.tier if result else None) == tier
+        actual = (result.tier, result.criterion, result.strength) if result else (None, None, None)
+        assert actual == (tier, criterion, strength)
 
     def test_non_missense_returns_none(self) -> None:
         assert revel_to_acmg_tier(0.95, is_missense=False) is None
 
     def test_missing_revel_returns_none(self) -> None:
         assert revel_to_acmg_tier(None, is_missense=True) is None
-
-    def test_criterion_and_strength(self) -> None:
-        t = revel_to_acmg_tier(0.95, is_missense=True)
-        assert t.criterion == "PP3"
-        assert t.strength == "Strong"
-        b = revel_to_acmg_tier(0.002, is_missense=True)
-        assert b.criterion == "BP4"
-        assert b.strength == "Very Strong"
 
 
 class TestMissenseConsequence:
