@@ -31,6 +31,13 @@ Switch between predefined column layouts, or build your own from **Column Settin
 Apply tags to variants for personal tracking — predefined ones (*Pathogenic interest*,
 *Benign confirmed*, *Follow-up*, *Research*) or your own. You can then filter the table by tag.
 
+## Custom annotation overlays
+
+Use [Annotation Overlays](annotation-overlays.md) to upload small BED or VCF files and
+compare custom annotations with your sample's variants. Overlay matches are
+display-only: they help triage variants, but they do not change findings, scores,
+or evidence ratings.
+
 ## Watching a VUS
 
 For a **Variant of Uncertain Significance**, click **Watch**. When reference databases are
