@@ -42,7 +42,10 @@ _UGT1A1_28 = "rs8175347"  # *28 TA-repeat (non-SNV) — not array-typeable
 _CYP3A5 = {
     "rs776746": "T",  # *3
     "rs10264272": "C",  # *6
-    "rs41303343": "I",  # *7 deletion, reference allele is insertion/present sequence
+    # rs41303343 (CYP3A5*7) is an INSERTION (c.346_347insT; Ensembl A/AA, dbSNP
+    # del A/ins AA): the *7 allele is the inserted/longer allele = the "I" token,
+    # so the reference (non-*7) baseline is "D" (the shorter allele). #1212.
+    "rs41303343": "D",  # reference (non-*7); *7 = the rs41303343 insertion (I)
 }
 
 
@@ -348,7 +351,7 @@ def test_ugt1a1_star6_hom_is_poor_with_irinotecan_alert(reference_engine: sa.Eng
             assert "*28" in a.indeterminate_alleles
 
 
-# ── CYP3A5 (tacrolimus) + typed *7 deletion ──────────────────────────────────
+# ── CYP3A5 (tacrolimus) + typed *7 insertion (rs41303343 = c.346_347insT) ─────
 
 
 def test_cyp3a5_star7_het_is_intermediate(reference_engine: sa.Engine) -> None:
@@ -380,7 +383,8 @@ def test_cyp3a5_star7_het_is_intermediate(reference_engine: sa.Engine) -> None:
             "Poor Metabolizer",
             CallConfidence.PARTIAL,
         ),
-        ({"rs41303343": "DD"}, "*7/*7", "Poor Metabolizer", CallConfidence.COMPLETE),
+        # True homozygous *7 is the INSERTION genotype "II" (#1212).
+        ({"rs41303343": "II"}, "*7/*7", "Poor Metabolizer", CallConfidence.COMPLETE),
     ],
 )
 def test_cyp3a5_no_function_star7_diplotypes_are_mapped(
@@ -412,19 +416,46 @@ def test_cyp3a5_star7_het_emits_tacrolimus_alert(reference_engine: sa.Engine) ->
     assert tac[0].phenotype == "Intermediate Metabolizer"
 
 
-def test_cyp3a5_star7_non_carrier_does_not_emit_star7_alert(
-    reference_engine: sa.Engine,
-) -> None:
-    sample = _make_sample(_cyp3a5_genotypes(rs41303343="II"))
+def test_cyp3a5_homozygous_reference_is_not_star7(reference_engine: sa.Engine) -> None:
+    """#1212 headline regression: homozygous-REFERENCE rs41303343 is the common
+    state and must NOT be called *7.
+
+    rs41303343 (*7) is an insertion, so the reference (non-*7) genotype is "DD".
+    The inverted encoding scored "DD" as two *7 copies, flipping any *1-carrier
+    expresser to a homozygous-*7 non-expresser / Poor Metabolizer (wrong tacrolimus
+    direction, ancestry-skewed). A *1/*1 sample that is homozygous reference must
+    stay a CYP3A5 expresser, and no *7 may appear in the tacrolimus alert.
+    """
+    sample = _make_sample(_cyp3a5_genotypes(rs41303343="DD"))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
     cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
     assert cyp3a5.diplotype == "*1/*1"
     assert "*7" not in cyp3a5.diplotype
+    assert cyp3a5.phenotype == "Normal Metabolizer"  # expresser, not Poor
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
     assert tac
     assert all("*7" not in a.diplotype for a in tac)
+
+
+def test_cyp3a5_true_star7_homozygous_is_poor_metabolizer_with_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """#1212 true-positive regression: the rs41303343 INSERTION genotype "II" is a
+    real homozygous *7 → CYP3A5 non-expresser / Poor Metabolizer, with a tacrolimus
+    alert naming *7. The inverted encoding scored "II" as 0 copies and missed it."""
+    sample = _make_sample(_cyp3a5_genotypes(rs41303343="II"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*7/*7"
+    assert cyp3a5.phenotype == "Poor Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert tac
+    assert tac[0].diplotype == "*7/*7"
+    assert tac[0].phenotype == "Poor Metabolizer"
 
 
 # ── PharmVar versioning ───────────────────────────────────────────────────────
