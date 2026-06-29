@@ -16,6 +16,8 @@ from backend.analysis.alphamissense import (
 from backend.annotation import alphamissense as am
 from backend.annotation.alphamissense import (
     ALPHAMISSENSE_MD5,
+    AM_BENIGN_MAX,
+    AM_PATHOGENIC_MIN,
     create_alphamissense_table,
     download_and_load_alphamissense,
     load_alphamissense_from_csv,
@@ -118,8 +120,19 @@ def test_md5_mismatch_aborts_and_cleans_up(
 
 
 def test_classify_thresholds() -> None:
+    assert AM_PATHOGENIC_MIN == 0.564
+    assert AM_BENIGN_MAX == 0.34
+
     assert classify_am_pathogenicity(0.9) == "likely_pathogenic"
+    assert classify_am_pathogenicity(0.57) == "likely_pathogenic"
+    assert classify_am_pathogenicity(AM_PATHOGENIC_MIN) == "ambiguous"
+    assert classify_am_pathogenicity(0.55) == "ambiguous"
+
     assert classify_am_pathogenicity(0.2) == "likely_benign"
+    assert classify_am_pathogenicity(0.33) == "likely_benign"
+    assert classify_am_pathogenicity(AM_BENIGN_MAX) == "ambiguous"
+    assert classify_am_pathogenicity(0.35) == "ambiguous"
+
     assert classify_am_pathogenicity(0.45) == "ambiguous"
     assert classify_am_pathogenicity(None) is None
 
