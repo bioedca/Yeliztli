@@ -871,19 +871,25 @@ def store_traits_findings(
             }
         )
 
-    # Store individual SNP + pathway + cross-module findings
-    snp_count = 0
-    if rows:
-        with sample_engine.begin() as conn:
-            # Clear previous non-PRS traits findings
-            conn.execute(
-                sa.delete(findings).where(
-                    findings.c.module == MODULE_NAME,
-                    findings.c.category != "prs",
-                )
+    # Store individual SNP + pathway + cross-module findings. Clear previous non-PRS
+    # traits rows UNCONDITIONALLY: an empty rerun (no pathway results → rows == []) must
+    # still drop the prior run's pathway/SNP/cross-module findings, or stale wrong-sample
+    # traits data survives and is surfaced as the active sample's results (#348/#1240).
+    # store_prs_findings below clears the category == "prs" rows on the same principle.
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.delete(findings).where(
+                findings.c.module == MODULE_NAME,
+                # Every non-PRS traits row, i.e. anything that isn't the PRS category
+                # store_prs_findings manages. ``category != "prs"`` alone would miss a
+                # NULL-category row (SQL NULL comparisons are never true), so treat NULL
+                # as non-PRS explicitly and clear it too.
+                sa.or_(findings.c.category != "prs", findings.c.category.is_(None)),
             )
+        )
+        if rows:
             conn.execute(sa.insert(findings), rows)
-        snp_count = len(rows)
+    snp_count = len(rows)
 
     # Store PRS findings via the generic PRS engine. Call unconditionally: when
     # result.prs_results is empty (e.g. the PGS score DB became unavailable),
