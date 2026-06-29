@@ -22,6 +22,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis import cancer_prs as cancer_prs_module
+from backend.analysis.allele_match import match_effect_allele_dosage
 from backend.analysis.cancer_prs import (
     CANCER_PRS_TRAITS,
     CancerPRSResult,
@@ -49,6 +50,36 @@ XY_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"breast_cancer"}
 UNRESOLVED_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {
     "breast_cancer",
     "prostate_cancer",
+}
+CONFIRMED_RISK_ALLELE_FIXTURES = {
+    ("breast_cancer", "rs2981582"): {
+        "effect_allele": "A",
+        "stored_other_allele": "G",
+        "protective_allele": "G",
+        "third_allele": None,
+        "weight": 0.263,
+    },
+    ("breast_cancer", "rs11814448"): {
+        "effect_allele": "C",
+        "stored_other_allele": "A",
+        "protective_allele": "A",
+        "third_allele": None,
+        "weight": 0.279,
+    },
+    ("breast_cancer", "rs6001930"): {
+        "effect_allele": "C",
+        "stored_other_allele": None,
+        "protective_allele": "T",
+        "third_allele": "G",
+        "weight": 0.119,
+    },
+    ("melanoma", "rs12913832"): {
+        "effect_allele": "G",
+        "stored_other_allele": None,
+        "protective_allele": "A",
+        "third_allele": "C",
+        "weight": 0.262,
+    },
 }
 
 
@@ -352,6 +383,61 @@ class TestLoadCancerPRSWeights:
                 assert w.rsid.startswith("rs")
                 assert w.effect_allele in ("A", "C", "G", "T")
                 assert isinstance(w.weight, float)
+
+    def test_confirmed_inversion_fixes_are_risk_oriented(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        by_trait = {ws.trait: {w.rsid: w for w in ws.weights} for ws in cancer_weight_sets}
+
+        for (trait, rsid), expected in CONFIRMED_RISK_ALLELE_FIXTURES.items():
+            snp_weight = by_trait[trait][rsid]
+
+            assert snp_weight.effect_allele == expected["effect_allele"]
+            assert snp_weight.other_allele == expected["stored_other_allele"]
+            assert snp_weight.weight == pytest.approx(expected["weight"])
+
+    def test_confirmed_protective_homozygotes_score_zero(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        by_trait = {ws.trait: {w.rsid: w for w in ws.weights} for ws in cancer_weight_sets}
+
+        for (trait, rsid), expected in CONFIRMED_RISK_ALLELE_FIXTURES.items():
+            snp_weight = by_trait[trait][rsid]
+            protective = match_effect_allele_dosage(
+                expected["protective_allele"] * 2,
+                snp_weight.effect_allele,
+                snp_weight.other_allele,
+                maf=None,
+            )
+            risk = match_effect_allele_dosage(
+                expected["effect_allele"] * 2,
+                snp_weight.effect_allele,
+                snp_weight.other_allele,
+                maf=None,
+            )
+
+            assert protective.dosage == 0
+            assert risk.dosage == 2
+
+    def test_multiallelic_third_alleles_do_not_score_as_strand_flips(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        by_trait = {ws.trait: {w.rsid: w for w in ws.weights} for ws in cancer_weight_sets}
+
+        for (trait, rsid), expected in CONFIRMED_RISK_ALLELE_FIXTURES.items():
+            third_allele = expected["third_allele"]
+            if third_allele is None:
+                continue
+            snp_weight = by_trait[trait][rsid]
+
+            third = match_effect_allele_dosage(
+                third_allele * 2,
+                snp_weight.effect_allele,
+                snp_weight.other_allele,
+                maf=None,
+            )
+
+            assert third.dosage in (0, None)
 
     def test_bundled_sets_are_uncalibrated(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         """Shipped cancer weight sets carry only placeholder reference params, so
