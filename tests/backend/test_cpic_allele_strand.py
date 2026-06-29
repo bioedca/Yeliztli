@@ -44,6 +44,8 @@ from pathlib import Path
 
 import pytest
 
+from backend.analysis.pharmacogenomics import _indel_alt_token
+
 # Production CPIC allele table consumed by the pharmacogenomics caller.
 _CPIC_ALLELES_CSV = (
     Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic" / "cpic_alleles.csv"
@@ -226,3 +228,109 @@ def test_no_palindromic_ambiguity_unpinned() -> None:
                 f"{gene}{allele} {rsid} ({ref}>{alt}) is strand-ambiguous and must "
                 f"have its plus-strand orientation pinned in EXPECTED_PLUS_STRAND."
             )
+
+
+# ── Indel defining-variant polarity (#1242) ──────────────────────────────────
+#
+# The SNV guard above filters to len(ref)==len(alt)==1, so CPIC *indel* defining
+# variants were never polarity-checked — exactly how #1212 shipped (CYP3A5*7
+# encoded ref="AT"/alt="A", a deletion, for what is canonically the insertion
+# A>AA, flipping a tacrolimus phenotype). The caller derives the 23andMe I/D
+# token purely from len(ref) vs len(alt) (``_indel_alt_token``: alt longer → "I"
+# insertion, ref longer → "D" deletion) and scores that token as the
+# star-allele-defining allele, so an inverted (ref, alt) silently scores the
+# reference (non-carrier) allele as the star allele.
+#
+# This map pins, per star allele, the I/D token its *canonical* variant produces
+# — derived from the variant's biology (insertion vs deletion), NOT from the
+# stored ref/alt, so it is not tautological. Verified against the Ensembl GRCh37
+# REST API (var_class / allele_string) and the PharmVar/CPIC allele definitions:
+#   CYP2D6*3  rs35742686  2549delA frameshift           → deletion (D)
+#   CYP2D6*6  rs5030655   1707delT frameshift           → deletion (D)
+#   CYP2D6*9  rs5030656   2615_2617delAAG (Lys281del)   → deletion (D)
+#   CYP2C9*6  rs9332131   818delA frameshift            → deletion (D)
+#   CYP3A5*7  rs41303343  346_347insT frameshift (#1212)→ insertion (I)
+#   NUDT15*3.002 rs746071566  GAGTCG insertion          → insertion (I)
+#   NUDT15*6     rs746071566  GAGTCG insertion          → insertion (I)
+#   NUDT15*9     rs746071566  GAGTCG deletion           → deletion (D)
+# I/D tokens are strand-invariant, so only the length polarity is asserted (the
+# plus-strand SNV guard above covers single-base orientation separately).
+_EXPECTED_INDEL_TOKEN: dict[tuple[str, str, str], str] = {
+    ("CYP2D6", "*3", "rs35742686"): "D",
+    ("CYP2D6", "*6", "rs5030655"): "D",
+    ("CYP2D6", "*9", "rs5030656"): "D",
+    ("CYP2C9", "*6", "rs9332131"): "D",
+    ("CYP3A5", "*7", "rs41303343"): "I",
+    ("NUDT15", "*3.002", "rs746071566"): "I",
+    ("NUDT15", "*6", "rs746071566"): "I",
+    ("NUDT15", "*9", "rs746071566"): "D",
+}
+
+_EXPECTED_INDEL_GENES = frozenset({"CYP2D6", "CYP2C9", "CYP3A5", "NUDT15"})
+
+
+def _indel_defining_variants() -> list[tuple[str, str, str, str, str]]:
+    """True insertion/deletion defining variants — a length-mismatched ``(ref, alt)``.
+
+    This is exactly the set ``_indel_alt_token`` tokenizes. It excludes both SNVs
+    (single-base, guarded above) and equal-length microsatellite notations like
+    UGT1A1*28 rs8175347 ``TA6``/``TA7`` (a TATA-box TA-repeat, not a base-resolution
+    indel — the caller treats it as indeterminate; see the SNV note above).
+    """
+    return [r for r in _iter_defining_variants() if len(r[3]) != len(r[4])]
+
+
+def test_indel_defining_variants_nonempty_cover_genes_and_map_has_no_stale_keys() -> None:
+    """Silent-skip + drift lock for the indel-polarity guard.
+
+    An empty ``_indel_defining_variants()`` would make the parametrized polarity
+    test vacuous-green, and a stale ``_EXPECTED_INDEL_TOKEN`` key would let the map
+    drift from the table. Assert the discovered set is non-empty, covers every
+    expected gene, and that every map key maps to an actual CSV indel.
+    """
+    indels = _indel_defining_variants()
+    assert indels, (
+        "_indel_defining_variants() is EMPTY — the parametrized indel-polarity guard "
+        "would silently SKIP (green). Check cpic_alleles.csv still has indel "
+        "(len(ref)!=len(alt)) defining variants."
+    )
+    genes_covered = {gene for gene, *_ in indels}
+    missing = _EXPECTED_INDEL_GENES - genes_covered
+    assert not missing, (
+        f"the CPIC indel-polarity guard lost coverage of gene(s) {sorted(missing)} — "
+        "their indel defining variants vanished from _indel_defining_variants()."
+    )
+    # No stale map entries: every (gene, allele, rsid) key must be a real CSV indel.
+    csv_keys = {(gene, allele, rsid) for gene, allele, rsid, _ref, _alt in indels}
+    stale = set(_EXPECTED_INDEL_TOKEN) - csv_keys
+    assert not stale, (
+        f"_EXPECTED_INDEL_TOKEN has stale key(s) {sorted(stale)} no longer in "
+        "cpic_alleles.csv — remove them so the map can't drift from the table."
+    )
+
+
+@pytest.mark.parametrize("gene,allele,rsid,ref,alt", _indel_defining_variants())
+def test_indel_defining_variant_token_matches_canonical(
+    gene: str, allele: str, rsid: str, ref: str, alt: str
+) -> None:
+    """Every CPIC indel must produce the I/D token its canonical variant defines.
+
+    Catches the #1212 class: an inverted (ref, alt) (e.g. a deletion encoding for
+    a canonical insertion) makes ``_indel_alt_token`` return the wrong token, so
+    the caller scores the reference allele as the star allele (homozygous-reference
+    carriers mis-called, true carriers missed). Re-verify against Ensembl GRCh37 /
+    dbSNP + the PharmVar definition before changing an expected token.
+    """
+    key = (gene, allele, rsid)
+    assert key in _EXPECTED_INDEL_TOKEN, (
+        f"{gene}{allele} indel defining variant {rsid} ({ref}>{alt}) is not in "
+        "_EXPECTED_INDEL_TOKEN. Add it after verifying the variant's insertion/"
+        "deletion polarity against Ensembl GRCh37 / dbSNP + PharmVar."
+    )
+    expected = _EXPECTED_INDEL_TOKEN[key]
+    token = _indel_alt_token(ref, alt)
+    assert token == expected, (
+        f"{gene}{allele} {rsid}: stored ref={ref!r}/alt={alt!r} yields I/D token "
+        f"{token!r}, but the canonical variant defines {expected!r}. An inverted "
+        "(ref, alt) silently scores the non-carrier allele as the star allele (#1212)."
+    )
