@@ -114,12 +114,6 @@ export default function PathwayDetailPanel({
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
   )
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-
-  // Focus close button on mount for keyboard accessibility
-  useEffect(() => {
-    closeButtonRef.current?.focus()
-  }, [])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -164,7 +158,6 @@ export default function PathwayDetailPanel({
           )}
         </div>
         <button
-          ref={closeButtonRef}
           onClick={onClose}
           className="rounded-md p-1.5 hover:bg-muted transition-colors"
           aria-label="Close pathway details"

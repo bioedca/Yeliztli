@@ -115,16 +115,11 @@ export default function PathwayDetailPanel({
   const detailQuery = useMethylationPathwayDetail(pathwayId, sampleId)
   const panelRef = useRef<HTMLElement>(null)
   useDialogFocus(panelRef)
-  const closeRef = useRef<HTMLButtonElement>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const noCallSnps = detailQuery.data?.no_call_snps ?? []
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
   )
-
-  useEffect(() => {
-    closeRef.current?.focus()
-  }, [])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -173,7 +168,6 @@ export default function PathwayDetailPanel({
           )}
         </div>
         <button
-          ref={closeRef}
           onClick={onClose}
           className="rounded-md p-1.5 hover:bg-muted transition-colors"
           aria-label="Close pathway details"
