@@ -635,3 +635,31 @@ class TestImputedCalibrationViaReference:
         assert result.calibration_method == "ancestry_continuous"
         assert result.calibration_variants_used == 2  # typed + imputed both calibrated
         assert result.percentile is not None
+
+    def test_withholds_when_imputed_unresolved_despite_typed_coverage(self) -> None:
+        # Partial-resolution guard: the typed variant alone clears the 50% coverage
+        # gate, but if the reference can't resolve the imputed variant (no gnomAD
+        # row), the distribution would omit a scored contribution that IS in the raw
+        # score — so the whole distribution is withheld, not calibrated over
+        # typed-only moments (#1236).
+        sample = self._mixed_sample()
+        reference = _reference_with_gnomad([])  # no gnomAD row for the imputed 1:999
+        weights = [
+            {
+                "rsid": "rsTYP",
+                "chrom": "2",
+                "pos": 500,
+                "effect_allele": "T",
+                "other_allele": "C",
+                "weight": 1.0,
+            },
+            {
+                "rsid": "",
+                "chrom": "1",
+                "pos": 999,
+                "effect_allele": "G",
+                "other_allele": "A",
+                "weight": 1.0,
+            },
+        ]
+        assert continuous_reference_distribution(weights, sample, reference) is None

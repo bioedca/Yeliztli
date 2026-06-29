@@ -242,6 +242,30 @@ def _variant_entry(
     }
 
 
+def _pair_orients(effect_allele: str, other_allele: str | None, ref: str, alt: str) -> bool:
+    """Whether a weight can be oriented against ``{ref, alt}`` to pick its record at
+    a multi-allelic locus. The per-sample near-0.5 palindrome drop is applied later
+    by :func:`effect_allele_frequency`, not here.
+
+    With ``other_allele`` the ``{effect, other}`` pair must match ``{ref, alt}`` on
+    the reference or complemented strand (same harmonization as scoring). Without it
+    (legacy weights), only a **same-strand** literal match counts — mirroring
+    ``effect_allele_frequency``'s no-strand-attempt path, so any record this accepts
+    also yields a frequency there (a complement-only match would pass the
+    resolve-count check yet be dropped from the moments, re-opening the #1236 bias).
+    """
+    ea = _single_base(effect_allele)
+    ref_u = _single_base(ref)
+    alt_u = _single_base(alt)
+    if ea is None or ref_u is None or alt_u is None:
+        return False
+    pair = {ref_u, alt_u}
+    oa = _single_base(other_allele)
+    if oa is None:
+        return ea in pair
+    return {ea, oa} == pair or {COMPLEMENT[ea], COMPLEMENT[oa]} == pair
+
+
 def _resolve_imputed_against_reference(
     weights: list[dict],
     sample_engine: sa.Engine,
@@ -269,8 +293,10 @@ def _resolve_imputed_against_reference(
     if not by_locus:
         return []
 
-    # ref/alt from the sample's imputed_variants for those loci.
-    ref_alt: dict[tuple[str, int], tuple[str, str]] = {}
+    # ref/alt candidates per locus from the sample's imputed_variants. A position
+    # can carry more than one alt, so collect the full set and match each weight to
+    # the right one below — never an arbitrary last-write-wins choice.
+    ref_alts: dict[tuple[str, int], set[tuple[str, str]]] = {}
     pos_values = sorted({pos for (_chrom, pos) in by_locus})
     with sample_engine.connect() as conn:
         if not sa.inspect(conn).has_table(imputed_variants.name):
@@ -286,24 +312,42 @@ def _resolve_imputed_against_reference(
             for r in conn.execute(stmt):
                 key = (_norm_chrom(r.chrom), r.pos)
                 if key in by_locus and r.ref and r.alt:
-                    ref_alt[key] = (r.ref, r.alt)
-    if not ref_alt:
+                    ref_alts.setdefault(key, set()).add((r.ref, r.alt))
+    if not ref_alts:
         return []
 
     # Per-pop gnomAD AF by (chrom, pos, ref, alt). chrom is already normalized to
     # the gnomad_af store form (strip "chr", upper) so the exact-tuple match lands.
-    positions = [(chrom, pos, ref, alt) for (chrom, pos), (ref, alt) in ref_alt.items()]
+    positions = [
+        (chrom, pos, ref, alt)
+        for (chrom, pos), alleles in ref_alts.items()
+        for (ref, alt) in alleles
+    ]
     annotations = lookup_gnomad_by_positions(positions, reference_engine)
 
     entries: list[dict] = []
-    for (chrom, pos), (ref, alt) in ref_alt.items():
-        ann = annotations.get((chrom, pos, ref, alt))
-        if ann is None:
-            continue
-        # af_cols are gnomad_af_<pop>; the annotation exposes them as af_<pop>.
-        per_pop = {col: getattr(ann, col.removeprefix("gnomad_"), None) for col in af_cols}
-        for w in by_locus[(chrom, pos)]:
-            entries.append(_variant_entry(ref, alt, per_pop, w))
+    for (chrom, pos), weights_at_locus in by_locus.items():
+        # gnomAD-annotated (ref, alt, per_pop) candidates at this locus.
+        candidates: list[tuple[str, str, dict[str, float | None]]] = []
+        for ref, alt in ref_alts.get((chrom, pos), set()):
+            ann = annotations.get((chrom, pos, ref, alt))
+            if ann is None:
+                continue
+            # af_cols are gnomad_af_<pop>; the annotation exposes them as af_<pop>.
+            per_pop = {col: getattr(ann, col.removeprefix("gnomad_"), None) for col in af_cols}
+            candidates.append((ref, alt, per_pop))
+        for w in weights_at_locus:
+            # Pick the unique candidate whose allele pair orients this weight (on
+            # either strand). 0 or >1 → leave the weight unresolved; the caller then
+            # withholds rather than calibrate over a set missing a scored variant.
+            matches = [
+                c
+                for c in candidates
+                if _pair_orients(w["effect_allele"], w.get("other_allele"), c[0], c[1])
+            ]
+            if len(matches) == 1:
+                ref, alt, per_pop = matches[0]
+                entries.append(_variant_entry(ref, alt, per_pop, w))
     return entries
 
 
@@ -395,11 +439,19 @@ def continuous_reference_distribution(
         _append_from_annotated(rows_by_pos.get(key), w)
 
     if reference_engine is not None and unresolved:
-        variants.extend(
-            _resolve_imputed_against_reference(
-                unresolved, sample_engine, reference_engine, af_cols
-            )
+        resolved = _resolve_imputed_against_reference(
+            unresolved, sample_engine, reference_engine, af_cols
         )
+        # Every scored variant absent from annotated_variants must be calibrated
+        # against the reference; the helper emits exactly one entry per resolvable
+        # weight, so a shortfall means a scored imputed contribution could not be
+        # resolved (no imputed ref/alt, no gnomAD row, or an unorientable/ambiguous
+        # pair). Withhold rather than standardize the raw score — which includes it
+        # — over moments that omit it (#1236); the typed-only coverage gate could
+        # otherwise still pass on a mixed set and re-introduce the bias.
+        if len(resolved) != len(unresolved):
+            return None
+        variants.extend(resolved)
 
     mean, std, n_used = expected_prs_mean_sd(variants, fractions)
     variants_total = len(by_rsid) + len(by_pos)
