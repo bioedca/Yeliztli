@@ -257,6 +257,31 @@ class TestCHEK2CancerTypes:
         assert "non-breast" in notes or "nonbreast" in notes
 
 
+class TestCHEK2SyndromeFraming:
+    """Guard CHEK2 against stale high-penetrance syndrome labels (#1223).
+
+    Current CHEK2 guidance frames heterozygotes as moderate-penetrance,
+    personalized-risk cancer predisposition carriers (Hanson 2023 ACMG practice
+    resource, PMID 37490054). The historical CHEK2/Li-Fraumeni-2 attribution is
+    not current user-facing syndrome framing; Li-Fraumeni remains a TP53 label
+    in this panel.
+    """
+
+    def test_chek2_syndromes_do_not_name_li_fraumeni(self, panel: CancerPanel) -> None:
+        chek2 = panel.get_gene("CHEK2")
+        assert chek2 is not None
+        assert chek2.syndromes == ["Hereditary Breast Cancer"]
+        assert all("li-fraumeni" not in syndrome.lower() for syndrome in chek2.syndromes)
+
+    def test_li_fraumeni_syndrome_label_is_tp53_only(self, panel: CancerPanel) -> None:
+        genes_with_lfs = {
+            gene.gene_symbol
+            for gene in panel.genes
+            if any("li-fraumeni" in syndrome.lower() for syndrome in gene.syndromes)
+        }
+        assert genes_with_lfs == {"TP53"}
+
+
 # ── Citation provenance ──────────────────────────────────────────────────
 
 

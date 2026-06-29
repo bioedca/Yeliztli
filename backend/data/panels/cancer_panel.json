@@ -115,7 +115,7 @@
       "gene_symbol": "CHEK2",
       "name": "Checkpoint Kinase 2",
       "chromosome": "22",
-      "syndromes": ["Hereditary Breast Cancer", "Li-Fraumeni Syndrome-2"],
+      "syndromes": ["Hereditary Breast Cancer"],
       "cancer_types": ["Breast", "Prostate", "Thyroid", "Kidney"],
       "inheritance": "AD",
       "evidence_level": 3,
