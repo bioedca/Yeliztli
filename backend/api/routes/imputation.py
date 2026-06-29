@@ -18,6 +18,11 @@ from backend.analysis.imputation_reachability import summarize_sample_reachabili
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import samples
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 router = APIRouter(
     prefix="/imputation",
@@ -37,10 +42,12 @@ class ChromReachabilityResponse(BaseModel):
 class ReachabilityResponse(BaseModel):
     """A sample's imputation reachability/feasibility report.
 
-    Headline reachability (``typed_runtime_imputable`` / ``per_chromosome``) follows
-    the v1 runtime scope (autosomes); X is on the panel but runtime-deferred and is
+    Headline reachability (``typed_runtime_imputable`` / ``per_chromosome``)
+    follows the sample-resolved v1 runtime scope: autosomes by default, plus X
+    only when recorded/inferred sex resolves to ``XX`` or ``XY``. Unresolved X is
     surfaced separately (``typed_panel_runtime_deferred`` /
-    ``per_chromosome_runtime_deferred``) so it never overstates reachability (#1186).
+    ``per_chromosome_runtime_deferred``) so it never overstates reachability
+    (#1186).
     """
 
     panel_version: str
@@ -78,8 +85,12 @@ async def get_reachability(
     sample_id: int = Query(..., description="Sample ID"),
 ) -> ReachabilityResponse:
     """Report a sample's imputation reachability from panel coverage + backbone density."""
+    registry = get_registry()
     engine = _get_sample_engine(sample_id)
-    summary = summarize_sample_reachability(engine)
+    recorded = get_recorded_biological_sex(registry.reference_engine, sample_id)
+    inferred = infer_biological_sex(engine)
+    resolved = resolve_biological_sex(recorded_sex=recorded, inferred_sex=inferred)
+    summary = summarize_sample_reachability(engine, biological_sex=resolved.sex)
     return ReachabilityResponse(
         panel_version=summary.panel_version,
         panel_build=summary.panel_build,

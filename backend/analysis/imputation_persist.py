@@ -34,7 +34,10 @@ from backend.analysis.imputation_firewall import (
     assess_variant,
     summarize_firewall,
 )
-from backend.analysis.imputation_input import INPUT_CHROMOSOMES, write_imputation_input_vcfs
+from backend.analysis.imputation_input import (
+    DEFAULT_INPUT_CHROMOSOMES,
+    write_imputation_input_vcfs,
+)
 from backend.analysis.imputation_runner import (
     DEFAULT_JAVA_MEM,
     DEFAULT_TIMEOUT,
@@ -107,18 +110,21 @@ def impute_and_persist_sample(
     *,
     panel_dir: Path,
     beagle_jar: Path,
-    chromosomes: tuple[str, ...] = INPUT_CHROMOSOMES,
+    chromosomes: tuple[str, ...] = DEFAULT_INPUT_CHROMOSOMES,
+    biological_sex: str | None = None,
     java_mem: str = DEFAULT_JAVA_MEM,
     nthreads: int | None = None,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> ImputePersistResult:
     """Prepare → impute → firewall → persist a sample's imputed variants.
 
-    Writes per-chromosome input VCFs under ``work_dir/input``, imputes each
-    against the panel into ``work_dir/imputed``, then persists the firewall-cleared
-    imputed variants to the sample DB. Chromosomes whose input produced no usable
-    sites, or whose Beagle run failed, are skipped (their failure is recorded in
-    ``chrom_results``). Returns counts plus the DR2/firewall summaries.
+    Writes input VCFs under ``work_dir/input``, imputes each input unit against
+    the panel into ``work_dir/imputed``, then persists the firewall-cleared
+    imputed variants to the sample DB. Chromosomes/regions whose input produced
+    no usable sites, or whose Beagle run failed, are skipped (their failure is
+    recorded in ``chrom_results``). Returns counts plus the DR2/firewall summaries.
+    Chromosome X requires ``biological_sex`` resolved to ``XX`` or ``XY`` so its
+    PAR/non-PAR ploidy can be encoded correctly.
 
     **Partial-failure safety.** ``persist_imputed_variants`` replaces the whole
     table, so it runs **only when every attempted chromosome succeeded** — if any
@@ -127,18 +133,25 @@ def impute_and_persist_sample(
     """
     work_dir = Path(work_dir)
     input_result = write_imputation_input_vcfs(
-        sample_engine, work_dir / "input", chromosomes=chromosomes
+        sample_engine,
+        work_dir / "input",
+        chromosomes=chromosomes,
+        biological_sex=biological_sex,
     )
 
     runner = ImputationRunner(panel_dir, beagle_jar, java_mem=java_mem, nthreads=nthreads)
     out_dir = work_dir / "imputed"
     all_variants: list[ImputedVariant] = []
     chrom_results: list[ImputationChromResult] = []
-    for chrom in chromosomes:
-        input_vcf = input_result.vcf_paths.get(chrom)
-        if input_vcf is None:
-            continue
-        res = runner.impute_chromosome(chrom, input_vcf, out_dir, timeout=timeout)
+    for unit in input_result.units:
+        res = runner.impute_chromosome(
+            unit.chrom,
+            unit.path,
+            out_dir,
+            region=unit.beagle_region,
+            output_label=unit.key,
+            timeout=timeout,
+        )
         chrom_results.append(res)
         if res.return_ok and res.output_vcf is not None:
             all_variants.extend(parse_imputed_vcf(res.output_vcf))

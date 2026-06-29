@@ -12,15 +12,14 @@ binary required:
   Typed markers on any other chromosome (Y, MT, contigs) are *structurally
   unreachable* — imputation can never extend them.
 * **Runtime scope (executable v1 pipeline).** Panel coverage is necessary but not
-  sufficient: the v1 input/persist path imputes autosomes only
-  (:data:`backend.analysis.imputation_input.INPUT_CHROMOSOMES`), deferring X until
-  ploidy-aware non-PAR/PAR handling lands. The *headline* reachability counts
-  (``typed_runtime_imputable`` / ``per_chromosome``) therefore follow the runtime
-  scope so a sample's X coverage cannot overstate what v1 can realize; X loci are
-  reported separately as ``typed_panel_runtime_deferred`` (panel-available but
-  runtime-deferred) rather than hidden or counted as reachable (#1186). X is a
-  distinct imputation surface — sex-specific missingness/allele frequency, not just
-  another autosome (Chen et al. 2023 PMID:38073250; Mao et al. 2016 PMID:27423959).
+  sufficient: autosomes are always runtime-imputable, while chromosome X is
+  runtime-imputable only when biological sex is resolved to ``XX`` or ``XY`` so
+  the input/persist path can split PAR/non-PAR regions and encode XY non-PAR
+  haploid genotypes. Without resolved sex, X loci are reported separately as
+  ``typed_panel_runtime_deferred`` (panel-available but runtime-deferred) rather
+  than hidden or counted as reachable (#1186). X is a distinct imputation surface
+  — sex-specific missingness/allele frequency, not just another autosome
+  (Chen et al. 2023 PMID:38073250; Mao et al. 2016 PMID:27423959).
 * **Backbone density (descriptive).** Per runtime chromosome the report gives the
   typed-marker count and the median spacing between adjacent typed markers. Denser
   backbones impute more reliably; this is reported as a plain descriptive
@@ -47,7 +46,7 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.imputation_input import INPUT_CHROMOSOMES
+from backend.analysis.imputation_input import AUTOSOMAL_INPUT_CHROMOSOMES, INPUT_CHROMOSOMES
 from backend.annotation.imputation_panel import (
     PANEL_BUILD,
     PANEL_CHROMOSOMES,
@@ -75,20 +74,24 @@ def _norm_chrom(chrom: str | None) -> str | None:
 # Panel-covered chromosomes, normalized once for membership tests.
 _PANEL_CHROMS: frozenset[str] = frozenset(c.upper() for c in PANEL_CHROMOSOMES)
 
-# Chromosomes the v1 sample imputation pipeline can actually impute and persist.
-# The reference panel covers X (``PANEL_CHROMOSOMES``), but the executable input/
-# persist path is autosomes-only (``INPUT_CHROMOSOMES``): X is deferred until
-# ploidy-aware non-PAR / PAR handling lands (see ``imputation_input``). Sourcing
-# the runtime scope from ``INPUT_CHROMOSOMES`` keeps reachability tied to the one
-# executable pipeline, so a sample with X coverage is never reported as more
-# imputation-reachable than v1 can realize. X is a distinct imputation surface
-# with sex-specific missingness/allele-frequency behavior, not just another
-# autosome (Chen et al. 2023 PMID:38073250; Mao et al. 2016 PMID:27423959).
+# Chromosomes the v1 sample imputation pipeline can actually impute and persist
+# when all required context is present. X support is conditional: callers must
+# resolve biological sex before X becomes runtime-imputable for a specific sample.
 RUNTIME_CHROMOSOMES: tuple[str, ...] = INPUT_CHROMOSOMES
-_RUNTIME_CHROMS: frozenset[str] = frozenset(c.upper() for c in RUNTIME_CHROMOSOMES)
-# On the panel but not yet runtime-imputable (currently X) — surfaced separately
-# so it is neither counted as reachable nor mislabeled structurally unreachable.
-_PANEL_DEFERRED_CHROMS: frozenset[str] = _PANEL_CHROMS - _RUNTIME_CHROMS
+
+
+def _normalized_resolved_sex(biological_sex: str | None) -> str | None:
+    if biological_sex is None:
+        return None
+    sex = biological_sex.strip().upper()
+    return sex if sex in {"XX", "XY"} else None
+
+
+def runtime_chromosomes_for_sex(biological_sex: str | None = None) -> tuple[str, ...]:
+    """Runtime-imputable chromosomes for a sample with optional resolved sex."""
+    if _normalized_resolved_sex(biological_sex) in {"XX", "XY"}:
+        return RUNTIME_CHROMOSOMES
+    return AUTOSOMAL_INPUT_CHROMOSOMES
 
 
 def panel_covers(chrom: str | None) -> bool:
@@ -103,15 +106,16 @@ def panel_covers(chrom: str | None) -> bool:
     return norm is not None and norm in _PANEL_CHROMS
 
 
-def runtime_imputable(chrom: str | None) -> bool:
-    """Whether the v1 sample pipeline can actually impute ``chrom`` (autosomes 1–22).
+def runtime_imputable(chrom: str | None, *, biological_sex: str | None = None) -> bool:
+    """Whether the v1 sample pipeline can actually impute ``chrom`` for a sample.
 
     The reachability headline counts use this, not :func:`panel_covers`, so a
-    sample's X markers — on the panel but runtime-deferred for ploidy/PAR reasons —
-    do not overstate how many loci v1 can realistically recover.
+    sample's X markers are counted only when resolved sex is available for
+    ploidy-aware PAR/non-PAR handling.
     """
     norm = _norm_chrom(chrom)
-    return norm is not None and norm in _RUNTIME_CHROMS
+    runtime_chroms = frozenset(c.upper() for c in runtime_chromosomes_for_sex(biological_sex))
+    return norm is not None and norm in runtime_chroms
 
 
 @dataclass(frozen=True)
@@ -127,18 +131,18 @@ class ChromReachability:
 class ReachabilitySummary:
     """A sample's imputation reachability/feasibility report.
 
-    Reachability is reported against the **v1 runtime scope** (autosomes), not the
-    full reference-panel manifest: ``typed_runtime_imputable`` / ``per_chromosome``
-    are the headline backbone the executable pipeline can actually recover, while
-    ``typed_panel_runtime_deferred`` surfaces panel-covered-but-deferred loci
-    (chromosome X) so they are neither hidden nor counted as reachable (#1186).
-    ``typed_on_panel`` is retained as structural panel-membership provenance.
+    Reachability is reported against the **sample-resolved v1 runtime scope**, not
+    the full reference-panel manifest: autosomes are always in scope, while X is
+    in scope only when biological sex is resolved to ``XX``/``XY``. Otherwise
+    ``typed_panel_runtime_deferred`` surfaces panel-covered-but-deferred loci so
+    they are neither hidden nor counted as reachable (#1186). ``typed_on_panel``
+    is retained as structural panel-membership provenance.
     """
 
     panel_version: str
     panel_build: str
     panel_chromosomes: list[str]  # provenance: panel manifest (autosomes 1–22 + X)
-    runtime_chromosomes: list[str]  # chromosomes v1 can actually impute (autosomes 1–22)
+    runtime_chromosomes: list[str]  # chromosomes v1 can impute for this sample
     typed_total: int  # unique directly-typed loci (chrom, pos)
     typed_on_panel: int  # typed loci on panel-covered chromosomes (structural; includes X)
     typed_runtime_imputable: int  # typed loci on runtime-imputable chromosomes (headline backbone)
@@ -173,13 +177,22 @@ def _count_imputed_reachable(sample_engine: sa.Engine) -> int:
         return conn.execute(sa.select(sa.func.count()).select_from(imputed_variants)).scalar_one()
 
 
-def summarize_sample_reachability(sample_engine: sa.Engine) -> ReachabilitySummary:
+def summarize_sample_reachability(
+    sample_engine: sa.Engine, *, biological_sex: str | None = None
+) -> ReachabilitySummary:
     """Report a sample's imputation reachability from panel coverage + backbone density.
 
     Reads the typed markers (``annotated_variants``) and any persisted imputed
     variants (``imputed_variants``); see the module docstring for the signals and
     their graceful-degradation behavior.
     """
+    runtime_chromosomes = runtime_chromosomes_for_sex(biological_sex)
+    runtime_chroms = frozenset(c.upper() for c in runtime_chromosomes)
+    # On the panel but not runtime-imputable for this sample (X when sex is
+    # unresolved) — surfaced separately so it is neither counted as reachable nor
+    # mislabeled structurally unreachable.
+    panel_deferred_chroms = _PANEL_CHROMS - runtime_chroms
+
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(annotated_variants.c.chrom, annotated_variants.c.pos).distinct()
@@ -199,9 +212,9 @@ def summarize_sample_reachability(sample_engine: sa.Engine) -> ReachabilitySumma
     deferred_positions: dict[str, list[int]] = {}
     typed_off_panel = 0
     for norm, pos in typed_loci:
-        if norm is not None and norm in _RUNTIME_CHROMS:
+        if norm is not None and norm in runtime_chroms:
             runtime_positions.setdefault(norm, []).append(pos)
-        elif norm is not None and norm in _PANEL_DEFERRED_CHROMS:
+        elif norm is not None and norm in panel_deferred_chroms:
             deferred_positions.setdefault(norm, []).append(pos)
         else:
             typed_off_panel += 1
@@ -235,7 +248,7 @@ def summarize_sample_reachability(sample_engine: sa.Engine) -> ReachabilitySumma
         panel_version=PANEL_VERSION,
         panel_build=PANEL_BUILD,
         panel_chromosomes=[c.upper() for c in PANEL_CHROMOSOMES],
-        runtime_chromosomes=[c.upper() for c in RUNTIME_CHROMOSOMES],
+        runtime_chromosomes=[c.upper() for c in runtime_chromosomes],
         typed_total=typed_total,
         typed_on_panel=typed_on_panel,
         typed_runtime_imputable=typed_runtime_imputable,

@@ -201,12 +201,30 @@ class TestMalformedAndMissing:
         assert by_pos[300].dosage == 1.49
         assert by_pos[300].best_guess_copies == 2
 
+    def test_haploid_gt_counts_best_guess_copies(self, tmp_path: Path) -> None:
+        vcf = (
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+            "X\t100\trsa\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0:0\n"
+            "X\t200\trsb\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t1:1\n"
+        )
+        by_pos = {
+            v.pos: v
+            for v in parse_engine_vcf(
+                _write(tmp_path / "haploid-gt.vcf", vcf),
+                quality_key="INFO",
+                af_key="RAF",
+                imputed_flag_key=None,
+            )
+        }
+        assert by_pos[100].best_guess_copies == 0
+        assert by_pos[200].best_guess_copies == 1
+
     def test_missing_or_malformed_gt_does_not_invent_best_guess(self, tmp_path: Path) -> None:
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
             "22\t100\trsa\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tDS\t1.0\n"
             "22\t200\trsb\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t.|1:1.0\n"
-            "22\t300\trsc\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t1:1.0\n"
+            "22\t300\trsc\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t1|:1.0\n"
             "22\t400\trsd\tA\tG\t.\tPASS\tINFO=0.9;RAF=0.2\tGT:DS\t0|1|1:1.0\n"
         )
         by_pos = {

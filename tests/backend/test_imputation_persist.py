@@ -209,6 +209,72 @@ class TestImputeAndPersistSample:
             rows[0]["best_guess_copies"],
         ) == ("22", 100, "A", 0.95, 1.0, 1)
 
+    def test_x_region_units_are_imputed_with_beagle_intervals(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        # PAR is diploid; XY non-PAR hom_alt is emitted as haploid input.
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert(),
+                [
+                    {
+                        "rsid": "rsPar",
+                        "chrom": "X",
+                        "pos": 60_001,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "zygosity": "het",
+                    },
+                    {
+                        "rsid": "rsNonPar",
+                        "chrom": "X",
+                        "pos": 2_699_521,
+                        "ref": "A",
+                        "alt": "G",
+                        "genotype": "G",
+                        "zygosity": "hom_alt",
+                    },
+                ],
+            )
+
+        seen_cmds: list[list[str]] = []
+
+        def fake_run(cmd, **_kw):  # noqa: ANN001, ANN202
+            seen_cmds.append(cmd)
+            out_prefix = next(a.split("=", 1)[1] for a in cmd if a.startswith("out="))
+            with gzip.open(Path(out_prefix + ".vcf.gz"), "wt", encoding="utf-8") as fh:
+                fh.write(_FAKE_IMPUTED_VCF.replace("22\t", "X\t"))
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(ir_mod.subprocess, "run", fake_run)
+        panel, jar = _stub_panel_and_jar(tmp_path, chroms=("X",))
+
+        result = impute_and_persist_sample(
+            sample_engine,
+            tmp_path / "work",
+            panel_dir=panel,
+            beagle_jar=jar,
+            chromosomes=("X",),
+            biological_sex="XY",
+        )
+
+        assert result.n_input_sites == 2
+        assert [r.chrom for r in result.chrom_results] == ["X_PAR1", "X_NONPAR2"]
+        assert result.n_imputed == 6  # three imputed records from each mocked X unit
+        assert result.n_persisted == 1  # duplicate mocked reportable marker dedupes
+        assert {a for cmd in seen_cmds for a in cmd if a.startswith("chrom=")} == {
+            "chrom=X:60001-2699520",
+            "chrom=X:2699521-154931043",
+        }
+        gt_filenames = {
+            Path(a.split("=", 1)[1]).name for cmd in seen_cmds for a in cmd if a.startswith("gt=")
+        }
+        assert gt_filenames == {
+            "chrX_PAR1.vcf.gz",
+            "chrX_NONPAR2.vcf.gz",
+        }
+
     def test_partial_failure_skips_persist_and_preserves_prior(
         self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
     ) -> None:

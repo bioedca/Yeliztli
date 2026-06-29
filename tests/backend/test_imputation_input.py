@@ -1,9 +1,10 @@
 """Per-chromosome GRCh37 imputation-input VCF prep (Wave C glue).
 
 Pins the reference-aligned biallelic-SNP filter (zygosity -> GT, indels/no-calls/
-multi-allelic/unresolved-REF dropped), the autosome-only scope (X/Y/MT excluded),
-the coordinate-sorted single-contig VCF text (bare GRCh37 #CHROM token), and the
-end-to-end DB -> bgzipped+tabix-indexed chr{N}.vcf.gz writer (read back via pysam).
+multi-allelic/unresolved-REF dropped), the autosome default scope, the
+ploidy-aware chromosome-X region path, the coordinate-sorted single-contig VCF
+text (bare GRCh37 #CHROM token), and the end-to-end DB -> bgzipped+tabix-indexed
+writer (read back via pysam).
 """
 
 from __future__ import annotations
@@ -17,11 +18,14 @@ import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
 from backend.analysis.imputation_input import (
+    AUTOSOMAL_INPUT_CHROMOSOMES,
+    DEFAULT_INPUT_CHROMOSOMES,
     INPUT_CHROMOSOMES,
     InputSite,
     build_chrom_vcf_text,
     collect_input_sites,
     encode_input_gt,
+    input_unit_specs_for_chromosomes,
     write_imputation_input_vcfs,
 )
 from backend.annotation.engine import CLINVAR_BIT, VEP_BIT, _merge_annotations, run_annotation
@@ -143,6 +147,13 @@ class TestEncodeInputGt:
 
     def test_ref_equals_alt_dropped(self) -> None:
         assert encode_input_gt("A", "A", "hom_alt") is None
+
+    @pytest.mark.parametrize(
+        ("zyg", "expected"),
+        [("hom_ref", "0"), ("hom_alt", "1"), ("het", None)],
+    )
+    def test_haploid_xy_nonpar_encoding(self, zyg, expected) -> None:
+        assert encode_input_gt("A", "G", zyg, ploidy="haploid") == expected
 
 
 class TestCollectInputSites:
@@ -404,6 +415,43 @@ class TestCollectInputSites:
         assert n_emitted == 1
         assert list(by_chrom) == ["1"]
 
+    def test_x_region_units_and_xy_nonpar_haploid_encoding(self) -> None:
+        rows = [
+            ("rs_np1", "X", 60_000, "A", "G", "hom_alt"),  # non-PAR before PAR1
+            ("rs_par1", "X", 60_001, "C", "T", "het"),  # PAR1 start is diploid
+            ("rs_np2_het", "X", 2_699_521, "G", "A", "het"),  # XY non-PAR het -> drop
+            ("rs_np2_alt", "X", 2_699_522, "G", "A", "hom_alt"),  # haploid alt
+            ("rs_par2", "X", 154_931_044, "T", "C", "het"),  # PAR2 start is diploid
+            ("rs_np3", "X", 155_260_561, "G", "A", "hom_ref"),  # final non-PAR
+        ]
+
+        by_unit, n_total, n_emitted = collect_input_sites(
+            rows, chromosomes=("X",), biological_sex="XY"
+        )
+
+        assert n_total == 6
+        assert n_emitted == 5
+        assert by_unit["X_NONPAR1"][0].gt == "1"
+        assert by_unit["X_PAR1"][0].gt == "0/1"
+        assert [s.rsid for s in by_unit["X_NONPAR2"]] == ["rs_np2_alt"]
+        assert by_unit["X_NONPAR2"][0].gt == "1"
+        assert by_unit["X_PAR2"][0].gt == "0/1"
+        assert by_unit["X_NONPAR3"][0].gt == "0"
+
+    def test_xx_nonpar_heterozygote_remains_diploid(self) -> None:
+        rows = [("rs_np2", "X", 2_699_521, "G", "A", "het")]
+        by_unit, _n_total, n_emitted = collect_input_sites(
+            rows, chromosomes=("X",), biological_sex="XX"
+        )
+        assert n_emitted == 1
+        assert by_unit["X_NONPAR2"][0].gt == "0/1"
+
+    @pytest.mark.parametrize("sex", [None, "unknown", "manual_review"])
+    def test_x_requires_resolved_biological_sex(self, sex) -> None:
+        rows = [("rs_x", "X", 2_699_521, "G", "A", "hom_alt")]
+        with pytest.raises(ValueError, match="biological_sex"):
+            collect_input_sites(rows, chromosomes=("X",), biological_sex=sex)
+
 
 class TestBuildChromVcfText:
     def test_sorted_single_contig_bare_chrom_token(self) -> None:
@@ -471,6 +519,67 @@ class TestWriteImputationInputVcfs:
         assert result.n_emitted == 0
         assert result.vcf_paths == {}
 
-    def test_default_scope_is_autosomes(self) -> None:
-        assert INPUT_CHROMOSOMES == tuple(str(i) for i in range(1, 23))
-        assert "X" not in INPUT_CHROMOSOMES
+    def test_end_to_end_writes_x_region_vcfs(
+        self, sample_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        _insert(
+            sample_engine,
+            [
+                _row("rs_par", "X", 60_001, "A", "G", "het"),
+                _row("rs_np", "X", 2_699_521, "C", "T", "hom_alt"),
+                _row("rs_noise", "X", 2_699_522, "G", "A", "het"),  # XY non-PAR drop
+            ],
+        )
+
+        result = write_imputation_input_vcfs(
+            sample_engine,
+            tmp_path / "vcfs",
+            chromosomes=("X",),
+            biological_sex="XY",
+            sample_name="S1",
+        )
+
+        assert result.n_total == 3
+        assert result.n_emitted == 2
+        assert result.n_dropped == 1
+        assert result.per_chrom_emitted == {"X_PAR1": 1, "X_NONPAR2": 1}
+        assert [unit.key for unit in result.units] == ["X_PAR1", "X_NONPAR2"]
+        assert {unit.key: unit.beagle_region for unit in result.units} == {
+            "X_PAR1": "X:60001-2699520",
+            "X_NONPAR2": "X:2699521-154931043",
+        }
+
+        par_vcf = tmp_path / "vcfs" / "chrX_PAR1.vcf.gz"
+        nonpar_vcf = tmp_path / "vcfs" / "chrX_NONPAR2.vcf.gz"
+        assert par_vcf.exists()
+        assert nonpar_vcf.exists()
+        assert (tmp_path / "vcfs" / "chrX.vcf.gz").exists() is False
+
+        with pysam.VariantFile(str(par_vcf)) as vf:
+            [par_rec] = list(vf)
+        assert (par_rec.chrom, par_rec.pos, par_rec.id) == ("X", 60_001, "rs_par")
+        assert par_rec.samples["S1"]["GT"] == (0, 1)
+
+        with pysam.VariantFile(str(nonpar_vcf)) as vf:
+            [nonpar_rec] = list(vf)
+        assert (nonpar_rec.chrom, nonpar_rec.pos, nonpar_rec.id) == ("X", 2_699_521, "rs_np")
+        assert nonpar_rec.samples["S1"]["GT"] == (1,)
+
+    def test_x_writer_requires_resolved_biological_sex(
+        self, sample_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        _insert(sample_engine, [_row("rs_x", "X", 2_699_521, "C", "T", "hom_alt")])
+        with pytest.raises(ValueError, match="biological_sex"):
+            write_imputation_input_vcfs(sample_engine, tmp_path / "vcfs", chromosomes=("X",))
+
+    def test_supported_scope_includes_x_but_default_scope_is_autosomes(self) -> None:
+        assert AUTOSOMAL_INPUT_CHROMOSOMES == tuple(str(i) for i in range(1, 23))
+        assert DEFAULT_INPUT_CHROMOSOMES == AUTOSOMAL_INPUT_CHROMOSOMES
+        assert INPUT_CHROMOSOMES == (*tuple(str(i) for i in range(1, 23)), "X")
+        assert [s.key for s in input_unit_specs_for_chromosomes(("X",))] == [
+            "X_NONPAR1",
+            "X_PAR1",
+            "X_NONPAR2",
+            "X_PAR2",
+            "X_NONPAR3",
+        ]

@@ -134,6 +134,17 @@ class TestCommand:
         assert "plink.chr22.GRCh37.map" in joined  # map=
         assert "out=" in joined and "nthreads=4" in joined
 
+    def test_build_command_accepts_x_region_interval(self, tmp_path: Path) -> None:
+        runner = _stub_runner(tmp_path, chrom="X")
+        cmd = runner._build_command(
+            "X",
+            Path("/in/chrX_PAR1.vcf.gz"),
+            tmp_path / "imputed_chrX_PAR1",
+            region="X:60001-2699520",
+        )
+        assert "chrX.1kg.phase3.v5a.b37.bref3" in " ".join(cmd)
+        assert "chrom=X:60001-2699520" in cmd
+
     def test_missing_jar_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError, match="Beagle JAR"):
             ImputationRunner(tmp_path, tmp_path / "nope" / "beagle.jar")
@@ -157,6 +168,34 @@ class TestImputeChromosome:
         assert res.output_vcf is not None and res.output_vcf.exists()
         assert res.n_total == 5 and res.n_imputed == 4
         assert res.runtime_seconds >= 0.0
+
+    def test_x_region_success_uses_region_and_output_label(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        seen_cmds: list[list[str]] = []
+
+        def fake(cmd, **_kw):  # noqa: ANN001, ANN202
+            seen_cmds.append(cmd)
+            out_prefix = next(a.split("=", 1)[1] for a in cmd if a.startswith("out="))
+            _write_gz(Path(out_prefix + ".vcf.gz"), _IMPUTED_VCF.replace("22\t", "X\t"))
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        runner = _stub_runner(tmp_path, chrom="X")
+        monkeypatch.setattr(ir_mod.subprocess, "run", fake)
+
+        res = runner.impute_chromosome(
+            "X",
+            tmp_path / "chrX_PAR1.vcf.gz",
+            tmp_path / "out",
+            region="X:60001-2699520",
+            output_label="X_PAR1",
+        )
+
+        assert res.return_ok is True
+        assert res.chrom == "X_PAR1"
+        assert res.output_vcf is not None
+        assert res.output_vcf.name == "imputed_chrX_PAR1.vcf.gz"
+        assert "chrom=X:60001-2699520" in seen_cmds[0]
 
     def test_missing_panel_raises(self, tmp_path: Path) -> None:
         runner = _stub_runner(tmp_path)  # only chr22 panel files exist

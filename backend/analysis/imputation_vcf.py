@@ -166,8 +166,9 @@ def _sample_best_guess_copies(
     """Parse per-ALT copy counts from the sample's ``GT`` best-guess genotype.
 
     ``GT`` uses allele indexes where ``0`` is REF and ``1..n`` are the ALT alleles.
-    Returns one ALT-copy count per ALT, ``[]`` when ``GT`` is absent, and ``None``
-    for every ALT when the genotype is missing or malformed.
+    Diploid calls carry two allele indexes; haploid calls (e.g. XY non-PAR X) carry
+    one. Returns one ALT-copy count per ALT, ``[]`` when ``GT`` is absent, and
+    ``None`` for every ALT when the genotype is missing or malformed.
     """
     keys = format_field.split(":")
     if "GT" not in keys:
@@ -181,7 +182,7 @@ def _sample_best_guess_copies(
         return [None] * n_alts
 
     alleles = re.split(r"[|/]", gt)
-    if len(alleles) != 2:
+    if len(alleles) not in {1, 2}:
         return [None] * n_alts
 
     counts = [0] * n_alts

@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from backend.analysis.imputation_reachability import (
     panel_covers,
+    runtime_chromosomes_for_sex,
     runtime_imputable,
     summarize_sample_reachability,
 )
@@ -82,7 +83,7 @@ def test_panel_covers(chrom: str | None, expected: bool) -> None:
         ("1", True),
         ("22", True),
         ("chr22", True),
-        ("X", False),  # on the panel but runtime-deferred (ploidy/PAR) — not v1-imputable
+        ("X", False),  # on the panel but runtime-deferred until sex is resolved
         ("x", False),
         ("Y", False),
         ("MT", False),
@@ -91,11 +92,20 @@ def test_panel_covers(chrom: str | None, expected: bool) -> None:
     ],
 )
 def test_runtime_imputable(chrom: str | None, expected: bool) -> None:
-    # The v1 runtime images autosomes only; X is panel-covered but deferred, so it
-    # must NOT count as runtime-imputable even though panel_covers("X") is True.
+    # The v1 runtime images autosomes without extra context; X is panel-covered but
+    # deferred until resolved sex unlocks ploidy-aware PAR/non-PAR handling.
     assert runtime_imputable(chrom) is expected
     if chrom in ("X", "x"):
         assert panel_covers(chrom) is True  # the exact mismatch this issue is about
+        assert runtime_imputable(chrom, biological_sex="XY") is True
+        assert runtime_imputable(chrom, biological_sex="XX") is True
+        assert runtime_imputable(chrom, biological_sex="manual_review") is False
+
+
+def test_runtime_chromosomes_for_resolved_sex() -> None:
+    assert "X" not in runtime_chromosomes_for_sex()
+    assert "X" not in runtime_chromosomes_for_sex("unknown")
+    assert runtime_chromosomes_for_sex("XY") == (*tuple(str(i) for i in range(1, 23)), "X")
 
 
 # ── summarize: empty / graceful ───────────────────────────────────────────
@@ -265,6 +275,24 @@ def test_x_only_sample_reports_zero_runtime_reachability(sample_engine: sa.Engin
     assert s.typed_panel_runtime_deferred == 2
     assert s.typed_on_panel == 2  # structurally on panel
     assert s.typed_off_panel == 0
+
+
+def test_resolved_sex_moves_x_into_runtime_reachability(sample_engine: sa.Engine) -> None:
+    _seed_typed(
+        sample_engine,
+        [
+            _typed("rsx1", "X", 1000),
+            _typed("rsx2", "X", 2000),
+            _typed("rs_auto", "1", 500),
+        ],
+    )
+    s = summarize_sample_reachability(sample_engine, biological_sex="XY")
+    assert s.runtime_chromosomes[-1] == "X"
+    assert s.typed_total == 3
+    assert s.typed_runtime_imputable == 3
+    assert s.typed_panel_runtime_deferred == 0
+    assert {c.chrom for c in s.per_chromosome} == {"1", "X"}
+    assert s.per_chromosome_runtime_deferred == []
 
 
 # ── realized reachability ─────────────────────────────────────────────────

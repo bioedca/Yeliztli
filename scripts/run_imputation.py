@@ -8,12 +8,13 @@ runs it.
 
     python scripts/run_imputation.py --input-dir /path/to/per_chrom_vcfs
 
-The input directory must contain per-chromosome bgzipped VCFs named
-``chr{N}.vcf.gz`` (the sample's typed genotypes for that chromosome). Restrict to
+The input directory must contain bgzipped VCFs from
+``scripts/prepare_imputation_input.py``: autosomes as ``chr{N}.vcf.gz`` and X as
+split PAR/non-PAR region files (for example ``chrX_PAR1.vcf.gz``). Restrict to
 specific chromosomes with ``--chrom`` (repeatable). Prerequisites: the imputation
 panel (``scripts/fetch_imputation_panel.py``) and the LAI bundle (its vendored
-Beagle JAR is reused). Producing the per-chromosome input VCFs from a sample DB is
-a separate step (next Wave C slice); this CLI consumes ready VCFs.
+Beagle JAR is reused). Producing the input VCFs from a sample DB is a separate
+step; this CLI consumes ready VCFs.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import sys
 from pathlib import Path
 
 from backend.analysis.imputation_firewall import FirewallSummary, summarize_firewall
+from backend.analysis.imputation_input import input_unit_specs_for_chromosomes
 from backend.analysis.imputation_runner import (
     ImputationRunner,
     ImputationSummary,
@@ -81,11 +83,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"input dir not found: {input_dir}")
     out_dir = args.out_dir or (input_dir / "imputed")
 
-    chroms = args.chrom or [
-        c for c in PANEL_CHROMOSOMES if (input_dir / f"chr{c}.vcf.gz").exists()
-    ]
-    if not chroms:
-        parser.error(f"no per-chromosome input VCFs (chr{{N}}.vcf.gz) found in {input_dir}")
+    requested = tuple(args.chrom) if args.chrom else PANEL_CHROMOSOMES
+    all_units = input_unit_specs_for_chromosomes(requested)
+    units = (
+        list(all_units)
+        if args.chrom
+        else [unit for unit in all_units if (input_dir / unit.filename).exists()]
+    )
+    if not units:
+        parser.error(f"no imputation input VCFs found in {input_dir}")
 
     registry = get_registry()
     runner = ImputationRunner.from_settings(
@@ -95,15 +101,22 @@ def main(argv: list[str] | None = None) -> int:
     total = ImputationSummary()
     fw_total = FirewallSummary()
     failures: list[str] = []
-    for c in chroms:
-        inp = input_dir / f"chr{c}.vcf.gz"
+    for unit in units:
+        inp = input_dir / unit.filename
         if not inp.exists():
-            print(f"chr{c}: SKIP (no {inp.name})", flush=True)
+            print(f"chr{unit.key}: SKIP (no {inp.name})", flush=True)
             continue
-        res = runner.impute_chromosome(c, inp, out_dir, timeout=args.timeout)
+        res = runner.impute_chromosome(
+            unit.chrom,
+            inp,
+            out_dir,
+            region=unit.beagle_region,
+            output_label=unit.key,
+            timeout=args.timeout,
+        )
         if not res.return_ok or res.output_vcf is None:
-            print(f"chr{c}: FAILED ({res.stderr_tail})", file=sys.stderr, flush=True)
-            failures.append(c)
+            print(f"chr{unit.key}: FAILED ({res.stderr_tail})", file=sys.stderr, flush=True)
+            failures.append(unit.key)
             continue
         # Materialize once: both the DR2 quality summary and the SW-C3 firewall
         # consume the same per-ALT records.
@@ -113,14 +126,14 @@ def main(argv: list[str] | None = None) -> int:
         total.n_total += s.n_total
         total.n_imputed += s.n_imputed
         total.n_well_imputed += s.n_well_imputed
-        total.chrom_runtimes[c] = res.runtime_seconds
+        total.chrom_runtimes[unit.key] = res.runtime_seconds
         _accumulate_firewall(fw_total, fw)
         frac = s.frac_well_imputed
         frac_str = f"{frac:.1%}" if frac is not None else "n/a"
         rep_frac = fw.frac_reportable
         rep_str = f"{rep_frac:.1%}" if rep_frac is not None else "n/a"
         print(
-            f"chr{c}: {res.runtime_seconds:.1f}s  "
+            f"chr{unit.key}: {res.runtime_seconds:.1f}s  "
             f"{s.n_total} markers ({s.n_imputed} imputed, {frac_str} DR2>=0.8; "
             f"firewall: {fw.n_reportable} reportable / {fw.n_quarantined} quarantined, "
             f"{rep_str} pass)",
@@ -144,8 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"FIREWALL (SW-C3): {fw_total.n_reportable}/{fw_total.n_imputed} imputed markers "
         f"clear the MAF/r² firewall ({grand_rep_str}); "
-        f"{fw_total.n_quarantined} quarantined from P/LP/carrier/monogenic calls"
-        + reasons_tail
+        f"{fw_total.n_quarantined} quarantined from P/LP/carrier/monogenic calls" + reasons_tail
     )
     if failures:
         print(f"Failed chromosomes: {', '.join(failures)}", file=sys.stderr)

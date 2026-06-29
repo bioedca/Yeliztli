@@ -76,6 +76,12 @@ logger = structlog.get_logger(__name__)
 
 _PAR1: tuple[int, int] = (60001, 2_699_520)
 _PAR2: tuple[int, int] = (154_931_044, 155_260_560)
+GRCH37_X_PAR1: tuple[int, int] = _PAR1
+GRCH37_X_PAR2: tuple[int, int] = _PAR2
+GRCH37_X_PAR_INTERVALS: tuple[tuple[int, int], tuple[int, int]] = (
+    GRCH37_X_PAR1,
+    GRCH37_X_PAR2,
+)
 _THRESHOLD_XY_CONFIRM: float = 0.30
 _THRESHOLD_PAR_NOISE: float = 0.10
 # Public because the sex-aneuploidy screen must use the same chrY discordance
@@ -130,8 +136,13 @@ _NO_CALL_VALUES: frozenset[str] = frozenset({"--", "00", "0", ""})
 Classification = Literal["XX", "XY", "manual_review", "unknown"]
 
 
+def is_grch37_x_par_position(pos: int) -> bool:
+    """Whether ``pos`` falls in a GRCh37 chromosome-X pseudoautosomal interval."""
+    return any(start <= pos <= end for start, end in GRCH37_X_PAR_INTERVALS)
+
+
 def _is_par(pos: int) -> bool:
-    return _PAR1[0] <= pos <= _PAR1[1] or _PAR2[0] <= pos <= _PAR2[1]
+    return is_grch37_x_par_position(pos)
 
 
 def _is_no_call(genotype: str | None) -> bool:

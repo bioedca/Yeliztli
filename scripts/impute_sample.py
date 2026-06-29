@@ -9,7 +9,9 @@ variants that clear it into the sample DB's ``imputed_variants`` table.
 
 Prerequisites: the imputation panel (``scripts/fetch_imputation_panel.py``) and the
 LAI bundle (its vendored Beagle JAR is reused). The sample DB must already be
-annotated. Restrict to specific autosomes with ``--chrom`` (repeatable).
+annotated. Restrict to specific chromosomes with ``--chrom`` (repeatable).
+Autosomes are the default. Chromosome X can be requested with ``--chrom X`` and
+requires ``--biological-sex XX|XY`` so PAR/non-PAR ploidy is encoded correctly.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from backend.analysis.imputation_input import INPUT_CHROMOSOMES
+from backend.analysis.imputation_input import DEFAULT_INPUT_CHROMOSOMES, INPUT_CHROMOSOMES
 from backend.analysis.imputation_persist import impute_and_persist_sample
 from backend.analysis.imputation_runner import beagle_jar_path
 from backend.db.connection import get_registry
@@ -60,7 +62,16 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         choices=INPUT_CHROMOSOMES,
         metavar="CHROM",
-        help="Restrict to specific autosome(s) (repeatable). Default: all 1-22.",
+        help=(
+            "Restrict to specific chromosome(s), including X (repeatable). "
+            "Default: all autosomes 1-22."
+        ),
+    )
+    parser.add_argument(
+        "--biological-sex",
+        choices=("XX", "XY"),
+        default=None,
+        help="Required when --chrom X is requested; controls chromosome-X ploidy.",
     )
     parser.add_argument("--java-mem", default="8g", help="Beagle JVM heap (default 8g).")
     parser.add_argument("--nthreads", type=_positive_int, default=None, help="Beagle nthreads.")
@@ -73,7 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     if not sample_db.is_file():
         parser.error(f"sample DB not found: {sample_db}")
 
-    chroms = tuple(args.chrom) if args.chrom else INPUT_CHROMOSOMES
+    chroms = tuple(args.chrom) if args.chrom else DEFAULT_INPUT_CHROMOSOMES
+    if "X" in chroms and args.biological_sex is None:
+        parser.error("--biological-sex XX|XY is required when --chrom X is requested")
 
     registry = get_registry()
     settings = registry.settings
@@ -85,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         panel_dir=settings.imputation_panel_dir,
         beagle_jar=beagle_jar_path(settings.resolved_lai_bundle_path),
         chromosomes=chroms,
+        biological_sex=args.biological_sex,
         java_mem=args.java_mem,
         nthreads=args.nthreads,
         timeout=args.timeout,
