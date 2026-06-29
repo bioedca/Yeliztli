@@ -25,9 +25,10 @@ clinical-grade confirmation.
   carrying ≥ 1 copy of the ALT (= the ClinVar) allele gets a finding; hom-reference
   and missing-GT rows surface nothing.
 * **Allele-specific ClinVar match.** The imputed ``(chrom, pos, ref, alt)`` must match
-  a ClinVar record after reference-free minimal-representation normalization, so the
-  finding rests on *that* allele's classification — not a higher-star benign record at
-  a multi-allelic site.
+  a ClinVar record after reference-free minimal-representation normalization and, when
+  a GRCh37 FASTA is configured, reference-aware indel left-alignment. The finding rests
+  on *that* allele's classification — not a higher-star benign record at a multi-allelic
+  site.
 * **No duplication.** *Alleles* the chip directly typed are excluded — the typed
   generators (rare_variant_finder / carrier_status / cardiovascular) already own
   those; this layer only fills chip gaps. The exclusion is allele-specific, so a
@@ -46,6 +47,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol
 
 import sqlalchemy as sa
 import structlog
@@ -60,6 +63,69 @@ from backend.db.tables import annotated_variants, clinvar_variants, findings, im
 logger = structlog.get_logger(__name__)
 
 AlleleKey = tuple[str | None, int, str, str]
+
+
+class _ReferenceSequence(Protocol):
+    """Minimal random-access reference sequence interface used for indel alignment."""
+
+    def fetch(self, chrom: str, start: int, end: int) -> str:
+        """Return ``chrom[start:end]`` using 0-based, half-open coordinates."""
+        ...
+
+    def get_reference_length(self, chrom: str) -> int:
+        """Return the reference length for ``chrom``."""
+        ...
+
+
+class _PysamReferenceSequence:
+    """Small adapter over ``pysam.FastaFile`` with chromosome alias handling."""
+
+    def __init__(self, fasta_path: Path) -> None:
+        import pysam
+
+        self._fasta = pysam.FastaFile(str(fasta_path))
+        self._references = set(self._fasta.references)
+
+    def close(self) -> None:
+        self._fasta.close()
+
+    def _reference_name(self, chrom: str) -> str:
+        norm = _norm_chrom(chrom) or str(chrom).strip()
+        candidates = [str(chrom).strip(), norm, f"chr{norm}"]
+        if norm == "MT":
+            candidates.extend(["M", "chrM", "chrMT"])
+        for candidate in candidates:
+            if candidate in self._references:
+                return candidate
+        raise KeyError(f"chromosome {chrom!r} not found in reference FASTA")
+
+    def fetch(self, chrom: str, start: int, end: int) -> str:
+        return self._fasta.fetch(self._reference_name(chrom), start, end).upper()
+
+    def get_reference_length(self, chrom: str) -> int:
+        return self._fasta.get_reference_length(self._reference_name(chrom))
+
+
+def _open_reference_sequence(
+    reference_fasta_path: str | Path | None,
+) -> _PysamReferenceSequence | None:
+    """Open an indexed GRCh37 FASTA, returning ``None`` when unavailable."""
+    if reference_fasta_path is None:
+        return None
+    path = Path(reference_fasta_path)
+    if not path.exists():
+        logger.warning("imputed_clinvar_reference_fasta_missing", path=str(path))
+        return None
+    try:
+        return _PysamReferenceSequence(path)
+    except Exception as exc:  # pragma: no cover - exact pysam exception varies by build.
+        logger.warning(
+            "imputed_clinvar_reference_fasta_unavailable",
+            path=str(path),
+            error=str(exc),
+        )
+        return None
+
 
 # ``findings.module`` value for this source.
 IMPUTED_MODULE = "imputed_variants"
@@ -256,17 +322,141 @@ def _empty_allele_repr(chrom: str | None, pos: int, ref: str | None, alt: str | 
     return (chrom, pos, ref, alt)
 
 
+def _reference_fetch(
+    reference_sequence: _ReferenceSequence, chrom: str, start: int, end: int
+) -> str | None:
+    """Fetch uppercase reference sequence, returning ``None`` on invalid access."""
+    if start < 0 or end < start:
+        return None
+    try:
+        seq = reference_sequence.fetch(chrom, start, end).upper()
+    except (KeyError, IndexError, OSError, ValueError):
+        return None
+    return seq if len(seq) == end - start else None
+
+
+def _reference_length(reference_sequence: _ReferenceSequence, chrom: str) -> int | None:
+    """Return reference length, or ``None`` when the contig is unavailable."""
+    try:
+        return int(reference_sequence.get_reference_length(chrom))
+    except (KeyError, IndexError, OSError, ValueError):
+        return None
+
+
+def _left_aligned_repr(
+    chrom: str | None,
+    pos: int,
+    ref: str | None,
+    alt: str | None,
+    reference_sequence: _ReferenceSequence | None,
+) -> AlleleKey | None:
+    """Return a reference-aware left-aligned indel key.
+
+    The reference-free key trims shared context but cannot shift equivalent indels
+    through repeats. With a GRCh37 FASTA, represent the indel as an empty-ref or
+    empty-alt change and rotate it left while the previous reference base permits an
+    equivalent representation. Deletions are validated against the reference before
+    they can produce a key.
+    """
+    if reference_sequence is None:
+        return None
+    chrom, pos, ref, alt = _empty_allele_repr(chrom, pos, ref, alt)
+    if chrom is None or not (ref or alt) or (ref and alt):
+        return None
+
+    allele = ref or alt
+    contig_len = _reference_length(reference_sequence, chrom)
+    if contig_len is None or pos < 1:
+        return None
+    if ref:
+        if pos + len(allele) - 1 > contig_len:
+            return None
+        observed = _reference_fetch(reference_sequence, chrom, pos - 1, pos - 1 + len(allele))
+        if observed != allele:
+            return None
+    elif pos > contig_len + 1:
+        return None
+
+    while pos > 1:
+        prev_base = _reference_fetch(reference_sequence, chrom, pos - 2, pos - 1)
+        if prev_base != allele[-1]:
+            break
+        allele = prev_base + allele[:-1]
+        pos -= 1
+
+    return (chrom, pos, allele if ref else "", "" if ref else allele)
+
+
+def _right_shifted_indel_positions(
+    left_key: AlleleKey, reference_sequence: _ReferenceSequence | None
+) -> set[tuple[str | None, int]]:
+    """All equivalent empty-allele indel positions reachable by right-shifting."""
+    if reference_sequence is None:
+        return set()
+    chrom, pos, ref, alt = left_key
+    if chrom is None or not (ref or alt) or (ref and alt):
+        return set()
+    contig_len = _reference_length(reference_sequence, chrom)
+    if contig_len is None:
+        return set()
+
+    allele = ref or alt
+    is_deletion = bool(ref)
+    positions: set[tuple[str | None, int]] = set()
+    while True:
+        positions.add((chrom, pos))
+        next_pos = pos + len(allele) if is_deletion else pos
+        if next_pos < 1 or next_pos > contig_len:
+            break
+        next_base = _reference_fetch(reference_sequence, chrom, next_pos - 1, next_pos)
+        if next_base != allele[0]:
+            break
+        allele = allele[1:] + next_base
+        pos += 1
+    return positions
+
+
 def _allele_match_keys(
-    chrom: str | None, pos: int, ref: str | None, alt: str | None
+    chrom: str | None,
+    pos: int,
+    ref: str | None,
+    alt: str | None,
+    reference_sequence: _ReferenceSequence | None = None,
 ) -> set[AlleleKey]:
-    """Return all reference-free allele keys used for typed/ClinVar comparison."""
-    return {
+    """Return all allele keys used for typed/ClinVar comparison."""
+    keys = {
         _minimal_repr(chrom, pos, ref, alt),
         _empty_allele_repr(chrom, pos, ref, alt),
     }
+    left_key = _left_aligned_repr(chrom, pos, ref, alt, reference_sequence)
+    if left_key is not None:
+        keys.add(left_key)
+    return keys
 
 
-def _typed_alleles(sample_engine: sa.Engine) -> set[AlleleKey]:
+def _query_positions_for_key(
+    allele_key: AlleleKey, reference_sequence: _ReferenceSequence | None
+) -> set[tuple[str | None, int]]:
+    """ClinVar positions worth fetching for one normalized allele key."""
+    chrom, pos, ref, alt = allele_key
+    positions: set[tuple[str | None, int]] = {(chrom, pos)}
+    if "" in (ref, alt):
+        left_anchor_pos = pos - 1
+        if left_anchor_pos > 0:
+            positions.add((chrom, left_anchor_pos))
+    for shifted_chrom, shifted_pos in _right_shifted_indel_positions(
+        allele_key, reference_sequence
+    ):
+        positions.add((shifted_chrom, shifted_pos))
+        left_anchor_pos = shifted_pos - 1
+        if left_anchor_pos > 0:
+            positions.add((shifted_chrom, left_anchor_pos))
+    return positions
+
+
+def _typed_alleles(
+    sample_engine: sa.Engine, reference_sequence: _ReferenceSequence | None = None
+) -> set[AlleleKey]:
     """Minimal-representation ``(norm_chrom, pos, ref, alt)`` the chip directly typed.
 
     Imputed findings only fill chip gaps, so an allele already in ``annotated_variants``
@@ -284,9 +474,11 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[AlleleKey]:
     ``annotated_variants``; a row missing either, or carrying a dot allele, cannot claim
     a specific allele and is not allowed to exclude an imputed finding.
 
-    Keys are reduced to their :func:`_minimal_repr` so a typed indel still excludes an
+    Keys are reduced to their :func:`_minimal_repr` and, when a GRCh37 FASTA is
+    available, reference-aware left-aligned keys, so a typed indel still excludes an
     imputed candidate written with a different (but equivalent) anchor/trailing context
-    (issue #1218); the imputed candidate is normalized the same way at the exclusion check.
+    or repeat-shifted position (issues #1218/#1252); the imputed candidate is
+    normalized the same way at the exclusion check.
     """
     with sample_engine.connect() as conn:
         rows = conn.execute(
@@ -300,135 +492,153 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[AlleleKey]:
     keys: set[AlleleKey] = set()
     for r in rows:
         if _has_specific_allele(r.ref) and _has_specific_allele(r.alt):
-            keys.update(_allele_match_keys(_norm_chrom(r.chrom), r.pos, r.ref, r.alt))
+            keys.update(
+                _allele_match_keys(_norm_chrom(r.chrom), r.pos, r.ref, r.alt, reference_sequence)
+            )
     return keys
 
 
 def find_imputed_clinvar_findings(
     sample_engine: sa.Engine,
     reference_engine: sa.Engine,
+    *,
+    reference_fasta_path: str | Path | None = None,
+    reference_sequence: _ReferenceSequence | None = None,
 ) -> list[ImputedClinVarFinding]:
     """Surface firewall-cleared imputed common variants at ClinVar P/LP loci.
 
     For each imputed variant the individual carries (at an allele the chip did **not**
-    directly type), look up ClinVar by exact ``(chrom, pos, ref, alt)`` and, when the
-    record's primary classification is (Likely) Pathogenic, emit a finding labeled
-    imputed-not-typed.
+    directly type), look up ClinVar by allele after reference-free normalization and,
+    when a FASTA is provided, reference-aware left alignment. If the record's primary
+    classification is (Likely) Pathogenic, emit a finding labeled imputed-not-typed.
     Lower-penetrance / risk-allele and "Conflicting classifications" records are
     excluded — they are not ordinary high-penetrance P/LP
     (:mod:`backend.analysis.clinvar_significance`). Returns an empty list when no
     imputation has been persisted (graceful degradation).
     """
-    carried = _load_carried_imputed_variants(sample_engine)
-    if not carried:
-        return []
+    opened_reference = None
+    if reference_sequence is None:
+        opened_reference = _open_reference_sequence(reference_fasta_path)
+        reference_sequence = opened_reference
 
-    typed = _typed_alleles(sample_engine)
+    try:
+        carried = _load_carried_imputed_variants(sample_engine)
+        if not carried:
+            return []
 
-    # Index carried imputed variants by exact allele key; drop chip-typed alleles.
-    # The drop is allele-specific: only an imputed candidate whose exact
-    # ``(chrom, pos, ref, alt)`` was directly typed is excluded, so a different ALT at a
-    # coordinate the chip typed for another allele still surfaces (issue #1187). Compare
-    # minimal representations so anchor/trailing-context differences do not turn a typed
-    # indel into a duplicate imputed finding (issue #1218), and do not make the
-    # downstream ClinVar match a false negative when ClinVar uses the paired spelling
-    # (issue #1252). The original imputed ref/alt remain on the emitted finding.
-    by_allele: dict[AlleleKey, tuple[ImputedVariant, int]] = {}
-    query_positions: set[tuple[str | None, int]] = set()
-    for variant, copies in carried:
-        raw_key = _raw_allele_key(variant.chrom, variant.pos, variant.ref, variant.alt)
-        allele_keys = _allele_match_keys(*raw_key)
-        if typed.intersection(allele_keys):
-            continue
-        query_positions.add((raw_key[0], raw_key[1]))
-        for allele_key in allele_keys:
-            by_allele.setdefault(allele_key, (variant, copies))
-            # Fetch ClinVar rows at raw, minimal, and one-base-left positions: the same
-            # indel can be stored in padded VCF form or local ``-`` sentinel form.
-            query_positions.add((allele_key[0], allele_key[1]))
-            if "" in allele_key[2:]:
-                left_anchor_pos = allele_key[1] - 1
-                if left_anchor_pos > 0:
-                    query_positions.add((allele_key[0], left_anchor_pos))
-    if not by_allele:
-        return []
+        typed = _typed_alleles(sample_engine, reference_sequence)
 
-    positions = sorted(query_positions)
+        # Index carried imputed variants by exact allele key; drop chip-typed alleles.
+        # The drop is allele-specific: only an imputed candidate whose exact
+        # ``(chrom, pos, ref, alt)`` was directly typed is excluded, so a different ALT
+        # at a coordinate the chip typed for another allele still surfaces (issue #1187).
+        # Compare minimal and, when available, left-aligned representations so
+        # anchor/trailing-context and repeat-shift differences do not turn a typed indel
+        # into a duplicate imputed finding (issue #1218), and do not make the downstream
+        # ClinVar match a false negative when ClinVar uses the paired spelling (issue
+        # #1252). The original imputed ref/alt remain on the emitted finding.
+        by_allele: dict[AlleleKey, tuple[ImputedVariant, int]] = {}
+        query_positions: set[tuple[str | None, int]] = set()
+        for variant, copies in carried:
+            raw_key = _raw_allele_key(variant.chrom, variant.pos, variant.ref, variant.alt)
+            allele_keys = _allele_match_keys(*raw_key, reference_sequence)
+            if typed.intersection(allele_keys):
+                continue
+            query_positions.add((raw_key[0], raw_key[1]))
+            for allele_key in allele_keys:
+                by_allele.setdefault(allele_key, (variant, copies))
+                query_positions.update(_query_positions_for_key(allele_key, reference_sequence))
+        if not by_allele:
+            return []
 
-    results: list[ImputedClinVarFinding] = []
-    seen: set[AlleleKey] = set()
-    with reference_engine.connect() as conn:
-        # Batch the (chrom, pos) lookups under SQLite's bound-variable limit, mirroring
-        # backend.annotation.clinvar.lookup_clinvar_by_positions.
-        for start in range(0, len(positions), 250):
-            batch = positions[start : start + 250]
-            conditions = [
-                sa.and_(clinvar_variants.c.chrom == chrom, clinvar_variants.c.pos == pos)
-                for chrom, pos in batch
-            ]
-            stmt = sa.select(
-                clinvar_variants.c.chrom,
-                clinvar_variants.c.pos,
-                clinvar_variants.c.ref,
-                clinvar_variants.c.alt,
-                clinvar_variants.c.rsid,
-                clinvar_variants.c.gene_symbol,
-                clinvar_variants.c.significance,
-                clinvar_variants.c.review_stars,
-                clinvar_variants.c.accession,
-                clinvar_variants.c.conditions,
-            ).where(sa.or_(*conditions))
-            for row in conn.execute(stmt).fetchall():
-                # Only ordinary high-penetrance P/LP (excludes Conflicting and the
-                # lower-penetrance / risk-allele tier).
-                if primary_pathogenic_classification(row.significance) is None:
-                    continue
-                match = None
-                for key in _allele_match_keys(_norm_chrom(row.chrom), row.pos, row.ref, row.alt):
-                    match = by_allele.get(key)
-                    if match is not None:
-                        break
-                if match is None:
-                    continue
-                variant, copies = match
-                seen_key = _raw_allele_key(variant.chrom, variant.pos, variant.ref, variant.alt)
-                if seen_key in seen:
-                    continue
-                seen.add(seen_key)
-                stars = row.review_stars or 0
-                evidence_level = min(
-                    assign_clinvar_evidence_level(row.significance, stars),
-                    IMPUTED_EVIDENCE_CAP,
-                )
-                results.append(
-                    ImputedClinVarFinding(
-                        chrom=variant.chrom,
-                        pos=variant.pos,
-                        ref=variant.ref,
-                        alt=variant.alt,
-                        dr2=variant.dr2 if variant.dr2 is not None else 0.0,
-                        af=variant.af if variant.af is not None else 0.0,
-                        dosage=variant.dosage,
-                        copies=copies,
-                        zygosity="hom_alt" if copies >= 2 else "het",
-                        rsid=row.rsid,
-                        gene_symbol=row.gene_symbol,
-                        clinvar_significance=row.significance,
-                        clinvar_review_stars=stars,
-                        clinvar_accession=row.accession,
-                        clinvar_conditions=row.conditions,
-                        evidence_level=evidence_level,
+        positions = sorted(query_positions)
+
+        results: list[ImputedClinVarFinding] = []
+        seen: set[AlleleKey] = set()
+        with reference_engine.connect() as conn:
+            # Batch the (chrom, pos) lookups under SQLite's bound-variable limit,
+            # mirroring backend.annotation.clinvar.lookup_clinvar_by_positions.
+            for start in range(0, len(positions), 250):
+                batch = positions[start : start + 250]
+                conditions = [
+                    sa.and_(clinvar_variants.c.chrom == chrom, clinvar_variants.c.pos == pos)
+                    for chrom, pos in batch
+                ]
+                stmt = sa.select(
+                    clinvar_variants.c.chrom,
+                    clinvar_variants.c.pos,
+                    clinvar_variants.c.ref,
+                    clinvar_variants.c.alt,
+                    clinvar_variants.c.rsid,
+                    clinvar_variants.c.gene_symbol,
+                    clinvar_variants.c.significance,
+                    clinvar_variants.c.review_stars,
+                    clinvar_variants.c.accession,
+                    clinvar_variants.c.conditions,
+                ).where(sa.or_(*conditions))
+                for row in conn.execute(stmt).fetchall():
+                    # Only ordinary high-penetrance P/LP (excludes Conflicting and the
+                    # lower-penetrance / risk-allele tier).
+                    if primary_pathogenic_classification(row.significance) is None:
+                        continue
+                    match = None
+                    for key in _allele_match_keys(
+                        _norm_chrom(row.chrom),
+                        row.pos,
+                        row.ref,
+                        row.alt,
+                        reference_sequence,
+                    ):
+                        match = by_allele.get(key)
+                        if match is not None:
+                            break
+                    if match is None:
+                        continue
+                    variant, copies = match
+                    seen_key = _raw_allele_key(
+                        variant.chrom, variant.pos, variant.ref, variant.alt
                     )
-                )
+                    if seen_key in seen:
+                        continue
+                    seen.add(seen_key)
+                    stars = row.review_stars or 0
+                    evidence_level = min(
+                        assign_clinvar_evidence_level(row.significance, stars),
+                        IMPUTED_EVIDENCE_CAP,
+                    )
+                    results.append(
+                        ImputedClinVarFinding(
+                            chrom=variant.chrom,
+                            pos=variant.pos,
+                            ref=variant.ref,
+                            alt=variant.alt,
+                            dr2=variant.dr2 if variant.dr2 is not None else 0.0,
+                            af=variant.af if variant.af is not None else 0.0,
+                            dosage=variant.dosage,
+                            copies=copies,
+                            zygosity="hom_alt" if copies >= 2 else "het",
+                            rsid=row.rsid,
+                            gene_symbol=row.gene_symbol,
+                            clinvar_significance=row.significance,
+                            clinvar_review_stars=stars,
+                            clinvar_accession=row.accession,
+                            clinvar_conditions=row.conditions,
+                            evidence_level=evidence_level,
+                        )
+                    )
 
-    results.sort(key=lambda f: (_norm_chrom(f.chrom) or "", f.pos))
-    logger.info(
-        "imputed_clinvar_findings_found",
-        carried_imputed=len(carried),
-        candidates=len(by_allele),
-        pathogenic=len(results),
-    )
-    return results
+        results.sort(key=lambda f: (_norm_chrom(f.chrom) or "", f.pos))
+        logger.info(
+            "imputed_clinvar_findings_found",
+            carried_imputed=len(carried),
+            candidates=len(by_allele),
+            pathogenic=len(results),
+            reference_aligned=reference_sequence is not None,
+        )
+        return results
+    finally:
+        if opened_reference is not None:
+            opened_reference.close()
 
 
 def store_imputed_findings(

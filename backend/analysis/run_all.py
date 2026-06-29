@@ -458,5 +458,9 @@ def _run_imputed_variants(sample_engine: Engine, registry: DBRegistry) -> int:
         store_imputed_findings,
     )
 
-    result = find_imputed_clinvar_findings(sample_engine, registry.reference_engine)
+    result = find_imputed_clinvar_findings(
+        sample_engine,
+        registry.reference_engine,
+        reference_fasta_path=registry.settings.resolved_grch37_fasta_path,
+    )
     return store_imputed_findings(result, sample_engine)

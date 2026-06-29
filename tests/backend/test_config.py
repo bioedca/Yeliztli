@@ -60,6 +60,23 @@ def test_derived_paths():
     assert settings.vep_bundle_db_path == Path("/tmp/ylzt-test/vep_bundle.db")
     assert settings.gnomad_db_path == Path("/tmp/ylzt-test/gnomad_af.db")
     assert settings.dbnsfp_db_path == Path("/tmp/ylzt-test/dbnsfp.db")
+    assert settings.resolved_grch37_fasta_path is None
+
+
+def test_grch37_fasta_path_resolution(tmp_path):
+    """Explicit FASTA path wins; otherwise data_dir/grch37.fa is auto-discovered."""
+    default_fasta = tmp_path / "grch37.fa"
+    settings = Settings(data_dir=tmp_path)
+    assert settings.resolved_grch37_fasta_path is None
+
+    default_fasta.write_text(">1\nA\n", encoding="ascii")
+    assert Settings(data_dir=tmp_path).resolved_grch37_fasta_path == default_fasta
+
+    explicit_fasta = tmp_path / "custom.fa"
+    assert (
+        Settings(data_dir=tmp_path, grch37_fasta_path=explicit_fasta).resolved_grch37_fasta_path
+        == explicit_fasta
+    )
 
 
 def test_env_override(monkeypatch):

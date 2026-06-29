@@ -214,6 +214,14 @@ class Settings(BaseSettings):
             "Env: YELIZTLI_IMPUTE5_BIN_DIR."
         ),
     )
+    grch37_fasta_path: Path | None = Field(
+        default=None,
+        description=(
+            "Optional indexed GRCh37 FASTA for reference-aware indel normalization "
+            "in imputed ClinVar matching. When unset, data_dir / 'grch37.fa' is "
+            "used if present. Env: YELIZTLI_GRCH37_FASTA_PATH."
+        ),
+    )
 
     # --- HLA / HIBAG (Wave D, opt-in / operator-installed R runtime) ---
     hibag_rscript: Path | None = Field(
@@ -234,14 +242,15 @@ class Settings(BaseSettings):
         ),
     )
 
-    @field_validator("hibag_rscript", "hibag_model_dir", mode="before")
+    @field_validator("hibag_rscript", "hibag_model_dir", "grch37_fasta_path", mode="before")
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
         """Treat a blank env/config value as unset (fail closed for the HLA engine).
 
         Without this an empty ``YELIZTLI_HIBAG_*`` would coerce to ``Path('.')``
         (the CWD) rather than ``None``, so the engine could look for Rscript/models
-        in the working directory instead of reporting itself unavailable.
+        in the working directory instead of reporting itself unavailable. The same
+        guard keeps an empty FASTA override from becoming the current directory.
         """
         if isinstance(value, str) and not value.strip():
             return None
@@ -311,6 +320,14 @@ class Settings(BaseSettings):
     def imputation_panel_dir(self) -> Path:
         """Directory holding the (opt-in) 1000G Phase 3 v5a imputation panel (SW-C1)."""
         return self.data_dir / "imputation_panel"
+
+    @property
+    def resolved_grch37_fasta_path(self) -> Path | None:
+        """Configured GRCh37 FASTA, or ``data_dir / grch37.fa`` when it exists."""
+        if self.grch37_fasta_path is not None:
+            return self.grch37_fasta_path
+        default_path = self.data_dir / "grch37.fa"
+        return default_path if default_path.exists() else None
 
     @classmethod
     def settings_customise_sources(

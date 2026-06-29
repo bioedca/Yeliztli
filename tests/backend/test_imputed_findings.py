@@ -11,6 +11,7 @@ in-memory SQLite fixture pattern used across the backend suite.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import sqlalchemy as sa
 
@@ -92,6 +93,17 @@ def _seed_typed(engine: sa.Engine, rows: list[dict]) -> None:
 def _seed_clinvar(engine: sa.Engine, rows: list[dict]) -> None:
     with engine.begin() as conn:
         conn.execute(sa.insert(clinvar_variants), rows)
+
+
+def _write_single_line_fasta(path: Path, chrom: str, seq: str) -> None:
+    """Write a tiny indexed FASTA usable by ``pysam.FastaFile``."""
+    header = f">{chrom}\n".encode("ascii")
+    body = f"{seq}\n".encode("ascii")
+    path.write_bytes(header + body)
+    path.with_name(path.name + ".fai").write_text(
+        f"{chrom}\t{len(seq)}\t{len(header)}\t{len(seq)}\t{len(seq) + 1}\n",
+        encoding="ascii",
+    )
 
 
 # ── Graceful degradation ─────────────────────────────────────────────────
@@ -629,6 +641,70 @@ def test_clinvar_padded_insertion_matches_trimmed_imputed(
         "TA",
     )
     assert results[0].rsid == "rsins_padded"
+
+
+def test_clinvar_repeat_shifted_deletion_matches_with_reference_fasta(
+    tmp_path: Path, sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A repeat-shifted ClinVar deletion matches after FASTA-backed left alignment."""
+    fasta_path = tmp_path / "grch37.fa"
+    _write_single_line_fasta(fasta_path, "chr7", ("N" * 99) + ("A" * 8) + "CGT")
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=102, ref="AA", alt="A")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=105, ref="AA", alt="A", rsid="rsrepeat_shift")],
+    )
+
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+    results = find_imputed_clinvar_findings(
+        sample_engine,
+        reference_engine,
+        reference_fasta_path=fasta_path,
+    )
+
+    assert len(results) == 1
+    assert (results[0].chrom, results[0].pos, results[0].ref, results[0].alt) == (
+        "7",
+        102,
+        "AA",
+        "A",
+    )
+    assert results[0].rsid == "rsrepeat_shift"
+
+
+def test_typed_repeat_shifted_deletion_excludes_with_reference_fasta(
+    tmp_path: Path, sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A chip-typed repeat-shifted deletion suppresses the imputed duplicate."""
+    fasta_path = tmp_path / "grch37.fa"
+    _write_single_line_fasta(fasta_path, "chr7", ("N" * 99) + ("A" * 8) + "CGT")
+    _seed_imputed(
+        sample_engine,
+        [_imp(chrom="7", pos=102, ref="AA", alt="A")],
+    )
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="7", pos=102, ref="AA", alt="A", rsid="rsrepeat_typed")],
+    )
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rsrepeat_typed", "chrom": "7", "pos": 105, "ref": "AA", "alt": "A"}],
+    )
+
+    assert len(find_imputed_clinvar_findings(sample_engine, reference_engine)) == 1
+
+    assert (
+        find_imputed_clinvar_findings(
+            sample_engine,
+            reference_engine,
+            reference_fasta_path=fasta_path,
+        )
+        == []
+    )
 
 
 # ── Only ordinary high-penetrance P/LP surfaces ───────────────────────────
