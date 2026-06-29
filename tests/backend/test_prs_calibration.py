@@ -7,6 +7,7 @@ reference distribution built from a sample's annotated_variants + ancestry findi
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 
@@ -385,3 +386,66 @@ class TestRunPrsContinuousCalibrationPreservesOtherAllele:
         assert result.calibration_method is None
         assert result.calibration_variants_used is None
         assert result.percentile is None
+
+
+class TestRunPrsCalibrationProjectionLocksAllFields:
+    """run_prs() derives the calibration weight dicts from the dataclass (#1209).
+
+    The #1179 defect was a hand-built dict that forgot a ``PRSSNPWeight`` field
+    (``other_allele``). Deriving the projection from the dataclass means any future
+    field flows through automatically. This locks that the dicts handed to
+    ``continuous_reference_distribution()`` expose the FULL ``PRSSNPWeight`` field
+    set — a re-introduced hand-built dict that omits a field fails here, catching
+    the drift class before it can silently bias a percentile again.
+    """
+
+    def test_projection_carries_every_weight_field(self, monkeypatch) -> None:
+        import backend.analysis.prs as prs_module
+
+        captured: dict[str, list[dict]] = {}
+
+        def _capture(weights: list[dict], sample_engine, reference_engine=None):
+            captured["weights"] = weights
+            return None  # withhold calibration; we only inspect the projection
+
+        monkeypatch.setattr(prs_module, "continuous_reference_distribution", _capture)
+
+        engine = _sample_with_ancestry(None, [])  # tables only; calibration is mocked
+        weight_set = PRSWeightSet(
+            name="field-set lock",
+            trait="t",
+            module="traits",
+            source_ancestry="EUR",
+            source_study="s",
+            source_pmid="0",
+            sample_size=1,
+            weights=[
+                PRSSNPWeight(
+                    rsid="rs1",
+                    effect_allele="A",
+                    other_allele="G",
+                    weight=0.5,
+                    chrom="1",
+                    pos=100,
+                )
+            ],
+            reference_mean=0.0,
+            reference_std=0.0,
+            calibrated=False,  # take the ancestry-continuous path
+        )
+        run_prs(weight_set, engine)
+
+        assert captured.get("weights"), "continuous_reference_distribution was not called"
+        expected_fields = {f.name for f in dataclasses.fields(PRSSNPWeight)}
+        assert "other_allele" in expected_fields  # the field whose omission was #1179
+        for projected in captured["weights"]:
+            missing = expected_fields - set(projected)
+            assert not missing, f"projection dropped PRSSNPWeight fields: {missing}"
+        # Values round-trip from the dataclass, not just the keys.
+        wd = captured["weights"][0]
+        assert wd["rsid"] == "rs1"
+        assert wd["effect_allele"] == "A"
+        assert wd["other_allele"] == "G"
+        assert wd["weight"] == 0.5
+        assert wd["chrom"] == "1"
+        assert wd["pos"] == 100

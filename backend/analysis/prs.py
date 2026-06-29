@@ -50,7 +50,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 import sqlalchemy as sa
@@ -1099,24 +1099,16 @@ def run_prs(
         result.calibration_reference_mean = reference_mean
         result.calibration_reference_std = reference_std
     else:
-        weights = [
-            {
-                "rsid": w.rsid,
-                "chrom": w.chrom,
-                "pos": w.pos,
-                "effect_allele": w.effect_allele,
-                # Preserve the non-effect allele so continuous calibration can
-                # apply the same strand-aware allele-pair harmonization the raw
-                # score uses (compute_prs passes w.other_allele to
-                # match_effect_allele_dosage). Dropping it silently excluded
-                # reverse-strand non-palindromic variants from the expected
-                # mean/variance even though they were scored, biasing the
-                # percentile or shrinking calibration coverage (issue #1179).
-                "other_allele": w.other_allele,
-                "weight": w.weight,
-            }
-            for w in weight_set.weights
-        ]
+        # Derive the calibration weight dicts straight from the dataclass rather
+        # than re-listing fields by hand. continuous_reference_distribution()
+        # consumes the same strand-aware allele-pair frame as the raw score
+        # (rsid/chrom/pos/effect_allele/other_allele/weight), so every PRSSNPWeight
+        # field must reach it; a hand-built dict silently dropped other_allele and
+        # excluded reverse-strand non-palindromic variants from the expected
+        # mean/variance (#1179). asdict() makes any future field flow through
+        # automatically, closing that field-drift seam (#1209). Extra keys are
+        # harmless — the consumer reads only the keys it needs.
+        weights = [asdict(w) for w in weight_set.weights]
         dist = continuous_reference_distribution(weights, sample_engine)
         if dist is not None:
             reference_mean = dist.mean
