@@ -185,8 +185,10 @@ describe("FHView — with a sample", () => {
           calibrated: true,
           percentile: 82,
           snps_used: 100,
+          snps_used_imputed: 3,
           snps_total: 120,
           coverage_fraction: 0.83,
+          coverage_tier: "imputed",
           is_sufficient: true,
           source_study: "Klarin 2018",
           source_pmid: "30104760",
@@ -204,5 +206,8 @@ describe("FHView — with a sample", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "LDL-C polygenic score" }),
     ).toBeInTheDocument()
+    expect(screen.getByTestId("prs-imputed-coverage")).toHaveTextContent(
+      "Coverage split: 97 typed + 3 imputed SNPs",
+    )
   })
 })

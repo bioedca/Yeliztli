@@ -36,8 +36,10 @@ const PRS: MetabolicPRS = {
   calibrated: false,
   percentile: null,
   snps_used: 100,
+  snps_used_imputed: 0,
   snps_total: 200,
   coverage_fraction: 0.5,
+  coverage_tier: "typed_only",
   is_sufficient: false,
   source_ancestry: "European",
   source_study: "PGS000713",
@@ -105,5 +107,24 @@ describe("MetabolicView error gating (#642)", () => {
     expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
     // The whole-page loader is gated on the primary work, so it is absent here.
     expect(screen.queryByText("Scoring metabolic polygenic risk...")).not.toBeInTheDocument()
+  })
+
+  it("shows the imputed coverage split on metabolic PRS cards", () => {
+    mockPRS.mockReturnValue(
+      q({
+        data: {
+          items: [{ ...PRS, snps_used: 100, snps_used_imputed: 4, coverage_tier: "imputed" }],
+          total: 1,
+          coverage_context: "",
+        },
+      }),
+    )
+
+    render(<MetabolicView />)
+
+    expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
+    expect(screen.getByTestId("prs-imputed-coverage")).toHaveTextContent(
+      "Coverage split: 96 typed + 4 imputed SNPs",
+    )
   })
 })

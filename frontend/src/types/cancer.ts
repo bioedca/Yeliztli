@@ -26,6 +26,8 @@ export interface CancerVariantsListResponse {
   total: number
 }
 
+export type PRSCoverageTier = "typed_only" | "imputed"
+
 /** A single cancer PRS result. */
 export interface CancerPRS {
   trait: string
@@ -38,8 +40,11 @@ export interface CancerPRS {
   bootstrap_ci_upper: number | null
   bootstrap_iterations: number
   snps_used: number
+  /** Subset of snps_used that came from firewall-cleared imputed dosages. */
+  snps_used_imputed: number
   snps_total: number
   coverage_fraction: number
+  coverage_tier: PRSCoverageTier
   is_sufficient: boolean
   source_ancestry: string
   source_study: string

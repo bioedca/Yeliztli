@@ -1,6 +1,6 @@
 /** Metabolic module API types (SW-B5): T2D & obesity PRS + anchor SNPs. */
 
-import type { CancerPRS } from "@/types/cancer"
+import type { CancerPRS, PRSCoverageTier } from "@/types/cancer"
 
 /** A metabolic PRS result (uncalibrated; coverage reported, percentile withheld). */
 export interface MetabolicPRS {
@@ -9,8 +9,10 @@ export interface MetabolicPRS {
   calibrated: boolean
   percentile: number | null
   snps_used: number
+  snps_used_imputed: number
   snps_total: number
   coverage_fraction: number
+  coverage_tier: PRSCoverageTier
   is_sufficient: boolean
   source_ancestry: string
   source_study: string
@@ -61,7 +63,8 @@ export interface MetabolicAnchorListResponse {
 /**
  * Adapt a coverage-reported PRS (metabolic/FH/eBMD) to the CancerPRS shape that
  * PRSGaugeCard renders. These scores are uncalibrated, so the CI/z-score/sample
- * fields the gauge reads are simply absent (the card shows "coverage too low").
+ * fields the gauge reads are simply absent. Imputation-aware coverage fields are
+ * preserved so the card can disclose typed versus imputed coverage.
  */
 export function toGaugePrs(p: {
   trait: string
@@ -69,8 +72,10 @@ export function toGaugePrs(p: {
   calibrated: boolean
   percentile: number | null
   snps_used: number
+  snps_used_imputed: number
   snps_total: number
   coverage_fraction: number
+  coverage_tier: PRSCoverageTier
   is_sufficient: boolean
   source_ancestry?: string
   source_study: string
@@ -96,8 +101,10 @@ export function toGaugePrs(p: {
     bootstrap_ci_upper: null,
     bootstrap_iterations: 0,
     snps_used: p.snps_used,
+    snps_used_imputed: p.snps_used_imputed,
     snps_total: p.snps_total,
     coverage_fraction: p.coverage_fraction,
+    coverage_tier: p.coverage_tier,
     is_sufficient: p.is_sufficient,
     source_ancestry: p.source_ancestry ?? "",
     source_study: p.source_study,

@@ -22,8 +22,10 @@ interface FhLdlPrs {
   calibrated: boolean
   percentile: number | null
   snps_used: number
+  snps_used_imputed: number
   snps_total: number
   coverage_fraction: number
+  coverage_tier: "typed_only" | "imputed"
   is_sufficient: boolean
   source_study: string
   source_pmid: string

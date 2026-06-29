@@ -15,8 +15,10 @@ const BASE_PRS: MetabolicPRS = {
   calibrated: false,
   percentile: null,
   snps_used: 65000,
+  snps_used_imputed: 0,
   snps_total: 183830,
   coverage_fraction: 0.354,
+  coverage_tier: "typed_only",
   is_sufficient: false,
   source_ancestry: "EUR",
   source_study: "Sinnott-Armstrong 2021",
@@ -47,6 +49,18 @@ describe("toGaugePrs", () => {
     // No monogenic exclusion is implied by the adapter.
     expect(g.monogenic_genes).toEqual([])
     expect(g.research_use_only).toBe(true)
+  })
+
+  it("preserves imputation-aware coverage fields for the shared gauge", () => {
+    const g = toGaugePrs({
+      ...BASE_PRS,
+      snps_used: 65005,
+      snps_used_imputed: 5,
+      coverage_tier: "imputed",
+    })
+    expect(g.snps_used).toBe(65005)
+    expect(g.snps_used_imputed).toBe(5)
+    expect(g.coverage_tier).toBe("imputed")
   })
 })
 

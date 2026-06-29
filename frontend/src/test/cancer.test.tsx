@@ -74,8 +74,10 @@ const BREAST_PRS: CancerPRS = {
   bootstrap_ci_upper: 79.5,
   bootstrap_iterations: 1000,
   snps_used: 280,
+  snps_used_imputed: 0,
   snps_total: 313,
   coverage_fraction: 0.89,
+  coverage_tier: "typed_only",
   is_sufficient: true,
   source_ancestry: "EUR",
   source_study: "BCAC",
@@ -118,8 +120,10 @@ const MISMATCH_PRS: CancerPRS = {
   bootstrap_ci_upper: 61.8,
   bootstrap_iterations: 1000,
   snps_used: 150,
+  snps_used_imputed: 0,
   snps_total: 200,
   coverage_fraction: 0.75,
+  coverage_tier: "typed_only",
   is_sufficient: true,
   source_ancestry: "EUR",
   source_study: "PRACTICAL",
@@ -143,8 +147,10 @@ const INSUFFICIENT_PRS: CancerPRS = {
   bootstrap_ci_upper: null,
   bootstrap_iterations: 0,
   snps_used: 10,
+  snps_used_imputed: 0,
   snps_total: 50,
   coverage_fraction: 0.2,
+  coverage_tier: "typed_only",
   is_sufficient: false,
   source_ancestry: "EUR",
   source_study: "Meta-analysis",
@@ -167,8 +173,10 @@ const UNCALIBRATED_PRS: CancerPRS = {
   bootstrap_ci_upper: null,
   bootstrap_iterations: 0,
   snps_used: 18,
+  snps_used_imputed: 0,
   snps_total: 20,
   coverage_fraction: 0.9,
+  coverage_tier: "typed_only",
   is_sufficient: true,
   source_ancestry: "EUR",
   source_study: "CRC",
@@ -335,6 +343,42 @@ describe("PRSGaugeCard", () => {
   it("renders SNP coverage", () => {
     render(<PRSGaugeCard prs={BREAST_PRS} />)
     expect(screen.getByText("280/313 SNPs (89%)")).toBeInTheDocument()
+  })
+
+  it("renders a typed/imputed coverage split when imputed SNPs contribute", () => {
+    render(
+      <PRSGaugeCard
+        prs={{
+          ...BREAST_PRS,
+          snps_used: 280,
+          snps_used_imputed: 2,
+          coverage_tier: "imputed",
+        }}
+      />,
+    )
+
+    expect(screen.getByText("280/313 SNPs (89%)")).toBeInTheDocument()
+    expect(screen.getByTestId("prs-imputed-coverage-badge")).toHaveTextContent(
+      "Typed + imputed",
+    )
+    expect(screen.getByTestId("prs-imputed-coverage")).toHaveTextContent(
+      "Coverage split: 278 typed + 2 imputed SNPs",
+    )
+  })
+
+  it("does not render imputed coverage provenance for typed-only coverage", () => {
+    render(
+      <PRSGaugeCard
+        prs={{
+          ...BREAST_PRS,
+          snps_used_imputed: 0,
+          coverage_tier: "typed_only",
+        }}
+      />,
+    )
+
+    expect(screen.queryByTestId("prs-imputed-coverage-badge")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("prs-imputed-coverage")).not.toBeInTheDocument()
   })
 
   it("renders source study info", () => {

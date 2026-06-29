@@ -96,9 +96,16 @@ function GaugeSVG({
   )
 }
 
+function formatInteger(value: number): string {
+  return value.toLocaleString()
+}
+
 export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
   const hasAncestryWarning = Boolean(prs.ancestry_warning_text)
+  const snpsUsedImputed = Math.max(0, prs.snps_used_imputed ?? 0)
+  const snpsUsedTyped = Math.max(0, prs.snps_used - snpsUsedImputed)
+  const hasImputedCoverage = snpsUsedImputed > 0
 
   // Build the "(ancestry, n=…)" source detail conditionally. Shared adapters that
   // lack these fields (FH/eBMD via toGaugePrs) pass source_ancestry="" and
@@ -186,12 +193,32 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
       )}
 
       {/* Stats footer */}
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
+      <div className="flex items-start justify-between gap-3 pt-2 border-t border-border/50">
         <EvidenceStars level={prs.evidence_level} />
-        <span className="text-xs text-muted-foreground">
-          {prs.snps_used}/{prs.snps_total} SNPs ({coveragePct}%)
-        </span>
+        <div className="flex flex-col items-end gap-1 text-right">
+          <span className="text-xs text-muted-foreground">
+            {prs.snps_used}/{prs.snps_total} SNPs ({coveragePct}%)
+          </span>
+          {hasImputedCoverage && (
+            <span
+              className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+              data-testid="prs-imputed-coverage-badge"
+            >
+              Typed + imputed
+            </span>
+          )}
+        </div>
       </div>
+      {hasImputedCoverage && (
+        <p
+          className="mt-2 text-xs text-muted-foreground"
+          data-testid="prs-imputed-coverage"
+        >
+          Coverage split: {formatInteger(snpsUsedTyped)} typed +{" "}
+          {formatInteger(snpsUsedImputed)} imputed{" "}
+          {snpsUsedImputed === 1 ? "SNP" : "SNPs"}
+        </p>
+      )}
 
       {/* Source study */}
       <div className="mt-2 pt-2 border-t border-border/50">

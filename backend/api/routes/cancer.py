@@ -78,8 +78,10 @@ class CancerPRSResponse(BaseModel):
     bootstrap_ci_upper: float | None = None
     bootstrap_iterations: int = 0
     snps_used: int = 0
+    snps_used_imputed: int = 0
     snps_total: int = 0
     coverage_fraction: float = 0.0
+    coverage_tier: str = "typed_only"
     is_sufficient: bool = False
     source_ancestry: str = "EUR"
     source_study: str = ""
@@ -339,8 +341,10 @@ def list_cancer_prs(
                 bootstrap_ci_upper=detail.get("bootstrap_ci_upper"),
                 bootstrap_iterations=detail.get("bootstrap_iterations", 0),
                 snps_used=detail.get("snps_used", 0),
+                snps_used_imputed=detail.get("snps_used_imputed", 0),
                 snps_total=detail.get("snps_total", 0),
                 coverage_fraction=detail.get("coverage_fraction", 0.0),
+                coverage_tier=detail.get("coverage_tier", "typed_only"),
                 is_sufficient=detail.get("is_sufficient", False),
                 source_ancestry=detail.get("source_ancestry", "EUR"),
                 source_study=detail.get("source_study", ""),
