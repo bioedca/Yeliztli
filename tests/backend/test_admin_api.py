@@ -195,6 +195,17 @@ class TestLogExplorer:
         assert len(data2["entries"]) == 1
         assert data2["has_more"] is False
 
+        # Full final page: offset + page_size == total (the 5 seeded logs shown
+        # exactly, nothing beyond) must NOT advertise a next page (#1229). The
+        # cases above probe only 0+2=2 and 4+2=6 vs total 5 — never the == total
+        # boundary — so a `<` → `<=` off-by-one (a phantom "Next" page) ships
+        # green. 0 + 5 == 5 is False under `<` but True under `<=`.
+        resp_full = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 5})
+        data_full = resp_full.json()
+        assert len(data_full["entries"]) == 5
+        assert data_full["total"] == 5
+        assert data_full["has_more"] is False
+
     def test_newest_first_ordering(self, admin_client: TestClient) -> None:
         """Logs are returned in newest-first order (descending ID)."""
         resp = admin_client.get("/api/admin/logs")
