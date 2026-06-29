@@ -410,7 +410,25 @@ class TestRunPrsCalibrationProjectionLocksAllFields:
 
         monkeypatch.setattr(prs_module, "continuous_reference_distribution", _capture)
 
-        engine = _sample_with_ancestry(None, [])  # tables only; calibration is mocked
+        # rs1 must be SCORED so it survives the scored-subset filter (#1210) and
+        # still reaches the projection whose field completeness we lock here. The
+        # A/G genotype is non-palindromic → matched_ref; calibration itself is
+        # mocked, so a minimal matched genotype is all that is needed.
+        engine = _sample_with_ancestry(
+            None,
+            [
+                {
+                    "rsid": "rs1",
+                    "chrom": "1",
+                    "pos": 100,
+                    "ref": "G",
+                    "alt": "A",
+                    "genotype": "AG",
+                    "gnomad_af_global": 0.3,
+                    "annotation_coverage": 4,
+                }
+            ],
+        )
         weight_set = PRSWeightSet(
             name="field-set lock",
             trait="t",

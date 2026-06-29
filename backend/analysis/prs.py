@@ -83,6 +83,13 @@ PRS_HIGHER_IS_RISK = "risk"
 # Match-status marker for a contribution scored from a firewall-cleared imputed
 # dosage rather than a typed genotype (SW-C5).
 IMPUTED_MATCH_STATUS = "imputed"
+# Contribution ``match_status`` values that actually entered ``raw_score``: a typed
+# genotype matched on the reference or complemented strand, or a firewall-cleared
+# imputed dosage. Used to keep ancestry-continuous calibration over the *same* variant
+# set as the raw score (issue #1210) — a variant the raw score dropped (palindromic
+# homozygote → ``AMBIGUOUS_DROPPED``, ``NO_CALL``, ``MISSING_FREQ``, ``UNRESOLVED``)
+# must not inflate the expected mean/variance it never contributed to.
+_SCORED_MATCH_STATUSES = frozenset({MATCHED_REF, MATCHED_FLIP, IMPUTED_MATCH_STATUS})
 PRS_HIGHER_IS_PROTECTIVE = "protective"
 PRS_HIGHER_IS_VALUES = frozenset({PRS_HIGHER_IS_RISK, PRS_HIGHER_IS_PROTECTIVE})
 
@@ -1099,16 +1106,26 @@ def run_prs(
         result.calibration_reference_mean = reference_mean
         result.calibration_reference_std = reference_std
     else:
-        # Derive the calibration weight dicts straight from the dataclass rather
-        # than re-listing fields by hand. continuous_reference_distribution()
-        # consumes the same strand-aware allele-pair frame as the raw score
-        # (rsid/chrom/pos/effect_allele/other_allele/weight), so every PRSSNPWeight
-        # field must reach it; a hand-built dict silently dropped other_allele and
-        # excluded reverse-strand non-palindromic variants from the expected
-        # mean/variance (#1179). asdict() makes any future field flow through
-        # automatically, closing that field-drift seam (#1209). Extra keys are
-        # harmless — the consumer reads only the keys it needs.
-        weights = [asdict(w) for w in weight_set.weights]
+        # Standardize the raw score only against a distribution over the SAME
+        # variants that contributed to it. compute_prs emits exactly one
+        # contribution per weight, in order, so zip pairs each weight with its
+        # scored/dropped status; a variant the raw score dropped (palindromic
+        # homozygote → AMBIGUOUS_DROPPED, no-call, missing-freq, unresolved) must
+        # not enter the expected mean/variance, or the z-score compares a raw
+        # score missing the variant against a distribution that assumes it was
+        # scored (issue #1210). strict=True asserts the one-contribution-per-weight
+        # invariant rather than silently mis-pairing.
+        #
+        # asdict() derives each weight dict straight from the dataclass so every
+        # PRSSNPWeight field (rsid/chrom/pos/effect_allele/other_allele/weight)
+        # reaches continuous_reference_distribution() and no future field can drift
+        # out of a hand-built projection (#1179/#1209); the consumer reads only the
+        # keys it needs.
+        weights = [
+            asdict(w)
+            for w, contrib in zip(weight_set.weights, result.contributions, strict=True)
+            if contrib.match_status in _SCORED_MATCH_STATUSES
+        ]
         dist = continuous_reference_distribution(weights, sample_engine)
         if dist is not None:
             reference_mean = dist.mean

@@ -931,6 +931,101 @@ class TestRunPRS:
         assert result.percentile is None
         assert result.bootstrap_iterations == 0
 
+    def test_calibration_excludes_palindromic_homozygote_dropped_from_raw_score(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Ancestry-continuous calibration must standardize the raw score against a
+        distribution over the SAME variants that contributed to it (issue #1210).
+
+        A palindromic A/T homozygote is strand-ambiguous for a single sample
+        (AMBIGUOUS_DROPPED) and excluded from the raw score, so it must not enter the
+        expected mean/variance either — otherwise the z-score compares a raw score
+        missing the variant against a distribution that assumes it was scored.
+        """
+        weight_set = PRSWeightSet(
+            name="Palindrome calibration PRS",
+            trait="calibration_palindrome_test",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Test et al. 2026",
+            source_pmid="99999999",
+            sample_size=100000,
+            weights=[
+                # Non-palindromic C/T → scored (matched_ref, dosage 2).
+                PRSSNPWeight(rsid="rsCAL1", effect_allele="T", other_allele="C", weight=1.0),
+                # Palindromic A/T homozygote → strand-ambiguous → AMBIGUOUS_DROPPED.
+                PRSSNPWeight(rsid="rsPAL", effect_allele="A", other_allele="T", weight=1.0),
+            ],
+            reference_mean=0.0,
+            reference_std=1.0,
+            calibrated=False,
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsCAL1",
+                        "chrom": "1",
+                        "pos": 100,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "TT",
+                        "gnomad_af_global": 0.25,
+                        "gnomad_af_eur": 0.25,
+                        "gnomad_af_afr": 0.75,
+                        "gnomad_af_amr": 0.45,
+                        "gnomad_af_eas": 0.10,
+                        "gnomad_af_sas": 0.35,
+                        "annotation_coverage": 4,
+                    },
+                    {
+                        # A/T homozygote away from MAF 0.5 → dropped, but has a usable
+                        # per-pop AF, so pre-fix it leaked into the calibration set.
+                        "rsid": "rsPAL",
+                        "chrom": "1",
+                        "pos": 300,
+                        "ref": "A",
+                        "alt": "T",
+                        "genotype": "AA",
+                        "gnomad_af_global": 0.04,
+                        "gnomad_af_eur": 0.04,
+                        "gnomad_af_afr": 0.04,
+                        "gnomad_af_amr": 0.04,
+                        "gnomad_af_eas": 0.04,
+                        "gnomad_af_sas": 0.04,
+                        "annotation_coverage": 4,
+                    },
+                ],
+            )
+            conn.execute(
+                sa.insert(findings).values(
+                    module="ancestry",
+                    category="nnls_admixture",
+                    finding_text="Inferred ancestry",
+                    detail_json=json.dumps(
+                        {"top_population": "EUR", "nnls_fractions": {"EUR": 0.75, "AFR": 0.25}}
+                    ),
+                )
+            )
+
+        result = run_prs(
+            weight_set, sample_engine, inferred_ancestry="EUR", n_bootstrap=25, rng_seed=42
+        )
+
+        # The palindromic homozygote is dropped from the raw score …
+        assert result.snps_ambiguous_dropped == 1
+        assert result.snps_used == 1
+        assert result.contributions[1].match_status == "ambiguous_dropped"
+        # … and must NOT enter the calibration distribution: only the one scored variant
+        # is standardized against (pre-fix this was 2 total / 2 used, biasing the z-score).
+        assert result.calibration_method == "ancestry_continuous"
+        assert result.calibration_variants_total == 1
+        assert result.calibration_variants_used == 1
+        # A percentile is still emitted over the scored variant (not over-withheld).
+        assert result.percentile is not None
+        assert result.z_score is not None
+
 
 # ── Findings storage tests ──────────────────────────────────────────────
 
