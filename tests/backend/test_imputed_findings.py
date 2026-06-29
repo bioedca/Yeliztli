@@ -19,6 +19,7 @@ from backend.analysis.imputed_findings import (
     IMPUTED_CONFIRMATION_CAVEAT,
     IMPUTED_EVIDENCE_CAP,
     IMPUTED_MODULE,
+    _minimal_repr,
     find_imputed_clinvar_findings,
     store_imputed_findings,
 )
@@ -297,6 +298,71 @@ def test_typed_different_allele_does_not_suppress(
     assert (f.chrom, f.pos, f.ref, f.alt) == ("6", 26093141, "G", "C")
     assert f.clinvar_significance == "Pathogenic"
     assert f.evidence_level <= IMPUTED_EVIDENCE_CAP
+
+
+def test_minimal_repr_is_noop_for_snvs_and_trims_indels() -> None:
+    """`_minimal_repr` leaves SNVs untouched and reduces equivalent indel spellings
+    to one canonical parsimonious form (issue #1218)."""
+    # SNVs: nothing to trim → unchanged (the dominant, must-not-regress path).
+    assert _minimal_repr("1", 100, "G", "A") == ("1", 100, "G", "A")
+    assert _minimal_repr("1", 100, "C", "T") == ("1", 100, "C", "T")
+    # Empty/missing allele → returned as-is (cannot claim a specific allele).
+    assert _minimal_repr("1", 100, "", "") == ("1", 100, "", "")
+    # The same one-base deletion in two valid VCF spellings collapses to one form.
+    assert _minimal_repr("1", 100, "GA", "G") == _minimal_repr("1", 100, "GAA", "GA")
+    assert _minimal_repr("1", 100, "GAA", "GA") == ("1", 100, "GA", "G")
+    # A trailing-context-only difference is position-preserving.
+    assert _minimal_repr("1", 100, "ATT", "A") == _minimal_repr("1", 100, "ATTT", "AT")
+    # Shared suffix then shared prefix: the coordinate advances as the prefix is trimmed.
+    assert _minimal_repr("1", 100, "ATCG", "ATG") == ("1", 101, "TC", "T")
+
+
+def test_typed_indel_excludes_equivalent_imputed_indel_representation(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A typed indel excludes an imputed indel written with a different but
+    parsimony-equivalent anchor/trailing context (issue #1218).
+
+    Without minimal-representation matching the two spellings differ as raw strings,
+    so the chip-typed indel fails to suppress the imputed one and a duplicate
+    imputed-not-typed finding surfaces for a variant the chip already has.
+    """
+    # Imputed deletion at 1:100 spelled GAA>GA; ClinVar carries that exact spelling,
+    # so absent the typed-exclusion it would surface a finding.
+    _seed_imputed(sample_engine, [_imp(chrom="1", pos=100, ref="GAA", alt="GA")])
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="1", pos=100, ref="GAA", alt="GA", rsid="rsINDEL", accession="VCV000000002")],
+    )
+    # The chip directly typed the SAME deletion, minimally spelled GA>G at 1:100.
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rsINDEL", "chrom": "1", "pos": 100, "ref": "GA", "alt": "G"}],
+    )
+
+    # Equivalent under minimal representation → excluded, no duplicate finding.
+    assert find_imputed_clinvar_findings(sample_engine, reference_engine) == []
+
+
+def test_typed_different_indel_does_not_exclude_imputed_indel(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    """A typed indel that is NOT the same variant must not suppress an imputed indel
+    (the minimal-representation match stays allele-specific, issue #1218)."""
+    _seed_imputed(sample_engine, [_imp(chrom="1", pos=100, ref="GAA", alt="GA")])
+    _seed_clinvar(
+        reference_engine,
+        [_cv(chrom="1", pos=100, ref="GAA", alt="GA", rsid="rsINDEL", accession="VCV000000002")],
+    )
+    # A genuinely different deletion at the same coordinate (CT>C) — not equivalent.
+    _seed_typed(
+        sample_engine,
+        [{"rsid": "rsOTHER", "chrom": "1", "pos": 100, "ref": "CT", "alt": "C"}],
+    )
+
+    results = find_imputed_clinvar_findings(sample_engine, reference_engine)
+    assert len(results) == 1
+    assert (results[0].ref, results[0].alt) == ("GAA", "GA")
 
 
 def test_chrom_prefix_normalized(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:

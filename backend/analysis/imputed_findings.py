@@ -180,8 +180,37 @@ def _load_carried_imputed_variants(
     return carried
 
 
+def _minimal_repr(
+    chrom: str | None, pos: int, ref: str, alt: str
+) -> tuple[str | None, int, str, str]:
+    """Reduce an allele to its parsimonious minimal representation for comparison.
+
+    The same biological indel can be written several valid ways in VCF (different
+    anchor base, trailing context); the array-, imputation-, and ClinVar-derived
+    tables come from independent pipelines and need not agree. This trims the bases
+    REF and ALT share — right-most first (position-preserving), then left-most
+    (advancing ``pos``) — the reference-free half of variant normalization
+    (Tan et al. 2015, PMID:25701572, DOI:10.1093/bioinformatics/btv112).
+
+    **SNVs are returned unchanged** (single-base alleles have nothing to trim), so
+    this is a no-op on this module's SNV-dominated traffic; it only collapses the
+    differing-anchor / trailing-context indel spellings two sources can disagree on
+    (issue #1218). It does **not** left-align across a repeat (that needs the
+    reference sequence), so equivalence is resolved only up to parsimony.
+    """
+    if not ref or not alt:
+        return (chrom, pos, ref, alt)
+    # Trim a shared suffix base (position-preserving) while both alleles keep ≥1 base.
+    while len(ref) > 1 and len(alt) > 1 and ref[-1] == alt[-1]:
+        ref, alt = ref[:-1], alt[:-1]
+    # Trim a shared prefix base, advancing pos, while both alleles keep ≥1 base.
+    while len(ref) > 1 and len(alt) > 1 and ref[0] == alt[0]:
+        ref, alt, pos = ref[1:], alt[1:], pos + 1
+    return (chrom, pos, ref, alt)
+
+
 def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, str]]:
-    """``(norm_chrom, pos, ref, alt)`` the chip directly typed (from ``annotated_variants``).
+    """Minimal-representation ``(norm_chrom, pos, ref, alt)`` the chip directly typed.
 
     Imputed findings only fill chip gaps, so an allele already in ``annotated_variants``
     — owned by the directly-typed finding generators — is excluded to avoid duplicating
@@ -197,6 +226,10 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, 
     shares its coordinate (issue #1187). ``ref``/``alt`` are nullable in
     ``annotated_variants``; a row missing either cannot claim a specific allele, so it
     normalizes to ``""`` and will not match any real imputed allele key.
+
+    Keys are reduced to their :func:`_minimal_repr` so a typed indel still excludes an
+    imputed candidate written with a different (but equivalent) anchor/trailing context
+    (issue #1218); the imputed candidate is normalized the same way at the exclusion check.
     """
     with sample_engine.connect() as conn:
         rows = conn.execute(
@@ -208,7 +241,8 @@ def _typed_alleles(sample_engine: sa.Engine) -> set[tuple[str | None, int, str, 
             )
         ).fetchall()
     return {
-        (_norm_chrom(r.chrom), r.pos, (r.ref or "").upper(), (r.alt or "").upper()) for r in rows
+        _minimal_repr(_norm_chrom(r.chrom), r.pos, (r.ref or "").upper(), (r.alt or "").upper())
+        for r in rows
     }
 
 
@@ -236,7 +270,11 @@ def find_imputed_clinvar_findings(
     # Index carried imputed variants by exact allele key; drop chip-typed alleles.
     # The drop is allele-specific: only an imputed candidate whose exact
     # ``(chrom, pos, ref, alt)`` was directly typed is excluded, so a different ALT at a
-    # coordinate the chip typed for another allele still surfaces (issue #1187).
+    # coordinate the chip typed for another allele still surfaces (issue #1187). The
+    # exclusion test compares minimal representations (issue #1218) so an indel the chip
+    # typed still excludes the same indel written with a different anchor/trailing context;
+    # ``allele_key`` itself stays the raw imputed spelling because the downstream ClinVar
+    # match is an exact ``(chrom, pos, ref, alt)`` lookup keyed on the imputed positions.
     by_allele: dict[tuple[str | None, int, str, str], tuple[ImputedVariant, int]] = {}
     for variant, copies in carried:
         allele_key = (
@@ -245,7 +283,7 @@ def find_imputed_clinvar_findings(
             variant.ref.upper(),
             variant.alt.upper(),
         )
-        if allele_key in typed:
+        if _minimal_repr(*allele_key) in typed:
             continue
         by_allele[allele_key] = (variant, copies)
     if not by_allele:
