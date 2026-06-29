@@ -912,6 +912,42 @@ class TestAPOEFindingsContentLipid:
 
         assert "Saturated fat" in lipid.conditions
 
+    # Curated APOE-genotype × dietary-fat lipid-response citations
+    # (see backend/analysis/apoe.py::_LIPID_DIETARY_PMIDS provenance comment).
+    _EXPECTED_LIPID_PMIDS = {"9507235", "11119301", "37438877"}
+    # PMIDs that were previously attached to the lipid/dietary finding but do
+    # NOT support APOE saturated-fat / LDL-response biology (issue #1180):
+    #   9343467  → APOE/Alzheimer's meta-analysis (not dietary)
+    #   17309940 → renal sympathetic function in rabbits (unrelated)
+    #   26109578 → dietary cholesterol / CVD meta-analysis (not APOE-specific)
+    #   24820091 → NRAS / follicular thyroid carcinoma (unrelated)
+    _UNRELATED_LIPID_PMIDS = {"9343467", "17309940", "26109578", "24820091"}
+
+    def test_lipid_dietary_pmids_are_curated_apoe_diet_set(self) -> None:
+        """The lipid/dietary citation set is exactly the curated APOE-genotype
+        dietary-fat sources and excludes the unrelated PMIDs from #1180."""
+        pmids = set(apoe_module._LIPID_DIETARY_PMIDS)
+        assert pmids == self._EXPECTED_LIPID_PMIDS
+        assert pmids.isdisjoint(self._UNRELATED_LIPID_PMIDS)
+
+    def test_lipid_finding_carries_apoe_diet_pmids_for_all_diplotypes(self) -> None:
+        """Every generated lipid/dietary finding carries the curated APOE
+        dietary-fat citations and none of the unrelated #1180 PMIDs."""
+        allele_map = {"ε2": APOEAllele.E2, "ε3": APOEAllele.E3, "ε4": APOEAllele.E4}
+
+        for diplotype in ["ε2/ε2", "ε2/ε3", "ε2/ε4", "ε3/ε3", "ε3/ε4", "ε4/ε4"]:
+            allele1, allele2 = (allele_map[allele] for allele in diplotype.split("/"))
+            result = APOEResult(
+                status=APOEStatus.DETERMINED,
+                allele1=allele1,
+                allele2=allele2,
+                diplotype=diplotype,
+            )
+            lipid = generate_apoe_findings(result)[2]
+
+            assert set(lipid.pmid_citations) == self._EXPECTED_LIPID_PMIDS
+            assert self._UNRELATED_LIPID_PMIDS.isdisjoint(lipid.pmid_citations)
+
 
 # ── Three findings storage ──────────────────────────────────────────────
 

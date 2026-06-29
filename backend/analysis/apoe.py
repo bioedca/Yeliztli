@@ -838,7 +838,26 @@ _LIPID_DIETARY: dict[str, dict[str, Any]] = {
 _CV_PMIDS = ["21460841", "9343467", "17309940", "28577312"]
 _CV_E3_E4_MECHANISM_PMIDS = ["28276521", "18369154", "1939641"]
 _ALZHEIMERS_PMIDS = ["21460841", "9343467", "24162737", "23571587", "37930705", "32818802"]
-_LIPID_DIETARY_PMIDS = ["9343467", "17309940", "26109578", "24820091"]
+# APOE-genotype × dietary-fat lipid-response citations for the lipid/dietary
+# finding. Each PMID is an APOE-genotype-specific dietary-fat / serum-lipid
+# response source that substantiates the saturated-fat / LDL-response claims in
+# `_LIPID_DIETARY` above (PubMed, accessed 2026-06-28):
+#   - PMID 9507235  (DOI 10.1007/s11745-998-0189-7) — Tso et al. 1998,
+#     Lipids 33(2):139-148: controlled crossover feeding study; serum
+#     lipoprotein response to saturated fatty acids is regulated in part by
+#     apoE polymorphism, with ε2/ε3/ε4 differing.
+#   - PMID 11119301 (DOI 10.1002/1098-2272(200101)20:1<117::AID-GEPI10>3.0.CO;2-C)
+#     — Campos, D'Agostino & Ordovás 2001, Genet Epidemiol 20(1):117-128:
+#     n=420; APOE genotype × habitual saturated-fat interaction on plasma
+#     lipoproteins and LDL particle size (ε2 vs ε4 opposing effects).
+#   - PMID 37438877 (DOI 10.1002/alz.13358) — Dunk et al. 2023,
+#     Alzheimers Dement 19(12):5742-5754: n=5358; APOE4+ carriers show a less
+#     favourable LDL/non-HDL response to higher dietary cholesterol/fat than ε3.
+# Supersedes the earlier set (issue #1180), whose PMIDs were an APOE/Alzheimer's
+# meta-analysis, rabbit renovascular hypertension, a non-APOE diet/CVD
+# meta-analysis, and follicular thyroid carcinoma — none of which support the
+# APOE lipid/dietary biology asserted here.
+_LIPID_DIETARY_PMIDS = ["9507235", "11119301", "37438877"]
 
 
 def _cv_pmids_for_diplotype(diplotype: str) -> list[str]:
