@@ -76,6 +76,12 @@ class TestClassifyActionability:
         rec = "Increase starting dose by 1.5-2x. Monitor trough concentrations."
         assert classify_actionability(rec) == ACTIONABILITY_ACTIONABLE
 
+    def test_standard_dosing_plus_monitoring_is_actionable(self):
+        # "monitor" is the only action marker here. Without it, the routine
+        # "standard...dosing" marker would incorrectly demote this recommendation.
+        rec = "Initiate at standard label-recommended dosing; monitor for myelosuppression."
+        assert classify_actionability(rec) == ACTIONABILITY_ACTIONABLE
+
     def test_action_verb_beats_routine_marker(self):
         # A routine marker AND an action verb in the same recommendation → actionable.
         assert (
