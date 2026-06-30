@@ -5,7 +5,7 @@ import { createRef } from "react"
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
 import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
-import IgvBrowser from "./IgvBrowser"
+import IgvBrowser, { GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY } from "./IgvBrowser"
 import type { IgvBrowserHandle } from "./IgvBrowser"
 import { __setIgvForTesting } from "./igv-test-utils"
 
@@ -21,6 +21,11 @@ const mockBrowser = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  // These suites exercise the browser itself, not the one-time reference-fetch
+  // disclosure gate (#1286) — pre-acknowledge so they reach IGV initialization.
+  // The gate's own behaviour (with a cleared ack) is covered separately below.
+  localStorage.setItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY, "acknowledged")
   mockCreateBrowser.mockResolvedValue(mockBrowser)
   __setIgvForTesting({
     createBrowser: mockCreateBrowser,
@@ -204,5 +209,56 @@ describe("IgvBrowser", () => {
     })
     const igvContainer = screen.getByTestId("igv-container")
     expect(igvContainer.style.minHeight).toBe("800px")
+  })
+})
+
+describe("IgvBrowser reference-fetch disclosure (#1286)", () => {
+  it("shows the disclosure and does NOT fetch the reference until acknowledged", async () => {
+    localStorage.removeItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY)
+    render(<IgvBrowser />)
+
+    expect(
+      screen.getByRole("region", { name: /reference-data notice/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /continue to the genome browser/i }),
+    ).toBeInTheDocument()
+    // The third-party fetch (IGV init) must not have happened yet.
+    expect(mockCreateBrowser).not.toHaveBeenCalled()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
+  it("initializes IGV and persists the acknowledgment after Continue", async () => {
+    localStorage.removeItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY)
+    const user = userEvent.setup()
+    render(<IgvBrowser />)
+
+    expect(mockCreateBrowser).not.toHaveBeenCalled()
+    await user.click(
+      screen.getByRole("button", { name: /continue to the genome browser/i }),
+    )
+
+    await waitFor(() => {
+      expect(mockCreateBrowser).toHaveBeenCalledTimes(1)
+    })
+    expect(localStorage.getItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY)).toBe(
+      "acknowledged",
+    )
+    // Notice is gone once acknowledged.
+    expect(
+      screen.queryByRole("region", { name: /reference-data notice/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("skips the disclosure and initializes directly when already acknowledged", async () => {
+    localStorage.setItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY, "acknowledged")
+    render(<IgvBrowser />)
+
+    await waitFor(() => {
+      expect(mockCreateBrowser).toHaveBeenCalledTimes(1)
+    })
+    expect(
+      screen.queryByRole("region", { name: /reference-data notice/i }),
+    ).not.toBeInTheDocument()
   })
 })

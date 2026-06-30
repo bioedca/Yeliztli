@@ -41,7 +41,8 @@ all of them are user-initiated, so here is the complete accounting.
   hosted genome registry (third-party servers). Because it fetches the sequence by **region**,
   **the loci and genes you navigate to are observable to those hosts** — there is no genotype
   payload, but the regions you choose to inspect are themselves sensitive. This happens only
-  while the Genome Browser is open.
+  while the Genome Browser is open, and the **first** time you open it Yeliztli shows a one-time
+  in-app notice disclosing this fetch before any reference data is requested.
 
 ### User-initiated
 
@@ -65,9 +66,11 @@ starting reference downloads. For the **automatic** connections:
   (`raw.githubusercontent.com`): the daily scheduler becomes a no-op and the dashboard's
   auto-checks return immediately without any outbound request. No update banner will appear; to
   check again, set the value back to `startup`, `daily`, or `weekly`.
-- The Genome Browser still reaches the IGV.js hosted genome registry whenever you open it — this
-  is not yet configurable (tracked separately). If you do not open the Genome Browser, it makes
-  no connection.
+- The Genome Browser still reaches the IGV.js hosted genome registry whenever you open it, to
+  load the GRCh37 reference sequence and RefSeq track. The **first** time you open it, Yeliztli
+  shows a one-time notice disclosing this third-party fetch and only contacts those servers
+  after you acknowledge it; serving the reference fully locally is tracked separately. If you do
+  not open the Genome Browser, it makes no connection.
 
 For a hard guarantee that **nothing** leaves the machine, **block Yeliztli's network access at the
 operating-system or firewall level** after setup — that suppresses all of the automatic checks

@@ -527,3 +527,35 @@ test.describe('P4-26d: Cross-browser — responsive layout', () => {
     })
   }
 })
+
+// ── 7. Genome Browser reference-fetch disclosure (#1286) ───────────────
+// On first open, the Genome Browser must show a one-time notice that the GRCh37
+// reference + RefSeq track are fetched from the IGV.js project's third-party
+// servers, and must NOT initialize IGV (the fetch) until the user acknowledges.
+test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () => {
+  test('shows the one-time third-party fetch disclosure before loading IGV', async ({
+    page,
+  }) => {
+    // Fresh context → clean localStorage → the one-time notice is shown.
+    await page.goto('/genome-browser')
+    await page.waitForLoadState('networkidle')
+
+    const notice = page.getByRole('region', { name: /reference-data notice/i })
+    await expect(notice).toBeVisible()
+    await expect(notice).toContainText('IGV.js project')
+    const continueBtn = page.getByRole('button', {
+      name: /continue to the genome browser/i,
+    })
+    await expect(continueBtn).toBeVisible()
+    // IGV has not initialized yet — its root element must be absent.
+    await expect(page.locator('.igv-root-div')).toHaveCount(0)
+
+    // Acknowledging dismisses the notice and records the consent (one-time).
+    await continueBtn.click()
+    await expect(notice).toBeHidden()
+    const ack = await page.evaluate(() =>
+      window.localStorage.getItem('yeliztli.genome-browser-reference-disclosure'),
+    )
+    expect(ack).toBe('acknowledged')
+  })
+})

@@ -5,8 +5,43 @@
  * Uses useEffect + ref pattern to create/destroy the browser instance.
  * IGV.js is dynamically imported to avoid bloating the test worker (~3MB module).
  */
-import { useEffect, useRef, useMemo, useReducer, forwardRef, useImperativeHandle } from "react"
+import {
+  useEffect,
+  useRef,
+  useMemo,
+  useReducer,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from "react"
 import { __getIgvOverride, type IgvModule } from "./igv-test-utils"
+
+// ── Reference-fetch disclosure (one-time, #1286) ────────────────────
+//
+// IGV.js is initialized with the *named* "hg19" genome (no local reference/
+// fastaURL), so it streams the GRCh37 sequence and the RefSeq gene track from the
+// IGV.js project's public servers, fetching by region — the loci a user navigates
+// to are observable to those third-party hosts. The reference is not yet bundled
+// locally (tracked separately), so before the first fetch we show a one-time,
+// dismissible disclosure and only initialize IGV (the fetch) once the user
+// acknowledges it. The acknowledgment persists in localStorage so it is shown only
+// once per browser.
+export const GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY =
+  "yeliztli.genome-browser-reference-disclosure"
+const _DISCLOSURE_ACK_VALUE = "acknowledged"
+
+function hasAcknowledgedReferenceFetch(): boolean {
+  try {
+    return (
+      window.localStorage.getItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY) ===
+      _DISCLOSURE_ACK_VALUE
+    )
+  } catch {
+    // localStorage unavailable (private mode / disabled) → show the disclosure
+    // rather than silently make the third-party fetch.
+    return false
+  }
+}
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -126,6 +161,24 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
     const [state, dispatch] = useReducer(browserReducer, { status: "loading" })
     // Incrementing retryCount forces the init effect to re-run
     const [retryCount, setRetryCount] = useReducer((c: number) => c + 1, 0)
+    // One-time reference-fetch disclosure (#1286): until acknowledged, IGV is not
+    // initialized, so no GRCh37 sequence / RefSeq track is fetched from the
+    // third-party IGV.js servers.
+    const [referenceFetchAcked, setReferenceFetchAcked] = useState<boolean>(
+      hasAcknowledgedReferenceFetch,
+    )
+
+    const acknowledgeReferenceFetch = () => {
+      try {
+        window.localStorage.setItem(
+          GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY,
+          _DISCLOSURE_ACK_VALUE,
+        )
+      } catch {
+        // Persisting is best-effort; proceed even if localStorage is unavailable.
+      }
+      setReferenceFetchAcked(true)
+    }
 
     // Stable tracks serialization to avoid infinite effect loops
     // when callers pass inline array literals (e.g., tracks={[]})
@@ -150,6 +203,9 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
     // Initialize browser on mount (and on retry), destroy on unmount
     useEffect(() => {
       if (!containerRef.current) return
+      // Gate the third-party reference fetch behind the one-time disclosure (#1286):
+      // do not initialize IGV until the user has acknowledged it.
+      if (!referenceFetchAcked) return
 
       let cancelled = false
       let igvModule: Awaited<ReturnType<typeof loadIgv>> | null = null
@@ -238,11 +294,35 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
           browserRef.current = null
         }
       }
-    }, [locus, stableTracks, retryCount])
+    }, [locus, stableTracks, retryCount, referenceFetchAcked])
 
     return (
       <div className={className}>
-        {state.status === "loading" && (
+        {!referenceFetchAcked && (
+          <div
+            role="region"
+            aria-label="Genome Browser reference-data notice"
+            className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-sm"
+          >
+            <p className="font-medium">Reference data is fetched from a third party</p>
+            <p className="mt-1 text-muted-foreground">
+              The Genome Browser loads the GRCh37/hg19 reference sequence and the RefSeq
+              gene track from the IGV.js project's public servers (igv.org / the Broad
+              Institute). Because it fetches by region, the genomic locations you navigate
+              to are visible to those servers — no genotype data is sent. This is the only
+              feature that contacts a third party during normal use, and it happens only
+              while the Genome Browser is open.
+            </p>
+            <button
+              type="button"
+              onClick={acknowledgeReferenceFetch}
+              className="mt-3 inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Continue to the Genome Browser
+            </button>
+          </div>
+        )}
+        {referenceFetchAcked && state.status === "loading" && (
           <div
             className="flex items-center justify-center py-12 text-muted-foreground"
             role="status"
@@ -271,7 +351,7 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
             Loading genome browser…
           </div>
         )}
-        {state.status === "error" && (
+        {referenceFetchAcked && state.status === "error" && (
           <div
             className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm"
             role="alert"
@@ -290,7 +370,9 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
         <div
           ref={containerRef}
           data-testid="igv-container"
-          style={{ minHeight: state.status === "loading" ? 0 : minHeight }}
+          style={{
+            minHeight: !referenceFetchAcked || state.status === "loading" ? 0 : minHeight,
+          }}
         />
       </div>
     )
