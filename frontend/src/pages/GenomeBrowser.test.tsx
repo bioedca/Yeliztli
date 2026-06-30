@@ -7,6 +7,7 @@ import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
 import GenomeBrowser from "./GenomeBrowser"
 import { __setIgvForTesting } from "@/components/igv-browser"
+import { GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY } from "@/components/igv-browser/IgvBrowser"
 
 const mockSearch = vi.fn()
 const mockOn = vi.fn()
@@ -17,6 +18,11 @@ const mockBrowser = { search: mockSearch, on: mockOn }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  // These tests exercise the browser's search/locus/variant-click behaviour, not
+  // the one-time reference-fetch disclosure gate (#1286) — pre-acknowledge it so
+  // IGV initializes. The gate itself is covered in IgvBrowser.test.tsx.
+  localStorage.setItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY, "acknowledged")
   mockCreateBrowser.mockResolvedValue(mockBrowser)
   __setIgvForTesting({
     createBrowser: mockCreateBrowser,
