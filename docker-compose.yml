@@ -1,6 +1,9 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        YELIZTLI_PORT: ${YELIZTLI_PORT:-8000}
     image: yeliztli:latest
     ports:
       - "${YELIZTLI_PUBLISH_HOST:-127.0.0.1}:${YELIZTLI_PORT:-8000}:${YELIZTLI_PORT:-8000}"

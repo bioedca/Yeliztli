@@ -206,7 +206,8 @@ class TestDockerConfiguration:
 
     def test_dockerfile_exposes_port(self):
         content = (_repo_root() / "Dockerfile").read_text()
-        assert "EXPOSE 8000" in content
+        assert "ARG YELIZTLI_PORT=8000" in content
+        assert "EXPOSE ${YELIZTLI_PORT}" in content
 
     def test_docker_compose_services(self):
         import yaml
@@ -216,6 +217,7 @@ class TestDockerConfiguration:
         services = config.get("services", {})
         assert "api" in services, "Missing api service"
         assert "huey" in services, "Missing huey service"
+        assert services["api"]["build"]["args"]["YELIZTLI_PORT"] == "${YELIZTLI_PORT:-8000}"
 
     def test_docker_compose_localhost_only(self):
         content = (_repo_root() / "docker-compose.yml").read_text()
