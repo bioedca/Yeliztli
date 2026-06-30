@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.allelic_state import allelic_state_label
+from backend.analysis.allelic_state import allelic_state_label, norm_chrom_label
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.gtex import eqtl_regulatory_context
@@ -450,10 +450,12 @@ def get_variant_detail(
         data[col.name] = getattr(row, col.name, None)
 
     registry = get_registry()
-    biological_sex = resolve_biological_sex(
-        recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
-        inferred_sex=infer_biological_sex(sample_engine),
-    ).sex
+    biological_sex: str | None = None
+    if norm_chrom_label(data.get("chrom")) in ("X", "Y"):
+        biological_sex = resolve_biological_sex(
+            recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
+            inferred_sex=infer_biological_sex(sample_engine),
+        ).sex
     data["zygosity_label"] = allelic_state_label(data, biological_sex)
 
     # 3. P3-26: Ancestry-matched AF display

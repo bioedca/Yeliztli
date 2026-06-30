@@ -3,7 +3,6 @@ export function formatZygosityLabel(
   zygosityLabel?: string | null,
 ): string {
   if (zygosityLabel) return zygosityLabel
-  if (zygosity === "hom_alt") return "Homozygous"
-  if (zygosity === "het") return "Heterozygous"
+  if (zygosity) return "—"
   return "—"
 }

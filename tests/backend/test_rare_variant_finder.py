@@ -428,13 +428,15 @@ class TestSexChromosomeGate:
 
 
 class TestPloidyAwareZygosityLabels:
-    def _rare_hom_alt_row(self, *, rsid: str, chrom: str, pos: int) -> dict:
+    def _rare_carried_row(
+        self, *, rsid: str, chrom: str, pos: int, zygosity: str = "hom_alt"
+    ) -> dict:
         return _v(
             rsid=rsid,
             chrom=chrom,
             pos=pos,
-            genotype="T",
-            zygosity="hom_alt",
+            genotype="AT" if zygosity == "het" else "T",
+            zygosity=zygosity,
             gene_symbol="GENE1",
             consequence="missense_variant",
             gnomad_af_global=0.0001,
@@ -454,7 +456,7 @@ class TestPloidyAwareZygosityLabels:
     def test_xy_nonpar_x_hom_alt_label_is_hemizygous(self, sample_engine: sa.Engine) -> None:
         variant = self._only_variant(
             sample_engine,
-            self._rare_hom_alt_row(rsid="rs_x_nonpar", chrom="X", pos=10_000_000),
+            self._rare_carried_row(rsid="rs_x_nonpar", chrom="X", pos=10_000_000),
             "XY",
         )
         assert variant.zygosity == "hom_alt"
@@ -463,7 +465,25 @@ class TestPloidyAwareZygosityLabels:
     def test_xy_x_par_hom_alt_label_stays_homozygous(self, sample_engine: sa.Engine) -> None:
         variant = self._only_variant(
             sample_engine,
-            self._rare_hom_alt_row(rsid="rs_x_par", chrom="X", pos=60_001),
+            self._rare_carried_row(rsid="rs_x_par", chrom="X", pos=60_001),
+            "XY",
+        )
+        assert variant.zygosity == "hom_alt"
+        assert variant.zygosity_label == "Homozygous"
+
+    def test_xy_nonpar_y_hom_alt_label_is_hemizygous(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_carried_row(rsid="rs_y_nonpar", chrom="Y", pos=2_787_000),
+            "XY",
+        )
+        assert variant.zygosity == "hom_alt"
+        assert variant.zygosity_label == "Hemizygous"
+
+    def test_xy_y_par_hom_alt_label_stays_homozygous(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_carried_row(rsid="rs_y_par", chrom="Y", pos=10_001),
             "XY",
         )
         assert variant.zygosity == "hom_alt"
@@ -472,11 +492,20 @@ class TestPloidyAwareZygosityLabels:
     def test_mtdna_hom_alt_label_is_homoplasmic(self, sample_engine: sa.Engine) -> None:
         variant = self._only_variant(
             sample_engine,
-            self._rare_hom_alt_row(rsid="rs_mt", chrom="MT", pos=3_012),
+            self._rare_carried_row(rsid="rs_mt", chrom="MT", pos=3_012),
             "XX",
         )
         assert variant.zygosity == "hom_alt"
         assert variant.zygosity_label == "Homoplasmic"
+
+    def test_mtdna_het_label_is_heteroplasmic(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_carried_row(rsid="rs_mt_het", chrom="MT", pos=3_012, zygosity="het"),
+            "XX",
+        )
+        assert variant.zygosity == "het"
+        assert variant.zygosity_label == "Heteroplasmic"
 
 
 # ── AF threshold tests ───────────────────────────────────────────────────

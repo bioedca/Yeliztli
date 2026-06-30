@@ -23,7 +23,7 @@ function makeMockVariant(overrides: Partial<RareVariant> = {}): RareVariant {
     alt: "G",
     genotype: "AG",
     zygosity: "het",
-    zygosity_label: null,
+    zygosity_label: "Heterozygous",
     gene_symbol: "BRCA1",
     consequence: "missense_variant",
     hgvs_coding: "c.1234A>G",
@@ -148,16 +148,22 @@ describe("ResultsTable", () => {
         gene_symbol: "TP53",
         evidence_level: 2,
         zygosity: "hom_alt",
+        zygosity_label: "Homozygous",
       }),
     ]
     render(<ResultsTable items={variants} selectedRsid={null} onSelect={vi.fn()} />)
     expect(screen.getAllByTestId("result-row")).toHaveLength(2)
     expect(screen.getByText("BRCA1")).toBeInTheDocument()
     expect(screen.getByText("TP53")).toBeInTheDocument()
-    // Fallback labels: het → "Heterozygous", hom_alt → "Homozygous".
-    // Backend-provided labels override this for haploid/single-copy loci.
+    // Backend-provided labels: het → "Heterozygous", hom_alt → "Homozygous".
     expect(screen.getByText("Heterozygous")).toBeInTheDocument()
     expect(screen.getByText("Homozygous")).toBeInTheDocument()
+  })
+
+  it("does not infer ploidy when the backend label is absent", () => {
+    const variant = makeMockVariant({ zygosity: "hom_alt", zygosity_label: null })
+    render(<ResultsTable items={[variant]} selectedRsid={null} onSelect={vi.fn()} />)
+    expect(screen.queryByText("Homozygous")).not.toBeInTheDocument()
   })
 
   it("renders backend ploidy-aware zygosity labels", () => {
@@ -307,7 +313,7 @@ describe("VariantDetailPanel", () => {
   })
 
   it("renders the homozygous zygosity label", () => {
-    const variant = makeMockVariant({ zygosity: "hom_alt" })
+    const variant = makeMockVariant({ zygosity: "hom_alt", zygosity_label: "Homozygous" })
     render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
     expect(screen.getByText("Homozygous")).toBeInTheDocument()
     expect(screen.queryByText("Heterozygous")).not.toBeInTheDocument()

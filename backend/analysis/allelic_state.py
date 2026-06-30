@@ -14,6 +14,12 @@ from backend.services.sex_inference import is_grch37_x_par_position
 
 LOINC_SYSTEM = "http://loinc.org"
 LOINC_ALLELIC_STATE = "53034-5"  # Allelic state
+GRCH37_Y_PAR1: tuple[int, int] = (10_001, 2_649_520)
+GRCH37_Y_PAR2: tuple[int, int] = (59_034_050, 59_363_566)
+GRCH37_Y_PAR_INTERVALS: tuple[tuple[int, int], tuple[int, int]] = (
+    GRCH37_Y_PAR1,
+    GRCH37_Y_PAR2,
+)
 
 # LOINC answer list LL381-5, verified at loinc.org.
 ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
@@ -34,6 +40,11 @@ ALLELIC_STATE_HEMIZYGOUS: dict[str, str] = {
     "code": "LA6707-9",
     "display": "Hemizygous",
 }
+ALLELIC_STATE_HETEROPLASMIC: dict[str, str] = {
+    "system": LOINC_SYSTEM,
+    "code": "LA6703-8",
+    "display": "Heteroplasmic",
+}
 ALLELIC_STATE_HOMOPLASMIC: dict[str, str] = {
     "system": LOINC_SYSTEM,
     "code": "LA6704-6",
@@ -52,6 +63,11 @@ def norm_chrom_label(chrom: Any) -> str | None:
     return "MT" if c == "M" else c
 
 
+def is_grch37_y_par_position(pos: int) -> bool:
+    """Whether ``pos`` falls in a GRCh37 chromosome-Y pseudoautosomal interval."""
+    return any(start <= pos <= end for start, end in GRCH37_Y_PAR_INTERVALS)
+
+
 def allelic_state_coding_for_call(
     *,
     chrom: Any,
@@ -61,20 +77,25 @@ def allelic_state_coding_for_call(
 ) -> dict[str, str] | None:
     """Return a LOINC allelic-state coding for a carried variant call.
 
-    ``Homozygous`` and ``Heterozygous`` are diploid labels. Carried chrMT calls
-    are labelled ``Homoplasmic`` by default, and XY non-PAR chrX/chrY
-    ``hom_alt`` calls are labelled ``Hemizygous``.
+    ``Homozygous`` and ``Heterozygous`` are diploid labels. chrMT calls use
+    heteroplasmic/homoplasmic labels, and XY non-PAR chrX/chrY ``hom_alt`` calls
+    are labelled ``Hemizygous``.
     """
     if not zygosity or zygosity not in ALLELIC_STATE_MAP:
         return None
 
     chrom_label = norm_chrom_label(chrom)
     if chrom_label == "MT":
-        return ALLELIC_STATE_HOMOPLASMIC
+        if zygosity == "hom_alt":
+            return ALLELIC_STATE_HOMOPLASMIC
+        if zygosity == "het":
+            return ALLELIC_STATE_HETEROPLASMIC
 
     if sex == "XY" and zygosity == "hom_alt" and chrom_label in ("X", "Y"):
         if chrom_label == "Y":
-            return ALLELIC_STATE_HEMIZYGOUS
+            if pos is not None and not is_grch37_y_par_position(int(pos)):
+                return ALLELIC_STATE_HEMIZYGOUS
+            return ALLELIC_STATE_MAP[zygosity]
         if pos is not None and not is_grch37_x_par_position(int(pos)):
             return ALLELIC_STATE_HEMIZYGOUS
 
