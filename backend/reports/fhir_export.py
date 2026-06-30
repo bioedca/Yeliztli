@@ -28,6 +28,12 @@ import structlog
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    is_grch37_x_par_position,
+    resolve_biological_sex,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -51,12 +57,18 @@ LOINC_DBSNP_ID = "81255-2"  # dbSNP [ID]
 LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic variation clinical significance
 LOINC_POPULATION_AF = "92821-8"  # Allelic frequency in Population
 
-# Allelic state LOINC answer codes.  Only carried zygosities are mapped:
+# Allelic state LOINC answer codes (answer list LL381-5, verified at loinc.org).
+# This base map is the *diploid* vocabulary.  Only carried zygosities are mapped:
 # build_fhir_bundle carriage-gates to het / hom_alt (#890), so hom_ref never
 # reaches the exporter.  Deliberately omitting hom_ref here is defense in depth —
 # if a hom_ref row ever did slip through, _variant_to_observation drops the
 # allelic-state component (see the ``in ALLELIC_STATE_MAP`` guard) rather than
 # mislabel a reference position as "Homozygous" (LA6705-3, shared with hom_alt).
+#
+# "Homozygous"/"Heterozygous" are diploid concepts (two homologous copies), so
+# they are wrong for single-copy loci.  ``_allelic_state_coding`` remaps those
+# cases to the haploid codes below (#1280): a male non-PAR chrX/chrY call is
+# Hemizygous, and an mtDNA call is Homoplasmic.
 ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
     "het": {
         "system": LOINC_SYSTEM,
@@ -68,6 +80,19 @@ ALLELIC_STATE_MAP: dict[str, dict[str, str]] = {
         "code": "LA6705-3",
         "display": "Homozygous",
     },
+}
+
+# Haploid (single-copy) allelic-state codes — the diploid ALLELIC_STATE_MAP
+# cannot express these (answer list LL381-5, verified at loinc.org 2026-06-29).
+ALLELIC_STATE_HEMIZYGOUS: dict[str, str] = {
+    "system": LOINC_SYSTEM,
+    "code": "LA6707-9",
+    "display": "Hemizygous",
+}
+ALLELIC_STATE_HOMOPLASMIC: dict[str, str] = {
+    "system": LOINC_SYSTEM,
+    "code": "LA6704-6",
+    "display": "Homoplasmic",
 }
 
 ACMG_CLINICAL_SIGNIFICANCE_MAP: dict[str, dict[str, str]] = {
@@ -165,10 +190,77 @@ def _gene_studied_value(row: dict[str, Any]) -> dict[str, Any]:
     return {"valueString": gene_symbol}
 
 
+def _norm_chrom_label(chrom: Any) -> str | None:
+    """Normalize a chromosome label to compare against ``X`` / ``Y`` / ``MT``.
+
+    Strips a ``chr`` prefix, uppercases, and folds the ``M`` mitochondrial alias
+    onto ``MT`` (mirrors ``imputed_findings._norm_chrom``). Returns ``None`` for a
+    missing label.
+    """
+    if chrom is None:
+        return None
+    c = str(chrom).strip()
+    if c[:3].lower() == "chr":
+        c = c[3:]
+    c = c.upper()
+    return "MT" if c == "M" else c
+
+
+def _allelic_state_coding(row: dict[str, Any], sex: str | None) -> dict[str, str] | None:
+    """Return the LOINC allelic-state coding for a carried variant (#1280).
+
+    Ploidy/sex/chromosome-aware. The diploid ``ALLELIC_STATE_MAP`` codes
+    ("Homozygous"/"Heterozygous") describe two homologous copies, which is
+    biologically wrong for single-copy loci, so those are remapped:
+
+    - **chrMT** — mitochondrial DNA is haploid and maternally inherited. A
+      consumer genotyping array gives a single call and cannot measure
+      heteroplasmy (the heteroplasmy *level* requires dedicated molecular
+      testing — Yang 2021, DOI:10.1002/humu.24279; mtDNA arrays make haploid
+      calls by default — Hadjixenofontos 2012, DOI:10.1111/j.1469-1809.2012.00736.x),
+      so a carried mtDNA variant is **Homoplasmic** (LA6704-6) by default. This
+      matches the repo's documented mtDNA stance (``lhon_panel.json`` /
+      ``mt_rnr1_panel.json``; CPIC 2021).
+    - **non-PAR chrX or chrY in a male** (``sex == "XY"``) — a single gene copy
+      on a non-homologous chromosome → **Hemizygous** (LA6707-9). PAR1/PAR2 on
+      chrX stay diploid (``Homozygous``). Only the haploid-collapsed ``hom_alt``
+      call is remapped; a (rare, artefactual) heterozygous call keeps
+      ``Heterozygous`` since two distinct alleles were actually observed.
+
+    Returns the coding dict, or ``None`` to omit the component (a zygosity not in
+    ``ALLELIC_STATE_MAP`` — e.g. ``hom_ref`` — is never labelled, the #890
+    defense in depth).
+    """
+    zygosity = row.get("zygosity")
+    if not zygosity or zygosity not in ALLELIC_STATE_MAP:
+        return None
+
+    chrom = _norm_chrom_label(row.get("chrom"))
+    if chrom == "MT":
+        return ALLELIC_STATE_HOMOPLASMIC
+
+    if sex == "XY" and zygosity == "hom_alt" and chrom in ("X", "Y"):
+        if chrom == "Y":
+            return ALLELIC_STATE_HEMIZYGOUS
+        # chrX: PAR1/PAR2 are diploid in both sexes; only the non-PAR region is
+        # hemizygous in a male. A missing position can't be placed → stay diploid.
+        pos = row.get("pos")
+        if pos is not None and not is_grch37_x_par_position(int(pos)):
+            return ALLELIC_STATE_HEMIZYGOUS
+
+    return ALLELIC_STATE_MAP[zygosity]
+
+
 def _variant_to_observation(
     row: dict[str, Any],
+    *,
+    sex: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Convert an annotated_variants row to a FHIR Observation resource.
+
+    ``sex`` is the sample's resolved biological sex (``"XY"`` / ``"XX"`` /
+    ``"manual_review"`` / ``"unknown"`` / ``None``); it disambiguates the allelic
+    state for single-copy chrX/chrY loci (see ``_allelic_state_coding``).
 
     Returns (fullUrl, resource_dict).
     """
@@ -248,10 +340,9 @@ def _variant_to_observation(
             )
         )
 
-    # Allelic state
-    zygosity = row.get("zygosity")
-    if zygosity and zygosity in ALLELIC_STATE_MAP:
-        allelic = ALLELIC_STATE_MAP[zygosity]
+    # Allelic state — ploidy/sex/chromosome-aware (#1280).
+    allelic = _allelic_state_coding(row, sex)
+    if allelic is not None:
         components.append(
             _component(
                 LOINC_SYSTEM,
@@ -430,12 +521,25 @@ def build_fhir_bundle(
     if not include_all:
         all_variants = [v for v in all_variants if v.get("clinvar_significance")]
 
+    # Resolve biological sex once, only when a carried variant sits on chrX/chrY
+    # — that is the sole place sex changes the allelic state (a male non-PAR
+    # single-copy call is Hemizygous, not Homozygous; #1280). mtDNA is haploid in
+    # every sample, so it needs no sex. Skipping the resolution otherwise avoids a
+    # ``raw_variants`` scan for autosome/mtDNA-only bundles. Recorded sex wins over
+    # array inference (issue #254).
+    sex: str | None = None
+    if any(_norm_chrom_label(v.get("chrom")) in ("X", "Y") for v in all_variants):
+        sex = resolve_biological_sex(
+            recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
+            inferred_sex=infer_biological_sex(sample_engine),
+        ).sex
+
     # Build Observation entries
     observation_entries: list[dict[str, Any]] = []
     observation_refs: list[dict[str, str]] = []
 
     for variant in all_variants:
-        full_url, obs_resource = _variant_to_observation(variant)
+        full_url, obs_resource = _variant_to_observation(variant, sex=sex)
         observation_entries.append(
             {
                 "fullUrl": full_url,

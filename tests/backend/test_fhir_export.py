@@ -17,7 +17,12 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, reference_metadata, samples
+from backend.db.tables import (
+    annotated_variants,
+    raw_variants,
+    reference_metadata,
+    samples,
+)
 from backend.reports.fhir_export import (
     HGNC_SYSTEM,
     LOINC_ALLELIC_STATE,
@@ -150,11 +155,81 @@ def _components_by_code(resource: dict, code: str) -> list[dict]:
     return [c for c in resource["component"] if c["code"]["coding"][0]["code"] == code]
 
 
+# Allelic-state regression helpers (#1280) ---------------------------------
+# GYG2 X:2777985 — the issue's real reproduced non-PAR chrX locus (GRCh37 X PAR1
+# ends at 2,699,520, so this falls outside it).
+_NONPAR_X_POS = 2_777_985
+_PAR1_X_POS = 1_000_000  # inside GRCh37 X PAR1 (60001–2,699,520)
+_LOINC_DBSNP_ID = "81255-2"  # LOINC "dbSNP [ID]" component code
+
+
+def _obs_allelic_coding(resource: dict) -> dict | None:
+    """Return the single allelic-state (LOINC 53034-5) coding, or None if absent."""
+    comps = _components_by_code(resource, LOINC_ALLELIC_STATE)
+    if not comps:
+        return None
+    return comps[0]["valueCodeableConcept"]["coding"][0]
+
+
+def _find_obs_by_rsid(bundle: dict, rsid: str) -> dict:
+    """Find the Observation in a bundle whose dbSNP component carries ``rsid``."""
+    for entry in bundle["entry"]:
+        resource = entry["resource"]
+        if resource.get("resourceType") != "Observation":
+            continue
+        for comp in _components_by_code(resource, _LOINC_DBSNP_ID):
+            val = comp.get("valueCodeableConcept", {}).get("coding", [{}])[0]
+            if val.get("code") == rsid:
+                return resource
+    raise AssertionError(f"no Observation for {rsid} in bundle")
+
+
+# Male sex signal for the end-to-end hemizygous test: 120 non-PAR chrX
+# hemizygous single-allele calls (het rate 0) + 60 fully-typed chrY probes clear
+# the §9.4 minimum-evidence floors and infer XY.
+_MALE_RAW_VARIANTS = [
+    {"rsid": f"rs_x_{i}", "chrom": "X", "pos": 5_000_000 + i, "genotype": "A"} for i in range(120)
+] + [
+    {"rsid": f"rs_y_{i}", "chrom": "Y", "pos": 6_000_000 + i, "genotype": "TT"} for i in range(60)
+]
+_MALE_ANNOTATED = [
+    {
+        "rsid": "rs_x_hemi",
+        "chrom": "X",
+        "pos": _NONPAR_X_POS,
+        "ref": "C",
+        "alt": "T",
+        "genotype": "T",
+        "zygosity": "hom_alt",
+        "gene_symbol": "GYG2",
+    },
+    {
+        "rsid": "rs_mt_test",
+        "chrom": "MT",
+        "pos": 73,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "G",
+        "zygosity": "hom_alt",
+        "gene_symbol": "MT-TF",
+    },
+]
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────
 
 
-def _setup_client(tmp_data_dir: Path, variants: list[dict]):
-    """Create a TestClient with annotated sample data."""
+def _setup_client(
+    tmp_data_dir: Path,
+    variants: list[dict],
+    raw_variant_rows: list[dict] | None = None,
+):
+    """Create a TestClient with annotated sample data.
+
+    ``raw_variant_rows`` optionally seeds ``raw_variants`` (chrX/chrY probes) so
+    the FHIR export's biological-sex resolution has signal to infer from — needed
+    to exercise the hemizygous allelic-state path (#1280).
+    """
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
 
     ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
@@ -178,6 +253,9 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict]):
         normalized = [_normalize(v) for v in variants]
         with sample_engine.begin() as conn:
             conn.execute(annotated_variants.insert(), normalized)
+    if raw_variant_rows:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), raw_variant_rows)
     sample_engine.dispose()
 
     with (
@@ -201,6 +279,12 @@ def client(tmp_data_dir: Path):
 @pytest.fixture
 def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
+
+
+@pytest.fixture
+def male_client(tmp_data_dir: Path):
+    """Client whose sample infers XY and carries chrX non-PAR + chrMT variants (#1280)."""
+    yield from _setup_client(tmp_data_dir, _MALE_ANNOTATED, raw_variant_rows=_MALE_RAW_VARIANTS)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -584,6 +668,110 @@ class TestFhirCarriageGate:
             if comp["code"]["coding"][0]["code"] == LOINC_ALLELIC_STATE
         ]
         assert allelic_codes == []
+
+
+class TestFhirAllelicStatePloidy:
+    """Allelic state must be ploidy/sex/chromosome-aware (#1280).
+
+    LOINC answer list LL381-5 (verified at loinc.org 2026-06-29): a single-copy
+    locus is Hemizygous (LA6707-9) or Homoplasmic (LA6704-6), never the diploid
+    "Homozygous" (LA6705-3). ``zygosity.py`` collapses a haploid single-base call
+    to ``hom_alt``, so without the remap a male non-PAR chrX/chrY call or any
+    chrMT call would export as a two-copy homozygote — biologically wrong and
+    EHR-facing.
+    """
+
+    @staticmethod
+    def _row(**kw: object) -> dict:
+        row: dict = {"rsid": "rsTEST", "ref": "C", "alt": "T", "gene_symbol": "TESTGENE"}
+        row.update(kw)
+        return row
+
+    def test_male_nonpar_x_homalt_is_hemizygous(self) -> None:
+        row = self._row(chrom="X", pos=_NONPAR_X_POS, genotype="T", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        assert _obs_allelic_coding(obs) == {
+            "system": LOINC_SYSTEM,
+            "code": "LA6707-9",
+            "display": "Hemizygous",
+        }
+
+    def test_male_y_homalt_is_hemizygous(self) -> None:
+        row = self._row(chrom="Y", pos=2_700_000, genotype="T", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        coding = _obs_allelic_coding(obs)
+        assert coding["code"] == "LA6707-9"
+        assert coding["display"] == "Hemizygous"
+
+    def test_male_par_x_homalt_stays_homozygous(self) -> None:
+        # PAR1/PAR2 are diploid in both sexes — must NOT be remapped to hemizygous.
+        row = self._row(chrom="X", pos=_PAR1_X_POS, genotype="TT", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        coding = _obs_allelic_coding(obs)
+        assert coding["code"] == "LA6705-3"
+        assert coding["display"] == "Homozygous"
+
+    def test_female_nonpar_x_homalt_stays_homozygous(self) -> None:
+        # XX is diploid on chrX — a genuine homozygote.
+        row = self._row(chrom="X", pos=_NONPAR_X_POS, genotype="TT", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XX")
+        assert _obs_allelic_coding(obs)["code"] == "LA6705-3"
+
+    def test_unresolved_sex_nonpar_x_homalt_stays_homozygous(self) -> None:
+        # Without a resolved male sex we cannot assert hemizygosity → stay diploid.
+        for sex in (None, "unknown", "manual_review"):
+            row = self._row(chrom="X", pos=_NONPAR_X_POS, genotype="T", zygosity="hom_alt")
+            _u, obs = _variant_to_observation(row, sex=sex)
+            assert _obs_allelic_coding(obs)["code"] == "LA6705-3", sex
+
+    def test_male_nonpar_x_het_stays_heterozygous(self) -> None:
+        # Two distinct alleles were actually observed → keep Heterozygous (#1280).
+        row = self._row(chrom="X", pos=_NONPAR_X_POS, genotype="CT", zygosity="het")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        assert _obs_allelic_coding(obs)["code"] == "LA6706-1"
+
+    def test_mt_homalt_is_homoplasmic(self) -> None:
+        row = self._row(chrom="MT", pos=73, ref="A", alt="G", genotype="G", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        assert _obs_allelic_coding(obs) == {
+            "system": LOINC_SYSTEM,
+            "code": "LA6704-6",
+            "display": "Homoplasmic",
+        }
+
+    def test_mt_homoplasmic_is_sex_independent(self) -> None:
+        # mtDNA is haploid in every sample — Homoplasmic regardless of sex.
+        for sex in (None, "XX", "XY", "unknown"):
+            row = self._row(chrom="MT", pos=73, ref="A", alt="G", genotype="G", zygosity="hom_alt")
+            _u, obs = _variant_to_observation(row, sex=sex)
+            assert _obs_allelic_coding(obs)["code"] == "LA6704-6", sex
+
+    def test_mt_alias_chr_prefix_normalizes(self) -> None:
+        # "chrM" must fold onto MT and resolve to Homoplasmic.
+        row = self._row(chrom="chrM", pos=73, ref="A", alt="G", genotype="G", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row)
+        assert _obs_allelic_coding(obs)["code"] == "LA6704-6"
+
+    def test_male_nonpar_x_chr_prefix_is_hemizygous(self) -> None:
+        # A "chrX" label must still be recognised as chromosome X.
+        row = self._row(chrom="chrX", pos=_NONPAR_X_POS, genotype="T", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        assert _obs_allelic_coding(obs)["code"] == "LA6707-9"
+
+    def test_autosomal_homalt_stays_homozygous(self) -> None:
+        row = self._row(chrom="1", pos=11_856_378, genotype="TT", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        assert _obs_allelic_coding(obs)["code"] == "LA6705-3"
+
+    def test_export_infers_male_and_codes_hemizygous_and_homoplasmic(self, male_client) -> None:
+        """End-to-end: a sample inferred XY exports its chrX non-PAR variant as
+        Hemizygous and its chrMT variant as Homoplasmic."""
+        tc, sid = male_client
+        resp = tc.post("/api/export/fhir", json={"sample_id": sid, "include_all": True})
+        assert resp.status_code == 200
+        bundle = resp.json()
+        assert _obs_allelic_coding(_find_obs_by_rsid(bundle, "rs_x_hemi"))["code"] == "LA6707-9"
+        assert _obs_allelic_coding(_find_obs_by_rsid(bundle, "rs_mt_test"))["code"] == "LA6704-6"
 
 
 class TestFhirErrors:
