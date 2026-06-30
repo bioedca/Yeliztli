@@ -444,7 +444,12 @@ export default function FindingsExplorer() {
           </button>
           <span className="text-xs text-muted-foreground">
             Showing the top {findingsQuery.data.length} findings
-            {summary ? ` of ${summary.total_findings}` : ""} (highest evidence first)
+            {/* total_findings is the unfiltered, all-module count, so only show
+                it when no filter is narrowing the set. */}
+            {summary && !selectedModule && minStars == null
+              ? ` of ${summary.total_findings}`
+              : ""}{" "}
+            (highest evidence first)
           </span>
         </div>
       )}
