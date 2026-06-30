@@ -6,8 +6,8 @@ Yeliztli analyses the **raw data** file you can download from a consumer genotyp
 
 | Service | Versions | File type |
 |---------|----------|-----------|
-| **23andMe** | v3, v4, v5 | `.txt` or `.zip` |
-| **AncestryDNA** | v2.0 | `.txt` or `.zip` |
+| **23andMe** | v3, v4, v5 | `.txt` |
+| **AncestryDNA** | v2.0 | `.txt` |
 
 Yeliztli **auto-detects** the service and format from the file header — you don't need to
 tell it which one you have. (Both are genotyping-array exports on the GRCh37 build; older
@@ -16,6 +16,8 @@ tell it which one you have. (Both are genotyping-array exports on the GRCh37 bui
 !!! info "Where to get your raw data"
     Each service has its own "download raw data" option in your account settings. Yeliztli
     needs that raw file — not the polished reports the service shows you on its website.
+
+    Both services download your raw data inside a **`.zip`** — extract the `.txt` from it and upload that file. Yeliztli does not accept the `.zip` archive directly.
 
 ## How to upload
 
