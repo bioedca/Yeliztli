@@ -451,6 +451,7 @@ class TestGetVariantDetail:
         assert data["alt"] == "G"
         assert data["genotype"] == "AG"
         assert data["zygosity"] == "het"
+        assert data["zygosity_label"] == "Heterozygous"
 
     def test_returns_vep_fields(self, client):
         tc, sid = client

@@ -15,6 +15,7 @@ import { Search, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { getRareVariantCategoryMeta } from "@/lib/rare-variant-category"
+import { formatZygosityLabel } from "@/lib/zygosity-label"
 import { useRareVariantFindings, useRareVariantSearch } from "@/api/rare-variants"
 import type { RareVariant, RareVariantSearchResponse } from "@/types/rare-variants"
 import FilterPanel from "@/components/rare-variants/FilterPanel"
@@ -194,7 +195,7 @@ export default function RareVariantsView() {
                       </td>
                       <td className="px-3 py-2 text-xs">{f.clinvar_significance ?? "—"}</td>
                       <td className="px-3 py-2 text-xs">
-                        {f.zygosity === "hom_alt" ? "Hom" : f.zygosity === "het" ? "Het" : "—"}
+                        {formatZygosityLabel(f.zygosity, f.zygosity_label)}
                       </td>
                       <td className="px-3 py-2 text-center">
                         <EvidenceStarsInline level={f.evidence_level} />

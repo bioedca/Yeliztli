@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.allelic_state import allelic_state_label_for_call
 from backend.analysis.clinvar_significance import (
     LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
     LOWER_PENETRANCE_RISK_ALLELE_PMIDS,
@@ -87,6 +88,9 @@ class RareVariantFilter:
     # — chiefly a Y-chromosome finding on an XX sample (F8). ``run_all`` computes
     # it once and passes it; None means "do not sex-gate" (standalone callers).
     inferred_sex: str | None = None
+    # Resolved biological sex used for ploidy-aware display labels. When unset,
+    # callers that already pass inferred_sex get the same value for labels.
+    biological_sex: str | None = None
 
 
 @dataclass
@@ -124,6 +128,7 @@ class RareVariantResult:
     evidence_level: int
     disease_name: str | None
     inheritance_pattern: str | None
+    zygosity_label: str | None = None
 
     @property
     def is_catalogued(self) -> bool:
@@ -351,6 +356,7 @@ def find_rare_variants(
         rows = conn.execute(stmt).fetchall()
 
     variants: list[RareVariantResult] = []
+    sex_for_labels = filters.biological_sex or filters.inferred_sex
     for row in rows:
         variant = RareVariantResult(
             rsid=row.rsid,
@@ -384,6 +390,12 @@ def find_rare_variants(
             evidence_level=1,  # placeholder, assigned below
             disease_name=row.disease_name,
             inheritance_pattern=row.inheritance_pattern,
+            zygosity_label=allelic_state_label_for_call(
+                chrom=row.chrom,
+                pos=row.pos,
+                zygosity=row.zygosity,
+                sex=sex_for_labels,
+            ),
         )
         variant.evidence_level = _assign_evidence_level(variant)
         variants.append(variant)
@@ -514,6 +526,7 @@ def store_rare_variant_findings(
             "clinvar_low_penetrance_or_risk_allele": (v.is_clinvar_low_penetrance_or_risk_allele),
             "disease_name": v.disease_name,
             "inheritance_pattern": v.inheritance_pattern,
+            "zygosity_label": v.zygosity_label,
         }
         pmid_citations = (
             json.dumps(list(LOWER_PENETRANCE_RISK_ALLELE_PMIDS))

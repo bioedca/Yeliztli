@@ -30,6 +30,11 @@ from backend.analysis.rare_variant_finder import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, findings, samples
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,7 @@ class RareVariantResponse(BaseModel):
     alt: str | None = None
     genotype: str | None = None
     zygosity: str | None = None
+    zygosity_label: str | None = None
     gene_symbol: str | None = None
     consequence: str | None = None
     hgvs_coding: str | None = None
@@ -130,6 +136,7 @@ class RareVariantFindingResponse(BaseModel):
     evidence_level: int = 1
     finding_text: str
     zygosity: str | None = None
+    zygosity_label: str | None = None
     clinvar_significance: str | None = None
     clinvar_low_penetrance_or_risk_allele: bool = False
     conditions: str | None = None
@@ -176,7 +183,19 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return registry.get_sample_engine(sample_db_path)
 
 
-def _request_to_filter(req: RareVariantFilterRequest) -> RareVariantFilter:
+def _resolve_biological_sex_for_sample(sample_engine: sa.Engine, sample_id: int) -> str | None:
+    """Resolve recorded-over-inferred biological sex for rare-variant labels."""
+    registry = get_registry()
+    resolved = resolve_biological_sex(
+        recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
+        inferred_sex=infer_biological_sex(sample_engine),
+    )
+    return resolved.sex
+
+
+def _request_to_filter(
+    req: RareVariantFilterRequest, *, biological_sex: str | None = None
+) -> RareVariantFilter:
     """Convert a Pydantic request model to the dataclass filter.
 
     ``carried_only=True`` is forced on: the interactive ``/search`` and ``/run``
@@ -195,6 +214,8 @@ def _request_to_filter(req: RareVariantFilterRequest) -> RareVariantFilter:
         include_novel=req.include_novel,
         zygosity=req.zygosity,
         carried_only=True,
+        inferred_sex=biological_sex,
+        biological_sex=biological_sex,
     )
 
 
@@ -226,7 +247,8 @@ def search_rare_variants(
     Example: ``POST /api/analysis/rare-variants/search?sample_id=1``
     """
     sample_engine = _get_sample_engine(sample_id)
-    filters = _request_to_filter(body)
+    biological_sex = _resolve_biological_sex_for_sample(sample_engine, sample_id)
+    filters = _request_to_filter(body, biological_sex=biological_sex)
     result = find_rare_variants(filters, sample_engine)
     store_rare_variant_findings(result, sample_engine)
 
@@ -239,6 +261,7 @@ def search_rare_variants(
             alt=v.alt,
             genotype=v.genotype,
             zygosity=v.zygosity,
+            zygosity_label=v.zygosity_label,
             gene_symbol=v.gene_symbol,
             consequence=v.consequence,
             hgvs_coding=v.hgvs_coding,
@@ -303,6 +326,7 @@ def list_rare_variant_findings(
     items: list[RareVariantFindingResponse] = []
     for row in rows:
         detail = _parse_detail_json(row.id, row.detail_json)
+        zygosity_label = detail.get("zygosity_label")
         items.append(
             RareVariantFindingResponse(
                 rsid=row.rsid,
@@ -311,6 +335,7 @@ def list_rare_variant_findings(
                 evidence_level=row.evidence_level or 1,
                 finding_text=row.finding_text or "",
                 zygosity=row.zygosity,
+                zygosity_label=zygosity_label if isinstance(zygosity_label, str) else None,
                 clinvar_significance=row.clinvar_significance,
                 clinvar_low_penetrance_or_risk_allele=bool(
                     detail.get("clinvar_low_penetrance_or_risk_allele", False)
@@ -335,8 +360,17 @@ def run_rare_variant_finder(
     Example: ``POST /api/analysis/rare-variants/run?sample_id=1``
     """
     sample_engine = _get_sample_engine(sample_id)
+    biological_sex = _resolve_biological_sex_for_sample(sample_engine, sample_id)
     # No body → default filter, but still carriage-gate (this path stores findings).
-    filters = _request_to_filter(body) if body else RareVariantFilter(carried_only=True)
+    filters = (
+        _request_to_filter(body, biological_sex=biological_sex)
+        if body
+        else RareVariantFilter(
+            carried_only=True,
+            inferred_sex=biological_sex,
+            biological_sex=biological_sex,
+        )
+    )
     result = find_rare_variants(filters, sample_engine)
     stored = store_rare_variant_findings(result, sample_engine)
 

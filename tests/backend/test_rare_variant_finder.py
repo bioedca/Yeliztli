@@ -424,6 +424,61 @@ class TestSexChromosomeGate:
         assert "rs_autosomal" in {v.rsid for v in result.variants}
 
 
+# ── Ploidy-aware zygosity labels (#1325) ─────────────────────────────────
+
+
+class TestPloidyAwareZygosityLabels:
+    def _rare_hom_alt_row(self, *, rsid: str, chrom: str, pos: int) -> dict:
+        return _v(
+            rsid=rsid,
+            chrom=chrom,
+            pos=pos,
+            genotype="T",
+            zygosity="hom_alt",
+            gene_symbol="GENE1",
+            consequence="missense_variant",
+            gnomad_af_global=0.0001,
+            clinvar_significance="Pathogenic",
+            clinvar_review_stars=2,
+            clinvar_accession="VCV000013250",
+            annotation_coverage=15,
+        )
+
+    def _only_variant(self, sample_engine: sa.Engine, row: dict, sex: str) -> RareVariantResult:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [row])
+        result = find_rare_variants(RareVariantFilter(biological_sex=sex), sample_engine)
+        assert [v.rsid for v in result.variants] == [row["rsid"]]
+        return result.variants[0]
+
+    def test_xy_nonpar_x_hom_alt_label_is_hemizygous(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_hom_alt_row(rsid="rs_x_nonpar", chrom="X", pos=10_000_000),
+            "XY",
+        )
+        assert variant.zygosity == "hom_alt"
+        assert variant.zygosity_label == "Hemizygous"
+
+    def test_xy_x_par_hom_alt_label_stays_homozygous(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_hom_alt_row(rsid="rs_x_par", chrom="X", pos=60_001),
+            "XY",
+        )
+        assert variant.zygosity == "hom_alt"
+        assert variant.zygosity_label == "Homozygous"
+
+    def test_mtdna_hom_alt_label_is_homoplasmic(self, sample_engine: sa.Engine) -> None:
+        variant = self._only_variant(
+            sample_engine,
+            self._rare_hom_alt_row(rsid="rs_mt", chrom="MT", pos=3_012),
+            "XX",
+        )
+        assert variant.zygosity == "hom_alt"
+        assert variant.zygosity_label == "Homoplasmic"
+
+
 # ── AF threshold tests ───────────────────────────────────────────────────
 
 

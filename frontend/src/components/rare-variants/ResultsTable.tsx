@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyLabel } from "@/lib/gnomad-status"
+import { formatZygosityLabel } from "@/lib/zygosity-label"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
@@ -101,7 +102,7 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
                   {v.revel?.toFixed(3) ?? "—"}
                 </td>
                 <td className="px-3 py-2 text-xs">
-                  {v.zygosity === "hom_alt" ? "Hom" : v.zygosity === "het" ? "Het" : "—"}
+                  {formatZygosityLabel(v.zygosity, v.zygosity_label)}
                 </td>
                 <td className="px-3 py-2 text-center">
                   <EvidenceStars level={v.evidence_level} />

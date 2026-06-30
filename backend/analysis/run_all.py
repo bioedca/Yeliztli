@@ -54,6 +54,8 @@ def run_all_analyses(
                 count = _run_cancer(sample_engine, registry, sample_id=sample_id)
             elif name == "hemochromatosis":
                 count = _run_hemochromatosis(sample_engine, registry, sample_id=sample_id)
+            elif name == "rare_variants":
+                count = _run_rare_variants(sample_engine, registry, sample_id=sample_id)
             else:
                 count = runner(sample_engine, registry)
             results[name] = count
@@ -431,21 +433,42 @@ def _run_qc(sample_engine: Engine, registry: DBRegistry) -> int:
     return 0
 
 
-def _run_rare_variants(sample_engine: Engine, registry: DBRegistry) -> int:
+def _run_rare_variants(
+    sample_engine: Engine, registry: DBRegistry, *, sample_id: int | None = None
+) -> int:
     from backend.analysis.rare_variant_finder import (
         RareVariantFilter,
         find_rare_variants,
         store_rare_variant_findings,
     )
-    from backend.services.sex_inference import infer_biological_sex
+    from backend.services.sex_inference import (
+        get_recorded_biological_sex,
+        infer_biological_sex,
+        resolve_biological_sex,
+    )
 
     # Carriage-gate the live finder: only surface variants the individual
     # actually carries (a chip genotypes every probe regardless of carriage).
-    # Sex-gate it too (F8): infer biological sex once and drop findings that
-    # contradict it (e.g. a Y-chromosome finding on an XX sample).
+    # Sex-gate it too (F8): resolve biological sex once and drop findings that
+    # contradict it (e.g. a Y-chromosome finding on an XX sample). Recorded sex
+    # wins over array inference when sample_id is available (#254).
     inferred_sex = infer_biological_sex(sample_engine)
+    recorded_sex = (
+        get_recorded_biological_sex(registry.reference_engine, sample_id)
+        if sample_id is not None
+        else None
+    )
+    biological_sex = resolve_biological_sex(
+        recorded_sex=recorded_sex,
+        inferred_sex=inferred_sex,
+    ).sex
     result = find_rare_variants(
-        RareVariantFilter(carried_only=True, inferred_sex=inferred_sex), sample_engine
+        RareVariantFilter(
+            carried_only=True,
+            inferred_sex=biological_sex,
+            biological_sex=biological_sex,
+        ),
+        sample_engine,
     )
     return store_rare_variant_findings(result, sample_engine)
 

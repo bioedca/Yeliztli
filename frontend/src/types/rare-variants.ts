@@ -19,6 +19,7 @@ export interface RareVariant {
   alt: string | null
   genotype: string | null
   zygosity: string | null
+  zygosity_label?: string | null
   gene_symbol: string | null
   consequence: string | null
   hgvs_coding: string | null
@@ -68,6 +69,7 @@ interface RareVariantFinding {
   evidence_level: number
   finding_text: string
   zygosity: string | null
+  zygosity_label?: string | null
   clinvar_significance: string | null
   clinvar_low_penetrance_or_risk_allele?: boolean
   conditions: string | null

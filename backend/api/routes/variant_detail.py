@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.allelic_state import allelic_state_label
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.gtex import eqtl_regulatory_context
@@ -30,6 +31,11 @@ from backend.annotation.spliceai import lookup_spliceai_by_variant
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +99,7 @@ class VariantDetailResponse(BaseModel):
     alt: str | None = None
     genotype: str | None = None
     zygosity: str | None = None
+    zygosity_label: str | None = None
 
     # VEP (best transcript — stored in annotated_variants)
     gene_symbol: str | None = None
@@ -442,6 +449,13 @@ def get_variant_detail(
     for col in _TABLE.c:
         data[col.name] = getattr(row, col.name, None)
 
+    registry = get_registry()
+    biological_sex = resolve_biological_sex(
+        recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
+        inferred_sex=infer_biological_sex(sample_engine),
+    ).sex
+    data["zygosity_label"] = allelic_state_label(data, biological_sex)
+
     # 3. P3-26: Ancestry-matched AF display
     ancestry_population = get_inferred_ancestry(sample_engine)
     if ancestry_population:
@@ -458,7 +472,6 @@ def get_variant_detail(
     # 6. Build evidence conflict detail
     evidence_conflict_detail = _build_evidence_conflict_detail(row)
 
-    registry = get_registry()
     _attach_alphamissense_badge(data)
     _attach_gtex_eqtl_badge(data, registry)
     _attach_spliceai_badge(data, registry)

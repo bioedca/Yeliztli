@@ -11,6 +11,7 @@ import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyDetail } from "@/lib/gnomad-status"
+import { formatZygosityLabel } from "@/lib/zygosity-label"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -98,7 +99,9 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
             {variant.zygosity && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Zygosity</span>
-                <span className="text-sm">{variant.zygosity === "hom_alt" ? "Homozygous" : "Heterozygous"}</span>
+                <span className="text-sm">
+                  {formatZygosityLabel(variant.zygosity, variant.zygosity_label)}
+                </span>
               </div>
             )}
             {variant.ref && (

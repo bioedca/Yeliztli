@@ -311,6 +311,9 @@ class TestSearchEndpoint:
         rsids = [item["rsid"] for item in data["items"]]
         assert "rs12345" not in rsids
         assert "rs28897696" in rsids  # BRCA1 pathogenic
+        by_rsid = {item["rsid"]: item for item in data["items"]}
+        assert by_rsid["rs28897696"]["zygosity_label"] == "Heterozygous"
+        assert by_rsid["rs_homalt_rare"]["zygosity_label"] == "Homozygous"
 
     def test_search_excludes_hom_ref_pathogenic(
         self, rare_client: TestClient, sample_db_path: Path
@@ -450,6 +453,9 @@ class TestSearchEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] > 0
+        assert all("zygosity_label" in item for item in data["items"])
+        by_rsid = {item["rsid"]: item for item in data["items"]}
+        assert by_rsid["rs28897696"]["zygosity_label"] == "Heterozygous"
 
     def test_search_response_metadata(self, rare_client: TestClient) -> None:
         """Response includes metadata fields."""
