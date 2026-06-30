@@ -146,11 +146,14 @@ describe("OverlaysView", () => {
     const dropZone = screen
       .getByText("Drop a BED or VCF file here, or click to browse")
       .closest("button") as HTMLElement
+    const fetchCallsBeforeDrop = mockFetch.mock.calls.length
     const gzFile = new File(["x"], "track.vcf.gz", { type: "application/gzip" })
     fireEvent.drop(dropZone, { dataTransfer: { files: [gzFile] } })
     expect(
       screen.getByText("Only plain-text .bed and .vcf files are supported.")
     ).toBeInTheDocument()
+    // Rejected before any network call — no preview/upload request is issued.
+    expect(mockFetch.mock.calls).toHaveLength(fetchCallsBeforeDrop)
     // The file is not accepted for upload.
     expect(screen.queryByText(/Selected: track\.vcf\.gz/)).not.toBeInTheDocument()
   })
