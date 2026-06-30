@@ -165,7 +165,7 @@ class TestPanelLoading:
 
         # The B6 risk genotype scores in the B6 pathway, never lifting B12.
         b6_snp = next(snp for snp in b6.snps if snp.rsid == "rs4654748")
-        assert _determine_pathway_level([_score_snp(b6_snp, "TT")]) == MODERATE
+        assert _determine_pathway_level([_score_snp(b6_snp, "CC")]) == MODERATE
         fut2 = next(snp for snp in by_id["vitamin_b12"].snps if snp.rsid == "rs602662")
         assert _determine_pathway_level([_score_snp(fut2, "AA")]) == STANDARD
 
@@ -391,6 +391,35 @@ class TestSNPScoring:
         result_ga = _score_snp(mthfr_snp, "GA")
         result_ag = _score_snp(mthfr_snp, "AG")
         assert result_ga.category == result_ag.category == MODERATE
+
+    def test_nbpf3_alpl_rs4654748_c_is_lower_vitamin_b6_direction(
+        self, panel: NutrigenomicsPanel
+    ) -> None:
+        """rs4654748 C is the lower-vitamin-B6 allele (#1326).
+
+        GWAS Catalog records the allele-resolved vitamin-B6 association as
+        rs4654748-C with a decrease in vitamin B6 (Tanaka et al. 2009, PMID
+        19303062). T is the minor allele on the GRCh37 plus-strand Ensembl
+        record, but is not the lower-B6 direction. Guard against inverting CC
+        and TT.
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs4654748")
+
+        assert snp.risk_allele == "C"
+        assert snp.ref_allele == "T"
+
+        cc = _score_snp(snp, "CC")
+        ct = _score_snp(snp, "CT")
+        tc = _score_snp(snp, "TC")
+        tt = _score_snp(snp, "TT")
+
+        assert cc.category == MODERATE
+        assert "lower circulating vitamin b6" in cc.effect_summary.lower()
+        assert ct.category == tc.category == MODERATE
+        assert "modestly lower" in ct.effect_summary.lower()
+        assert "modestly lower" in tc.effect_summary.lower()
+        assert tt.category == STANDARD
+        assert "lower circulating vitamin b6" not in tt.effect_summary.lower()
 
     def test_fads1_rs174547_c_carrier_direction(self, panel: NutrigenomicsPanel) -> None:
         """FADS1 rs174547 C carriers are the lower-desaturase risk direction."""
@@ -701,6 +730,35 @@ class TestScorePathways:
         mthfr = next(s for s in folate.snp_results if s.rsid == "rs1801133")
         assert mthfr.present_in_sample is True
         assert mthfr.category == MODERATE
+
+    @pytest.mark.parametrize(
+        ("genotype", "expected_category", "expected_pathway_level", "expected_text"),
+        [
+            ("CC", MODERATE, MODERATE, "Lower circulating vitamin B6 levels."),
+            ("TT", STANDARD, STANDARD, "Normal vitamin B6 levels."),
+        ],
+    )
+    def test_vitamin_b6_rs4654748_direction_scores_pathway(
+        self,
+        panel: NutrigenomicsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        genotype: str,
+        expected_category: str,
+        expected_pathway_level: str,
+        expected_text: str,
+    ) -> None:
+        """#1326: CC is the lower-B6 genotype; TT is Standard."""
+        _seed_variants(sample_engine, [("rs4654748", "1", 21786068, genotype)])
+
+        result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
+        vitamin_b6 = next(pr for pr in result.pathway_results if pr.pathway_id == "vitamin_b6")
+        rs4654748 = next(s for s in vitamin_b6.snp_results if s.rsid == "rs4654748")
+
+        assert vitamin_b6.level == expected_pathway_level
+        assert rs4654748.present_in_sample is True
+        assert rs4654748.category == expected_category
+        assert rs4654748.effect_summary == expected_text
 
     def test_full_scoring_with_mthfr_homozygous_risk(
         self,

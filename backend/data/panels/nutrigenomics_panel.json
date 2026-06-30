@@ -266,12 +266,12 @@
           "gene": "NBPF3/ALPL",
           "variant_name": "B6 levels variant",
           "hgvs_protein": null,
-          "risk_allele": "T",
-          "ref_allele": "C",
+          "risk_allele": "C",
+          "ref_allele": "T",
           "genotype_effects": {
             "CC": {
-              "category": "Standard",
-              "effect_summary": "Normal vitamin B6 levels."
+              "category": "Moderate",
+              "effect_summary": "Lower circulating vitamin B6 levels."
             },
             "CT": {
               "category": "Moderate",
@@ -282,8 +282,8 @@
               "effect_summary": "Modestly lower circulating vitamin B6 levels."
             },
             "TT": {
-              "category": "Moderate",
-              "effect_summary": "Lower circulating vitamin B6 levels."
+              "category": "Standard",
+              "effect_summary": "Normal vitamin B6 levels."
             }
           },
           "evidence_level": 2,
