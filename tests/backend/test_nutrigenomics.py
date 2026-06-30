@@ -415,6 +415,8 @@ class TestSNPScoring:
 
         assert cc.category == MODERATE
         assert "lower circulating vitamin b6" in cc.effect_summary.lower()
+        assert "19303062" in cc.pmids
+        assert "19744961" in cc.pmids
         assert ct.category == tc.category == MODERATE
         assert "modestly lower" in ct.effect_summary.lower()
         assert "modestly lower" in tc.effect_summary.lower()
