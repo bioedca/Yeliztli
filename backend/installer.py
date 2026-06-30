@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import argparse
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 # ── Constants ──────────────────────────────────────────────
 
@@ -115,10 +117,10 @@ def build_frontend() -> bool:
 def _render_plist(template_path: Path, install_dir: Path) -> str:
     """Render a launchd plist template, replacing __INSTALL_DIR__."""
     content = template_path.read_text()
-    content = content.replace("__INSTALL_DIR__", str(install_dir))
-    content = content.replace("__PYTHON__", _find_python())
+    content = content.replace("__INSTALL_DIR__", xml_escape(str(install_dir)))
+    content = content.replace("__PYTHON__", xml_escape(_find_python()))
     # Expand ~ in log paths to absolute home
-    content = content.replace("~/Library/Logs", str(LOG_DIR_MACOS))
+    content = content.replace("~/Library/Logs", xml_escape(str(LOG_DIR_MACOS)))
     return content
 
 
@@ -222,7 +224,7 @@ def install_systemd() -> None:
         print()
         print("  You can still run Yeliztli manually:")
         print(f"    cd {_repo_root()}")
-        print("    python -m backend.main &")
+        print(f"    {shlex.quote(_find_python())} -m backend.main &")
         print("    huey_consumer backend.tasks.huey_tasks.huey -w 1 &")
         return
 
