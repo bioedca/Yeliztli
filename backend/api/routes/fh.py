@@ -205,7 +205,13 @@ def run_fh_analysis(
     try:
         inferred = get_inferred_ancestry(sample_engine)
         top_fraction = get_top_ancestry_fraction(sample_engine)
-        assessment = assess_fh(sample_engine, pgs_engine, inferred, top_fraction)
+        assessment = assess_fh(
+            sample_engine,
+            pgs_engine,
+            inferred,
+            top_fraction,
+            reference_engine=get_registry().reference_engine,
+        )
         count = store_fh_findings(assessment, sample_engine)
     finally:
         if pgs_engine is not None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import types
 
 import sqlalchemy as sa
 
@@ -663,3 +664,138 @@ class TestImputedCalibrationViaReference:
             },
         ]
         assert continuous_reference_distribution(weights, sample, reference) is None
+
+    def test_run_cancer_prs_threads_reference_engine_to_preserve_percentile(self) -> None:
+        # #1281: a PRS module entry point must forward reference_engine to run_prs so
+        # an imputed-contributed score keeps a calibrated percentile (the "preserve"
+        # counterpart to the run_prs-level tests above) instead of withholding it.
+        # run_cancer_prs is the representative module; mixed_trait is not sex-gated,
+        # so it is not skipped.
+        from backend.analysis.cancer_prs import run_cancer_prs
+
+        # Without a reference engine the imputed contribution can't be sourced →
+        # percentile withheld.
+        withheld = run_cancer_prs([self._mixed_weight_set()], self._mixed_sample()).results[0]
+        assert withheld.snps_used_imputed == 1
+        assert withheld.percentile is None
+
+        # With a reference engine threaded through, the imputed variant is calibrated
+        # and the percentile is emitted over the same variant set as the raw score.
+        reference = _reference_with_gnomad(
+            [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
+        )
+        preserved = run_cancer_prs(
+            [self._mixed_weight_set()], self._mixed_sample(), reference_engine=reference
+        ).results[0]
+        assert preserved.calibration_method == "ancestry_continuous"
+        assert preserved.calibration_variants_used == 2  # typed + imputed both calibrated
+        assert preserved.percentile is not None
+
+
+class TestReferenceEngineThreading:
+    """Every PRS entry point must forward ``reference_engine`` down to ``run_prs`` so
+    imputed-contributed percentiles are preserved, not withheld (#1281).
+
+    These lock the one-line wiring at each entry point with a spy; the end-to-end
+    preserve behaviour itself is covered by TestImputedCalibrationViaReference.
+    """
+
+    def test_run_traits_prs_forwards_reference_engine(self, monkeypatch) -> None:
+        import backend.analysis.traits as t
+
+        captured: dict = {}
+
+        def _spy(*_a, **kw):
+            captured["reference_engine"] = kw.get("reference_engine")
+            return types.SimpleNamespace(
+                evidence_level=1,
+                trait="t",
+                percentile=None,
+                is_sufficient=True,
+                snps_used=0,
+                snps_total=0,
+            )
+
+        monkeypatch.setattr(t, "_load_prs_weight_sets", lambda _panel: [object()])
+        monkeypatch.setattr(t, "get_inferred_ancestry", lambda _e: None)
+        monkeypatch.setattr(t, "get_top_ancestry_fraction", lambda _e: None)
+        monkeypatch.setattr(t, "cap_evidence_level", lambda lvl, _cap: lvl)
+        monkeypatch.setattr(t, "run_prs", _spy)
+
+        sentinel = object()
+        t._run_traits_prs(types.SimpleNamespace(evidence_cap=4), None, reference_engine=sentinel)
+        assert captured["reference_engine"] is sentinel
+
+    def test_score_traits_pathways_forwards_reference_engine(self, monkeypatch) -> None:
+        # The outer hop the issue overlooked: score_traits_pathways already receives
+        # reference_engine (for gwas_matched_rsids) but must also pass it to the PRS.
+        import backend.analysis.traits as t
+        from backend.analysis.traits import load_traits_panel, score_traits_pathways
+
+        captured: dict = {}
+        monkeypatch.setattr(
+            t,
+            "_run_traits_prs",
+            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")) or [],
+        )
+        monkeypatch.setattr(t, "_fetch_genotypes", lambda _r, _e: {})
+        monkeypatch.setattr(t, "gwas_matched_rsids", lambda _r, _e: [])
+
+        sentinel = object()
+        score_traits_pathways(load_traits_panel(), None, sentinel)
+        assert captured["reference_engine"] is sentinel
+
+    def test_run_metabolic_prs_forwards_reference_engine(self, monkeypatch) -> None:
+        import backend.analysis.metabolic_prs as m
+
+        captured: dict = {}
+
+        def _spy(*_a, **kw):
+            captured["reference_engine"] = kw.get("reference_engine")
+            return types.SimpleNamespace(
+                pgs_id="x", coverage_fraction=0.0, snps_used=0, snps_total=0
+            )
+
+        monkeypatch.setattr(m, "score_anchor_snps", lambda _e, _t: [])
+        monkeypatch.setattr(m, "load_pgs_registry", lambda: None)
+        monkeypatch.setattr(m, "build_trait_weight_set", lambda *_a, **_k: object())
+        monkeypatch.setattr(m, "run_prs", _spy)
+
+        sentinel = object()
+        m.run_metabolic_prs(None, object(), reference_engine=sentinel)
+        assert captured["reference_engine"] is sentinel
+
+    def test_score_ebmd_prs_forwards_reference_engine(self, monkeypatch) -> None:
+        import backend.analysis.ebmd_prs as e
+
+        captured: dict = {}
+        monkeypatch.setattr(e, "load_pgs_registry", lambda: None)
+        monkeypatch.setattr(e, "build_trait_weight_set", lambda *_a, **_k: object())
+        monkeypatch.setattr(
+            e,
+            "run_prs",
+            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")),
+        )
+
+        sentinel = object()
+        e.score_ebmd_prs(None, object(), reference_engine=sentinel)
+        assert captured["reference_engine"] is sentinel
+
+    def test_assess_fh_forwards_reference_engine_to_run_prs(self, monkeypatch) -> None:
+        # Two-hop: assess_fh → score_ldl_prs → run_prs.
+        import backend.analysis.fh as f
+
+        captured: dict = {}
+        monkeypatch.setattr(f, "detect_fh_monogenic", lambda _e: None)
+        monkeypatch.setattr(f, "detect_apob_fdb", lambda _e: None)
+        monkeypatch.setattr(f, "load_pgs_registry", lambda: None)
+        monkeypatch.setattr(f, "build_trait_weight_set", lambda *_a, **_k: object())
+        monkeypatch.setattr(
+            f,
+            "run_prs",
+            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")),
+        )
+
+        sentinel = object()
+        f.assess_fh(None, object(), reference_engine=sentinel)
+        assert captured["reference_engine"] is sentinel

@@ -66,11 +66,16 @@ def score_ebmd_prs(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> PRSResult | None:
     """Compute the eBMD PRS via the bridge, or None when the BYO score is absent.
 
     ``bundle_only=False`` lets the bridge select the non-commercial gSOS score;
     it still resolves to None unless the user has loaded it into ``pgs_scores.db``.
+
+    ``reference_engine`` (optional gnomAD reference) lets imputed-only scored
+    variants be calibrated so their continuous percentile is preserved rather than
+    withheld (#1281/#1236).
     """
     if pgs_engine is None:
         return None
@@ -90,6 +95,7 @@ def score_ebmd_prs(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_ancestry_fraction,
         n_bootstrap=0,
+        reference_engine=reference_engine,
     )
 
 

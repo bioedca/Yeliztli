@@ -212,6 +212,7 @@ def run_cancer_prs(
     inferred_sex: str | None = "unknown",
     n_bootstrap: int = 1000,
     rng_seed: int | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> CancerPRSResult:
     """Run PRS computation for eligible cancer traits.
 
@@ -234,6 +235,9 @@ def run_cancer_prs(
             sex-specific PRS output.
         n_bootstrap: Bootstrap iterations (default 1000).
         rng_seed: Optional RNG seed for reproducibility.
+        reference_engine: Optional gnomAD reference engine. When supplied,
+            imputed-only scored variants are calibrated (and their continuous
+            percentile preserved) instead of withheld (#1281/#1236).
 
     Returns:
         CancerPRSResult with per-trait results.
@@ -261,6 +265,7 @@ def run_cancer_prs(
             top_ancestry_fraction=top_ancestry_fraction,
             n_bootstrap=n_bootstrap,
             rng_seed=rng_seed,
+            reference_engine=reference_engine,
         )
         results.append(result)
 

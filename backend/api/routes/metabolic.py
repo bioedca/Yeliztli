@@ -238,7 +238,13 @@ def run_metabolic_analysis(
     try:
         inferred = get_inferred_ancestry(sample_engine)
         top_fraction = get_top_ancestry_fraction(sample_engine)
-        result = run_metabolic_prs(sample_engine, pgs_engine, inferred, top_fraction)
+        result = run_metabolic_prs(
+            sample_engine,
+            pgs_engine,
+            inferred,
+            top_fraction,
+            reference_engine=get_registry().reference_engine,
+        )
         count = store_metabolic_findings(result, sample_engine)
     finally:
         if pgs_engine is not None:

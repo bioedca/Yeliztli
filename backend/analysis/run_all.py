@@ -145,6 +145,7 @@ def _run_cancer(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
         inferred_sex=sex_context,
+        reference_engine=registry.reference_engine,
     )
     count += store_cancer_prs_findings(prs_result, sample_engine)
     return count

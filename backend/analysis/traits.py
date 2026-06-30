@@ -497,6 +497,7 @@ def _run_traits_prs(
     sample_engine: sa.Engine,
     n_bootstrap: int = 1000,
     rng_seed: int | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> list[PRSResult]:
     """Run PRS computation for all traits weight sets.
 
@@ -508,6 +509,9 @@ def _run_traits_prs(
         sample_engine: SQLAlchemy engine for the sample database.
         n_bootstrap: Bootstrap iterations (default 1000).
         rng_seed: Optional RNG seed for reproducibility.
+        reference_engine: Optional gnomAD reference engine. When supplied,
+            imputed-only scored variants are calibrated (and their continuous
+            percentile preserved) instead of withheld (#1281/#1236).
 
     Returns:
         List of PRSResult objects (one per weight set).
@@ -528,6 +532,7 @@ def _run_traits_prs(
             top_ancestry_fraction=top_fraction,
             n_bootstrap=n_bootstrap,
             rng_seed=rng_seed,
+            reference_engine=reference_engine,
         )
         # Cap PRS evidence level at module cap
         result.evidence_level = cap_evidence_level(result.evidence_level, panel.evidence_cap)
@@ -672,12 +677,15 @@ def score_traits_pathways(
             )
         )
 
-    # Run PRS for cognitive ability pathway
+    # Run PRS for cognitive ability pathway. Thread the reference engine so an
+    # imputed-contributed cognitive-ability score keeps a calibrated percentile
+    # instead of withholding it (#1281/#1236).
     prs_results = _run_traits_prs(
         panel,
         sample_engine,
         n_bootstrap=n_bootstrap,
         rng_seed=rng_seed,
+        reference_engine=reference_engine,
     )
 
     # Cross-module link findings (DRD4 → Gene Health ADHD)

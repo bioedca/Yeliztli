@@ -145,7 +145,13 @@ def run_ebmd_analysis(
     try:
         inferred = get_inferred_ancestry(sample_engine)
         top_fraction = get_top_ancestry_fraction(sample_engine)
-        prs = score_ebmd_prs(sample_engine, pgs_engine, inferred, top_fraction)
+        prs = score_ebmd_prs(
+            sample_engine,
+            pgs_engine,
+            inferred,
+            top_fraction,
+            reference_engine=get_registry().reference_engine,
+        )
         count = store_ebmd_findings(prs, sample_engine)
     finally:
         if pgs_engine is not None:

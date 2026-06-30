@@ -194,8 +194,14 @@ def score_ldl_prs(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> PRSResult | None:
-    """Compute the LDL-C PRS via the bridge (uncalibrated, coverage reported)."""
+    """Compute the LDL-C PRS via the bridge (uncalibrated, coverage reported).
+
+    ``reference_engine`` (optional gnomAD reference) lets imputed-only scored
+    variants be calibrated so their continuous percentile is preserved rather than
+    withheld (#1281/#1236).
+    """
     if pgs_engine is None:
         return None
     weight_set = build_trait_weight_set(
@@ -209,6 +215,7 @@ def score_ldl_prs(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_ancestry_fraction,
         n_bootstrap=0,
+        reference_engine=reference_engine,
     )
 
 
@@ -220,12 +227,23 @@ def assess_fh(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
+    reference_engine: sa.Engine | None = None,
 ) -> FHAssessment:
-    """Compose the full FH assessment for a sample."""
+    """Compose the full FH assessment for a sample.
+
+    ``reference_engine`` is threaded to the LDL-C PRS so an imputed-contributed
+    score keeps a calibrated percentile instead of withholding it (#1281/#1236).
+    """
     return FHAssessment(
         monogenic=detect_fh_monogenic(sample_engine),
         apob_fdb=detect_apob_fdb(sample_engine),
-        ldl_prs=score_ldl_prs(sample_engine, pgs_engine, inferred_ancestry, top_ancestry_fraction),
+        ldl_prs=score_ldl_prs(
+            sample_engine,
+            pgs_engine,
+            inferred_ancestry,
+            top_ancestry_fraction,
+            reference_engine=reference_engine,
+        ),
     )
 
 
