@@ -30,6 +30,7 @@ from backend.reports.fhir_export import (
     LOINC_GENE_STUDIED,
     LOINC_POPULATION_AF,
     LOINC_SYSTEM,
+    _clinical_significance_value,
     _variant_to_observation,
 )
 
@@ -545,6 +546,27 @@ class TestFhirObservations:
         value = clinvar_component["valueCodeableConcept"]
 
         assert value == {"text": "drug_response"}
+
+    @pytest.mark.parametrize(
+        ("significance", "code", "display"),
+        [
+            ("Pathogenic", "LA6668-3", "Pathogenic"),
+            ("Likely pathogenic", "LA26332-9", "Likely pathogenic"),
+            ("Uncertain significance", "LA26333-7", "Uncertain significance"),
+            ("Likely benign", "LA26334-5", "Likely benign"),
+            ("Benign", "LA6675-8", "Benign"),
+        ],
+    )
+    def test_clinical_significance_loinc_code(
+        self, significance: str, code: str, display: str
+    ) -> None:
+        """Every ACMG_CLINICAL_SIGNIFICANCE_MAP entry must map to its own LOINC
+        answer code in the EHR-facing bundle (#1288). The suite previously only
+        exercised Pathogenic, so a wrong code for any of the other four
+        (e.g. Benign → LA6668-3 Pathogenic) shipped green. Calls
+        ``_clinical_significance_value`` directly to stay a fast unit test."""
+        coding = _clinical_significance_value(significance)["valueCodeableConcept"]["coding"][0]
+        assert coding == {"system": LOINC_SYSTEM, "code": code, "display": display}
 
     def test_observation_gnomad_af_uses_population_frequency_code(self) -> None:
         _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
