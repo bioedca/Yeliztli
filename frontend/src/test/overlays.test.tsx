@@ -128,6 +128,16 @@ describe("OverlaysView", () => {
     expect(screen.getByText("Upload Overlay File")).toBeInTheDocument()
   })
 
+  it("file picker advertises only plain-text .bed/.vcf (no .vcf.gz — backend has no gzip path, #1299)", () => {
+    mockOverlaysFetch()
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement | null
+    expect(input).not.toBeNull()
+    // Must match the backend, which decodes uploads as UTF-8 text and cannot
+    // parse gzip — advertising .vcf.gz produced a confusing 400 on upload.
+    expect(input?.accept).toBe(".bed,.vcf")
+  })
+
   it("shows page heading", () => {
     mockOverlaysFetch()
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])

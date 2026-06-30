@@ -91,7 +91,7 @@ function UploadPanel() {
   const handleFileSelect = (file: File) => {
     setSelectedFile(file)
     if (!name) {
-      setName(file.name.replace(/\.(bed|vcf|vcf\.gz)$/i, ""))
+      setName(file.name.replace(/\.(bed|vcf)$/i, ""))
     }
     previewMutation.mutate(file)
   }
@@ -149,7 +149,10 @@ function UploadPanel() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".bed,.vcf,.vcf.gz"
+          // Plain-text only: the backend reads uploads as UTF-8 text with no gzip
+          // path, so do not advertise .vcf.gz here (#1299). Bounded-gzip support
+          // is tracked as a follow-up.
+          accept=".bed,.vcf"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
