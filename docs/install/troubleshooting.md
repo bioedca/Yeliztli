@@ -10,7 +10,7 @@
 | Blank page at `localhost:5173` | Backend not running | In development, start both servers with `make dev`. |
 | A reference-database download fails | Network interruption | Re-run it from **Settings → Database Management** — downloads are **resumable**. Check **Settings → System Health → Database Health** for the specific error. |
 | Ancestry "chromosome painting" (Tier-2) is unavailable | The LAI bundle or Java is missing | Tier-1 ancestry still works without it. For Tier-2, install **Java 8+** and download the optional LAI bundle (see [reference data](reference-data.md)). |
-| Port 8000 already in use | Another process owns the port | Set a different port: `YELIZTLI_PORT=9000` (see [configuration](configuration.md)). |
+| Port 8000 already in use | Another process owns the port | Set a different port: `YELIZTLI_PORT=9000 make run-api`, `YELIZTLI_PORT=9000 docker compose up -d`, or set `port = 9000` in `~/.yeliztli/config.toml` and restart installed services (see [configuration](configuration.md)). |
 
 ## Still stuck?
 

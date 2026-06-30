@@ -63,7 +63,7 @@ manually before tagging a release.
 If systemd is not enabled in WSL2:
 
 - [ ] Installer prints helpful message about enabling systemd
-- [ ] Manual start works: `uvicorn backend.main:app --host 127.0.0.1 --port 8000 &`
+- [ ] Manual start works: `python -m backend.main &`
 - [ ] Manual huey works: `huey_consumer backend.tasks.huey_tasks.huey -w 1 &`
 
 ### 8. Docker (Inside WSL2)

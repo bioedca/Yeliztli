@@ -153,9 +153,9 @@ class TestServiceTemplates:
 
     def test_systemd_api_service_config(self):
         content = (_repo_root() / "systemd" / "yeliztli-api.service").read_text()
-        assert "uvicorn" in content
-        assert "127.0.0.1" in content
-        assert "8000" in content
+        assert "ExecStart=__PYTHON__ -m backend.main" in content
+        assert "--host" not in content
+        assert "--port" not in content
 
     def test_systemd_huey_service_config(self):
         content = (_repo_root() / "systemd" / "yeliztli-huey.service").read_text()
@@ -219,7 +219,8 @@ class TestDockerConfiguration:
 
     def test_docker_compose_localhost_only(self):
         content = (_repo_root() / "docker-compose.yml").read_text()
-        assert "127.0.0.1:8000:8000" in content
+        assert "${YELIZTLI_PUBLISH_HOST:-127.0.0.1}" in content
+        assert "${YELIZTLI_PORT:-8000}" in content
 
     def test_docker_compose_persistent_volume(self):
         import yaml

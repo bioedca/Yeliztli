@@ -3,12 +3,13 @@ services:
     build: .
     image: yeliztli:latest
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${YELIZTLI_PUBLISH_HOST:-127.0.0.1}:${YELIZTLI_PORT:-8000}:${YELIZTLI_PORT:-8000}"
     volumes:
       - yeliztli-data:/data
     environment:
       - YELIZTLI_DATA_DIR=/data
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
+      - YELIZTLI_HOST=0.0.0.0
+      - YELIZTLI_PORT=${YELIZTLI_PORT:-8000}
     restart: unless-stopped
 
   huey:

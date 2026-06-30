@@ -51,36 +51,42 @@ class TestLocalhostBinding:
         settings = Settings(data_dir=Path("/tmp/gi-test"))
         assert settings.port == 8000
 
-    def test_systemd_service_binds_localhost(self) -> None:
-        """systemd service file hardcodes 127.0.0.1."""
+    def test_systemd_service_uses_config_honoring_entrypoint(self) -> None:
+        """systemd service starts the settings-aware backend entrypoint."""
         service_file = _PROJECT_ROOT / "systemd" / "yeliztli-api.service"
         content = service_file.read_text()
-        assert "--host 127.0.0.1" in content
-        # Must NOT contain 0.0.0.0
+        assert "ExecStart=__PYTHON__ -m backend.main" in content
+        assert "--host" not in content
+        assert "--port" not in content
         assert "0.0.0.0" not in content
 
-    def test_launchd_plist_binds_localhost(self) -> None:
-        """launchd plist hardcodes 127.0.0.1."""
+    def test_launchd_plist_uses_config_honoring_entrypoint(self) -> None:
+        """launchd plist starts the settings-aware backend entrypoint."""
         plist_file = _PROJECT_ROOT / "launchd" / "com.yeliztli.api.plist"
         content = plist_file.read_text()
-        assert "127.0.0.1" in content
-        # Must NOT contain 0.0.0.0
+        assert "<string>__PYTHON__</string>" in content
+        assert "<string>-m</string>" in content
+        assert "<string>backend.main</string>" in content
+        assert "--host" not in content
+        assert "--port" not in content
         assert "0.0.0.0" not in content
 
     def test_docker_compose_maps_to_localhost(self) -> None:
         """docker-compose.yml maps port to 127.0.0.1 on the host side."""
         compose_file = _PROJECT_ROOT / "docker-compose.yml"
         content = compose_file.read_text()
-        # Host-side port mapping must be 127.0.0.1:8000:8000
-        assert "127.0.0.1:8000:8000" in content
+        assert (
+            "${YELIZTLI_PUBLISH_HOST:-127.0.0.1}:${YELIZTLI_PORT:-8000}:${YELIZTLI_PORT:-8000}"
+        ) in content
 
-    def test_docker_compose_does_not_override_app_host_setting(self) -> None:
-        """Default Docker should not trip the app-level non-loopback host warning."""
+    def test_docker_compose_separates_container_bind_from_host_publish(self) -> None:
+        """Docker binds inside the container while publishing loopback by default."""
         compose_file = _PROJECT_ROOT / "docker-compose.yml"
         content = compose_file.read_text()
-        assert "YELIZTLI_HOST=0.0.0.0" not in content
-        # The container still binds internally so Docker can publish the loopback-only port.
-        assert "uvicorn backend.main:app --host 0.0.0.0 --port 8000" in content
+        assert "YELIZTLI_HOST=0.0.0.0" in content
+        assert "YELIZTLI_PORT=${YELIZTLI_PORT:-8000}" in content
+        assert "command: uvicorn" not in content
+        assert "backend.main:app" not in content
 
     @pytest.mark.parametrize(
         "host",

@@ -98,6 +98,15 @@ class TestRenderPlist:
         assert "~/Library/Logs" not in rendered
         assert str(installer.LOG_DIR_MACOS) in rendered
 
+    def test_replaces_python_placeholder(self, tmp_path: Path):
+        plist = tmp_path / "test.plist"
+        plist.write_text("<array><string>__PYTHON__</string><string>-m</string></array>")
+
+        rendered = installer._render_plist(plist, Path("/opt/gi"))
+
+        assert "__PYTHON__" not in rendered
+        assert installer._find_python() in rendered
+
 
 # ── Systemd rendering ─────────────────────────────────────
 
@@ -127,6 +136,19 @@ class TestRenderSystemdUnit:
         assert "%h" not in rendered
         home_dir = str(Path.home())
         assert f"{home_dir}/.local/bin" in rendered
+
+    def test_replaces_python_placeholder(self, tmp_path: Path):
+        unit = tmp_path / "test.service"
+        unit.write_text(
+            "[Service]\n"
+            "ExecStart=__PYTHON__ -m backend.main\n"
+            "Environment=PATH=%h/.local/bin:/usr/bin\n"
+        )
+
+        rendered = installer._render_systemd_unit(unit, Path("/home/user/gi"))
+
+        assert "__PYTHON__" not in rendered
+        assert f"ExecStart={installer._find_python()} -m backend.main" in rendered
 
 
 # ── Health check ───────────────────────────────────────────

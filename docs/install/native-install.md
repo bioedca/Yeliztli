@@ -38,6 +38,16 @@ loginctl enable-linger "$USER"
 
 View logs with `journalctl --user -u yeliztli-api` (or `-u yeliztli-huey` for the worker).
 
+The API service starts through `python -m backend.main`, so it reads `host` and `port` from
+`~/.yeliztli/config.toml` and honors `YELIZTLI_HOST` / `YELIZTLI_PORT` in the service
+environment. To change the installed service port, set `port = 9000` in
+`~/.yeliztli/config.toml` and restart:
+
+```bash
+yeliztli-setup stop
+yeliztli-setup start
+```
+
 ### Install options
 
 ```bash
@@ -47,7 +57,8 @@ yeliztli-setup install --skip-frontend   # skip the frontend build
 
 ## 3. Open the application
 
-Visit **[http://localhost:8000](http://localhost:8000)**. On first run, the
+Visit **[http://localhost:8000](http://localhost:8000)**, or the configured host/port if you
+changed them. On first run, the
 **[setup wizard](setup-wizard.md)** launches automatically to finish configuration and
 download reference data.
 

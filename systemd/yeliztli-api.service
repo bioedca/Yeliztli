@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=uvicorn backend.main:app --host 127.0.0.1 --port 8000
+ExecStart=__PYTHON__ -m backend.main
 WorkingDirectory=%h/Yeliztli
 Restart=on-failure
 RestartSec=5

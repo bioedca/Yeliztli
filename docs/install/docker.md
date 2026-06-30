@@ -18,11 +18,12 @@ This starts two services:
 Your data persists in a Docker volume named `yeliztli-data`.
 
 !!! warning "Keep the published port on loopback unless auth is configured"
-    The default Compose file publishes `127.0.0.1:8000:8000`, so only the Docker host can
-    reach Yeliztli. Do not change the published host address to `0.0.0.0`, `::`, or a LAN IP
-    unless authentication is enabled **and** a password has been set. `YELIZTLI_AUTH_ENABLED=true`
-    by itself is not enough if `YELIZTLI_AUTH_PASSWORD_HASH` is empty. For remote access, prefer
-    a TLS-terminating reverse proxy instead of exposing uvicorn directly.
+    The default Compose file publishes `127.0.0.1:${YELIZTLI_PORT:-8000}:${YELIZTLI_PORT:-8000}`,
+    so only the Docker host can reach Yeliztli. Do not set `YELIZTLI_PUBLISH_HOST` to `0.0.0.0`,
+    `::`, or a LAN IP unless authentication is enabled **and** a password has been set.
+    `YELIZTLI_AUTH_ENABLED=true` by itself is not enough if `YELIZTLI_AUTH_PASSWORD_HASH` is
+    empty. For remote access, prefer a TLS-terminating reverse proxy instead of exposing
+    uvicorn directly.
 
 ## 2. Check health
 
@@ -66,10 +67,18 @@ services:
 ## Environment overrides
 
 All settings can be set via `YELIZTLI_`-prefixed environment variables (see
-[configuration](configuration.md)):
+[configuration](configuration.md)). When `YELIZTLI_PORT` is set in your shell or `.env`,
+it controls both the API process and the published host port in the default Compose file:
 
 ```bash
 YELIZTLI_PORT=9000 docker compose up -d
+curl http://localhost:9000/api/health
+```
+
+To publish beyond the Docker host's loopback interface, set `YELIZTLI_PUBLISH_HOST` as well:
+
+```bash
+YELIZTLI_PUBLISH_HOST=0.0.0.0 YELIZTLI_PORT=9000 docker compose up -d
 ```
 
 Or in the override file:
@@ -79,8 +88,11 @@ services:
   api:
     environment:
       - YELIZTLI_AUTH_ENABLED=true
+      - YELIZTLI_PORT=9000
       # Also set a password through the setup wizard or YELIZTLI_AUTH_PASSWORD_HASH.
       - YELIZTLI_LOG_LEVEL=DEBUG
+    ports:
+      - "127.0.0.1:9000:9000"
 ```
 
 After the containers are up, open the app and complete the

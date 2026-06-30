@@ -116,6 +116,7 @@ def _render_plist(template_path: Path, install_dir: Path) -> str:
     """Render a launchd plist template, replacing __INSTALL_DIR__."""
     content = template_path.read_text()
     content = content.replace("__INSTALL_DIR__", str(install_dir))
+    content = content.replace("__PYTHON__", _find_python())
     # Expand ~ in log paths to absolute home
     content = content.replace("~/Library/Logs", str(LOG_DIR_MACOS))
     return content
@@ -200,6 +201,7 @@ def _render_systemd_unit(template_path: Path, install_dir: Path) -> str:
     home_dir = str(Path.home())
     # Replace %h/Yeliztli with the actual install dir
     content = content.replace("%h/Yeliztli", str(install_dir))
+    content = content.replace("__PYTHON__", _find_python())
     # Ensure PATH includes common Python install locations with expanded home
     python_bin_dir = str(Path(_find_python()).parent)
     content = content.replace(
@@ -220,7 +222,7 @@ def install_systemd() -> None:
         print()
         print("  You can still run Yeliztli manually:")
         print(f"    cd {_repo_root()}")
-        print("    uvicorn backend.main:app --host 127.0.0.1 --port 8000 &")
+        print("    python -m backend.main &")
         print("    huey_consumer backend.tasks.huey_tasks.huey -w 1 &")
         return
 
@@ -333,7 +335,10 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     print("Installation complete!")
     print(f"  Data directory: {DATA_DIR}")
-    print("  API server:     http://127.0.0.1:8000")
+    from backend.config import get_settings
+
+    settings = get_settings()
+    print(f"  API server:     http://{settings.host}:{settings.port}")
     print("  Open in browser to start the setup wizard.")
     return 0
 

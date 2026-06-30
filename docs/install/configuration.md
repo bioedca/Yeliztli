@@ -72,12 +72,37 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
     The complete, always-current set of settings (including paths derived from `data_dir`)
     is defined in [`backend/config.py`](https://github.com/bioedca/Yeliztli/blob/main/backend/config.py).
 
+## Launch behavior
+
+Native services and `make run-api` start Yeliztli through `python -m backend.main`, so
+`host` / `port` from `config.toml` and `YELIZTLI_HOST` / `YELIZTLI_PORT` are used when the
+API binds.
+
+Docker Compose is slightly different because Docker has two network layers:
+
+- inside the container, the API binds to `YELIZTLI_HOST=0.0.0.0` so Docker can publish it;
+- on the Docker host, Compose publishes only loopback by default via
+  `YELIZTLI_PUBLISH_HOST=127.0.0.1`;
+- when set in your shell or `.env`, `YELIZTLI_PORT` controls both the API port inside the
+  container and the host port mapping.
+
+Examples:
+
+```bash
+YELIZTLI_PORT=9000 make run-api
+YELIZTLI_PORT=9000 docker compose up -d
+YELIZTLI_PUBLISH_HOST=0.0.0.0 YELIZTLI_PORT=9000 docker compose up -d
+```
+
 ## Exposing Yeliztli to your network
 
 Yeliztli's safe default is loopback-only: `host = "127.0.0.1"` serves the app only on the
 computer running it. If you change `host` to a non-loopback value such as `0.0.0.0`, `::`,
 or a LAN address, every reachable client can access the full API, including samples,
 variants, reports, and clinical findings.
+
+For Docker Compose, change `YELIZTLI_PUBLISH_HOST` instead of `YELIZTLI_HOST` to publish the
+container beyond the Docker host's loopback interface.
 
 Before binding beyond loopback, enable authentication **and set a password**. Setting
 `auth_enabled = true` without a non-empty `auth_password_hash` is still passwordless and

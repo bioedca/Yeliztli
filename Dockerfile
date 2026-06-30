@@ -26,9 +26,12 @@ RUN mkdir -p /data && chown appuser:appuser /data
 # Switch to non-root user
 USER appuser
 
+ENV YELIZTLI_HOST=0.0.0.0 \
+    YELIZTLI_PORT=8000
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)" || exit 1
+    CMD python -c "import os, urllib.request; port = os.environ.get('YELIZTLI_PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=5)" || exit 1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "backend.main"]
