@@ -464,6 +464,11 @@ class TestPathwayDetail:
         assert data["pathway_id"] == "atopic_conditions"
         assert data["level"] == "Elevated"
         assert len(data["snp_details"]) == 2
+        ormdl3 = next(d for d in data["snp_details"] if d["rsid"] == "rs8076131")
+        assert ormdl3["genotype"] == "AA"
+        assert ormdl3["category"] == "Elevated"
+        assert ormdl3["effect_summary"] == "Homozygous A risk allele."
+        assert "No risk allele" not in ormdl3["effect_summary"]
 
     def test_drug_hypersensitivity_detail(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathway/drug_hypersensitivity?sample_id=1")
