@@ -298,10 +298,16 @@ def _parse_int_or_none(val: str | None) -> int | None:
 
 
 def _is_mane_select(csq_fields: dict[str, str]) -> bool:
-    """Check if this transcript is MANE Select.
+    """Whether this transcript is the preferred (MANE Select / canonical) one.
 
-    VEP marks MANE Select in the MANE_SELECT field, or via
-    the FLAGS field containing "mane_select".
+    VEP marks MANE Select in the MANE_SELECT field, or via the FLAGS field
+    containing "mane_select". But ``MANE_SELECT`` is GRCh38-only — the bundle is
+    built from a GRCh37 VEP run, where it is never emitted, so without a fallback
+    every transcript scores equal and ``_pick_best`` collapses to pure
+    most-severe-consequence, surfacing a minor isoform's consequence/HGVS over the
+    canonical transcript's (#1295). GRCh37 VEP **does** emit ``CANONICAL`` (=YES on
+    the Ensembl canonical transcript), so fall back to it as the MANE-equivalent
+    tiebreak. Requires the VEP run to include ``--canonical``.
     """
     mane = csq_fields.get("MANE_SELECT", "")
     if mane and mane != "" and mane != ".":
@@ -309,6 +315,11 @@ def _is_mane_select(csq_fields: dict[str, str]) -> bool:
     # Also check MANE_PLUS_CLINICAL
     flags = csq_fields.get("FLAGS", "")
     if "mane_select" in flags.lower():
+        return True
+    # CANONICAL fallback: GRCh37 VEP omits MANE_SELECT but emits CANONICAL="YES"
+    # for the Ensembl canonical transcript (#1295).
+    canonical = csq_fields.get("CANONICAL", "")
+    if canonical.strip().upper() in ("YES", "1"):
         return True
     return False
 
@@ -439,15 +450,20 @@ def parse_vep_vcf(
                     hgvsp = hgvsp.replace("%3D", "=").replace("%3E", ">")
 
                 key = (rsid, alt)
-                current_severity = best_severity.get(key, -1)
+                prev = best_by_variant.get(key)
 
-                # Prefer: higher severity > MANE Select > first seen
-                is_better = severity > current_severity or (
-                    severity == current_severity
-                    and mane
-                    and key in best_by_variant
-                    and not best_by_variant[key].mane_select
+                # Prefer the MANE Select / canonical transcript over a more-severe
+                # non-canonical isoform (#1295), then most-severe consequence, then
+                # first-seen. The lexicographic (mane, severity) order mirrors the
+                # runtime backend.annotation.vep_bundle._pick_best; the previous
+                # severity-first order let a minor isoform's stop_gained beat the
+                # canonical transcript's synonymous call.
+                prev_score = (
+                    (prev.mane_select, best_severity.get(key, -1))
+                    if prev is not None
+                    else (-1, -1)
                 )
+                is_better = (mane, severity) > prev_score
 
                 if is_better:
                     record = VEPRecord(

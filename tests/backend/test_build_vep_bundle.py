@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"
 from build_vep_bundle import (
     BuildStats,
     VEPRecord,
+    _is_mane_select,
     build_bundle_db,
     consequence_severity,
     coverage_report,
@@ -779,3 +780,62 @@ class TestBuildStats:
         assert "1,000" in summary
         assert "950" in summary
         assert "5.5s" in summary
+
+
+class TestCanonicalTiebreak:
+    """CANONICAL fallback for transcript selection on GRCh37 (#1295).
+
+    MANE_SELECT is GRCh38-only, so on the GRCh37 bundle build the MANE tiebreak
+    never fires and `_pick_best` collapses to pure most-severe-consequence —
+    surfacing a minor isoform's consequence/HGVS over the canonical transcript's.
+    GRCh37 VEP emits CANONICAL, used here as the MANE-equivalent tiebreak.
+    """
+
+    def test_is_mane_select_canonical_fallback(self) -> None:
+        # CANONICAL="YES" with no MANE_SELECT → preferred (the GRCh37 case).
+        assert _is_mane_select({"CANONICAL": "YES"}) is True
+        assert _is_mane_select({"CANONICAL": "1"}) is True
+        # Not canonical and no MANE → not preferred.
+        assert _is_mane_select({"CANONICAL": ""}) is False
+        assert _is_mane_select({"CANONICAL": "-", "FLAGS": "", "MANE_SELECT": ""}) is False
+        # MANE_SELECT still wins when present (GRCh38).
+        assert _is_mane_select({"MANE_SELECT": "NM_000041.4", "CANONICAL": ""}) is True
+
+    def test_parse_picks_canonical_over_more_severe_noncanonical(self, tmp_path: Path) -> None:
+        # AGTRAP rs771467011-style: the canonical transcript is synonymous (silent)
+        # while a non-canonical isoform is stop_gained. Without the CANONICAL
+        # fallback the bundle surfaced the stop_gained (LoF) call; it must now pick
+        # the canonical synonymous transcript (#1295).
+        csq_hdr = (
+            "Allele|Consequence|IMPACT|SYMBOL|Gene"
+            "|Feature_type|Feature|BIOTYPE|EXON|INTRON"
+            "|HGVSc|HGVSp|STRAND|FLAGS|MANE_SELECT|CANONICAL"
+        )
+        meta = f'##INFO=<ID=CSQ,Number=.,Type=String,Description="Format: {csq_hdr}">'
+        # Non-canonical, more-severe stop_gained listed FIRST (so neither first-seen
+        # nor severity would pick the canonical one without the fallback).
+        noncanonical = (
+            "A|stop_gained|HIGH|AGTRAP|57|Transcript|ENST00000510878|protein_coding"
+            "|2/4||ENST00000510878:c.188C>A|ENST00000510878:p.Ser63Ter|1|||"
+        )
+        canonical = (
+            "A|synonymous_variant|LOW|AGTRAP|57|Transcript|ENST00000314340|protein_coding"
+            "|3/5||ENST00000314340:c.294C>A|ENST00000314340:p.Leu98=|1|||YES"
+        )
+        lines = [
+            "##fileformat=VCFv4.2",
+            meta,
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+            f"1\t11790000\trs771467011\tC\tA\t.\t.\tCSQ={noncanonical},{canonical}",
+        ]
+        vcf_path = tmp_path / "canonical_tiebreak.vcf"
+        vcf_path.write_text("\n".join(lines) + "\n")
+
+        rows = parse_vep_vcf(vcf_path, BuildStats())
+        agtrap = [r for r in rows if r["rsid"] == "rs771467011"]
+        assert len(agtrap) == 1
+        row = agtrap[0]
+        assert row["transcript_id"] == "ENST00000314340"
+        assert row["consequence"] == "synonymous_variant"
+        assert row["hgvs_protein"] == "p.Leu98="
+        assert row["mane_select"] == 1
