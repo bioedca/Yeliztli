@@ -110,8 +110,10 @@ AncestryDNA.txt:Zone.Identifier
 AncestryDNAsample.txt
 AncestryDNAsample.txt:Zone.Identifier
 
-# LAI bundle artifacts — distributed via GitHub Releases, not git.
-genomeinsight_lai_bundle_*.tar.gz
+# LAI bundle artifacts — distributed via GitHub Releases, not git. The legacy
+# pre-rebrand bundle tarball is a binary archive graphify never scans, so it
+# needs no pattern here; omitting its name also keeps this file free of rebrand
+# residuals (see tests/backend/test_rename_guard.py).
 yeliztli_lai_bundle_*.tar.gz
 lai_bundle_build/
 
