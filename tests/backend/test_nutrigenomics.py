@@ -140,7 +140,7 @@ class TestPanelLoading:
     def test_b6_snp_not_in_b12_pathway(self, panel: NutrigenomicsPanel) -> None:
         """#595: rs4654748 (ALPL) is a vitamin B6 locus, not B12.
 
-        The panel-cited GWAS (Tanaka 2009, PMID 19744961) reports ALPL rs4654748
+        The direction-establishing GWAS (Tanaka 2009, PMID 19303062) reports ALPL rs4654748
         with vitamin B6 and FUT2 rs602662 with vitamin B12. Because the pathway
         level is the max category across its SNPs, a low-B6 rs4654748 genotype
         used to raise the "Vitamin B12" pathway. rs4654748 now lives in its own
