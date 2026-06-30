@@ -184,11 +184,21 @@ class TestOtherCriteria:
         assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN)) is None
         assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN - eps)) is None
 
-    @pytest.mark.parametrize("rsid", ["rs1800562", "rs1799945", "rs72474224"])
+    @pytest.mark.parametrize(
+        "rsid",
+        [
+            "rs1800562",  # HFE C282Y (#1243)
+            "rs1799945",  # HFE H63D (#1243)
+            "rs72474224",  # GJB2 V37I (#1243)
+            "rs11466023",  # MEFV P369S (#1296)
+            "rs13078881",  # BTD D444H (#1296)
+            "rs1800556",  # ACADS R171W (#1296)
+        ],
+    )
     def test_ba1_skipped_for_clingen_exception_variant(self, rsid: str) -> None:
         # ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383): common but with
         # evidence of pathogenicity → BA1 (stand-alone benign) must not fire at MAF > 5%,
-        # even well above the cutoff (#1243).
+        # even well above the cutoff (#1243/#1296).
         assert criterion_ba1(AcmgEvidence(rsid=rsid, gnomad_af_popmax=0.07)) is None
 
     def test_ba1_exception_variant_not_force_drafted_benign(self) -> None:

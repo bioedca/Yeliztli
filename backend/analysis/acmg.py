@@ -106,15 +106,21 @@ BA1_AF_MIN = 0.05
 # stand-alone benign rule BA1 must NOT be applied — the full evidence is weighed instead.
 # Without this, common-but-pathogenic variants (e.g. HFE C282Y, the canonical hereditary-
 # hemochromatosis allele) are force-drafted Benign, overriding all pathogenic evidence
-# (#1243). Keyed by rsID. This is the high-frequency, high-impact subset this draft engine
-# reaches via popmax > 5%, each rsID verified against dbSNP / the repo hemochromatosis panel;
-# the SVI list is living/curated and the ≥2,000-allele + founder-population (Finnish/ASJ)
-# clauses of the refined rule are tracked separately.
+# (#1243/#1296). Keyed by rsID; each rsID verified against Ensembl GRCh37 (rsID ↔
+# gene/HGVSc/HGVSp + a gnomAD population AF > 5%, so this draft engine actually reaches
+# it via popmax) plus the Ghosh 2018 named exception variants. The SVI list is
+# living/curated; the ≥2,000-allele + founder-population (Finnish/ASJ) clauses of the
+# refined rule are tracked separately (require allele counts / per-population AFs not
+# yet plumbed into AcmgEvidence).
 _BA1_EXCEPTION_RSIDS: frozenset[str] = frozenset(
     {
         "rs1800562",  # HFE c.845G>A p.Cys282Tyr (C282Y) — hereditary hemochromatosis
         "rs1799945",  # HFE c.187C>G p.His63Asp (H63D) — hereditary hemochromatosis
         "rs72474224",  # GJB2 c.109G>A p.Val37Ile (V37I) — nonsyndromic hearing loss
+        # Ghosh 2018 named exception variants (verified on Ensembl GRCh37, 2026-06-30):
+        "rs11466023",  # MEFV c.1105C>T p.Pro369Ser — familial Mediterranean fever (~7.3% EAS)
+        "rs13078881",  # BTD c.1330G>C p.Asp444His — biotinidase deficiency (Finnish ~5.2%)
+        "rs1800556",  # ACADS c.511C>T p.Arg171Trp — SCAD deficiency (Finnish ~6.5%)
     }
 )
 # BS1: "allele frequency greater than expected for the disorder" — a general 1%
