@@ -138,6 +138,23 @@ describe("OverlaysView", () => {
     expect(input?.accept).toBe(".bed,.vcf")
   })
 
+  it("rejects an unsupported dropped file (.vcf.gz) client-side, not via a backend 400 (#1299)", () => {
+    // The picker `accept` does not constrain drag-and-drop, so the common
+    // handler must reject unsupported extensions before any upload.
+    mockOverlaysFetch()
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    const dropZone = screen
+      .getByText("Drop a BED or VCF file here, or click to browse")
+      .closest("button") as HTMLElement
+    const gzFile = new File(["x"], "track.vcf.gz", { type: "application/gzip" })
+    fireEvent.drop(dropZone, { dataTransfer: { files: [gzFile] } })
+    expect(
+      screen.getByText("Only plain-text .bed and .vcf files are supported.")
+    ).toBeInTheDocument()
+    // The file is not accepted for upload.
+    expect(screen.queryByText(/Selected: track\.vcf\.gz/)).not.toBeInTheDocument()
+  })
+
   it("shows page heading", () => {
     mockOverlaysFetch()
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
