@@ -56,6 +56,17 @@ class ThemeRequest(BaseModel):
     theme: Literal["light", "dark", "system"]
 
 
+UpdateCheckInterval = Literal["off", "startup", "daily", "weekly"]
+
+
+class UpdateCheckIntervalResponse(BaseModel):
+    update_check_interval: UpdateCheckInterval
+
+
+class UpdateCheckIntervalRequest(BaseModel):
+    update_check_interval: UpdateCheckInterval
+
+
 # ── Endpoints ───────────────────────────────────────────────────────
 
 
@@ -87,3 +98,43 @@ async def set_theme(body: ThemeRequest) -> ThemeResponse:
 
     logger.info("theme_updated", extra={"theme": body.theme})
     return ThemeResponse(theme=body.theme)
+
+
+@router.get("/update-check-interval", response_model=UpdateCheckIntervalResponse)
+async def get_update_check_interval() -> UpdateCheckIntervalResponse:
+    """Return the current automatic-update-check interval from settings."""
+    settings = get_settings()
+    return UpdateCheckIntervalResponse(update_check_interval=settings.update_check_interval)
+
+
+@router.put("/update-check-interval", response_model=UpdateCheckIntervalResponse)
+async def set_update_check_interval(
+    body: UpdateCheckIntervalRequest,
+) -> UpdateCheckIntervalResponse:
+    """Update the automatic-update-check interval and persist it to config.toml.
+
+    ``"off"`` stops the automatic outbound update/version checks (the periodic
+    task no-ops and ``/api/updates/check`` / ``/app-update`` return without any
+    outbound request — see ``update_check_interval`` in config.py and #1285).
+    Surfaced so the Settings UI can offer an "Automatically check for updates"
+    toggle without editing config.toml by hand (#1287).
+    """
+    config_path = config_toml_path()
+
+    with config_write_lock:
+        content = _read_config_toml(config_path)
+
+        section = read_config_section(content)
+        section["update_check_interval"] = body.update_check_interval
+        write_config_section(content, section)
+
+        write_config_toml(config_path, content)
+
+    # Clear cached settings so next read picks up the new value
+    get_settings.cache_clear()
+
+    logger.info(
+        "update_check_interval_updated",
+        extra={"update_check_interval": body.update_check_interval},
+    )
+    return UpdateCheckIntervalResponse(update_check_interval=body.update_check_interval)

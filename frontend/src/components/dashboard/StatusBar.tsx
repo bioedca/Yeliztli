@@ -7,6 +7,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { useAppUpdate, useDatabaseStatuses, useUpdateCheck } from '@/api/updates'
+import { useUpdateCheckInterval } from '@/api/preferences'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { ArrowUpCircle, Database, User } from 'lucide-react'
@@ -34,8 +35,14 @@ function formatRelativeTime(dateStr: string): string {
 export default function StatusBar({ sample, variantCount }: StatusBarProps) {
   const navigate = useNavigate()
   const { data: statuses } = useDatabaseStatuses()
-  const { data: updateCheck } = useUpdateCheck(true)
-  const { data: appUpdate } = useAppUpdate()
+  // Gate the outbound update/version checks on the user's setting (#1287): when
+  // update_check_interval is "off" they are pointless local polls (the backend
+  // short-circuits them — #1285). useDatabaseStatuses stays on (local version
+  // stamps, no outbound). Defaults to enabled while the preference is loading.
+  const { data: updateInterval } = useUpdateCheckInterval()
+  const autoUpdateChecks = updateInterval?.update_check_interval !== 'off'
+  const { data: updateCheck } = useUpdateCheck(autoUpdateChecks)
+  const { data: appUpdate } = useAppUpdate(autoUpdateChecks)
 
   // Build a set of db_names that have updates available
   const updatesAvailable = new Set(

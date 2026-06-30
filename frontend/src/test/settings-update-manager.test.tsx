@@ -364,12 +364,39 @@ describe('UpdateManager', () => {
   it('shows auto-update toggle for each database', async () => {
     setupFetchMocks()
     render(<UpdateManager />, { wrapper: createWrapper() })
-    const toggles = await screen.findAllByRole('switch')
+    // Match only the per-DB auto-update toggles by accessible name — this also
+    // waits for the async DB rows (the "Automatically check for updates" master
+    // toggle (#1287) is also role="switch" but renders immediately, so an
+    // unfiltered findAllByRole would resolve on it before the rows arrive).
+    const toggles = await screen.findAllByRole('switch', { name: /^Auto-update / })
     expect(toggles.length).toBe(3) // clinvar, gnomad, dbnsfp
     // ClinVar should be on
     expect(toggles[0]).toHaveAttribute('aria-checked', 'true')
     // gnomAD should be off
     expect(toggles[1]).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('toggles automatic update checks via the preferences API (#1287)', async () => {
+    setupFetchMocks()
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const master = await screen.findByRole('switch', {
+      name: 'Automatically check for updates',
+    })
+    // The default fetch fallthrough returns {} → interval undefined → shown on.
+    expect(master).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(master)
+    await waitFor(() => {
+      const put = mockFetch.mock.calls.find(
+        (c) =>
+          c[0] === '/api/preferences/update-check-interval' && c[1]?.method === 'PUT',
+      )
+      expect(put).toBeTruthy()
+      // Turning off from the on default persists "off".
+      expect(JSON.parse(put![1].body as string)).toEqual({
+        update_check_interval: 'off',
+      })
+    })
   })
 
   it('shows cadence labels', async () => {

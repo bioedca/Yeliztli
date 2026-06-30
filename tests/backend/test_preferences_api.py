@@ -43,6 +43,8 @@ def prefs_client(tmp_data_dir: Path) -> TestClient:
             section = data.get("yeliztli") or {}
             if "theme" in section:
                 kwargs["theme"] = section["theme"]
+            if "update_check_interval" in section:
+                kwargs["update_check_interval"] = section["update_check_interval"]
         return Settings(**kwargs)
 
     with (
@@ -122,3 +124,66 @@ class TestSetTheme:
         content = config_path.read_text()
         assert 'theme = "light"' in content
         assert 'data_dir = "/custom/path"' in content
+
+
+class TestGetUpdateCheckInterval:
+    """GET /api/preferences/update-check-interval."""
+
+    def test_default_interval_is_daily(self, prefs_client: TestClient) -> None:
+        resp = prefs_client.get("/api/preferences/update-check-interval")
+        assert resp.status_code == 200
+        assert resp.json()["update_check_interval"] == "daily"
+
+
+class TestSetUpdateCheckInterval:
+    """PUT /api/preferences/update-check-interval (#1287)."""
+
+    @pytest.mark.parametrize("interval", ["off", "startup", "daily", "weekly"])
+    def test_set_valid_interval(self, prefs_client: TestClient, interval: str) -> None:
+        resp = prefs_client.put(
+            "/api/preferences/update-check-interval",
+            json={"update_check_interval": interval},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["update_check_interval"] == interval
+
+    def test_set_off_persists_to_config_toml(
+        self, prefs_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        prefs_client.put(
+            "/api/preferences/update-check-interval",
+            json={"update_check_interval": "off"},
+        )
+        config_path = tmp_data_dir / "config.toml"
+        assert config_path.exists()
+        assert 'update_check_interval = "off"' in config_path.read_text()
+
+    def test_round_trip(self, prefs_client: TestClient) -> None:
+        prefs_client.put(
+            "/api/preferences/update-check-interval",
+            json={"update_check_interval": "off"},
+        )
+        resp = prefs_client.get("/api/preferences/update-check-interval")
+        assert resp.json()["update_check_interval"] == "off"
+
+    def test_invalid_interval_rejected(self, prefs_client: TestClient) -> None:
+        resp = prefs_client.put(
+            "/api/preferences/update-check-interval",
+            json={"update_check_interval": "hourly"},
+        )
+        assert resp.status_code == 422
+
+    def test_missing_body_rejected(self, prefs_client: TestClient) -> None:
+        resp = prefs_client.put("/api/preferences/update-check-interval", json={})
+        assert resp.status_code == 422
+
+    def test_does_not_clobber_theme(self, prefs_client: TestClient, tmp_data_dir: Path) -> None:
+        """Independent preference keys must coexist in the same config section."""
+        prefs_client.put("/api/preferences/theme", json={"theme": "dark"})
+        prefs_client.put(
+            "/api/preferences/update-check-interval",
+            json={"update_check_interval": "off"},
+        )
+        content = (tmp_data_dir / "config.toml").read_text()
+        assert 'theme = "dark"' in content
+        assert 'update_check_interval = "off"' in content
