@@ -462,7 +462,7 @@ class TestPathwayDetail:
         assert resp.status_code == 200
         data = resp.json()
         assert data["pathway_id"] == "atopic_conditions"
-        assert data["level"] == "Moderate"
+        assert data["level"] == "Elevated"
         assert len(data["snp_details"]) == 2
 
     def test_drug_hypersensitivity_detail(self, seeded_client: TestClient) -> None:

@@ -400,6 +400,7 @@ class TestSNPScoring:
         """#1324: ORMDL3/17q21 rs8076131 A, not G, is the risk allele."""
         snp = self._get_snp(panel, "rs8076131")
         assert (snp.risk_allele, snp.ref_allele) == ("A", "G")
+        assert "32841424" in snp.pmids
         assert _score_snp(snp, "AA").category == ELEVATED
         assert _score_snp(snp, "AG").category == MODERATE
         assert _score_snp(snp, "GA").category == MODERATE
