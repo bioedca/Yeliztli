@@ -567,9 +567,9 @@ def apply_overlay(
     For BED overlays: matches variants whose (chrom, pos) falls within
     any overlay region [start, end).
     For VCF overlays: matches variants allele-aware by exact (chrom, pos, ref, alt)
-    when sample alleles are available (annotated_variants), so an allele-specific INFO
+    when a sample row has alleles (annotated_variants), so an allele-specific INFO
     value attaches only to the matching allele (#1228); falls back to (chrom, pos)-only
-    matching when only raw_variants (no ref/alt) are present.
+    matching for sample rows that do not have usable ref/alt (#1321).
 
     Matched annotations are stored in the ``variant_overlays`` table.
 
@@ -595,7 +595,7 @@ def apply_overlay(
     # ref/alt, which lets VCF overlays match allele-aware so an allele-specific INFO
     # value attaches only to the matching allele (#1228). Fall back to raw_variants
     # (no ref/alt), where only position-only matching is possible.
-    alleles_available = False
+    rows_include_allele_columns = False
     with sample_engine.connect() as conn:
         try:
             rows = conn.execute(
@@ -607,11 +607,7 @@ def apply_overlay(
                     av_table.c.alt,
                 )
             ).fetchall()
-            # Enable allele-aware matching only if at least one row actually carries
-            # ref/alt. If annotated_variants exists but its ref/alt are all null/empty,
-            # keep the (chrom, pos) fallback rather than silently dropping every VCF
-            # match to an empty allele index (CodeRabbit #1228).
-            alleles_available = any((row.ref or "") and (row.alt or "") for row in rows)
+            rows_include_allele_columns = True
         except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
             rows = []
 
@@ -621,25 +617,31 @@ def apply_overlay(
                 rows = conn.execute(
                     sa.select(rv_table.c.rsid, rv_table.c.chrom, rv_table.c.pos)
                 ).fetchall()
+                rows_include_allele_columns = False
             except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
                 rows = []
 
     if not rows:
         return result
 
-    # Position index (chrom, pos) -> rsids: used by BED ranges, and by VCF overlays
-    # only when alleles are unavailable (raw_variants fallback). When ref/alt are
-    # available, the allele index keys on (chrom, pos, REF, ALT) for allele-aware VCF
-    # matching (#1228).
+    # Position index (chrom, pos) -> rsids: used by BED ranges. VCF overlays use the
+    # allele index for rows with ref/alt and a narrower position fallback only for
+    # rows that lack usable allele values.
     pos_index: dict[tuple[str, int], list[str]] = {}
+    vcf_position_fallback_index: dict[tuple[str, int], list[str]] = {}
     allele_index: dict[tuple[str, int, str, str], list[str]] = {}
     for row in rows:
-        pos_index.setdefault((row.chrom, row.pos), []).append(row.rsid)
-        if alleles_available:
+        pos_key = (row.chrom, row.pos)
+        pos_index.setdefault(pos_key, []).append(row.rsid)
+        ref = ""
+        alt = ""
+        if rows_include_allele_columns:
             ref = (row.ref or "").upper()
             alt = (row.alt or "").upper()
-            if ref and alt:
-                allele_index.setdefault((row.chrom, row.pos, ref, alt), []).append(row.rsid)
+        if ref and alt:
+            allele_index.setdefault((row.chrom, row.pos, ref, alt), []).append(row.rsid)
+        else:
+            vcf_position_fallback_index.setdefault(pos_key, []).append(row.rsid)
 
     result.records_checked = len(parsed.records)
 
@@ -648,33 +650,42 @@ def apply_overlay(
 
     for rec in parsed.records:
         if parsed.file_type == "vcf":
-            if alleles_available and rec.ref is not None and rec.alt is not None:
+            if rec.ref is not None and rec.alt is not None:
                 # Allele-aware: attach only to sample variant(s) whose exact
                 # (chrom, pos, ref, alt) matches this record. The parser emits one
                 # record per ALT; split here as a compatibility guard for manually
                 # constructed ParsedOverlay values that still carry multi-ALT text.
                 ref_u = rec.ref.upper()
-                rsids = [
+                allele_rsids = [
                     rsid
                     for alt_tok in rec.alt.split(",")
                     if (alt_u := alt_tok.strip().upper())
                     for rsid in allele_index.get((rec.chrom, rec.start, ref_u, alt_u), [])
                 ]
-                annotations = rec.annotations
-            else:
-                # No sample alleles available (raw_variants) — position-only match.
-                rsids = pos_index.get((rec.chrom, rec.start), [])
-                annotations = (
-                    rec.position_annotations
-                    if rec.position_annotations is not None
-                    else rec.annotations
-                )
-            for rsid in rsids:
+                for rsid in allele_rsids:
+                    matches.append(
+                        {
+                            "rsid": rsid,
+                            "overlay_id": overlay_id,
+                            "annotations": json.dumps(rec.annotations),
+                        }
+                    )
+
+            # Rows without usable sample alleles cannot be matched by REF/ALT, so keep
+            # the conservative position-only fallback for those rows without
+            # cross-attaching INFO to allele-resolved variants at the same coordinate.
+            fallback_rsids = vcf_position_fallback_index.get((rec.chrom, rec.start), [])
+            fallback_annotations = (
+                rec.position_annotations
+                if rec.position_annotations is not None
+                else rec.annotations
+            )
+            for rsid in fallback_rsids:
                 matches.append(
                     {
                         "rsid": rsid,
                         "overlay_id": overlay_id,
-                        "annotations": json.dumps(annotations),
+                        "annotations": json.dumps(fallback_annotations),
                     }
                 )
         else:

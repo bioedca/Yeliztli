@@ -558,3 +558,48 @@ class TestApplyOverlay:
         parsed = parse_vcf_overlay(content)
         result = apply_overlay(parsed, 11, "Null-allele fallback", sample_engine)
         assert result.variants_matched == 1  # position-only fallback, not zero
+
+    def test_vcf_mixed_null_allele_rows_fall_back_by_position(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Null-allele annotated rows still use the position fallback when other
+        annotated rows carry alleles (#1321).
+        """
+        from backend.annotation.vcfanno_runner import get_overlay_results
+        from backend.db.tables import annotated_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsResolved",
+                        "chrom": "1",
+                        "pos": 200000,
+                        "ref": "C",
+                        "alt": "G",
+                        "genotype": "CG",
+                        "annotation_coverage": 0,
+                    },
+                    {
+                        "rsid": "rsNull",
+                        "chrom": "1",
+                        "pos": 300000,
+                        "ref": None,
+                        "alt": None,
+                        "genotype": "??",
+                        "annotation_coverage": 0,
+                    },
+                ],
+            )
+        content = (
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t300000\t.\tC\tT\t.\tPASS\tSCORE=0.7\n"
+        )
+        parsed = parse_vcf_overlay(content)
+        result = apply_overlay(parsed, 12, "Mixed null-allele fallback", sample_engine)
+
+        results = get_overlay_results(12, sample_engine)
+        assert result.variants_matched == 1
+        assert results == [{"rsid": "rsNull", "overlay_id": 12, "SCORE": 0.7}]
