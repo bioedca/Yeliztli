@@ -365,11 +365,26 @@ class TestFhirDiagnosticReport:
         first = bundle["entry"][0]["resource"]
         assert first["resourceType"] == "DiagnosticReport"
 
-    def test_report_status_final(self, client) -> None:
+    def test_report_status_is_preliminary_not_final(self, client) -> None:
+        # Unvalidated, array-derived research output must not be signalled as a
+        # verified/complete clinical report (#1291).
         tc, sid = client
         resp = tc.post("/api/export/fhir", json={"sample_id": sid})
         report = resp.json()["entry"][0]["resource"]
-        assert report["status"] == "final"
+        assert report["status"] == "preliminary"
+
+    def test_report_carries_research_use_conclusion(self, client) -> None:
+        # The research-use caveat must travel inside the bundle (#1291), so a
+        # receiving EHR/clinician sees it — a docs-only caveat does not.
+        from backend.reports.fhir_export import RESEARCH_USE_DISCLAIMER
+
+        tc, sid = client
+        resp = tc.post("/api/export/fhir", json={"sample_id": sid})
+        report = resp.json()["entry"][0]["resource"]
+        assert report["conclusion"] == RESEARCH_USE_DISCLAIMER
+        conclusion_lower = report["conclusion"].lower()
+        assert "not" in conclusion_lower and "clinical" in conclusion_lower
+        assert "research" in conclusion_lower
 
     def test_report_code_loinc(self, client) -> None:
         tc, sid = client
@@ -430,7 +445,8 @@ class TestFhirObservations:
         bundle = resp.json()
         obs = bundle["entry"][1]["resource"]
         assert obs["resourceType"] == "Observation"
-        assert obs["status"] == "final"
+        # Unvalidated research result, not a verified clinical observation (#1291).
+        assert obs["status"] == "preliminary"
         assert obs["code"]["coding"][0]["code"] == "69548-6"
         assert "component" in obs
 
