@@ -564,7 +564,10 @@ function DatabaseRow({
 // ── App version row ─────────────────────────────────────────────────
 
 function AppVersionRow() {
-  const { data: appUpdate } = useAppUpdate()
+  // Gate the GitHub app-version check on the "Automatically check for updates"
+  // toggle (#1287), consistent with the per-DB checks above and StatusBar.
+  const { data: updateInterval } = useUpdateCheckInterval()
+  const { data: appUpdate } = useAppUpdate(updateInterval?.update_check_interval !== 'off')
   if (!appUpdate) return null
 
   const hasUpdate = appUpdate.update_available && appUpdate.latest_version
@@ -774,17 +777,25 @@ function HistorySection({
 export default function UpdateManager() {
   const queryClient = useQueryClient()
   const { data: statuses, isLoading: statusLoading } = useDatabaseStatuses()
-  const { data: updateCheck, isLoading: checkLoading, refetch: recheckUpdates } = useUpdateCheck(true)
+  // "Automatically check for updates" master toggle (#1287). update_check_interval
+  // "off" stops all automatic outbound update/version checks; toggling on restores
+  // the "daily" default. Defaults to on while the preference is loading (and if the
+  // endpoint is unavailable) so the update UI degrades gracefully; the backend
+  // short-circuits the checks when off, so this never leaks an outbound request.
+  const { data: updateInterval } = useUpdateCheckInterval()
+  const setUpdateCheckInterval = useSetUpdateCheckInterval()
+  const autoCheckEnabled = updateInterval?.update_check_interval !== 'off'
+  // Gate the automatic check on the toggle (mirrors StatusBar). The manual "Check
+  // for updates" button below still works — refetch() ignores `enabled`.
+  const {
+    data: updateCheck,
+    isLoading: checkLoading,
+    refetch: recheckUpdates,
+  } = useUpdateCheck(autoCheckEnabled)
   const { data: prompts } = useReannotationPrompts()
   const { data: health } = useDatabaseHealth()
   const triggerMutation = useTriggerUpdate()
   const autoUpdateMutation = useToggleAutoUpdate()
-  // "Automatically check for updates" master toggle (#1287). update_check_interval
-  // "off" stops all automatic outbound update/version checks; toggling on restores
-  // the "daily" default. Defaults to on while the preference is loading.
-  const { data: updateInterval } = useUpdateCheckInterval()
-  const setUpdateCheckInterval = useSetUpdateCheckInterval()
-  const autoCheckEnabled = updateInterval?.update_check_interval !== 'off'
 
   const updatesMap = new Map(
     updateCheck?.available?.map((u) => [u.db_name, u]) ?? [],
