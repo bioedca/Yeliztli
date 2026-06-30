@@ -497,12 +497,21 @@ class TestSnapshotFindings:
                     # A non-PRS detail_json that happens to carry a trait must be ignored.
                     "detail_json": json.dumps({"trait": "should_be_ignored"}),
                 },
+                {
+                    "module": "cancer",
+                    "category": "prs",
+                    "evidence_level": 1,
+                    "finding_text": "Malformed trait PRS",
+                    # A non-string trait is treated as absent, not coerced into the key.
+                    "detail_json": json.dumps({"trait": 42}),
+                },
             ],
         )
         records = snapshot_findings(sample_engine)
         by_text = {r["finding_text"]: r for r in records}
         assert by_text["Breast cancer: 95th percentile"]["trait"] == "breast_cancer"
         assert by_text["BRCA1 Pathogenic"]["trait"] is None
+        assert by_text["Malformed trait PRS"]["trait"] is None
 
 
 class TestComputeAndStoreRoundTrip:

@@ -137,7 +137,11 @@ def _extract_prs_trait(category: Any, detail_json: Any) -> str | None:
         parsed = json.loads(detail_json)
     except (json.JSONDecodeError, TypeError):
         return None
-    return parsed.get("trait") if isinstance(parsed, dict) else None
+    trait = parsed.get("trait") if isinstance(parsed, dict) else None
+    # Only a string trait pins identity; a malformed non-string trait (number /
+    # object / list) is treated as absent rather than mixing types into the
+    # identity-key tuple.
+    return trait if isinstance(trait, str) else None
 
 
 def snapshot_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
