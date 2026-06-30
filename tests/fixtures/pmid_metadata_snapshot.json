@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-15",
-    "pmid_count": 371,
+    "pmid_count": 372,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -1671,6 +1671,11 @@
       "title": "PPARG (Pro12Ala) genetic variant and risk of T2DM: a systematic review and meta-analysis.",
       "journal": "Sci Rep",
       "year": "2020"
+    },
+    "32841424": {
+      "title": "Genome-wide association study reveals a novel locus for asthma with severe exacerbations in diverse populations.",
+      "journal": "Pediatr Allergy Immunol",
+      "year": "2021"
     },
     "33071783": {
       "title": "Diagnostic Test Criteria for HLA Genotyping to Prevent Drug Hypersensitivity Reactions: A Systematic Review of Actionable HLA Recommendations in CPIC and DPWG Guidelines.",

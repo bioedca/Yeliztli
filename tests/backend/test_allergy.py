@@ -396,6 +396,15 @@ class TestSNPScoring:
         result = _score_snp(snp, "GG")
         assert result.category == STANDARD
 
+    def test_ormdl3_rs8076131_a_is_asthma_risk_allele(self, panel: AllergyPanel) -> None:
+        """#1324: ORMDL3/17q21 rs8076131 A, not G, is the risk allele."""
+        snp = self._get_snp(panel, "rs8076131")
+        assert (snp.risk_allele, snp.ref_allele) == ("A", "G")
+        assert _score_snp(snp, "AA").category == ELEVATED
+        assert _score_snp(snp, "AG").category == MODERATE
+        assert _score_snp(snp, "GA").category == MODERATE
+        assert _score_snp(snp, "GG").category == STANDARD
+
     def test_hla_b5701_proxy_het_elevated(self, panel: AllergyPanel) -> None:
         """HLA-B*57:01 proxy het (TG) → Elevated (evidence_level=4)."""
         snp = self._get_snp(panel, "rs2395029")

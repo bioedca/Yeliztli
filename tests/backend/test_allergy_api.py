@@ -48,10 +48,10 @@ PATHWAY_SUMMARY_FINDINGS = [
         "evidence_level": 2,
         "gene_symbol": None,
         "rsid": None,
-        "finding_text": "Atopic Conditions — Moderate consideration",
+        "finding_text": "Atopic Conditions — Elevated consideration",
         "pathway": "Atopic Conditions",
-        "pathway_level": "Moderate",
-        "pmid_citations": json.dumps(["12925570", "18403759"]),
+        "pathway_level": "Elevated",
+        "pmid_citations": json.dumps(["17611496", "20860503", "25635124", "32841424"]),
         "detail_json": json.dumps(
             {
                 "pathway_id": "atopic_conditions",
@@ -75,8 +75,8 @@ PATHWAY_SUMMARY_FINDINGS = [
                         "gene": "ORMDL3",
                         "variant_name": "ORMDL3 intergenic",
                         "genotype": "AA",
-                        "category": "Standard",
-                        "effect_summary": "No risk allele.",
+                        "category": "Elevated",
+                        "effect_summary": "Homozygous A risk allele.",
                         "evidence_level": 2,
                         "hla_proxy": None,
                         "coverage_note": None,
@@ -404,7 +404,7 @@ class TestListPathways:
         resp = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1")
         data = resp.json()
         item = next(i for i in data["items"] if i["pathway_id"] == "atopic_conditions")
-        assert item["level"] == "Moderate"
+        assert item["level"] == "Elevated"
         assert item["evidence_level"] == 2
         assert item["called_snps"] == 2
         assert item["total_snps"] == 3

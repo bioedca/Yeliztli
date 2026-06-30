@@ -46,28 +46,28 @@
           "gene": "ORMDL3",
           "variant_name": "ORMDL3 intergenic",
           "hgvs_protein": null,
-          "risk_allele": "G",
-          "ref_allele": "A",
+          "risk_allele": "A",
+          "ref_allele": "G",
           "genotype_effects": {
             "AA": {
-              "category": "Standard",
-              "effect_summary": "No risk allele at ORMDL3 locus. Standard sphingolipid metabolism and airway inflammatory response."
+              "category": "Elevated",
+              "effect_summary": "Homozygous A risk allele. Increased ORMDL3/17q21 asthma susceptibility signal associated with altered sphingolipid metabolism and childhood asthma risk."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "One copy of risk allele. Modestly increased ORMDL3 expression associated with altered sphingolipid metabolism and increased childhood asthma risk."
+              "effect_summary": "One copy of the A risk allele. Modestly increased ORMDL3/17q21 asthma susceptibility signal associated with altered sphingolipid metabolism and childhood asthma risk."
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "One copy of risk allele. Modestly increased ORMDL3 expression associated with altered sphingolipid metabolism and increased childhood asthma risk."
+              "effect_summary": "One copy of the A risk allele. Modestly increased ORMDL3/17q21 asthma susceptibility signal associated with altered sphingolipid metabolism and childhood asthma risk."
             },
             "GG": {
-              "category": "Elevated",
-              "effect_summary": "Homozygous risk allele. Significantly increased ORMDL3 expression. Strong association with childhood-onset asthma, one of the most replicated asthma GWAS loci (17q21)."
+              "category": "Standard",
+              "effect_summary": "No A risk allele at the ORMDL3/17q21 locus. Standard interpretation for this tagged asthma susceptibility signal."
             }
           },
           "evidence_level": 2,
-          "pmids": ["17611496", "20860503", "25635124"],
+          "pmids": ["17611496", "20860503", "25635124", "32841424"],
           "recommendation_text": "ORMDL3/17q21 is the most robustly replicated childhood asthma susceptibility locus. Risk allele carriers may benefit from early monitoring for respiratory symptoms, environmental trigger avoidance, and discussion with a pediatric allergist if symptoms develop."
         },
         {
