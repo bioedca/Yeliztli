@@ -182,6 +182,11 @@ def status_launchd() -> None:
 # ── Linux/WSL2 systemd ────────────────────────────────────
 
 
+def _quote_systemd_exec_arg(value: str) -> str:
+    """Quote one systemd ExecStart argument."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def _has_systemd() -> bool:
     """Check if systemd is available (user session)."""
     result = subprocess.run(
@@ -203,9 +208,10 @@ def _render_systemd_unit(template_path: Path, install_dir: Path) -> str:
     home_dir = str(Path.home())
     # Replace %h/Yeliztli with the actual install dir
     content = content.replace("%h/Yeliztli", str(install_dir))
-    content = content.replace("__PYTHON__", _find_python())
+    python_path = _find_python()
+    content = content.replace("__PYTHON__", _quote_systemd_exec_arg(python_path))
     # Ensure PATH includes common Python install locations with expanded home
-    python_bin_dir = str(Path(_find_python()).parent)
+    python_bin_dir = str(Path(python_path).parent)
     content = content.replace(
         "Environment=PATH=%h/.local/bin:/usr/bin",
         f"Environment=PATH={python_bin_dir}:{home_dir}/.local/bin:/usr/local/bin:/usr/bin",

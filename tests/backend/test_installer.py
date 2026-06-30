@@ -98,14 +98,15 @@ class TestRenderPlist:
         assert "~/Library/Logs" not in rendered
         assert str(installer.LOG_DIR_MACOS) in rendered
 
-    def test_replaces_python_placeholder(self, tmp_path: Path):
+    def test_replaces_python_placeholder(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         plist = tmp_path / "test.plist"
         plist.write_text("<array><string>__PYTHON__</string><string>-m</string></array>")
+        monkeypatch.setattr(installer, "_find_python", lambda: "/opt/python/bin/python")
 
         rendered = installer._render_plist(plist, Path("/opt/gi"))
 
         assert "__PYTHON__" not in rendered
-        assert installer._find_python() in rendered
+        assert "/opt/python/bin/python" in rendered
 
     def test_xml_escapes_inserted_values(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         plist = tmp_path / "test.plist"
@@ -166,7 +167,22 @@ class TestRenderSystemdUnit:
         rendered = installer._render_systemd_unit(unit, Path("/home/user/gi"))
 
         assert "__PYTHON__" not in rendered
-        assert f"ExecStart={installer._find_python()} -m backend.main" in rendered
+        assert f'ExecStart="{installer._find_python()}" -m backend.main' in rendered
+
+    def test_quotes_python_placeholder_with_spaces(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        unit = tmp_path / "test.service"
+        unit.write_text(
+            "[Service]\n"
+            "ExecStart=__PYTHON__ -m backend.main\n"
+            "Environment=PATH=%h/.local/bin:/usr/bin\n"
+        )
+        monkeypatch.setattr(installer, "_find_python", lambda: "/tmp/Python Dir/python")
+
+        rendered = installer._render_systemd_unit(unit, Path("/home/user/gi"))
+
+        assert 'ExecStart="/tmp/Python Dir/python" -m backend.main' in rendered
 
 
 # ── Health check ───────────────────────────────────────────
