@@ -1,7 +1,7 @@
 /** Tests for the Analysis Module Dashboard / Findings Explorer (P3-43). */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render as rtlRender, screen } from "@testing-library/react"
+import { render as rtlRender, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import FindingsExplorer from "@/pages/FindingsExplorer"
@@ -184,6 +184,42 @@ describe("FindingsExplorer", () => {
     expect(screen.getByText(/CYP2C19 \*2\/\*2/)).toBeInTheDocument()
     expect(screen.getByText(/Folate metabolism/)).toBeInTheDocument()
     expect(screen.getByText(/Primary ancestry: European/)).toBeInTheDocument()
+  })
+
+  it("fetches a bounded page of findings (limit), not the whole unbounded set (#1303)", async () => {
+    // A typical sample has tens of thousands of findings (~132 MB); fetching +
+    // rendering them all froze and crashed the tab. The page must request a
+    // bounded page.
+    setupFetchMock()
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+    await screen.findByText(/BRCA1 c\.5266dupC/)
+
+    const findingsUrl = mockFetch.mock.calls
+      .map((c) => String(c[0]))
+      .find((u) => u.includes("/api/analysis/findings") && !u.includes("/summary"))
+    expect(findingsUrl).toBeDefined()
+    expect(findingsUrl).toContain("limit=200")
+  })
+
+  it("shows 'Load more' on a full page and raises the limit on click (#1303)", async () => {
+    // A full page (length === limit) means more findings remain beyond the bound.
+    const fullPage: Finding[] = Array.from({ length: 200 }, (_, i) => ({
+      ...SAMPLE_FINDINGS[0],
+      id: i + 1,
+      finding_text: `Finding ${i + 1}`,
+    }))
+    setupFetchMock(fullPage)
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    const loadMore = await screen.findByRole("button", { name: /load more findings/i })
+    fireEvent.click(loadMore)
+
+    await waitFor(() => {
+      const urls = mockFetch.mock.calls.map((c) => String(c[0]))
+      expect(urls.some((u) => u.includes("/api/analysis/findings") && u.includes("limit=400"))).toBe(
+        true,
+      )
+    })
   })
 
   it("renders the zygosity label for findings that carry one", async () => {

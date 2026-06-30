@@ -204,6 +204,34 @@ class TestListFindings:
         assert len(data) == 1
         assert data[0]["category"] == "prescribing_alert"
 
+    def test_limit_bounds_response_highest_evidence_first(self, findings_client):
+        # #1303: an unbounded fetch returns tens of thousands of rows for a real
+        # sample; a bounded page must return the highest-evidence findings first.
+        resp = findings_client.get("/api/analysis/findings?sample_id=1&limit=3")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 3
+        assert [f["module"] for f in data] == ["cancer", "cardiovascular", "pharmacogenomics"]
+        assert all(f["evidence_level"] == 4 for f in data)
+
+    def test_offset_pages_through_results(self, findings_client):
+        page2 = findings_client.get("/api/analysis/findings?sample_id=1&limit=3&offset=3").json()
+        assert [f["module"] for f in page2] == ["allergy", "carrier_status", "gene_health"]
+        page3 = findings_client.get("/api/analysis/findings?sample_id=1&limit=3&offset=6").json()
+        assert [f["module"] for f in page3] == ["ancestry", "nutrigenomics"]
+        # Short last page (< limit) signals to the caller that no more remain.
+        assert len(page3) == 2
+
+    def test_limit_composes_with_filters(self, findings_client):
+        data = findings_client.get("/api/analysis/findings?sample_id=1&min_stars=3&limit=2").json()
+        assert len(data) == 2
+        assert all(f["evidence_level"] >= 3 for f in data)
+
+    def test_no_limit_returns_all_legacy(self, findings_client):
+        # Omitting limit preserves return-everything for non-UI callers.
+        data = findings_client.get("/api/analysis/findings?sample_id=1").json()
+        assert len(data) == 8
+
     def test_invalid_sample_returns_404(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=999")
         assert resp.status_code == 404

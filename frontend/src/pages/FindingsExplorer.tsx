@@ -233,16 +233,24 @@ function FindingRow({ finding }: { finding: Finding }) {
 
 // ── Main page ────────────────────────────────────────────────────────
 
+// Findings are fetched + rendered in bounded pages: a typical sample has tens of
+// thousands of (mostly evidence-level-1) findings, and fetching/rendering them
+// all froze and crashed the tab (#1303). They arrive highest-evidence-first, so
+// one page surfaces the most meaningful findings; "Load more" raises the bound.
+const FINDINGS_PAGE_SIZE = 200
+
 export default function FindingsExplorer() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
 
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
   const [minStars, setMinStars] = useState<number | null>(null)
+  const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE)
 
   const findingsQuery = useFindings(sampleId, {
     module: selectedModule ?? undefined,
     minStars: minStars ?? undefined,
+    limit,
   })
   const summaryQuery = useFindingsSummary(sampleId)
 
@@ -421,6 +429,25 @@ export default function FindingsExplorer() {
           </div>
         </section>
       ))}
+
+      {/* Load more: a full page (length === limit) means more findings remain
+          beyond the current bound (#1303). */}
+      {findingsQuery.data && findingsQuery.data.length >= limit && (
+        <div className="flex flex-col items-center gap-1 pt-2">
+          <button
+            type="button"
+            onClick={() => setLimit((l) => l + FINDINGS_PAGE_SIZE)}
+            disabled={findingsQuery.isFetching}
+            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {findingsQuery.isFetching ? "Loading…" : "Load more findings"}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Showing the top {findingsQuery.data.length} findings
+            {summary ? ` of ${summary.total_findings}` : ""} (highest evidence first)
+          </span>
+        </div>
+      )}
     </div>
   )
 }

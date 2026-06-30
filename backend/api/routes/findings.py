@@ -181,8 +181,22 @@ async def list_findings(
     module: str | None = Query(None, description="Filter by module"),
     category: str | None = Query(None, description="Filter by category"),
     min_stars: int | None = Query(None, ge=1, le=4, description="Minimum evidence level"),
+    limit: int | None = Query(
+        None,
+        ge=1,
+        le=5000,
+        description="Max findings to return (pagination). Omit for all (legacy).",
+    ),
+    offset: int = Query(0, ge=0, description="Pagination offset (used with limit)."),
 ) -> list[FindingResponse]:
-    """List all findings for a sample, optionally filtered."""
+    """List findings for a sample, optionally filtered and paginated.
+
+    A typical sample has tens of thousands of rare-variant (evidence level 1)
+    findings, so callers should pass ``limit`` to bound the response — findings
+    are ordered highest-evidence-first, so a bounded page returns the most
+    meaningful ones (#1303). ``limit`` omitted preserves the legacy
+    return-everything behaviour for non-UI callers.
+    """
     engine = _get_sample_engine(sample_id)
 
     clauses = []
@@ -213,6 +227,11 @@ async def list_findings(
         findings.c.module,
         findings.c.id,
     )
+
+    # Bound the response when paginating (#1303). The deterministic order above
+    # makes limit/offset stable across pages.
+    if limit is not None:
+        stmt = stmt.limit(limit).offset(offset)
 
     with engine.connect() as conn:
         rows = conn.execute(stmt).fetchall()

@@ -10,19 +10,31 @@ import type { Finding, FindingsSummaryResponse } from "@/types/findings"
  */
 export function useFindings(
   sampleId: number | null,
-  options?: { module?: string; category?: string; minStars?: number },
+  options?: {
+    module?: string
+    category?: string
+    minStars?: number
+    limit?: number
+    offset?: number
+  },
 ) {
   const module = options?.module
   const category = options?.category
   const minStars = options?.minStars
+  const limit = options?.limit
+  const offset = options?.offset
 
   return useQuery({
-    queryKey: ["findings", sampleId, module, category, minStars],
+    queryKey: ["findings", sampleId, module, category, minStars, limit, offset],
     queryFn: async (): Promise<Finding[]> => {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       if (module) params.set("module", module)
       if (category) params.set("category", category)
       if (minStars != null) params.set("min_stars", String(minStars))
+      // Bound the fetch (#1303): a typical sample has tens of thousands of
+      // findings (~132 MB) which froze/crashed the tab when fetched unbounded.
+      if (limit != null) params.set("limit", String(limit))
+      if (offset != null && offset > 0) params.set("offset", String(offset))
       const res = await fetch(`/api/analysis/findings?${params}`)
       if (!res.ok) {
         const text = await res.text().catch(() => "")
