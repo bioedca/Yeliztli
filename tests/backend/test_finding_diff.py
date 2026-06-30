@@ -337,6 +337,81 @@ class TestPathwaySummaryDiff:
         assert diff["removed"][0]["module"] == "methylation"
 
 
+def _prs(trait: str, pct: str, module: str = "cancer") -> dict:
+    """A PRS finding: ``category='prs'`` with NULL gene/rsid/drug/diplotype/pathway,
+    distinguished only by ``trait`` (which snapshot_findings reads from detail_json).
+    Its meaning field here is ``evidence_level``."""
+    return _record(
+        module=module,
+        category="prs",
+        gene_symbol=None,
+        rsid=None,
+        drug=None,
+        diplotype=None,
+        pathway=None,
+        trait=trait,
+        clinvar_significance=None,
+        evidence_level=1,
+        metabolizer_status=None,
+        pathway_level=None,
+        finding_text=f"{trait}: {pct} percentile",
+    )
+
+
+class TestPRSTraitDiff:
+    """PRS findings share ``category='prs'`` with NULL gene/rsid/drug/diplotype/
+    pathway, so only ``trait`` distinguishes them. The identity key must include
+    ``trait`` (#1283 — the PRS analog of the #575 ``pathway`` collision); otherwise
+    added/removed per-trait PRS findings cancel out or are attributed to the wrong
+    trait.
+    """
+
+    def test_added_and_removed_trait_do_not_cancel(self) -> None:
+        # Breast removed, Melanoma added, Prostate unchanged. Without ``trait`` in
+        # the identity key the add cancelled the remove → "nothing changed" (#1283).
+        prior = [_prs("breast_cancer", "95th"), _prs("prostate_cancer", "50th")]
+        current = [_prs("prostate_cancer", "50th"), _prs("melanoma", "88th")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 1, "removed": 1}
+        assert diff["added"][0]["trait"] == "melanoma"
+        assert diff["removed"][0]["trait"] == "breast_cancer"
+
+    def test_lone_removal_names_the_removed_trait(self) -> None:
+        # Breast removed, Prostate unchanged. Without ``trait`` the diff named
+        # Prostate (the still-present finding) as removed (#1283).
+        prior = [_prs("breast_cancer", "95th"), _prs("prostate_cancer", "50th")]
+        current = [_prs("prostate_cancer", "50th")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 0, "removed": 1}
+        assert diff["removed"][0]["trait"] == "breast_cancer"
+
+    def test_same_trait_meaning_shift_is_a_change_not_add_remove(self) -> None:
+        # A per-trait PRS whose meaning field shifts is one *changed* finding (stable
+        # identity), not a remove+add.
+        prior = [_prs("breast_cancer", "95th")]
+        current = [_prs("breast_cancer", "95th")]
+        current[0]["evidence_level"] = 2
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 1, "added": 0, "removed": 0}
+        assert diff["changed"][0]["trait"] == "breast_cancer"
+
+    def test_unchanged_trait_set_is_unchanged(self) -> None:
+        prior = [_prs("breast_cancer", "95th"), _prs("prostate_cancer", "50th")]
+        current = [_prs("prostate_cancer", "50th"), _prs("breast_cancer", "95th")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 0, "removed": 0}
+
+    def test_same_trait_different_modules_do_not_match(self) -> None:
+        # ``module`` is part of identity, so a trait name reused across modules
+        # (cancer vs traits) is a removal + an addition, never a cross-match.
+        prior = [_prs("cognitive_ability", "70th", module="traits")]
+        current = [_prs("cognitive_ability", "70th", module="cancer")]
+        diff = compute_finding_diff(prior, current, after_releases={})
+        assert diff["counts"] == {"changed": 0, "added": 1, "removed": 1}
+        assert diff["added"][0]["module"] == "cancer"
+        assert diff["removed"][0]["module"] == "traits"
+
+
 class TestHasChanges:
     def test_empty_diff_has_no_changes(self) -> None:
         assert has_changes(compute_finding_diff(None, [], after_releases={})) is False
@@ -398,6 +473,36 @@ class TestSnapshotFindings:
         assert by_rsid["rs80357906"]["clinvar_significance"] == "Pathogenic"
         # No provenance → empty release_versions, not an error.
         assert by_rsid[None]["release_versions"] == {}
+
+    def test_prs_trait_read_from_detail_json(self, sample_engine: sa.Engine) -> None:
+        # PRS findings carry their distinguishing trait only in detail_json, so
+        # snapshot_findings must surface it into the identity record — otherwise
+        # per-trait PRS findings collide on one key (#1283). Non-PRS rows never take
+        # a trait from detail_json (their identity is pinned by the table columns).
+        _insert_findings(
+            sample_engine,
+            [
+                {
+                    "module": "cancer",
+                    "category": "prs",
+                    "evidence_level": 1,
+                    "finding_text": "Breast cancer: 95th percentile",
+                    "detail_json": json.dumps({"trait": "breast_cancer", "name": "Breast cancer"}),
+                },
+                {
+                    "module": "cancer",
+                    "category": "monogenic_variant",
+                    "gene_symbol": "BRCA1",
+                    "finding_text": "BRCA1 Pathogenic",
+                    # A non-PRS detail_json that happens to carry a trait must be ignored.
+                    "detail_json": json.dumps({"trait": "should_be_ignored"}),
+                },
+            ],
+        )
+        records = snapshot_findings(sample_engine)
+        by_text = {r["finding_text"]: r for r in records}
+        assert by_text["Breast cancer: 95th percentile"]["trait"] == "breast_cancer"
+        assert by_text["BRCA1 Pathogenic"]["trait"] is None
 
 
 class TestComputeAndStoreRoundTrip:

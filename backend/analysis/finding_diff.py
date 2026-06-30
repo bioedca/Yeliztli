@@ -22,9 +22,11 @@ provenance, the diff is computed against that snapshot and stored as a JSON blob
 in the per-sample ``annotation_state`` kv table under ``last_finding_diff_json``.
 
 A finding's identity across runs is the stable composite key
-``(module, category, gene_symbol, rsid, drug, diplotype, pathway)`` — the columns
-that pin "the same biological statement," excluding the volatile ``id`` /
-``created_at`` / ``provenance`` and the free-text ``finding_text``.
+``(module, category, gene_symbol, rsid, drug, diplotype, pathway, trait)`` — the
+columns that pin "the same biological statement," excluding the volatile ``id`` /
+``created_at`` / ``provenance`` and the free-text ``finding_text``. ``trait`` is
+not a findings column — it identifies per-trait PRS findings and is read from
+``detail_json`` (see ``_extract_prs_trait``).
 """
 
 from __future__ import annotations
@@ -46,15 +48,15 @@ logger = logging.getLogger(__name__)
 DIFF_STATE_KEY = "last_finding_diff_json"
 DIFF_SCHEMA_VERSION = 1
 
-# Columns that identify "the same biological statement" across runs. A finding's
-# id/created_at/provenance are volatile and finding_text is free-text, so neither
-# pins identity. ``pathway`` is included because the categorical modules emit one
-# ``pathway_summary`` finding per pathway, all sharing ``category="pathway_summary"``
-# with NULL gene_symbol/rsid/drug/diplotype — only ``pathway`` distinguishes them.
-# Omitting it collapsed every pathway summary of a module onto one identity key, so
-# simultaneous per-pathway changes were mis-paired (wrong "before") or cancelled
-# out and missed entirely (#575).
-_IDENTITY_FIELDS: tuple[str, ...] = (
+# Real ``findings`` columns that identify "the same biological statement" across
+# runs. A finding's id/created_at/provenance are volatile and finding_text is
+# free-text, so neither pins identity. ``pathway`` is included because the
+# categorical modules emit one ``pathway_summary`` finding per pathway, all sharing
+# ``category="pathway_summary"`` with NULL gene_symbol/rsid/drug/diplotype — only
+# ``pathway`` distinguishes them. Omitting it collapsed every pathway summary of a
+# module onto one identity key, so simultaneous per-pathway changes were mis-paired
+# (wrong "before") or cancelled out and missed entirely (#575).
+_TABLE_IDENTITY_FIELDS: tuple[str, ...] = (
     "module",
     "category",
     "gene_symbol",
@@ -63,6 +65,16 @@ _IDENTITY_FIELDS: tuple[str, ...] = (
     "diplotype",
     "pathway",
 )
+
+# Full identity = the table columns above plus ``trait``. ``trait`` is NOT a
+# findings column — it lives in ``detail_json`` and ``snapshot_findings`` extracts
+# it for PRS rows (see ``_extract_prs_trait``). Every PRS finding shares
+# ``category="prs"`` with NULL gene_symbol/rsid/drug/diplotype/pathway, so without
+# ``trait`` every per-trait PRS finding of a module (breast/prostate/colorectal/
+# melanoma cancer PRS; T2D/BMI metabolic PRS; cognitive-ability traits PRS)
+# collapsed onto one identity key — the PRS analog of the #575 pathway collision:
+# added/removed traits cancelled out or were attributed to the wrong trait (#1283).
+_IDENTITY_FIELDS: tuple[str, ...] = (*_TABLE_IDENTITY_FIELDS, "trait")
 
 # Source-driven fields whose change constitutes a finding "meaning shift."
 # Deliberately excludes carriage/zygosity (sample-derived, not release-driven)
@@ -74,8 +86,9 @@ _MEANING_FIELDS: tuple[str, ...] = (
     "pathway_level",
 )
 
-# Columns read into each finding snapshot record.
-_SNAPSHOT_COLUMNS = (*_IDENTITY_FIELDS, "finding_text", *_MEANING_FIELDS)
+# Real columns read into each finding snapshot record. ``trait`` is intentionally
+# absent here (it is derived from detail_json, not selected as a column).
+_SNAPSHOT_COLUMNS = (*_TABLE_IDENTITY_FIELDS, "finding_text", *_MEANING_FIELDS)
 
 
 # ── Release-version helpers ───────────────────────────────────────────────
@@ -109,15 +122,36 @@ def _prior_releases(prior: list[dict[str, Any]]) -> dict[str, str]:
 # ── Snapshot ──────────────────────────────────────────────────────────────
 
 
+def _extract_prs_trait(category: Any, detail_json: Any) -> str | None:
+    """The PRS trait that distinguishes same-module PRS findings (#1283).
+
+    PRS findings share ``category="prs"`` with NULL gene_symbol/rsid/drug/
+    diplotype/pathway; the distinguishing trait (e.g. ``breast_cancer``,
+    ``prostate_cancer``, ``type_2_diabetes``) lives only in ``detail_json``
+    (``store_prs_findings``). Returns ``None`` for non-PRS rows — their identity is
+    already pinned by the table columns — and for absent/malformed detail_json.
+    """
+    if category != "prs" or not detail_json:
+        return None
+    try:
+        parsed = json.loads(detail_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed.get("trait") if isinstance(parsed, dict) else None
+
+
 def snapshot_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
     """Read the current findings into plain records for diffing.
 
     Each record carries the identity + meaning columns plus ``finding_text`` (for
     display) and ``release_versions`` (the ``{db: version}`` reduction of the
-    finding's provenance, used to label the "before" side of the diff).
+    finding's provenance, used to label the "before" side of the diff). The PRS
+    ``trait`` identity component is read from ``detail_json`` (#1283); it is not a
+    findings column.
     """
     cols = [getattr(findings.c, name) for name in _SNAPSHOT_COLUMNS]
     cols.append(findings.c.provenance)
+    cols.append(findings.c.detail_json)
     with sample_engine.connect() as conn:
         rows = conn.execute(sa.select(*cols)).fetchall()
 
@@ -125,6 +159,8 @@ def snapshot_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
     for row in rows:
         mapping = row._mapping
         record: dict[str, Any] = {name: mapping[name] for name in _SNAPSHOT_COLUMNS}
+        # PRS findings carry their distinguishing trait only in detail_json (#1283).
+        record["trait"] = _extract_prs_trait(mapping["category"], mapping["detail_json"])
         release_versions: dict[str, str] = {}
         provenance = mapping["provenance"]
         if provenance:
@@ -241,6 +277,7 @@ def _sort_key(entry: dict[str, Any]) -> tuple[str, ...]:
         entry.get("drug") or "",
         entry.get("diplotype") or "",
         entry.get("pathway") or "",
+        entry.get("trait") or "",
         entry.get("finding_text") or "",
     )
 
