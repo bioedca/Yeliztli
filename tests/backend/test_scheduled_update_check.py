@@ -315,6 +315,38 @@ class TestBundleDispatch:
         mock_run_task.assert_not_called()
         assert result.errors == []
 
+    def test_bundle_runner_none_result_is_recorded_as_error(
+        self, reference_engine, tmp_path: Path
+    ):
+        """A bundle runner returning ``None`` is a real failure — SHA-256 checksum
+        mismatch, a corrupt bundle missing its build_date, or a download/HTTP error
+        — and must be recorded as an error, not silently swallowed (#1282).
+
+        Pins the ``result is None`` guard in ``_dispatch_auto_update``: the
+        success-path tests above always return an ``UpdateResult`` (the guard is
+        never reached) and the raise-path test (``TestDispatchErrors``) makes the
+        runner *raise* (caught by the outer try/except before the guard), so
+        neutering ``if result is None`` otherwise ships green.
+        """
+        registry = _make_registry(reference_engine, tmp_path)
+        set_auto_update(reference_engine, "vep_bundle", True)
+
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[_info("vep_bundle")]),
+            ),
+            patch(
+                "backend.db.update_manager.run_vep_bundle_update",
+                return_value=None,
+            ) as mock_vep,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_vep.assert_called_once_with(registry.settings)
+        # None → recorded failure, not a silent clean run.
+        assert any("vep_bundle" in e for e in result.errors)
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Pipeline DB dispatch — huey_tasks plumbing
