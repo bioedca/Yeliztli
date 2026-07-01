@@ -68,18 +68,20 @@ describe("GenomeBrowser", () => {
     mockParams = new URLSearchParams()
   })
 
-  it("renders page header and search bar", () => {
+  it("renders page header and search bar", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<GenomeBrowser />)
     expect(screen.getByText("Genome Browser")).toBeInTheDocument()
     expect(screen.getByTestId("igv-search-input")).toBeInTheDocument()
     expect(screen.getByTestId("igv-search-button")).toBeInTheDocument()
+    await screen.findByRole("status", { name: /loading genome browser/i })
   })
 
-  it("renders the IGV browser component", () => {
+  it("renders the IGV browser component", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<GenomeBrowser />)
     expect(screen.getByTestId("igv-container")).toBeInTheDocument()
+    await screen.findByRole("status", { name: /loading genome browser/i })
   })
 
   it("passes locus from URL params to IGV browser", async () => {
@@ -226,10 +228,11 @@ describe("GenomeBrowser", () => {
     expect(screen.queryByTestId("variant-click-indicator")).not.toBeInTheDocument()
   })
 
-  it("has accessible search form with proper labels", () => {
+  it("has accessible search form with proper labels", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<GenomeBrowser />)
     expect(screen.getByRole("search")).toHaveAttribute("aria-label", "Navigate to genomic locus")
     expect(screen.getByLabelText("Genomic locus search")).toBeInTheDocument()
+    await screen.findByRole("status", { name: /loading genome browser/i })
   })
 })

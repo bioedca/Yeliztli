@@ -256,16 +256,18 @@ describe("IgvBrowser", () => {
     expect(ref.current?.getBrowser()).toBe(mockBrowser)
   })
 
-  it("renders the IGV container div with data-testid", () => {
+  it("renders the IGV container div with data-testid", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<IgvBrowser />)
     expect(screen.getByTestId("igv-container")).toBeInTheDocument()
+    await screen.findByRole("status", { name: /loading genome browser/i })
   })
 
-  it("applies custom className to container", () => {
+  it("applies custom className to container", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     const { container } = render(<IgvBrowser className="custom-class" />)
     expect(container.firstChild).toHaveClass("custom-class")
+    await screen.findByRole("status", { name: /loading genome browser/i })
   })
 
   it("applies custom minHeight to the IGV container", async () => {
