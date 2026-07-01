@@ -23,8 +23,18 @@ yeliztli-setup status       # show service status and a health check
 yeliztli-setup start        # start services
 yeliztli-setup stop         # stop services
 yeliztli-setup uninstall    # remove services, keep your data
-yeliztli-setup uninstall --remove-data   # remove services and all data
+yeliztli-setup uninstall --remove-data   # remove services, data, and control files
 ```
+
+With `--remove-data`, the installer deletes the configured data directory, including a
+storage path chosen in the setup wizard or supplied through `YELIZTLI_DATA_DIR`. It also
+removes the default `~/.yeliztli/` control/config directory when that directory is
+separate from the configured data directory.
+
+For custom paths that contain unrelated files, uninstall removes Yeliztli sample databases
+and known app artifacts but leaves the directory and unrelated files in place. Use an
+absolute `YELIZTLI_DATA_DIR` path; relative paths are refused for destructive removal. If
+the custom path is a symlink, uninstall removes the link itself, not the symlink target.
 
 **macOS** uses `launchd` user agents that start at login; logs go to
 `~/Library/Logs/yeliztli-*.log`.

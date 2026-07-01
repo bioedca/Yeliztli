@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend import installer
+from backend import config, installer
 
 # ── Platform detection ─────────────────────────────────────
 
@@ -314,7 +317,7 @@ class TestUninstallFlow:
     ):
         data_dir = tmp_path / ".yeliztli"
         data_dir.mkdir()
-        monkeypatch.setattr(installer, "DATA_DIR", data_dir)
+        monkeypatch.setattr(installer, "_uninstall_data_dirs", lambda: [data_dir])
         monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -336,7 +339,7 @@ class TestUninstallFlow:
         data_dir = tmp_path / ".yeliztli"
         data_dir.mkdir()
         (data_dir / "reference.db").touch()
-        monkeypatch.setattr(installer, "DATA_DIR", data_dir)
+        monkeypatch.setattr(installer, "_uninstall_data_dirs", lambda: [data_dir])
         monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -346,17 +349,233 @@ class TestUninstallFlow:
         assert result == 0
         assert not data_dir.exists()  # Data removed
 
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_removes_relocated_data_dir_and_default_control_dir(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        relocated_data_dir = tmp_path / "relocated"
+        (relocated_data_dir / "samples").mkdir(parents=True)
+        (relocated_data_dir / "samples" / "sample_1.db").touch()
+        home_dir.mkdir()
+        (home_dir / config.DATA_DIR_POINTER_NAME).write_text(
+            str(relocated_data_dir), encoding="utf-8"
+        )
+        monkeypatch.delenv("YELIZTLI_DATA_DIR", raising=False)
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 0
+        assert not relocated_data_dir.exists()
+        assert not home_dir.exists()
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_removes_env_data_dir_and_default_control_dir(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        env_data_dir = tmp_path / "from-env"
+        (env_data_dir / "samples").mkdir(parents=True)
+        (env_data_dir / "samples" / "sample_1.db").touch()
+        home_dir.mkdir()
+        (home_dir / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
+        monkeypatch.setenv("YELIZTLI_DATA_DIR", str(env_data_dir))
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 0
+        assert not env_data_dir.exists()
+        assert not home_dir.exists()
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_removes_known_artifacts_but_preserves_mixed_data_dir(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        mixed_data_dir = tmp_path / "mixed"
+        (mixed_data_dir / "samples").mkdir(parents=True)
+        (mixed_data_dir / "samples" / "sample_1.db").touch()
+        (mixed_data_dir / "notes.txt").write_text("not yeliztli", encoding="utf-8")
+        home_dir.mkdir()
+        (home_dir / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
+        monkeypatch.setenv("YELIZTLI_DATA_DIR", str(mixed_data_dir))
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 0
+        assert mixed_data_dir.exists()
+        assert (mixed_data_dir / "notes.txt").exists()
+        assert not (mixed_data_dir / "samples").exists()
+        assert not home_dir.exists()
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_preserves_custom_dir_with_only_generic_non_yeliztli_names(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        broad_data_dir = tmp_path / "broad"
+        (broad_data_dir / "samples").mkdir(parents=True)
+        (broad_data_dir / "samples" / "sample_1.db").touch()
+        (broad_data_dir / "downloads").mkdir()
+        (broad_data_dir / "downloads" / "other-file.txt").touch()
+        (broad_data_dir / "logs").mkdir()
+        (broad_data_dir / "logs" / "other.log").touch()
+        home_dir.mkdir()
+        (home_dir / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
+        monkeypatch.setenv("YELIZTLI_DATA_DIR", str(broad_data_dir))
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 0
+        assert broad_data_dir.exists()
+        assert (broad_data_dir / "downloads" / "other-file.txt").exists()
+        assert (broad_data_dir / "logs" / "other.log").exists()
+        assert not (broad_data_dir / "samples").exists()
+        assert not home_dir.exists()
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_unlinks_symlink_data_dir_without_deleting_target(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        target_data_dir = tmp_path / "target"
+        linked_data_dir = tmp_path / "linked"
+        (target_data_dir / "samples").mkdir(parents=True)
+        (target_data_dir / "samples" / "sample_1.db").touch()
+        linked_data_dir.symlink_to(target_data_dir, target_is_directory=True)
+        home_dir.mkdir()
+        (home_dir / config.DATA_DIR_POINTER_NAME).write_text(
+            str(linked_data_dir), encoding="utf-8"
+        )
+        monkeypatch.delenv("YELIZTLI_DATA_DIR", raising=False)
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 0
+        assert not linked_data_dir.exists()
+        assert target_data_dir.exists()
+        assert (target_data_dir / "samples" / "sample_1.db").exists()
+        assert not home_dir.exists()
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("subprocess.run")
+    def test_uninstall_refuses_relative_env_data_dir_without_deleting_control_dir(
+        self,
+        mock_run: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        home_dir = tmp_path / "home"
+        home_dir.mkdir()
+        (home_dir / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
+        monkeypatch.setenv("YELIZTLI_DATA_DIR", "relative-data")
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home_dir)
+        monkeypatch.setattr(installer, "SYSTEMD_USER_DIR", tmp_path / "systemd")
+        mock_run.return_value = MagicMock(returncode=0)
+        config.get_settings.cache_clear()
+
+        try:
+            ns = argparse.Namespace(remove_data=True)
+            result = installer.cmd_uninstall(ns)
+        finally:
+            config.get_settings.cache_clear()
+
+        assert result == 1
+        assert home_dir.exists()
+
 
 # ── Huey tasks stub ────────────────────────────────────────
 
 
 class TestHueyTasks:
-    def test_huey_instance_exists(self):
+    def test_huey_instance_exists(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """The huey instance referenced by service configs exists."""
-        from backend.tasks.huey_tasks import huey
+        env = os.environ.copy()
+        env["YELIZTLI_DATA_DIR"] = str(tmp_path / "data")
+        pythonpath = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = (
+            f"{Path.cwd()}{os.pathsep}{pythonpath}" if pythonpath else str(Path.cwd())
+        )
 
-        assert huey is not None
-        assert huey.name == "yeliztli"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from backend.tasks.huey_tasks import huey; assert huey.name == 'yeliztli'",
+            ],
+            check=False,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
 
 
 # ── Repo root detection ───────────────────────────────────

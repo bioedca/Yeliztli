@@ -46,7 +46,7 @@ docker compose logs -f huey     # task worker only
 docker compose stop             # stop services
 docker compose start            # restart services
 docker compose down             # remove containers (data volume preserved)
-docker compose down -v          # remove everything, including your data
+docker compose down -v          # remove containers and the Docker data volume
 ```
 
 ## Use a host directory for data
@@ -63,6 +63,10 @@ services:
     volumes:
       - /path/to/your/data:/data
 ```
+
+This is a host bind mount, not a Docker-managed volume. `docker compose down -v` does
+not remove `/path/to/your/data`; delete that host directory yourself when you want to
+erase those samples.
 
 ## Environment overrides
 

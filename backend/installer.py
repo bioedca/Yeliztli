@@ -33,6 +33,29 @@ SYSTEMD_UNITS = ("yeliztli-api.service", "yeliztli-huey.service")
 
 LOG_DIR_MACOS = Path.home() / "Library" / "Logs"
 
+_YELIZTLI_DATA_ARTIFACT_NAMES = frozenset(
+    {
+        ".claims",
+        ".disclaimer_accepted",
+        "alphamissense.db",
+        "dbnsfp.db",
+        "encode_ccres.db",
+        "gnomad_af.db",
+        "grch37.fa",
+        "gtex_eqtl.db",
+        "huey.db",
+        "imputation_panel",
+        "lai_bundle",
+        "lai_bundle.tar.gz",
+        "overlays",
+        "reference.db",
+        "samples",
+        "saved_queries.json",
+        "spliceai.db",
+        "vep_bundle.db",
+    }
+)
+
 
 def _repo_root() -> Path:
     """Return the repository / install root (parent of backend/)."""
@@ -86,6 +109,123 @@ def ensure_data_dir() -> None:
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
     print(f"  Data directory: {DATA_DIR}")
+
+
+def _effective_data_dir() -> Path:
+    """Return the data directory Yeliztli would use at runtime."""
+    from backend.config import get_settings
+
+    return get_settings().data_dir
+
+
+def _uninstall_data_dirs() -> list[Path]:
+    """Return unique native data/control directories removed by --remove-data."""
+    from backend.config import DEFAULT_DATA_DIR
+
+    seen: set[Path] = set()
+    data_dirs: list[Path] = []
+    for path in (_effective_data_dir(), DEFAULT_DATA_DIR):
+        expanded = path.expanduser()
+        key = expanded.absolute() if expanded.is_absolute() else expanded
+        if key in seen:
+            continue
+        seen.add(key)
+        data_dirs.append(expanded)
+    return data_dirs
+
+
+def _default_data_dir() -> Path:
+    """Return the fixed control/config directory for native installs."""
+    from backend.config import DEFAULT_DATA_DIR
+
+    return DEFAULT_DATA_DIR.expanduser()
+
+
+def _same_data_dir(left: Path, right: Path) -> bool:
+    """Compare paths after expanding symlinks for duplicate/ownership checks."""
+    return left.expanduser().resolve(strict=False) == right.expanduser().resolve(strict=False)
+
+
+def _contains_path(container: Path, child: Path) -> bool:
+    """Whether ``child`` is inside or equal to ``container``."""
+    try:
+        child.relative_to(container)
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_removable_data_dir(path: Path) -> None:
+    """Refuse obviously unsafe uninstall targets."""
+    expanded = path.expanduser()
+    if not expanded.is_absolute():
+        msg = f"Refusing to remove relative data directory: {path}"
+        raise ValueError(msg)
+
+    resolved = expanded.resolve(strict=False)
+    root = Path(resolved.anchor).resolve(strict=False)
+    home = Path.home().resolve(strict=False)
+    repo_root = _repo_root().resolve(strict=False)
+    if (
+        resolved in (root, home)
+        or _contains_path(resolved, home)
+        or _contains_path(resolved, repo_root)
+    ):
+        msg = f"Refusing to remove unsafe data directory: {path}"
+        raise ValueError(msg)
+
+
+def _remove_path(path: Path) -> None:
+    """Remove one path without following a symlink root."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    else:
+        shutil.rmtree(path)
+
+
+def _remove_data_dir(path: Path, *, remove_all: bool) -> None:
+    """Remove a native data/control directory or its Yeliztli-owned artifacts."""
+    if not path.exists():
+        print(f"Data directory not found: {path}")
+        return
+
+    if remove_all or path.is_symlink() or path.is_file():
+        print(f"Removing data directory: {path}")
+        _remove_path(path)
+        print("  Done.")
+        return
+
+    removed_any = False
+    for child in list(path.iterdir()):
+        if child.name not in _YELIZTLI_DATA_ARTIFACT_NAMES:
+            continue
+        print(f"Removing data artifact: {child}")
+        _remove_path(child)
+        removed_any = True
+
+    if not any(path.iterdir()):
+        print(f"Removing empty data directory: {path}")
+        path.rmdir()
+    elif removed_any:
+        print(f"Data directory preserved: {path}")
+        print("  Non-Yeliztli entries were left in place.")
+    else:
+        print(f"No removable Yeliztli data artifacts found: {path}")
+
+
+def _remove_uninstall_data_dirs(data_dirs: list[Path]) -> None:
+    """Remove data/control targets after validation."""
+    default_data_dir = _default_data_dir()
+    for data_dir in data_dirs:
+        _remove_data_dir(data_dir, remove_all=_same_data_dir(data_dir, default_data_dir))
+
+
+def _print_preserved_data_dirs(data_dirs: list[Path]) -> None:
+    """Print preserved data/control targets."""
+    for data_dir in data_dirs:
+        print(f"Data directory preserved: {data_dir}")
+    target = "it" if len(data_dirs) == 1 else "them"
+    print(f"  Use --remove-data to delete {target}.")
 
 
 # ── Frontend build ─────────────────────────────────────────
@@ -364,16 +504,18 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
         uninstall_systemd()
     print()
 
+    data_dirs = _uninstall_data_dirs()
     if args.remove_data:
-        if DATA_DIR.exists():
-            print(f"Removing data directory: {DATA_DIR}")
-            shutil.rmtree(DATA_DIR)
-            print("  Done.")
-        else:
-            print(f"Data directory not found: {DATA_DIR}")
+        try:
+            for data_dir in data_dirs:
+                _validate_removable_data_dir(data_dir)
+        except ValueError as exc:
+            print(f"[error] {exc}")
+            return 1
+
+        _remove_uninstall_data_dirs(data_dirs)
     else:
-        print(f"Data directory preserved: {DATA_DIR}")
-        print("  Use --remove-data to delete it.")
+        _print_preserved_data_dirs(data_dirs)
 
     print()
     print("Uninstall complete.")
@@ -452,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:
     p_uninstall.add_argument(
         "--remove-data",
         action="store_true",
-        help="Also remove ~/.yeliztli data directory",
+        help="Also remove configured Yeliztli data and default control files",
     )
     p_uninstall.set_defaults(func=cmd_uninstall)
 
