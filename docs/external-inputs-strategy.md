@@ -32,6 +32,7 @@ Everything that is **not** clearly redistributable is **BYO** (bring-your-own), 
 | **SpliceAI** (precomputed delta-scores) | SW-F2 splice context layer | Code: PolyForm Strict 1.0.0; **trained models + precomputed scores: CC-BY-NC-4.0** ("academic and not-for-profit use; other use requires a commercial license from Illumina") — distributed via **login-gated** Illumina BaseSpace (verified 2026-06-17) | **BYO (user-supplied-file, no URL)** | Non-commercial + login-gated → not redistributable and not auto-fetchable. Ingest a user-supplied VCF; store no URL. |
 | **GTEx v8** eQTL summary stats | SW-F3 regulatory-context badge | Open-access summary statistics (eQTL results redistributable; individual WGS is dbGaP-controlled and NOT used) | **Bundleable** *(or pipeline-built)* | Summary stats only. Either ship the built `gtex_eqtl.db` as a CC-open Release, or leave it pipeline-built; the GRCh38→rsID match is a build step (see SW-F3). |
 | **dbNSFP** | In-silico predictors (REVEL, CADD, …) | **Academic / non-commercial** | **BYO (provider-fetched)** | Downloaded directly from the provider into the user's `data/`; not redistributed by us (already the shipped posture). |
+| **UCSC hg19 FASTA + `refGene`** | Optional fully local Genome Browser GRCh37 reference and RefSeq gene track | UCSC Genome Browser raw data files and database table dumps are freely available for public and commercial use; source databases may impose separate terms (verified 2026-07-01) | **BYO (provider-fetched local build)** | Built from UCSC `hg19.fa.gz` and `refGene.txt.gz` by `scripts/build_genome_browser_reference.py`; not redistributed by Yeliztli or committed to git. The generated manifest records source URLs, accessed date, source SHA-256 values, output SHA-256 values, and the UCSC license URL. |
 
 The fully-bundled, already-shipped CC0/CC-BY datasets (**gnomAD** CC0, **ClinGen** CC0, **AlphaMissense** CC-BY-4.0, **PharmGKB / FDA-via-PharmGKB** CC-BY-SA-4.0, **PGS Catalog** per-score CC-BY-4.0) are documented in full in [`NOTICE`](https://github.com/bioedca/Yeliztli/blob/main/NOTICE) and [Attribution](attribution.md); their posture (bundleable) follows the same rule and is not repeated here.
 
@@ -70,6 +71,20 @@ The fully-bundled, already-shipped CC0/CC-BY datasets (**gnomAD** CC0, **ClinGen
 ### dbNSFP — in-silico predictors
 
 - **Posture: BYO provider-fetched.** dbNSFP carries an **academic / non-commercial** license. It is downloaded directly from the provider into the user's own `data/` directory at install/update time and is **not redistributed** by Yeliztli — the posture already in production.
+
+### UCSC hg19 FASTA + refGene — local Genome Browser reference
+
+- **Posture: BYO provider-fetched local build.** The maintainer build downloads UCSC's
+  `hg19.fa.gz` FASTA and `refGene.txt.gz` table directly from `hgdownload.soe.ucsc.edu`,
+  writes the runtime files expected by the app, and records source/output checksums in
+  `genome_browser_reference_manifest.json`.
+- **License record:** UCSC's license page states that Genome Browser raw data files and
+  database table dumps are freely available for public and commercial use, with the caveat
+  that source databases may impose separate terms. The build manifest carries the exact source
+  URLs and license URL for each artifact.
+- **Operational note:** this input is not stored in git. The real build runs on SLURM because
+  the FASTA download and decompressed output are large; see
+  [`docs/maintainer/genome-browser-reference-bundle.md`](maintainer/genome-browser-reference-bundle.md).
 
 ---
 

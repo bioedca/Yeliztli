@@ -102,3 +102,8 @@ AncestryDNAsample.txt:Zone.Identifier
 genomeinsight_lai_bundle_*.tar.gz
 yeliztli_lai_bundle_*.tar.gz
 lai_bundle_build/
+
+# Genome Browser reference artifacts — built from UCSC sources, not committed.
+yeliztli_genome_browser_reference_*.tar.gz
+yeliztli_genome_browser_reference_*.tar.zst
+genome_browser_reference_build/

@@ -46,6 +46,7 @@ are not redistributed by Yeliztli.
 | **GWAS Catalog** (EBI) | Trait/disease associations | Open |
 | **dbSNP** (NCBI) | rsID identity resolution | Public domain |
 | **Mondo / HPO** (Monarch) | Disease & phenotype associations | Open |
+| **UCSC Genome Browser hg19 + RefSeq (`refGene`)** | Optional local Genome Browser reference sequence and gene track | UCSC Genome Browser data terms |
 | **Ensembl VEP** | Variant consequence predictions (the VEP bundle) | Open (Ensembl) |
 
 !!! warning "Mind the licenses for your use"
@@ -56,6 +57,6 @@ are not redistributed by Yeliztli.
 ## Independence
 
 "gnomAD", "Broad Institute", "ClinGen", "AlphaMissense", "Google DeepMind", "PharmGKB",
-"DPWG", "FDA", "GTEx", "PGS Catalog", and other names appear here **solely for source
+"DPWG", "FDA", "GTEx", "PGS Catalog", "UCSC Genome Browser", "RefSeq", and other names appear here **solely for source
 attribution**. Yeliztli is an **independent project** and is not affiliated with, sponsored
 by, or endorsed by any of these organisations.

@@ -55,6 +55,7 @@ attribution list lives in the repository
 | **PharmGKB** | Clinical drug annotations | Small metadata source | CC-BY-SA-4.0 |
 | **FDA drug labels** (via PharmGKB) | Pharmacogenomic labeling | Small metadata source | CC-BY-SA-4.0 |
 | **GTEx** | Tissue eQTLs for functional context | ~3 GB when installed | Open-access summary stats |
+| **UCSC hg19 FASTA + RefSeq (`refGene`)** | Optional fully local Genome Browser reference and gene track | ~4 GB when installed | UCSC Genome Browser data terms |
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use
@@ -76,6 +77,11 @@ By default Yeliztli looks for them in the data directory. You can point to equiv
 files with `YELIZTLI_GRCH37_FASTA_PATH` and
 `YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH`. If any file is missing, the Genome Browser keeps
 the disclosure-gated hosted `hg19` fallback.
+
+Maintainers can build the local reference files from UCSC sources with
+[`scripts/build_genome_browser_reference.py`](https://github.com/bioedca/Yeliztli/blob/main/scripts/build_genome_browser_reference.py).
+The SLURM procedure and provenance checklist are in the
+[Genome Browser reference bundle runbook](../maintainer/genome-browser-reference-bundle.md).
 
 ## Updating reference data
 

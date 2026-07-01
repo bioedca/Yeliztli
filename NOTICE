@@ -146,3 +146,26 @@ Citation: Lambert, S.A., Wingfield, B., Gibson, J.T. et al. "Enhancing the
 "PGS Catalog" is used here solely for source attribution. Yeliztli is an
 independent project and is not affiliated with or endorsed by the PGS Catalog,
 EMBL-EBI, or the score authors.
+
+UCSC Genome Browser hg19 + RefSeq gene annotations
+--------------------------------------------------
+Source:   UCSC Genome Browser downloads:
+          https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+          https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz
+License:  UCSC Genome Browser data-file terms. UCSC states that raw data files
+          and database table dumps used by the Genome Browser are freely
+          available for public and commercial use, while noting that source
+          databases may impose separate terms.
+Scope:    Optional local Genome Browser reference files (`grch37.fa`,
+          `grch37.fa.fai`, `grch37_refseq.bed`) built by
+          `scripts/build_genome_browser_reference.py`. These files let IGV.js
+          render GRCh37/hg19 sequence context and RefSeq genes without hosted
+          reference requests when installed in the user's data directory.
+Accessed: Recorded in the generated
+          `genome_browser_reference_manifest.json` for each build.
+Citation: Please cite the UCSC Genome Browser and source downloads when using
+          this local reference bundle.
+
+"UCSC Genome Browser" and "RefSeq" are used here solely for source attribution.
+Yeliztli is an independent project and is not affiliated with or endorsed by
+UCSC, the Genome Browser project, or NCBI RefSeq.

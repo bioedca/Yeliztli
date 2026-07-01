@@ -8,6 +8,8 @@ don't need this section.
   VEP consequence bundle.
 - **[LAI bundle](lai-bundle.md)** — the local-ancestry bundle's multi-phase, cluster-based
   build.
+- **[Genome Browser reference bundle](genome-browser-reference-bundle.md)** — build the
+  optional local GRCh37/hg19 FASTA + RefSeq track used to avoid hosted IGV reference fetches.
 - **[App release process](release-process.md)** — cutting an application release and the
   bundle release notes.
 

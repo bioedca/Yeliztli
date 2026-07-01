@@ -152,5 +152,6 @@ nav:
       - Bundle build & release: bundle-release-runbook.md
       - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
+      - Genome Browser reference bundle: maintainer/genome-browser-reference-bundle.md
       - App release process: maintainer/release-process.md
   - Attribution: attribution.md
