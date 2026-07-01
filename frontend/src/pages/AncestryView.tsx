@@ -139,6 +139,14 @@ export default function AncestryView() {
 
   const isLoading = findingsQuery.isLoading
   const hasError = findingsQuery.isError
+  const ancestryFinding = findingsQuery.data ?? null
+  const isUncertain = Boolean(
+    ancestryFinding
+    && (ancestryFinding.classification_status === "uncertain" || !ancestryFinding.is_sufficient),
+  )
+  const ancestryCoveragePct = ancestryFinding
+    ? (ancestryFinding.coverage_fraction * 100).toFixed(1)
+    : "0.0"
 
   return (
     <div className="p-6">
@@ -174,7 +182,7 @@ export default function AncestryView() {
       )}
 
       {/* No results yet */}
-      {!isLoading && !hasError && !findingsQuery.data && (
+      {!isLoading && !hasError && !ancestryFinding && (
         <PageEmpty
           icon={Globe}
           title="No ancestry results yet."
@@ -182,12 +190,21 @@ export default function AncestryView() {
         />
       )}
 
+      {/* Analyzed, but not enough ancestry marker coverage for a confident call */}
+      {!isLoading && !hasError && ancestryFinding && isUncertain && (
+        <PageEmpty
+          icon={AlertTriangle}
+          title="Ancestry: Uncertain"
+          description={`This sample covers ${ancestryCoveragePct}% of ancestry markers, below the 55% needed for a confident ancestry call.`}
+        />
+      )}
+
       {/* Main content */}
-      {!isLoading && !hasError && findingsQuery.data && (
+      {!isLoading && !hasError && ancestryFinding && !isUncertain && (
         <>
           {/* Ancestry Result Summary */}
           <section aria-label="Ancestry inference summary" className="mb-8">
-            <AncestryResultCard finding={findingsQuery.data} />
+            <AncestryResultCard finding={ancestryFinding} />
           </section>
 
           {/* Admixture Bar Chart */}
@@ -198,14 +215,14 @@ export default function AncestryView() {
                 Estimated ancestry proportions using NNLS against reference population centroids
               </p>
               <AdmixtureBar
-                admixture_fractions={findingsQuery.data.admixture_fractions}
-                ci_low={findingsQuery.data.nnls_ci_low ?? undefined}
-                ci_high={findingsQuery.data.nnls_ci_high ?? undefined}
+                admixture_fractions={ancestryFinding.admixture_fractions}
+                ci_low={ancestryFinding.nnls_ci_low ?? undefined}
+                ci_high={ancestryFinding.nnls_ci_high ?? undefined}
               />
               {/* MID lower-precision info note (threshold matches backend MID_LOW_PRECISION_THRESHOLD) */}
-              {findingsQuery.data.admixture_fractions.MID != null &&
-                findingsQuery.data.admixture_fractions.MID > 0.001 &&
-                findingsQuery.data.admixture_fractions.MID < 0.15 && (
+              {ancestryFinding.admixture_fractions.MID != null &&
+                ancestryFinding.admixture_fractions.MID > 0.001 &&
+                ancestryFinding.admixture_fractions.MID < 0.15 && (
                 <div className="flex items-start gap-2 mt-3 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-sm">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>
@@ -246,7 +263,7 @@ export default function AncestryView() {
 
           {/* Analysis Details (collapsible) */}
           <section aria-label="Analysis details" className="mb-8">
-            <AnalysisDetails finding={findingsQuery.data} />
+            <AnalysisDetails finding={ancestryFinding} />
           </section>
 
           {/* Chromosome Painting Section */}
@@ -408,12 +425,12 @@ export default function AncestryView() {
                             Tier 1: Instant Analysis (NNLS)
                           </h3>
                           <div className="space-y-2 pt-2">
-                            {Object.entries(findingsQuery.data?.admixture_fractions ?? {})
+                            {Object.entries(ancestryFinding.admixture_fractions)
                               .filter(([, v]) => v >= 0.001)
                               .sort(([, a], [, b]) => b - a)
                               .map(([pop, frac]) => {
-                                const ciLow = findingsQuery.data?.nnls_ci_low?.[pop]
-                                const ciHigh = findingsQuery.data?.nnls_ci_high?.[pop]
+                                const ciLow = ancestryFinding.nnls_ci_low?.[pop]
+                                const ciHigh = ancestryFinding.nnls_ci_high?.[pop]
                                 const halfWidth = ciLow != null && ciHigh != null
                                   ? (ciHigh - ciLow) / 2 * 100
                                   : null
@@ -446,7 +463,7 @@ export default function AncestryView() {
 
                       {/* Concordance note */}
                       <TierConcordance
-                        tier1={findingsQuery.data?.admixture_fractions ?? {}}
+                        tier1={ancestryFinding.admixture_fractions}
                         tier2={laiResultsQuery.data.global_ancestry}
                       />
 

@@ -18,6 +18,10 @@ export interface AncestryFindingResponse {
   coverage_fraction: number
   projection_time_ms: number
   is_sufficient: boolean
+  /** Classification state from the ancestry caller. */
+  classification_status: "confident" | "admixed" | "uncertain"
+  /** Machine-readable quality flags, e.g. "low_coverage". */
+  quality_flags: string[]
   evidence_level: number
   finding_text: string
   /** NNLS-kNN confidence (cosine similarity, 0–1). */

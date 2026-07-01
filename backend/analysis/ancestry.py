@@ -1094,17 +1094,52 @@ def store_ancestry_findings(
         sample_engine: SQLAlchemy engine for the sample database.
 
     Returns:
-        Number of findings inserted (0 or 3).
+        Number of findings inserted (1 for uncertain, 3 for sufficient).
     """
     categories = ("pca_projection", "nnls_admixture", "knn_admixture")
+    # Sort populations by distance (ascending) for display
+    sorted_pops = sorted(result.population_distances.items(), key=lambda x: x[1])
+
+    stored_top_population = result.top_population
+    classification_status = result.classification_status
+    quality_flags = list(result.quality_flags)
     if not result.is_sufficient:
-        logger.warning(
-            "ancestry_finding_skipped_insufficient",
-            coverage=result.coverage_fraction,
-            snps_used=result.snps_used,
-        )
-        # Clear any prior ancestry findings even on an insufficient/empty rerun, so a
-        # stale earlier result never persists (#479 / #348 class).
+        stored_top_population = UNCERTAIN
+        classification_status = "uncertain"
+        if "low_coverage" not in quality_flags:
+            quality_flags.append("low_coverage")
+
+    pca_detail = {
+        "top_population": stored_top_population,
+        "inferred_ancestry": stored_top_population,
+        "classification_status": classification_status,
+        "quality_flags": quality_flags,
+        "pc_scores": result.pc_scores,
+        "population_distances": result.population_distances,
+        "admixture_fractions": result.admixture_fractions,
+        "population_ranking": [{"population": pop, "distance": dist} for pop, dist in sorted_pops],
+        "snps_used": result.snps_used,
+        "snps_total": result.snps_total,
+        "coverage_fraction": result.coverage_fraction,
+        "projection_time_ms": result.projection_time_ms,
+        "is_sufficient": result.is_sufficient,
+        "n_pcs_used": result.n_pcs_used,
+        "missing_aim_rate": result.missing_aim_rate,
+    }
+
+    if not result.is_sufficient:
+        pca_row = {
+            "module": "ancestry",
+            "category": "pca_projection",
+            "evidence_level": ANCESTRY_EVIDENCE_LEVEL,
+            "finding_text": (
+                f"Ancestry: Uncertain ({result.snps_used}/{result.snps_total} markers, "
+                f"{result.coverage_fraction:.0%} coverage; below "
+                f"{_MIN_COVERAGE:.0%} coverage needed for a confident call)"
+            ),
+            "detail_json": json.dumps(pca_detail),
+        }
+
         with sample_engine.begin() as conn:
             conn.execute(
                 sa.delete(findings).where(
@@ -1112,10 +1147,15 @@ def store_ancestry_findings(
                     findings.c.category.in_(categories),
                 )
             )
-        return 0
+            conn.execute(sa.insert(findings), [pca_row])
 
-    # Sort populations by distance (ascending) for display
-    sorted_pops = sorted(result.population_distances.items(), key=lambda x: x[1])
+        logger.warning(
+            "ancestry_finding_stored_uncertain",
+            coverage=result.coverage_fraction,
+            snps_used=result.snps_used,
+            quality_flags=quality_flags,
+        )
+        return 1
 
     # Build admixture summary for finding text (top 3 contributions)
     sorted_admixture = sorted(result.admixture_fractions.items(), key=lambda x: x[1], reverse=True)
@@ -1131,7 +1171,7 @@ def store_ancestry_findings(
     )
     # Honest headline: never assert a single population for an admixed/between-clusters
     # sample (the NNLS breakdown follows as supporting detail, not a verdict).
-    if result.classification_status == "admixed":
+    if classification_status == "admixed":
         ancestry_label = (
             f"Admixed / low-confidence ancestry (no single population): {admixture_summary}"
         )
@@ -1139,22 +1179,6 @@ def store_ancestry_findings(
         ancestry_label = f"Inferred ancestry: {admixture_summary}"
 
     # Row 1: PCA projection
-    pca_detail = {
-        "top_population": result.top_population,
-        "inferred_ancestry": result.top_population,
-        "pc_scores": result.pc_scores,
-        "population_distances": result.population_distances,
-        "admixture_fractions": result.admixture_fractions,
-        "population_ranking": [{"population": pop, "distance": dist} for pop, dist in sorted_pops],
-        "snps_used": result.snps_used,
-        "snps_total": result.snps_total,
-        "coverage_fraction": result.coverage_fraction,
-        "projection_time_ms": result.projection_time_ms,
-        "is_sufficient": result.is_sufficient,
-        "n_pcs_used": result.n_pcs_used,
-        "missing_aim_rate": result.missing_aim_rate,
-    }
-
     pca_row = {
         "module": "ancestry",
         "category": "pca_projection",
@@ -1168,10 +1192,10 @@ def store_ancestry_findings(
 
     # Row 2: NNLS admixture (primary — has top_population for get_inferred_ancestry)
     nnls_detail: dict = {
-        "top_population": result.top_population,
-        "inferred_ancestry": result.top_population,
-        "classification_status": result.classification_status,
-        "quality_flags": result.quality_flags,
+        "top_population": stored_top_population,
+        "inferred_ancestry": stored_top_population,
+        "classification_status": classification_status,
+        "quality_flags": quality_flags,
         "admixture_fractions": result.nnls_fractions or result.admixture_fractions,
         "admixture_method": "nnls",
         "confidence": result.confidence,
@@ -1199,7 +1223,7 @@ def store_ancestry_findings(
 
     # Row 3: kNN admixture (secondary)
     knn_detail = {
-        "top_population": result.top_population,
+        "top_population": stored_top_population,
         "admixture_fractions": result.knn_fractions or {},
         "admixture_method": "knn",
         "k": 15,
@@ -1227,7 +1251,7 @@ def store_ancestry_findings(
 
     logger.info(
         "ancestry_findings_stored",
-        top_population=result.top_population,
+        top_population=stored_top_population,
         admixture_method=result.admixture_method,
         confidence=result.confidence,
     )

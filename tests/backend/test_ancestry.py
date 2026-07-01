@@ -1001,14 +1001,53 @@ class TestStoreAncestryFindings:
             ).scalar()
         assert count == 3  # 3 categories, not 6
 
-    def test_insufficient_coverage_stores_nothing(
+    def test_insufficient_coverage_stores_uncertain_finding(
         self,
         small_bundle: AncestryBundle,
         partial_sample: sa.Engine,
     ) -> None:
         result = infer_ancestry(small_bundle, partial_sample)
         count = store_ancestry_findings(result, partial_sample)
-        assert count == 0
+        assert count == 1
+
+        with partial_sample.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == "ancestry")
+            ).fetchall()
+
+        assert len(rows) == 1
+        assert rows[0].category == "pca_projection"
+        assert "Uncertain" in rows[0].finding_text
+
+        detail = json.loads(rows[0].detail_json)
+        assert detail["top_population"] == UNCERTAIN
+        assert detail["classification_status"] == "uncertain"
+        assert "low_coverage" in detail["quality_flags"]
+        assert detail["is_sufficient"] is False
+
+    def test_findings_route_returns_uncertain_finding(
+        self,
+        small_bundle: AncestryBundle,
+        partial_sample: sa.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        result = infer_ancestry(small_bundle, partial_sample)
+        store_ancestry_findings(result, partial_sample)
+
+        from backend.api.routes import ancestry as ancestry_routes
+
+        monkeypatch.setattr(
+            ancestry_routes, "_get_sample_engine", lambda _sample_id: partial_sample
+        )
+
+        response = ancestry_routes.get_ancestry_findings(sample_id=123)
+        assert response is not None
+        data = response.model_dump()
+        assert data["top_population"] == UNCERTAIN
+        assert data["classification_status"] == "uncertain"
+        assert data["quality_flags"] == ["low_coverage"]
+        assert data["is_sufficient"] is False
+        assert "Uncertain" in data["finding_text"]
 
     def test_evidence_level_2(
         self,

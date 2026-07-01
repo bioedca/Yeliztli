@@ -14,7 +14,7 @@ from functools import lru_cache
 import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -49,6 +49,8 @@ class AncestryFindingResponse(BaseModel):
     coverage_fraction: float
     projection_time_ms: float
     is_sufficient: bool
+    classification_status: str = "confident"
+    quality_flags: list[str] = Field(default_factory=list)
     evidence_level: int
     finding_text: str
     confidence: float = 0.0
@@ -70,6 +72,8 @@ class AncestryRunResponse(BaseModel):
     snps_total: int
     coverage_fraction: float
     is_sufficient: bool
+    classification_status: str = "confident"
+    quality_flags: list[str] = Field(default_factory=list)
 
 
 class PCACoordinatesResponse(BaseModel):
@@ -289,6 +293,12 @@ def get_ancestry_findings(
         "admixture_fractions", {}
     )
     top_population = nnls_detail.get("top_population") or pca_detail.get("top_population", "")
+    classification_status = (
+        pca_detail.get("classification_status")
+        or nnls_detail.get("classification_status")
+        or ("confident" if pca_detail.get("is_sufficient", False) else "uncertain")
+    )
+    quality_flags = pca_detail.get("quality_flags") or nnls_detail.get("quality_flags") or []
 
     # Use NNLS finding text if available, otherwise PCA
     finding_text = (nnls_row.finding_text if nnls_row else None) or pca_row.finding_text or ""
@@ -306,6 +316,8 @@ def get_ancestry_findings(
         coverage_fraction=pca_detail.get("coverage_fraction", 0.0),
         projection_time_ms=pca_detail.get("projection_time_ms", 0.0),
         is_sufficient=pca_detail.get("is_sufficient", False),
+        classification_status=classification_status,
+        quality_flags=quality_flags,
         evidence_level=pca_row.evidence_level or 2,
         finding_text=finding_text,
         confidence=nnls_detail.get("confidence", 0.0),
@@ -341,6 +353,8 @@ def run_ancestry(
         snps_total=result.snps_total,
         coverage_fraction=result.coverage_fraction,
         is_sufficient=result.is_sufficient,
+        classification_status=result.classification_status,
+        quality_flags=result.quality_flags,
     )
 
 

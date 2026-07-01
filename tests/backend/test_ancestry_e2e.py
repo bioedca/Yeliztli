@@ -308,11 +308,26 @@ class TestTier1Storage:
         self, bundle, eur_sample_engine, eur_result
     ) -> None:
         # #479: a sufficient run persists 3 findings; an insufficient rerun must
-        # CLEAR them, not leave the stale earlier result (the #348 class).
+        # CLEAR stale confident rows, not leave the stale earlier result (the
+        # #348 class). It now keeps one explicit uncertain row so the UI can
+        # distinguish "analyzed but uncertain" from "never analyzed".
         assert store_ancestry_findings(eur_result, eur_sample_engine) == 3
         insufficient = dataclasses.replace(eur_result, is_sufficient=False)
-        assert store_ancestry_findings(insufficient, eur_sample_engine) == 0
-        assert self._count(eur_sample_engine, self._ANCESTRY_CATS) == 0
+        assert store_ancestry_findings(insufficient, eur_sample_engine) == 1
+        assert self._count(eur_sample_engine, self._ANCESTRY_CATS) == 1
+
+        with eur_sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.category, findings.c.detail_json)
+                .where(findings.c.category.in_(self._ANCESTRY_CATS))
+                .order_by(findings.c.category)
+            ).fetchall()
+        assert [row.category for row in rows] == ["pca_projection"]
+
+        detail = json.loads(rows[0].detail_json)
+        assert detail["top_population"] == "UNCERTAIN"
+        assert detail["classification_status"] == "uncertain"
+        assert detail["quality_flags"] == ["low_coverage"]
 
     def test_empty_rerun_clears_stale_haplogroup_findings(self, eur_sample_engine) -> None:
         # #479: a prior haplogroup finding must be cleared by a rerun yielding none.
@@ -397,7 +412,7 @@ class TestTier1API:
                         "db_path": "samples/sample_1.db",
                         "file_format": "23andme_v5",
                         "file_hash": "fixture_eur",
-                    }
+                    },
                 ],
             )
         ref_engine.dispose()
