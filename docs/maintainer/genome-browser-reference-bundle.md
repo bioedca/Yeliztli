@@ -47,49 +47,52 @@ the repo's heavy-job rule: the FASTA download and decompressed output are large 
 they should not be built on a laptop or on the login shell.
 
 ```bash
-ssh two 'bash -ls' <<'EOF'
+export YELIZTLI_SLURM_LOGIN=<slurm-login-host>
+ssh "$YELIZTLI_SLURM_LOGIN" 'bash -ls' <<'EOF'
 mkdir -p "$HOME/jobs" "$HOME/artifacts/genome-browser-reference"
-sbatch -p gpu --job-name=gb-ref --time=02:00:00 --cpus-per-task=2 --mem=12G \
-  --output="$HOME/jobs/%x-%j.log" --wrap='
-    set -euo pipefail
-    work=/tmp/$USER-$SLURM_JOB_ID
-    mkdir -p "$work"
-    trap "rm -rf \"$work\"" EXIT
+job_id=$(sbatch --parsable -p gpu --job-name=gb-ref --time=02:00:00 \
+  --cpus-per-task=2 --mem=12G --output="$HOME/jobs/%x-%j.log" <<'SBATCH'
+#!/usr/bin/env bash
+set -euo pipefail
 
-    repo=$work/Yeliztli
-    git clone --depth 1 https://github.com/bioedca/Yeliztli.git "$repo"
-    cd "$repo"
+work=/tmp/$USER-$SLURM_JOB_ID
+mkdir -p "$work"
+trap 'rm -rf "$work"' EXIT
 
-    out=$work/genome-browser-reference
-    python3.12 scripts/build_genome_browser_reference.py \
-      --output-dir "$out" \
-      --source-dir "$work/sources" \
-      --accessed-date "$(date -u +%F)"
+repo=$work/Yeliztli
+git clone --depth 1 https://github.com/bioedca/Yeliztli.git "$repo"
+cd "$repo"
 
-    artifact="yeliztli_genome_browser_reference_$(date -u +%Y%m%d).tar.zst"
-    tar --use-compress-program "zstd -19 -T0" \
-      -cf "$HOME/artifacts/genome-browser-reference/$artifact" \
-      -C "$out" .
-    sha256sum "$HOME/artifacts/genome-browser-reference/$artifact" \
-      > "$HOME/artifacts/genome-browser-reference/$artifact.sha256"
-    stat -c "%n %s" "$HOME/artifacts/genome-browser-reference/$artifact" \
-      > "$HOME/artifacts/genome-browser-reference/$artifact.size"
-  '
+out=$work/genome-browser-reference
+python3.12 scripts/build_genome_browser_reference.py \
+  --output-dir "$out" \
+  --source-dir "$work/sources" \
+  --accessed-date "$(date -u +%F)"
+
+artifact="yeliztli_genome_browser_reference_$(date -u +%Y%m%d).tar.zst"
+target_dir="$HOME/artifacts/genome-browser-reference"
+mkdir -p "$target_dir"
+tar --use-compress-program "zstd -19 -T0" -cf "$target_dir/$artifact" -C "$out" .
+sha256sum "$target_dir/$artifact" > "$target_dir/$artifact.sha256"
+stat -c "%n %s" "$target_dir/$artifact" > "$target_dir/$artifact.size"
+SBATCH
+)
+echo "Submitted $job_id"
 EOF
 ```
 
 Monitor it:
 
 ```bash
-ssh two 'squeue -u "$USER"'
-ssh two 'tail -n 80 "$HOME/jobs/gb-ref-<jobid>.log"'
+ssh "$YELIZTLI_SLURM_LOGIN" 'squeue -u "$USER"'
+ssh "$YELIZTLI_SLURM_LOGIN" 'tail -n 80 "$HOME/jobs/gb-ref-<jobid>.log"'
 ```
 
 Retrieve the artifact into a gitignored local download directory:
 
 ```bash
 mkdir -p data/downloads/genome-browser-reference
-rsync -av two:artifacts/genome-browser-reference/ \
+rsync -av "$YELIZTLI_SLURM_LOGIN":artifacts/genome-browser-reference/ \
   data/downloads/genome-browser-reference/
 ```
 
