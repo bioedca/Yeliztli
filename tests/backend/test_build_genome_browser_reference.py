@@ -8,6 +8,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 from build_genome_browser_reference import (
     BED_RGB,
@@ -83,9 +85,13 @@ def test_build_reference_bundle_writes_manifest_and_runtime_files(tmp_path: Path
     )
 
     output_dir = tmp_path / "bundle"
+    download_cache = tmp_path / "download-cache"
+    download_cache.mkdir()
+    cache_marker = download_cache / "keep-me.txt"
+    cache_marker.write_text("operator cache metadata", encoding="utf-8")
     result = build_reference_bundle(
         output_dir,
-        source_dir=tmp_path / "download-cache",
+        source_dir=download_cache,
         source_config=SourceConfig(
             fasta_url=fasta_source.as_uri(),
             refgene_url=refgene_source.as_uri(),
@@ -96,7 +102,9 @@ def test_build_reference_bundle_writes_manifest_and_runtime_files(tmp_path: Path
     assert (output_dir / "grch37.fa").is_file()
     assert (output_dir / "grch37.fa.fai").is_file()
     assert (output_dir / "grch37_refseq.bed").is_file()
-    assert not (tmp_path / "download-cache").exists()
+    assert cache_marker.read_text(encoding="utf-8") == "operator cache metadata"
+    assert not (download_cache / "hg19.fa.gz").exists()
+    assert not (download_cache / "refGene.txt.gz").exists()
     assert result.fasta_stats.sequences == 1
     assert result.refgene_stats.transcripts == 1
 
@@ -104,6 +112,18 @@ def test_build_reference_bundle_writes_manifest_and_runtime_files(tmp_path: Path
     assert manifest["accessed_date"] == "2026-07-01"
     assert manifest["sources"]["fasta"]["url"] == fasta_source.as_uri()
     assert manifest["sources"]["refgene"]["url"] == refgene_source.as_uri()
+    assert "directory_url" not in manifest["sources"]["fasta"]
+    assert "directory_url" not in manifest["sources"]["refgene"]
+    assert "url" not in manifest["license"]
     assert manifest["outputs"]["fasta"]["path"] == "grch37.fa"
     assert manifest["outputs"]["fasta_index"]["path"] == "grch37.fa.fai"
     assert manifest["outputs"]["refseq_bed"]["path"] == "grch37_refseq.bed"
+
+
+def test_build_reference_bundle_rejects_overlapping_source_and_output_dirs(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "bundle"
+
+    with pytest.raises(ValueError, match="--source-dir must not overlap --output-dir"):
+        build_reference_bundle(output_dir, source_dir=output_dir / "_sources")

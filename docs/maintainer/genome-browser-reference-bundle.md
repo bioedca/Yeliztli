@@ -22,8 +22,10 @@ The source inputs are:
 
 UCSC's license page says Genome Browser raw data files and database table dumps are freely
 available for public and commercial use, while noting that source databases can impose
-separate terms. The release checklist below keeps the manifest and attribution text with the
-artifact so consumers can inspect that posture directly.
+separate terms. The artifact is treated as a BYO/provider-fetched local build: do not attach
+it to Yeliztli releases or redistribute it as an official Yeliztli asset without a separate
+license/release review. The verification checklist below keeps the manifest and attribution
+text with the local artifact so operators can inspect that posture directly.
 
 ## Local smoke build
 
@@ -98,7 +100,8 @@ rsync -av "$YELIZTLI_SLURM_LOGIN":artifacts/genome-browser-reference/ \
 
 ## Verification checklist
 
-Before publishing or handing off an artifact:
+Before installing the artifact locally or handing it to another operator under an approved
+site process:
 
 1. Unpack the archive and inspect `genome_browser_reference_manifest.json`.
 2. Confirm `sources.fasta.url`, `sources.refgene.url`, `accessed_date`, source SHA-256, output

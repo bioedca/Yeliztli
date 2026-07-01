@@ -63,9 +63,9 @@ class RefGeneStats:
 class SourceConfig:
     fasta_url: str = DEFAULT_FASTA_URL
     refgene_url: str = DEFAULT_REFGENE_URL
-    license_url: str = DEFAULT_LICENSE_URL
-    bigzips_url: str = DEFAULT_BIGZIPS_URL
-    database_url: str = DEFAULT_DATABASE_URL
+    license_url: str | None = DEFAULT_LICENSE_URL
+    bigzips_url: str | None = DEFAULT_BIGZIPS_URL
+    database_url: str | None = DEFAULT_DATABASE_URL
 
 
 @dataclass(frozen=True)
@@ -353,32 +353,41 @@ def write_manifest(
     accessed_date: date,
 ) -> FileInfo:
     manifest_path = output_dir / MANIFEST_OUTPUT_NAME
+    license_payload = {
+        "label": "UCSC Genome Browser data files",
+        "summary": (
+            "UCSC states that raw data files and database table dumps used by the "
+            "Genome Browser are freely available for public and commercial use; "
+            "source databases may impose separate terms."
+        ),
+    }
+    if source_config.license_url:
+        license_payload["url"] = source_config.license_url
+
+    fasta_source_payload = {
+        "url": source_config.fasta_url,
+        **asdict(source_files["fasta"]),
+    }
+    if source_config.bigzips_url:
+        fasta_source_payload["directory_url"] = source_config.bigzips_url
+
+    refgene_source_payload = {
+        "url": source_config.refgene_url,
+        **asdict(source_files["refgene"]),
+    }
+    if source_config.database_url:
+        refgene_source_payload["directory_url"] = source_config.database_url
+
     payload = {
         "schema_version": 1,
         "name": "genome_browser_reference_grch37_hg19",
         "created_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "accessed_date": accessed_date.isoformat(),
         "runtime_files": [FASTA_OUTPUT_NAME, f"{FASTA_OUTPUT_NAME}.fai", REFSEQ_OUTPUT_NAME],
-        "license": {
-            "label": "UCSC Genome Browser data files",
-            "url": source_config.license_url,
-            "summary": (
-                "UCSC states that raw data files and database table dumps used by the "
-                "Genome Browser are freely available for public and commercial use; "
-                "source databases may impose separate terms."
-            ),
-        },
+        "license": license_payload,
         "sources": {
-            "fasta": {
-                "url": source_config.fasta_url,
-                "directory_url": source_config.bigzips_url,
-                **asdict(source_files["fasta"]),
-            },
-            "refgene": {
-                "url": source_config.refgene_url,
-                "directory_url": source_config.database_url,
-                **asdict(source_files["refgene"]),
-            },
+            "fasta": fasta_source_payload,
+            "refgene": refgene_source_payload,
         },
         "outputs": {
             key: asdict(value)
@@ -393,6 +402,47 @@ def write_manifest(
     return file_info(manifest_path, relative_to=output_dir)
 
 
+def _paths_overlap(first: Path, second: Path) -> bool:
+    first_resolved = first.expanduser().resolve()
+    second_resolved = second.expanduser().resolve()
+    return (
+        first_resolved == second_resolved
+        or first_resolved in second_resolved.parents
+        or second_resolved in first_resolved.parents
+    )
+
+
+def _normalized_source_config(source_config: SourceConfig) -> SourceConfig:
+    bigzips_url = source_config.bigzips_url
+    if source_config.fasta_url != DEFAULT_FASTA_URL and bigzips_url == DEFAULT_BIGZIPS_URL:
+        bigzips_url = None
+
+    database_url = source_config.database_url
+    if source_config.refgene_url != DEFAULT_REFGENE_URL and database_url == DEFAULT_DATABASE_URL:
+        database_url = None
+
+    license_url = source_config.license_url
+    if (
+        source_config.fasta_url != DEFAULT_FASTA_URL
+        or source_config.refgene_url != DEFAULT_REFGENE_URL
+    ) and license_url == DEFAULT_LICENSE_URL:
+        license_url = None
+
+    return SourceConfig(
+        fasta_url=source_config.fasta_url,
+        refgene_url=source_config.refgene_url,
+        license_url=license_url,
+        bigzips_url=bigzips_url,
+        database_url=database_url,
+    )
+
+
+def _remove_source_files(paths: list[Path]) -> None:
+    for path in paths:
+        path.unlink(missing_ok=True)
+        path.with_suffix(path.suffix + ".tmp").unlink(missing_ok=True)
+
+
 def build_reference_bundle(
     output_dir: Path,
     *,
@@ -403,8 +453,12 @@ def build_reference_bundle(
     keep_sources: bool = False,
 ) -> BuildResult:
     accessed_date = accessed_date or datetime.now(UTC).date()
+    source_dir_was_provided = source_dir is not None
+    source_config = _normalized_source_config(source_config)
     output_dir.mkdir(parents=True, exist_ok=True)
     source_dir = source_dir or output_dir / "_sources"
+    if source_dir_was_provided and _paths_overlap(output_dir, source_dir):
+        raise ValueError("--source-dir must not overlap --output-dir")
     source_dir.mkdir(parents=True, exist_ok=True)
 
     fasta_source = source_dir / "hg19.fa.gz"
@@ -447,7 +501,10 @@ def build_reference_bundle(
     )
 
     if not keep_sources:
-        shutil.rmtree(source_dir)
+        if source_dir_was_provided:
+            _remove_source_files([fasta_source, refgene_source])
+        else:
+            shutil.rmtree(source_dir)
 
     return BuildResult(
         output_dir=output_dir,
@@ -482,6 +539,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--fasta-url", default=DEFAULT_FASTA_URL, help="UCSC hg19 FASTA URL.")
     parser.add_argument("--refgene-url", default=DEFAULT_REFGENE_URL, help="UCSC refGene URL.")
     parser.add_argument(
+        "--fasta-directory-url",
+        default=None,
+        help="Directory URL recorded for the FASTA source; inferred for the default UCSC URL.",
+    )
+    parser.add_argument(
+        "--refgene-directory-url",
+        default=None,
+        help="Directory URL recorded for the refGene source; inferred for the default UCSC URL.",
+    )
+    parser.add_argument(
+        "--license-url",
+        default=None,
+        help="License URL recorded in the manifest; inferred for the default UCSC sources.",
+    )
+    parser.add_argument(
         "--accessed-date",
         type=date.fromisoformat,
         default=None,
@@ -502,10 +574,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    source_config = SourceConfig(
+        fasta_url=args.fasta_url,
+        refgene_url=args.refgene_url,
+        bigzips_url=args.fasta_directory_url or DEFAULT_BIGZIPS_URL,
+        database_url=args.refgene_directory_url or DEFAULT_DATABASE_URL,
+        license_url=args.license_url or DEFAULT_LICENSE_URL,
+    )
     result = build_reference_bundle(
         args.output_dir,
         source_dir=args.source_dir,
-        source_config=SourceConfig(fasta_url=args.fasta_url, refgene_url=args.refgene_url),
+        source_config=source_config,
         accessed_date=args.accessed_date,
         force=args.force,
         keep_sources=args.keep_sources,
