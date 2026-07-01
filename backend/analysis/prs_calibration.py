@@ -26,8 +26,9 @@ Requires a working PCA (the admixture fractions) — see
 **Caveats.** (1) The variance assumes scored variants are independent (no LD); in
 linkage it is an under-estimate, so extreme-tail percentiles are approximate.
 (2) gnomAD has no dedicated Middle-Eastern / Oceanian frequency, so those
-admixture components are dropped and the remaining fractions renormalised; a
-sample dominated by them cannot be calibrated this way (returns ``None``).
+admixture components are dropped and the remaining fractions renormalised; when
+less than half the sample's ancestry maps to represented gnomAD populations, the
+sample cannot be calibrated this way (returns ``None``).
 """
 
 from __future__ import annotations
@@ -55,6 +56,11 @@ _POP_TO_GNOMAD_COL: dict[str, str | None] = {
 # Minimum fraction of a weight set's variants that must have a usable AF before a
 # calibrated distribution is emitted (else the percentile would rest on too few SNPs).
 _MIN_VARIANT_COVERAGE = 0.5
+# Minimum fraction of normalized sample ancestry represented by available gnomAD
+# population AF columns. MID/OCE currently have no dedicated column; if they
+# dominate, the calibration would otherwise collapse to the minority represented
+# ancestry and look falsely calibrated.
+_MIN_ANCESTRY_COVERAGE = 0.5
 _POSITION_BATCH_SIZE = 500
 
 PRS_CALIBRATION_PMIDS = [
@@ -170,6 +176,15 @@ def ancestry_weighted_af(
             num += frac * af
             denom += frac
     return (num / denom) if denom > 0 else None
+
+
+def represented_ancestry_fraction(ancestry_fractions: dict[str, float]) -> float:
+    """Fraction of sample ancestry covered by available gnomAD AF columns."""
+    return sum(
+        frac
+        for pop, frac in ancestry_fractions.items()
+        if frac > 0 and _POP_TO_GNOMAD_COL.get(pop)
+    )
 
 
 def expected_prs_mean_sd(
@@ -376,6 +391,8 @@ def continuous_reference_distribution(
 
     fractions = get_ancestry_fractions(sample_engine)
     if not fractions:
+        return None
+    if represented_ancestry_fraction(fractions) < _MIN_ANCESTRY_COVERAGE:
         return None
 
     by_rsid = {w["rsid"]: w for w in weights if w.get("rsid")}

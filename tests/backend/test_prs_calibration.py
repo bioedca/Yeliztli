@@ -22,6 +22,7 @@ from backend.analysis.prs_calibration import (
     effect_allele_frequency,
     expected_prs_mean_sd,
     get_ancestry_fractions,
+    represented_ancestry_fraction,
 )
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, findings, imputed_variants
@@ -97,6 +98,20 @@ class TestAncestryWeightedAf:
 
     def test_none_when_no_af(self) -> None:
         assert ancestry_weighted_af({"gnomad_af_eur": None}, {"EUR": 1.0}) is None
+
+
+class TestRepresentedAncestryFraction:
+    def test_counts_only_populations_with_gnomad_columns(self) -> None:
+        assert math.isclose(
+            represented_ancestry_fraction({"EUR": 0.3, "MID": 0.6, "OCE": 0.1}),
+            0.3,
+        )
+
+    def test_counts_represented_admixture_components(self) -> None:
+        assert math.isclose(
+            represented_ancestry_fraction({"AFR": 0.2, "EAS": 0.3, "OCE": 0.5}),
+            0.5,
+        )
 
 
 class TestExpectedPrsMeanSd:
@@ -286,6 +301,36 @@ class TestContinuousReferenceDistribution:
             {"rsid": "rsZ", "effect_allele": "A", "weight": 1.0},
         ]
         assert continuous_reference_distribution(weights, engine) is None
+
+    def test_none_when_mid_dominates_ancestry_coverage(self) -> None:
+        # MID has no gnomAD AF column. With only 30% represented ancestry, the
+        # old renormalization produced the same distribution as a 100% EUR sample.
+        engine = _sample_with_ancestry({"MID": 0.7, "EUR": 0.3}, self._variants())
+        weights = [
+            {"rsid": "rs1", "effect_allele": "T", "weight": 1.0},
+            {"rsid": "rs2", "effect_allele": "G", "weight": -0.5},
+        ]
+        assert continuous_reference_distribution(weights, engine) is None
+
+    def test_none_when_oce_dominates_ancestry_coverage(self) -> None:
+        # OCE has no gnomAD AF column. With 40% represented ancestry, emitting a
+        # percentile would standardize against the minority EUR fraction only.
+        engine = _sample_with_ancestry({"OCE": 0.6, "EUR": 0.4}, self._variants())
+        weights = [
+            {"rsid": "rs1", "effect_allele": "T", "weight": 1.0},
+            {"rsid": "rs2", "effect_allele": "G", "weight": -0.5},
+        ]
+        assert continuous_reference_distribution(weights, engine) is None
+
+    def test_half_represented_ancestry_still_calibrates(self) -> None:
+        engine = _sample_with_ancestry({"MID": 0.5, "EUR": 0.5}, self._variants())
+        weights = [
+            {"rsid": "rs1", "effect_allele": "T", "weight": 1.0},
+            {"rsid": "rs2", "effect_allele": "G", "weight": -0.5},
+        ]
+        dist = continuous_reference_distribution(weights, engine)
+        assert dist is not None
+        assert dist.variants_used == 2
 
     def test_admixed_distribution_differs_from_eur(self) -> None:
         weights = [{"rsid": "rs1", "effect_allele": "T", "weight": 1.0}]
