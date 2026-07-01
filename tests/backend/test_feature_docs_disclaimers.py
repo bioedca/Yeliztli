@@ -13,18 +13,18 @@ CLINICAL_VARIANT_FEATURE_PAGES = {
 }
 
 CLINICAL_VARIANT_TERMS = (
-    "ClinVar",
-    "Pathogenic",
+    "clinvar",
+    "pathogenic",
     "pathogenicity",
-    "CADD",
-    "SIFT",
-    "PolyPhen",
-    "REVEL",
+    "clinical significance",
+    "cadd",
+    "sift",
+    "polyphen",
+    "revel",
 )
 
 SAFEGUARD_MARKERS = (
     '--8<-- "health-disclaimer.md"',
-    "Intended use & disclaimers",
     "../intended-use.md",
 )
 
@@ -33,7 +33,7 @@ def _feature_pages_that_describe_clinical_variant_data() -> set[str]:
     pages = set(CLINICAL_VARIANT_FEATURE_PAGES)
 
     for path in FEATURES_ROOT.glob("*.md"):
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8").lower()
         if any(term in text for term in CLINICAL_VARIANT_TERMS):
             pages.add(path.name)
 
