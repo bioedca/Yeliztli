@@ -429,6 +429,7 @@ def run_cancer_analysis(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
         inferred_sex=sex_context,
+        reference_engine=reference_engine,
     )
     prs_count = store_cancer_prs_findings(prs_result, sample_engine)
 

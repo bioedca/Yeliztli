@@ -197,6 +197,7 @@ def _patch_cancer_run_dependencies(
         **kwargs: object,
     ) -> SimpleNamespace:
         captured["inferred_sex"] = kwargs["inferred_sex"]
+        captured["prs_reference_engine"] = kwargs.get("reference_engine")
         return SimpleNamespace(results=[])
 
     monkeypatch.setattr(cancer_prs_module, "resolve_cancer_prs_sex_context", fake_resolve)
@@ -293,6 +294,7 @@ class TestCancerPRSCallSites:
         assert captured["reference_engine"] is reference_engine
         assert captured["sample_id"] == 42
         assert captured["inferred_sex"] == "XY"
+        assert captured["prs_reference_engine"] is reference_engine
 
     def test_run_all_cancer_runner_uses_resolved_sex_for_prs(
         self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
@@ -310,6 +312,7 @@ class TestCancerPRSCallSites:
         assert captured["reference_engine"] is reference_engine
         assert captured["sample_id"] == 43
         assert captured["inferred_sex"] == "XX"
+        assert captured["prs_reference_engine"] is reference_engine
 
     def test_run_all_dispatch_passes_sample_id_to_cancer(
         self, monkeypatch: pytest.MonkeyPatch
