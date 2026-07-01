@@ -33,7 +33,7 @@
       "zygosity": "hom_alt",
       "evidence_stars": 3,
       "odds_ratio": "OR ~33.3 (95% CI 12.8–86.4) for advanced AMD vs the low-risk reference genotype — an illustrative single-cohort estimate (n=14) with a very wide confidence interval",
-      "absolute_risk_context": "This is a relative odds ratio from one case-control cohort, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age (AMD is age-related), smoking, and the other ~50 known AMD variants. These two loci do not by themselves determine whether AMD develops, and the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative odds ratio from one case-control cohort, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age (AMD is age-related), smoking, and the other ~50 known AMD variants. These two loci do not by themselves determine whether AMD develops. Population-specific estimates differ by locus and cohort; CFH Y402H estimates vary by ethnicity, while ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts.",
       "finding_text": "You carry the high-risk CFH + ARMS2 double-homozygous genotype ({genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988"]
@@ -46,7 +46,7 @@
       "zygosity": "hom_alt",
       "evidence_stars": 3,
       "odds_ratio": "Both AMD loci carry risk alleles, a combination a meta-analysis associates with a synergistic, multiplicatively increased risk: the pooled OR for the any-risk-allele-at-both-loci group (a broad group that also includes the both-heterozygous genotype) is ~7.2 (95% CI 5.0–10.6) vs the no-risk reference. On an allele-dose basis, carrying three risk alleles across the two loci places this genotype toward the upper end of that group — above the both-heterozygous genotype and below the double-homozygous tier",
-      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants. Population-specific estimates differ by locus and cohort; CFH Y402H estimates vary by ethnicity, while ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts.",
       "finding_text": "You carry the CFH Y402H homozygous risk genotype plus one ARMS2 risk allele ({genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988", "32406777"]
@@ -59,7 +59,7 @@
       "zygosity": "hom_alt",
       "evidence_stars": 3,
       "odds_ratio": "Both AMD loci carry risk alleles, a combination a meta-analysis associates with a synergistic, multiplicatively increased risk: the pooled OR for the any-risk-allele-at-both-loci group (a broad group that also includes the both-heterozygous genotype) is ~7.2 (95% CI 5.0–10.6) vs the no-risk reference. On an allele-dose basis, carrying three risk alleles across the two loci places this genotype toward the upper end of that group — above the both-heterozygous genotype and below the double-homozygous tier",
-      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants. Population-specific estimates differ by locus and cohort; CFH Y402H estimates vary by ethnicity, while ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts.",
       "finding_text": "You carry one CFH Y402H risk allele plus the ARMS2/HTRA1 homozygous risk genotype ({genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988", "32406777"]
@@ -72,7 +72,7 @@
       "zygosity": "hom_alt",
       "evidence_stars": 3,
       "odds_ratio": "OR ~7.2 (95% CI 3.6–14.5) for advanced AMD for the CFH Y402H CC homozygous genotype",
-      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants. CFH Y402H effect estimates vary by ethnicity and AMD subtype, so this result should not be treated as a precise ancestry-specific risk estimate.",
       "finding_text": "CFH Y402H homozygous (rs1061170 {genotype}) — both copies carry the AMD risk allele. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988"]
@@ -85,7 +85,7 @@
       "zygosity": "hom_alt",
       "evidence_stars": 3,
       "odds_ratio": "OR ~5.5 (95% CI 2.6–11.8) for advanced AMD for the ARMS2 TT homozygous genotype",
-      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants. ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts; these estimates should still be interpreted as cohort-derived relative risks, not ancestry-specific absolute risk.",
       "finding_text": "ARMS2/HTRA1 homozygous (rs10490924 {genotype}) — both copies carry the AMD risk allele. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988"]
@@ -98,7 +98,7 @@
       "zygosity": "het",
       "evidence_stars": 2,
       "odds_ratio": "Both AMD loci carry a risk allele, a combination a meta-analysis associates with a synergistic, multiplicatively (not merely additively) increased risk: the pooled OR for the any-risk-allele-at-both-loci group (which this both-heterozygous genotype belongs to) is ~7.2 (95% CI 5.0–10.6) vs the no-risk reference, well above the ~2.1 OR of carrying a risk allele at only one locus (synergy index S=2.57). On an allele-dose basis, carrying one risk allele at each locus places this genotype at the lower end of that group — below the three-risk-allele mixed genotypes and the double-homozygous tier, and broadly comparable to a single-locus homozygote rather than below it",
-      "absolute_risk_context": "This is a relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants. Population-specific estimates differ by locus and cohort; CFH Y402H estimates vary by ethnicity, while ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts.",
       "finding_text": "You carry one risk allele at both CFH Y402H and ARMS2 ({genotype}). {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988", "32406777"]
@@ -111,7 +111,7 @@
       "zygosity": "het",
       "evidence_stars": 2,
       "odds_ratio": "A single CFH Y402H risk allele confers a modestly increased AMD risk, well below the homozygous genotype",
-      "absolute_risk_context": "This is a modest relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a modest relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants. CFH Y402H effect estimates vary by ethnicity and AMD subtype, so this result should not be treated as a precise ancestry-specific risk estimate.",
       "finding_text": "CFH Y402H heterozygous (rs1061170 {genotype}) — you carry one copy. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988"]
@@ -124,7 +124,7 @@
       "zygosity": "het",
       "evidence_stars": 2,
       "odds_ratio": "A single ARMS2 risk allele confers a modestly increased AMD risk, well below the homozygous genotype",
-      "absolute_risk_context": "This is a modest relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants; the odds ratios attenuate in East Asian populations.",
+      "absolute_risk_context": "This is a modest relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants. ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts; these estimates should still be interpreted as cohort-derived relative risks, not ancestry-specific absolute risk.",
       "finding_text": "ARMS2/HTRA1 heterozygous (rs10490924 {genotype}) — you carry one copy. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
       "pmids": ["23867343", "26691988"]

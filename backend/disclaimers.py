@@ -511,8 +511,10 @@ variability in European-ancestry subjects — just under half — and that ~47% 
 attributable to all 52 variants, not to CFH and ARMS2 alone. Most of AMD's \
 heritability and most of a person's actual risk lie outside these two SNPs.
 
-3. **Ancestry context.** These odds ratios are derived primarily from \
-European-ancestry populations and attenuate in East Asian populations.
+3. **Ancestry context.** These odds ratios are cohort-derived relative-risk \
+estimates, not ancestry-specific absolute risks. CFH Y402H estimates vary by \
+ethnicity and AMD subtype, while ARMS2/HTRA1 remains an important AMD \
+susceptibility locus in Asian cohorts.
 
 4. **A negative result does not rule out AMD risk.** Other AMD variants and \
 non-genetic factors (age, smoking, diet) are not captured here.

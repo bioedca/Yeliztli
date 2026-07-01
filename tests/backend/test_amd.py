@@ -150,6 +150,49 @@ class TestHonestyGuardrails:
         assert "52 variants" in AMD_DISCLAIMER_TEXT
         assert "more than half" not in AMD_DISCLAIMER_TEXT.lower()
 
+    def test_arms2_only_homozygous_not_east_asian_attenuated(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """ARMS2/HTRA1 is an important AMD locus in Asian cohorts, not attenuated like CFH."""
+        _seed(sample_engine, [_cfh("TT"), _arms2("TT")])
+        call = assess_amd(panel, sample_engine).calls[0]
+
+        text = call.finding_text.lower()
+        assert call.model_id == "arms2_homozygous"
+        assert "attenuat" not in text
+        assert "arms2/htra1 remains an important amd susceptibility locus" in text
+        assert "cfh y402h estimates vary" not in text
+
+    def test_arms2_only_heterozygous_not_east_asian_attenuated(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        """A single ARMS2 risk allele must not inherit the CFH ancestry caveat."""
+        _seed(sample_engine, [_cfh("TT"), _arms2("GT")])
+        call = assess_amd(panel, sample_engine).calls[0]
+
+        text = call.finding_text.lower()
+        assert call.model_id == "arms2_heterozygous"
+        assert "attenuat" not in text
+        assert "arms2/htra1 remains an important amd susceptibility locus" in text
+        assert "cfh y402h estimates vary" not in text
+
+    def test_cfh_only_context_names_cfh_ancestry_variability(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [_cfh("CT"), _arms2("GG")])
+        call = assess_amd(panel, sample_engine).calls[0]
+
+        text = call.finding_text.lower()
+        assert call.model_id == "cfh_heterozygous"
+        assert "cfh y402h effect estimates vary by ethnicity" in text
+        assert "odds ratios attenuate in east asian populations" not in text
+
+    def test_amd_disclaimer_ancestry_context_is_locus_specific(self) -> None:
+        text = AMD_DISCLAIMER_TEXT.lower()
+        assert "attenuate in east asian populations" not in text
+        assert "cfh y402h estimates vary by ethnicity" in text
+        assert "arms2/htra1 remains an important amd susceptibility locus" in text
+
 
 class TestStrandAndIndeterminate:
     def test_off_chip_arms2_indeterminate(self, panel, sample_engine: sa.Engine) -> None:
