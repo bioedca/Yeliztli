@@ -1,5 +1,7 @@
 # Variant Explorer
 
+--8<-- "health-disclaimer.md"
+
 The Variant Explorer is the central table for browsing every variant in your sample.
 
 ## Navigation

@@ -1,5 +1,7 @@
 # Variant detail
 
+--8<-- "health-disclaimer.md"
+
 Click any variant in the [Variant Explorer](variant-explorer.md) to open a side panel with a
 summary, then **Open full detail** for the full page, organised into tabs:
 

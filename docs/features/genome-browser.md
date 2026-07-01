@@ -1,5 +1,7 @@
 # Genome Browser
 
+--8<-- "health-disclaimer.md"
+
 The built-in **IGV.js** genome browser gives you a visual view of your variants in their
 genomic context.
 
