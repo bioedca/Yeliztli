@@ -226,6 +226,18 @@ class TestOtherCriteria:
     def test_bs1_above_1pct(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)).points == -4
 
+    @pytest.mark.parametrize(
+        ("rsid", "af"),
+        [
+            ("rs113993960", 0.0132),  # CFTR F508del (#1343)
+            ("rs1799963", 0.0124),  # F2 prothrombin G20210A (#1343)
+        ],
+    )
+    def test_bs1_skipped_for_common_pathogenic_frequency_exception(
+        self, rsid: str, af: float
+    ) -> None:
+        assert criterion_bs1(AcmgEvidence(rsid=rsid, gnomad_af_popmax=af)) is None
+
     def test_bs1_not_applied_in_ba1_range(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
 
@@ -330,6 +342,39 @@ class TestClassifyAcmg:
         ev = AcmgEvidence(gene_symbol="G", consequence="missense_variant", gnomad_af_popmax=0.02)
         result = classify_acmg(ev)
         assert result.classification == LIKELY_BENIGN
+
+    @pytest.mark.parametrize(
+        ("evidence", "expected_codes"),
+        [
+            (
+                AcmgEvidence(
+                    rsid="rs113993960",
+                    gene_symbol="CFTR",
+                    consequence="inframe_deletion",
+                    gnomad_af_popmax=0.0132,
+                    clinvar_significance="Pathogenic",
+                ),
+                {"PM4"},
+            ),
+            (
+                AcmgEvidence(
+                    rsid="rs1799963",
+                    gene_symbol="F2",
+                    consequence="3_prime_UTR_variant",
+                    gnomad_af_popmax=0.0124,
+                    clinvar_significance="Pathogenic",
+                ),
+                set(),
+            ),
+        ],
+    )
+    def test_common_pathogenic_frequency_exception_not_likely_benign(
+        self, evidence: AcmgEvidence, expected_codes: set[str]
+    ) -> None:
+        result = classify_acmg(evidence)
+        assert result.classification != LIKELY_BENIGN
+        assert {c.code for c in result.criteria} == expected_codes
+        assert not any(c.code == "BS1" for c in result.criteria)
 
     def test_nothing_applies_is_uncertain(self) -> None:
         ev = AcmgEvidence(gene_symbol="G", consequence="missense_variant", gnomad_af_popmax=0.005)

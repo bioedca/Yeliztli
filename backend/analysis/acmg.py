@@ -43,6 +43,8 @@ if TYPE_CHECKING:
 
 CITATION_PMIDS = [
     "25741868",  # Richards 2015 — ACMG/AMP guidelines
+    "28518168",  # Whiffin 2017 — maximum credible allele-frequency thresholds
+    "30311383",  # Ghosh 2018 — ClinGen SVI BA1 benign-frequency exceptions
     "34859531",  # Gudmundsson 2021 — using gnomAD population data
     "28132688",  # Li 2017 — InterVar
     "29300386",  # Tavtigian 2018 — Bayesian framework
@@ -121,6 +123,17 @@ _BA1_EXCEPTION_RSIDS: frozenset[str] = frozenset(
         "rs11466023",  # MEFV c.1105C>T p.Pro369Ser — familial Mediterranean fever (~7.3% EAS)
         "rs13078881",  # BTD c.1330G>C p.Asp444His — biotinidase deficiency (Finnish ~5.2%)
         "rs1800556",  # ACADS c.511C>T p.Arg171Trp — SCAD deficiency (Finnish ~6.5%)
+    }
+)
+# Shared guard for generic benign population-frequency criteria. This includes
+# formal ClinGen SVI BA1 exceptions plus common pathogenic / risk alleles in the
+# BS1 frequency range where a flat 1% default is not disease-aware enough. These
+# variants need disease-, penetrance-, and inheritance-aware interpretation rather
+# than a generic benign shortcut (Richards 2015; Whiffin 2017; #1343).
+_BENIGN_AF_EXCEPTION_RSIDS: frozenset[str] = _BA1_EXCEPTION_RSIDS | frozenset(
+    {
+        "rs113993960",  # CFTR c.1521_1523del p.Phe508del — cystic fibrosis
+        "rs1799963",  # F2 c.*97G>A / prothrombin G20210A — thrombophilia risk allele
     }
 )
 # BS1: "allele frequency greater than expected for the disorder" — a general 1%
@@ -215,6 +228,10 @@ def _effective_af(ev: AcmgEvidence) -> float | None:
     if ev.gnomad_af_popmax is not None:
         return ev.gnomad_af_popmax
     return ev.gnomad_af_global
+
+
+def _is_benign_af_exception(ev: AcmgEvidence) -> bool:
+    return ev.rsid in _BENIGN_AF_EXCEPTION_RSIDS
 
 
 def _points_for(direction: str, strength: str) -> int:
@@ -332,10 +349,10 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
     af = _effective_af(ev)
     if af is not None and af > BA1_AF_MIN:
-        if ev.rsid in _BA1_EXCEPTION_RSIDS:
-            # On the ClinGen SVI BA1 exception list: common but with evidence of
-            # pathogenicity, so the stand-alone benign rule does not apply and the
-            # full evidence decides the classification (Ghosh 2018; #1243).
+        if _is_benign_af_exception(ev):
+            # Common but with evidence of pathogenicity: generic benign frequency
+            # criteria do not apply and the full evidence decides the draft
+            # classification (Ghosh 2018; #1243/#1296/#1343).
             return None
         return AcmgCriterion(
             "BA1",
@@ -350,6 +367,11 @@ def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
 def criterion_bs1(ev: AcmgEvidence) -> AcmgCriterion | None:
     af = _effective_af(ev)
     if af is not None and BS1_AF_MIN < af <= BA1_AF_MIN:
+        if _is_benign_af_exception(ev):
+            # BS1 is "greater than expected for the disorder"; known common
+            # pathogenic / risk alleles need a disease-specific threshold rather
+            # than the draft engine's generic 1% default (#1343).
+            return None
         return AcmgCriterion(
             "BS1",
             "benign",
