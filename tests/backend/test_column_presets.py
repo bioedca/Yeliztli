@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,9 +10,61 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.api.routes.column_presets import PREDEFINED_PRESETS
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import reference_metadata
+
+DOC_COLUMN_LABELS = {
+    "genotype": "Genotype",
+    "gene_symbol": "Gene",
+    "consequence": "Consequence",
+    "clinvar_significance": "ClinVar significance",
+    "clinvar_review_stars": "ClinVar review stars",
+    "cadd_phred": "CADD",
+    "sift_score": "SIFT score/prediction",
+    "sift_pred": "SIFT score/prediction",
+    "polyphen2_hsvar_score": "PolyPhen-2 score/prediction",
+    "polyphen2_hsvar_pred": "PolyPhen-2 score/prediction",
+    "revel": "REVEL",
+    "ensemble_pathogenic": "ensemble pathogenic flag",
+    "gnomad_af_global": "global gnomAD AF",
+    "rare_flag": "rare flag",
+}
+
+
+def _describe_columns_for_docs(column_ids: list[str]) -> str:
+    labels = []
+    seen = set()
+    for column_id in column_ids:
+        label = DOC_COLUMN_LABELS[column_id]
+        if label not in seen:
+            labels.append(label)
+            seen.add(label)
+    return ", ".join(labels)
+
+
+def _variant_explorer_preset_rows() -> dict[str, str]:
+    docs_path = Path(__file__).resolve().parents[2] / "docs/features/variant-explorer.md"
+    table_rows: dict[str, str] = {}
+    in_table = False
+
+    for line in docs_path.read_text(encoding="utf-8").splitlines():
+        if line.strip() == "| Preset | Columns shown |":
+            in_table = True
+            continue
+        if not in_table:
+            continue
+        if line.startswith("|--------"):
+            continue
+        if not line.startswith("|"):
+            break
+
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 2:
+            table_rows[cells[0]] = re.sub(r"\s+", " ", cells[1])
+
+    return table_rows
 
 
 @pytest.fixture
@@ -54,6 +107,15 @@ class TestListPresets:
         for p in data["presets"]:
             if p["name"] in ("Clinical", "Research", "Frequency", "Scores"):
                 assert p["predefined"] is True
+
+    def test_variant_explorer_docs_match_predefined_presets(self) -> None:
+        doc_rows = _variant_explorer_preset_rows()
+
+        assert set(doc_rows) == set(PREDEFINED_PRESETS)
+        assert doc_rows == {
+            name: _describe_columns_for_docs(column_ids)
+            for name, column_ids in PREDEFINED_PRESETS.items()
+        }
 
     def test_includes_custom_presets(self, preset_client: TestClient) -> None:
         preset_client.post(

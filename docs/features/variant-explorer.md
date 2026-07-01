@@ -24,10 +24,10 @@ Switch between predefined column layouts, or build your own from **Column Settin
 
 | Preset | Columns shown |
 |--------|---------------|
-| Clinical | Gene, consequence, ClinVar, gnomAD AF, HGVS |
-| Research | All annotation sources, in-silico scores |
-| Frequency | Population frequencies (gnomAD subpopulations) |
-| Scores | CADD, REVEL, SIFT, PolyPhen, MutationTaster |
+| Clinical | Genotype, Gene, Consequence, ClinVar significance, ClinVar review stars |
+| Research | Genotype, Gene, Consequence, ClinVar significance, ClinVar review stars, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL, ensemble pathogenic flag |
+| Frequency | Genotype, Gene, global gnomAD AF, rare flag |
+| Scores | Gene, Consequence, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL |
 
 ## Tagging
 
