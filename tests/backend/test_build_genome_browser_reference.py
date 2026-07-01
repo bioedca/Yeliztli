@@ -115,6 +115,9 @@ def test_build_reference_bundle_writes_manifest_and_runtime_files(tmp_path: Path
     assert "directory_url" not in manifest["sources"]["fasta"]
     assert "directory_url" not in manifest["sources"]["refgene"]
     assert "url" not in manifest["license"]
+    assert manifest["license"]["label"] == "Custom source license not recorded"
+    assert "Custom source URLs were provided" in manifest["license"]["summary"]
+    assert "UCSC" not in manifest["license"]["summary"]
     assert manifest["outputs"]["fasta"]["path"] == "grch37.fa"
     assert manifest["outputs"]["fasta_index"]["path"] == "grch37.fa.fai"
     assert manifest["outputs"]["refseq_bed"]["path"] == "grch37_refseq.bed"

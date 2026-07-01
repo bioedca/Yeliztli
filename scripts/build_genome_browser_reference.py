@@ -353,16 +353,37 @@ def write_manifest(
     accessed_date: date,
 ) -> FileInfo:
     manifest_path = output_dir / MANIFEST_OUTPUT_NAME
-    license_payload = {
-        "label": "UCSC Genome Browser data files",
-        "summary": (
-            "UCSC states that raw data files and database table dumps used by the "
-            "Genome Browser are freely available for public and commercial use; "
-            "source databases may impose separate terms."
-        ),
-    }
-    if source_config.license_url:
-        license_payload["url"] = source_config.license_url
+    uses_default_sources = (
+        source_config.fasta_url == DEFAULT_FASTA_URL
+        and source_config.refgene_url == DEFAULT_REFGENE_URL
+    )
+    if uses_default_sources and source_config.license_url == DEFAULT_LICENSE_URL:
+        license_payload = {
+            "label": "UCSC Genome Browser data files",
+            "url": source_config.license_url,
+            "summary": (
+                "UCSC states that raw data files and database table dumps used by the "
+                "Genome Browser are freely available for public and commercial use; "
+                "source databases may impose separate terms."
+            ),
+        }
+    elif source_config.license_url:
+        license_payload = {
+            "label": "Operator-supplied source license",
+            "url": source_config.license_url,
+            "summary": (
+                "Custom source URLs were provided. Verify the supplied license URL and "
+                "source terms before using or sharing the generated artifact."
+            ),
+        }
+    else:
+        license_payload = {
+            "label": "Custom source license not recorded",
+            "summary": (
+                "Custom source URLs were provided without a license URL. Verify source "
+                "terms separately before using or sharing the generated artifact."
+            ),
+        }
 
     fasta_source_payload = {
         "url": source_config.fasta_url,

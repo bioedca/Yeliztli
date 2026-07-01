@@ -1,24 +1,28 @@
 # Maintainer
 
-Operator documentation for **building and releasing Yeliztli's reference-data bundles** and
-cutting application releases. If you're not maintaining the project's bundles or releases, you
-don't need this section.
+Operator documentation for **building and releasing Yeliztli's reference-data bundles**,
+building local reference artifacts, and cutting application releases. If you're not
+maintaining the project's bundles, local artifacts, or releases, you don't need this section.
 
 - **[Bundle build & release](../bundle-release-runbook.md)** — build, verify, and publish the
   VEP consequence bundle.
 - **[LAI bundle](lai-bundle.md)** — the local-ancestry bundle's multi-phase, cluster-based
   build.
-- **[Genome Browser reference bundle](genome-browser-reference-bundle.md)** — build the
-  optional local GRCh37/hg19 FASTA + RefSeq track used to avoid hosted IGV reference fetches.
+- **[Genome Browser local reference](genome-browser-reference-bundle.md)** — build the
+  optional BYO/local GRCh37/hg19 FASTA + RefSeq track used to avoid hosted IGV reference
+  fetches; this is not a release-pinned Yeliztli asset.
 - **[App release process](release-process.md)** — cutting an application release and the
   bundle release notes.
 
-## How bundles work
+## How downloadable bundles work
 
 Each downloadable bundle is published as a **GitHub release asset** and pinned in
 [`bundles/manifest.json`](https://github.com/bioedca/Yeliztli/blob/main/bundles/manifest.json)
 by `version`, `url`, `sha256`, `size_bytes`, and `min_app_version`. The app downloads each
 bundle from its manifest URL and verifies the checksum and size before use.
+
+BYO/provider-fetched local artifacts are different: they are built or installed by an operator
+outside the release manifest, and their runbooks call out that non-redistribution posture.
 
 The general release flow for every bundle is the same:
 

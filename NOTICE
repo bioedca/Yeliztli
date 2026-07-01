@@ -1,8 +1,11 @@
 Yeliztli — Third-Party Data Attribution
 ============================================
 
-This product redistributes data derived from the following sources. It is the
-companion to the MIT LICENSE (which covers Yeliztli's own source code).
+This product redistributes data derived from the following sources, and also records selected
+provider-fetched or local-build inputs that Yeliztli can use when an operator installs them.
+Each entry's scope says whether Yeliztli redistributes the data or only consumes a local
+operator-built artifact. This file is the companion to the MIT LICENSE (which covers
+Yeliztli's own source code).
 
 gnomAD (Genome Aggregation Database)
 ------------------------------------
@@ -158,9 +161,11 @@ License:  UCSC Genome Browser data-file terms. UCSC states that raw data files
           databases may impose separate terms.
 Scope:    Optional local Genome Browser reference files (`grch37.fa`,
           `grch37.fa.fai`, `grch37_refseq.bed`) built by
-          `scripts/build_genome_browser_reference.py`. These files let IGV.js
-          render GRCh37/hg19 sequence context and RefSeq genes without hosted
-          reference requests when installed in the user's data directory.
+          `scripts/build_genome_browser_reference.py` and installed by an
+          operator into the user's data directory. Yeliztli does not redistribute
+          this local artifact as an official release asset. These files let
+          IGV.js render GRCh37/hg19 sequence context and RefSeq genes without
+          hosted reference requests when installed locally.
 Accessed: Recorded in the generated
           `genome_browser_reference_manifest.json` for each build.
 Citation: Please cite the UCSC Genome Browser and source downloads when using
