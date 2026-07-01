@@ -15,7 +15,8 @@ About **40 SNPs** across four pathways:
   (*TCF7L2*, *FTO*, *MC4R*, *ABCG2*, …)
 - **Autoimmune** — rheumatoid arthritis, type-1 diabetes, IBD, celiac, lupus
   (*PTPN22*, *STAT4*, *HLA-DQB1*, …)
-- **Sensory** — taste, pigmentation, eye and hair colour
+- **Sensory** — age-related macular degeneration, glaucoma, and hereditary or age-related
+  hearing loss (*CFH*, *ARMS2*, *MYOC*, *GJB2*, *SLC26A4*, …)
 
 ## What you'll see
 
