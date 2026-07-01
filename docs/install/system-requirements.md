@@ -34,6 +34,13 @@ Advanced installs can set `YELIZTLI_DOWNLOAD_STAGING_DIR` to put transient sourc
 on a different filesystem. In that layout, the setup check evaluates persistent database
 space in `data_dir` separately from dbNSFP staging space.
 
+## First-run setup time
+
+Plan for full reference setup to take on the order of an hour or more. The dbNSFP source
+archive and build/index step dominate that time, and slower networks or disks can run longer.
+Downloads are resumable, and an in-progress `Downloading` or `Building` state under
+**Settings → System Health → Database Health** means setup is still active.
+
 See **[reference data](reference-data.md)** for the full list of bundles and sources, with
 licenses.
 

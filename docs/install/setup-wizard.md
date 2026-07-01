@@ -43,6 +43,14 @@ once it is present *and* passes an integrity check, so a half-finished or corrup
 is reported honestly rather than failing silently during annotation. You can inspect and
 repair any database later under **Settings → System Health → Database Health**.
 
+Plan for full first-run setup to take on the order of an hour or more. The exact time depends
+on bandwidth, CPU, disk speed, and which optional databases you choose. The largest required
+source is **dbNSFP**: after its large archive finishes downloading, Yeliztli still has to
+parse, build, and index the SQLite database. That CPU/disk-bound phase can run for a long time
+without a moving byte-progress bar; a database state of `Downloading` or `Building` in
+**Settings → System Health → Database Health** means the setup is still working. A `Failed`
+state is the point where you should resume, clean, or retry the database.
+
 For the full list of what is downloaded, sizes, sources, and licenses, see
 **[reference data](reference-data.md)**.
 

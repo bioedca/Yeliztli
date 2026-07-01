@@ -9,6 +9,19 @@ their original providers. Everything is downloaded during the
 All downloads are **resumable** and integrity-checked. You can inspect, resume, verify, or
 clean any of them under **Settings → System Health → Database Health**.
 
+## First-run duration
+
+Full reference-data setup is a long one-time operation. It uses more than 60 GB at peak, with
+~80 GB recommended for headroom, and commonly takes on the order of an hour or more. Slow
+networks, slower disks, or optional databases can make it considerably longer.
+
+The **dbNSFP** step dominates the runtime. Its source archive is a large network download,
+and then Yeliztli parses, builds, and indexes a multi-GB SQLite database. Download progress is
+shown as bytes transferred; the later build/index phase is CPU- and disk-bound and may not
+show the same moving progress bar. If **Settings → System Health → Database Health** shows
+the database as `Downloading` or `Building`, setup is still active. If it shows `Failed`, use
+the repair/resume controls from that page.
+
 ## Prebuilt bundles
 
 These are published as GitHub release assets, pinned by version and SHA-256 checksum in
@@ -47,7 +60,8 @@ attribution list lives in the repository
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use
     complies with its terms. Its setup footprint is also large: the source archive is removed
     after a successful build, but an interrupted build may keep the completed archive so setup
-    can resume without starting another large download.
+    can resume without starting another large download. The build and index step can take a
+    long time after the archive has already downloaded.
 
 ## Updating reference data
 
