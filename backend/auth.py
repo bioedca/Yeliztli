@@ -146,7 +146,7 @@ _AUTH_EXEMPT_PATHS = frozenset(
     }
 )
 
-# Prefixes that are always exempt (setup wizard must work without auth)
+# Prefixes that are exempt only before auth can be enforced.
 _AUTH_EXEMPT_PREFIXES = ("/api/setup",)
 
 
@@ -159,7 +159,7 @@ def _is_auth_exempt(path: str, *, has_password: bool = False) -> bool:
         return True
     for prefix in _AUTH_EXEMPT_PREFIXES:
         if path.startswith(prefix):
-            return True
+            return not has_password
     # Non-API paths (static files, SPA routes) are exempt
     if not path.startswith("/api/"):
         return True

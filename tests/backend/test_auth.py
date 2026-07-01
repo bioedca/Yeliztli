@@ -10,14 +10,18 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from backend.auth import (
+    AuthMiddleware,
     clear_all_rate_limits,
     clear_all_sessions,
     create_session,
@@ -104,6 +108,26 @@ class TestSessionManagement:
 
     def teardown_method(self) -> None:
         clear_all_sessions()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Auth exemption rules
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestAuthExemptions:
+    """Paths that bypass middleware before session validation."""
+
+    def test_setup_prefix_is_exempt_only_before_password_exists(self) -> None:
+        from backend.auth import _is_auth_exempt
+
+        assert _is_auth_exempt("/api/setup/status", has_password=False) is True
+        assert _is_auth_exempt("/api/setup/import-backup", has_password=False) is True
+        assert _is_auth_exempt("/api/setup/set-storage-path", has_password=False) is True
+
+        assert _is_auth_exempt("/api/setup/status", has_password=True) is False
+        assert _is_auth_exempt("/api/setup/import-backup", has_password=True) is False
+        assert _is_auth_exempt("/api/setup/set-storage-path", has_password=True) is False
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -217,6 +241,97 @@ def auth_enabled_without_password_client(tmp_data_dir: Path):
     clear_all_sessions()
 
 
+def _middleware_request(path: str, *, method: str = "GET") -> Request:
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    return Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": method,
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "headers": [],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        },
+        receive,
+    )
+
+
+async def _dispatch_auth_middleware(
+    path: str, settings: Settings, *, method: str
+) -> tuple[int, bool]:
+    called_next = False
+
+    async def call_next(_request: Request) -> JSONResponse:
+        nonlocal called_next
+        called_next = True
+        return JSONResponse({"ok": True})
+
+    middleware = AuthMiddleware(app=lambda _scope, _receive, _send: None)
+    request = _middleware_request(path, method=method)
+    with patch("backend.auth.get_settings", return_value=settings):
+        response = await middleware.dispatch(request, call_next)
+    return response.status_code, called_next
+
+
+class TestAuthMiddlewareSetupProtection:
+    """Setup API auth behavior at the middleware boundary."""
+
+    def test_setup_endpoints_require_auth_when_password_exists(self, tmp_data_dir: Path) -> None:
+        settings = Settings(
+            data_dir=tmp_data_dir,
+            wal_mode=False,
+            auth_enabled=True,
+            auth_password_hash="$2b$12$fakehash",
+        )
+
+        results = [
+            asyncio.run(_dispatch_auth_middleware("/api/setup/status", settings, method="GET")),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/import-backup", settings, method="POST")
+            ),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/set-storage-path", settings, method="POST")
+            ),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/credentials", settings, method="POST")
+            ),
+        ]
+
+        assert results == [(401, False), (401, False), (401, False), (401, False)]
+
+    def test_setup_endpoints_remain_reachable_before_password_exists(
+        self, tmp_data_dir: Path
+    ) -> None:
+        settings = Settings(
+            data_dir=tmp_data_dir,
+            wal_mode=False,
+            auth_enabled=True,
+            auth_password_hash="",
+        )
+
+        results = [
+            asyncio.run(_dispatch_auth_middleware("/api/setup/status", settings, method="GET")),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/import-backup", settings, method="POST")
+            ),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/set-storage-path", settings, method="POST")
+            ),
+            asyncio.run(
+                _dispatch_auth_middleware("/api/setup/credentials", settings, method="POST")
+            ),
+        ]
+
+        assert results == [(200, True), (200, True), (200, True), (200, True)]
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # T4-22a: Login with correct/wrong PIN
 # ═══════════════════════════════════════════════════════════════════════
@@ -300,10 +415,6 @@ class TestAuthEnforcement:
         resp = auth_client.post("/api/auth/login", json={"password": "wrong"})
         # Should return 401 (wrong password), not blocked by middleware
         assert resp.status_code == 401
-
-    def test_setup_endpoints_exempt(self, auth_client: TestClient) -> None:
-        resp = auth_client.get("/api/setup/status")
-        assert resp.status_code == 200
 
     def test_authenticated_request_passes(self, auth_client: TestClient) -> None:
         # Login persists the session cookie on the client instance (the login

@@ -31,7 +31,9 @@ Optionally protect your instance with a PIN or password:
 
 1. Go to **Settings → Authentication**.
 2. Enable authentication and set a PIN/password (stored only as a salted bcrypt hash).
-3. Sessions expire after a period of inactivity; all routes are protected while auth is on.
+3. Sessions expire after a period of inactivity. Once a password exists, API routes require
+   a valid session except for health, login, and auth-status endpoints; first-run setup
+   endpoints remain reachable only before a password has been configured.
 
 ## Theme
 
