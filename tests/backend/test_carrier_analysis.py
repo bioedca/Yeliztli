@@ -585,6 +585,105 @@ class TestExtractCarrierVariants:
         result = extract_carrier_variants(panel, sample_engine)
         assert result.carrier_count == 0
 
+    @pytest.mark.parametrize("genotype", ["DI", "ID"])
+    def test_hexa_exon11_dup_indel_carrier_call_resolved(
+        self,
+        panel: CarrierPanel,
+        sample_engine: sa.Engine,
+        genotype: str,
+    ) -> None:
+        """HEXA c.1274_1277dupTATC I/D calls resolve to carrier findings."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs387906309",
+                    "chrom": "15",
+                    "pos": 72638921,
+                    "ref": "GATA",
+                    "alt": "GATAGATA",
+                    "genotype": genotype,
+                    "zygosity": None,
+                    "gene_symbol": "HEXA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000003889",
+                    "clinvar_conditions": "Tay-Sachs disease",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        assert result.carrier_count == 1
+        carrier = result.variants[0]
+        assert carrier.rsid == "rs387906309"
+        assert carrier.genotype == genotype
+        assert carrier.zygosity == "het"
+        assert carrier.gene_symbol == "HEXA"
+
+    def test_hexa_exon11_dup_homozygous_insertion_is_affected_status(
+        self,
+        panel: CarrierPanel,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """HEXA c.1274_1277dupTATC II resolves to hom_alt affected-status."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs387906309",
+                    "chrom": "15",
+                    "pos": 72638921,
+                    "ref": "GATA",
+                    "alt": "GATAGATA",
+                    "genotype": "II",
+                    "zygosity": None,
+                    "gene_symbol": "HEXA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000003889",
+                    "clinvar_conditions": "Tay-Sachs disease",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        assert result.carrier_count == 1
+        assert result.affected_status_findings == 1
+        finding = result.variants[0]
+        assert finding.rsid == "rs387906309"
+        assert finding.zygosity == "hom_alt"
+        assert finding.finding_type == "affected_homozygous"
+
+    def test_hexa_exon11_dup_homozygous_reference_is_not_reported(
+        self,
+        panel: CarrierPanel,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """HEXA c.1274_1277dupTATC DD is the shorter reference allele."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs387906309",
+                    "chrom": "15",
+                    "pos": 72638921,
+                    "ref": "GATA",
+                    "alt": "GATAGATA",
+                    "genotype": "DD",
+                    "zygosity": None,
+                    "gene_symbol": "HEXA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000003889",
+                    "clinvar_conditions": "Tay-Sachs disease",
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+        assert result.carrier_count == 0
+
     def test_t3_38_brca1_dual_role(
         self, panel: CarrierPanel, sample_with_carrier_variants: sa.Engine
     ) -> None:

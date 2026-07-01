@@ -192,6 +192,14 @@ class TestCarrierGeneNotes:
         """HEXA note should mention Tay-Sachs Disease."""
         assert "Tay-Sachs" in CARRIER_GENE_NOTES["HEXA"]
 
+    def test_hexa_note_mentions_array_limitation(self) -> None:
+        """HEXA note should warn that array-negative results are incomplete."""
+        note = CARRIER_GENE_NOTES["HEXA"]
+        assert "c.1274_1277dupTATC" in note
+        assert "SNP-array" in note
+        assert "negative result does not rule out carrier status" in note
+        assert "clinical testing" in note
+
     def test_brca1_note_mentions_dual_role(self) -> None:
         """BRCA1 note should explain dual-role (cancer + carrier)."""
         note = CARRIER_GENE_NOTES["BRCA1"].lower()

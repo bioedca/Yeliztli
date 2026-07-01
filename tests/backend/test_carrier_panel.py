@@ -265,6 +265,23 @@ class TestExpectedClinVarRsids:
         assert hbb is not None
         assert "rs334" in hbb.expected_clinvar_rsids
 
+    def test_hexa_ashkenazi_founder_alleles_present(self, panel: CarrierPanel) -> None:
+        """HEXA must include the classic Ashkenazi Jewish Tay-Sachs founder alleles."""
+        hexa = panel.get_gene("HEXA")
+        assert hexa is not None
+        assert {
+            "rs387906309",  # c.1274_1277dupTATC / p.Tyr427IlefsTer5
+            "rs147324677",  # c.1421+1G>C / IVS12+1G>C
+            "rs121907954",  # G269S / c.805G>A / p.Gly269Ser
+        } <= set(hexa.expected_clinvar_rsids)
+
+    def test_hexa_does_not_use_mismapped_g269s_rsid(self, panel: CarrierPanel) -> None:
+        """rs121907966 is p.Arg499Cys, not G269S; keep the validated G269S rsID."""
+        hexa = panel.get_gene("HEXA")
+        assert hexa is not None
+        assert "rs121907954" in hexa.expected_clinvar_rsids
+        assert "rs121907966" not in hexa.expected_clinvar_rsids
+
     def test_brca1_rsids_match_cancer_panel(self, panel: CarrierPanel) -> None:
         """BRCA1 expected rsids should include key variants from cancer panel."""
         brca1 = panel.get_gene("BRCA1")
@@ -377,6 +394,12 @@ class TestPMIDs:
             assert "29241104" not in gene.pmids, (
                 f"{gene.gene_symbol} cites unrelated PMID 29241104"
             )
+
+    def test_hexa_cites_founder_allele_sources(self, panel: CarrierPanel) -> None:
+        """HEXA founder allele curation should cite primary founder-allele papers."""
+        hexa = panel.get_gene("HEXA")
+        assert hexa is not None
+        assert {"2355960", "2220809", "2848800"} <= set(hexa.pmids)
 
     def test_cftr_cites_verified_cf_sources(self, panel: CarrierPanel) -> None:
         """#440 — the CFTR carrier entry must cite CFTR/CF-screening sources.

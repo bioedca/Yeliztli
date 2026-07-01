@@ -1,20 +1,24 @@
 """Guard: indel I/D → allele polarity is documented and cannot silently invert (#256).
 
 Several high-evidence indel loci map the parser's canonical vendor ``I``/``D``
-tokens to biological alleles using the standard **deletion=`D` / insertion=`I`**
-convention:
+tokens to biological alleles using the standard **deletion/shorter=`D` /
+insertion/longer=`I`** convention:
 
 * GJB2 35delG (rs80338939) — ``gene_health_panel.json`` ``indel_genotype_map``
 * CFTR F508del (rs113993960) — ``carrier_status._SUPPORTED_CARRIER_INDEL_ZYGOSITY``
+* HEXA c.1274_1277dupTATC (rs387906309) — same carrier-status map, but the
+  insertion/longer allele is the pathogenic variant
 * APOL1 G2 (rs71785313) — ``apol1_panel.json`` (risk_allele ``D`` / ref_allele ``I``)
 * DHFR 19-bp intron-1 deletion (rs70991108) — ``methylation_panel.json`` (#508)
 
-The polarity (``D`` = the deletion / variant allele, ``I`` = reference) is the
-literature-standard, dbSNP-consistent convention, but a silent inversion at any
-of these loci would flip a clinical call (a true hom-reference person scored as
-hom-affected, and vice-versa). Each locus carries a re-verifiable
-``indel_polarity`` provenance record; this test locks both that provenance and
-the live mapping so the assumption can never drift without CI catching it.
+The polarity (``D`` = deletion/shorter allele, ``I`` = insertion/longer allele)
+is the literature-standard, dbSNP-consistent convention, but which token is the
+variant allele depends on whether the curated variant is a deletion or insertion.
+A silent inversion at any locus would flip a clinical call (a true hom-reference
+person scored as hom-affected, and vice versa). Each locus carries a
+re-verifiable ``indel_polarity`` provenance record; this test locks both that
+provenance and the live mapping so the assumption can never drift without CI
+catching it.
 
 The per-locus ``Test*Polarity`` classes lock each locus's *live mapping* (the
 genotype → call/category lookup). The ``test_every_*_indel_locus_has_canonical_*``
@@ -50,14 +54,20 @@ _PMID_RE = re.compile(r"^\d+$")
 
 
 def _assert_canonical_polarity(prov: dict, *, where: str) -> None:
-    """Every indel_polarity record must declare D=deletion(variant), I=reference."""
+    """Every indel_polarity record must declare D/I token semantics."""
     assert prov is not None, f"{where}: missing indel_polarity provenance"
-    assert prov["variant_class"] == "deletion", where
-    assert prov["variant_allele_token"] == "D", where
-    assert prov["reference_allele_token"] == "I", where
+    assert prov["variant_class"] in {"deletion", "insertion"}, where
+    if prov["variant_class"] == "deletion":
+        assert prov["variant_allele_token"] == "D", where
+        assert prov["reference_allele_token"] == "I", where
+    else:
+        assert prov["variant_allele_token"] == "I", where
+        assert prov["reference_allele_token"] == "D", where
     # The provenance must be self-describing and re-verifiable.
     assert "deletion" in prov["d_token_meaning"].lower(), where
-    assert "reference" in prov["i_token_meaning"].lower(), where
+    assert "insertion" in prov["i_token_meaning"].lower(), where
+    meanings = f"{prov['d_token_meaning']} {prov['i_token_meaning']}".lower()
+    assert "reference" in meanings, where
     assert prov.get("dbsnp", "").startswith("rs"), where
     assert prov.get("accessed"), where
     # At least one citation, AND a consistent shape across every record (#570).
@@ -123,6 +133,24 @@ class TestCFTRPolarity:
         assert m["DD"] == "hom_alt", "CFTR: DD must be hom_alt (F508del/F508del)"
         assert m["II"] == "hom_ref", "CFTR: II must be hom_ref"
         assert m["DI"] == m["ID"] == "het", "CFTR: one D = heterozygous carrier"
+
+
+class TestHEXAPolarity:
+    """HEXA c.1274_1277dupTATC (rs387906309) — insertion founder allele."""
+
+    KEY = ("HEXA", "rs387906309", "GATA", "GATAGATA")
+
+    def test_provenance_is_canonical(self) -> None:
+        _assert_canonical_polarity(
+            carrier_mod._HEXA_EXON11_DUP_INDEL_POLARITY, where="HEXA rs387906309"
+        )
+        assert carrier_mod._HEXA_EXON11_DUP_INDEL_POLARITY["dbsnp"] == "rs387906309"
+
+    def test_live_map_matches_polarity(self) -> None:
+        m = carrier_mod._SUPPORTED_CARRIER_INDEL_ZYGOSITY[self.KEY]
+        assert m["II"] == "hom_alt", "HEXA: II must be hom_alt (duplication/duplication)"
+        assert m["DD"] == "hom_ref", "HEXA: DD must be hom_ref"
+        assert m["DI"] == m["ID"] == "het", "HEXA: one I = heterozygous carrier"
 
 
 class TestAPOL1Polarity:
@@ -299,17 +327,15 @@ def test_every_carrier_indel_locus_has_canonical_polarity() -> None:
 
 def test_all_indel_loci_share_one_polarity_convention() -> None:
     """Cross-locus: EVERY discovered I/D locus (panels + carrier module) uses the
-    SAME D=deletion / I=reference convention, so the assumption is consistent
-    repo-wide and re-verifiable."""
+    SAME D=deletion/shorter, I=insertion/longer token convention, so the
+    assumption is consistent repo-wide and re-verifiable."""
     records: list[dict] = []
     for label, node in sorted(_discover_panel_indel_loci().items()):
         prov = node.get("indel_polarity")
         assert prov is not None, f"{label}: missing indel_polarity provenance"
         records.append(prov)
     records += list(_discover_carrier_indel_polarities().values())
-    # GJB2 + APOL1 + DHFR (panels) + CFTR (carrier module), at minimum.
-    assert len(records) >= 4, f"expected ≥4 indel polarity records, found {len(records)}"
+    # GJB2 + APOL1 + DHFR (panels) + CFTR + HEXA (carrier module), at minimum.
+    assert len(records) >= 5, f"expected >=5 indel polarity records, found {len(records)}"
     for prov in records:
-        assert prov["variant_class"] == "deletion"
-        assert prov["variant_allele_token"] == "D"
-        assert prov["reference_allele_token"] == "I"
+        _assert_canonical_polarity(prov, where=str(prov.get("dbsnp")))

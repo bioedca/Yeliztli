@@ -264,7 +264,11 @@ CARRIER_GENE_NOTES: dict[str, str] = {
     "HEXA": (
         "HEXA variants are associated with Tay-Sachs Disease. Carrier "
         "frequency is approximately 1 in 30 in Ashkenazi Jewish "
-        "populations and 1 in 300 in the general population."
+        "populations and 1 in 300 in the general population. SNP-array "
+        "coverage of the most common Ashkenazi Jewish Tay-Sachs allele "
+        "(c.1274_1277dupTATC) depends on whether the raw array includes that "
+        "indel marker; a negative result does not rule out carrier status. "
+        "Confirm with targeted, enzyme, or sequencing-based clinical testing."
     ),
     "BRCA1": (
         "BRCA1 is a dual-role gene: a pathogenic variant confers both "

@@ -251,6 +251,24 @@ _CFTR_F508DEL_INDEL_POLARITY: dict[str, str | list[str]] = {
     "pmids": ["2570460"],  # Kerem et al. 1989, Science — CFTR gene + F508del deletion
     "accessed": "2026-06-13",
 }
+_HEXA_EXON11_DUP_INDEL_POLARITY: dict[str, str | list[str]] = {
+    "variant_class": "insertion",
+    "variant_allele_token": "I",
+    "reference_allele_token": "D",
+    "i_token_meaning": "insertion / duplication (c.1274_1277dupTATC variant allele)",
+    "d_token_meaning": "deletion / shorter reference allele (the duplicated TATC is absent)",
+    "hgvs": "NM_000520.6:c.1274_1277dupTATC (p.Tyr427IlefsTer5)",
+    "dbsnp": "rs387906309",
+    "vcf_form": "GATA>GATAGATA",
+    "vendor_id_convention": (
+        "23andMe / AncestryDNA encode indel markers with literal I/D tokens where "
+        "I = the insertion/longer allele and D = the deletion/shorter allele. "
+        "For this HEXA founder allele the longer inserted/duplicated allele is "
+        "pathogenic, so II resolves to hom_alt, DD to hom_ref, and DI/ID to het."
+    ),
+    "pmids": ["2848800", "2355960", "2220809"],
+    "accessed": "2026-07-01",
+}
 
 _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str]] = {
     # CFTR F508del / p.Phe508del, represented in ClinVar/VCF form as ATCT>A.
@@ -264,6 +282,15 @@ _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str
         "ID": "het",
         "DD": "hom_alt",
         "II": "hom_ref",
+    },
+    # HEXA Ashkenazi Jewish founder allele c.1274_1277dupTATC, represented by
+    # Ensembl GRCh37/dbSNP as GATA>GATAGATA. Unlike CFTR F508del, the variant
+    # allele is the insertion/longer allele, so I carries the pathogenic allele.
+    ("HEXA", "rs387906309", "GATA", "GATAGATA"): {
+        "DI": "het",
+        "ID": "het",
+        "II": "hom_alt",
+        "DD": "hom_ref",
     },
 }
 

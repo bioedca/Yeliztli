@@ -484,8 +484,10 @@ def test_indel_polarity_collector_finds_known_provenance_pmids() -> None:
         "methylation_panel.json:rs70991108",
         "skin_panel.json:rs1799750",
         "carrier_status:rs113993960",
+        "carrier_status:rs387906309",
     } <= set(by_locus), f"indel-polarity discovery regressed: {sorted(by_locus)}"
     assert by_locus["carrier_status:rs113993960"] == {"2570460"}
+    assert by_locus["carrier_status:rs387906309"] == {"2848800", "2355960", "2220809"}
     assert {"9285800", "20647424", "19022952"} <= set().union(*by_locus.values())
     assert set(_iter_indel_polarity_pmids({"sources": ["PubMed PMID: 12345"]})) == {"12345"}
 

@@ -2,9 +2,9 @@
   "_provenance": {
     "source": "Ensembl GRCh37 REST /variation/human/{rsid}",
     "assembly": "GRCh37",
-    "accessed": "2026-06-26",
+    "accessed": "2026-07-01",
     "generator": "scripts/build_panel_rsid_coordinates.py",
-    "panel_rsid_count": 518,
+    "panel_rsid_count": 521,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -3993,6 +3993,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs120074180"
     },
+    "rs121907954": {
+      "assembly": "GRCh37",
+      "chrom": "15",
+      "start": 72642859,
+      "end": 72642859,
+      "location": "15:72642859",
+      "strand": 1,
+      "allele_string": "C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs121907954"
+    },
     "rs121907968": {
       "assembly": "GRCh37",
       "chrom": "15",
@@ -4807,6 +4818,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs144467873"
     },
+    "rs147324677": {
+      "assembly": "GRCh37",
+      "chrom": "15",
+      "start": 72638575,
+      "end": 72638575,
+      "location": "15:72638575",
+      "strand": 1,
+      "allele_string": "C/A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs147324677"
+    },
     "rs180177092": {
       "assembly": "GRCh37",
       "chrom": "16",
@@ -5191,6 +5213,17 @@
       "allele_string": "T/A/C",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs276174802"
+    },
+    "rs387906309": {
+      "assembly": "GRCh37",
+      "chrom": "15",
+      "start": 72638921,
+      "end": 72638924,
+      "location": "15:72638921-72638924",
+      "strand": 1,
+      "allele_string": "GATA/GATAGATA",
+      "variant_class": "indel",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs387906309"
     },
     "rs397514562": {
       "assembly": "GRCh37",
