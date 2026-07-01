@@ -222,6 +222,14 @@ class Settings(BaseSettings):
             "used if present. Env: YELIZTLI_GRCH37_FASTA_PATH."
         ),
     )
+    genome_browser_refseq_track_path: Path | None = Field(
+        default=None,
+        description=(
+            "Optional GRCh37 RefSeq BED track for the local Genome Browser "
+            "reference. When unset, data_dir / 'grch37_refseq.bed' is used if "
+            "present. Env: YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH."
+        ),
+    )
 
     # --- HLA / HIBAG (Wave D, opt-in / operator-installed R runtime) ---
     hibag_rscript: Path | None = Field(
@@ -242,7 +250,13 @@ class Settings(BaseSettings):
         ),
     )
 
-    @field_validator("hibag_rscript", "hibag_model_dir", "grch37_fasta_path", mode="before")
+    @field_validator(
+        "hibag_rscript",
+        "hibag_model_dir",
+        "grch37_fasta_path",
+        "genome_browser_refseq_track_path",
+        mode="before",
+    )
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
         """Treat a blank env/config value as unset (fail closed for the HLA engine).
@@ -327,6 +341,14 @@ class Settings(BaseSettings):
         if self.grch37_fasta_path is not None:
             return self.grch37_fasta_path
         default_path = self.data_dir / "grch37.fa"
+        return default_path if default_path.exists() else None
+
+    @property
+    def resolved_genome_browser_refseq_track_path(self) -> Path | None:
+        """Configured RefSeq BED, or ``data_dir / grch37_refseq.bed`` when present."""
+        if self.genome_browser_refseq_track_path is not None:
+            return self.genome_browser_refseq_track_path
+        default_path = self.data_dir / "grch37_refseq.bed"
         return default_path if default_path.exists() else None
 
     @classmethod

@@ -10,9 +10,12 @@ URL template variables ($CHR, $START, $END) consumed by IGV.js.
 
 from __future__ import annotations
 
+from pathlib import Path as FilePath
+
 import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.analysis.zygosity import (
@@ -22,6 +25,7 @@ from backend.analysis.zygosity import (
     is_no_call,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.config import Settings, get_settings
 from backend.db.connection import get_registry
 from backend.db.tables import (
     annotated_variants,
@@ -60,6 +64,146 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
             detail=f"Sample database file not found for sample {sample_id}.",
         )
     return registry.get_sample_engine(sample_db_path)
+
+
+# ── Local GRCh37 reference bundle for IGV.js ─────────────────────────
+
+
+class IgvReferenceConfig(BaseModel):
+    """IGV.js reference object for a locally served GRCh37 FASTA."""
+
+    id: str
+    name: str
+    fastaURL: str
+    indexURL: str
+
+
+class IgvReferenceTrackConfig(BaseModel):
+    """IGV.js track object for the locally served RefSeq annotation BED."""
+
+    name: str
+    type: str
+    format: str
+    url: str
+    displayMode: str
+    height: int
+    color: str
+
+
+class GenomeBrowserReferenceStatus(BaseModel):
+    """Whether the optional local Genome Browser reference bundle is usable."""
+
+    available: bool
+    mode: str
+    reference: IgvReferenceConfig | None
+    tracks: list[IgvReferenceTrackConfig]
+    missing: list[str]
+
+
+_REFERENCE_FASTA_URL = "/api/igv-tracks/reference/fasta"
+_REFERENCE_FASTA_INDEX_URL = "/api/igv-tracks/reference/fasta.fai"
+_REFERENCE_REFSEQ_URL = "/api/igv-tracks/reference/refseq.bed"
+
+
+def _fasta_index_path(fasta_path: FilePath) -> FilePath:
+    """Return the samtools faidx path for an uncompressed FASTA."""
+    return FilePath(f"{fasta_path}.fai")
+
+
+def _resolve_reference_bundle(
+    settings: Settings,
+) -> tuple[FilePath | None, FilePath | None, FilePath | None, list[str]]:
+    """Resolve the local Genome Browser reference assets and missing labels."""
+    missing: list[str] = []
+
+    fasta_path = settings.resolved_grch37_fasta_path
+    if fasta_path is None or not fasta_path.is_file():
+        missing.append("GRCh37 FASTA (grch37.fa)")
+        fasta_path = None
+
+    index_path: FilePath | None = None
+    if fasta_path is not None:
+        candidate = _fasta_index_path(fasta_path)
+        if candidate.is_file():
+            index_path = candidate
+        else:
+            missing.append("GRCh37 FASTA index (grch37.fa.fai)")
+
+    refseq_path = settings.resolved_genome_browser_refseq_track_path
+    if refseq_path is None or not refseq_path.is_file():
+        missing.append("RefSeq BED track (grch37_refseq.bed)")
+        refseq_path = None
+
+    return fasta_path, index_path, refseq_path, missing
+
+
+def _local_reference_status(settings: Settings) -> GenomeBrowserReferenceStatus:
+    fasta_path, index_path, refseq_path, missing = _resolve_reference_bundle(settings)
+    available = fasta_path is not None and index_path is not None and refseq_path is not None
+    if not available:
+        return GenomeBrowserReferenceStatus(
+            available=False,
+            mode="remote",
+            reference=None,
+            tracks=[],
+            missing=missing,
+        )
+
+    return GenomeBrowserReferenceStatus(
+        available=True,
+        mode="local",
+        reference=IgvReferenceConfig(
+            id="hg19-local",
+            name="GRCh37/hg19 (local)",
+            fastaURL=_REFERENCE_FASTA_URL,
+            indexURL=_REFERENCE_FASTA_INDEX_URL,
+        ),
+        tracks=[
+            IgvReferenceTrackConfig(
+                name="RefSeq Genes",
+                type="annotation",
+                format="bed",
+                url=_REFERENCE_REFSEQ_URL,
+                displayMode="expanded",
+                height=80,
+                color="#334155",
+            )
+        ],
+        missing=[],
+    )
+
+
+def _serve_reference_asset(path: FilePath | None, *, label: str) -> FileResponse:
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"{label} is not installed.")
+    return FileResponse(path, media_type="text/plain")
+
+
+@router.get("/reference/status", response_model=GenomeBrowserReferenceStatus)
+async def genome_browser_reference_status() -> GenomeBrowserReferenceStatus:
+    """Report whether local GRCh37 FASTA + RefSeq assets are installed."""
+    return _local_reference_status(get_settings())
+
+
+@router.get("/reference/fasta", response_class=FileResponse)
+async def genome_browser_reference_fasta() -> FileResponse:
+    """Serve the local GRCh37 FASTA for IGV.js reference range requests."""
+    fasta_path, _, _, _ = _resolve_reference_bundle(get_settings())
+    return _serve_reference_asset(fasta_path, label="GRCh37 FASTA")
+
+
+@router.get("/reference/fasta.fai", response_class=FileResponse)
+async def genome_browser_reference_fasta_index() -> FileResponse:
+    """Serve the local GRCh37 FASTA index for IGV.js."""
+    _, index_path, _, _ = _resolve_reference_bundle(get_settings())
+    return _serve_reference_asset(index_path, label="GRCh37 FASTA index")
+
+
+@router.get("/reference/refseq.bed", response_class=FileResponse)
+async def genome_browser_reference_refseq_track() -> FileResponse:
+    """Serve the local RefSeq BED annotation track for IGV.js."""
+    _, _, refseq_path, _ = _resolve_reference_bundle(get_settings())
+    return _serve_reference_asset(refseq_path, label="RefSeq BED track")
 
 
 # ── ClinVar VCF track (sourceType: "service", format: "vcf") ────────

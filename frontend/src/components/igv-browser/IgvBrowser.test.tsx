@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { createRef } from "react"
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest"
 import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
 import IgvBrowser, { GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY } from "./IgvBrowser"
@@ -19,6 +19,47 @@ const mockBrowser = {
   on: mockOn,
 }
 
+const remoteReferenceStatus = {
+  available: false,
+  mode: "remote",
+  reference: null,
+  tracks: [],
+  missing: ["GRCh37 FASTA (grch37.fa)", "RefSeq BED track (grch37_refseq.bed)"],
+}
+
+const localReferenceStatus = {
+  available: true,
+  mode: "local",
+  reference: {
+    id: "hg19-local",
+    name: "GRCh37/hg19 (local)",
+    fastaURL: "/api/igv-tracks/reference/fasta",
+    indexURL: "/api/igv-tracks/reference/fasta.fai",
+  },
+  tracks: [
+    {
+      name: "RefSeq Genes",
+      type: "annotation",
+      format: "bed",
+      url: "/api/igv-tracks/reference/refseq.bed",
+      displayMode: "expanded",
+      height: 80,
+      color: "#334155",
+    },
+  ],
+  missing: [],
+}
+
+function mockReferenceStatus(status: unknown = remoteReferenceStatus) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(status),
+    }),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
@@ -27,10 +68,15 @@ beforeEach(() => {
   // The gate's own behaviour (with a cleared ack) is covered separately below.
   localStorage.setItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY, "acknowledged")
   mockCreateBrowser.mockResolvedValue(mockBrowser)
+  mockReferenceStatus()
   __setIgvForTesting({
     createBrowser: mockCreateBrowser,
     removeBrowser: mockRemoveBrowser,
   })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 afterAll(() => {
@@ -38,11 +84,12 @@ afterAll(() => {
 })
 
 describe("IgvBrowser", () => {
-  it("renders loading state initially", () => {
+  it("renders loading state while IGV initializes", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<IgvBrowser />)
-    expect(screen.getByRole("status")).toBeInTheDocument()
-    expect(screen.getByText(/loading genome browser/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText(/loading genome browser/i)).toBeInTheDocument()
+    })
   })
 
   it("creates IGV browser with GRCh37/hg19 genome on mount", async () => {
@@ -52,9 +99,28 @@ describe("IgvBrowser", () => {
     })
     const [, options] = mockCreateBrowser.mock.calls[0]
     expect(options.genome).toBe("hg19")
+    expect(options.reference).toBeUndefined()
     expect(options.locus).toBe("all")
     expect(options.showNavigation).toBe(true)
     expect(options.showRuler).toBe(true)
+  })
+
+  it("uses local reference URLs and local RefSeq track when installed", async () => {
+    mockReferenceStatus(localReferenceStatus)
+    localStorage.removeItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY)
+
+    render(<IgvBrowser />)
+
+    await waitFor(() => {
+      expect(mockCreateBrowser).toHaveBeenCalledTimes(1)
+    })
+    const [, options] = mockCreateBrowser.mock.calls[0]
+    expect(options.genome).toBeUndefined()
+    expect(options.reference).toEqual(localReferenceStatus.reference)
+    expect(options.tracks).toContainEqual(localReferenceStatus.tracks[0])
+    expect(
+      screen.queryByRole("region", { name: /reference-data notice/i }),
+    ).not.toBeInTheDocument()
   })
 
   it("passes custom locus to IGV options", async () => {
@@ -218,7 +284,7 @@ describe("IgvBrowser reference-fetch disclosure (#1286)", () => {
     render(<IgvBrowser />)
 
     expect(
-      screen.getByRole("region", { name: /reference-data notice/i }),
+      await screen.findByRole("region", { name: /reference-data notice/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole("button", { name: /continue to the genome browser/i }),
@@ -234,6 +300,7 @@ describe("IgvBrowser reference-fetch disclosure (#1286)", () => {
     render(<IgvBrowser />)
 
     expect(mockCreateBrowser).not.toHaveBeenCalled()
+    await screen.findByRole("region", { name: /reference-data notice/i })
     await user.click(
       screen.getByRole("button", { name: /continue to the genome browser/i }),
     )

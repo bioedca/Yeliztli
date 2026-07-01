@@ -63,6 +63,20 @@ attribution list lives in the repository
     can resume without starting another large download. The build and index step can take a
     long time after the archive has already downloaded.
 
+## Genome Browser local reference files
+
+The Genome Browser can run without contacting IGV.js reference hosts when these local files
+are installed:
+
+- `grch37.fa`
+- `grch37.fa.fai`
+- `grch37_refseq.bed`
+
+By default Yeliztli looks for them in the data directory. You can point to equivalent local
+files with `YELIZTLI_GRCH37_FASTA_PATH` and
+`YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH`. If any file is missing, the Genome Browser keeps
+the disclosure-gated hosted `hg19` fallback.
+
 ## Updating reference data
 
 Reference data can be refreshed any time from **Settings → Database Management**, with

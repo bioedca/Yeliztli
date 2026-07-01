@@ -19,17 +19,19 @@ import { __getIgvOverride, type IgvModule } from "./igv-test-utils"
 
 // ── Reference-fetch disclosure (one-time, #1286) ────────────────────
 //
-// IGV.js is initialized with the *named* "hg19" genome (no local reference/
-// fastaURL), so it streams the GRCh37 sequence and the RefSeq gene track from the
-// IGV.js project's public servers, fetching by region — the loci a user navigates
-// to are observable to those third-party hosts. The reference is not yet bundled
-// locally (tracked separately), so before the first fetch we show a one-time,
-// dismissible disclosure and only initialize IGV (the fetch) once the user
-// acknowledges it. The acknowledgment persists in localStorage so it is shown only
-// once per browser.
+// When the optional local GRCh37 FASTA + RefSeq track is not installed, IGV.js
+// falls back to the *named* "hg19" genome. That fallback streams the GRCh37
+// sequence and the RefSeq gene track from the IGV.js project's public servers,
+// fetching by region — the loci a user navigates to are observable to those
+// third-party hosts. Before the fallback's first fetch, we show a one-time,
+// dismissible disclosure and only initialize IGV once the user acknowledges it.
+// The acknowledgment persists in localStorage so it is shown only once per
+// browser. When the local reference is available, no disclosure is needed and IGV
+// is initialized with explicit local URLs instead of the named genome.
 export const GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY =
   "yeliztli.genome-browser-reference-disclosure"
 const _DISCLOSURE_ACK_VALUE = "acknowledged"
+const IGV_REFERENCE_STATUS_URL = "/api/igv-tracks/reference/status"
 
 function hasAcknowledgedReferenceFetch(): boolean {
   try {
@@ -84,6 +86,14 @@ export interface IgvTrack {
   [key: string]: unknown
 }
 
+export interface IgvReference {
+  id: string
+  name?: string
+  fastaURL: string
+  indexURL: string
+  [key: string]: unknown
+}
+
 // Minimal browser instance type
 export interface IgvBrowserInstance {
   search: (query: string) => void
@@ -94,7 +104,8 @@ export interface IgvBrowserInstance {
 // ── Default GRCh37 configuration ────────────────────────────────────
 
 interface IgvBrowserOptions {
-  genome: string
+  genome?: string
+  reference?: IgvReference
   locus: string
   showNavigation: boolean
   showRuler: boolean
@@ -103,14 +114,47 @@ interface IgvBrowserOptions {
   tracks: IgvTrack[]
 }
 
-const DEFAULT_GRCH37_OPTIONS: IgvBrowserOptions = {
-  genome: IGV_BROWSER_GENOME,
+type BaseIgvBrowserOptions = Omit<IgvBrowserOptions, "genome" | "reference">
+
+const DEFAULT_GRCH37_OPTIONS: BaseIgvBrowserOptions = {
   locus: "all",
   showNavigation: true,
   showRuler: true,
   showCenterGuide: false,
   showCursorTrackingGuide: false,
   tracks: [],
+}
+
+interface GenomeBrowserReferenceStatus {
+  available: boolean
+  mode: "local" | "remote"
+  reference: IgvReference | null
+  tracks: IgvTrack[]
+  missing: string[]
+}
+
+type ReferenceSourceState =
+  | { status: "checking" }
+  | { status: "local"; reference: IgvReference; tracks: IgvTrack[] }
+  | { status: "remote" }
+
+async function detectReferenceSource(): Promise<ReferenceSourceState> {
+  if (typeof fetch !== "function") return { status: "remote" }
+
+  const response = await fetch(IGV_REFERENCE_STATUS_URL, {
+    headers: { Accept: "application/json" },
+  })
+  if (!response.ok) return { status: "remote" }
+
+  const payload = (await response.json()) as GenomeBrowserReferenceStatus
+  if (payload.available && payload.mode === "local" && payload.reference) {
+    return {
+      status: "local",
+      reference: payload.reference,
+      tracks: payload.tracks ?? [],
+    }
+  }
+  return { status: "remote" }
 }
 
 // ── State reducer ───────────────────────────────────────────────────
@@ -162,9 +206,12 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
     const [state, dispatch] = useReducer(browserReducer, { status: "loading" })
     // Incrementing retryCount forces the init effect to re-run
     const [retryCount, setRetryCount] = useReducer((c: number) => c + 1, 0)
+    const [referenceSource, setReferenceSource] = useState<ReferenceSourceState>({
+      status: "checking",
+    })
     // One-time reference-fetch disclosure (#1286): until acknowledged, IGV is not
-    // initialized, so no GRCh37 sequence / RefSeq track is fetched from the
-    // third-party IGV.js servers.
+    // initialized in remote-fallback mode, so no GRCh37 sequence / RefSeq track
+    // is fetched from the third-party IGV.js servers.
     const [referenceFetchAcked, setReferenceFetchAcked] = useState<boolean>(
       hasAcknowledgedReferenceFetch,
     )
@@ -201,22 +248,47 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
       onVariantClickRef.current = onVariantClick
     }, [onVariantClick])
 
+    useEffect(() => {
+      let cancelled = false
+      detectReferenceSource()
+        .then((source) => {
+          if (!cancelled) setReferenceSource(source)
+        })
+        .catch(() => {
+          if (!cancelled) setReferenceSource({ status: "remote" })
+        })
+      return () => {
+        cancelled = true
+      }
+    }, [])
+
+    const canInitialize =
+      referenceSource.status === "local" ||
+      (referenceSource.status === "remote" && referenceFetchAcked)
+    const shouldShowReferenceDisclosure =
+      referenceSource.status === "remote" && !referenceFetchAcked
+
     // Initialize browser on mount (and on retry), destroy on unmount
     useEffect(() => {
       if (!containerRef.current) return
-      // Gate the third-party reference fetch behind the one-time disclosure (#1286):
-      // do not initialize IGV until the user has acknowledged it.
-      if (!referenceFetchAcked) return
+      if (!canInitialize) return
 
       let cancelled = false
       let igvModule: Awaited<ReturnType<typeof loadIgv>> | null = null
 
       dispatch({ type: "loading" })
 
+      const referenceOptions =
+        referenceSource.status === "local"
+          ? { reference: referenceSource.reference }
+          : { genome: IGV_BROWSER_GENOME }
+      const localReferenceTracks =
+        referenceSource.status === "local" ? referenceSource.tracks : []
       const options: IgvBrowserOptions = {
         ...DEFAULT_GRCH37_OPTIONS,
+        ...referenceOptions,
         locus,
-        tracks: [...stableTracks],
+        tracks: [...stableTracks, ...localReferenceTracks],
       }
 
       loadIgv()
@@ -295,24 +367,33 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
           browserRef.current = null
         }
       }
-    }, [locus, stableTracks, retryCount, referenceFetchAcked])
+    }, [locus, stableTracks, retryCount, canInitialize, referenceSource])
 
     return (
       <div className={className}>
-        {!referenceFetchAcked && (
+        {referenceSource.status === "checking" && (
+          <div
+            className="flex items-center justify-center py-12 text-muted-foreground"
+            role="status"
+            aria-label="Checking local genome browser reference"
+          >
+            Checking local Genome Browser reference…
+          </div>
+        )}
+        {shouldShowReferenceDisclosure && (
           <div
             role="region"
             aria-label="Genome Browser reference-data notice"
             className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-sm"
           >
-            <p className="font-medium">Reference data is fetched from a third party</p>
+            <p className="font-medium">Reference data will be fetched from a third party</p>
             <p className="mt-1 text-muted-foreground">
-              The Genome Browser loads the GRCh37/hg19 reference sequence and the RefSeq
-              gene track from the IGV.js project's public servers (igv.org / the Broad
-              Institute). Because it fetches by region, the genomic locations you navigate
-              to are visible to those servers — no genotype data is sent. This is the only
-              feature that contacts a third party during normal use, and it happens only
-              while the Genome Browser is open.
+              The local Genome Browser reference bundle is not installed, so this fallback
+              loads the GRCh37/hg19 reference sequence and the RefSeq gene track from the
+              IGV.js project's public servers (igv.org / the Broad Institute). Because it
+              fetches by region, the genomic locations you navigate to are visible to those
+              servers — no genotype data is sent. This happens only while the Genome
+              Browser is open.
             </p>
             <button
               type="button"
@@ -323,7 +404,7 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
             </button>
           </div>
         )}
-        {referenceFetchAcked && state.status === "loading" && (
+        {canInitialize && state.status === "loading" && (
           <div
             className="flex items-center justify-center py-12 text-muted-foreground"
             role="status"
@@ -352,7 +433,7 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
             Loading genome browser…
           </div>
         )}
-        {referenceFetchAcked && state.status === "error" && (
+        {canInitialize && state.status === "error" && (
           <div
             className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm"
             role="alert"
@@ -372,7 +453,7 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
           ref={containerRef}
           data-testid="igv-container"
           style={{
-            minHeight: !referenceFetchAcked || state.status === "loading" ? 0 : minHeight,
+            minHeight: !canInitialize || state.status === "loading" ? 0 : minHeight,
           }}
         />
       </div>

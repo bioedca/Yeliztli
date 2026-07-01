@@ -36,13 +36,15 @@ all of them are user-initiated, so here is the complete accounting.
   (default **daily**), Yeliztli fetches the public bundle manifest from
   `raw.githubusercontent.com` to see whether newer reference data exists. This sends your IP
   and the request timing; no genotype.
-- **Genome Browser reference & gene tracks.** When you open the **Genome Browser**, it loads
-  the GRCh37/hg19 reference sequence and the RefSeq gene track from the IGV.js project's
-  hosted genome registry (third-party servers). Because it fetches the sequence by **region**,
+- **Genome Browser reference & gene tracks, when the local browser reference is absent.**
+  If the optional local Genome Browser reference bundle is installed, Yeliztli serves the
+  GRCh37/hg19 FASTA, FASTA index, and RefSeq BED track from the local data directory. If that
+  bundle is missing, opening the **Genome Browser** falls back to the IGV.js project's hosted
+  genome registry (third-party servers). Because that fallback fetches sequence by **region**,
   **the loci and genes you navigate to are observable to those hosts** — there is no genotype
-  payload, but the regions you choose to inspect are themselves sensitive. This happens only
-  while the Genome Browser is open, and the **first** time you open it Yeliztli shows a one-time
-  in-app notice disclosing this fetch before any reference data is requested.
+  payload, but the regions you choose to inspect are themselves sensitive. This fallback happens
+  only while the Genome Browser is open, and the **first** time it is needed Yeliztli shows a
+  one-time in-app notice before any third-party reference data is requested.
 
 ### User-initiated
 
@@ -66,11 +68,12 @@ starting reference downloads. For the **automatic** connections:
   (`raw.githubusercontent.com`): the daily scheduler becomes a no-op and the dashboard's
   auto-checks return immediately without any outbound request. No update banner will appear; to
   check again, set the value back to `startup`, `daily`, or `weekly`.
-- The Genome Browser still reaches the IGV.js hosted genome registry whenever you open it, to
-  load the GRCh37 reference sequence and RefSeq track. The **first** time you open it, Yeliztli
-  shows a one-time notice disclosing this third-party fetch and only contacts those servers
-  after you acknowledge it; serving the reference fully locally is tracked separately. If you do
-  not open the Genome Browser, it makes no connection.
+- Install the optional local Genome Browser reference files (`grch37.fa`, `grch37.fa.fai`, and
+  `grch37_refseq.bed`) in the data directory, or point `YELIZTLI_GRCH37_FASTA_PATH` and
+  `YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH` at equivalent local files. When all three are
+  present, the Genome Browser uses local URLs and makes no reference/RefSeq request to IGV.js
+  hosts. If any file is missing, the Genome Browser keeps the disclosure-gated hosted `hg19`
+  fallback; if you do not open the Genome Browser, it makes no connection.
 
 For a hard guarantee that **nothing** leaves the machine, **block Yeliztli's network access at the
 operating-system or firewall level** after setup — that suppresses all of the automatic checks

@@ -79,6 +79,25 @@ def test_grch37_fasta_path_resolution(tmp_path):
     )
 
 
+def test_genome_browser_refseq_track_path_resolution(tmp_path):
+    """Explicit RefSeq BED path wins; otherwise data_dir/grch37_refseq.bed is used."""
+    default_refseq = tmp_path / "grch37_refseq.bed"
+    settings = Settings(data_dir=tmp_path)
+    assert settings.resolved_genome_browser_refseq_track_path is None
+
+    default_refseq.write_text("chr1\t0\t10\tGENE1\n", encoding="ascii")
+    assert Settings(data_dir=tmp_path).resolved_genome_browser_refseq_track_path == default_refseq
+
+    explicit_refseq = tmp_path / "custom-refseq.bed"
+    assert (
+        Settings(
+            data_dir=tmp_path,
+            genome_browser_refseq_track_path=explicit_refseq,
+        ).resolved_genome_browser_refseq_track_path
+        == explicit_refseq
+    )
+
+
 def test_env_override(monkeypatch):
     """Canonical YELIZTLI_ environment variables should override defaults."""
     monkeypatch.setenv("YELIZTLI_PORT", "9000")

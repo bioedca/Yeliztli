@@ -1,9 +1,11 @@
 /**
  * IGV.js track configurations (P2-17).
  *
- * Builds track configs for: RefSeq genes (built-in), ClinVar variants,
- * user sample VCF, gnomAD AF, and build-compatible optional annotations —
- * all backed by local API endpoints with region-based queries.
+ * Builds track configs for: ClinVar variants, user sample VCF, gnomAD AF,
+ * and build-compatible optional annotations — all backed by local API endpoints
+ * with region-based queries. RefSeq genes are injected by IgvBrowser only when a
+ * local reference bundle is installed; the remote hg19 fallback uses IGV.js's
+ * built-in RefSeq track.
  */
 import type { IgvTrack } from "./IgvBrowser"
 import { IGV_BROWSER_GENOME_BUILD, type GenomeBuild } from "./genome"
@@ -116,8 +118,9 @@ export function createEncodeCcresTrack(): IgvTrack {
 /**
  * Build the default set of IGV tracks for a given sample.
  *
- * RefSeq genes are included by default when genome is "hg19" —
- * no explicit track needed.
+ * RefSeq genes are not part of this list: the named hg19 fallback gets IGV.js's
+ * built-in RefSeq track, while the local-reference path appends a local RefSeq
+ * BED track after these sample/reference overlays.
  *
  * @param sampleId - The sample ID for user variant track (omit for no user VCF)
  * @param browserGenomeBuild - Genome build used by the IGV browser coordinates

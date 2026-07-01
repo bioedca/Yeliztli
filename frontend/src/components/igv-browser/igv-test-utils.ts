@@ -4,10 +4,11 @@
  * Separated from IgvBrowser.tsx to satisfy react-refresh/only-export-components
  * (files with components must only export components).
  */
-import type { IgvBrowserInstance } from "./IgvBrowser"
+import type { IgvBrowserInstance, IgvReference } from "./IgvBrowser"
 
 interface IgvBrowserOptions {
-  genome: string
+  genome?: string
+  reference?: IgvReference
   locus: string
   showNavigation: boolean
   showRuler: boolean

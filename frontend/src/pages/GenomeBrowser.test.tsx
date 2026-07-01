@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { act } from "react"
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest"
 import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
 import GenomeBrowser from "./GenomeBrowser"
@@ -23,11 +23,28 @@ beforeEach(() => {
   // the one-time reference-fetch disclosure gate (#1286) — pre-acknowledge it so
   // IGV initializes. The gate itself is covered in IgvBrowser.test.tsx.
   localStorage.setItem(GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY, "acknowledged")
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        available: false,
+        mode: "remote",
+        reference: null,
+        tracks: [],
+        missing: ["GRCh37 FASTA (grch37.fa)", "RefSeq BED track (grch37_refseq.bed)"],
+      }),
+    }),
+  )
   mockCreateBrowser.mockResolvedValue(mockBrowser)
   __setIgvForTesting({
     createBrowser: mockCreateBrowser,
     removeBrowser: mockRemoveBrowser,
   })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 afterAll(() => {
