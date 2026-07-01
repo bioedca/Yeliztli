@@ -12,6 +12,7 @@
     "allergy:celiac_combined": 1,
     "allergy:histamine_combined": 1,
     "allergy:pathway_summary": 4,
+    "ancestry:pca_projection": 1,
     "fitness:pathway_summary": 4,
     "gene_health:pathway_summary": 4,
     "methylation:pathway_summary": 5,
