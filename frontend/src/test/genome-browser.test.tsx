@@ -45,14 +45,16 @@ describe("GenomeBrowser sample_id param (#621)", () => {
   it("loads the user's variant track from ?sample_id (snake_case)", () => {
     const names = renderAt("/genome-browser?sample_id=1")
     expect(names).toContain("Your Variants")
-    // user track + the three reference tracks (ClinVar / gnomAD / ENCODE)
-    expect(captured.tracks).toHaveLength(4)
+    expect(names).not.toContain("ENCODE cCREs")
+    // user track + the two GRCh37-compatible reference tracks (ClinVar / gnomAD)
+    expect(captured.tracks).toHaveLength(3)
   })
 
   it("shows reference tracks only when no sample is selected", () => {
     const names = renderAt("/genome-browser")
     expect(names).not.toContain("Your Variants")
-    expect(captured.tracks).toHaveLength(3)
+    expect(names).not.toContain("ENCODE cCREs")
+    expect(captured.tracks).toHaveLength(2)
   })
 
   it("ignores the legacy ?sampleId (camelCase) param — the #621 regression", () => {

@@ -2,10 +2,20 @@
  * IGV.js track configurations (P2-17).
  *
  * Builds track configs for: RefSeq genes (built-in), ClinVar variants,
- * user sample VCF, gnomAD AF, and ENCODE cCREs — all backed by local
- * API endpoints with region-based queries.
+ * user sample VCF, gnomAD AF, and build-compatible optional annotations —
+ * all backed by local API endpoints with region-based queries.
  */
 import type { IgvTrack } from "./IgvBrowser"
+import { IGV_BROWSER_GENOME_BUILD, type GenomeBuild } from "./genome"
+
+export const ENCODE_CCRES_SOURCE_GENOME_BUILD: GenomeBuild = "GRCh38"
+
+export function isTrackGenomeBuildCompatible(
+  trackGenomeBuild: GenomeBuild,
+  browserGenomeBuild: GenomeBuild,
+): boolean {
+  return trackGenomeBuild === browserGenomeBuild
+}
 
 // ── ClinVar significance colors ────────────────────────────────────
 
@@ -97,6 +107,9 @@ export function createEncodeCcresTrack(): IgvTrack {
     displayMode: "expanded",
     height: 50,
     colorBy: "color",
+    metadata: {
+      sourceGenomeBuild: ENCODE_CCRES_SOURCE_GENOME_BUILD,
+    },
   }
 }
 
@@ -107,13 +120,25 @@ export function createEncodeCcresTrack(): IgvTrack {
  * no explicit track needed.
  *
  * @param sampleId - The sample ID for user variant track (omit for no user VCF)
+ * @param browserGenomeBuild - Genome build used by the IGV browser coordinates
  */
-export function buildDefaultTracks(sampleId?: number): IgvTrack[] {
+export function buildDefaultTracks(
+  sampleId?: number,
+  browserGenomeBuild: GenomeBuild = IGV_BROWSER_GENOME_BUILD,
+): IgvTrack[] {
   const tracks: IgvTrack[] = [
     createClinVarTrack(),
     createGnomadTrack(),
-    createEncodeCcresTrack(),
   ]
+
+  if (
+    isTrackGenomeBuildCompatible(
+      ENCODE_CCRES_SOURCE_GENOME_BUILD,
+      browserGenomeBuild,
+    )
+  ) {
+    tracks.push(createEncodeCcresTrack())
+  }
 
   if (sampleId !== undefined) {
     // Insert user variants first so they appear above reference tracks

@@ -11,7 +11,10 @@ import {
   createSampleVariantsTrack,
   createGnomadTrack,
   createEncodeCcresTrack,
+  ENCODE_CCRES_SOURCE_GENOME_BUILD,
+  isTrackGenomeBuildCompatible,
 } from "./tracks"
+import { IGV_BROWSER_GENOME_BUILD } from "./genome"
 
 describe("createClinVarTrack", () => {
   it("returns variant track with VCF format", () => {
@@ -134,29 +137,52 @@ describe("createEncodeCcresTrack", () => {
     const track = createEncodeCcresTrack()
     expect(track.displayMode).toBe("expanded")
   })
+
+  it("records the source genome build", () => {
+    const track = createEncodeCcresTrack()
+    const metadata = track.metadata as { sourceGenomeBuild?: string }
+    expect(metadata.sourceGenomeBuild).toBe(ENCODE_CCRES_SOURCE_GENOME_BUILD)
+  })
 })
 
 describe("buildDefaultTracks", () => {
-  it("returns 3 tracks without sampleId (ClinVar, gnomAD, ENCODE)", () => {
+  it("returns GRCh37-compatible tracks without sampleId for the default hg19 browser", () => {
     const tracks = buildDefaultTracks()
-    expect(tracks).toHaveLength(3)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].name).toBe("ClinVar Variants")
     expect(tracks[1].name).toBe("gnomAD AF")
-    expect(tracks[2].name).toBe("ENCODE cCREs")
+    expect(tracks.map((track) => track.name)).not.toContain("ENCODE cCREs")
   })
 
-  it("returns 4 tracks with sampleId (user VCF first)", () => {
+  it("returns user VCF first with only GRCh37-compatible defaults", () => {
     const tracks = buildDefaultTracks(5)
-    expect(tracks).toHaveLength(4)
+    expect(tracks).toHaveLength(3)
     expect(tracks[0].name).toBe("Your Variants")
     expect(tracks[0].url).toContain("/sample/5/")
     expect(tracks[1].name).toBe("ClinVar Variants")
     expect(tracks[2].name).toBe("gnomAD AF")
-    expect(tracks[3].name).toBe("ENCODE cCREs")
   })
 
   it("places user variants track first in array", () => {
     const tracks = buildDefaultTracks(1)
     expect(tracks[0].name).toBe("Your Variants")
+  })
+
+  it("does not treat the GRCh38 cCRE source as compatible with the hg19 browser", () => {
+    expect(
+      isTrackGenomeBuildCompatible(
+        ENCODE_CCRES_SOURCE_GENOME_BUILD,
+        IGV_BROWSER_GENOME_BUILD,
+      ),
+    ).toBe(false)
+  })
+
+  it("includes ENCODE cCREs when the browser build matches the source build", () => {
+    const tracks = buildDefaultTracks(undefined, ENCODE_CCRES_SOURCE_GENOME_BUILD)
+    expect(tracks.map((track) => track.name)).toEqual([
+      "ClinVar Variants",
+      "gnomAD AF",
+      "ENCODE cCREs",
+    ])
   })
 })

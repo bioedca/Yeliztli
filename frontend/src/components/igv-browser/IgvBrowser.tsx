@@ -14,6 +14,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react"
+import { IGV_BROWSER_GENOME } from "./genome"
 import { __getIgvOverride, type IgvModule } from "./igv-test-utils"
 
 // ── Reference-fetch disclosure (one-time, #1286) ────────────────────
@@ -103,7 +104,7 @@ interface IgvBrowserOptions {
 }
 
 const DEFAULT_GRCH37_OPTIONS: IgvBrowserOptions = {
-  genome: "hg19",
+  genome: IGV_BROWSER_GENOME,
   locus: "all",
   showNavigation: true,
   showRuler: true,
