@@ -41,9 +41,11 @@ and review them in the [Variant Explorer](../features/variant-explorer.md).
 
 ## The Findings Explorer
 
-Beyond the per-module pages, the **Findings Explorer** lets you search and filter findings
-across every module at once — by evidence rating, module, gene, or phenotype. Modules that do
-not have their own dashboard page still surface their findings here.
+Beyond the per-module pages, the **Findings Explorer** lets you filter findings across every
+module at once by module and minimum evidence rating. Each finding links back to its source
+module when that module has a dedicated page, and gene symbols or variant IDs link to their
+detail pages when available. Modules that do not have their own dashboard page still surface
+their findings here.
 
 ## Sensitive results are opt-in
 
