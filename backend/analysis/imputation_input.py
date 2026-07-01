@@ -117,10 +117,11 @@ _X_NONPAR2_END = GRCH37_X_PAR2[0] - 1
 _X_NONPAR3_START = GRCH37_X_PAR2[1] + 1
 
 _X_UNIT_SPECS: tuple[InputUnitSpec, ...] = (
-    # Beagle's chrom= takes "[chrom]:[start]-[end]" (explicit start, per its 5.5
-    # help string); a missing start ("X:-60000") is not the documented shape and
-    # can make Beagle reject/skip the first X segment (#1289). The leading non-PAR
-    # cap before PAR1 is one-based X:1-60000.
+    # Beagle 5.5 documents finite intervals as "[chrom]:[start]-[end]" and also
+    # supports "[chrom]:-[end]" / "[chrom]:[start]-" for chromosome start/end.
+    # Use explicit bounds for finite X chunks so PAR/non-PAR units never bleed
+    # into adjacent chunks; the terminal non-PAR cap intentionally uses the
+    # documented "[start]-" form to run through the end of chrX (#1352).
     InputUnitSpec("X_NONPAR1", "X", "chrX_NONPAR1.vcf.gz", f"X:1-{_X_NONPAR1_END}"),
     InputUnitSpec(
         "X_PAR1",

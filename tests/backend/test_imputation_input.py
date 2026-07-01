@@ -585,17 +585,18 @@ class TestWriteImputationInputVcfs:
         ]
 
     def test_x_unit_beagle_regions(self) -> None:
-        """Pin every chrX Beagle region (#1289). Each interval must carry an
-        explicit one-based start — a missing start ("X:-60000") is not Beagle's
-        documented chrom= shape and can drop the first X segment. (The PAR
-        boundaries are the validated GRCH37_X_PAR1/PAR2 constants.)"""
+        """Pin every chrX Beagle region (#1289/#1352).
+
+        Finite intervals must carry explicit one-based starts and ends so they
+        do not bleed into adjacent PAR/non-PAR units. The terminal X_NONPAR3
+        interval intentionally uses Beagle 5.5's documented ``chrom=X:start-``
+        form to run through the chromosome end.
+        """
         regions = {s.key: s.beagle_region for s in input_unit_specs_for_chromosomes(("X",))}
         assert regions == {
             "X_NONPAR1": "X:1-60000",
             "X_PAR1": "X:60001-2699520",
             "X_NONPAR2": "X:2699521-154931043",
             "X_PAR2": "X:154931044-155260560",
-            # NB X_NONPAR3 still uses an open-ended interval (missing end);
-            # tracked separately as the symmetric sibling of this fix.
             "X_NONPAR3": "X:155260561-",
         }
