@@ -49,8 +49,10 @@ For the full list of what is downloaded, sizes, sources, and licenses, see
 ## Step 6 — Upload your data
 
 Upload your raw genotype file. Yeliztli supports **23andMe** (v3/v4/v5) and **AncestryDNA**
-(v2.0) exports as a `.txt`; it auto-detects the vendor and format. Both services download your
-raw data inside a `.zip` — extract the `.txt` from it before uploading. Once parsing
+(v2.0) exports as a `.txt` or as a single-file `.zip` containing the raw `.txt`; it
+auto-detects the vendor and format. Both services download your raw data inside a `.zip`
+by default, and Yeliztli accepts that archive when it contains exactly one raw `.txt`.
+Once parsing
 finishes, annotation runs automatically in the background, followed by the analysis modules.
 
 !!! tip "Multiple files for one person"

@@ -10,7 +10,9 @@ import hashlib
 import io
 import logging
 import uuid
+import zipfile
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -22,8 +24,8 @@ from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, jobs, raw_variants, sample_metadata_table, samples
-from backend.ingestion.base import ParsedVariant, ParseResult
-from backend.ingestion.dispatcher import ParserError, parse, reject_unsupported_archive_bytes
+from backend.ingestion.base import ParsedVariant, ParseResult, UnsupportedFormatError
+from backend.ingestion.dispatcher import ParserError, is_zip_archive_bytes, parse
 from backend.ingestion.liftover import lift_build36_to_grch37
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,24 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 # Batch size for bulk inserts
 _INSERT_BATCH = 10_000
+
+# Vendor raw genotype exports are normally tens of MiB. Keep ZIP extraction
+# bounded well above that while preserving the existing plain-text upload path.
+_MAX_RAW_UPLOAD_BYTES = 128 * 1024 * 1024
+_ZIP_READ_CHUNK_BYTES = 1024 * 1024
+
+_ZIP_SINGLE_MEMBER_ERROR = (
+    "This ZIP archive must contain exactly one raw 23andMe/AncestryDNA .txt file. "
+    "Extract the raw .txt file first if the archive contains multiple files."
+)
+_ZIP_TXT_MEMBER_ERROR = (
+    "This ZIP archive does not contain a raw 23andMe/AncestryDNA .txt file. "
+    "Extract and upload the raw .txt file instead."
+)
+_ZIP_INVALID_ERROR = (
+    "This looks like a ZIP archive, but it could not be read. Extract and upload "
+    "the raw 23andMe/AncestryDNA .txt file instead."
+)
 
 # Minimum vep_bundle semver required to accept AncestryDNA uploads (Plan §5.4).
 _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA = Version("2.0.0")
@@ -92,6 +112,71 @@ def _build_bundle_gate_payload(installed_version: str | None) -> dict:
         "size_bytes": size_bytes,
         "checksum_sha256": sha256,
     }
+
+
+def _raw_upload_limit_label() -> str:
+    mib = _MAX_RAW_UPLOAD_BYTES // (1024 * 1024)
+    if mib:
+        return f"{mib} MiB"
+    return f"{_MAX_RAW_UPLOAD_BYTES} bytes"
+
+
+def _zip_too_large_error() -> str:
+    return (
+        "The raw genotype file inside this ZIP archive exceeds the "
+        f"{_raw_upload_limit_label()} upload limit. Extract and upload a smaller "
+        "23andMe/AncestryDNA .txt file."
+    )
+
+
+def _zip_file_members(zf: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    return [info for info in zf.infolist() if not info.is_dir()]
+
+
+def _read_zip_member_bounded(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
+    if info.file_size > _MAX_RAW_UPLOAD_BYTES:
+        raise UnsupportedFormatError(_zip_too_large_error())
+
+    chunks: list[bytes] = []
+    total = 0
+    with zf.open(info) as member:
+        while True:
+            read_size = min(_ZIP_READ_CHUNK_BYTES, _MAX_RAW_UPLOAD_BYTES + 1 - total)
+            chunk = member.read(read_size)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _MAX_RAW_UPLOAD_BYTES:
+                raise UnsupportedFormatError(_zip_too_large_error())
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _normalize_upload_bytes(file_bytes: bytes, filename: str) -> tuple[bytes, str]:
+    """Return parser-ready bytes and display filename for direct or ZIP uploads."""
+    if not is_zip_archive_bytes(file_bytes[:512]):
+        return file_bytes, filename
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            members = _zip_file_members(zf)
+            if len(members) != 1:
+                raise UnsupportedFormatError(_ZIP_SINGLE_MEMBER_ERROR)
+
+            member = members[0]
+            member_name = PurePosixPath(member.filename.replace("\\", "/")).name
+            if not member_name or not member_name.lower().endswith(".txt"):
+                raise UnsupportedFormatError(_ZIP_TXT_MEMBER_ERROR)
+
+            return _read_zip_member_bounded(zf, member), member_name
+    except (
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+        NotImplementedError,
+        RuntimeError,
+        OSError,
+    ) as exc:
+        raise UnsupportedFormatError(_ZIP_INVALID_ERROR) from exc
 
 
 def _vep_bundle_blocks_ancestrydna(reference_engine: sa.Engine) -> tuple[bool, str | None]:
@@ -157,7 +242,7 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
 
     Returns a dict with sample_id, job_id, variant_count, nocall_count.
     """
-    reject_unsupported_archive_bytes(file_bytes[:512])
+    file_bytes, filename = _normalize_upload_bytes(file_bytes, filename)
 
     registry = get_registry()
     settings = registry.settings

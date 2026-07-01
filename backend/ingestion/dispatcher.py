@@ -67,13 +67,14 @@ def _check_binary(head: bytes) -> bool:
     return b"\x00" in head
 
 
-def _check_zip(head: bytes) -> bool:
+def is_zip_archive_bytes(head: bytes) -> bool:
+    """Return true when the byte head starts with a ZIP archive signature."""
     return head.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
 
 
 def reject_unsupported_archive_bytes(head: bytes) -> None:
     """Reject archive bytes before text decoding can obscure their format."""
-    if _check_zip(head):
+    if is_zip_archive_bytes(head):
         raise UnsupportedFormatError(_ERR_ZIP)
 
 
@@ -191,4 +192,10 @@ def parse(file_or_path: str | Path | TextIO) -> ParseResult:
     raise UnsupportedFormatError("unreachable")  # pragma: no cover
 
 
-__all__ = ["ParserError", "detect_vendor", "parse", "reject_unsupported_archive_bytes"]
+__all__ = [
+    "ParserError",
+    "detect_vendor",
+    "is_zip_archive_bytes",
+    "parse",
+    "reject_unsupported_archive_bytes",
+]
