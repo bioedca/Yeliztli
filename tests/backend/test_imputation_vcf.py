@@ -1,6 +1,6 @@
 """Engine-agnostic imputed-VCF parser (SW-C7 shared seam).
 
-Validates that the single :func:`parse_engine_vcf` maps Beagle (DR2/AF/IMP),
+Validates that the single :func:`parse_engine_vcf` maps Beagle (DR2/IMP),
 GLIMPSE2 (INFO/RAF, all-imputed), and IMPUTE5 (INFO/AF, all-imputed) output into
 the same :class:`ImputedVariant`, plus the chromosome-token guard and the
 malformed-float handling shared by all three engines.
@@ -29,7 +29,7 @@ def _write(path: Path, text: str, *, gz: bool = False) -> Path:
     return path
 
 
-# Beagle shape: quality DR2, frequency AF, IMP flags imputed (typed markers lack it).
+# Beagle shape: quality DR2, target-sample AF, IMP flags imputed (typed markers lack it).
 _BEAGLE_VCF = (
     "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
     "22\t100\trs1\tG\tA\t.\tPASS\tDR2=0.95;AF=0.30;IMP\tGT:DS\t0|1:1\n"
@@ -52,18 +52,18 @@ _IMPUTE5_VCF = (
 
 
 class TestBeagleShape:
-    def test_imp_flag_and_dr2_af(self, tmp_path: Path) -> None:
+    def test_imp_flag_and_dr2_without_population_af(self, tmp_path: Path) -> None:
         variants = list(
             parse_engine_vcf(
                 _write(tmp_path / "b.vcf", _BEAGLE_VCF),
                 quality_key="DR2",
-                af_key="AF",
+                af_key=None,
                 imputed_flag_key="IMP",
             )
         )
         by_pos = {v.pos: v for v in variants}
         assert by_pos[100].imputed is True and by_pos[100].dr2 == 0.95
-        assert by_pos[100].af == 0.30 and by_pos[100].dosage == 1.0
+        assert by_pos[100].af is None and by_pos[100].dosage == 1.0
         assert by_pos[100].best_guess_copies == 1
         assert by_pos[200].imputed is False  # typed marker (no IMP flag)
 

@@ -9,7 +9,9 @@ keys carry the imputation-quality metric and the allele frequency, and whether
 output markers carry an explicit "imputed" flag:
 
 * **Beagle** (SW-C2, :mod:`backend.analysis.imputation_runner`): quality ``DR2``,
-  frequency ``AF``, imputed marker flagged by ``IMP``.
+  no parsed population frequency, imputed marker flagged by ``IMP``. Beagle's
+  output ``AF`` is the target-sample ALT frequency, not the reference-panel /
+  population frequency the firewall needs.
 * **GLIMPSE2** (SW-C7, :mod:`backend.analysis.glimpse_runner`): quality ``INFO``
   (the IMPUTE info score), frequency ``RAF`` (the *reference-panel* allele
   frequency — the population frequency the firewall's rarity gate needs; GLIMPSE's
@@ -207,7 +209,7 @@ def parse_engine_vcf(
     vcf_path: Path,
     *,
     quality_key: str,
-    af_key: str,
+    af_key: str | None,
     imputed_flag_key: str | None = None,
 ) -> Iterator[ImputedVariant]:
     """Yield :class:`ImputedVariant` per ALT from an imputed VCF (gz or plain).
@@ -216,8 +218,9 @@ def parse_engine_vcf(
 
     * ``quality_key`` — the per-ALT (Number=A) imputation-quality INFO key
       (Beagle ``DR2`` / GLIMPSE2 + IMPUTE5 ``INFO``); mapped to ``dr2``.
-    * ``af_key`` — the per-ALT (Number=A) allele-frequency INFO key (Beagle +
-      IMPUTE5 ``AF`` / GLIMPSE2 ``RAF``); mapped to ``af``.
+    * ``af_key`` — the per-ALT (Number=A) population/reference-panel allele-
+      frequency INFO key (IMPUTE5 ``AF`` / GLIMPSE2 ``RAF``); mapped to ``af``.
+      Use ``None`` when the engine only emits target-sample AF, as Beagle does.
     * ``imputed_flag_key`` — a valueless INFO flag set only on imputed markers
       (Beagle ``IMP``). When ``None`` (GLIMPSE2 / IMPUTE5), **every** marker is
       treated as imputed.
@@ -227,7 +230,7 @@ def parse_engine_vcf(
     each paired with its aligned quality / AF / dosage / copy-count entry.
     """
     q_re = _compile_info_value_re(quality_key)
-    af_re = _compile_info_value_re(af_key)
+    af_re = _compile_info_value_re(af_key) if af_key is not None else None
     flag_re = _compile_info_flag_re(imputed_flag_key) if imputed_flag_key else None
     with _open_maybe_gzip(vcf_path) as fh:
         for line in fh:
@@ -243,7 +246,7 @@ def parse_engine_vcf(
                 continue
             imputed = bool(flag_re.search(info)) if flag_re is not None else True
             quality = _info_floats(info, q_re)
-            af = _info_floats(info, af_re)
+            af = _info_floats(info, af_re) if af_re is not None else []
             # Per-sample dosage (single-sample imputed VCF: FORMAT=parts[8], sample=parts[9]).
             # The imputation pipeline is single-sample by contract; a multi-sample row
             # would mis-associate dosages downstream, so reject it loudly rather than

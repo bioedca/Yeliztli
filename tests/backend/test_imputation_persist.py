@@ -124,7 +124,10 @@ class TestPersist:
         assert _read_rows(sample_engine) == []
 
 
-# Real Beagle 5.5 output shape (mix of reportable + quarantined imputed + a typed marker).
+# Real Beagle 5.5 output shape (mix of well-imputed / low-quality imputed + a typed marker).
+# Beagle AF is target-sample AF, not population/reference-panel AF, so the parser
+# leaves ``ImputedVariant.af`` empty and the firewall fails closed as ``missing_af``
+# for otherwise well-imputed records.
 _FAKE_IMPUTED_VCF = (
     "##fileformat=VCFv4.2\n"
     '##INFO=<ID=AF,Number=A,Type=Float,Description="Estimated ALT Allele Frequencies">\n'
@@ -133,9 +136,9 @@ _FAKE_IMPUTED_VCF = (
     '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
     '##FORMAT=<ID=DS,Number=A,Type=Float,Description="estimated ALT dose">\n'
     "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
-    "22\t100\trs1\tG\tA\t.\tPASS\tDR2=0.95;AF=0.30;IMP\tGT:DS\t0|1:1\n"  # reportable
+    "22\t100\trs1\tG\tA\t.\tPASS\tDR2=0.95;AF=0.30;IMP\tGT:DS\t0|1:1\n"  # missing_af
     "22\t200\trs2\tC\tT\t.\tPASS\tDR2=0.50;AF=0.20;IMP\tGT:DS\t0|0:0\n"  # low_dr2
-    "22\t300\trs3\tA\tG\t.\tPASS\tDR2=0.99;AF=0.002;IMP\tGT:DS\t0|0:0\n"  # imputed_rare
+    "22\t300\trs3\tA\tG\t.\tPASS\tDR2=0.99;AF=0.002;IMP\tGT:DS\t0|0:0\n"  # missing_af
     "22\t400\trs4\tT\tC\t.\tPASS\tDR2=1.00;AF=0.40\tGT:DS\t0|1:1\n"  # typed (no IMP)
 )
 
@@ -193,21 +196,12 @@ class TestImputeAndPersistSample:
 
         assert result.n_input_sites == 1
         assert result.n_imputed == 3  # rs1, rs2, rs3 (rs4 is typed)
-        assert result.n_persisted == 1  # only rs1 clears the firewall
-        assert result.firewall.n_reportable == 1
-        assert result.firewall.quarantine_reasons == {"low_dr2": 1, "imputed_rare": 1}
+        assert result.n_persisted == 0  # no Beagle population AF source yet
+        assert result.firewall.n_reportable == 0
+        assert result.firewall.quarantine_reasons == {"missing_af": 2, "low_dr2": 1}
 
         rows = _read_rows(sample_engine)
-        assert len(rows) == 1
-        # DS=1 and GT=0|1 from the rs1 sample column round-trip as separate fields.
-        assert (
-            rows[0]["chrom"],
-            rows[0]["pos"],
-            rows[0]["alt"],
-            rows[0]["dr2"],
-            rows[0]["dosage"],
-            rows[0]["best_guess_copies"],
-        ) == ("22", 100, "A", 0.95, 1.0, 1)
+        assert rows == []
 
     def test_x_region_units_are_imputed_with_beagle_intervals(
         self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
@@ -262,7 +256,7 @@ class TestImputeAndPersistSample:
         assert result.n_input_sites == 2
         assert [r.chrom for r in result.chrom_results] == ["X_PAR1", "X_NONPAR2"]
         assert result.n_imputed == 6  # three imputed records from each mocked X unit
-        assert result.n_persisted == 1  # duplicate mocked reportable marker dedupes
+        assert result.n_persisted == 0  # no Beagle population AF source yet
         assert {a for cmd in seen_cmds for a in cmd if a.startswith("chrom=")} == {
             "chrom=X:60001-2699520",
             "chrom=X:2699521-154931043",

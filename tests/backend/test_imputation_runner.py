@@ -1,6 +1,6 @@
 """Local Beagle phase+impute runtime (SW-C2).
 
-Validates the Beagle command construction, the DR2/AF/IMP parser (against the real
+Validates the Beagle command construction, the DR2/IMP parser (against the real
 Beagle 5.5 output format verified by a live run), the quality summary, and the
 impute_chromosome lifecycle (success / Beagle-failure / timeout / missing panel),
 with subprocess.run mocked so no real Beagle/JVM is invoked.
@@ -26,7 +26,9 @@ from backend.analysis.imputation_runner import (
 )
 
 # Real Beagle 5.5 output shape (verified via a live imputation run 2026-06-26):
-# DR2 / AF are Number=A (per-ALT); IMP flags ref-only (imputed) markers; FORMAT GT:DS.
+# DR2 / target-sample AF are Number=A (per-ALT); IMP flags ref-only (imputed)
+# markers; FORMAT GT:DS. Target-sample AF is intentionally not parsed into the
+# population-AF field used by the firewall.
 _IMPUTED_VCF = (
     "##fileformat=VCFv4.2\n"
     '##INFO=<ID=AF,Number=A,Type=Float,Description="Estimated ALT Allele Frequencies">\n'
@@ -61,7 +63,7 @@ def _stub_runner(tmp_path: Path, *, chrom: str = "22") -> ImputationRunner:
 
 
 class TestParse:
-    def test_parses_dr2_af_imp_and_multiallelic(self, tmp_path: Path) -> None:
+    def test_parses_dr2_imp_and_ignores_target_af(self, tmp_path: Path) -> None:
         vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)
         variants = list(parse_imputed_vcf(vcf))
         # rs1, rs2, rs3(A), rs3(T), rs4 → 5 records (rs3 is multi-allelic).
@@ -69,11 +71,13 @@ class TestParse:
         by_id = {(v.pos, v.alt): v for v in variants}
         assert by_id[(20000146, "A")].imputed is True
         assert by_id[(20000146, "A")].dr2 == 0.95
-        assert by_id[(20000146, "A")].af == 0.01
+        assert by_id[(20000146, "A")].af is None
         assert by_id[(20000428, "T")].imputed is False  # typed marker (no IMP)
-        # Multi-allelic: per-ALT DR2/AF align to each ALT.
+        # Multi-allelic: per-ALT DR2 aligns to each ALT; target AF stays ignored.
         assert by_id[(20000500, "A")].dr2 == 0.70
         assert by_id[(20000500, "T")].dr2 == 0.30
+        assert by_id[(20000500, "A")].af is None
+        assert by_id[(20000500, "T")].af is None
         assert by_id[(20000500, "T")].imputed is True
 
     def test_parses_per_alt_ds_dosage(self, tmp_path: Path) -> None:
@@ -256,25 +260,25 @@ class TestChromValidation:
 
 
 class TestMalformedFloats:
-    def test_nan_inf_dr2_af_become_none(self, tmp_path: Path) -> None:
+    def test_nan_inf_dr2_becomes_none_and_target_af_ignored(self, tmp_path: Path) -> None:
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "22\t100\trsx\tA\tG\t.\tPASS\tDR2=nan;AF=inf;IMP\n"
         )
         [v] = list(parse_imputed_vcf(_write_gz(tmp_path / "nf.vcf.gz", vcf)))
         assert v.dr2 is None  # nan dropped
-        assert v.af is None  # inf dropped
+        assert v.af is None  # Beagle target-sample AF is ignored regardless of value.
         # A non-finite DR2 must not be counted as well-imputed.
         assert summarize_dr2([v]).n_well_imputed == 0
 
-    def test_out_of_range_dr2_af_become_none(self, tmp_path: Path) -> None:
-        # Finite but out of [0, 1] (DR2=1.2, AF=-0.1) must be dropped so a malformed
-        # value can't inflate the summary or wrongly clear the well-imputed cutoff.
+    def test_out_of_range_dr2_becomes_none_and_target_af_ignored(self, tmp_path: Path) -> None:
+        # Finite but out-of-range DR2 must be dropped so a malformed value can't
+        # inflate the summary or wrongly clear the well-imputed cutoff.
         vcf = (
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "22\t100\trsx\tA\tG\t.\tPASS\tDR2=1.2;AF=-0.1;IMP\n"
         )
         [v] = list(parse_imputed_vcf(_write_gz(tmp_path / "oor.vcf.gz", vcf)))
         assert v.dr2 is None  # 1.2 > 1 dropped
-        assert v.af is None  # -0.1 < 0 dropped
+        assert v.af is None  # Beagle target-sample AF is ignored regardless of value.
         assert summarize_dr2([v]).n_well_imputed == 0

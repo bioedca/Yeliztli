@@ -6,15 +6,17 @@ reusing the **same self-contained Beagle JAR already vendored in the LAI bundle*
 (invoked via ``subprocess``, never imported — the GPL boundary never reaches the
 MIT app code, identical to :mod:`backend.analysis.lai_runner`). For each
 chromosome it imputes the sample's typed genotypes up to the panel markers and
-records Beagle's per-variant **DR2 (dosage R²)** imputation-quality metric, which
-the SW-C3 firewall combines with MAF to quarantine unreliable imputed rare
-variants.
+records Beagle's per-variant **DR2 (dosage R²)** imputation-quality metric. The
+SW-C3 firewall also needs population/reference-panel MAF to quarantine unreliable
+imputed rare variants; Beagle's output ``AF`` is target-sample AF, so this wrapper
+does not map it into the firewall's population-AF slot.
 
 **Verified Beagle output (5.5, real run 2026-06-26):** the imputed VCF carries
-``DR2`` (Number=A dosage R², 0-1), ``AF`` (Number=A), and the ``IMP`` flag on
-markers present only in the reference (i.e. imputed, not genotyped); FORMAT is
-``GT:DS``. Imputation runs automatically when ``ref=`` has markers absent from
-``gt=``; a genetic map is supplied for accurate recombination rates.
+``DR2`` (Number=A dosage R², 0-1), target-sample ``AF`` (Number=A), and the
+``IMP`` flag on markers present only in the reference (i.e. imputed, not
+genotyped); FORMAT is ``GT:DS``. Imputation runs automatically when ``ref=`` has
+markers absent from ``gt=``; a genetic map is supplied for accurate recombination
+rates.
 
 The per-ALT result model (:class:`ImputedVariant`), the chromosome-token guard,
 and the VCF parser are the engine-agnostic ones in
@@ -90,9 +92,10 @@ def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
 
     Beagle-specialised wrapper over
     :func:`backend.analysis.imputation_vcf.parse_engine_vcf`: quality ``DR2``,
-    frequency ``AF``, imputed markers flagged by ``IMP``.
+    no population/reference-panel AF key (Beagle ``AF`` is target-sample AF), and
+    imputed markers flagged by ``IMP``.
     """
-    return parse_engine_vcf(vcf_path, quality_key="DR2", af_key="AF", imputed_flag_key="IMP")
+    return parse_engine_vcf(vcf_path, quality_key="DR2", af_key=None, imputed_flag_key="IMP")
 
 
 @dataclass
