@@ -293,6 +293,19 @@ class TestMtDNATree:
         assert "H1" in path
         assert path[-1] == "H1a"
 
+    def test_k_path_descends_through_u8(self, mt_tree: dict) -> None:
+        """#1337: PhyloTree Build 17 places mtDNA K below U8, not directly below R."""
+        path = get_path_to(mt_tree, "K")
+        assert path == ["mt-MRCA", "L3", "N", "R", "U", "U8", "K"]
+
+        r_node = find_node(mt_tree, "R")
+        assert r_node is not None
+        assert "K" not in {child["haplogroup"] for child in r_node["children"]}
+
+        u8_node = find_node(mt_tree, "U8")
+        assert u8_node is not None
+        assert "K" in {child["haplogroup"] for child in u8_node["children"]}
+
     def test_macro_haplogroup_alleles_follow_phylotree_direction(self, mt_tree: dict) -> None:
         """#1080: macro mtDNA alleles must use the forward evolutionary allele."""
 

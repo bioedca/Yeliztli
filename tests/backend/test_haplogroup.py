@@ -108,6 +108,24 @@ _H1A_GENOTYPES = [
 
 _MT_R_TRUNK_GENOTYPES = _H1A_GENOTYPES[:8]
 
+_MT_U_TRUNK_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "rs1000731", "chrom": "MT", "pos": 13133, "genotype": "TT"},
+    {"rsid": "i5012308", "chrom": "MT", "pos": 12308, "genotype": "GG"},
+    {"rsid": "i5012372", "chrom": "MT", "pos": 12372, "genotype": "AA"},
+]
+
+_MT_U8_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
+    {"rsid": "i5009698", "chrom": "MT", "pos": 9698, "genotype": "CC"},
+]
+
+_MT_K_GENOTYPES = _MT_U8_TRUNK_GENOTYPES + [
+    {"rsid": "i5001189", "chrom": "MT", "pos": 1189, "genotype": "CC"},
+    {"rsid": "i5010550", "chrom": "MT", "pos": 10550, "genotype": "GG"},
+    {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
+    {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
+    {"rsid": "i5016224", "chrom": "MT", "pos": 16224, "genotype": "CC"},
+]
+
 _MT_N1_REVERSAL_GENOTYPES = _H1A_GENOTYPES[:6] + [
     {"rsid": "i5006365", "chrom": "MT", "pos": 6365, "genotype": "CC"},
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
@@ -128,12 +146,7 @@ _MT_J_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5016069", "chrom": "MT", "pos": 16069, "genotype": "TT"},
 ]
 
-_MT_K1_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
-    {"rsid": "i5001189", "chrom": "MT", "pos": 1189, "genotype": "CC"},
-    {"rsid": "i5010550", "chrom": "MT", "pos": 10550, "genotype": "GG"},
-    {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
-    {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
-    {"rsid": "i5016224", "chrom": "MT", "pos": 16224, "genotype": "CC"},
+_MT_K1_REVERSAL_GENOTYPES = _MT_K_GENOTYPES + [
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
 ]
 
@@ -652,6 +665,16 @@ class TestTreeWalk:
         assert terminal.haplogroup == "R"
         assert [step.haplogroup for step in path] == ["L3", "N", "R"]
 
+    def test_true_k_profile_resolves_below_u8_on_real_bundle(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1337: K is a U8 descendant, so a true-K profile must not stop at U8."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _MT_K_GENOTYPES}
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "K"
+        assert [step.haplogroup for step in path] == ["L3", "N", "R", "U", "U8", "K"]
+
     def test_source_polarity_l0_resolves_on_real_bundle(self, bundle: HaplogroupBundle) -> None:
         """#1080: an L0 source-motif sample should resolve below mt-MRCA."""
         genotypes = {row["rsid"]: row["genotype"] for row in _MT_L0_GENOTYPES}
@@ -666,7 +689,7 @@ class TestTreeWalk:
             (_MT_N1_REVERSAL_GENOTYPES, ["L3", "N", "N1"]),
             (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B"]),
             (_MT_J_REVERSAL_GENOTYPES, ["L3", "N", "R", "JT", "J"]),
-            (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "K", "K1"]),
+            (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "U", "U8", "K", "K1"]),
         ],
     )
     def test_n_subset_does_not_block_descendant_reversion_markers(

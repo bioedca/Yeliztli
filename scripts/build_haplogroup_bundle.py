@@ -1502,6 +1502,8 @@ def build_mt_tree() -> dict[str, Any]:
         ],
         [k1, k2],
     )
+    # PhyloTree Build 17 places K within U8, not as a direct sibling of U.
+    u8["children"].append(k)
 
     # Assemble R branch
     r0 = _node(
@@ -1527,7 +1529,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5012705", 12705, "C"),
             _mt_snp("i5016223", 16223, "C"),
         ],
-        [r0, b, f, p, jt, u, k],
+        [r0, b, f, p, jt, u],
     )
 
     # Assemble N branch

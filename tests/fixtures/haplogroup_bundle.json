@@ -2734,6 +2734,122 @@
                                   "allele": "G"
                                 }
                               ]
+                            },
+                            {
+                              "haplogroup": "K",
+                              "defining_snps": [
+                                {
+                                  "rsid": "i5001189",
+                                  "pos": 1189,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5010550",
+                                  "pos": 10550,
+                                  "allele": "G"
+                                },
+                                {
+                                  "rsid": "i5011299",
+                                  "pos": 11299,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5014798",
+                                  "pos": 14798,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5016224",
+                                  "pos": 16224,
+                                  "allele": "C"
+                                }
+                              ],
+                              "children": [
+                                {
+                                  "haplogroup": "K1",
+                                  "defining_snps": [
+                                    {
+                                      "rsid": "i5010398",
+                                      "pos": 10398,
+                                      "allele": "G"
+                                    },
+                                    {
+                                      "rsid": "i5010550",
+                                      "pos": 10550,
+                                      "allele": "G"
+                                    }
+                                  ],
+                                  "children": [
+                                    {
+                                      "haplogroup": "K1a",
+                                      "defining_snps": [
+                                        {
+                                          "rsid": "i5001189",
+                                          "pos": 1189,
+                                          "allele": "C"
+                                        },
+                                        {
+                                          "rsid": "i5008311",
+                                          "pos": 8311,
+                                          "allele": "C"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "haplogroup": "K1b",
+                                      "defining_snps": [
+                                        {
+                                          "rsid": "i5014167",
+                                          "pos": 14167,
+                                          "allele": "T"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "haplogroup": "K1c",
+                                      "defining_snps": [
+                                        {
+                                          "rsid": "i5009716",
+                                          "pos": 9716,
+                                          "allele": "C"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "haplogroup": "K2",
+                                  "defining_snps": [
+                                    {
+                                      "rsid": "i5001189",
+                                      "pos": 1189,
+                                      "allele": "C"
+                                    }
+                                  ],
+                                  "children": [
+                                    {
+                                      "haplogroup": "K2a",
+                                      "defining_snps": [
+                                        {
+                                          "rsid": "i5009716",
+                                          "pos": 9716,
+                                          "allele": "C"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "haplogroup": "K2b",
+                                      "defining_snps": [
+                                        {
+                                          "rsid": "i5006152",
+                                          "pos": 6152,
+                                          "allele": "C"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
                             }
                           ]
                         },
@@ -2749,122 +2865,6 @@
                               "rsid": "i5011914",
                               "pos": 11914,
                               "allele": "A"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "haplogroup": "K",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5001189",
-                          "pos": 1189,
-                          "allele": "C"
-                        },
-                        {
-                          "rsid": "i5010550",
-                          "pos": 10550,
-                          "allele": "G"
-                        },
-                        {
-                          "rsid": "i5011299",
-                          "pos": 11299,
-                          "allele": "C"
-                        },
-                        {
-                          "rsid": "i5014798",
-                          "pos": 14798,
-                          "allele": "C"
-                        },
-                        {
-                          "rsid": "i5016224",
-                          "pos": 16224,
-                          "allele": "C"
-                        }
-                      ],
-                      "children": [
-                        {
-                          "haplogroup": "K1",
-                          "defining_snps": [
-                            {
-                              "rsid": "i5010398",
-                              "pos": 10398,
-                              "allele": "G"
-                            },
-                            {
-                              "rsid": "i5010550",
-                              "pos": 10550,
-                              "allele": "G"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "haplogroup": "K1a",
-                              "defining_snps": [
-                                {
-                                  "rsid": "i5001189",
-                                  "pos": 1189,
-                                  "allele": "C"
-                                },
-                                {
-                                  "rsid": "i5008311",
-                                  "pos": 8311,
-                                  "allele": "C"
-                                }
-                              ]
-                            },
-                            {
-                              "haplogroup": "K1b",
-                              "defining_snps": [
-                                {
-                                  "rsid": "i5014167",
-                                  "pos": 14167,
-                                  "allele": "T"
-                                }
-                              ]
-                            },
-                            {
-                              "haplogroup": "K1c",
-                              "defining_snps": [
-                                {
-                                  "rsid": "i5009716",
-                                  "pos": 9716,
-                                  "allele": "C"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "haplogroup": "K2",
-                          "defining_snps": [
-                            {
-                              "rsid": "i5001189",
-                              "pos": 1189,
-                              "allele": "C"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "haplogroup": "K2a",
-                              "defining_snps": [
-                                {
-                                  "rsid": "i5009716",
-                                  "pos": 9716,
-                                  "allele": "C"
-                                }
-                              ]
-                            },
-                            {
-                              "haplogroup": "K2b",
-                              "defining_snps": [
-                                {
-                                  "rsid": "i5006152",
-                                  "pos": 6152,
-                                  "allele": "C"
-                                }
-                              ]
                             }
                           ]
                         }
