@@ -25,7 +25,12 @@ from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, jobs, raw_variants, sample_metadata_table, samples
 from backend.ingestion.base import ParsedVariant, ParseResult, UnsupportedFormatError
-from backend.ingestion.dispatcher import ParserError, is_zip_archive_bytes, parse
+from backend.ingestion.dispatcher import (
+    ParserError,
+    is_zip_archive_bytes,
+    parse,
+    reject_unsupported_archive_bytes,
+)
 from backend.ingestion.liftover import lift_build36_to_grch37
 
 logger = logging.getLogger(__name__)
@@ -155,6 +160,7 @@ def _read_zip_member_bounded(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> byte
 def _normalize_upload_bytes(file_bytes: bytes, filename: str) -> tuple[bytes, str]:
     """Return parser-ready bytes and display filename for direct or ZIP uploads."""
     if not is_zip_archive_bytes(file_bytes[:512]):
+        reject_unsupported_archive_bytes(file_bytes[:512])
         return file_bytes, filename
 
     try:
