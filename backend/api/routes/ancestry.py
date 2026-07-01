@@ -298,7 +298,11 @@ def get_ancestry_findings(
         or nnls_detail.get("classification_status")
         or ("confident" if pca_detail.get("is_sufficient", False) else "uncertain")
     )
-    quality_flags = pca_detail.get("quality_flags") or nnls_detail.get("quality_flags") or []
+    quality_flags = (
+        pca_detail["quality_flags"]
+        if pca_detail.get("quality_flags") is not None
+        else nnls_detail.get("quality_flags") or []
+    )
 
     # Use NNLS finding text if available, otherwise PCA
     finding_text = (nnls_row.finding_text if nnls_row else None) or pca_row.finding_text or ""

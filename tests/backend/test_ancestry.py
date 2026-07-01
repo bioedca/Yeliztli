@@ -1049,6 +1049,37 @@ class TestStoreAncestryFindings:
         assert data["is_sufficient"] is False
         assert "Uncertain" in data["finding_text"]
 
+    def test_findings_route_preserves_empty_pca_quality_flags(
+        self,
+        small_bundle: AncestryBundle,
+        eur_sample: sa.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        result = infer_ancestry(small_bundle, eur_sample)
+        store_ancestry_findings(result, eur_sample)
+
+        with eur_sample.begin() as conn:
+            row = conn.execute(
+                sa.select(findings)
+                .where(findings.c.module == "ancestry")
+                .where(findings.c.category == "nnls_admixture")
+            ).fetchone()
+            detail = json.loads(row.detail_json)
+            detail["quality_flags"] = ["nnls_only_flag"]
+            conn.execute(
+                findings.update()
+                .where(findings.c.id == row.id)
+                .values(detail_json=json.dumps(detail))
+            )
+
+        from backend.api.routes import ancestry as ancestry_routes
+
+        monkeypatch.setattr(ancestry_routes, "_get_sample_engine", lambda _sample_id: eur_sample)
+
+        response = ancestry_routes.get_ancestry_findings(sample_id=123)
+        assert response is not None
+        assert response.quality_flags == []
+
     def test_evidence_level_2(
         self,
         small_bundle: AncestryBundle,
