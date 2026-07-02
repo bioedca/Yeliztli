@@ -29,7 +29,7 @@ These are published as GitHub release assets, pinned by version and SHA-256 chec
 
 | Bundle | Approx. size | What it provides |
 |--------|--------------|------------------|
-| **gnomAD allele frequencies** | ~1.95 GB | Population allele frequencies (and homozygous counts) — CC0 / public domain. |
+| **gnomAD allele frequencies** | ~2.85 GB | Population allele frequencies, observed allele counts, and homozygous counts — CC0 / public domain. |
 | **VEP consequence bundle** | ~360 MB | Pre-computed variant consequences, HGVS, and transcript context for the genotyped sites. |
 | **PGS scores** | ~104 MB | Polygenic-score weight sets used by the risk modules. |
 | **Ancestry PCA bundle** | ~0.4 MB | Ancestry-informative markers and PCA loadings — ships **inside the app**, no download. |

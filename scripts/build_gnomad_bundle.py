@@ -3,20 +3,20 @@
 
 A thin maintainer CLI over the retained build tooling in
 ``backend.annotation.gnomad``. It downloads the gnomAD r2.1.1 exomes sites VCF
-(GRCh37 — matching the rest of the app) and loads the allele-frequency +
-homozygous-count columns into an indexed SQLite database. The resulting
-``gnomad_af.db`` is uploaded as a GitHub Release asset and pinned in
-``bundles/manifest.json`` (see docs/release-notes/gnomad-bundle-v1.0.0.md and
+(GRCh37 — matching the rest of the app) and loads the allele-frequency,
+allele-number, and homozygous-count columns into an indexed SQLite database. The
+resulting ``gnomad_af.db`` is uploaded as a GitHub Release asset and pinned in
+``bundles/manifest.json`` (see docs/release-notes/gnomad-bundle-v1.1.0.md and
 GNOMAD_BUNDLE_PLAN.md §4).
 
-Only allele frequencies and homozygous counts are stored — no SpliceAI / CADD /
-REVEL / SIFT / PolyPhen or any academic-license-restricted predictor columns
-(those live in dbNSFP, which stays a pipeline build and is NOT redistributed).
+Only allele frequencies, observed allele counts, and homozygous counts are stored — no
+SpliceAI / CADD / REVEL / SIFT / PolyPhen or any academic-license-restricted predictor
+columns (those live in dbNSFP, which stays a pipeline build and is NOT redistributed).
 gnomAD primary AF data is CC0, so redistributing this derived file is permitted.
 
 Usage::
 
-    # Download the r2.1.1 exomes VCF (~16 GB) and build the bundle (~2 GB):
+    # Download the r2.1.1 exomes VCF (~63 GB) and build the bundle (~2.85 GB):
     python scripts/build_gnomad_bundle.py --out gnomad_af.db --work-dir /tmp/gnomad
 
     # Build from an already-downloaded VCF (skip the heavy download):
@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> None:
         if not vcf_path.exists():
             raise SystemExit(f"Error: --vcf file not found: {vcf_path}")
     else:
-        print("Downloading gnomAD sites VCF (this is large — ~16 GB)...")
+        print("Downloading gnomAD sites VCF (this is large — ~63 GB)...")
         vcf_path = download_gnomad_vcf(args.work_dir, url=args.url)
 
     print(f"Loading {vcf_path} into {args.out}...")

@@ -27,11 +27,11 @@
       "size_bytes": 414432
     },
     "gnomad": {
-      "version": "v1.0.0",
-      "build_date": "2026-06-06",
-      "url": "https://github.com/bioedca/Yeliztli/releases/download/gnomad-bundle-v1.0.0/gnomad_af.db",
-      "sha256": "8518eb9ff105646b088e761c405e993f26127bcf05fd93d47c5eeef40579ad79",
-      "size_bytes": 1952698368,
+      "version": "v1.1.0",
+      "build_date": "2026-07-02",
+      "url": "https://github.com/bioedca/Yeliztli/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db",
+      "sha256": "1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e",
+      "size_bytes": 2853896192,
       "min_app_version": "0.2.0"
     },
     "pgs_scores": {

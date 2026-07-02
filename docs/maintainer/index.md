@@ -35,6 +35,6 @@ The general release flow for every bundle is the same:
 5. **Publish** the release.
 
 !!! warning "Heavy builds belong on a cluster"
-    The large bundles (gnomAD ~16 GB of input, the LAI bundle's multi-hour training) should be
+    The large bundles (gnomAD ~63 GB of input, the LAI bundle's multi-hour training) should be
     built on a compute cluster, not a laptop — build in node-local scratch and copy only the
     final artifact back. The LAI runbook documents the SLURM flow.

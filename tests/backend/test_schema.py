@@ -200,6 +200,8 @@ class TestSampleSchema:
             "gnomad_af_asj",
             "gnomad_source_status",
             "gnomad_af_eur",
+            "gnomad_an_global",
+            "gnomad_an_popmax",
             "rare_flag",
         ]:
             assert col in cols, f"Missing column: {col}"
@@ -761,3 +763,63 @@ class TestSchemaMigration:
         assert row[0] == "rs1801133"
         assert row[1] == 0.75
         assert row[2] is None
+
+    def _create_v17_sample_db(self, db_path: Path) -> sa.Engine:
+        """Create a sample DB at v17 without gnomAD AN columns."""
+        engine = self._create_v14_sample_db(db_path)
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("ALTER TABLE annotated_variants ADD COLUMN gnomad_source_status TEXT")
+            )
+            conn.execute(
+                sa.text(
+                    "ALTER TABLE imputed_variants ADD COLUMN best_guess_copies INTEGER "
+                    "CHECK (best_guess_copies IS NULL OR best_guess_copies IN (0, 1, 2))"
+                )
+            )
+            conn.execute(sa.text("PRAGMA user_version = 17"))
+        return engine
+
+    def test_upgrade_v17_adds_gnomad_an_columns(self, tmp_path):
+        """v17 → v18 adds gnomAD AN columns to annotated_variants."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v17_sample_db(db_path)
+
+        cols_before = _get_columns(db_path, "annotated_variants")
+        assert "gnomad_an_global" not in cols_before
+        assert "gnomad_an_popmax" not in cols_before
+
+        updated = ensure_sample_schema_current(engine)
+        assert updated is True
+
+        cols_after = _get_columns(db_path, "annotated_variants")
+        for col in [
+            "gnomad_an_global",
+            "gnomad_an_afr",
+            "gnomad_an_amr",
+            "gnomad_an_asj",
+            "gnomad_an_eas",
+            "gnomad_an_eur",
+            "gnomad_an_fin",
+            "gnomad_an_sas",
+            "gnomad_an_popmax",
+        ]:
+            assert col in cols_after
+
+    def test_upgrade_v17_preserves_existing_annotated_rows(self, tmp_path):
+        """The v17 → v18 upgrade preserves annotated rows and NULLs gnomAD AN."""
+        db_path = tmp_path / "sample_001.db"
+        engine = self._create_v17_sample_db(db_path)
+        ensure_sample_schema_current(engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text(
+                    "SELECT rsid, revel, gnomad_an_global, gnomad_an_popmax "
+                    "FROM annotated_variants"
+                )
+            ).fetchone()
+        assert row[0] == "rs1801133"
+        assert row[1] == 0.75
+        assert row[2] is None
+        assert row[3] is None

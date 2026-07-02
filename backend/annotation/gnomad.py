@@ -1,13 +1,13 @@
-"""gnomAD AF-only SQLite index builder and annotation lookup.
+"""gnomAD allele-frequency SQLite index builder and annotation lookup.
 
 Downloads the gnomAD r2.1.1 exomes sites VCF, extracts allele frequency
-fields per population, and builds an indexed SQLite database
+and observed allele count fields per population, and builds an indexed SQLite database
 (``gnomad_af.db``).  Also provides batch lookup functions used by the
 annotation engine.
 
 The ``gnomad_af`` table stores one row per alternate allele with columns:
-rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj,
-af_eas, af_eur, af_fin, af_sas, homozygous_count.
+rsid, chrom, pos, ref, alt, AF and AN fields per population, and
+homozygous_count.
 
 Usage::
 
@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS gnomad_af (
     af_eur           REAL,
     af_fin           REAL,
     af_sas           REAL,
+    an_global        INTEGER,
+    an_afr           INTEGER,
+    an_amr           INTEGER,
+    an_asj           INTEGER,
+    an_eas           INTEGER,
+    an_eur           INTEGER,
+    an_fin           INTEGER,
+    an_sas           INTEGER,
     homozygous_count INTEGER DEFAULT 0,
     PRIMARY KEY (chrom, pos, ref, alt)
 )
@@ -106,10 +114,12 @@ CREATE_INDEXES_SQL = [
 _INSERT_GNOMAD_SQL = sa.text(
     "INSERT OR REPLACE INTO gnomad_af "
     "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
-    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+    "af_asj, af_eas, af_eur, af_fin, af_sas, an_global, an_afr, "
+    "an_amr, an_asj, an_eas, an_eur, an_fin, an_sas, homozygous_count) "
     "VALUES (:rsid, :chrom, :pos, :ref, :alt, :af_global, "
     ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, :af_sas, "
-    ":homozygous_count)"
+    ":an_global, :an_afr, :an_amr, :an_asj, :an_eas, :an_eur, :an_fin, "
+    ":an_sas, :homozygous_count)"
 )
 
 
@@ -133,6 +143,14 @@ class GnomADRecord:
     af_eur: float | None = None
     af_fin: float | None = None
     af_sas: float | None = None
+    an_global: int | None = None
+    an_afr: int | None = None
+    an_amr: int | None = None
+    an_asj: int | None = None
+    an_eas: int | None = None
+    an_eur: int | None = None
+    an_fin: int | None = None
+    an_sas: int | None = None
     homozygous_count: int = 0
 
 
@@ -168,6 +186,61 @@ class GnomADAnnotation:
     rare_flag: bool
     ultra_rare_flag: bool
     af_popmax: float | None = None
+    an_global: int | None = None
+    an_afr: int | None = None
+    an_amr: int | None = None
+    an_asj: int | None = None
+    an_eas: int | None = None
+    an_eur: int | None = None
+    an_fin: int | None = None
+    an_sas: int | None = None
+    an_popmax: int | None = None
+
+
+def compute_af_popmax_with_an(
+    af_global: float | None,
+    af_afr: float | None = None,
+    af_amr: float | None = None,
+    af_eas: float | None = None,
+    af_eur: float | None = None,
+    af_fin: float | None = None,
+    af_sas: float | None = None,
+    af_asj: float | None = None,
+    *,
+    an_global: int | None = None,
+    an_afr: int | None = None,
+    an_amr: int | None = None,
+    an_eas: int | None = None,
+    an_eur: int | None = None,
+    an_fin: int | None = None,
+    an_sas: int | None = None,
+    an_asj: int | None = None,
+) -> tuple[float | None, int | None]:
+    """Compute popmax AF and the observed-allele count for that population.
+
+    The order mirrors :func:`compute_af_popmax`'s historical tie-breaking so
+    existing popmax behavior is unchanged; the added return value simply carries
+    the AN paired with the selected AF.
+    """
+    pairs = [
+        (af_global, an_global),
+        (af_afr, an_afr),
+        (af_amr, an_amr),
+        (af_eas, an_eas),
+        (af_eur, an_eur),
+        (af_fin, an_fin),
+        (af_sas, an_sas),
+        (af_asj, an_asj),
+    ]
+    best_af: float | None = None
+    best_an: int | None = None
+    for af, an in pairs:
+        if af is None:
+            continue
+        if best_af is None or af > best_af:
+            best_af = af
+            best_an = an
+    return best_af, best_an
 
 
 def compute_af_popmax(
@@ -192,12 +265,10 @@ def compute_af_popmax(
     Returns:
         The maximum non-null allele frequency, or ``None`` if all are null.
     """
-    present = [
-        af
-        for af in (af_global, af_afr, af_amr, af_eas, af_eur, af_fin, af_sas, af_asj)
-        if af is not None
-    ]
-    return max(present) if present else None
+    af_popmax, _ = compute_af_popmax_with_an(
+        af_global, af_afr, af_amr, af_eas, af_eur, af_fin, af_sas, af_asj
+    )
+    return af_popmax
 
 
 def compute_rare_flags(af_popmax: float | None) -> tuple[bool, bool]:
@@ -256,6 +327,16 @@ def _parse_int(value: str | None) -> int:
         return 0
 
 
+def _parse_optional_int(value: str | None) -> int | None:
+    """Parse an optional int from a VCF INFO value."""
+    if value is None or value == "." or value == "":
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_info_field(info: str) -> dict[str, str]:
     """Parse a VCF INFO field into a dict of key=value pairs."""
     result: dict[str, str] = {}
@@ -307,6 +388,29 @@ def _info_value_for_alt(
         return value
     values = value.split(",")
     if alt_count == 1:
+        return value
+    if len(values) == alt_count:
+        return values[alt_index]
+    return None
+
+
+def _info_site_or_alt_value_for_alt(
+    info: dict[str, str],
+    key: str,
+    alt_index: int,
+    alt_count: int,
+) -> str | None:
+    """Return a site-level or ALT-specific INFO value for an ALT row.
+
+    gnomAD AN fields are site/population denominators in some VCF releases but
+    may appear as comma-aligned fields in derived fixtures. A single value is
+    valid for every ALT; a value list must match the ALT count.
+    """
+    value = info.get(key)
+    if value is None or value == "" or value == ".":
+        return value
+    values = value.split(",")
+    if len(values) == 1:
         return value
     if len(values) == alt_count:
         return values[alt_index]
@@ -389,6 +493,30 @@ def parse_gnomad_vcf_records(line: str) -> tuple[list[GnomADRecord], str | None]
             af_eur=_parse_float(_info_value_for_alt(info, "AF_nfe", alt_index, alt_count)),
             af_fin=_parse_float(_info_value_for_alt(info, "AF_fin", alt_index, alt_count)),
             af_sas=_parse_float(_info_value_for_alt(info, "AF_sas", alt_index, alt_count)),
+            an_global=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN", alt_index, alt_count)
+            ),
+            an_afr=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_afr", alt_index, alt_count)
+            ),
+            an_amr=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_amr", alt_index, alt_count)
+            ),
+            an_asj=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_asj", alt_index, alt_count)
+            ),
+            an_eas=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_eas", alt_index, alt_count)
+            ),
+            an_eur=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_nfe", alt_index, alt_count)
+            ),
+            an_fin=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_fin", alt_index, alt_count)
+            ),
+            an_sas=_parse_optional_int(
+                _info_site_or_alt_value_for_alt(info, "AN_sas", alt_index, alt_count)
+            ),
             homozygous_count=_parse_int(
                 _info_value_for_alt(info, "nhomalt", alt_index, alt_count)
             ),
@@ -475,6 +603,14 @@ def iter_gnomad_vcf(
                     "af_eur": record.af_eur,
                     "af_fin": record.af_fin,
                     "af_sas": record.af_sas,
+                    "an_global": record.an_global,
+                    "an_afr": record.an_afr,
+                    "an_amr": record.an_amr,
+                    "an_asj": record.an_asj,
+                    "an_eas": record.an_eas,
+                    "an_eur": record.an_eur,
+                    "an_fin": record.an_fin,
+                    "an_sas": record.an_sas,
                     "homozygous_count": record.homozygous_count,
                 }
 
@@ -498,8 +634,19 @@ def _create_gnomad_table(engine: sa.Engine, *, recreate_legacy_rsid_pk: bool = F
             )
         conn.execute(sa.text(CREATE_TABLE_SQL))
         existing_cols = _gnomad_table_columns(conn)
-        if "af_asj" not in existing_cols:
-            conn.execute(sa.text("ALTER TABLE gnomad_af ADD COLUMN af_asj REAL"))
+        for col_name, col_type in (
+            ("af_asj", "REAL"),
+            ("an_global", "INTEGER"),
+            ("an_afr", "INTEGER"),
+            ("an_amr", "INTEGER"),
+            ("an_asj", "INTEGER"),
+            ("an_eas", "INTEGER"),
+            ("an_eur", "INTEGER"),
+            ("an_fin", "INTEGER"),
+            ("an_sas", "INTEGER"),
+        ):
+            if col_name not in existing_cols:
+                conn.execute(sa.text(f"ALTER TABLE gnomad_af ADD COLUMN {col_name} {col_type}"))
 
 
 def _gnomad_table_primary_key(conn: sa.Connection) -> tuple[str, ...]:
@@ -520,9 +667,32 @@ def _gnomad_rsid_is_not_null(conn: sa.Connection) -> bool:
 
 
 def _gnomad_af_select_sql(conn: sa.Connection) -> str:
-    """Return AF select list, tolerating pre-ASJ read-only bundles."""
-    af_asj = "af_asj" if "af_asj" in _gnomad_table_columns(conn) else "NULL AS af_asj"
-    return f"af_global, af_afr, af_amr, {af_asj}, af_eas, af_eur, af_fin, af_sas"
+    """Return AF/AN select list, tolerating older read-only bundles."""
+    cols = _gnomad_table_columns(conn)
+
+    def _select_col(name: str) -> str:
+        return name if name in cols else f"NULL AS {name}"
+
+    return ", ".join(
+        [
+            _select_col("af_global"),
+            _select_col("af_afr"),
+            _select_col("af_amr"),
+            _select_col("af_asj"),
+            _select_col("af_eas"),
+            _select_col("af_eur"),
+            _select_col("af_fin"),
+            _select_col("af_sas"),
+            _select_col("an_global"),
+            _select_col("an_afr"),
+            _select_col("an_amr"),
+            _select_col("an_asj"),
+            _select_col("an_eas"),
+            _select_col("an_eur"),
+            _select_col("an_fin"),
+            _select_col("an_sas"),
+        ]
+    )
 
 
 def _create_gnomad_indexes(engine: sa.Engine) -> None:
@@ -649,6 +819,14 @@ def load_gnomad_from_csv(
                         "af_eur": _parse_float(row.get("af_eur")),
                         "af_fin": _parse_float(row.get("af_fin")),
                         "af_sas": _parse_float(row.get("af_sas")),
+                        "an_global": _parse_optional_int(row.get("an_global")),
+                        "an_afr": _parse_optional_int(row.get("an_afr")),
+                        "an_amr": _parse_optional_int(row.get("an_amr")),
+                        "an_asj": _parse_optional_int(row.get("an_asj")),
+                        "an_eas": _parse_optional_int(row.get("an_eas")),
+                        "an_eur": _parse_optional_int(row.get("an_eur")),
+                        "an_fin": _parse_optional_int(row.get("an_fin")),
+                        "an_sas": _parse_optional_int(row.get("an_sas")),
                         "homozygous_count": _parse_int(row.get("homozygous_count")),
                     }
                 )
@@ -717,7 +895,7 @@ def download_gnomad_vcf(
 
 def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
     """Build a lookup annotation from a gnomAD result row."""
-    popmax = compute_af_popmax(
+    popmax, an_popmax = compute_af_popmax_with_an(
         row.af_global,
         row.af_afr,
         row.af_amr,
@@ -726,6 +904,14 @@ def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
         row.af_fin,
         row.af_sas,
         af_asj=row.af_asj,
+        an_global=row.an_global,
+        an_afr=row.an_afr,
+        an_amr=row.an_amr,
+        an_eas=row.an_eas,
+        an_eur=row.an_eur,
+        an_fin=row.an_fin,
+        an_sas=row.an_sas,
+        an_asj=row.an_asj,
     )
     rare, ultra_rare = compute_rare_flags(popmax)
     return GnomADAnnotation(
@@ -742,6 +928,15 @@ def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
         rare_flag=rare,
         ultra_rare_flag=ultra_rare,
         af_popmax=popmax,
+        an_global=row.an_global,
+        an_afr=row.an_afr,
+        an_amr=row.an_amr,
+        an_asj=row.an_asj,
+        an_eas=row.an_eas,
+        an_eur=row.an_eur,
+        an_fin=row.an_fin,
+        an_sas=row.an_sas,
+        an_popmax=an_popmax,
     )
 
 

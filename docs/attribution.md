@@ -16,7 +16,7 @@ redistribution.
 
 | Source | Used for | License | Key citation |
 |--------|----------|---------|--------------|
-| **gnomAD** v2.1.1 (GRCh37) | Population allele frequencies (and homozygous counts) only | **CC0 1.0** | Karczewski et al., *Nature* 581:434 (2020), doi:10.1038/s41586-020-2308-7 |
+| **gnomAD** v2.1.1 (GRCh37) | Population allele frequencies, observed allele counts, and homozygous counts only | **CC0 1.0** | Karczewski et al., *Nature* 581:434 (2020), doi:10.1038/s41586-020-2308-7 |
 | **ClinGen** gene–disease validity | Context-only gene-validity guardrail | **CC0 1.0** (attribution requested) | Strande et al., *AJHG* 100:895 (2017), doi:10.1016/j.ajhg.2017.04.015 |
 | **AlphaMissense** (hg19) | Missense-pathogenicity context (complements REVEL) | **CC-BY-4.0** (per Zenodo record 10813168) | Cheng et al., *Science* 381:eadg7492 (2023), doi:10.1126/science.adg7492 |
 | **PharmGKB** (LoE + DPWG) | Cross-source pharmacogenomic evidence, context-only | **CC-BY-SA-4.0** (share-alike honored) | Whirl-Carrillo et al., *CPT* 110:563 (2021), doi:10.1002/cpt.2350 |

@@ -101,8 +101,11 @@ LIKELY_BENIGN = "Likely benign"
 BENIGN = "Benign"
 
 # ── Criterion thresholds (general defaults; documented + cited) ────────────────
-# BA1: MAF > 5% is stand-alone benign (Ghosh 2018, ClinGen SVI; PMID 30311383).
+# BA1: MAF > 5% is stand-alone benign only when the supporting population
+# dataset has at least 2,000 observed alleles (Ghosh 2018, ClinGen SVI;
+# PMID 30311383).
 BA1_AF_MIN = 0.05
+BA1_MIN_OBSERVED_ALLELES = 2_000
 # ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383, DOI 10.1002/humu.23642):
 # variants with population MAF > 5% for which there is evidence of pathogenicity, so the
 # stand-alone benign rule BA1 must NOT be applied — the full evidence is weighed instead.
@@ -111,9 +114,8 @@ BA1_AF_MIN = 0.05
 # (#1243/#1296). Keyed by rsID; each rsID verified against Ensembl GRCh37 (rsID ↔
 # gene/HGVSc/HGVSp + a gnomAD population AF > 5%, so this draft engine actually reaches
 # it via popmax) plus the Ghosh 2018 named exception variants. The SVI list is
-# living/curated; the ≥2,000-allele + founder-population (Finnish/ASJ) clauses of the
-# refined rule are tracked separately (require allele counts / per-population AFs not
-# yet plumbed into AcmgEvidence).
+# living/curated; the founder-population (Finnish/ASJ) clause of the refined rule is
+# tracked separately because it changes the popmax population set.
 _BA1_EXCEPTION_RSIDS: frozenset[str] = frozenset(
     {
         "rs1800562",  # HFE c.845G>A p.Cys282Tyr (C282Y) — hereditary hemochromatosis
@@ -200,6 +202,8 @@ class AcmgEvidence:
     consequence: str | None = None
     gnomad_af_global: float | None = None
     gnomad_af_popmax: float | None = None
+    gnomad_an_global: int | None = None
+    gnomad_an_popmax: int | None = None
     revel: float | None = None
     # Gene-level context from an explicit, mechanism-specific source.
     gene_lof_mechanism: bool = False  # LoF is a plausible disease mechanism for the gene
@@ -228,6 +232,13 @@ def _effective_af(ev: AcmgEvidence) -> float | None:
     if ev.gnomad_af_popmax is not None:
         return ev.gnomad_af_popmax
     return ev.gnomad_af_global
+
+
+def _effective_af_observed_alleles(ev: AcmgEvidence) -> tuple[float | None, int | None]:
+    """Return the AF and observed-allele count from the same gnomAD dataset."""
+    if ev.gnomad_af_popmax is not None:
+        return ev.gnomad_af_popmax, ev.gnomad_an_popmax
+    return ev.gnomad_af_global, ev.gnomad_an_global
 
 
 def _is_benign_af_exception(ev: AcmgEvidence) -> bool:
@@ -347,38 +358,44 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af = _effective_af(ev)
+    af, observed_alleles = _effective_af_observed_alleles(ev)
     if af is not None and af > BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # Common but with evidence of pathogenicity: generic benign frequency
             # criteria do not apply and the full evidence decides the draft
             # classification (Ghosh 2018; #1243/#1296/#1343).
             return None
+        if observed_alleles is None or observed_alleles < BA1_MIN_OBSERVED_ALLELES:
+            return None
         return AcmgCriterion(
             "BA1",
             "benign",
             "Standalone",
             _points_for("benign", "Standalone"),
-            f"Allele frequency {af:.2%} > 5% — stand-alone benign (Ghosh 2018).",
+            f"Allele frequency {af:.2%} > 5% with {observed_alleles:,} observed "
+            "alleles — stand-alone benign (Ghosh 2018).",
         )
     return None
 
 
 def criterion_bs1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af = _effective_af(ev)
+    af, observed_alleles = _effective_af_observed_alleles(ev)
     if af is not None and BS1_AF_MIN < af <= BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # BS1 is "greater than expected for the disorder"; known common
             # pathogenic / risk alleles need a disease-specific threshold rather
             # than the draft engine's generic 1% default (#1343).
             return None
+        if observed_alleles is None or observed_alleles < BA1_MIN_OBSERVED_ALLELES:
+            return None
         return AcmgCriterion(
             "BS1",
             "benign",
             "Strong",
             _points_for("benign", "Strong"),
-            f"Allele frequency {af:.2%} > 1% — higher than generally expected for a "
-            "rare Mendelian disorder (general default threshold).",
+            f"Allele frequency {af:.2%} > 1% with {observed_alleles:,} observed "
+            "alleles — higher than generally expected for a rare Mendelian disorder "
+            "(general default threshold).",
         )
     return None
 
@@ -500,6 +517,8 @@ def assess_sample_acmg(
             av.c.consequence,
             av.c.gnomad_af_global,
             av.c.gnomad_af_popmax,
+            av.c.gnomad_an_global,
+            av.c.gnomad_an_popmax,
             av.c.revel,
             av.c.clinvar_significance,
         )
@@ -543,6 +562,8 @@ def assess_sample_acmg(
             consequence=r.consequence,
             gnomad_af_global=r.gnomad_af_global,
             gnomad_af_popmax=r.gnomad_af_popmax,
+            gnomad_an_global=r.gnomad_an_global,
+            gnomad_an_popmax=r.gnomad_an_popmax,
             revel=r.revel,
             gene_lof_mechanism=lof_mechanism,
             gene_missense_z=constraint.get("mis_z") if constraint else None,

@@ -44,15 +44,13 @@ VEP_BUNDLE_SIZE_BYTES = 352_251_904
 LAI_BUNDLE_SHA256 = "36abb5f2ed95011aff1227c894f52597ef5c31adb5a132fafdf0830eabf14bff"
 LAI_BUNDLE_SIZE_BYTES = 1_723_731_810
 
-# The real gnomAD bundle v1.0.0 SHA-256 and exact size of the published
-# gnomad_af.db. Filled in by the asset-publish follow-up to PR #312 once the
-# gnomAD r2.1.1 exomes (GRCh37) bundle was built (16,761,252 VCF records parsed,
-# 14,774,008 unique rsIDs) and the draft release was confirmed reachable. Before
-# that, gnomAD stayed in pipeline_pins (deferred state). Pins bundles/manifest.json
-# against accidental rollback/drift and must byte-match the size carried by
+# The real gnomAD bundle v1.1.0 SHA-256 and exact size of the published
+# gnomad_af.db. Rebuilt for #1361 so observed allele-count columns are available
+# for ACMG BA1/BS1 data-quality guards. Pins bundles/manifest.json against
+# accidental rollback/drift and must byte-match the size carried by
 # DATABASES["gnomad"].expected_size_bytes.
-GNOMAD_BUNDLE_SHA256 = "8518eb9ff105646b088e761c405e993f26127bcf05fd93d47c5eeef40579ad79"
-GNOMAD_BUNDLE_SIZE_BYTES = 1_952_698_368
+GNOMAD_BUNDLE_SHA256 = "1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e"
+GNOMAD_BUNDLE_SIZE_BYTES = 2_853_896_192
 
 SAMPLE_PAYLOAD: dict = {
     "schema_version": 1,
@@ -670,11 +668,11 @@ class TestRepoManifest:
         # Phase E1 smoke (Plan §E1) asserts lai.min_app_version == "0.2.0".
         assert lai.min_app_version == "0.2.0"
 
-    def test_repo_manifest_gnomad_is_v1_0_0(self, monkeypatch):
+    def test_repo_manifest_gnomad_is_v1_1_0(self, monkeypatch):
         """Pins the gnomAD bundle asset-publish manifest entry against rollback.
 
-        Asset-publish follow-up to PR #312: bundles["gnomad"] was added with the
-        real gnomad-bundle-v1.0.0 asset values and pipeline_pins["gnomad"] removed.
+        # Issue #1361 rebuild: bundles["gnomad"] carries the real gnomad-bundle-v1.1.0
+        asset values with AN columns included.
         Mirrors test_repo_manifest_vep_bundle_is_v4_0_0.
         """
         repo_root = Path(__file__).resolve().parents[2]
@@ -685,9 +683,9 @@ class TestRepoManifest:
 
         m = fetch_manifest()
         gnomad = m.bundles["gnomad"]
-        assert gnomad.version == "v1.0.0"
-        assert gnomad.build_date == "2026-06-06"
-        assert gnomad.url.endswith("/gnomad-bundle-v1.0.0/gnomad_af.db")
+        assert gnomad.version == "v1.1.0"
+        assert gnomad.build_date == "2026-07-02"
+        assert gnomad.url.endswith("/gnomad-bundle-v1.1.0/gnomad_af.db")
         # Exact-equality vs the real published asset values; pins
         # bundles/manifest.json against accidental rollback or drift.
         assert gnomad.size_bytes == GNOMAD_BUNDLE_SIZE_BYTES

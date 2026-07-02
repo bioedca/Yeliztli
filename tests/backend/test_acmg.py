@@ -6,6 +6,7 @@ import pytest
 
 from backend.analysis.acmg import (
     BA1_AF_MIN,
+    BA1_MIN_OBSERVED_ALLELES,
     BENIGN,
     BS1_AF_MIN,
     LIKELY_BENIGN,
@@ -171,18 +172,73 @@ class TestOtherCriteria:
         assert criterion_pp3_bp4(AcmgEvidence(consequence="missense_variant", revel=0.5)) is None
 
     def test_ba1_common(self) -> None:
-        c = criterion_ba1(AcmgEvidence(gnomad_af_popmax=0.06))
+        c = criterion_ba1(
+            AcmgEvidence(
+                gnomad_af_popmax=0.06,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
         assert c is not None and c.strength == "Standalone" and c.points == -8
 
+    def test_ba1_requires_observed_allele_count(self) -> None:
+        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
+        assert (
+            criterion_ba1(
+                AcmgEvidence(
+                    gnomad_af_popmax=0.06,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES - 1,
+                )
+            )
+            is None
+        )
+
+    def test_ba1_global_af_uses_global_observed_allele_count(self) -> None:
+        c = criterion_ba1(
+            AcmgEvidence(
+                gnomad_af_global=0.06,
+                gnomad_an_global=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
+        assert c is not None and c.code == "BA1"
+
     def test_ba1_not_applied_below_5pct(self) -> None:
-        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=0.04)) is None
+        assert (
+            criterion_ba1(
+                AcmgEvidence(
+                    gnomad_af_popmax=0.04,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
 
     def test_ba1_boundary_is_strictly_above_cutoff(self) -> None:
         eps = BA1_AF_MIN / 100
-        just_above = criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN + eps))
+        just_above = criterion_ba1(
+            AcmgEvidence(
+                gnomad_af_popmax=BA1_AF_MIN + eps,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
         assert just_above is not None and just_above.strength == "Standalone"
-        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN)) is None
-        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN - eps)) is None
+        assert (
+            criterion_ba1(
+                AcmgEvidence(
+                    gnomad_af_popmax=BA1_AF_MIN,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
+        assert (
+            criterion_ba1(
+                AcmgEvidence(
+                    gnomad_af_popmax=BA1_AF_MIN - eps,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
 
     @pytest.mark.parametrize(
         "rsid",
@@ -218,13 +274,38 @@ class TestOtherCriteria:
     def test_ba1_still_applies_to_common_non_exception_variant(self) -> None:
         # A common variant NOT on the exception list still gets BA1 → Benign (no regression).
         result = classify_acmg(
-            AcmgEvidence(rsid="rs99999999", consequence="missense_variant", gnomad_af_popmax=0.20)
+            AcmgEvidence(
+                rsid="rs99999999",
+                consequence="missense_variant",
+                gnomad_af_popmax=0.20,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            )
         )
         assert result.classification == BENIGN
         assert any(c.code == "BA1" for c in result.criteria)
 
     def test_bs1_above_1pct(self) -> None:
-        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)).points == -4
+        assert (
+            criterion_bs1(
+                AcmgEvidence(
+                    gnomad_af_popmax=0.02,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            ).points
+            == -4
+        )
+
+    def test_bs1_requires_observed_allele_count(self) -> None:
+        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)) is None
+        assert (
+            criterion_bs1(
+                AcmgEvidence(
+                    gnomad_af_popmax=0.02,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES - 1,
+                )
+            )
+            is None
+        )
 
     @pytest.mark.parametrize(
         ("rsid", "af"),
@@ -244,12 +325,38 @@ class TestOtherCriteria:
     def test_bs1_boundary_is_above_one_pct_through_ba1_cutoff(self) -> None:
         lower_eps = BS1_AF_MIN / 10
         upper_eps = BA1_AF_MIN / 100
-        just_above_lower = criterion_bs1(AcmgEvidence(gnomad_af_popmax=BS1_AF_MIN + lower_eps))
-        at_upper = criterion_bs1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN))
+        just_above_lower = criterion_bs1(
+            AcmgEvidence(
+                gnomad_af_popmax=BS1_AF_MIN + lower_eps,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
+        at_upper = criterion_bs1(
+            AcmgEvidence(
+                gnomad_af_popmax=BA1_AF_MIN,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
         assert just_above_lower is not None and just_above_lower.points == -4
-        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=BS1_AF_MIN)) is None
+        assert (
+            criterion_bs1(
+                AcmgEvidence(
+                    gnomad_af_popmax=BS1_AF_MIN,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
         assert at_upper is not None and at_upper.points == -4
-        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=BA1_AF_MIN + upper_eps)) is None
+        assert (
+            criterion_bs1(
+                AcmgEvidence(
+                    gnomad_af_popmax=BA1_AF_MIN + upper_eps,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
 
     def test_bp7_synonymous(self) -> None:
         assert criterion_bp7(AcmgEvidence(consequence="synonymous_variant")).points == -1
@@ -332,14 +439,24 @@ class TestClassifyAcmg:
         assert {c.code for c in result.criteria} == {"PP3", "PP2", "PM2"}
 
     def test_common_variant_is_standalone_benign(self) -> None:
-        ev = AcmgEvidence(gene_symbol="G", consequence="missense_variant", gnomad_af_popmax=0.06)
+        ev = AcmgEvidence(
+            gene_symbol="G",
+            consequence="missense_variant",
+            gnomad_af_popmax=0.06,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+        )
         result = classify_acmg(ev)
         assert result.classification == BENIGN
         assert any(c.code == "BA1" for c in result.criteria)
 
     def test_moderately_common_is_likely_benign(self) -> None:
         # BS1 (-4) → Likely benign.
-        ev = AcmgEvidence(gene_symbol="G", consequence="missense_variant", gnomad_af_popmax=0.02)
+        ev = AcmgEvidence(
+            gene_symbol="G",
+            consequence="missense_variant",
+            gnomad_af_popmax=0.02,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+        )
         result = classify_acmg(ev)
         assert result.classification == LIKELY_BENIGN
 

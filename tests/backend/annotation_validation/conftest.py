@@ -99,7 +99,7 @@ DBNSFP_REAL_COLUMNS: tuple[str, ...] = (
     "PrimateAI_score",
 )
 
-# gnomad_af column order (matches _create_gnomad_table / the e2e seeder).
+# gnomad_af seed columns. Newer bundle columns may exist and are left NULL.
 _GNOMAD_COLUMNS: tuple[str, ...] = (
     "rsid",
     "chrom",
@@ -278,7 +278,10 @@ def _build_gnomad_db(db_path: Path, gnomad: list[dict]) -> None:
                 }
                 placeholders = ", ".join(f":{c}" for c in _GNOMAD_COLUMNS)
                 conn.execute(
-                    sa.text(f"INSERT INTO gnomad_af VALUES ({placeholders})"),
+                    sa.text(
+                        "INSERT INTO gnomad_af "
+                        f"({', '.join(_GNOMAD_COLUMNS)}) VALUES ({placeholders})"
+                    ),
                     values,
                 )
     finally:

@@ -32,7 +32,7 @@ verification + rollback pointer:
 - `bundle-v4.0.0.md` — the current VEP consequence bundle.
 - `bundle-v2.0.0.md` — the historical VEP union-catalog rebuild.
 - `lai-bundle-v2.0.0.md` — the local-ancestry bundle (accuracy metrics, reference panel).
-- `gnomad-bundle-v1.0.0.md` — the gnomAD allele-frequency bundle.
+- `gnomad-bundle-v1.1.0.md` — the gnomAD allele-frequency bundle.
 
 When you publish a new bundle, add a matching release note and link its rollback section to the
 relevant runbook ([VEP](../bundle-release-runbook.md) or

@@ -56,6 +56,10 @@ _VARIANTS = {
     "rs_syn": ("MISGENE", "synonymous_variant", None, None, None, "AG", "het"),
 }
 
+_GNOMAD_AN_POPMAX_BY_RSID = {
+    "rs_common": 2_000,
+}
+
 
 @pytest.fixture
 def acmg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
@@ -109,6 +113,7 @@ def acmg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     gene_symbol=gene,
                     consequence=csq,
                     gnomad_af_popmax=popmax,
+                    gnomad_an_popmax=_GNOMAD_AN_POPMAX_BY_RSID.get(rsid),
                     revel=revel,
                     clinvar_significance=clinvar,
                 )

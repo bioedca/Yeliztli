@@ -135,7 +135,10 @@ def _create_gnomad_db(db_path: Path) -> None:
                 for row in reader:
                     conn.execute(
                         sa.text(
-                            "INSERT INTO gnomad_af VALUES "
+                            "INSERT INTO gnomad_af "
+                            "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                            "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                            "VALUES "
                             "(:rsid, :chrom, :pos, :ref, :alt, :af_global, "
                             ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, "
                             ":af_sas, :homozygous_count)"

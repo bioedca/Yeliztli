@@ -33,6 +33,7 @@ from backend.annotation.gnomad import (
     _create_gnomad_indexes,
     _create_gnomad_table,
     compute_af_popmax,
+    compute_af_popmax_with_an,
     compute_rare_flags,
     iter_gnomad_vcf,
     load_gnomad_from_csv,
@@ -93,7 +94,9 @@ class TestParseGnomadVcfLine:
         line = (
             "19\t44908684\trs429358\tT\tC\t.\tPASS\t"
             "AF=0.1387;AF_afr=0.2650;AF_amr=0.1100;AF_eas=0.0890;"
-            "AF_nfe=0.1510;AF_fin=0.1630;AF_asj=0.0269;AF_sas=0.0880;nhomalt=2543"
+            "AF_nfe=0.1510;AF_fin=0.1630;AF_asj=0.0269;AF_sas=0.0880;"
+            "AN=120000;AN_afr=18000;AN_amr=16000;AN_eas=14000;AN_nfe=60000;"
+            "AN_fin=12000;AN_asj=10000;AN_sas=15000;nhomalt=2543"
         )
         record, skip = parse_gnomad_vcf_line(line)
 
@@ -112,6 +115,10 @@ class TestParseGnomadVcfLine:
         assert record.af_eur == pytest.approx(0.1510)  # AF_nfe → af_eur
         assert record.af_fin == pytest.approx(0.1630)
         assert record.af_sas == pytest.approx(0.0880)
+        assert record.an_global == 120000
+        assert record.an_afr == 18000
+        assert record.an_eur == 60000
+        assert record.an_asj == 10000
         assert record.homozygous_count == 2543
 
     def test_chr_prefix_normalization(self):
@@ -141,7 +148,8 @@ class TestParseGnomadVcfLine:
         """Multi-allelic ALT fields are split and keep matching INFO values."""
         line = (
             "1\t100\trs12345\tA\tG,T\t.\tPASS\t"
-            "AF=0.05,0.20;AF_afr=0.03,0.07;AF_asj=0.01,0.02;nhomalt=4,9"
+            "AF=0.05,0.20;AF_afr=0.03,0.07;AF_asj=0.01,0.02;"
+            "AN=10000;AN_afr=3000,4000;AN_asj=2000;nhomalt=4,9"
         )
         records, skip = parse_gnomad_vcf_records(line)
 
@@ -151,10 +159,16 @@ class TestParseGnomadVcfLine:
         assert records[0].af_global == pytest.approx(0.05)
         assert records[0].af_afr == pytest.approx(0.03)
         assert records[0].af_asj == pytest.approx(0.01)
+        assert records[0].an_global == 10000
+        assert records[0].an_afr == 3000
+        assert records[0].an_asj == 2000
         assert records[0].homozygous_count == 4
         assert records[1].af_global == pytest.approx(0.20)
         assert records[1].af_afr == pytest.approx(0.07)
         assert records[1].af_asj == pytest.approx(0.02)
+        assert records[1].an_global == 10000
+        assert records[1].an_afr == 4000
+        assert records[1].an_asj == 2000
         assert records[1].homozygous_count == 9
 
     def test_multiallelic_matching_rsid_count_maps_by_alt_order(self):
@@ -249,6 +263,7 @@ class TestIterGnomadVcf:
         assert rows[0]["af_global"] == pytest.approx(0.05)
         assert rows[0]["af_afr"] == pytest.approx(0.03)
         assert rows[0]["af_asj"] is None
+        assert rows[0]["an_global"] is None
         assert rows[0]["homozygous_count"] == 10
 
     def test_progress_callback(self, tmp_path: Path):
@@ -328,6 +343,8 @@ class TestCreateGnomadTables:
         with engine.connect() as conn:
             cols = {row[1] for row in conn.execute(sa.text("PRAGMA table_info(gnomad_af)"))}
         assert "af_asj" in cols
+        assert "an_global" in cols
+        assert "an_popmax" not in cols
 
     def test_recreates_not_null_coordinate_table_on_clear_load(self, tmp_path: Path):
         """A rebuild drops the post-#1122 coordinate schema that still required rsid."""
@@ -426,6 +443,7 @@ class TestLoadGnomadFromCsv:
         assert row.af_global == pytest.approx(0.0781)
         assert row.af_afr == pytest.approx(0.1130)
         assert row.af_asj == pytest.approx(0.0781)
+        assert row.an_global is None
         assert row.homozygous_count == 874
 
     def test_clear_existing(self, gnomad_engine: sa.Engine):
@@ -700,7 +718,10 @@ class TestRareVariantFlags:
             )
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_legacy', '1', 100, 'A', 'G', 0.002, "
                     "0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 1)"
                 )
@@ -710,6 +731,27 @@ class TestRareVariantFlags:
 
         assert annot.af_asj is None
         assert annot.af_popmax == pytest.approx(0.008)
+        assert annot.an_popmax is None
+
+    def test_lookup_returns_popmax_observed_allele_count(self, gnomad_engine: sa.Engine):
+        """The AN paired with the popmax AF is carried for ACMG BA1/BS1 guards."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, an_global, an_afr, an_amr, "
+                    "an_asj, an_eas, an_eur, an_fin, an_sas, homozygous_count) "
+                    "VALUES ('rs_an_popmax', '1', 100, 'A', 'G', "
+                    "0.02, 0.06, 0.03, 0.04, 0.01, 0.05, 0.02, 0.03, "
+                    "100000, 1800, 12000, 9000, 8000, 50000, 7000, 11000, 0)"
+                )
+            )
+
+        annot = lookup_gnomad_by_rsids(["rs_an_popmax"], gnomad_engine)["rs_an_popmax"]
+
+        assert annot.af_popmax == pytest.approx(0.06)
+        assert annot.an_popmax == 1800
 
     def test_thresholds_match_constants(self):
         """Threshold constants match PRD specs."""
@@ -900,6 +942,19 @@ class TestComputeAfPopmax:
         # …while a variant rare in every population is rare-not-ultra.
         popmax_rare = compute_af_popmax(0.0041, 0.006, 0.003)
         assert compute_rare_flags(popmax_rare) == (True, False)
+
+    def test_popmax_preserves_matching_an(self):
+        popmax, an_popmax = compute_af_popmax_with_an(
+            0.02,
+            0.06,
+            0.03,
+            an_global=100000,
+            an_afr=1800,
+            an_amr=12000,
+        )
+
+        assert popmax == pytest.approx(0.06)
+        assert an_popmax == 1800
 
 
 # ── Database index tests for rare flags (P2-10) ─────────────────────────

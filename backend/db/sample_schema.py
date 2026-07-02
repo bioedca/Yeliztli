@@ -42,7 +42,9 @@ logger = structlog.get_logger(__name__)
 #      added on existing sample DBs via ALTER TABLE in _add_missing_columns)
 # v17: Add best_guess_copies column to imputed_variants (SW-C6 — FORMAT GT/MAP
 #      ALT copy count for imputed ClinVar carriage; DS remains PRS metadata)
-SAMPLE_SCHEMA_VERSION = 17
+# v18: Add gnomAD AN columns to annotated_variants so frequency-based ACMG benign
+#      criteria can verify the supporting dataset has enough observed alleles.
+SAMPLE_SCHEMA_VERSION = 18
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -397,6 +399,39 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     )
                 logger.info(
                     "imputed_variants_best_guess_copies_column_added",
+                    from_version=from_version,
+                )
+                added = True
+
+    if from_version < 18:
+        # Issue #1361: gnomAD observed allele counts for BA1/BS1 data-quality
+        # guards. NULL on existing rows until samples are re-annotated.
+        inspector = sa.inspect(engine)
+        if "annotated_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
+            new_cols = (
+                "gnomad_an_global",
+                "gnomad_an_afr",
+                "gnomad_an_amr",
+                "gnomad_an_asj",
+                "gnomad_an_eas",
+                "gnomad_an_eur",
+                "gnomad_an_fin",
+                "gnomad_an_sas",
+                "gnomad_an_popmax",
+            )
+            added_an = False
+            with engine.begin() as conn:
+                for col in new_cols:
+                    if col not in existing_cols:
+                        conn.execute(
+                            sa.text(f"ALTER TABLE annotated_variants ADD COLUMN {col} INTEGER")
+                        )
+                        added_an = True
+            if added_an:
+                logger.info(
+                    "gnomad_an_columns_added",
+                    columns=list(new_cols),
                     from_version=from_version,
                 )
                 added = True

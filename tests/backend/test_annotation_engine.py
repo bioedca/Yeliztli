@@ -252,7 +252,10 @@ def gnomad_engine() -> sa.Engine:
             for row in reader:
                 conn.execute(
                     sa.text(
-                        "INSERT INTO gnomad_af VALUES "
+                        "INSERT INTO gnomad_af "
+                        "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                        "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                        "VALUES "
                         "(:rsid, :chrom, :pos, :ref, :alt, :af_global, "
                         ":af_afr, :af_amr, :af_asj, :af_eas, :af_eur, :af_fin, "
                         ":af_sas, :homozygous_count)"
@@ -451,7 +454,10 @@ class TestLookupGnomad:
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_rare', '1', 1, 'A', 'G', 0.005, "
                     "0.003, 0.004, 0.0045, 0.006, 0.005, 0.002, 0.007, 5)"
                 )
@@ -464,7 +470,10 @@ class TestLookupGnomad:
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_ultrarare', '1', 2, 'A', 'G', 0.00005, "
                     "0.00003, 0.00004, 0.00004, 0.00006, 0.00005, 0.00002, 0.00007, 1)"
                 )
@@ -1344,6 +1353,15 @@ class TestGnomadAnnotationLookupIntegration:
             homozygous_count=874,
             rare_flag=False,
             ultra_rare_flag=False,
+            an_global=120000,
+            an_afr=18000,
+            an_amr=16000,
+            an_asj=10000,
+            an_eas=14000,
+            an_eur=60000,
+            an_fin=12000,
+            an_sas=15000,
+            an_popmax=18000,
         )
         d = _annot_to_dict(annot)
 
@@ -1355,6 +1373,9 @@ class TestGnomadAnnotationLookupIntegration:
         assert d["gnomad_af_eur"] == pytest.approx(0.0730)
         assert d["gnomad_af_fin"] == pytest.approx(0.0410)
         assert d["gnomad_af_sas"] == pytest.approx(0.0650)
+        assert d["gnomad_an_global"] == 120000
+        assert d["gnomad_an_afr"] == 18000
+        assert d["gnomad_an_popmax"] == 18000
         assert d["gnomad_source_status"] == GNOMAD_SOURCE_OBSERVED
         assert d["gnomad_homozygous_count"] == 874
         assert d["rare_flag"] is False
@@ -1411,7 +1432,10 @@ class TestGnomadAnnotationLookupIntegration:
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_boundary', '1', 999, 'A', 'G', 0.001, "
                     "0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 2)"
                 )
@@ -1426,7 +1450,10 @@ class TestGnomadAnnotationLookupIntegration:
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_gnomad_id', '5', 500, 'C', 'T', 0.02, "
                     "0.03, 0.01, 0.022, 0.02, 0.025, 0.015, 0.018, 30)"
                 )
@@ -1557,7 +1584,10 @@ class TestGnomadAnnotationLookupIntegration:
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
-                    "INSERT INTO gnomad_af VALUES "
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, "
+                    "af_asj, af_eas, af_eur, af_fin, af_sas, homozygous_count) "
+                    "VALUES "
                     "('rs_gnomad_alias', '5', 501, 'C', 'T', 0.02, "
                     "0.03, 0.01, 0.022, 0.02, 0.025, 0.015, 0.018, 30)"
                 )

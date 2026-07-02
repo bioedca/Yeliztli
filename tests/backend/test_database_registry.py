@@ -406,7 +406,7 @@ def test_gnomad_registry_entry_is_bundled() -> None:
 
     Flipping build_mode to "bundled" + removing it from _BUILD_FN_REGISTRY routes
     the setup wizard / scheduler through run_gnomad_bundle_update (manifest
-    download) instead of the ~16 GB VCF rebuild. filename/target/required/phase
+    download) instead of the ~63 GB VCF rebuild. filename/target/required/phase
     stay put so the read path (gnomad_engine on data_dir/gnomad_af.db) is untouched.
     """
     from backend.db.database_registry import DATABASES, get_build_fn
@@ -433,7 +433,7 @@ def test_gnomad_registry_url_targets_release_asset() -> None:
     from backend.db.database_registry import DATABASES
 
     entry = DATABASES["gnomad"]
-    assert entry.url.endswith("/releases/download/gnomad-bundle-v1.0.0/gnomad_af.db")
+    assert entry.url.endswith("/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db")
 
 
 def test_gnomad_registry_matches_manifest_bundle() -> None:
