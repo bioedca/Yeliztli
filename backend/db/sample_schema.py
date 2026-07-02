@@ -44,7 +44,9 @@ logger = structlog.get_logger(__name__)
 #      ALT copy count for imputed ClinVar carriage; DS remains PRS metadata)
 # v18: Add gnomAD AN columns to annotated_variants so frequency-based ACMG benign
 #      criteria can verify the supporting dataset has enough observed alleles.
-SAMPLE_SCHEMA_VERSION = 18
+# v19: Add hla_calls table (Wave D — persisted HIBAG classical-HLA genotype calls;
+#      created on existing sample DBs via create_all(checkfirst=True))
+SAMPLE_SCHEMA_VERSION = 19
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK

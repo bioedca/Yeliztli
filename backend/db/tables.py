@@ -1003,6 +1003,35 @@ imputed_variants = sa.Table(
     ),
 )
 
+# ── HLA calls (Wave D — persisted HIBAG classical-HLA genotype calls) ─────
+# One row per classical locus (A/B/C/DRB1/DQA1/DQB1/DPB1). Populated by the
+# HIBAG predict+persist path (backend.analysis.hla_persist) when an R/HIBAG
+# runtime + a BYO ancestry model are provisioned; read by the Wave D SW-D2–D5
+# report layers via backend.analysis.hla_resolver. Alleles are 2-field/4-digit
+# (e.g. "57:01") without the locus prefix, mirroring HIBAG's output columns.
+
+hla_calls = sa.Table(
+    "hla_calls",
+    sample_metadata_obj,
+    # One genotype per locus per sample → locus is the natural key (replace on re-run).
+    sa.Column("locus", sa.Text, primary_key=True),
+    sa.Column("allele1", sa.Text, nullable=False, comment="2-field allele, e.g. '57:01'"),
+    sa.Column("allele2", sa.Text, nullable=False, comment="2-field allele, e.g. '07:02'"),
+    sa.Column("prob", sa.Float, comment="HIBAG posterior call probability (the confidence), 0-1"),
+    sa.Column(
+        "matching", sa.Float, comment="HIBAG SNP-profile match QC signal (NOT a confidence)"
+    ),
+    # prob missing or below the call threshold (Zheng 2014 recommends >= 0.5).
+    sa.Column("low_confidence", sa.Integer, nullable=False, comment="1 if below the call gate"),
+    sa.Column("ancestry_model", sa.Text, comment="Ancestry of the pre-fit model used"),
+    sa.Column("source", sa.Text, nullable=False, server_default="hibag", comment="hibag | proxy"),
+    sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "prob IS NULL OR (prob >= 0 AND prob <= 1)", name="ck_hla_calls_prob_range"
+    ),
+    sa.CheckConstraint("low_confidence IN (0, 1)", name="ck_hla_calls_low_confidence"),
+)
+
 # ── Merge Provenance (single-row, present only on merged samples) ─────
 # AncestryDNA Plan §10.4c. Created on every sample DB but only populated by
 # the merge service on merged samples. CheckConstraint enforces single row.
