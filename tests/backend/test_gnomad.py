@@ -23,6 +23,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
+import backend.annotation.gnomad as gnomad_module
 from backend.annotation.gnomad import (
     GNOMAD_BITMASK,
     LOOKUP_BATCH_SIZE,
@@ -170,6 +171,28 @@ class TestParseGnomadVcfLine:
         assert records[1].an_afr == 4000
         assert records[1].an_asj == 2000
         assert records[1].homozygous_count == 9
+
+    def test_mismatched_an_list_logs_warning(self, monkeypatch: pytest.MonkeyPatch):
+        """Malformed comma-aligned AN fields are observable instead of silent."""
+        warnings: list[tuple[str, dict[str, int | str]]] = []
+
+        class FakeLogger:
+            def warning(self, event: str, **kwargs: int | str) -> None:
+                warnings.append((event, kwargs))
+
+        monkeypatch.setattr(gnomad_module, "logger", FakeLogger())
+        line = "1\t100\trs12345\tA\tG,T\t.\tPASS\tAF=0.05,0.20;AN=100,200,300"
+
+        records, skip = parse_gnomad_vcf_records(line)
+
+        assert skip is None
+        assert [record.an_global for record in records] == [None, None]
+        assert warnings == [
+            (
+                "gnomad_info_value_count_mismatch",
+                {"field": "AN", "alt_count": 2, "value_count": 3},
+            )
+        ]
 
     def test_multiallelic_matching_rsid_count_maps_by_alt_order(self):
         """When the ID column has one rsID per ALT, preserve that order."""

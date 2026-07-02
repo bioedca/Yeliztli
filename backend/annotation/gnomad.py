@@ -74,6 +74,17 @@ GNOMAD_BITMASK = 0b000100
 RARE_AF_THRESHOLD = 0.01
 ULTRA_RARE_AF_THRESHOLD = 0.001
 
+GNOMAD_AN_INFO_KEYS = (
+    "AN",
+    "AN_afr",
+    "AN_amr",
+    "AN_asj",
+    "AN_eas",
+    "AN_nfe",
+    "AN_fin",
+    "AN_sas",
+)
+
 # ── SQL for gnomad_af table creation ──────────────────────────────────────
 
 CREATE_TABLE_SQL = """\
@@ -417,6 +428,25 @@ def _info_site_or_alt_value_for_alt(
     return None
 
 
+def _warn_site_or_alt_value_count_mismatch(
+    info: dict[str, str],
+    key: str,
+    alt_count: int,
+) -> None:
+    """Warn when a site-level-or-ALT-aligned INFO value is neither shape."""
+    value = info.get(key)
+    if value is None or value == "" or value == ".":
+        return
+    value_count = len(value.split(","))
+    if value_count not in (1, alt_count):
+        logger.warning(
+            "gnomad_info_value_count_mismatch",
+            field=key,
+            alt_count=alt_count,
+            value_count=value_count,
+        )
+
+
 def _compute_sha256(file_path: Path) -> str:
     """Compute SHA-256 checksum of a file."""
     sha = hashlib.sha256()
@@ -477,6 +507,8 @@ def parse_gnomad_vcf_records(line: str) -> tuple[list[GnomADRecord], str | None]
     # Parse INFO fields for allele frequencies
     info = _parse_info_field(info_str)
     alt_count = len(alts)
+    for an_key in GNOMAD_AN_INFO_KEYS:
+        _warn_site_or_alt_value_count_mismatch(info, an_key, alt_count)
 
     records = [
         GnomADRecord(
