@@ -17,6 +17,9 @@
 
 - Check the service logs: `journalctl --user -u yeliztli-api` (Linux/WSL2) or
   `~/Library/Logs/yeliztli-*.log` (macOS); for Docker, `docker compose logs -f`.
+  These logs may contain local sample filenames/paths, gene symbols, genomic coordinates, and
+  error details. Review and redact them before sharing, or reproduce the issue with synthetic
+  data first.
 - Confirm your machine meets the [system requirements](system-requirements.md), especially
   free disk space.
 - Open an issue at [github.com/bioedca/Yeliztli](https://github.com/bioedca/Yeliztli/issues)

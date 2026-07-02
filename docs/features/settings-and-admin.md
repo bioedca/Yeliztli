@@ -16,7 +16,9 @@ See [reference data](../install/reference-data.md) and [updating](../install/upd
 
 An admin panel showing:
 
-- **Log explorer** — search and filter structured application logs.
+- **Log explorer** — search and filter structured application logs. Log entries may include
+  local sample paths and analysis metadata such as gene symbols, coordinates, and error details;
+  review them before sharing logs from a shared or support workflow.
 - **Database stats** — row counts, file sizes, and last-modified dates.
 - **Disk usage** — storage broken down by database and sample.
 - **Database health** — each database's state (Ready / Downloading / Building / Partial /
