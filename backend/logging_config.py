@@ -16,6 +16,63 @@ import structlog
 # Guard against recursive log writes (e.g. if the DB insert triggers logging)
 _in_db_processor = contextvars.ContextVar("_in_db_processor", default=False)
 
+_REDACTED_LOG_VALUE = "[REDACTED]"
+_SENSITIVE_LOG_KEY_SUFFIXES = (
+    "_genotype",
+    "_genotypes",
+    "_diplotype",
+    "_diplotypes",
+    "_haplotype",
+    "_haplotypes",
+    "_gt",
+)
+_SENSITIVE_LOG_KEYS = {
+    "genotype",
+    "genotypes",
+    "diplotype",
+    "diplotypes",
+    "haplotype",
+    "haplotypes",
+    "gt",
+}
+
+
+def _is_sensitive_log_key(key: object) -> bool:
+    """Return True for structured log keys that carry genotype-like values."""
+    normalized = str(key).lower()
+    return normalized in _SENSITIVE_LOG_KEYS or normalized.endswith(_SENSITIVE_LOG_KEY_SUFFIXES)
+
+
+def _redact_sensitive_value(value: object) -> object:
+    """Recursively redact sensitive fields in structured containers."""
+    if isinstance(value, dict):
+        return {
+            key: (
+                _REDACTED_LOG_VALUE
+                if _is_sensitive_log_key(key)
+                else _redact_sensitive_value(nested)
+            )
+            for key, nested in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_sensitive_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_sensitive_value(item) for item in value)
+    return value
+
+
+def _redact_sensitive_log_fields(
+    logger: structlog.types.WrappedLogger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Redact genotype-like structured fields before any log sink sees them."""
+    for key, value in list(event_dict.items()):
+        event_dict[key] = (
+            _REDACTED_LOG_VALUE if _is_sensitive_log_key(key) else _redact_sensitive_value(value)
+        )
+    return event_dict
+
 
 def _db_processor_factory(engine_getter: callable) -> callable:
     """Create a structlog processor that writes log entries to reference.db.
@@ -95,6 +152,7 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
+        _redact_sensitive_log_fields,
     ]
 
     if engine_getter is not None:

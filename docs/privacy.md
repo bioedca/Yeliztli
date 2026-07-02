@@ -13,11 +13,13 @@ machine.**
   **Settings -> System Health -> Log explorer**) and renders logs to stdout, which installed
   services can capture in `journalctl`, `~/Library/Logs/yeliztli-*.log`, or Docker logs. These
   logs are for troubleshooting and can include sample filenames or local paths, gene symbols,
-  genomic coordinates, download paths, and error details. They should not contain your raw
-  genotypes, genotype calls, diplotypes, or uploaded file contents, but they can show what you
+  variant identifiers such as rsIDs, genomic coordinates, download paths, and error details.
+  New structured log entries redact genotype-like fields such as genotypes, diplotypes,
+  haplotypes, and `gt` values before they reach the Log explorer or service logs, but older logs
+  from earlier Yeliztli versions may still contain those values. Logs can still show what you
   analyzed and where files live. Yeliztli does not currently prune the `log_entries` table
-  automatically; service-log retention is controlled by your operating system, launch service,
-  or Docker runtime.
+  automatically; service-log retention is controlled by your operating system, launch service, or
+  Docker runtime.
 - Yeliztli serves its interface on `localhost` and, by default, binds only to the loopback
   address (`127.0.0.1`), so it is not reachable from other machines on your network.
   If you override the bind host to a non-loopback address for remote access, enable
@@ -108,8 +110,9 @@ does not delete your data unless you explicitly ask it to.
 
 Sample deletion does not rewrite old application logs. Earlier entries in `reference.db` or
 service logs may still mention that sample's filename/path or analysis metadata after the sample
-itself is gone. Removing the data directory removes the `reference.db` log table, but service logs
-captured outside the data directory must be cleared separately using your operating system,
+itself is gone, and logs from older Yeliztli versions may include genotype-like fields that newer
+versions redact. Removing the data directory removes the `reference.db` log table, but service
+logs captured outside the data directory must be cleared separately using your operating system,
 launch-service, or Docker log controls.
 
 !!! note "Use test fixtures for demos"
