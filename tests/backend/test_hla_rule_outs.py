@@ -56,11 +56,13 @@ class TestCeliac:
     def test_dq8_permissive(self) -> None:
         calls = [_c("DQA1", "03:01", "01:01"), _c("DQB1", "03:02", "05:01")]
         report = assess_rule_outs(calls)
+        assert report.celiac.status == CELIAC_PERMISSIVE
         assert any("DQ8" in d for d in report.celiac.detected)
 
     def test_dq22_permissive(self) -> None:
         calls = [_c("DQA1", "02:01", "01:01"), _c("DQB1", "02:02", "05:01")]
         report = assess_rule_outs(calls)
+        assert report.celiac.status == CELIAC_PERMISSIVE
         assert any("DQ2.2" in d for d in report.celiac.detected)
 
     def test_half_heterodimer_is_not_ruled_out(self) -> None:

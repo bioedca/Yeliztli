@@ -101,7 +101,9 @@ class RuleOutReport:
 
 
 _CELIAC_CITATIONS = ["PMID:31274511", "PMID:31066583", "DOI:10.1186/1423-0127-19-88"]
-_NARCO_CITATIONS = ["PMID:30321823", "PMID:9456467"]
+# Capittini 2018 meta-analysis, Mignot 1997 (carrier frequency), and Han 2012
+# (>98% of hypocretin-deficient cases carry DQB1*06:02 — the ~2%-negative caveat).
+_NARCO_CITATIONS = ["PMID:30321823", "PMID:9456467", "DOI:10.1111/j.1399-0039.2012.01948.x"]
 
 _UNAVAILABLE_NOTE = (
     "No imputed HLA calls are available for this sample. HLA imputation requires an "
