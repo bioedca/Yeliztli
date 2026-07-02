@@ -11,7 +11,7 @@ Evidence Star Criteria:
     published case-control studies with OR > 5 and p < 5×10⁻⁸.
 
   ★★★☆ (3) — Strong Evidence
-    ClinVar LP with 1-star review; CPIC Tier B; GWAS hit replicated
+    ClinVar P/LP with 1-star review; CPIC Tier B; GWAS hit replicated
     in ≥2 independent cohorts (p < 5×10⁻⁸).
 
   ★★☆☆ (2) — Moderate Evidence
@@ -133,9 +133,7 @@ def assign_clinvar_evidence_level(
             return EVIDENCE_DEFINITIVE  # 4
 
         if stars == 1:
-            if primary == "Pathogenic":
-                return EVIDENCE_DEFINITIVE  # 4
-            return EVIDENCE_STRONG  # 3 — LP with 1 star
+            return EVIDENCE_STRONG  # 3 — single-submitter P/LP
 
         # 0 review stars — cap at gene baseline or MODERATE
         if gene_baseline is not None:

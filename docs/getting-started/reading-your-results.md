@@ -26,7 +26,7 @@ Every analysis module produces **findings**, and each finding carries an **evide
 | Rating | Roughly means |
 |--------|---------------|
 | ★★★★ | Strong clinical evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (reviewed), CPIC Level A, or genome-wide-significant GWAS. |
-| ★★★ | Good evidence — e.g. Likely-Pathogenic (single submitter), CPIC Level B, or replicated GWAS. |
+| ★★★ | Good evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (single submitter), CPIC Level B, or replicated GWAS. |
 | ★★ | Moderate — e.g. a variant of uncertain significance with functional support, or a single large GWAS. |
 | ★ | Weak/preliminary — e.g. a single study or candidate-gene association. |
 

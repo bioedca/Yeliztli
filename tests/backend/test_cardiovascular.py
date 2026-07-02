@@ -553,8 +553,8 @@ class TestEvidenceLevelAssignment:
     def test_likely_pathogenic_2_stars_gives_4(self) -> None:
         assert _assign_evidence_level("Likely pathogenic", 2, 3) == 4
 
-    def test_pathogenic_1_star_gives_4(self) -> None:
-        assert _assign_evidence_level("Pathogenic", 1, 4) == 4
+    def test_pathogenic_1_star_gives_3(self) -> None:
+        assert _assign_evidence_level("Pathogenic", 1, 4) == 3
 
     def test_likely_pathogenic_1_star_gives_3(self) -> None:
         assert _assign_evidence_level("Likely pathogenic", 1, 3) == 3
@@ -1204,7 +1204,7 @@ class TestStoreCardiovascularFindings:
 
         assert evidence_map["rs28942078"] == 4  # LDLR Pathogenic 3-star
         assert evidence_map["rs121912485"] == 4  # MYBPC3 LP 2-star
-        assert evidence_map["rs120074175"] == 4  # KCNQ1 Pathogenic 1-star
+        assert evidence_map["rs120074175"] == 3  # KCNQ1 Pathogenic 1-star
         assert evidence_map["rs28937318"] == 3  # SCN5A LP 1-star
         assert evidence_map["rs28362286"] == 2  # PCSK9 Pathogenic 0-star
 

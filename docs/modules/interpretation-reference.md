@@ -16,7 +16,7 @@ frameworks:
 | Rating | Roughly corresponds to |
 |--------|------------------------|
 | ★★★★ | ClinVar **Pathogenic / Likely-Pathogenic** with a reviewed (2+ star) status, **CPIC Level A**, or a **genome-wide-significant** GWAS association (p < 5×10⁻⁸) |
-| ★★★ | ClinVar **Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated** GWAS association |
+| ★★★ | ClinVar **Pathogenic / Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated** GWAS association |
 | ★★ | A **variant of uncertain significance** with functional support, a single large GWAS, or PharmGKB level 2A/2B |
 | ★ | A single study, a candidate-gene association, or PharmGKB level 3/4 |
 

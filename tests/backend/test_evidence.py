@@ -97,14 +97,14 @@ class TestAssignClinvarEvidenceLevel:
         assert result == 4
 
     def test_pathogenic_1_star_review(self):
-        """★★★★ — ClinVar Pathogenic with 1-star review still gets 4."""
+        """★★★☆ — ClinVar Pathogenic with 1-star review."""
         result = assign_clinvar_evidence_level("Pathogenic", 1)
-        assert result == 4
+        assert result == 3
 
     def test_pathogenic_compound_1_star_review(self):
-        """★★★★ — ClinVar Pathogenic primary with 1-star review still gets 4."""
+        """★★★☆ — ClinVar Pathogenic primary with 1-star review."""
         result = assign_clinvar_evidence_level("Pathogenic|drug response", 1)
-        assert result == 4
+        assert result == 3
 
     def test_low_penetrance_not_promoted_to_definitive(self):
         """#1027 — low-penetrance P/LP is capped at MODERATE, not ordinary
@@ -317,15 +317,11 @@ class TestCapEvidenceLevel:
         assert cap_evidence_level(1, TRAITS_EVIDENCE_CAP) == 1
 
 
-# ── Integration: backward compatibility ──────────────────────────────────
+# ── Integration: shared module semantics ──────────────────────────────────
 
 
-class TestBackwardCompatibility:
-    """Verify centralized functions produce same results as old module-local functions.
-
-    The old functions in cancer.py, cardiovascular.py, carrier_status.py all
-    had identical logic. These tests confirm the centralized version matches.
-    """
+class TestSharedModuleSemantics:
+    """Verify centralized functions keep the module-facing evidence semantics."""
 
     @pytest.mark.parametrize(
         "sig,stars,baseline,expected",
@@ -333,7 +329,7 @@ class TestBackwardCompatibility:
             ("Pathogenic", 2, 4, 4),
             ("Pathogenic", 3, 4, 4),
             ("Likely pathogenic", 2, 3, 4),
-            ("Pathogenic", 1, 4, 4),
+            ("Pathogenic", 1, 4, 3),
             ("Likely pathogenic", 1, 3, 3),
             ("Pathogenic", 0, 4, 2),
             ("Pathogenic", 0, 1, 1),

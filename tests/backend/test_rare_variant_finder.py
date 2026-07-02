@@ -738,9 +738,9 @@ class TestEvidenceLevelAssignment:
         v = self._make_variant(clinvar_significance="Likely pathogenic", clinvar_review_stars=2)
         assert _assign_evidence_level(v) == 4
 
-    def test_pathogenic_1_star_gives_4(self) -> None:
+    def test_pathogenic_1_star_gives_3(self) -> None:
         v = self._make_variant(clinvar_significance="Pathogenic", clinvar_review_stars=1)
-        assert _assign_evidence_level(v) == 4
+        assert _assign_evidence_level(v) == 3
 
     def test_likely_pathogenic_1_star_gives_3(self) -> None:
         v = self._make_variant(clinvar_significance="Likely pathogenic", clinvar_review_stars=1)

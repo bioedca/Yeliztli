@@ -208,8 +208,8 @@ class TestEvidenceLevelAssignment:
     def test_likely_pathogenic_2_stars_gives_4(self) -> None:
         assert _assign_evidence_level("Likely pathogenic", 2, 3) == 4
 
-    def test_pathogenic_1_star_gives_4(self) -> None:
-        assert _assign_evidence_level("Pathogenic", 1, 4) == 4
+    def test_pathogenic_1_star_gives_3(self) -> None:
+        assert _assign_evidence_level("Pathogenic", 1, 4) == 3
 
     def test_likely_pathogenic_1_star_gives_3(self) -> None:
         assert _assign_evidence_level("Likely pathogenic", 1, 3) == 3
@@ -1042,7 +1042,7 @@ class TestStoreCancerFindings:
 
         assert evidence_map["rs80357906"] == 4  # BRCA1 Pathogenic 3-star
         assert evidence_map["rs28934578"] == 4  # TP53 LP 2-star
-        assert evidence_map["rs63751710"] == 4  # MLH1 Pathogenic 1-star
+        assert evidence_map["rs63751710"] == 3  # MLH1 Pathogenic 1-star
         assert evidence_map["rs587779317"] == 3  # ATM LP 1-star
         assert evidence_map["rs80359550"] == 2  # BRCA2 Pathogenic 0-star
 
