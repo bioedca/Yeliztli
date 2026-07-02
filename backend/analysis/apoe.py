@@ -1013,7 +1013,6 @@ def store_apoe_three_findings(
 
     logger.info(
         "apoe_three_findings_stored",
-        diplotype=result.diplotype,
         count=len(rows),
         categories=[f.category for f in apoe_findings],
     )
