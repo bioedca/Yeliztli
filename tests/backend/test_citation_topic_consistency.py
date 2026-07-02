@@ -15,8 +15,9 @@ Two committed inputs:
   ``scripts/build_pmid_metadata_snapshot.py`` (which reuses the guard's
   ``all_panel_pmids``/``all_proxy_pmids`` extraction, so both halves cover the
   same PMIDs). Never fetched at test time; regenerated deliberately.
-* The ``_GENE_TOPIC_LOCKED`` / ``_CONDITION_TOPIC_LOCKED`` registries below — the
-  **opt-in, incremental** coverage surface #277/#365 asked for.
+* The ``_GENE_TOPIC_LOCKED`` / ``_CONDITION_TOPIC_LOCKED`` /
+  ``_PER_PMID_TOPIC_LOCKED`` registries below — the **opt-in, incremental**
+  coverage surface #277/#365 asked for.
 
 **Fleet-robustness (why this can't redden main on someone else's PMID change):**
 a registered entry is *evaluated* only when it still resolves to a panel entry
@@ -28,8 +29,10 @@ only fails on a genuine, already-snapshotted transposition — exactly its purpo
 **Extending coverage:** after auditing a panel, add its ``panel::rsid`` keys to
 ``_GENE_TOPIC_LOCKED`` (gene symbol appears in ≥1 cited title) or, when the
 literature names the *condition* rather than the gene, add a
-``_CONDITION_TOPIC_LOCKED`` entry with the expected condition terms. Regenerate
-the snapshot in the same change so the new entries are covered.
+``_CONDITION_TOPIC_LOCKED`` entry with the expected condition terms. For fully
+audited rows where every PMID should be independently on-topic, add a
+``_PER_PMID_TOPIC_LOCKED`` entry with acceptable title terms. Regenerate the
+snapshot in the same change so the new entries are covered.
 """
 
 from __future__ import annotations
@@ -142,6 +145,13 @@ _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     # meta-analyses (+ a functional FokI paper).
     "skin_panel.json::rs2228570": frozenset({"vitamin", "receptor", "psoriasis", "foki"}),
     "skin_panel.json::rs1544410": frozenset({"vitamin", "receptor", "psoriasis", "bsmi"}),
+}
+
+# Fully audited entries where every snapshotted PMID must independently cite an
+# acceptable topic term. This catches mixed-in off-topic citations that the
+# union-based gene/condition locks intentionally tolerate for unaudited rows.
+_PER_PMID_TOPIC_LOCKED: dict[str, frozenset[str]] = {
+    "allergy_panel.json::rs8076131": frozenset({"ormdl3", "asthma"}),
 }
 
 # Indel-polarity provenance is discovered self-consistently with
@@ -259,9 +269,11 @@ def test_snapshot_well_formed() -> None:
 
 def test_locked_registries_are_well_formed() -> None:
     """Registry keys are ``panel::rsid``; the two registries don't overlap."""
-    for key in _GENE_TOPIC_LOCKED | set(_CONDITION_TOPIC_LOCKED):
+    for key in _GENE_TOPIC_LOCKED | set(_CONDITION_TOPIC_LOCKED) | set(_PER_PMID_TOPIC_LOCKED):
         source, _, rsid = key.partition("::")
         assert source.endswith(".json") and rsid.startswith("rs"), f"malformed key {key!r}"
+    for key, expected in _PER_PMID_TOPIC_LOCKED.items():
+        assert expected, f"{key}: expected per-PMID topic terms must be non-empty"
     for key, expected in _INDEL_POLARITY_TOPIC_LOCKED.items():
         source, _, rsid = key.partition("::")
         assert (source.endswith(".json") or source == "carrier_status.py") and rsid.startswith(
@@ -316,6 +328,29 @@ def test_condition_topic_locked_entries_cite_condition_in_title() -> None:
                 )
     assert not failures, "condition-topic-consistency failures:\n" + "\n".join(failures)
     assert evaluated, "no condition-locked entries evaluated — registry/snapshot out of sync"
+
+
+def test_per_pmid_topic_locked_entries_have_no_off_topic_citations() -> None:
+    """Every PMID on a fully audited row must independently match an expected topic."""
+    snapshot = _load_snapshot()
+    entries = _panel_entries()
+    evaluated = 0
+    failures: list[str] = []
+    for key, expected in _PER_PMID_TOPIC_LOCKED.items():
+        for entry in entries.get(key, []):
+            pmids = _entry_pmids(entry)
+            if not pmids or any(p not in snapshot for p in pmids):
+                continue
+            evaluated += 1
+            for pmid in pmids:
+                title = snapshot[pmid]["title"]
+                if not (expected & _tokens(title)):
+                    failures.append(
+                        f"{key}: PMID {pmid} title lacks expected topic terms "
+                        f"{sorted(expected)} — {title!r}"
+                    )
+    assert not failures, "per-PMID topic-consistency failures:\n" + "\n".join(failures)
+    assert evaluated, "no per-PMID topic-locked entries evaluated — registry/snapshot out of sync"
 
 
 def test_indel_polarity_entries_cite_expected_topic_in_title() -> None:

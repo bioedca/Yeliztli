@@ -67,7 +67,7 @@
             }
           },
           "evidence_level": 2,
-          "pmids": ["17611496", "20860503", "25635124", "32841424"],
+          "pmids": ["17611496", "20860503", "32841424"],
           "recommendation_text": "ORMDL3/17q21 is the most robustly replicated childhood asthma susceptibility locus. Risk allele carriers may benefit from early monitoring for respiratory symptoms, environmental trigger avoidance, and discussion with a pediatric allergist if symptoms develop."
         },
         {
