@@ -401,6 +401,12 @@ class TestPMIDs:
         assert hexa is not None
         assert {"2355960", "2220809", "2848800"} <= set(hexa.pmids)
 
+    def test_hexa_drops_hearing_loss_guideline_pmid(self, panel: CarrierPanel) -> None:
+        """PMID 30311386 is a hearing-loss ACMG/AMP specification, not HEXA evidence."""
+        hexa = panel.get_gene("HEXA")
+        assert hexa is not None
+        assert "30311386" not in hexa.pmids
+
     def test_cftr_cites_verified_cf_sources(self, panel: CarrierPanel) -> None:
         """#440 — the CFTR carrier entry must cite CFTR/CF-screening sources.
 
