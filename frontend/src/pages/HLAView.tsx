@@ -8,18 +8,34 @@
  */
 
 import { useSearchParams } from "react-router-dom"
-import { HelpCircle, Info, Moon, ShieldAlert, ShieldCheck, Syringe, Wheat } from "lucide-react"
+import {
+  AlertTriangle,
+  Download,
+  HelpCircle,
+  Info,
+  Moon,
+  ShieldAlert,
+  ShieldCheck,
+  Syringe,
+  Wheat,
+} from "lucide-react"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
-import { useHlaDrugHypersensitivity, useHlaRuleOuts, useHlaSusceptibility } from "@/api/hla"
+import {
+  useHlaAlleles,
+  useHlaDrugHypersensitivity,
+  useHlaRuleOuts,
+  useHlaSusceptibility,
+} from "@/api/hla"
 import type {
   CeliacRuleOut,
   HlaDrugRiskAssessment,
   HlaDrugRiskStatus,
   HlaSusceptibilityFinding,
   HlaSusceptibilityStatus,
+  HlaViewerResponse,
   NarcolepsyRuleOut,
 } from "@/types/hla"
 
@@ -301,12 +317,102 @@ function SusceptibilityCard({ f }: { f: HlaSusceptibilityFinding }) {
   )
 }
 
+function downloadHlaCsv(view: HlaViewerResponse, sampleId: number): void {
+  const header = ["locus", "allele1", "allele2", "prob", "low_confidence", "source", "ancestry_model"]
+  const escape = (v: string | number | boolean) => {
+    const s = String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const rows = view.alleles.map((a) =>
+    [a.locus, a.allele1, a.allele2, a.prob ?? "", a.low_confidence, a.source, a.ancestry_model ?? ""]
+      .map(escape)
+      .join(","),
+  )
+  // The never-for-transplant guard travels IN the export so it can't be detached.
+  const body = [`# ${view.transplant_guard}`, header.join(","), ...rows].join("\n") + "\n"
+  const url = URL.createObjectURL(new Blob([body], { type: "text/csv;charset=utf-8" }))
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `hla_imputed_sample_${sampleId}.csv`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function RawHlaViewer({ view, sampleId }: { view: HlaViewerResponse; sampleId: number }) {
+  return (
+    <section aria-label="Raw imputed HLA types" data-testid="hla-viewer" className="mt-8">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h2 className="text-lg font-semibold">Raw imputed HLA types</h2>
+        <button
+          type="button"
+          onClick={() => downloadHlaCsv(view, sampleId)}
+          data-testid="hla-viewer-download"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm hover:bg-muted"
+        >
+          <Download className="h-4 w-4" />
+          Download CSV
+        </button>
+      </div>
+
+      {/* Load-bearing SW-D5 guard: imputed HLA is never valid for donor matching. */}
+      <div
+        className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4 my-3"
+        data-testid="hla-transplant-guard"
+        role="alert"
+      >
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+          <p className="text-sm font-medium text-red-800 dark:text-red-300">
+            {view.transplant_guard}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Locus</th>
+              <th className="px-3 py-2 font-medium">Alleles</th>
+              <th className="px-3 py-2 font-medium">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {view.alleles.map((a) => (
+              <tr key={a.locus} className="border-t border-border" data-testid={`hla-allele-${a.locus}`}>
+                <td className="px-3 py-2 font-medium">HLA-{a.locus}</td>
+                <td className="px-3 py-2">
+                  {a.locus}*{a.allele1} / {a.locus}*{a.allele2}
+                </td>
+                <td className="px-3 py-2">
+                  {a.low_confidence ? (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      low{a.prob != null ? ` (${a.prob.toFixed(2)})` : ""}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {a.prob != null ? a.prob.toFixed(2) : "—"}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 export default function HLAView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
   const query = useHlaDrugHypersensitivity(sampleId)
   const ruleOuts = useHlaRuleOuts(sampleId)
   const susceptibility = useHlaSusceptibility(sampleId)
+  const alleles = useHlaAlleles(sampleId)
 
   if (sampleId == null) {
     return (
@@ -320,6 +426,7 @@ export default function HLAView() {
   const data = query.data
   const ro = ruleOuts.data
   const su = susceptibility.data
+  const av = alleles.data
   const sorted = data?.assessments
     ? [...data.assessments].sort((x, y) => STATUS_ORDER[x.status] - STATUS_ORDER[y.status])
     : []
@@ -432,6 +539,8 @@ export default function HLAView() {
           </div>
         </section>
       )}
+
+      {av?.available && sampleId != null && <RawHlaViewer view={av} sampleId={sampleId} />}
     </div>
   )
 }

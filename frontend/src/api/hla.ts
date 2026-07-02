@@ -6,6 +6,7 @@ import type {
   HlaDrugHypersensitivityResponse,
   HlaRuleOutsResponse,
   HlaSusceptibilityResponse,
+  HlaViewerResponse,
 } from "@/types/hla"
 
 export function useHlaDrugHypersensitivity(sampleId: number | null) {
@@ -48,6 +49,22 @@ export function useHlaSusceptibility(sampleId: number | null) {
       if (!res.ok) {
         const text = await res.text().catch(() => "")
         throw new Error(`HLA susceptibility failed: ${res.status}${text ? ` - ${text}` : ""}`)
+      }
+      return res.json()
+    },
+    enabled: sampleId != null,
+    staleTime: Infinity,
+  })
+}
+
+export function useHlaAlleles(sampleId: number | null) {
+  return useQuery({
+    queryKey: ["hla-alleles", sampleId],
+    queryFn: async (): Promise<HlaViewerResponse> => {
+      const res = await fetch(`/api/hla/alleles?sample_id=${sampleId}`)
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(`HLA alleles failed: ${res.status}${text ? ` - ${text}` : ""}`)
       }
       return res.json()
     },

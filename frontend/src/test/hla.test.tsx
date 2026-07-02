@@ -6,6 +6,7 @@ import type {
   HlaDrugHypersensitivityResponse,
   HlaRuleOutsResponse,
   HlaSusceptibilityResponse,
+  HlaViewerResponse,
 } from "@/types/hla"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
@@ -21,11 +22,13 @@ vi.mock("react-router-dom", async (importOriginal) => {
 const mockUseHlaDrug = vi.fn()
 const mockUseHlaRuleOuts = vi.fn()
 const mockUseHlaSusceptibility = vi.fn()
+const mockUseHlaAlleles = vi.fn()
 
 vi.mock("@/api/hla", () => ({
   useHlaDrugHypersensitivity: () => mockUseHlaDrug(),
   useHlaRuleOuts: () => mockUseHlaRuleOuts(),
   useHlaSusceptibility: () => mockUseHlaSusceptibility(),
+  useHlaAlleles: () => mockUseHlaAlleles(),
 }))
 
 import HLAView from "@/pages/HLAView"
@@ -109,6 +112,7 @@ beforeEach(() => {
   mockUseHlaDrug.mockReturnValue(q())
   mockUseHlaRuleOuts.mockReturnValue(q())
   mockUseHlaSusceptibility.mockReturnValue(q())
+  mockUseHlaAlleles.mockReturnValue(q())
 })
 
 const SUSCEPTIBILITY_RESPONSE: HlaSusceptibilityResponse = {
@@ -230,5 +234,68 @@ describe("HLAView autoimmune susceptibility", () => {
     render(<HLAView />)
 
     expect(screen.queryByTestId("hla-susceptibility")).not.toBeInTheDocument()
+  })
+})
+
+const VIEWER_RESPONSE: HlaViewerResponse = {
+  available: true,
+  caveat: "caveat",
+  transplant_guard:
+    "These HLA types are statistically imputed and must NEVER be used for transplant or donor matching.",
+  unavailable_note: null,
+  research_use_only: true,
+  alleles: [
+    {
+      locus: "A",
+      allele1: "01:01",
+      allele2: "02:01",
+      prob: 0.98,
+      low_confidence: false,
+      source: "hibag",
+      ancestry_model: "European",
+    },
+    {
+      locus: "B",
+      allele1: "57:01",
+      allele2: "07:02",
+      prob: 0.4,
+      low_confidence: true,
+      source: "hibag",
+      ancestry_model: "European",
+    },
+  ],
+}
+
+describe("HLAView raw viewer", () => {
+  it("renders the allele table with the never-for-transplant guard", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaAlleles.mockReturnValue(q({ data: VIEWER_RESPONSE }))
+    render(<HLAView />)
+
+    const guard = screen.getByTestId("hla-transplant-guard")
+    expect(guard).toHaveTextContent("NEVER be used for transplant")
+    expect(screen.getByTestId("hla-allele-A")).toHaveTextContent("A*01:01 / A*02:01")
+    // Low-confidence B call is flagged.
+    expect(screen.getByTestId("hla-allele-B")).toHaveTextContent("low")
+    expect(screen.getByTestId("hla-viewer-download")).toBeInTheDocument()
+  })
+
+  it("omits the viewer when no HLA calls exist", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaAlleles.mockReturnValue(
+      q({
+        data: {
+          available: false,
+          alleles: [],
+          caveat: "c",
+          transplant_guard: "g",
+          unavailable_note: "n",
+          research_use_only: true,
+        },
+      }),
+    )
+    render(<HLAView />)
+
+    expect(screen.queryByTestId("hla-viewer")).not.toBeInTheDocument()
   })
 })

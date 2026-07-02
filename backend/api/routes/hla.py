@@ -21,6 +21,7 @@ from backend.analysis.hla_drug_hypersensitivity import assess_drug_hypersensitiv
 from backend.analysis.hla_resolver import read_hla_calls
 from backend.analysis.hla_rule_outs import assess_rule_outs
 from backend.analysis.hla_susceptibility import assess_susceptibility
+from backend.analysis.hla_viewer import build_hla_viewer
 from backend.db.connection import get_registry
 from backend.db.tables import samples
 
@@ -189,5 +190,42 @@ def get_hla_susceptibility(
         available=report.available,
         findings=[SusceptibilityFindingResponse(**vars(f)) for f in report.findings],
         caveat=report.caveat,
+        unavailable_note=report.unavailable_note,
+    )
+
+
+class HlaAlleleViewResponse(BaseModel):
+    locus: str
+    allele1: str
+    allele2: str
+    prob: float | None
+    low_confidence: bool
+    source: str
+    ancestry_model: str | None
+
+
+class HlaViewerResponse(BaseModel):
+    """Raw imputed-HLA viewer/export payload for a sample."""
+
+    available: bool
+    alleles: list[HlaAlleleViewResponse] = []
+    caveat: str = ""
+    transplant_guard: str = ""
+    unavailable_note: str | None = None
+    research_use_only: bool = True
+
+
+@router.get("/alleles", response_model=HlaViewerResponse)
+def get_hla_alleles(
+    sample_id: int = Query(..., description="Sample ID"),
+) -> HlaViewerResponse:
+    """Return a sample's raw imputed HLA calls for viewing/export (never for donor matching)."""
+    engine = _get_sample_engine(sample_id)
+    report = build_hla_viewer(read_hla_calls(engine))
+    return HlaViewerResponse(
+        available=report.available,
+        alleles=[HlaAlleleViewResponse(**vars(a)) for a in report.alleles],
+        caveat=report.caveat,
+        transplant_guard=report.transplant_guard,
         unavailable_note=report.unavailable_note,
     )
