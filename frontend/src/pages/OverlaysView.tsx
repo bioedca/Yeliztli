@@ -32,6 +32,8 @@ import {
 } from "@/api/overlays"
 import type { OverlayConfig, OverlayApplyResponse } from "@/types/overlays"
 
+const OVERLAY_FILE_EXTENSION_RE = /\.(bed|vcf(?:\.gz)?)$/i
+
 export default function OverlaysView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
@@ -55,7 +57,7 @@ export default function OverlaysView() {
         <h1 className="text-2xl font-bold">Annotation Overlays</h1>
       </div>
       <p className="text-muted-foreground">
-        Upload BED or VCF files to overlay custom annotations onto your variant data.
+        Upload BED, VCF, or gzipped VCF files to overlay custom annotations onto your variant data.
       </p>
 
       <UploadPanel />
@@ -91,19 +93,17 @@ function UploadPanel() {
 
   const handleFileSelect = (file: File) => {
     // Guard both entry points: the picker's `accept` only filters the OS dialog,
-    // so a *dropped* file can still be an unsupported type. The backend reads
-    // uploads as UTF-8 text with no gzip path, so reject anything but plain-text
-    // .bed/.vcf here with a clear message rather than a confusing 400 (#1299).
-    if (!/\.(bed|vcf)$/i.test(file.name)) {
+    // so a dropped file can still be an unsupported type.
+    if (!OVERLAY_FILE_EXTENSION_RE.test(file.name)) {
       setSelectedFile(null)
-      setFileError("Only plain-text .bed and .vcf files are supported.")
+      setFileError("Only .bed, .vcf, and .vcf.gz files are supported.")
       previewMutation.reset()
       return
     }
     setFileError(null)
     setSelectedFile(file)
     if (!name) {
-      setName(file.name.replace(/\.(bed|vcf)$/i, ""))
+      setName(file.name.replace(OVERLAY_FILE_EXTENSION_RE, ""))
     }
     previewMutation.mutate(file)
   }
@@ -156,15 +156,12 @@ function UploadPanel() {
         <p className="text-sm text-muted-foreground">
           {selectedFile
             ? `Selected: ${selectedFile.name}`
-            : "Drop a BED or VCF file here, or click to browse"}
+            : "Drop a BED, VCF, or gzipped VCF file here, or click to browse"}
         </p>
         <input
           ref={fileInputRef}
           type="file"
-          // Plain-text only: the backend reads uploads as UTF-8 text with no gzip
-          // path, so do not advertise .vcf.gz here (#1299). Bounded-gzip support
-          // is tracked as a follow-up.
-          accept=".bed,.vcf"
+          accept=".bed,.vcf,.vcf.gz"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -173,7 +170,7 @@ function UploadPanel() {
         />
       </button>
 
-      {/* Rejected file type (unsupported extension, e.g. a dropped .vcf.gz) */}
+      {/* Rejected file type (unsupported extension from drag-and-drop) */}
       {fileError && <p className="text-sm text-destructive">{fileError}</p>}
 
       {/* Preview error */}
@@ -281,7 +278,7 @@ function OverlayList({
   if (overlays.length === 0) {
     return (
       <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
-        No overlays uploaded yet. Upload a BED or VCF file above to get started.
+        No overlays uploaded yet. Upload a BED, VCF, or gzipped VCF file above to get started.
       </div>
     )
   }

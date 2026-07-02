@@ -128,34 +128,52 @@ describe("OverlaysView", () => {
     expect(screen.getByText("Upload Overlay File")).toBeInTheDocument()
   })
 
-  it("file picker advertises only plain-text .bed/.vcf (no .vcf.gz — backend has no gzip path, #1299)", () => {
+  it("file picker advertises .bed, .vcf, and bounded .vcf.gz support (#1364)", () => {
     mockOverlaysFetch()
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
     const input = document.querySelector('input[type="file"]') as HTMLInputElement | null
     expect(input).not.toBeNull()
-    // Must match the backend, which decodes uploads as UTF-8 text and cannot
-    // parse gzip — advertising .vcf.gz produced a confusing 400 on upload.
-    expect(input?.accept).toBe(".bed,.vcf")
+    expect(input?.accept).toBe(".bed,.vcf,.vcf.gz")
   })
 
-  it("rejects an unsupported dropped file (.vcf.gz) client-side, not via a backend 400 (#1299)", () => {
-    // The picker `accept` does not constrain drag-and-drop, so the common
-    // handler must reject unsupported extensions before any upload.
-    mockOverlaysFetch()
+  it("accepts a dropped .vcf.gz and sends it to preview (#1364)", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/overlays") {
+        return {
+          ok: true,
+          json: async () => MOCK_OVERLAYS,
+          text: async () => JSON.stringify(MOCK_OVERLAYS),
+        }
+      }
+      if (url === "/api/overlays/parse") {
+        return {
+          ok: true,
+          json: async () => ({
+            file_type: "vcf",
+            column_names: ["AF"],
+            record_count: 1,
+            warnings: [],
+          }),
+          text: async () => "",
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
     const dropZone = screen
-      .getByText("Drop a BED or VCF file here, or click to browse")
+      .getByText("Drop a BED, VCF, or gzipped VCF file here, or click to browse")
       .closest("button") as HTMLElement
     const fetchCallsBeforeDrop = mockFetch.mock.calls.length
     const gzFile = new File(["x"], "track.vcf.gz", { type: "application/gzip" })
     fireEvent.drop(dropZone, { dataTransfer: { files: [gzFile] } })
-    expect(
-      screen.getByText("Only plain-text .bed and .vcf files are supported.")
-    ).toBeInTheDocument()
-    // Rejected before any network call — no preview/upload request is issued.
-    expect(mockFetch.mock.calls).toHaveLength(fetchCallsBeforeDrop)
-    // The file is not accepted for upload.
-    expect(screen.queryByText(/Selected: track\.vcf\.gz/)).not.toBeInTheDocument()
+
+    expect(screen.getByText(/Selected: track\.vcf\.gz/)).toBeInTheDocument()
+    await waitFor(() => expect(mockFetch.mock.calls.length).toBe(fetchCallsBeforeDrop + 1))
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/overlays/parse",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) })
+    )
   })
 
   it("shows page heading", () => {
@@ -180,7 +198,9 @@ describe("OverlaysView", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("No overlays uploaded yet. Upload a BED or VCF file above to get started.")
+        screen.getByText(
+          "No overlays uploaded yet. Upload a BED, VCF, or gzipped VCF file above to get started."
+        )
       ).toBeInTheDocument()
     })
   })
@@ -199,7 +219,7 @@ describe("OverlaysView", () => {
     mockOverlaysFetch()
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
     expect(
-      screen.getByText("Drop a BED or VCF file here, or click to browse")
+      screen.getByText("Drop a BED, VCF, or gzipped VCF file here, or click to browse")
     ).toBeInTheDocument()
   })
 

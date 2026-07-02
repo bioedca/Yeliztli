@@ -16,6 +16,7 @@ in variant table.
 
 from __future__ import annotations
 
+import gzip
 import io
 from collections.abc import Generator
 from pathlib import Path
@@ -25,6 +26,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.vcfanno_runner import MAX_OVERLAY_FILE_SIZE
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -43,6 +45,13 @@ RAW_VARIANTS_DATA = [
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
 ]
+
+OVERLAY_VCF_BYTES = (
+    b"##fileformat=VCFv4.2\n"
+    b'##INFO=<ID=AF,Number=A,Type=Float,Description="AF">\n'
+    b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+    b"1\t100000\trs12345\tA\tG\t.\tPASS\tAF=0.05\n"
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -122,20 +131,50 @@ class TestParseOverlay:
         assert len(data["column_names"]) > 0
 
     def test_parse_vcf(self, overlay_client: TestClient) -> None:
-        content = (
-            b"##fileformat=VCFv4.2\n"
-            b'##INFO=<ID=AF,Number=A,Type=Float,Description="AF">\n'
-            b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            b"1\t100000\trs12345\tA\tG\t.\tPASS\tAF=0.05\n"
-        )
         resp = overlay_client.post(
             "/api/overlays/parse",
-            files={"file": ("test.vcf", io.BytesIO(content), "text/plain")},
+            files={"file": ("test.vcf", io.BytesIO(OVERLAY_VCF_BYTES), "text/plain")},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["file_type"] == "vcf"
         assert "AF" in data["column_names"]
+
+    def test_parse_vcf_gz(self, overlay_client: TestClient) -> None:
+        resp = overlay_client.post(
+            "/api/overlays/parse",
+            files={
+                "file": (
+                    "test.vcf.gz",
+                    io.BytesIO(gzip.compress(OVERLAY_VCF_BYTES)),
+                    "application/gzip",
+                )
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["file_type"] == "vcf"
+        assert data["record_count"] == 1
+        assert "AF" in data["column_names"]
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "/api/overlays/parse",
+            "/api/overlays/upload?name=Bomb",
+        ],
+    )
+    def test_rejects_gzip_bomb(self, overlay_client: TestClient, endpoint: str) -> None:
+        expanded = b"#" * (MAX_OVERLAY_FILE_SIZE + 1)
+        compressed = gzip.compress(expanded)
+        assert len(compressed) < MAX_OVERLAY_FILE_SIZE
+
+        resp = overlay_client.post(
+            endpoint,
+            files={"file": ("bomb.vcf.gz", io.BytesIO(compressed), "application/gzip")},
+        )
+        assert resp.status_code == 413
+        assert "expands beyond" in resp.json()["detail"]
 
     def test_parse_invalid_file(self, overlay_client: TestClient) -> None:
         content = b""
@@ -169,6 +208,27 @@ class TestOverlayCRUD:
         items = resp.json()["items"]
         assert len(items) == 1
         assert items[0]["id"] == overlay_id
+
+    def test_upload_vcf_gz_and_apply(self, overlay_client: TestClient) -> None:
+        resp = overlay_client.post(
+            "/api/overlays/upload?name=Gzipped+VCF&description=A+test",
+            files={
+                "file": (
+                    "custom.vcf.gz",
+                    io.BytesIO(gzip.compress(OVERLAY_VCF_BYTES)),
+                    "application/gzip",
+                )
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["overlay"]["file_type"] == "vcf"
+        assert data["overlay"]["column_names"] == ["AF"]
+        overlay_id = data["overlay"]["id"]
+
+        resp = overlay_client.post(f"/api/overlays/{overlay_id}/apply?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.json()["variants_matched"] == 1
 
     def test_get_overlay(self, overlay_client: TestClient) -> None:
         content = b"chr1\t100\t200\tGENE1\n"

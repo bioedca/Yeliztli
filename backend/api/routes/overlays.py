@@ -14,7 +14,10 @@ GET    /api/overlays/{overlay_id}/results — Get overlay results for a sample
 
 from __future__ import annotations
 
+import gzip
+import io
 import logging
+import zlib
 from typing import Any
 
 import sqlalchemy as sa
@@ -41,6 +44,10 @@ from backend.db.tables import samples
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/overlays", tags=["overlays"])
+
+MAX_OVERLAY_DECOMPRESSED_SIZE = MAX_OVERLAY_FILE_SIZE
+_GZIP_MAGIC = b"\x1f\x8b"
+_GZIP_READ_CHUNK_SIZE = 64 * 1024
 
 
 # ── Request / response models ────────────────────────────────────────
@@ -133,18 +140,8 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return registry.get_sample_engine(sample_db_path)
 
 
-# ── Endpoints ────────────────────────────────────────────────────────
-
-
-@router.post("/parse")
-async def parse_overlay_preview(file: UploadFile) -> OverlayParsePreviewResponse:
-    """Parse an overlay file without saving (preview mode).
-
-    Accepts .bed or .vcf files. Returns detected format, column names,
-    record count, and any parse warnings.
-
-    Example: ``POST /api/overlays/parse`` with multipart file upload.
-    """
+async def _read_overlay_upload_text(file: UploadFile) -> str:
+    """Read an uploaded overlay as UTF-8 text, with bounded gzip expansion."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
 
@@ -155,10 +152,64 @@ async def parse_overlay_preview(file: UploadFile) -> OverlayParsePreviewResponse
             detail=f"File too large. Maximum size is {MAX_OVERLAY_FILE_SIZE // 1024} KB.",
         )
 
+    if _is_gzip_upload(content_bytes, file.filename):
+        content_bytes = _decompress_gzip_with_limit(content_bytes)
+
     try:
-        content = content_bytes.decode("utf-8")
+        return content_bytes.decode("utf-8")
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="File must be UTF-8 encoded text.") from None
+
+
+def _is_gzip_upload(content_bytes: bytes, filename: str) -> bool:
+    lower_name = filename.lower()
+    return content_bytes.startswith(_GZIP_MAGIC) or lower_name.endswith(".gz")
+
+
+def _decompress_gzip_with_limit(content_bytes: bytes) -> bytes:
+    chunks: list[bytes] = []
+    decompressed_size = 0
+
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(content_bytes), mode="rb") as gz:
+            while True:
+                chunk = gz.read(_GZIP_READ_CHUNK_SIZE)
+                if not chunk:
+                    break
+                decompressed_size += len(chunk)
+                if decompressed_size > MAX_OVERLAY_DECOMPRESSED_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            "Gzip-compressed overlay expands beyond the "
+                            f"{MAX_OVERLAY_DECOMPRESSED_SIZE // 1024} KB limit."
+                        ),
+                    )
+                chunks.append(chunk)
+    except HTTPException:
+        raise
+    except (EOFError, OSError, zlib.error):
+        raise HTTPException(
+            status_code=422,
+            detail="Gzip-compressed overlay files must be valid gzip data.",
+        ) from None
+
+    return b"".join(chunks)
+
+
+# ── Endpoints ────────────────────────────────────────────────────────
+
+
+@router.post("/parse")
+async def parse_overlay_preview(file: UploadFile) -> OverlayParsePreviewResponse:
+    """Parse an overlay file without saving (preview mode).
+
+    Accepts .bed, .vcf, or .vcf.gz files. Returns detected format, column names,
+    record count, and any parse warnings.
+
+    Example: ``POST /api/overlays/parse`` with multipart file upload.
+    """
+    content = await _read_overlay_upload_text(file)
 
     try:
         parsed = detect_and_parse_overlay(content, file.filename)
@@ -181,25 +232,12 @@ async def upload_overlay(
 ) -> OverlayUploadResponse:
     """Upload an overlay file, parse it, and save config to the database.
 
-    Accepts .bed or .vcf files containing annotation data. The parsed
+    Accepts .bed, .vcf, or .vcf.gz files containing annotation data. The parsed
     overlay config is stored and can be applied to samples.
 
     Example: ``POST /api/overlays/upload?name=My+Overlay`` with multipart file upload.
     """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided.")
-
-    content_bytes = await file.read()
-    if len(content_bytes) > MAX_OVERLAY_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File too large. Maximum size is {MAX_OVERLAY_FILE_SIZE // 1024} KB.",
-        )
-
-    try:
-        content = content_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded text.") from None
+    content = await _read_overlay_upload_text(file)
 
     try:
         parsed = detect_and_parse_overlay(content, file.filename)
