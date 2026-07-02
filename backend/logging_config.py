@@ -27,9 +27,13 @@ _SENSITIVE_LOG_KEY_SUFFIXES = (
     "_gt",
 )
 _SENSITIVE_LOG_KEYS = {
+    "e4_count",
+    "e4_present",
     "genotype",
     "genotypes",
+    "has_e4",
     "diplotype",
+    "diplotypes",
     "haplotype",
     "haplotypes",
     "gt",

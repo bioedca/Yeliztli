@@ -20,9 +20,12 @@ from backend.logging_config import (
 def test_redact_sensitive_log_fields_recursively() -> None:
     event_dict = {
         "event": "analysis_event",
+        "has_e4": True,
+        "e4_count": 1,
         "genotype": "AG",
         "call_confidence": "high",
-        "diplotypes": 42,
+        "diplotypes": ["epsilon3/epsilon4"],
+        "diplotype_count": 42,
         "rs429358_genotype": "GG",
         "nested": {"diplotype": "*1/*2", "gene": "CYP2C19"},
         "items": [{"haplotype": "H1", "rsid": "rs123"}],
@@ -31,10 +34,13 @@ def test_redact_sensitive_log_fields_recursively() -> None:
 
     redacted = _redact_sensitive_log_fields(None, "info", event_dict)
 
+    assert redacted["has_e4"] == _REDACTED_LOG_VALUE
+    assert redacted["e4_count"] == _REDACTED_LOG_VALUE
     assert redacted["genotype"] == _REDACTED_LOG_VALUE
     assert redacted["rs429358_genotype"] == _REDACTED_LOG_VALUE
     assert redacted["call_confidence"] == "high"
-    assert redacted["diplotypes"] == 42
+    assert redacted["diplotypes"] == _REDACTED_LOG_VALUE
+    assert redacted["diplotype_count"] == 42
     assert redacted["nested"] == {
         "diplotype": _REDACTED_LOG_VALUE,
         "gene": "CYP2C19",

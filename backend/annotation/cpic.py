@@ -392,7 +392,7 @@ def load_cpic_into_db(
     logger.info(
         "cpic_loaded",
         alleles=stats.alleles_loaded,
-        diplotypes=stats.diplotypes_loaded,
+        diplotype_count=stats.diplotypes_loaded,
         guidelines=stats.guidelines_loaded,
         genes=sorted(stats.genes_found),
     )
