@@ -217,3 +217,79 @@ class TestPredictAndPersist:
         rows = {r["locus"]: r for r in _read_calls(sample_engine)}
         assert set(rows) == {"A", "B"}
         assert rows["B"]["ancestry_model"] == "European"
+
+    def test_input_prep_io_error_is_failed_not_no_input(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        # A genuine I/O error preparing input must report `failed`, never crash and
+        # never masquerade as the legitimate `no_input` empty result.
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("backend.analysis.hla_persist.write_hibag_plink_input", _boom)
+        stub = _StubRunner(
+            HibagResult(return_ok=True, calls=[_call("A", "01:01", "02:01", 0.9, False)])
+        )
+        result = predict_and_persist_hla_calls(
+            sample_engine,
+            tmp_path / "work",
+            rscript=None,
+            model_dir=None,
+            ancestry="European",
+            runner=stub,
+        )
+        assert result.status == STATUS_FAILED
+        assert stub.received is None  # never reached HIBAG
+        assert _read_calls(sample_engine) == []
+
+    def test_persist_db_error_leaves_table_untouched(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        persist_hla_calls(
+            sample_engine, [_call("C", "06:02", "07:01", 0.9, False)]
+        )  # prior snapshot
+        _insert_variants(sample_engine, [_row("rs_hla", "6", 31_431_780, "T", "G", "het")])
+
+        def _boom(*a, **k):
+            raise sa.exc.SQLAlchemyError("db locked")
+
+        monkeypatch.setattr("backend.analysis.hla_persist.persist_hla_calls", _boom)
+        stub = _StubRunner(
+            HibagResult(return_ok=True, calls=[_call("A", "01:01", "02:01", 0.9, False)])
+        )
+        result = predict_and_persist_hla_calls(
+            sample_engine,
+            tmp_path / "work",
+            rscript=None,
+            model_dir=None,
+            ancestry="European",
+            runner=stub,
+        )
+        assert result.status == STATUS_FAILED
+        # Prior snapshot preserved (the failing persist was the monkeypatched one).
+        assert {r["locus"] for r in _read_calls(sample_engine)} == {"C"}
+
+    def test_runner_construction_filenotfound_is_unavailable(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        # detect_rscript + resolve_model pass, but building HibagRunner raises
+        # FileNotFoundError (e.g. the bundled R script missing) -> graceful unavailable.
+        fake_rscript = tmp_path / "Rscript"
+        fake_rscript.write_text("#!/bin/sh\n")
+        fake_rscript.chmod(0o755)
+        (tmp_path / "European-HLA4.RData").write_bytes(b"model")
+        _insert_variants(sample_engine, [_row("rs_hla", "6", 31_431_780, "T", "G", "het")])
+
+        def _boom(*a, **k):
+            raise FileNotFoundError("HIBAG R script not found")
+
+        monkeypatch.setattr("backend.analysis.hla_persist.HibagRunner", _boom)
+        result = predict_and_persist_hla_calls(
+            sample_engine,
+            tmp_path / "work",
+            rscript=fake_rscript,
+            model_dir=tmp_path,
+            ancestry="European",
+        )
+        assert result.status == STATUS_UNAVAILABLE
+        assert _read_calls(sample_engine) == []

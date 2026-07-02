@@ -118,12 +118,14 @@ def predict_and_persist_hla_calls(
     """Prepare → predict → persist a sample's classical HLA calls.
 
     Writes the PLINK input under ``work_dir/input`` and the HIBAG output under
-    ``work_dir/out``, then persists the per-locus calls. **Never raises** for a
-    missing runtime/model or a failed run — it reports the outcome via
-    ``status``: ``unavailable`` (no Rscript, or no ``{ancestry}-HLA4.RData``),
-    ``no_input`` (no usable HLA-region SNP in the sample), ``failed`` (the HIBAG
-    run errored), or ``ok``. On any non-``ok`` outcome the ``hla_calls`` table is
-    left untouched (a partial/failed run never overwrites a prior good snapshot).
+    ``work_dir/out``, then persists the per-locus calls. **Never raises** — every
+    outcome is reported via ``status`` so a route/driver caller does not crash:
+    ``unavailable`` (no Rscript, no ``{ancestry}-HLA4.RData``, or the bundled R
+    script is missing), ``no_input`` (no usable HLA-region SNP in the sample),
+    ``failed`` (the HIBAG run errored, or an I/O / database error while preparing
+    input or persisting), or ``ok``. On any non-``ok`` outcome the ``hla_calls``
+    table is left untouched (a partial/failed run never overwrites a prior good
+    snapshot).
 
     ``runner`` is injectable for testing; in production it is built from
     ``rscript``/``model_dir`` only once availability is confirmed.
@@ -143,11 +145,20 @@ def predict_and_persist_hla_calls(
                 detail=f"no HIBAG model for ancestry {ancestry!r} in {model_dir} (BYO model).",
             )
 
-    # 2. Prepare the classical-HLA-region PLINK input.
+    # 2. Prepare the classical-HLA-region PLINK input (an I/O / DB error here is a
+    #    genuine failure, distinct from the legitimate "no usable SNP" empty result).
     work_dir = Path(work_dir)
-    input_result = write_hibag_plink_input(
-        sample_engine, work_dir / "input" / "sample", region=region, sample_name=sample_name
-    )
+    try:
+        input_result = write_hibag_plink_input(
+            sample_engine, work_dir / "input" / "sample", region=region, sample_name=sample_name
+        )
+    except (OSError, sa.exc.SQLAlchemyError) as exc:
+        logger.error("hla_input_prep_failed", error_type=type(exc).__name__)
+        return HlaPredictPersistResult(
+            status=STATUS_FAILED,
+            ancestry=ancestry,
+            detail=f"failed to prepare HLA-region PLINK input: {type(exc).__name__}",
+        )
     if input_result.plink_prefix is None:
         return HlaPredictPersistResult(
             status=STATUS_NO_INPUT,
@@ -155,10 +166,20 @@ def predict_and_persist_hla_calls(
             detail=f"no HLA-region SNP in {region.chrom}:{region.start}-{region.end}.",
         )
 
-    # 3. Run HIBAG.
-    active_runner = (
-        runner if runner is not None else HibagRunner(rscript=rscript, model_dir=model_dir)
-    )
+    # 3. Run HIBAG. Building HibagRunner can still raise FileNotFoundError (e.g. the
+    #    bundled R script missing, or Rscript vanished after the guard) — treat that
+    #    as an availability problem rather than letting it escape.
+    if runner is not None:
+        active_runner = runner
+    else:
+        try:
+            active_runner = HibagRunner(rscript=rscript, model_dir=model_dir)
+        except FileNotFoundError as exc:
+            return HlaPredictPersistResult(
+                status=STATUS_UNAVAILABLE,
+                ancestry=ancestry,
+                detail=str(exc),
+            )
     result = active_runner.predict_for_ancestry(
         input_result.plink_prefix,
         ancestry,
@@ -176,8 +197,19 @@ def predict_and_persist_hla_calls(
             detail=result.stderr_tail or "HIBAG run failed",
         )
 
-    # 4. Persist.
-    n_persisted = persist_hla_calls(sample_engine, result.calls, ancestry_model=ancestry)
+    # 4. Persist (a DB error here must not escape the graceful contract).
+    try:
+        n_persisted = persist_hla_calls(sample_engine, result.calls, ancestry_model=ancestry)
+    except sa.exc.SQLAlchemyError as exc:
+        logger.error("hla_calls_persist_failed", error_type=type(exc).__name__)
+        return HlaPredictPersistResult(
+            status=STATUS_FAILED,
+            ancestry=ancestry,
+            n_input_snps=input_result.n_emitted,
+            n_calls=len(result.calls),
+            runtime_seconds=result.runtime_seconds,
+            detail=f"failed to persist HLA calls: {type(exc).__name__}",
+        )
     logger.info(
         "hla_predict_persist_complete",
         ancestry=ancestry,
