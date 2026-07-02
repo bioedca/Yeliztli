@@ -1,8 +1,8 @@
 # gnomAD Bundle v1.1.0
 
 > **Status:** PENDING PUBLICATION. The `gnomad-bundle-v1.1.0` release asset
-> (`gnomad_af.db`) rebuilds the gnomAD r2.1.1 exomes bundle with observed allele
-> count (`AN`) columns for ACMG BA1/BS1 data-quality guards.
+> (`gnomad_af.db.gz`) rebuilds the gnomAD r2.1.1 exomes bundle with observed
+> allele count (`AN`) columns for ACMG BA1/BS1 data-quality guards.
 
 - **Dataset source**: [gnomAD (Genome Aggregation Database)](https://gnomad.broadinstitute.org/)
 - **Version**: gnomAD v2.1.1 exomes (GRCh37) - `release/2.1.1` sites VCF
@@ -19,14 +19,19 @@
   REVEL / SIFT / PolyPhen or any academic-license-restricted predictor columns -
   those live in dbNSFP, which is NOT redistributed.
 - **Build date**: `2026-07-02`
-- **Bundle SHA-256**: `1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e`
-- **Bundle size**: `2853896192` bytes (approx. 2.66 GiB / approx. 2.85 GB)
+- **Release asset SHA-256** (`gnomad_af.db.gz`):
+  `6e5097687001744a9a8533b8b5cbf19f7ad723229ec1e74a04a4890cd55ef32c`
+- **Release asset size**: `1301509755` bytes (approx. 1.21 GiB / approx. 1.30 GB)
+- **Installed SQLite SHA-256** (`gnomad_af.db`):
+  `1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e`
+- **Installed SQLite size**: `2853896192` bytes (approx. 2.66 GiB / approx. 2.85 GB)
 - **min_app_version**: `0.2.0`
 - **Built by**: `scripts/build_gnomad_bundle.py` on SLURM job `458`
   (downloads the r2.1.1 exomes sites VCF and loads AF/AN data via
   `backend.annotation.gnomad.load_gnomad_from_vcf`; table created, bulk insert,
-  indexes built post-load, WAL checkpointed). Shipped **uncompressed** (no gzip -
-  there is no decompress `post_download` hook for standalone `.db` files).
+  indexes built post-load, WAL checkpointed). Shipped as a gzip-compressed
+  release asset to fit GitHub's asset-size limit; the app installs the
+  decompressed SQLite file as `gnomad_af.db`.
 
 ## Attribution
 
@@ -53,16 +58,16 @@ See the repo-root `NOTICE` file for the full third-party data attribution list.
 Verify the downloaded asset against the manifest:
 
 ```bash
-sha256sum gnomad_af.db
+sha256sum gnomad_af.db.gz
 # Compare against bundles/manifest.json -> bundles.gnomad.sha256
 
-stat -c %s gnomad_af.db
+stat -c %s gnomad_af.db.gz
 # Compare against bundles/manifest.json -> bundles.gnomad.size_bytes
 ```
 
-`gnomad_af.db` has no embedded version/metadata table, so the SHA-256 +
-size_bytes match is the integrity gate (the verify-and-publish workflow skips the
-internal-version check for `gnomad`).
+`gnomad_af.db` has no embedded version/metadata table, so the compressed release
+asset's SHA-256 + size_bytes match is the integrity gate (the verify-and-publish
+workflow skips the internal-version check for `gnomad`).
 
 ## Rollback
 

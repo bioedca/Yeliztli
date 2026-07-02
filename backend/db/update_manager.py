@@ -18,13 +18,16 @@ Scheduler behaviour (§2.20):
 
 from __future__ import annotations
 
+import gzip
 import json
+import shutil
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from datetime import time as dt_time
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import httpx
 import sqlalchemy as sa
@@ -577,6 +580,30 @@ def _run_bundle_download(
     return result.dest_path, result.total_bytes
 
 
+def _bundle_asset_filename(url: str, fallback: str) -> str:
+    """Return a stable local filename for a manifest bundle asset URL."""
+    name = Path(urlparse(url).path).name
+    return name or fallback
+
+
+def _install_gnomad_bundle_download(downloaded_path: Path, final_dest: Path) -> None:
+    """Install a downloaded gnomAD asset as the uncompressed SQLite DB."""
+    final_dest.parent.mkdir(parents=True, exist_ok=True)
+    if downloaded_path.name.endswith(".gz"):
+        tmp_dest = final_dest.with_name(f"{final_dest.name}.tmp")
+        try:
+            with gzip.open(downloaded_path, "rb") as src, tmp_dest.open("wb") as dst:
+                shutil.copyfileobj(src, dst, length=1024 * 1024)
+            tmp_dest.replace(final_dest)
+            downloaded_path.unlink(missing_ok=True)
+        except Exception:
+            tmp_dest.unlink(missing_ok=True)
+            raise
+        return
+
+    shutil.move(str(downloaded_path), str(final_dest))
+
+
 def run_lai_bundle_update(
     settings: Settings | None = None,
     *,
@@ -790,19 +817,18 @@ def run_gnomad_bundle_update(
     *,
     timeout: float = 3600.0,
 ) -> UpdateResult | None:
-    """Download the latest prebuilt gnomAD bundle (gnomad_af.db) via the manifest.
+    """Download the latest prebuilt gnomAD bundle via the manifest.
 
-    Mirrors :func:`run_ancestry_pca_bundle_update`: a single SQLite file, no
-    extract. Downloads to ``downloads_dir`` (SHA-256 verified by
-    :class:`DownloadManager`), moves it into ``data_dir/gnomad_af.db``
-    (standalone), then records the version + history rows in ``reference.db``.
+    The hosted asset may be gzip-compressed to stay under GitHub's release-asset
+    size limit. Downloads to ``downloads_dir`` (SHA-256 verified by
+    :class:`DownloadManager`), installs the uncompressed SQLite DB at
+    ``data_dir/gnomad_af.db`` (standalone), then records the version + history
+    rows in ``reference.db``.
     Returns ``None`` (no raise) when the manifest entry is missing or carries
     no URL — e.g. the pre-publish deferred state, where ``bundles["gnomad"]``
     is intentionally absent — so the scheduler simply skips until a hosted
     release exists.
     """
-    import shutil
-
     from backend.config import get_settings
     from backend.db.database_registry import DATABASES, _record_db_version
     from backend.db.manifest import get_bundle_info
@@ -834,7 +860,7 @@ def run_gnomad_bundle_update(
             settings,
             engine,
             url=entry.url,
-            filename=db_info.filename,  # "gnomad_af.db"
+            filename=_bundle_asset_filename(entry.url, db_info.filename),
             expected_sha256=entry.sha256,
             total_timeout=timeout,  # large file — default 1h
         )
@@ -843,12 +869,11 @@ def run_gnomad_bundle_update(
         downloaded_path, downloaded_bytes = download
 
         final_dest = db_info.dest_path(settings)  # data_dir/gnomad_af.db
-        final_dest.parent.mkdir(parents=True, exist_ok=True)
         try:
-            shutil.move(str(downloaded_path), str(final_dest))
-        except OSError as exc:
+            _install_gnomad_bundle_download(downloaded_path, final_dest)
+        except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)
-            logger.exception("gnomad_move_failed", error=str(exc))
+            logger.exception("gnomad_materialize_failed", error=str(exc))
             return None
 
         file_size = final_dest.stat().st_size

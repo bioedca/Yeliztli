@@ -44,13 +44,13 @@ VEP_BUNDLE_SIZE_BYTES = 352_251_904
 LAI_BUNDLE_SHA256 = "36abb5f2ed95011aff1227c894f52597ef5c31adb5a132fafdf0830eabf14bff"
 LAI_BUNDLE_SIZE_BYTES = 1_723_731_810
 
-# The real gnomAD bundle v1.1.0 SHA-256 and exact size of the published
-# gnomad_af.db. Rebuilt for #1361 so observed allele-count columns are available
-# for ACMG BA1/BS1 data-quality guards. Pins bundles/manifest.json against
-# accidental rollback/drift and must byte-match the size carried by
+# The real gnomAD bundle v1.1.0 compressed release-asset SHA-256 and exact size.
+# Rebuilt for #1361 so observed allele-count columns are available for ACMG
+# BA1/BS1 data-quality guards. Pins bundles/manifest.json against accidental
+# rollback/drift and must byte-match the size carried by
 # DATABASES["gnomad"].expected_size_bytes.
-GNOMAD_BUNDLE_SHA256 = "1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e"
-GNOMAD_BUNDLE_SIZE_BYTES = 2_853_896_192
+GNOMAD_BUNDLE_SHA256 = "6e5097687001744a9a8533b8b5cbf19f7ad723229ec1e74a04a4890cd55ef32c"
+GNOMAD_BUNDLE_SIZE_BYTES = 1_301_509_755
 
 SAMPLE_PAYLOAD: dict = {
     "schema_version": 1,
@@ -685,7 +685,7 @@ class TestRepoManifest:
         gnomad = m.bundles["gnomad"]
         assert gnomad.version == "v1.1.0"
         assert gnomad.build_date == "2026-07-02"
-        assert gnomad.url.endswith("/gnomad-bundle-v1.1.0/gnomad_af.db")
+        assert gnomad.url.endswith("/gnomad-bundle-v1.1.0/gnomad_af.db.gz")
         # Exact-equality vs the real published asset values; pins
         # bundles/manifest.json against accidental rollback or drift.
         assert gnomad.size_bytes == GNOMAD_BUNDLE_SIZE_BYTES

@@ -433,7 +433,7 @@ def test_gnomad_registry_url_targets_release_asset() -> None:
     from backend.db.database_registry import DATABASES
 
     entry = DATABASES["gnomad"]
-    assert entry.url.endswith("/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db")
+    assert entry.url.endswith("/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db.gz")
 
 
 def test_gnomad_registry_matches_manifest_bundle() -> None:

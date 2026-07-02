@@ -9,6 +9,7 @@ download + sha256 verification path is exercised end-to-end.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import io
 import json
@@ -777,11 +778,12 @@ class TestRunGnomadBundleUpdate:
         data_dir_with_ref: Path,
         serve_payload: Callable[[bytes], str],
     ) -> None:
-        # gnomad_af.db contents are opaque to the runner — it stages + records
-        # the file, never opens it. Any bytes work.
+        # The hosted gnomAD asset is gzip-compressed to fit GitHub's release
+        # asset limit; the runner installs the decompressed SQLite file.
         payload = b"SQLite format 3\x00fake-gnomad-af-db" * 64
-        url = serve_payload(payload)
-        sha = hashlib.sha256(payload).hexdigest()
+        compressed_payload = gzip.compress(payload)
+        url = serve_payload(compressed_payload) + "/gnomad_af.db.gz"
+        sha = hashlib.sha256(compressed_payload).hexdigest()
 
         manifest_path = _write_manifest(
             tmp_path,
@@ -803,7 +805,7 @@ class TestRunGnomadBundleUpdate:
         assert isinstance(result, UpdateResult)
         assert result.db_name == "gnomad"
         assert result.new_version == "v1.0.0"
-        assert result.download_size_bytes == len(payload)
+        assert result.download_size_bytes == len(compressed_payload)
 
         # File now lives at data_dir/gnomad_af.db (standalone).
         dest = data_dir_with_ref / "gnomad_af.db"
@@ -820,7 +822,7 @@ class TestRunGnomadBundleUpdate:
         history = _query_all(ref_path, update_history, "gnomad")
         assert len(history) == 1
         assert history[0].new_version == "v1.0.0"
-        assert history[0].download_size_bytes == len(payload)
+        assert history[0].download_size_bytes == len(compressed_payload)
         assert history[0].previous_version is None
 
     def test_returns_none_when_manifest_missing_entry(

@@ -24,11 +24,14 @@ Usage::
 
 After building, capture the integrity values for the manifest + release notes::
 
-    sha256sum gnomad_af.db    # -> 64-hex sha256 for bundles/manifest.json
-    stat -c %s gnomad_af.db   # -> size_bytes (integer)
+    sha256sum gnomad_af.db
+    stat -c %s gnomad_af.db
+    gzip -c -9 gnomad_af.db > gnomad_af.db.gz
+    sha256sum gnomad_af.db.gz    # -> 64-hex sha256 for bundles/manifest.json
+    stat -c %s gnomad_af.db.gz   # -> size_bytes (integer)
 
-Do NOT gzip the asset and do NOT commit the ``.db`` to the repo — ship it
-uncompressed as a release asset (matching vep_bundle.db).
+Do NOT commit the ``.db`` or ``.db.gz`` to the repo — ship the compressed
+``gnomad_af.db.gz`` as a release asset. The app installs it as ``gnomad_af.db``.
 """
 
 from __future__ import annotations

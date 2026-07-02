@@ -115,7 +115,7 @@ jobs:
           case "${{ inputs.bundle_key }}" in
             vep_bundle)  out="artifacts/vep_bundle.db" ;;
             lai_bundle)  out="artifacts/lai_bundle.tar.gz" ;;
-            gnomad)      out="artifacts/gnomad_af.db" ;;
+            gnomad)      out="artifacts/${asset_name}" ;;
             *) echo "::error::unknown bundle_key '${{ inputs.bundle_key }}'" ; exit 1 ;;
           esac
           if [ -z "$asset_name" ]; then
@@ -179,9 +179,9 @@ jobs:
           echo "size_bytes OK: $actual"
 
       # Internal-version verification is per-bundle. gnomad has NO embedded
-      # version table (gnomad_af.db is AF-only), so neither of the steps below
-      # runs for it — the unconditional SHA-256 + size_bytes checks above are
-      # gnomad's full integrity gate.
+      # version table, and its hosted asset may be gzip-compressed, so neither
+      # of the steps below runs for it — the unconditional SHA-256 + size_bytes
+      # checks above are gnomad's full integrity gate.
       - name: Verify internal bundle_metadata.bundle_version
         if: inputs.bundle_key == 'vep_bundle'
         run: |

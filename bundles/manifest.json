@@ -29,9 +29,9 @@
     "gnomad": {
       "version": "v1.1.0",
       "build_date": "2026-07-02",
-      "url": "https://github.com/bioedca/Yeliztli/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db",
-      "sha256": "1627132abfe2e01d0927755f46f8732ea56add645e42679497965aedc1baa24e",
-      "size_bytes": 2853896192,
+      "url": "https://github.com/bioedca/Yeliztli/releases/download/gnomad-bundle-v1.1.0/gnomad_af.db.gz",
+      "sha256": "6e5097687001744a9a8533b8b5cbf19f7ad723229ec1e74a04a4890cd55ef32c",
+      "size_bytes": 1301509755,
       "min_app_version": "0.2.0"
     },
     "pgs_scores": {
