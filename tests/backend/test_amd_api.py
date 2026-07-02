@@ -18,6 +18,21 @@ from backend.db.tables import raw_variants, reference_metadata, samples
 from backend.disclaimers import AMD_DISCLAIMER_TEXT, AMD_DISCLAIMER_TITLE
 
 
+def _cfh(genotype: str) -> dict:
+    return {"rsid": "rs1061170", "chrom": "1", "pos": 196659237, "genotype": genotype}
+
+
+def _arms2(genotype: str) -> dict:
+    return {"rsid": "rs10490924", "chrom": "10", "pos": 124214448, "genotype": genotype}
+
+
+def _replace_raw_variants(engine: sa.Engine, rows: list[dict]) -> None:
+    with engine.begin() as conn:
+        conn.execute(sa.delete(raw_variants))
+        if rows:
+            conn.execute(sa.insert(raw_variants), rows)
+
+
 @pytest.fixture()
 def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
     data_dir = tmp_path / "data"
@@ -95,6 +110,27 @@ class TestRunAndList:
         assert item["evidence_level"] == 3
         assert "7.2" in item["odds_ratio"]  # CFH-homozygous OR band, not just truthy
         assert "absolute" in item["absolute_risk_context"].lower()
+
+    def test_arms2_only_caveats_are_locus_specific(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        _replace_raw_variants(_env, [_cfh("TT"), _arms2("TT")])
+
+        run = client.post("/api/analysis/amd/run?sample_id=1")
+        assert run.status_code == 200
+
+        listing = client.get("/api/analysis/amd/findings?sample_id=1")
+        assert listing.status_code == 200
+        item = listing.json()["items"][0]
+        assert item["gene_symbol"] == "ARMS2"
+        assert item["risk_classification"] == "ARMS2 homozygous"
+
+        caveats = " ".join(item["caveats"]).lower()
+        assert "european-ancestry populations" not in caveats
+        assert "may not transfer to other genetic backgrounds" not in caveats
+        assert "arms2/htra1 rs10490924" in caveats
+        assert "cohort-derived relative-risk estimates" in caveats
+        assert "ancestry-specific absolute amd risk estimate" in caveats
 
     def test_run_idempotent(self, client: TestClient) -> None:
         client.post("/api/analysis/amd/run?sample_id=1")

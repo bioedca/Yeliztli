@@ -87,8 +87,8 @@
       "odds_ratio": "OR ~5.5 (95% CI 2.6–11.8) for advanced AMD for the ARMS2 TT homozygous genotype",
       "absolute_risk_context": "This is a relative odds ratio, not an absolute or lifetime risk. Absolute AMD risk also depends strongly on age, smoking, and the other ~50 known AMD variants. ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts; these estimates should still be interpreted as cohort-derived relative risks, not ancestry-specific absolute risk.",
       "finding_text": "ARMS2/HTRA1 homozygous (rs10490924 {genotype}) — both copies carry the AMD risk allele. {odds_ratio}. {absolute_risk}",
-      "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
-      "pmids": ["23867343", "26691988"]
+      "caveats": ["negative_not_clear", "amd_arms2_cohort_derived", "confirm_clinically"],
+      "pmids": ["23867343", "26691988", "23060141", "22491416", "30895599"]
     },
     {
       "id": "both_heterozygous",
@@ -126,8 +126,8 @@
       "odds_ratio": "A single ARMS2 risk allele confers a modestly increased AMD risk, well below the homozygous genotype",
       "absolute_risk_context": "This is a modest relative risk, not an absolute or lifetime risk. Absolute AMD risk depends strongly on age, smoking, and the other ~50 known AMD variants. ARMS2/HTRA1 remains an important AMD susceptibility locus in Asian cohorts; these estimates should still be interpreted as cohort-derived relative risks, not ancestry-specific absolute risk.",
       "finding_text": "ARMS2/HTRA1 heterozygous (rs10490924 {genotype}) — you carry one copy. {odds_ratio}. {absolute_risk}",
-      "caveats": ["negative_not_clear", "ancestry_european", "confirm_clinically"],
-      "pmids": ["23867343", "26691988"]
+      "caveats": ["negative_not_clear", "amd_arms2_cohort_derived", "confirm_clinically"],
+      "pmids": ["23867343", "26691988", "23060141", "22491416", "30895599"]
     }
   ]
 }

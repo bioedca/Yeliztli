@@ -111,6 +111,11 @@ CAVEAT_REGISTRY: dict[str, str] = {
         "Prevalence and penetrance figures are derived from European-ancestry "
         "populations and may not transfer to other genetic backgrounds."
     ),
+    "amd_arms2_cohort_derived": (
+        "ARMS2/HTRA1 rs10490924 has been reported across non-European cohorts, "
+        "including Asian cohorts, but this result uses cohort-derived relative-risk "
+        "estimates rather than an ancestry-specific absolute AMD risk estimate."
+    ),
     "confirm_clinically": (
         "This is an array-derived research/educational result. Confirm with clinical "
         "testing in a CLIA/accredited laboratory before any medical action."

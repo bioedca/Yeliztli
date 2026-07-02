@@ -39,6 +39,15 @@ def _arms2(genotype: str) -> dict:
     return {"rsid": "rs10490924", "chrom": "10", "pos": 124214448, "genotype": genotype}
 
 
+def _assert_arms2_caveat_is_locus_specific(caveats: list[str]) -> None:
+    text = " ".join(caveats).lower()
+    assert "european-ancestry" not in text
+    assert "may not transfer" not in text
+    assert "arms2/htra1 rs10490924" in text
+    assert "cohort-derived relative-risk estimates" in text
+    assert "ancestry-specific absolute amd risk estimate" in text
+
+
 class TestGenotypes:
     def test_cfh_homozygous(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_cfh("CC"), _arms2("GG")])
@@ -162,6 +171,7 @@ class TestHonestyGuardrails:
         assert "attenuat" not in text
         assert "arms2/htra1 remains an important amd susceptibility locus" in text
         assert "cfh y402h estimates vary" not in text
+        _assert_arms2_caveat_is_locus_specific(call.detail["caveats"])
 
     def test_arms2_only_heterozygous_not_east_asian_attenuated(
         self, panel, sample_engine: sa.Engine
@@ -175,6 +185,7 @@ class TestHonestyGuardrails:
         assert "attenuat" not in text
         assert "arms2/htra1 remains an important amd susceptibility locus" in text
         assert "cfh y402h estimates vary" not in text
+        _assert_arms2_caveat_is_locus_specific(call.detail["caveats"])
 
     def test_cfh_only_context_names_cfh_ancestry_variability(
         self, panel, sample_engine: sa.Engine
