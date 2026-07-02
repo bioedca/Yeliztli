@@ -1,8 +1,9 @@
 # gnomAD Bundle v1.1.0
 
-> **Status:** PENDING PUBLICATION. The `gnomad-bundle-v1.1.0` release asset
-> (`gnomad_af.db.gz`) rebuilds the gnomAD r2.1.1 exomes bundle with observed
-> allele count (`AN`) columns for ACMG BA1/BS1 data-quality guards.
+> **Status:** PUBLISHED 2026-07-02. The `gnomad-bundle-v1.1.0` release asset
+> (`gnomad_af.db.gz`) was verified by the bundle-release workflow and rebuilds
+> the gnomAD r2.1.1 exomes bundle with observed allele count (`AN`) columns for
+> ACMG BA1/BS1 data-quality guards.
 
 - **Dataset source**: [gnomAD (Genome Aggregation Database)](https://gnomad.broadinstitute.org/)
 - **Version**: gnomAD v2.1.1 exomes (GRCh37) - `release/2.1.1` sites VCF
