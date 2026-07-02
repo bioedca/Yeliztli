@@ -108,9 +108,13 @@ site process:
    SHA-256, and output sizes are populated.
 3. Confirm the runtime files are named exactly `grch37.fa`, `grch37.fa.fai`, and
    `grch37_refseq.bed`.
-4. Install the three runtime files into a Yeliztli data directory and verify
+4. Confirm the FASTA index contains GRCh37/hg19 sentinel lengths, including
+   `chr1=249250621`, `chr2=243199373`, `chr10=135534747`, `chrX=155270560`,
+   `chrY=59373566`, and `chrM=16571`.
+5. Install the three runtime files plus `genome_browser_reference_manifest.json` into a
+   Yeliztli data directory and verify
    `/api/igv-tracks/reference/status` reports `"mode": "local"`.
-5. Open the Genome Browser and confirm no outbound IGV reference or RefSeq requests occur in
+6. Open the Genome Browser and confirm no outbound IGV reference or RefSeq requests occur in
    browser network logs.
 
 The hosted IGV `hg19` fallback remains the correct behavior when any one of the three runtime

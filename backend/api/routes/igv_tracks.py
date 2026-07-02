@@ -10,6 +10,7 @@ URL template variables ($CHR, $START, $END) consumed by IGV.js.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path as FilePath
 
 import sqlalchemy as sa
@@ -103,11 +104,162 @@ class GenomeBrowserReferenceStatus(BaseModel):
 _REFERENCE_FASTA_URL = "/api/igv-tracks/reference/fasta"
 _REFERENCE_FASTA_INDEX_URL = "/api/igv-tracks/reference/fasta.fai"
 _REFERENCE_REFSEQ_URL = "/api/igv-tracks/reference/refseq.bed"
+_REFERENCE_MANIFEST_NAME = "genome_browser_reference_manifest.json"
+_REFERENCE_MANIFEST_BUNDLE_NAME = "genome_browser_reference_grch37_hg19"
+_UCSC_HG19_FASTA_URL = "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz"
+_UCSC_HG19_REFGENE_URL = "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz"
+_GRCH37_HG19_SENTINEL_LENGTHS = {
+    "chr1": 249250621,
+    "chr2": 243199373,
+    "chr10": 135534747,
+    "chrX": 155270560,
+    "chrY": 59373566,
+    "chrM": 16571,
+}
 
 
 def _fasta_index_path(fasta_path: FilePath) -> FilePath:
     """Return the samtools faidx path for an uncompressed FASTA."""
     return FilePath(f"{fasta_path}.fai")
+
+
+def _read_fasta_index_lengths(index_path: FilePath) -> dict[str, int]:
+    lengths: dict[str, int] = {}
+    with index_path.open(encoding="ascii") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 5:
+                raise ValueError(f"line {line_number} has fewer than 5 faidx columns")
+            name = fields[0]
+            if not name:
+                raise ValueError(f"line {line_number} is missing a sequence name")
+            if name in lengths:
+                raise ValueError(f"duplicate sequence name {name!r}")
+            try:
+                length = int(fields[1])
+            except ValueError as exc:
+                raise ValueError(f"line {line_number} has a non-integer length") from exc
+            if length <= 0:
+                raise ValueError(f"line {line_number} has a non-positive length")
+            lengths[name] = length
+    if not lengths:
+        raise ValueError("index contains no sequences")
+    return lengths
+
+
+def _validate_grch37_fasta_index(index_path: FilePath) -> list[str]:
+    try:
+        lengths = _read_fasta_index_lengths(index_path)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        return [f"GRCh37 FASTA index (grch37.fa.fai) is not a valid faidx file: {exc}"]
+
+    problems: list[str] = []
+    for contig, expected_length in _GRCH37_HG19_SENTINEL_LENGTHS.items():
+        observed_length = lengths.get(contig)
+        if observed_length is None:
+            problems.append(f"{contig} missing")
+        elif observed_length != expected_length:
+            problems.append(f"{contig}={observed_length:,} expected {expected_length:,}")
+    if not problems:
+        return []
+
+    return [
+        "GRCh37 FASTA index (grch37.fa.fai) does not match hg19 sentinel contig "
+        f"lengths: {'; '.join(problems)}"
+    ]
+
+
+def _manifest_path_for(fasta_path: FilePath, refseq_path: FilePath) -> FilePath | None:
+    if fasta_path.parent != refseq_path.parent:
+        return None
+    return fasta_path.parent / _REFERENCE_MANIFEST_NAME
+
+
+def _manifest_path_value(payload: object, *keys: str) -> str | None:
+    cursor = payload
+    for key in keys:
+        if not isinstance(cursor, dict):
+            return None
+        cursor = cursor.get(key)
+    return cursor if isinstance(cursor, str) else None
+
+
+def _validate_reference_manifest(
+    manifest_path: FilePath | None,
+    *,
+    fasta_path: FilePath,
+    index_path: FilePath,
+    refseq_path: FilePath,
+) -> list[str]:
+    if manifest_path is None:
+        return ["GRCh37 reference manifest must live beside grch37.fa and grch37_refseq.bed"]
+    if not manifest_path.is_file():
+        return [f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME})"]
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME}) is invalid: {exc}"]
+    if not isinstance(payload, dict):
+        return [f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME}) is not an object"]
+
+    errors: list[str] = []
+    if payload.get("schema_version") != 1:
+        errors.append("schema_version must be 1")
+    if payload.get("name") != _REFERENCE_MANIFEST_BUNDLE_NAME:
+        errors.append(f"name must be {_REFERENCE_MANIFEST_BUNDLE_NAME!r}")
+
+    runtime_files = payload.get("runtime_files")
+    if not isinstance(runtime_files, list):
+        errors.append("runtime_files must list grch37.fa, grch37.fa.fai, and grch37_refseq.bed")
+    else:
+        expected_runtime_files = {fasta_path.name, index_path.name, refseq_path.name}
+        missing_runtime_files = expected_runtime_files.difference(runtime_files)
+        if missing_runtime_files:
+            missing = ", ".join(sorted(missing_runtime_files))
+            errors.append(f"runtime_files is missing {missing}")
+
+    expected_sources = {
+        ("sources", "fasta", "url"): _UCSC_HG19_FASTA_URL,
+        ("sources", "refgene", "url"): _UCSC_HG19_REFGENE_URL,
+    }
+    for keys, expected_value in expected_sources.items():
+        observed_value = _manifest_path_value(payload, *keys)
+        if observed_value != expected_value:
+            dotted = ".".join(keys)
+            errors.append(f"{dotted} must be {expected_value}")
+
+    expected_outputs = {
+        ("outputs", "fasta", "path"): fasta_path.name,
+        ("outputs", "fasta_index", "path"): index_path.name,
+        ("outputs", "refseq_bed", "path"): refseq_path.name,
+    }
+    for keys, expected_value in expected_outputs.items():
+        observed_value = _manifest_path_value(payload, *keys)
+        if observed_value != expected_value:
+            dotted = ".".join(keys)
+            errors.append(f"{dotted} must be {expected_value!r}")
+
+    if not errors:
+        return []
+    return [
+        f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME}) does not describe "
+        f"the expected UCSC hg19 FASTA/refGene bundle: {'; '.join(errors)}"
+    ]
+
+
+def _validate_reference_bundle(
+    fasta_path: FilePath, index_path: FilePath, refseq_path: FilePath
+) -> list[str]:
+    return [
+        *_validate_reference_manifest(
+            _manifest_path_for(fasta_path, refseq_path),
+            fasta_path=fasta_path,
+            index_path=index_path,
+            refseq_path=refseq_path,
+        ),
+        *_validate_grch37_fasta_index(index_path),
+    ]
 
 
 def _resolve_reference_bundle(
@@ -133,6 +285,14 @@ def _resolve_reference_bundle(
     if refseq_path is None or not refseq_path.is_file():
         missing.append("RefSeq BED track (grch37_refseq.bed)")
         refseq_path = None
+
+    if fasta_path is not None and index_path is not None and refseq_path is not None:
+        validation_errors = _validate_reference_bundle(fasta_path, index_path, refseq_path)
+        if validation_errors:
+            missing.extend(validation_errors)
+            fasta_path = None
+            index_path = None
+            refseq_path = None
 
     return fasta_path, index_path, refseq_path, missing
 

@@ -72,10 +72,13 @@ are installed:
 - `grch37.fa`
 - `grch37.fa.fai`
 - `grch37_refseq.bed`
+- `genome_browser_reference_manifest.json`
 
-By default Yeliztli looks for them in the data directory. You can point to equivalent local
-files with `YELIZTLI_GRCH37_FASTA_PATH` and
-`YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH`. If any file is missing, the Genome Browser keeps
+By default Yeliztli looks for them in the data directory. You can point to local runtime files
+with `YELIZTLI_GRCH37_FASTA_PATH` and
+`YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH`, but the files are accepted only when the manifest
+describes the expected UCSC hg19 FASTA / `refGene` build and the FASTA index matches GRCh37/hg19
+sentinel chromosome lengths. If any file is missing or validation fails, the Genome Browser keeps
 the disclosure-gated hosted `hg19` fallback.
 
 Maintainers can build the local reference files from UCSC sources with

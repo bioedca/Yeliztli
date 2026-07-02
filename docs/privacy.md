@@ -80,12 +80,14 @@ starting reference downloads. For the **automatic** connections:
   (`raw.githubusercontent.com`): the daily scheduler becomes a no-op and the dashboard's
   auto-checks return immediately without any outbound request. No update banner will appear; to
   check again, set the value back to `startup`, `daily`, or `weekly`.
-- Install the optional local Genome Browser reference files (`grch37.fa`, `grch37.fa.fai`, and
-  `grch37_refseq.bed`) in the data directory, or point `YELIZTLI_GRCH37_FASTA_PATH` and
-  `YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH` at equivalent local files. When all three are
-  present, the Genome Browser uses local URLs and makes no reference/RefSeq request to IGV.js
-  hosts. If any file is missing, the Genome Browser keeps the disclosure-gated hosted `hg19`
-  fallback; if you do not open the Genome Browser, it makes no connection.
+- Install the optional local Genome Browser reference bundle (`grch37.fa`,
+  `grch37.fa.fai`, `grch37_refseq.bed`, and `genome_browser_reference_manifest.json`) in the
+  data directory, or point `YELIZTLI_GRCH37_FASTA_PATH` and
+  `YELIZTLI_GENOME_BROWSER_REFSEQ_TRACK_PATH` at the validated local runtime files. When the
+  manifest and GRCh37/hg19 FASTA-index sentinels validate, the Genome Browser uses local URLs and
+  makes no reference/RefSeq request to IGV.js hosts. If any file is missing or validation fails,
+  the Genome Browser keeps the disclosure-gated hosted `hg19` fallback; if you do not open the
+  Genome Browser, it makes no connection.
 
 For a hard guarantee that **nothing** leaves the machine, **block Yeliztli's network access at the
 operating-system or firewall level** after setup — that suppresses all of the automatic checks
