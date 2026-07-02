@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 import structlog
 
+from backend.config import get_settings
 from backend.db.tables import log_entries, reference_metadata
 from backend.logging_config import (
     _REDACTED_LOG_VALUE,
@@ -89,3 +90,36 @@ def test_configured_logging_redacts_before_db_and_console(
     finally:
         structlog.reset_defaults()
         engine.dispose()
+
+
+def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(tmp_path / "data"))
+    get_settings.cache_clear()
+    structlog.reset_defaults()
+    try:
+        from backend.tasks import huey_tasks
+
+        huey_tasks._configure_worker_logging()
+        logger = structlog.get_logger("tests.worker_logging_privacy")
+
+        logger.info(
+            "worker_analysis_event",
+            diplotype="epsilon3/epsilon4",
+            rs429358_genotype="GG",
+            nested={"genotype": "AG"},
+            rsid="rs429358",
+        )
+
+        stdout = capsys.readouterr().out
+        assert "epsilon3/epsilon4" not in stdout
+        assert "GG" not in stdout
+        assert "AG" not in stdout
+        assert _REDACTED_LOG_VALUE in stdout
+        assert "rs429358" in stdout
+    finally:
+        structlog.reset_defaults()
+        get_settings.cache_clear()

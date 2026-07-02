@@ -419,11 +419,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
 
     # Check for no-call genotypes
     if is_no_call(rs429358_gt) or is_no_call(rs7412_gt):
-        logger.warning(
-            "apoe_no_call",
-            rs429358_genotype=rs429358_gt,
-            rs7412_genotype=rs7412_gt,
-        )
+        logger.warning("apoe_no_call")
         return APOEResult(
             status=APOEStatus.NO_CALL,
             rs429358_genotype=rs429358_gt,
@@ -439,11 +435,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     allele_pair = _DIPLOTYPE_TABLE.get((norm_429358, norm_7412))
 
     if allele_pair is None:
-        logger.warning(
-            "apoe_ambiguous_genotype",
-            rs429358_genotype=norm_429358,
-            rs7412_genotype=norm_7412,
-        )
+        logger.warning("apoe_ambiguous_genotype")
         return APOEResult(
             status=APOEStatus.AMBIGUOUS,
             rs429358_genotype=rs429358_gt,
@@ -455,12 +447,7 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     allele1, allele2 = sorted(allele_pair, key=lambda a: a.value)
     diplotype = f"{allele1.value}/{allele2.value}"
 
-    logger.info(
-        "apoe_genotype_determined",
-        diplotype=diplotype,
-        rs429358_genotype=rs429358_gt,
-        rs7412_genotype=rs7412_gt,
-    )
+    logger.info("apoe_genotype_determined")
 
     return APOEResult(
         status=APOEStatus.DETERMINED,
@@ -557,10 +544,7 @@ def store_apoe_finding(
         )
         conn.execute(sa.insert(findings), [row])
 
-    logger.info(
-        "apoe_finding_stored",
-        diplotype=result.diplotype,
-    )
+    logger.info("apoe_finding_stored")
     return 1
 
 

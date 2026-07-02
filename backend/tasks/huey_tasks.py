@@ -19,8 +19,23 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
+from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
+
+
+def _get_reference_engine_for_logging():
+    from backend.db.connection import get_registry
+
+    return get_registry().reference_engine
+
+
+def _configure_worker_logging() -> None:
+    """Install structured log redaction for direct Huey worker startup."""
+    configure_logging(engine_getter=_get_reference_engine_for_logging)
+
+
+_configure_worker_logging()
 
 _settings = get_settings()
 _settings.data_dir.mkdir(parents=True, exist_ok=True)
