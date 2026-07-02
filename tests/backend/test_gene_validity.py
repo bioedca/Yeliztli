@@ -73,6 +73,7 @@ def test_guardrail_established_is_not_caution() -> None:
     assert g["best_classification"] == "Definitive"
     assert g["validity_established"] is True
     assert g["caution"] is False
+    assert g["disease_context_match"] == "not_provided"
     assert g["context_only"] is True
     assert CLINGEN_FRAMEWORK_PMID in g["pmid_citations"]
     assert "Definitive" in g["label"]
@@ -99,13 +100,41 @@ def test_guardrail_no_known_triggers_caution() -> None:
     assert g["validity_established"] is False
 
 
-def test_guardrail_best_across_diseases_wins() -> None:
-    # A pleiotropic gene: Limited for one disease, Moderate for another → not caution.
+def test_guardrail_matching_disease_context_selects_specific_curation() -> None:
+    curs = [_cur("Limited", "disease A"), _cur("Moderate", "disease B")]
+    limited = gene_validity_guardrail("ABCB6", curs, disease_context="Disease A")
+    moderate = gene_validity_guardrail("ABCB6", curs, disease_context="Disease B")
+    assert limited["best_classification"] == "Limited"
+    assert limited["validity_established"] is False
+    assert limited["caution"] is True
+    assert limited["disease_context_match"] == "matched"
+    assert limited["matched_disease_label"] == "disease A"
+    assert moderate["best_classification"] == "Moderate"
+    assert moderate["validity_established"] is True
+    assert moderate["caution"] is False
+    assert moderate["disease_context_match"] == "matched"
+
+
+def test_guardrail_mixed_across_diseases_without_context_is_caution() -> None:
     curs = [_cur("Limited", "disease A"), _cur("Moderate", "disease B")]
     g = gene_validity_guardrail("ABCB6", curs)
-    assert g["best_classification"] == "Moderate"
-    assert g["caution"] is False
+    assert g["best_classification"] is None
+    assert g["validity_established"] is False
+    assert g["caution"] is True
+    assert g["disease_context_match"] == "unresolved"
+    assert g["matched_disease_label"] is None
+    assert "Disease-specific" in g["label"]
     assert len(g["curations"]) == 2
+
+
+def test_guardrail_unmatched_disease_context_is_caution() -> None:
+    curs = [_cur("Limited", "disease A"), _cur("Moderate", "disease B")]
+    g = gene_validity_guardrail("ABCB6", curs, disease_context="disease C")
+    assert g["best_classification"] is None
+    assert g["validity_established"] is False
+    assert g["caution"] is True
+    assert g["disease_context"] == "disease C"
+    assert g["disease_context_match"] == "unmatched"
 
 
 def test_assess_finding_gene_validity_includes_compound_pathogenic_primary(
@@ -158,3 +187,80 @@ def test_assess_finding_gene_validity_includes_compound_pathogenic_primary(
     assert rows[0]["clinvar_significance"] == "Pathogenic|drug response"
     assert rows[0]["gene_symbol"] == "CFTR"
     assert rows[0]["validity_established"] is True
+
+
+def test_assess_finding_gene_validity_uses_finding_conditions(
+    sample_engine: sa.Engine, reference_engine: sa.Engine
+) -> None:
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clingen_gene_validity.insert(),
+            [
+                {
+                    "gene_symbol": "ABCB6",
+                    "hgnc_id": "HGNC:47",
+                    "disease_label": "microphthalmia",
+                    "disease_id": "MONDO:0000001",
+                    "moi": "AD",
+                    "sop": "SOP10",
+                    "classification": "Limited",
+                    "report_url": "https://example/abcb6-a",
+                    "classification_date": "2024-01-01T00:00:00.000Z",
+                    "gcep": "Test GCEP",
+                },
+                {
+                    "gene_symbol": "ABCB6",
+                    "hgnc_id": "HGNC:47",
+                    "disease_label": "dyschromatosis",
+                    "disease_id": "MONDO:0000002",
+                    "moi": "AD",
+                    "sop": "SOP10",
+                    "classification": "Moderate",
+                    "report_url": "https://example/abcb6-b",
+                    "classification_date": "2024-01-01T00:00:00.000Z",
+                    "gcep": "Test GCEP",
+                },
+            ],
+        )
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            findings.insert(),
+            [
+                {
+                    "module": "rare_variants",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "ABCB6",
+                    "rsid": "rs_abcb6_microphthalmia",
+                    "finding_text": "ABCB6 rs_abcb6_microphthalmia — Pathogenic",
+                    "conditions": "microphthalmia",
+                    "clinvar_significance": "Pathogenic",
+                },
+                {
+                    "module": "rare_variants",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "ABCB6",
+                    "rsid": "rs_abcb6_no_context",
+                    "finding_text": "ABCB6 rs_abcb6_no_context — Pathogenic",
+                    "conditions": None,
+                    "clinvar_significance": "Pathogenic",
+                },
+            ],
+        )
+
+    rows = assess_finding_gene_validity(sample_engine, reference_engine)
+    by_rsid = {row["rsid"]: row for row in rows}
+
+    matched = by_rsid["rs_abcb6_microphthalmia"]
+    assert matched["best_classification"] == "Limited"
+    assert matched["disease_context_match"] == "matched"
+    assert matched["matched_disease_label"] == "microphthalmia"
+    assert matched["caution"] is True
+
+    unresolved = by_rsid["rs_abcb6_no_context"]
+    assert unresolved["best_classification"] is None
+    assert unresolved["disease_context_match"] == "unresolved"
+    assert unresolved["matched_disease_label"] is None
+    assert unresolved["caution"] is True

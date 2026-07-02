@@ -53,6 +53,9 @@ class GeneValidityResponse(BaseModel):
     rsid: str | None = None
     clinvar_significance: str | None = None
     finding_text: str
+    disease_context: str | None = None
+    disease_context_match: str | None = None
+    matched_disease_label: str | None = None
     has_clingen_curation: bool
     best_classification: str | None = None
     validity_established: bool
@@ -71,10 +74,11 @@ def list_gene_validity(
 ) -> list[GeneValidityResponse]:
     """Gene-disease validity guardrail for every ClinVar P/LP finding in the sample.
 
-    ``caution`` is true when the finding's gene has no Moderate-or-stronger ClinGen
-    disease relationship (best is Limited / Disputed / Refuted / No Known). Genes
-    ClinGen has not curated return ``has_clingen_curation=false`` with
-    ``caution=false`` (absence of curation is not evidence either way).
+    ``caution`` is true when the finding's matched ClinGen gene-disease relationship
+    is not Moderate-or-stronger, when no curation matches the finding's disease
+    context, or when mixed disease-specific curations cannot be resolved to this
+    finding. Genes ClinGen has not curated return ``has_clingen_curation=false``
+    with ``caution=false`` (absence of curation is not evidence either way).
     """
     sample_engine = resolve_sample_engine(sample_id)
     reference_engine = get_registry().reference_engine

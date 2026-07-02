@@ -3,22 +3,23 @@
 The second half of SW-A11 (the Weedon array-reliability half ships in
 :mod:`backend.analysis.array_confidence`). ClinGen gene-disease *validity*
 (Strande 2017, PMID 28552198) grades how strong the evidence is that a gene
-causes a disease at all — Definitive / Strong / Moderate / Limited / Disputed /
-Refuted / No Known Disease Relationship. This is orthogonal to a variant's ACMG
-pathogenicity: a confidently-called Pathogenic variant in a gene whose
-disease relationship is only *Limited* (or actively *Disputed*/*Refuted*)
-warrants caution, because such variants show markedly lower observed penetrance
-(Thaxton 2022, PMID 34694049; population-cohort evidence).
+causes a particular disease — Definitive / Strong / Moderate / Limited /
+Disputed / Refuted / No Known Disease Relationship. This is orthogonal to a
+variant's ACMG pathogenicity: a confidently-called Pathogenic variant in a gene
+whose relevant disease relationship is only *Limited* (or actively
+*Disputed*/*Refuted*) warrants caution.
 
 This is a **guardrail flag only** (mirrors :mod:`backend.analysis.gene_constraint`
 and :mod:`backend.analysis.array_confidence`): it NEVER changes a finding's
 ``evidence_level`` or ``clinvar_significance``. A weak-validity flag does not make
-a true call false — it means an actionable call in a poorly-validated gene should
-be confirmed and counselled clinically before any medical action.
+a true call false — it means an actionable call for a poorly validated
+gene-disease relationship should be confirmed and counselled clinically before
+any medical action.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import sqlalchemy as sa
@@ -49,6 +50,33 @@ _CLASSIFICATION_RANK: dict[str, int] = {
 ESTABLISHED_CLASSIFICATIONS = frozenset({"Definitive", "Strong", "Moderate"})
 
 _CONTRADICTED = frozenset({"Disputed", "Refuted"})
+_DISEASE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_CONDITION_SPLIT_RE = re.compile(r"[,;|]+")
+_DISEASE_STOPWORDS = frozenset(
+    {
+        "and",
+        "condition",
+        "disease",
+        "disorder",
+        "of",
+        "or",
+        "phenotype",
+        "syndrome",
+        "the",
+        "type",
+    }
+)
+_UNINFORMATIVE_CONDITIONS = frozenset(
+    {
+        "",
+        "multiple conditions",
+        "not provided",
+        "not reported",
+        "not specified",
+        "not supplied",
+        "unknown",
+    }
+)
 
 
 def classification_rank(classification: str | None) -> int:
@@ -70,6 +98,73 @@ def best_curation(curations: list[dict[str, Any]]) -> dict[str, Any] | None:
     return max(curations, key=lambda c: classification_rank(c.get("classification")))
 
 
+def _condition_parts(conditions: str | None) -> list[str]:
+    """Split a finding condition string into informative disease-context chunks."""
+    if not conditions:
+        return []
+    parts = []
+    for raw in _CONDITION_SPLIT_RE.split(conditions):
+        part = raw.strip()
+        lowered = part.lower()
+        if lowered and lowered not in _UNINFORMATIVE_CONDITIONS:
+            parts.append(part)
+    return parts
+
+
+def _disease_tokens(value: str | None) -> frozenset[str]:
+    """Normalize disease labels enough for conservative exact-ish matching."""
+    if not value:
+        return frozenset()
+    return frozenset(
+        token
+        for token in _DISEASE_TOKEN_RE.findall(value.lower())
+        if token not in _DISEASE_STOPWORDS
+    )
+
+
+def _disease_context_matches(curation: dict[str, Any], condition_part: str) -> bool:
+    """Whether one finding condition plausibly names the curation's disease."""
+    curation_tokens = _disease_tokens(curation.get("disease_label"))
+    condition_tokens = _disease_tokens(condition_part)
+    if not curation_tokens or not condition_tokens:
+        return False
+    if curation_tokens == condition_tokens:
+        return True
+    shared = curation_tokens & condition_tokens
+    return (
+        len(shared) >= 2 and len(shared) / max(len(curation_tokens), len(condition_tokens)) >= 0.8
+    )
+
+
+def _matching_curations(
+    curations: list[dict[str, Any]], conditions: str | None
+) -> list[dict[str, Any]]:
+    """Curations whose disease label matches the finding's disease context."""
+    parts = _condition_parts(conditions)
+    if not parts:
+        return []
+    return [
+        curation
+        for curation in curations
+        if any(_disease_context_matches(curation, part) for part in parts)
+    ]
+
+
+def _has_mixed_established_status(curations: list[dict[str, Any]]) -> bool:
+    classifications = [c.get("classification") for c in curations]
+    has_established = any(is_established(c) for c in classifications)
+    has_unestablished = any(not is_established(c) for c in classifications)
+    return has_established and has_unestablished
+
+
+def _curation_disease_summary(curations: list[dict[str, Any]]) -> str:
+    labels = [
+        f"{c.get('disease_label') or 'unspecified disease'} ({c.get('classification')})"
+        for c in curations
+    ]
+    return "; ".join(labels)
+
+
 def _guardrail_copy(best: dict[str, Any]) -> tuple[str, str]:
     """(label, detail) for the headline guardrail given the best curation."""
     classification = best.get("classification") or ""
@@ -77,39 +172,99 @@ def _guardrail_copy(best: dict[str, Any]) -> tuple[str, str]:
     if classification in ESTABLISHED_CLASSIFICATIONS:
         return (
             f"Established gene-disease validity ({classification})",
-            f"ClinGen classifies the gene's strongest disease relationship "
+            f"ClinGen classifies the selected disease relationship "
             f"({disease}) as {classification} — established evidence that this gene "
-            f"causes disease. Supportive background only; it does not change the "
+            f"causes that disease. Supportive background only; it does not change the "
             f"finding's classification.",
         )
     if classification == "Limited":
         return (
             "Limited gene-disease validity",
-            "ClinGen's strongest classification for this gene is Limited — the "
-            "evidence that the gene causes disease is insufficient. Interpret a "
-            "Pathogenic/Likely-pathogenic call with caution: variants in "
-            "Limited-validity genes show markedly lower observed penetrance. "
-            "Confirm and counsel clinically before any action.",
+            "ClinGen's selected disease-specific classification for this gene is "
+            "Limited — the evidence that the gene causes that disease is "
+            "insufficient. Interpret a Pathogenic/Likely-pathogenic call with "
+            "caution. Confirm and counsel clinically before any action.",
         )
     if classification in _CONTRADICTED:
         return (
             f"Contradicted gene-disease validity ({classification})",
             f"ClinGen classifies the gene's disease relationship as {classification} "
-            f"— there is conflicting or contradictory evidence against this gene "
-            f"causing disease. A Pathogenic/Likely-pathogenic call here warrants "
-            f"strong caution and clinical confirmation.",
+            f"— there is conflicting or contradictory evidence against this "
+            f"gene-disease relationship. A Pathogenic/Likely-pathogenic call here "
+            f"warrants strong caution and clinical confirmation.",
         )
     # No Known Disease Relationship
     return (
         "No known gene-disease relationship",
-        "ClinGen found no known disease relationship for this gene. A "
+        "ClinGen found no known disease relationship for this gene context. A "
         "Pathogenic/Likely-pathogenic call here should be interpreted cautiously "
         "and confirmed clinically.",
     )
 
 
+def _unresolved_context_guardrail(
+    gene_symbol: str, curations: list[dict[str, Any]], disease_context_match: str
+) -> dict[str, Any]:
+    """Caution when no disease context can select among mixed validity curations."""
+    disease_summary = _curation_disease_summary(curations)
+    return {
+        "gene_symbol": gene_symbol,
+        "has_clingen_curation": True,
+        "best_classification": None,
+        "validity_established": False,
+        "caution": True,
+        "label": "Disease-specific gene validity context unresolved",
+        "detail": (
+            "ClinGen gene-disease validity is disease-specific, and this gene has "
+            f"both established and non-established disease curations: {disease_summary}. "
+            "Because this finding does not identify which curated disease relationship "
+            "applies, do not treat an established curation for another disease as "
+            "reassurance for this finding. Confirm the disease context clinically "
+            "before any action."
+        ),
+        "disease_context": None,
+        "disease_context_match": disease_context_match,
+        "matched_disease_label": None,
+        "curations": curations,
+        "context_only": True,
+        "note": GENE_VALIDITY_CONTEXT_ONLY,
+        "pmid_citations": [CLINGEN_FRAMEWORK_PMID, CLINGEN_VARIANT_INTERP_PMID],
+    }
+
+
+def _unmatched_context_guardrail(
+    gene_symbol: str, curations: list[dict[str, Any]], disease_context: str
+) -> dict[str, Any]:
+    """Caution when a finding names a disease but no curation matches it."""
+    disease_summary = _curation_disease_summary(curations)
+    return {
+        "gene_symbol": gene_symbol,
+        "has_clingen_curation": True,
+        "best_classification": None,
+        "validity_established": False,
+        "caution": True,
+        "label": "No matching ClinGen disease-specific validity curation",
+        "detail": (
+            f"This finding is reported for {disease_context}, but ClinGen's "
+            f"curations for {gene_symbol} are disease-specific and none match that "
+            f"context: {disease_summary}. Do not treat an established curation for "
+            "another disease as established validity for this finding. Confirm the "
+            "disease context clinically before any action."
+        ),
+        "disease_context": disease_context,
+        "disease_context_match": "unmatched",
+        "matched_disease_label": None,
+        "curations": curations,
+        "context_only": True,
+        "note": GENE_VALIDITY_CONTEXT_ONLY,
+        "pmid_citations": [CLINGEN_FRAMEWORK_PMID, CLINGEN_VARIANT_INTERP_PMID],
+    }
+
+
 def gene_validity_guardrail(
-    gene_symbol: str | None, curations: list[dict[str, Any]]
+    gene_symbol: str | None,
+    curations: list[dict[str, Any]],
+    disease_context: str | None = None,
 ) -> dict[str, Any] | None:
     """Build the gene-validity guardrail for one gene, or None if uncurated.
 
@@ -118,7 +273,19 @@ def gene_validity_guardrail(
     """
     if not gene_symbol or not curations:
         return None
-    best = best_curation(curations)
+    context_parts = _condition_parts(disease_context)
+    matches = _matching_curations(curations, disease_context)
+    if matches:
+        best = best_curation(matches)
+        disease_context_match = "matched"
+    elif context_parts:
+        return _unmatched_context_guardrail(gene_symbol, curations, disease_context or "")
+    elif _has_mixed_established_status(curations):
+        return _unresolved_context_guardrail(gene_symbol, curations, "unresolved")
+    else:
+        best = best_curation(curations)
+        disease_context_match = "not_provided"
+
     classification = best.get("classification") if best else None
     established = is_established(classification)
     label, detail = _guardrail_copy(best) if best else ("", "")
@@ -131,6 +298,9 @@ def gene_validity_guardrail(
         "caution": not established,
         "label": label,
         "detail": detail,
+        "disease_context": disease_context,
+        "disease_context_match": disease_context_match,
+        "matched_disease_label": best.get("disease_label") if best and matches else None,
         "curations": curations,
         "context_only": True,
         "note": GENE_VALIDITY_CONTEXT_ONLY,
@@ -138,7 +308,9 @@ def gene_validity_guardrail(
     }
 
 
-def _uncurated_guardrail(gene_symbol: str | None) -> dict[str, Any]:
+def _uncurated_guardrail(
+    gene_symbol: str | None, disease_context: str | None = None
+) -> dict[str, Any]:
     """Honest placeholder for an actionable finding whose gene ClinGen has not curated."""
     return {
         "gene_symbol": gene_symbol,
@@ -151,6 +323,9 @@ def _uncurated_guardrail(gene_symbol: str | None) -> dict[str, Any]:
             "ClinGen has not published a gene-disease validity classification for "
             "this gene. Absence of a curation is not evidence either way."
         ),
+        "disease_context": disease_context,
+        "disease_context_match": "uncurated",
+        "matched_disease_label": None,
         "curations": [],
         "context_only": True,
         "note": GENE_VALIDITY_CONTEXT_ONLY,
@@ -165,8 +340,8 @@ def assess_finding_gene_validity(
 
     Read-only. Selects the same actionable Pathogenic / Likely-pathogenic findings
     as :func:`backend.analysis.array_confidence.assess_pathogenic_findings`, then
-    attaches each finding's gene-level ClinGen validity guardrail (or an honest
-    "not curated" placeholder). Never mutates findings.
+    attaches each finding's disease-context-aware ClinGen validity guardrail (or
+    an honest "not curated" placeholder). Never mutates findings.
     """
     from backend.db.tables import findings
 
@@ -178,6 +353,7 @@ def assess_finding_gene_validity(
             findings.c.rsid,
             findings.c.clinvar_significance,
             findings.c.finding_text,
+            findings.c.conditions,
         )
         .where(pathogenic_significance_filter(findings.c.clinvar_significance))
         .order_by(findings.c.id)
@@ -191,9 +367,9 @@ def assess_finding_gene_validity(
     out: list[dict[str, Any]] = []
     for row in rows:
         curations = validities.get(row.gene_symbol or "", [])
-        guardrail = gene_validity_guardrail(row.gene_symbol, curations) or _uncurated_guardrail(
-            row.gene_symbol
-        )
+        guardrail = gene_validity_guardrail(
+            row.gene_symbol, curations, row.conditions
+        ) or _uncurated_guardrail(row.gene_symbol, row.conditions)
         out.append(
             {
                 "finding_id": row.id,

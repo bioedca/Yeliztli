@@ -24,13 +24,15 @@ from backend.db.tables import (
     samples,
 )
 
-# gene → (clinvar_significance, ClinGen classifications seeded, expected caution)
-# A gene may have multiple curations; the guardrail keys on the strongest.
+# gene → (clinvar_significance, finding conditions)
+# A gene may have multiple curations; the guardrail should use matching conditions.
 _FINDINGS = {
-    "rs_brca1": ("BRCA1", "Pathogenic"),
-    "rs_ttn": ("TTN", "Likely pathogenic"),
-    "rs_foo": ("FOO1", "Pathogenic"),
-    "rs_uncurated": ("ZZZGENE", "Pathogenic"),
+    "rs_brca1": ("BRCA1", "Pathogenic", "hereditary breast ovarian cancer"),
+    "rs_ttn": ("TTN", "Likely pathogenic", "dilated cardiomyopathy"),
+    "rs_abcb6_limited": ("ABCB6", "Pathogenic", "microphthalmia"),
+    "rs_abcb6_unresolved": ("ABCB6", "Pathogenic", None),
+    "rs_foo": ("FOO1", "Pathogenic", "disputed disease"),
+    "rs_uncurated": ("ZZZGENE", "Pathogenic", "uncurated disease"),
 }
 
 _CURATIONS = [
@@ -88,7 +90,7 @@ def gv_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             )
 
     with sample_engine.begin() as conn:
-        for rsid, (gene, sig) in _FINDINGS.items():
+        for rsid, (gene, sig, conditions) in _FINDINGS.items():
             conn.execute(
                 findings.insert().values(
                     module="cancer",
@@ -97,6 +99,7 @@ def gv_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     gene_symbol=gene,
                     rsid=rsid,
                     finding_text=f"{gene} {rsid} — {sig}",
+                    conditions=conditions,
                     clinvar_significance=sig,
                 )
             )
@@ -144,6 +147,8 @@ class TestGeneValidityEndpoint:
         assert brca1["best_classification"] == "Definitive"
         assert brca1["validity_established"] is True
         assert brca1["caution"] is False
+        assert brca1["disease_context_match"] == "matched"
+        assert brca1["matched_disease_label"] == "hereditary breast ovarian cancer"
 
     def test_limited_gene_triggers_caution(self, gv_client: TestClient) -> None:
         by_rsid = {
@@ -152,6 +157,35 @@ class TestGeneValidityEndpoint:
         ttn = by_rsid["rs_ttn"]
         assert ttn["best_classification"] == "Limited"
         assert ttn["caution"] is True
+        assert ttn["disease_context_match"] == "matched"
+
+    def test_matching_disease_context_prevents_cross_disease_reassurance(
+        self, gv_client: TestClient
+    ) -> None:
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
+        abcb6 = by_rsid["rs_abcb6_limited"]
+        assert abcb6["disease_context"] == "microphthalmia"
+        assert abcb6["disease_context_match"] == "matched"
+        assert abcb6["matched_disease_label"] == "microphthalmia"
+        assert abcb6["best_classification"] == "Limited"
+        assert abcb6["validity_established"] is False
+        assert abcb6["caution"] is True
+
+    def test_mixed_curations_without_context_are_unresolved_caution(
+        self, gv_client: TestClient
+    ) -> None:
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
+        abcb6 = by_rsid["rs_abcb6_unresolved"]
+        assert abcb6["disease_context"] is None
+        assert abcb6["disease_context_match"] == "unresolved"
+        assert abcb6["matched_disease_label"] is None
+        assert abcb6["best_classification"] is None
+        assert abcb6["validity_established"] is False
+        assert abcb6["caution"] is True
 
     def test_disputed_gene_triggers_caution(self, gv_client: TestClient) -> None:
         by_rsid = {
@@ -159,6 +193,7 @@ class TestGeneValidityEndpoint:
         }
         assert by_rsid["rs_foo"]["best_classification"] == "Disputed"
         assert by_rsid["rs_foo"]["caution"] is True
+        assert by_rsid["rs_foo"]["disease_context_match"] == "matched"
 
     def test_uncurated_gene_is_not_caution(self, gv_client: TestClient) -> None:
         by_rsid = {
@@ -168,6 +203,7 @@ class TestGeneValidityEndpoint:
         assert z["has_clingen_curation"] is False
         assert z["caution"] is False
         assert z["best_classification"] is None
+        assert z["disease_context_match"] == "uncurated"
 
     def test_guardrail_carries_context_only_disclosure(self, gv_client: TestClient) -> None:
         from backend.analysis.gene_validity import CLINGEN_FRAMEWORK_PMID
