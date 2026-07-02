@@ -319,7 +319,7 @@ def _recorded_version(data_dir: Path, db_name: str) -> str | None:
 class TestBundledInstall:
     """install_committed_bundle + _bundle_install_needed — the explicit install
     path that replaces the silent stale-fixture auto-copy. The committed
-    vep_bundle.db is a pre-v2.0.0 fixture; the real 358 MB union catalog is a
+    vep_bundle.db is a pre-v2.0.0 fixture; the real union catalog is a
     GitHub release asset pulled by the setup wizard / Update Manager.
     """
 
@@ -358,6 +358,34 @@ class TestBundledInstall:
         finally:
             manifest_mod.reset_cache()
 
+    @pytest.mark.parametrize("prior_version", ["v1.0.0", "v2.0.0", "v3.0.0"])
+    def test_vep_bundle_install_needed_for_prior_manifest_versions(
+        self, tmp_data_dir: Path, monkeypatch, prior_version: str
+    ):
+        """Any pre-v4 VEP bundle trails the canonical-transcript rebuild."""
+        from backend.api.routes.databases import _bundle_install_needed
+        from backend.db import manifest as manifest_mod
+        from backend.db.database_registry import _record_db_version
+
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(_REPO_MANIFEST))
+        manifest_mod.reset_cache()
+        _make_reference_db(tmp_data_dir)
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            vep = get_database("vep_bundle")
+            assert vep is not None
+
+            _record_db_version(
+                engine,
+                db_name="vep_bundle",
+                version=prior_version,
+                file_size_bytes=1,
+            )
+            assert _bundle_install_needed(vep, engine) is True
+        finally:
+            engine.dispose()
+            manifest_mod.reset_cache()
+
     def test_bundle_install_needed_uses_manifest_version(self, tmp_data_dir: Path, monkeypatch):
         from backend.api.routes.databases import _bundle_install_needed
         from backend.db import manifest as manifest_mod
@@ -374,16 +402,8 @@ class TestBundledInstall:
 
             # No recorded version → needs install.
             assert _bundle_install_needed(vep, engine) is True
-            # Stale fixture (v1.0.0) trails manifest v3.0.0 → needs install.
-            _record_db_version(engine, db_name="vep_bundle", version="v1.0.0", file_size_bytes=1)
-            assert _bundle_install_needed(vep, engine) is True
-            # G1: a system at the prior v2.0.0 now trails manifest v3.0.0 → the
-            # re-annotation bump surfaces an available update (which, on install,
-            # re-records v3.0.0 and makes pre-existing samples stale).
-            _record_db_version(engine, db_name="vep_bundle", version="v2.0.0", file_size_bytes=1)
-            assert _bundle_install_needed(vep, engine) is True
-            # Recorded == manifest (v3.0.0) → no re-install.
-            _record_db_version(engine, db_name="vep_bundle", version="v3.0.0", file_size_bytes=1)
+            # Recorded == manifest (v4.0.0) → no re-install.
+            _record_db_version(engine, db_name="vep_bundle", version="v4.0.0", file_size_bytes=1)
             assert _bundle_install_needed(vep, engine) is False
             # ancestry already at manifest v1.0 → no re-install (setup re-run safe).
             _record_db_version(engine, db_name="ancestry_pca", version="v1.0", file_size_bytes=1)

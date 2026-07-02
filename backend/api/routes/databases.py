@@ -281,7 +281,7 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
             # release via the manifest. (Re)install when there is no recorded
             # version or the installed version trails the manifest — this is how
             # the stale committed vep_bundle fixture gets upgraded to the real
-            # 358 MB v2.0.0 union catalog instead of being silently skipped.
+            # release asset instead of being silently skipped.
             if _bundle_install_needed(db_info, engine):
                 to_download.append(name)
             continue

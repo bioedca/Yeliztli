@@ -103,9 +103,9 @@ def _build_bundle_gate_payload(installed_version: str | None) -> dict:
         sha256 = registry_entry.sha256 if registry_entry else None
         # Manifest unreachable → advertise the gate *floor* (the minimum semver
         # that unblocks AncestryDNA), derived from the threshold constant so it
-        # never drifts when the manifest's latest version is bumped (e.g. G1's
-        # v3.0.0). This only surfaces to users below the floor, so the floor is
-        # the honest "what you need at least" when the latest is unknown.
+        # never drifts when the manifest's latest version is bumped. This only
+        # surfaces to users below the floor, so the floor is the honest "what
+        # you need at least" when the latest is unknown.
         required = f"v{_VEP_BUNDLE_MIN_FOR_ANCESTRYDNA}"
 
     return {

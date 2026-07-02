@@ -126,10 +126,9 @@ def test_ancestrydna_with_v1_bundle_returns_409(manifest_env, client_factory) ->
     payload = response.json()["detail"]
     assert payload["error"] == "bundle_version_too_old"
     assert payload["installed_version"] == "v1.0.0"
-    # required_version is the manifest's vep_bundle version, bumped to v3.0.0 for
-    # the G1 re-annotation trigger (the catalog/asset is unchanged). v1.0.0 is
+    # required_version is the manifest's latest vep_bundle version. v1.0.0 is
     # still < the 2.0.0 AncestryDNA floor, so the 409 gate still fires.
-    assert payload["required_version"] == "v3.0.0"
+    assert payload["required_version"] == "v4.0.0"
     assert payload["vendor"] == "ancestrydna"
     assert payload["update_url"]  # non-empty
     assert payload["size_bytes"] > 0

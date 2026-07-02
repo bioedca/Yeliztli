@@ -58,10 +58,9 @@ from backend.ingestion.parser_ancestrydna import parse_ancestrydna
 VEP_HIT_RATE_FLOOR = 0.95
 CLINVAR_PLP_HIT_RATE_FLOOR = 0.85
 
-# Heuristic floor for "is this the real ~600 MB VEP bundle, not a stub?"
-# Plan §12.1 sets the production bundle size to ~600 MB; anything smaller
-# than 100 MB is treated as a development stub and the slow-tier test stays
-# dormant.
+# Heuristic floor for "is this the real production VEP bundle, not a stub?"
+# Production releases are hundreds of MB; anything smaller than 100 MB is
+# treated as a development stub and the slow-tier test stays dormant.
 _REAL_VEP_BUNDLE_MIN_BYTES = 100_000_000
 
 # ClinVar significance strings that ClinVar's parser writes for P / LP records.
@@ -98,7 +97,7 @@ def real_vep_bundle_path() -> Path:
     if path.stat().st_size < _REAL_VEP_BUNDLE_MIN_BYTES:
         pytest.skip(
             f"Bundle at {path} is only {path.stat().st_size} bytes; "
-            "looks like a dev stub, not the real ~600 MB release asset."
+            "looks like a dev stub, not the real production release asset."
         )
     return path
 

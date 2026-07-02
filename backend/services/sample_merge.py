@@ -295,7 +295,7 @@ def _rsids_in_vep_bundle(vep_engine: sa.Engine, rsids: set[str]) -> set[str]:
         # Bundle file missing / table missing / engine cannot connect — log
         # and fall through to the S1 tiebreaker. Never bubble up: the merge
         # service must keep working on machines that haven't installed the
-        # ~600 MB bundle yet (Step 4 / ADNA-00a).
+        # production VEP bundle yet (Step 4 / ADNA-00a).
         logger.warning(
             "merge_vep_bundle_unreachable",
             extra={"error": str(exc), "conflict_rsid_count": len(rsids)},

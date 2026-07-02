@@ -56,11 +56,11 @@ SAMPLE_MANIFEST: dict = {
             "size_bytes": 2_000_000_123,
         },
         "vep_bundle": {
-            "version": "v3.0.0",
-            "build_date": "2026-06-01",
+            "version": "v4.0.0",
+            "build_date": "2026-07-02",
             "url": "https://example.com/vep_bundle.db",
             "sha256": "22" * 32,
-            "size_bytes": 358_752_256,
+            "size_bytes": 352_251_904,
         },
     },
     "pipeline_pins": {
@@ -351,17 +351,17 @@ class TestCheckVepBundleUpdate:
     ):
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "vep_bundle", "v2.0.0")
+        _record_version_row(reference_engine, "vep_bundle", "v3.0.0")
 
         result = check_vep_bundle_update(reference_engine)
 
         assert result is not None
         assert isinstance(result, VersionInfo)
         assert result.db_name == "vep_bundle"
-        assert result.latest_version == "v3.0.0"
+        assert result.latest_version == "v4.0.0"
         assert result.download_url == "https://example.com/vep_bundle.db"
-        assert result.download_size_bytes == 358_752_256
-        assert result.release_date == "2026-06-01"
+        assert result.download_size_bytes == 352_251_904
+        assert result.release_date == "2026-07-02"
 
     def test_manifest_matches_recorded_returns_none(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -369,7 +369,7 @@ class TestCheckVepBundleUpdate:
         """A freshly-installed bundle (recorded == manifest) is up to date."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "vep_bundle", "v3.0.0")
+        _record_version_row(reference_engine, "vep_bundle", "v4.0.0")
 
         assert check_vep_bundle_update(reference_engine) is None
 
@@ -383,12 +383,12 @@ class TestCheckVepBundleUpdate:
         result = check_vep_bundle_update(reference_engine)
 
         assert result is not None
-        assert result.latest_version == "v3.0.0"
+        assert result.latest_version == "v4.0.0"
 
     def test_stale_committed_fixture_recorded_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
-        """The offline-fallback fixture records 'v1.0.0' → real v3.0.0 is offered."""
+        """The offline-fallback fixture records 'v1.0.0' → real v4.0.0 is offered."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "vep_bundle", "v1.0.0")
@@ -396,7 +396,7 @@ class TestCheckVepBundleUpdate:
         result = check_vep_bundle_update(reference_engine)
 
         assert result is not None
-        assert result.latest_version == "v3.0.0"
+        assert result.latest_version == "v4.0.0"
 
     def test_manifest_missing_bundle_entry_returns_none(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -432,7 +432,7 @@ class TestCheckVepBundleUpdate:
         """Signature parity: settings is accepted but not required."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "vep_bundle", "v3.0.0")
+        _record_version_row(reference_engine, "vep_bundle", "v4.0.0")
 
         assert check_vep_bundle_update(reference_engine, None) is None
         assert check_vep_bundle_update(reference_engine, settings=object()) is None

@@ -223,7 +223,7 @@ class TestIsSampleStale:
         assert events[0].get("reason") == "sample_row_missing"
 
 
-# ── G1: vep_bundle re-annotation bump ─────────────────────────────────
+# ── VEP bundle re-annotation bumps ────────────────────────────────────
 
 
 def _repo_manifest_vep_version() -> str:
@@ -233,17 +233,17 @@ def _repo_manifest_vep_version() -> str:
     return data["bundles"]["vep_bundle"]["version"]
 
 
-class TestG1ReannotationBump:
-    """G1: the manifest vep_bundle version was bumped so ``is_sample_stale``
-    re-flags every pre-existing sample for re-annotation through the corrected
-    (carriage/zygosity + F25/F15) engine. The catalog is unchanged — only the
-    version leads the asset tag.
+class TestVepReannotationBump:
+    """Manifest vep_bundle major bumps re-flag samples for re-annotation.
+
+    v4.0.0 is a real canonical-transcript rebuild, so samples recorded at the
+    previous v3.0.0 manifest version must be stale once v4.0.0 is installed.
     """
 
     # What pre-existing samples were annotated against before the bump.
-    _PRIOR_MAJOR_VERSION = "v2.0.0"
+    _PRIOR_MAJOR_VERSION = "v3.0.0"
 
-    def test_manifest_major_exceeds_prior_so_v2_samples_reflag(self):
+    def test_manifest_major_exceeds_prior_so_previous_samples_reflag(self):
         """The bump must raise the major above the prior, or nothing re-flags."""
         from packaging.version import Version
 

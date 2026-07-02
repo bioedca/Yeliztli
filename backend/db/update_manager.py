@@ -449,11 +449,6 @@ def run_vep_bundle_update(
         # ``bundle_metadata`` — tolerate ``None`` silently. When present, a
         # mismatch against the manifest logs a structured warning but never
         # fails the update (the manifest is the contract).
-        #
-        # G1: this warning is *expected* after the vep_bundle re-annotation
-        # version bump — the manifest leads at v3.0.0 while the unchanged
-        # bundle-v2.0.0 asset still self-reports ``v2.0.0`` (see
-        # bundles/manifest.json's vep_bundle ``comment``). It is advisory only.
         if (
             manifest_version is not None
             and metadata_bundle_version is not None

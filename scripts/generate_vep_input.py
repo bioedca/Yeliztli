@@ -16,12 +16,15 @@ Three modes:
   **⚠️ ``--format id`` requires a live Ensembl Variation database
   (``--database``); it does NOT work with ``--offline``/``--cache`` (VEP aborts
   with "Cannot use ID format in offline mode").** For a fully-offline rebuild,
-  resolve these rsIDs to ``REF/ALT`` from a dbSNP GRCh37 VCF and run
-  ``vep --offline --cache`` on the resulting coordinate VCF — see the Phase B
-  build-plan for the tradeoff. Only ``rs*`` IDs are emitted (the same filter as
+  resolve these rsIDs to alleles and GRCh37 coordinates (for example from
+  Ensembl ``variation_feature`` or a dbSNP GRCh37 VCF) and run
+  ``vep --offline --cache`` on the resulting coordinate/default-format input.
+  Only ``rs*`` IDs are emitted (the same filter as
   ``build_vep_bundle._load_catalog_rsids``, so the emitted set stays in lockstep
   with the coverage-gate denominator); non-``rs*`` markers have no dbSNP entry
-  and rely on the runtime coordinate-fallback.
+  and rely on the runtime coordinate-fallback. The release runbook's VEP command
+  must include ``--canonical`` so GRCh37 output carries the ``CANONICAL`` CSQ
+  field used as the preferred-transcript tiebreaker.
 
 * **Catalog mode (``--rsid-catalog``)** — consumes the same catalog and emits a
   sites-only VCF with ``REF=N``, ``ALT='.'`` per row. NOTE: standard ``vep

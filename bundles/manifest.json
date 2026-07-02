@@ -11,12 +11,12 @@
       "min_app_version": "0.2.0"
     },
     "vep_bundle": {
-      "comment": "G1 re-annotation trigger: version bumped to v3.0.0 to force is_sample_stale to re-flag every pre-existing sample (re-annotated through the corrected carriage/zygosity + F25/F15 engine). The CATALOG is unchanged, so url/sha256/size_bytes/build_date still point at the real bundle-v2.0.0 asset — the version intentionally leads the asset tag. Downloads keep working; recording v3.0.0 emits one advisory vep_bundle_metadata_version_mismatch (manifest v3.0.0 vs the asset's embedded v2.0.0), which is expected.",
-      "version": "v3.0.0",
-      "build_date": "2026-06-01",
-      "url": "https://github.com/bioedca/Yeliztli/releases/download/bundle-v2.0.0/vep_bundle.db",
-      "sha256": "9f645b2c6963e2a83e69c0b1e5bea777cb1bf20566d7c051cfda9b0fef6393bc",
-      "size_bytes": 358752256,
+      "comment": "Canonical-transcript rebuild: version bumped to v4.0.0 and the release asset rebuilt with VEP --canonical so GRCh37 CANONICAL=YES rows populate mane_select. This fixes preferred-transcript tiebreaks for AGTRAP rs771467011 and MTHFR rs1801133, and forces samples recorded at v3.0.0 or older to re-annotate against the corrected bundle.",
+      "version": "v4.0.0",
+      "build_date": "2026-07-02",
+      "url": "https://github.com/bioedca/Yeliztli/releases/download/bundle-v4.0.0/vep_bundle.db",
+      "sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+      "size_bytes": 352251904,
       "min_app_version": "0.2.0"
     },
     "ancestry_pca": {

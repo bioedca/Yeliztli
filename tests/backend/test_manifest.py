@@ -23,15 +23,17 @@ from backend.db.manifest import (
     reset_cache,
 )
 
-# The real VEP bundle v2.0.0 SHA-256 and exact size of the published
-# vep_bundle.db (see docs/bundle-release-runbook.md §3). These were filled
-# in by PR-0a (Phase D) once the cluster rebuild produced the asset and the
-# draft release was confirmed reachable; before that the manifest carried a
-# sentinel SHA-256 of all zeros and a planned size. Naming them keeps the
-# test assertions exact (per CodeRabbit feedback) and pins bundles/manifest.json
+# Historical v2 fixture values used by V2_PAYLOAD below.
+V2_VEP_BUNDLE_SHA256 = "9f645b2c6963e2a83e69c0b1e5bea777cb1bf20566d7c051cfda9b0fef6393bc"
+V2_VEP_BUNDLE_SIZE_BYTES = 358_752_256
+
+# The real VEP bundle v4.0.0 SHA-256 and exact size of the published
+# vep_bundle.db (see docs/bundle-release-runbook.md §3). The v4 asset was
+# rebuilt with VEP --canonical so GRCh37 CANONICAL rows populate mane_select.
+# Naming them keeps the test assertions exact and pins bundles/manifest.json
 # against accidental drift.
-VEP_BUNDLE_SHA256 = "9f645b2c6963e2a83e69c0b1e5bea777cb1bf20566d7c051cfda9b0fef6393bc"
-VEP_BUNDLE_SIZE_BYTES = 358_752_256
+VEP_BUNDLE_SHA256 = "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3"
+VEP_BUNDLE_SIZE_BYTES = 352_251_904
 
 # The real LAI bundle v2.0.0 SHA-256 and exact size of the published
 # genomeinsight_lai_bundle_v2.0.0.tar.gz. Filled in by PR-0c (Phase D, Step 32)
@@ -98,8 +100,8 @@ V2_PAYLOAD: dict = {
             "version": "v2.0.0",
             "build_date": "2026-06-01",
             "url": "https://github.com/bioedca/Yeliztli/releases/download/bundle-v2.0.0/vep_bundle.db",
-            "sha256": VEP_BUNDLE_SHA256,
-            "size_bytes": VEP_BUNDLE_SIZE_BYTES,
+            "sha256": V2_VEP_BUNDLE_SHA256,
+            "size_bytes": V2_VEP_BUNDLE_SIZE_BYTES,
             "min_app_version": "0.2.0",
         },
     },
@@ -420,8 +422,8 @@ class TestBundleV2:
         assert entry.version == "v2.0.0"
         assert entry.build_date == "2026-06-01"
         assert entry.url.endswith("/bundle-v2.0.0/vep_bundle.db")
-        assert entry.sha256 == VEP_BUNDLE_SHA256
-        assert entry.size_bytes == VEP_BUNDLE_SIZE_BYTES
+        assert entry.sha256 == V2_VEP_BUNDLE_SHA256
+        assert entry.size_bytes == V2_VEP_BUNDLE_SIZE_BYTES
 
     def test_v2_min_app_version_round_trips(self, tmp_path: Path, monkeypatch):
         """`min_app_version` is parsed from the JSON entry and exposed on the dataclass.
@@ -623,14 +625,13 @@ class TestRepoManifest:
         # gnomAD is no longer a pipeline pin now that it ships as a bundle.
         assert "gnomad" not in m.pipeline_pins
 
-    def test_repo_manifest_vep_bundle_is_v3_0_0(self, monkeypatch):
+    def test_repo_manifest_vep_bundle_is_v4_0_0(self, monkeypatch):
         """Pins the manifest's vep_bundle entry against accidental rollback/drift.
 
-        G1: the manifest ``version`` was bumped to v3.0.0 to force
-        ``is_sample_stale`` to re-flag pre-existing samples for re-annotation
-        through the corrected engine. The CATALOG is unchanged, so the
-        version intentionally **leads** the asset tag — url/sha256/size still
-        point at the real ``bundle-v2.0.0`` asset.
+        v4.0.0 is a real rebuilt asset, not a manifest-only version lead: it was
+        generated with VEP ``--canonical`` so canonical rows populate
+        ``mane_select`` and v3.0.0 samples re-annotate against the corrected
+        preferred-transcript tiebreak.
         """
         repo_root = Path(__file__).resolve().parents[2]
         path = repo_root / "bundles" / "manifest.json"
@@ -640,10 +641,9 @@ class TestRepoManifest:
 
         m = fetch_manifest()
         vep = m.bundles["vep_bundle"]
-        assert vep.version == "v3.0.0"
-        # Version leads the asset tag by design (G1) — the catalog is unchanged,
-        # so url/sha256/size still pin the real published bundle-v2.0.0 asset.
-        assert vep.url.endswith("/bundle-v2.0.0/vep_bundle.db")
+        assert vep.version == "v4.0.0"
+        assert vep.build_date == "2026-07-02"
+        assert vep.url.endswith("/bundle-v4.0.0/vep_bundle.db")
         assert vep.size_bytes == VEP_BUNDLE_SIZE_BYTES
         assert vep.sha256 == VEP_BUNDLE_SHA256
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -675,7 +675,7 @@ class TestRepoManifest:
 
         Asset-publish follow-up to PR #312: bundles["gnomad"] was added with the
         real gnomad-bundle-v1.0.0 asset values and pipeline_pins["gnomad"] removed.
-        Mirrors test_repo_manifest_vep_bundle_is_v2_0_0.
+        Mirrors test_repo_manifest_vep_bundle_is_v4_0_0.
         """
         repo_root = Path(__file__).resolve().parents[2]
         path = repo_root / "bundles" / "manifest.json"

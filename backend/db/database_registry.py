@@ -281,9 +281,9 @@ DATABASES: dict[str, DatabaseInfo] = {
             "Pre-computed variant effect predictions for the 23andMe v5 "
             "∪ AncestryDNA v2.0 rsid catalog"
         ),
-        url="https://github.com/bioedca/Yeliztli/releases/download/bundle-v2.0.0/vep_bundle.db",
+        url="https://github.com/bioedca/Yeliztli/releases/download/bundle-v4.0.0/vep_bundle.db",
         filename="vep_bundle.db",
-        expected_size_bytes=600_000_000,  # ~600 MB (union catalog; v2.0.0+)
+        expected_size_bytes=352_251_904,  # v4.0.0 union catalog release asset
         required=False,
         phase=2,
         build_mode="bundled",
@@ -706,7 +706,7 @@ def _committed_bundle_version(db_info: DatabaseInfo) -> str:
 
     The repo ships small fixtures under ``bundles/`` so the app works offline,
     but they are *not* always the current release (notably ``vep_bundle.db`` is
-    a small pre-v2.0.0 fixture — the real 358 MB union catalog lives as a GitHub
+    a small pre-v2.0.0 fixture — the real union catalog lives as a GitHub
     release asset). Recording a truthful version keeps the §5.4 AncestryDNA gate
     and the Update Manager honest:
 
