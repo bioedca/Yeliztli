@@ -59,6 +59,9 @@ _VARIANTS = {
 _GNOMAD_AN_POPMAX_BY_RSID = {
     "rs_common": 2_000,
 }
+_GNOMAD_AF_EUR_BY_RSID = {
+    "rs_common": 0.06,
+}
 
 
 @pytest.fixture
@@ -114,6 +117,10 @@ def acmg_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     consequence=csq,
                     gnomad_af_popmax=popmax,
                     gnomad_an_popmax=_GNOMAD_AN_POPMAX_BY_RSID.get(rsid),
+                    gnomad_af_eur=_GNOMAD_AF_EUR_BY_RSID.get(rsid),
+                    gnomad_an_eur=_GNOMAD_AN_POPMAX_BY_RSID.get(rsid)
+                    if rsid in _GNOMAD_AF_EUR_BY_RSID
+                    else None,
                     revel=revel,
                     clinvar_significance=clinvar,
                 )

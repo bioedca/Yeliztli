@@ -106,6 +106,13 @@ BENIGN = "Benign"
 # PMID 30311383).
 BA1_AF_MIN = 0.05
 BA1_MIN_OBSERVED_ALLELES = 2_000
+_BA1_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS = (
+    ("AFR", "gnomad_af_afr", "gnomad_an_afr"),
+    ("AMR", "gnomad_af_amr", "gnomad_an_amr"),
+    ("EAS", "gnomad_af_eas", "gnomad_an_eas"),
+    ("EUR/NFE", "gnomad_af_eur", "gnomad_an_eur"),
+    ("SAS", "gnomad_af_sas", "gnomad_an_sas"),
+)
 # ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383, DOI 10.1002/humu.23642):
 # variants with population MAF > 5% for which there is evidence of pathogenicity, so the
 # stand-alone benign rule BA1 must NOT be applied — the full evidence is weighed instead.
@@ -202,8 +209,22 @@ class AcmgEvidence:
     consequence: str | None = None
     gnomad_af_global: float | None = None
     gnomad_af_popmax: float | None = None
+    gnomad_af_afr: float | None = None
+    gnomad_af_amr: float | None = None
+    gnomad_af_asj: float | None = None
+    gnomad_af_eas: float | None = None
+    gnomad_af_eur: float | None = None
+    gnomad_af_fin: float | None = None
+    gnomad_af_sas: float | None = None
     gnomad_an_global: int | None = None
     gnomad_an_popmax: int | None = None
+    gnomad_an_afr: int | None = None
+    gnomad_an_amr: int | None = None
+    gnomad_an_asj: int | None = None
+    gnomad_an_eas: int | None = None
+    gnomad_an_eur: int | None = None
+    gnomad_an_fin: int | None = None
+    gnomad_an_sas: int | None = None
     revel: float | None = None
     # Gene-level context from an explicit, mechanism-specific source.
     gene_lof_mechanism: bool = False  # LoF is a plausible disease mechanism for the gene
@@ -239,6 +260,28 @@ def _effective_af_observed_alleles(ev: AcmgEvidence) -> tuple[float | None, int 
     if ev.gnomad_af_popmax is not None:
         return ev.gnomad_af_popmax, ev.gnomad_an_popmax
     return ev.gnomad_af_global, ev.gnomad_an_global
+
+
+def _ba1_effective_af_observed_alleles(
+    ev: AcmgEvidence,
+) -> tuple[float | None, int | None, str | None]:
+    """BA1 popmax over non-founder continental populations only.
+
+    ClinGen SVI's refined BA1 wording uses general continental datasets and
+    explicitly excludes Finnish European as a founder population. ASJ is likewise
+    omitted here while remaining part of the general rarity popmax (#1092).
+    """
+    best: tuple[float, int | None, str] | None = None
+    for label, af_attr, an_attr in _BA1_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS:
+        af = getattr(ev, af_attr)
+        if af is None:
+            continue
+        an = getattr(ev, an_attr)
+        if best is None or af > best[0]:
+            best = (af, an, label)
+    if best is None:
+        return None, None, None
+    return best
 
 
 def _is_benign_af_exception(ev: AcmgEvidence) -> bool:
@@ -358,7 +401,7 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af, observed_alleles = _effective_af_observed_alleles(ev)
+    af, observed_alleles, population = _ba1_effective_af_observed_alleles(ev)
     if af is not None and af > BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # Common but with evidence of pathogenicity: generic benign frequency
@@ -372,8 +415,10 @@ def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
             "benign",
             "Standalone",
             _points_for("benign", "Standalone"),
-            f"Allele frequency {af:.2%} > 5% with {observed_alleles:,} observed "
-            "alleles — stand-alone benign (Ghosh 2018).",
+            f"Allele frequency {af:.2%} in {population} > 5% with "
+            f"{observed_alleles:,} observed alleles — stand-alone benign "
+            "(Ghosh 2018; BA1 excludes Finnish and ASJ founder-population "
+            "frequency peaks).",
         )
     return None
 
@@ -517,8 +562,22 @@ def assess_sample_acmg(
             av.c.consequence,
             av.c.gnomad_af_global,
             av.c.gnomad_af_popmax,
+            av.c.gnomad_af_afr,
+            av.c.gnomad_af_amr,
+            av.c.gnomad_af_asj,
+            av.c.gnomad_af_eas,
+            av.c.gnomad_af_eur,
+            av.c.gnomad_af_fin,
+            av.c.gnomad_af_sas,
             av.c.gnomad_an_global,
             av.c.gnomad_an_popmax,
+            av.c.gnomad_an_afr,
+            av.c.gnomad_an_amr,
+            av.c.gnomad_an_asj,
+            av.c.gnomad_an_eas,
+            av.c.gnomad_an_eur,
+            av.c.gnomad_an_fin,
+            av.c.gnomad_an_sas,
             av.c.revel,
             av.c.clinvar_significance,
         )
@@ -562,8 +621,22 @@ def assess_sample_acmg(
             consequence=r.consequence,
             gnomad_af_global=r.gnomad_af_global,
             gnomad_af_popmax=r.gnomad_af_popmax,
+            gnomad_af_afr=r.gnomad_af_afr,
+            gnomad_af_amr=r.gnomad_af_amr,
+            gnomad_af_asj=r.gnomad_af_asj,
+            gnomad_af_eas=r.gnomad_af_eas,
+            gnomad_af_eur=r.gnomad_af_eur,
+            gnomad_af_fin=r.gnomad_af_fin,
+            gnomad_af_sas=r.gnomad_af_sas,
             gnomad_an_global=r.gnomad_an_global,
             gnomad_an_popmax=r.gnomad_an_popmax,
+            gnomad_an_afr=r.gnomad_an_afr,
+            gnomad_an_amr=r.gnomad_an_amr,
+            gnomad_an_asj=r.gnomad_an_asj,
+            gnomad_an_eas=r.gnomad_an_eas,
+            gnomad_an_eur=r.gnomad_an_eur,
+            gnomad_an_fin=r.gnomad_an_fin,
+            gnomad_an_sas=r.gnomad_an_sas,
             revel=r.revel,
             gene_lof_mechanism=lof_mechanism,
             gene_missense_z=constraint.get("mis_z") if constraint else None,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+import sqlalchemy as sa
 
 from backend.analysis.acmg import (
     BA1_AF_MIN,
@@ -15,6 +16,7 @@ from backend.analysis.acmg import (
     PM2_AF_MAX,
     UNCERTAIN,
     AcmgEvidence,
+    assess_sample_acmg,
     classify_acmg,
     classify_points,
     criterion_ba1,
@@ -26,6 +28,23 @@ from backend.analysis.acmg import (
     criterion_pp3_bp4,
     criterion_pvs1,
 )
+from backend.db.sample_schema import create_sample_tables
+from backend.db.tables import annotated_variants, reference_metadata
+
+
+def _ba1_evidence(
+    af: float = 0.06,
+    observed_alleles: int = BA1_MIN_OBSERVED_ALLELES,
+    *,
+    rsid: str | None = None,
+) -> AcmgEvidence:
+    return AcmgEvidence(
+        rsid=rsid,
+        gnomad_af_popmax=af,
+        gnomad_an_popmax=observed_alleles,
+        gnomad_af_eur=af,
+        gnomad_an_eur=observed_alleles,
+    )
 
 
 class TestClassifyPoints:
@@ -172,41 +191,40 @@ class TestOtherCriteria:
         assert criterion_pp3_bp4(AcmgEvidence(consequence="missense_variant", revel=0.5)) is None
 
     def test_ba1_common(self) -> None:
-        c = criterion_ba1(
-            AcmgEvidence(
-                gnomad_af_popmax=0.06,
-                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
-            )
-        )
+        c = criterion_ba1(_ba1_evidence())
         assert c is not None and c.strength == "Standalone" and c.points == -8
 
     def test_ba1_requires_observed_allele_count(self) -> None:
-        assert criterion_ba1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
+        assert criterion_ba1(AcmgEvidence(gnomad_af_eur=0.06)) is None
         assert (
             criterion_ba1(
                 AcmgEvidence(
-                    gnomad_af_popmax=0.06,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES - 1,
+                    gnomad_af_eur=0.06,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES - 1,
                 )
             )
             is None
         )
 
-    def test_ba1_global_af_uses_global_observed_allele_count(self) -> None:
-        c = criterion_ba1(
-            AcmgEvidence(
-                gnomad_af_global=0.06,
-                gnomad_an_global=BA1_MIN_OBSERVED_ALLELES,
+    def test_ba1_ignores_global_or_popmax_without_continental_population(self) -> None:
+        assert (
+            criterion_ba1(
+                AcmgEvidence(
+                    gnomad_af_global=0.06,
+                    gnomad_an_global=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_popmax=0.06,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                )
             )
+            is None
         )
-        assert c is not None and c.code == "BA1"
 
     def test_ba1_not_applied_below_5pct(self) -> None:
         assert (
             criterion_ba1(
                 AcmgEvidence(
-                    gnomad_af_popmax=0.04,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=0.04,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                 )
             )
             is None
@@ -216,16 +234,16 @@ class TestOtherCriteria:
         eps = BA1_AF_MIN / 100
         just_above = criterion_ba1(
             AcmgEvidence(
-                gnomad_af_popmax=BA1_AF_MIN + eps,
-                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=BA1_AF_MIN + eps,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
             )
         )
         assert just_above is not None and just_above.strength == "Standalone"
         assert (
             criterion_ba1(
                 AcmgEvidence(
-                    gnomad_af_popmax=BA1_AF_MIN,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=BA1_AF_MIN,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                 )
             )
             is None
@@ -233,12 +251,55 @@ class TestOtherCriteria:
         assert (
             criterion_ba1(
                 AcmgEvidence(
-                    gnomad_af_popmax=BA1_AF_MIN - eps,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=BA1_AF_MIN - eps,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                 )
             )
             is None
         )
+
+    @pytest.mark.parametrize(
+        ("af_field", "an_field"),
+        [
+            ("gnomad_af_fin", "gnomad_an_fin"),
+            ("gnomad_af_asj", "gnomad_an_asj"),
+        ],
+    )
+    def test_ba1_excludes_founder_population_only_frequency(
+        self, af_field: str, an_field: str
+    ) -> None:
+        ev = AcmgEvidence(
+            gnomad_af_popmax=0.06,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            **{af_field: 0.06, an_field: BA1_MIN_OBSERVED_ALLELES},
+        )
+        assert criterion_ba1(ev) is None
+
+    @pytest.mark.parametrize(
+        ("af_field", "an_field", "label"),
+        [
+            ("gnomad_af_afr", "gnomad_an_afr", "AFR"),
+            ("gnomad_af_amr", "gnomad_an_amr", "AMR"),
+            ("gnomad_af_eas", "gnomad_an_eas", "EAS"),
+            ("gnomad_af_eur", "gnomad_an_eur", "EUR/NFE"),
+            ("gnomad_af_sas", "gnomad_an_sas", "SAS"),
+        ],
+    )
+    def test_ba1_applies_to_non_founder_continental_frequency(
+        self, af_field: str, an_field: str, label: str
+    ) -> None:
+        ev = AcmgEvidence(
+            gnomad_af_popmax=0.08,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_fin=0.08,
+            gnomad_an_fin=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_asj=0.07,
+            gnomad_an_asj=BA1_MIN_OBSERVED_ALLELES,
+            **{af_field: 0.06, an_field: BA1_MIN_OBSERVED_ALLELES},
+        )
+        c = criterion_ba1(ev)
+        assert c is not None and c.code == "BA1"
+        assert label in c.rationale
 
     @pytest.mark.parametrize(
         "rsid",
@@ -255,7 +316,7 @@ class TestOtherCriteria:
         # ClinGen SVI BA1 exception list (Ghosh 2018, PMID 30311383): common but with
         # evidence of pathogenicity → BA1 (stand-alone benign) must not fire at MAF > 5%,
         # even well above the cutoff (#1243/#1296).
-        assert criterion_ba1(AcmgEvidence(rsid=rsid, gnomad_af_popmax=0.07)) is None
+        assert criterion_ba1(_ba1_evidence(0.07, rsid=rsid)) is None
 
     def test_ba1_exception_variant_not_force_drafted_benign(self) -> None:
         # HFE C282Y (rs1800562) at popmax 5.14% — the canonical Pathogenic hereditary-
@@ -266,6 +327,9 @@ class TestOtherCriteria:
                 gene_symbol="HFE",
                 consequence="missense_variant",
                 gnomad_af_popmax=0.0514,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=0.0514,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
             )
         )
         assert result.classification != BENIGN
@@ -279,6 +343,8 @@ class TestOtherCriteria:
                 consequence="missense_variant",
                 gnomad_af_popmax=0.20,
                 gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=0.20,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
             )
         )
         assert result.classification == BENIGN
@@ -444,6 +510,8 @@ class TestClassifyAcmg:
             consequence="missense_variant",
             gnomad_af_popmax=0.06,
             gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_eur=0.06,
+            gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
         )
         result = classify_acmg(ev)
         assert result.classification == BENIGN
@@ -503,3 +571,36 @@ class TestClassifyAcmg:
         result = classify_acmg(AcmgEvidence(gene_symbol="G", consequence="missense_variant"))
         assert "PM3" in result.unassessable
         assert "PP5" in result.unassessable  # withdrawn criteria flagged too
+
+
+class TestAssessSampleAcmg:
+    def test_sample_query_carries_per_population_ba1_frequency(self, tmp_path) -> None:
+        reference_engine = sa.create_engine("sqlite:///:memory:")
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
+        reference_metadata.create_all(reference_engine)
+        create_sample_tables(sample_engine)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_common_eur",
+                    chrom="1",
+                    pos=100,
+                    genotype="AG",
+                    zygosity="het",
+                    gene_symbol="G",
+                    consequence="missense_variant",
+                    clinvar_significance="Benign",
+                    gnomad_af_popmax=0.06,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=0.06,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+
+        result = assess_sample_acmg(sample_engine, reference_engine)
+
+        assert result["total_candidates"] == 1
+        variant = result["variants"][0]
+        assert variant["acmg_classification"] == BENIGN
+        assert any(c["code"] == "BA1" for c in variant["criteria"])
