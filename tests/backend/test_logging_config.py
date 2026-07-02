@@ -21,6 +21,7 @@ def test_redact_sensitive_log_fields_recursively() -> None:
         "event": "analysis_event",
         "genotype": "AG",
         "call_confidence": "high",
+        "rs429358_genotype": "GG",
         "nested": {"diplotype": "*1/*2", "gene": "CYP2C19"},
         "items": [{"haplotype": "H1", "rsid": "rs123"}],
         "input_gt": "0/1",
@@ -29,6 +30,7 @@ def test_redact_sensitive_log_fields_recursively() -> None:
     redacted = _redact_sensitive_log_fields(None, "info", event_dict)
 
     assert redacted["genotype"] == _REDACTED_LOG_VALUE
+    assert redacted["rs429358_genotype"] == _REDACTED_LOG_VALUE
     assert redacted["call_confidence"] == "high"
     assert redacted["nested"] == {
         "diplotype": _REDACTED_LOG_VALUE,
@@ -53,6 +55,7 @@ def test_configured_logging_redacts_before_db_and_console(
             "analysis_event",
             genotype="AG",
             diplotype="*1/*2",
+            rs429358_genotype="GG",
             rsid="rs123",
             nested={"haplotype": "H1", "gene": "APOE"},
         )
@@ -60,6 +63,7 @@ def test_configured_logging_redacts_before_db_and_console(
         stdout = capsys.readouterr().out
         assert "AG" not in stdout
         assert "*1/*2" not in stdout
+        assert "GG" not in stdout
         assert "H1" not in stdout
         assert _REDACTED_LOG_VALUE in stdout
         assert "rs123" in stdout
@@ -74,6 +78,7 @@ def test_configured_logging_redacts_before_db_and_console(
         event_data = json.loads(row.event_data)
         assert event_data["genotype"] == _REDACTED_LOG_VALUE
         assert event_data["diplotype"] == _REDACTED_LOG_VALUE
+        assert event_data["rs429358_genotype"] == _REDACTED_LOG_VALUE
         assert event_data["nested"] == {
             "haplotype": _REDACTED_LOG_VALUE,
             "gene": "APOE",

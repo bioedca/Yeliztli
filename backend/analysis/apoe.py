@@ -421,8 +421,8 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     if is_no_call(rs429358_gt) or is_no_call(rs7412_gt):
         logger.warning(
             "apoe_no_call",
-            rs429358=rs429358_gt,
-            rs7412=rs7412_gt,
+            rs429358_genotype=rs429358_gt,
+            rs7412_genotype=rs7412_gt,
         )
         return APOEResult(
             status=APOEStatus.NO_CALL,
@@ -441,8 +441,8 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     if allele_pair is None:
         logger.warning(
             "apoe_ambiguous_genotype",
-            rs429358=norm_429358,
-            rs7412=norm_7412,
+            rs429358_genotype=norm_429358,
+            rs7412_genotype=norm_7412,
         )
         return APOEResult(
             status=APOEStatus.AMBIGUOUS,
@@ -458,8 +458,8 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
     logger.info(
         "apoe_genotype_determined",
         diplotype=diplotype,
-        rs429358=rs429358_gt,
-        rs7412=rs7412_gt,
+        rs429358_genotype=rs429358_gt,
+        rs7412_genotype=rs7412_gt,
         has_e4=(allele1 == APOEAllele.E4 or allele2 == APOEAllele.E4),
         e4_count=sum(1 for a in (allele1, allele2) if a == APOEAllele.E4),
     )
