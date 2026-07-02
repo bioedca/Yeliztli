@@ -13,11 +13,13 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
-import { useHlaDrugHypersensitivity, useHlaRuleOuts } from "@/api/hla"
+import { useHlaDrugHypersensitivity, useHlaRuleOuts, useHlaSusceptibility } from "@/api/hla"
 import type {
   CeliacRuleOut,
   HlaDrugRiskAssessment,
   HlaDrugRiskStatus,
+  HlaSusceptibilityFinding,
+  HlaSusceptibilityStatus,
   NarcolepsyRuleOut,
 } from "@/types/hla"
 
@@ -205,11 +207,106 @@ function RuleOutCard({
   )
 }
 
+const SUSC_STYLE: Record<
+  HlaSusceptibilityStatus,
+  { label: string; icon: typeof ShieldAlert; box: string; badge: string }
+> = {
+  increased_risk: {
+    label: "Increased susceptibility",
+    icon: ShieldAlert,
+    box: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20",
+    badge: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200",
+  },
+  not_increased: {
+    label: "No increased risk",
+    icon: ShieldCheck,
+    box: "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20",
+    badge: "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200",
+  },
+  neutral_subtype: {
+    label: "Neutral subtype",
+    icon: HelpCircle,
+    box: "border-border bg-muted/40",
+    badge: "bg-muted text-muted-foreground",
+  },
+  not_typed: {
+    label: "Not typed",
+    icon: HelpCircle,
+    box: "border-border bg-muted/40",
+    badge: "bg-muted text-muted-foreground",
+  },
+}
+
+function SusceptibilityCard({ f }: { f: HlaSusceptibilityFinding }) {
+  const style = SUSC_STYLE[f.status]
+  const Icon = style.icon
+  return (
+    <div
+      className={`rounded-lg border p-4 ${style.box}`}
+      data-testid={`hla-susc-${f.hla}`}
+      data-status={f.status}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">{f.condition}</h3>
+          <p className="text-sm text-muted-foreground">
+            {f.hla} — {f.detail}
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${style.badge}`}
+        >
+          <Icon className="h-3.5 w-3.5" />
+          {style.label}
+        </span>
+      </div>
+      <p className="mt-3 text-sm">{f.interpretation}</p>
+      {f.low_confidence && (
+        <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+          Low-confidence imputation call — interpret with extra caution.
+        </p>
+      )}
+      {f.notes.length > 0 && (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+          {f.notes.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      )}
+      {f.citations.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {f.citations.map((c, i) => {
+            const url = pubmedUrl(c)
+            return (
+              <span key={c}>
+                {i > 0 && ", "}
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    {c}
+                  </a>
+                ) : (
+                  c
+                )}
+              </span>
+            )
+          })}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function HLAView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
   const query = useHlaDrugHypersensitivity(sampleId)
   const ruleOuts = useHlaRuleOuts(sampleId)
+  const susceptibility = useHlaSusceptibility(sampleId)
 
   if (sampleId == null) {
     return (
@@ -222,6 +319,7 @@ export default function HLAView() {
 
   const data = query.data
   const ro = ruleOuts.data
+  const su = susceptibility.data
   const sorted = data?.assessments
     ? [...data.assessments].sort((x, y) => STATUS_ORDER[x.status] - STATUS_ORDER[y.status])
     : []
@@ -312,6 +410,25 @@ export default function HLAView() {
                 lowConfidence={ro.narcolepsy.low_confidence}
               />
             )}
+          </div>
+        </section>
+      )}
+
+      {su?.available && (
+        <section
+          aria-label="HLA autoimmune susceptibility"
+          data-testid="hla-susceptibility"
+          className="mt-8"
+        >
+          <h2 className="text-lg font-semibold mb-1">Autoimmune susceptibility</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            HLA associations with autoimmune conditions — susceptibility markers only, not
+            diagnostic. Most carriers never develop the condition.
+          </p>
+          <div className="space-y-3">
+            {su.findings.map((f) => (
+              <SusceptibilityCard key={f.hla} f={f} />
+            ))}
           </div>
         </section>
       )}

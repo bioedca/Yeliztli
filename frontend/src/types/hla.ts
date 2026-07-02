@@ -54,3 +54,29 @@ export interface HlaRuleOutsResponse {
   citations: string[]
   research_use_only: boolean
 }
+
+export type HlaSusceptibilityStatus =
+  | "increased_risk"
+  | "not_increased"
+  | "neutral_subtype"
+  | "not_typed"
+
+export interface HlaSusceptibilityFinding {
+  condition: string
+  hla: string
+  status: HlaSusceptibilityStatus
+  carried: boolean
+  detail: string
+  interpretation: string
+  low_confidence: boolean
+  citations: string[]
+  notes: string[]
+}
+
+export interface HlaSusceptibilityResponse {
+  available: boolean
+  findings: HlaSusceptibilityFinding[]
+  caveat: string
+  unavailable_note: string | null
+  research_use_only: boolean
+}

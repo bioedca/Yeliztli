@@ -20,6 +20,7 @@ from backend.analysis.hibag_runner import hibag_runtime_status
 from backend.analysis.hla_drug_hypersensitivity import assess_drug_hypersensitivity
 from backend.analysis.hla_resolver import read_hla_calls
 from backend.analysis.hla_rule_outs import assess_rule_outs
+from backend.analysis.hla_susceptibility import assess_susceptibility
 from backend.db.connection import get_registry
 from backend.db.tables import samples
 
@@ -152,4 +153,41 @@ def get_hla_rule_outs(
         caveat=report.caveat,
         unavailable_note=report.unavailable_note,
         citations=report.citations,
+    )
+
+
+class SusceptibilityFindingResponse(BaseModel):
+    condition: str
+    hla: str
+    status: str  # increased_risk | not_increased | neutral_subtype | not_typed
+    carried: bool
+    detail: str
+    interpretation: str
+    low_confidence: bool
+    citations: list[str]
+    notes: list[str]
+
+
+class SusceptibilityResponse(BaseModel):
+    """HLA autoimmune-susceptibility report for a sample."""
+
+    available: bool
+    findings: list[SusceptibilityFindingResponse] = []
+    caveat: str = ""
+    unavailable_note: str | None = None
+    research_use_only: bool = True
+
+
+@router.get("/susceptibility", response_model=SusceptibilityResponse)
+def get_hla_susceptibility(
+    sample_id: int = Query(..., description="Sample ID"),
+) -> SusceptibilityResponse:
+    """Assess a sample's imputed HLA calls for autoimmune-susceptibility associations."""
+    engine = _get_sample_engine(sample_id)
+    report = assess_susceptibility(read_hla_calls(engine))
+    return SusceptibilityResponse(
+        available=report.available,
+        findings=[SusceptibilityFindingResponse(**vars(f)) for f in report.findings],
+        caveat=report.caveat,
+        unavailable_note=report.unavailable_note,
     )

@@ -2,7 +2,11 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
-import type { HlaDrugHypersensitivityResponse, HlaRuleOutsResponse } from "@/types/hla"
+import type {
+  HlaDrugHypersensitivityResponse,
+  HlaRuleOutsResponse,
+  HlaSusceptibilityResponse,
+} from "@/types/hla"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
 
@@ -16,10 +20,12 @@ vi.mock("react-router-dom", async (importOriginal) => {
 
 const mockUseHlaDrug = vi.fn()
 const mockUseHlaRuleOuts = vi.fn()
+const mockUseHlaSusceptibility = vi.fn()
 
 vi.mock("@/api/hla", () => ({
   useHlaDrugHypersensitivity: () => mockUseHlaDrug(),
   useHlaRuleOuts: () => mockUseHlaRuleOuts(),
+  useHlaSusceptibility: () => mockUseHlaSusceptibility(),
 }))
 
 import HLAView from "@/pages/HLAView"
@@ -99,10 +105,42 @@ const RULE_OUTS_RESPONSE: HlaRuleOutsResponse = {
 beforeEach(() => {
   routerMock.search = "sample_id=1"
   vi.clearAllMocks()
-  // Default both queries to "no data" so a section renders only when a test opts in.
+  // Default queries to "no data" so a section renders only when a test opts in.
   mockUseHlaDrug.mockReturnValue(q())
   mockUseHlaRuleOuts.mockReturnValue(q())
+  mockUseHlaSusceptibility.mockReturnValue(q())
 })
+
+const SUSCEPTIBILITY_RESPONSE: HlaSusceptibilityResponse = {
+  available: true,
+  caveat: "caveat",
+  unavailable_note: null,
+  research_use_only: true,
+  findings: [
+    {
+      condition: "Ankylosing spondylitis / axial spondyloarthritis",
+      hla: "HLA-B*27",
+      status: "increased_risk",
+      carried: true,
+      detail: "HLA-B*27:05 (heterozygous)",
+      interpretation: "HLA-B*27 is present. It is a susceptibility marker, not a diagnosis.",
+      low_confidence: false,
+      citations: ["PMID:28259985"],
+      notes: ["Also associates with acute anterior uveitis."],
+    },
+    {
+      condition: "Psoriasis (early-onset / guttate)",
+      hla: "HLA-C*06:02",
+      status: "not_increased",
+      carried: false,
+      detail: "HLA-C*06:02 not detected",
+      interpretation: "HLA-C*06:02 was not detected.",
+      low_confidence: false,
+      citations: ["PMID:29072309"],
+      notes: [],
+    },
+  ],
+}
 
 describe("HLAView drug hypersensitivity", () => {
   it("surfaces an at-risk allele card, the caveat, and sorts at-risk first", () => {
@@ -166,5 +204,31 @@ describe("HLAView disease rule-outs", () => {
     render(<HLAView />)
 
     expect(screen.queryByTestId("hla-rule-outs")).not.toBeInTheDocument()
+  })
+})
+
+describe("HLAView autoimmune susceptibility", () => {
+  it("renders increased-risk and not-increased susceptibility cards", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaSusceptibility.mockReturnValue(q({ data: SUSCEPTIBILITY_RESPONSE }))
+    render(<HLAView />)
+
+    const b27 = screen.getByTestId("hla-susc-HLA-B*27")
+    expect(b27).toHaveAttribute("data-status", "increased_risk")
+    expect(b27).toHaveTextContent("Ankylosing spondylitis")
+    expect(b27).toHaveTextContent("susceptibility marker, not a diagnosis")
+
+    const c0602 = screen.getByTestId("hla-susc-HLA-C*06:02")
+    expect(c0602).toHaveAttribute("data-status", "not_increased")
+  })
+
+  it("omits the susceptibility section when unavailable", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaSusceptibility.mockReturnValue(
+      q({ data: { available: false, findings: [], caveat: "", unavailable_note: "n", research_use_only: true } }),
+    )
+    render(<HLAView />)
+
+    expect(screen.queryByTestId("hla-susceptibility")).not.toBeInTheDocument()
   })
 })
