@@ -21,6 +21,7 @@ def test_redact_sensitive_log_fields_recursively() -> None:
         "event": "analysis_event",
         "genotype": "AG",
         "call_confidence": "high",
+        "diplotypes": 42,
         "rs429358_genotype": "GG",
         "nested": {"diplotype": "*1/*2", "gene": "CYP2C19"},
         "items": [{"haplotype": "H1", "rsid": "rs123"}],
@@ -32,6 +33,7 @@ def test_redact_sensitive_log_fields_recursively() -> None:
     assert redacted["genotype"] == _REDACTED_LOG_VALUE
     assert redacted["rs429358_genotype"] == _REDACTED_LOG_VALUE
     assert redacted["call_confidence"] == "high"
+    assert redacted["diplotypes"] == 42
     assert redacted["nested"] == {
         "diplotype": _REDACTED_LOG_VALUE,
         "gene": "CYP2C19",

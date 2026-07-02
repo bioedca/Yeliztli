@@ -30,7 +30,6 @@ _SENSITIVE_LOG_KEYS = {
     "genotype",
     "genotypes",
     "diplotype",
-    "diplotypes",
     "haplotype",
     "haplotypes",
     "gt",

@@ -460,8 +460,6 @@ def determine_apoe_genotype(sample_engine: sa.Engine) -> APOEResult:
         diplotype=diplotype,
         rs429358_genotype=rs429358_gt,
         rs7412_genotype=rs7412_gt,
-        has_e4=(allele1 == APOEAllele.E4 or allele2 == APOEAllele.E4),
-        e4_count=sum(1 for a in (allele1, allele2) if a == APOEAllele.E4),
     )
 
     return APOEResult(
@@ -562,8 +560,6 @@ def store_apoe_finding(
     logger.info(
         "apoe_finding_stored",
         diplotype=result.diplotype,
-        has_e4=result.has_e4,
-        e4_count=result.e4_count,
     )
     return 1
 
