@@ -16,7 +16,8 @@ gnomAD primary AF data is CC0, so redistributing this derived file is permitted.
 
 Usage::
 
-    # Download the r2.1.1 exomes VCF (~63 GB) and build the bundle (~2.85 GB):
+    # Download the source VCF (~63 GB), build SQLite (~2.85 GB installed),
+    # and emit the compressed release asset (~1.30 GB download):
     python scripts/build_gnomad_bundle.py --out gnomad_af.db --work-dir /tmp/gnomad
 
     # Build from an already-downloaded VCF (skip the heavy download):
@@ -24,11 +25,9 @@ Usage::
 
 After building, capture the integrity values for the manifest + release notes::
 
-    sha256sum gnomad_af.db
-    stat -c %s gnomad_af.db
-    gzip -c -9 gnomad_af.db > gnomad_af.db.gz
-    sha256sum gnomad_af.db.gz    # -> 64-hex sha256 for bundles/manifest.json
-    stat -c %s gnomad_af.db.gz   # -> size_bytes (integer)
+    # The script prints the compressed release asset SHA-256 + size_bytes for
+    # bundles/manifest.json, and the installed SQLite SHA-256 + size for release
+    # notes.
 
 Do NOT commit the ``.db`` or ``.db.gz`` to the repo — ship the compressed
 ``gnomad_af.db.gz`` as a release asset. The app installs it as ``gnomad_af.db``.
@@ -37,7 +36,9 @@ Do NOT commit the ``.db`` or ``.db.gz`` to the repo — ship the compressed
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
+import shutil
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -117,18 +118,30 @@ def main(argv: list[str] | None = None) -> None:
     sha256 = _compute_sha256(args.out)
     size_mb = file_size / (1024 * 1024)
 
+    asset_path = args.out.with_name(f"{args.out.name}.gz")
+    print(f"Compressing {args.out} to {asset_path}...")
+    with args.out.open("rb") as src, gzip.open(asset_path, "wb", compresslevel=9) as dst:
+        shutil.copyfileobj(src, dst, length=1024 * 1024)
+
+    asset_size = asset_path.stat().st_size
+    asset_sha256 = _compute_sha256(asset_path)
+    asset_size_mb = asset_size / (1024 * 1024)
+
     print()
     print(f"Built {args.out}")
     print(f"  Variants loaded:        {stats.variants_loaded:,}")
     print(f"  Skipped (no rsid):      {stats.skipped_no_rsid:,}")
     print(f"  Skipped (invalid chr):  {stats.skipped_invalid_chrom:,}")
     print(f"  Skipped (multiallelic): {stats.skipped_multiallelic:,}")
-    print(f"  File size:              {size_mb:.1f} MB ({file_size} bytes)")
-    print(f"  SHA-256:                {sha256}")
+    print(f"  Installed DB size:      {size_mb:.1f} MB ({file_size} bytes)")
+    print(f"  Installed DB SHA-256:   {sha256}")
+    print(f"  Release asset:          {asset_path}")
+    print(f"  Release asset size:     {asset_size_mb:.1f} MB ({asset_size} bytes)")
+    print(f"  Release asset SHA-256:  {asset_sha256}")
     print()
     print("Fill these into bundles/manifest.json -> bundles.gnomad:")
-    print(f'  "sha256": "{sha256}",')
-    print(f'  "size_bytes": {file_size},')
+    print(f'  "sha256": "{asset_sha256}",')
+    print(f'  "size_bytes": {asset_size},')
 
 
 if __name__ == "__main__":

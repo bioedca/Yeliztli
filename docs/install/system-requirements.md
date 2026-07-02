@@ -19,7 +19,7 @@ are not. The setup wizard **warns** when less than ~80 GB is free and **blocks**
 |-----------|-------------------------|
 | **dbNSFP** source archive while building | ~50 GB transient ZIP |
 | **dbNSFP** built SQLite database | ~10+ GB steady-state |
-| gnomAD allele frequencies | ~2.85 GB |
+| gnomAD allele frequencies | ~1.30 GB download / ~2.85 GB installed |
 | VEP consequences + PGS scores | ~700 MB |
 | ClinVar, CPIC, GWAS Catalog, dbSNP, MONDO/HPO, ENCODE cCREs | ~420 MB |
 | Optional ancestry **LAI bundle** (Tier-2 chromosome painting) | ~1.7 GB |
