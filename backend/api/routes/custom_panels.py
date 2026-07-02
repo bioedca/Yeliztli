@@ -39,6 +39,11 @@ from backend.analysis.rare_variant_finder import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import samples
+from backend.services.sex_inference import (
+    get_recorded_biological_sex,
+    infer_biological_sex,
+    resolve_biological_sex,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +150,16 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
             detail=f"Sample database file not found for sample {sample_id}.",
         )
     return registry.get_sample_engine(sample_db_path)
+
+
+def _resolve_biological_sex_for_sample(sample_engine: sa.Engine, sample_id: int) -> str | None:
+    """Resolve recorded-over-inferred biological sex for rare-variant gates."""
+    registry = get_registry()
+    resolved = resolve_biological_sex(
+        recorded_sex=get_recorded_biological_sex(registry.reference_engine, sample_id),
+        inferred_sex=infer_biological_sex(sample_engine),
+    )
+    return resolved.sex
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
@@ -292,11 +307,13 @@ def search_with_panel(
         )
 
     sample_engine = _get_sample_engine(sample_id)
+    biological_sex = _resolve_biological_sex_for_sample(sample_engine, sample_id)
 
     # Panel search persists findings (via store_rare_variant_findings below), so
-    # carriage-gate it like the automated run_all path: a hom-ref (non-carrier)
-    # or unscoreable call at a Pathogenic locus in a panel gene must not be
-    # counted as found. NULL zygosity is excluded by the gate too.
+    # apply the same carriage and sex gates as the automated run_all path: a
+    # hom-ref (non-carrier), unscoreable, or biologically impossible call in a
+    # panel gene must not be counted as found. NULL zygosity is excluded by the
+    # carriage gate too.
     filters = RareVariantFilter(
         gene_symbols=panel.gene_symbols,
         af_threshold=body.af_threshold if body else DEFAULT_AF_THRESHOLD,
@@ -305,6 +322,8 @@ def search_with_panel(
         include_novel=body.include_novel if body else True,
         zygosity=body.zygosity if body else None,
         carried_only=True,
+        inferred_sex=biological_sex,
+        biological_sex=biological_sex,
     )
 
     result = find_rare_variants(filters, sample_engine)

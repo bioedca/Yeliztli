@@ -98,6 +98,38 @@ ANNOTATED_VARIANTS_DATA = [
     },
 ]
 
+SRY_PATHOGENIC_VARIANT = {
+    "rsid": "rs_custom_panel_y_pathogenic",
+    "chrom": "Y",
+    "pos": 2_787_000,
+    "ref": "A",
+    "alt": "G",
+    "genotype": "AG",
+    "zygosity": "het",
+    "gene_symbol": "SRY",
+    "consequence": "missense_variant",
+    "hgvs_coding": "c.100A>G",
+    "hgvs_protein": "p.Lys34Arg",
+    "gnomad_af_global": 0.0005,
+    "gnomad_af_afr": None,
+    "gnomad_af_amr": None,
+    "gnomad_af_eas": None,
+    "gnomad_af_eur": None,
+    "gnomad_af_fin": None,
+    "gnomad_af_sas": None,
+    "clinvar_significance": "Pathogenic",
+    "clinvar_review_stars": 2,
+    "clinvar_accession": "VCV000000001",
+    "clinvar_conditions": "46,XY sex reversal",
+    "cadd_phred": 24.0,
+    "revel": 0.81,
+    "ensemble_pathogenic": True,
+    "evidence_conflict": False,
+    "disease_name": "46,XY sex reversal",
+    "inheritance_pattern": "Y-linked",
+    "annotation_coverage": 15,
+}
+
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -123,6 +155,13 @@ def sample_db_path(tmp_data_dir: Path) -> Path:
 
     engine.dispose()
     return db_path
+
+
+def _insert_annotated_variant(sample_db_path: Path, row: dict) -> None:
+    engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    with engine.begin() as conn:
+        conn.execute(sa.insert(annotated_variants), [row])
+    engine.dispose()
 
 
 @pytest.fixture()
@@ -417,13 +456,10 @@ class TestSearchWithPanelEndpoint:
         (``carried_only=True``) — a non-carried Pathogenic variant in a panel
         gene is never counted as found.
         """
-        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
-        with engine.begin() as conn:
-            conn.execute(
-                sa.insert(annotated_variants),
-                [hom_ref_pathogenic_row(gene_symbol="ZZHOMREF")],
-            )
-        engine.dispose()
+        _insert_annotated_variant(
+            sample_db_path,
+            hom_ref_pathogenic_row(gene_symbol="ZZHOMREF"),
+        )
 
         upload_resp = panel_client.post(
             "/api/panels/upload?name=Homref+Panel",
@@ -438,6 +474,61 @@ class TestSearchWithPanelEndpoint:
         assert resp.status_code == 200
         # The only variant in this panel gene is a non-carrier → nothing found.
         assert resp.json()["variants_found"] == 0
+
+    def test_search_panel_suppresses_y_variant_for_xx_sample(
+        self, panel_client: TestClient, sample_db_path: Path
+    ) -> None:
+        """Custom panel search applies the rare-variant chrY-by-sex gate."""
+        _insert_annotated_variant(sample_db_path, SRY_PATHOGENIC_VARIANT)
+
+        upload_resp = panel_client.post(
+            "/api/panels/upload?name=SRY+Panel",
+            files={"file": ("sry.txt", io.BytesIO(b"SRY"), "text/plain")},
+        )
+        panel_id = upload_resp.json()["panel"]["id"]
+
+        with patch("backend.api.routes.custom_panels.infer_biological_sex", return_value="XX"):
+            resp = panel_client.post(
+                f"/api/panels/{panel_id}/search?sample_id=1",
+                json={},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["variants_found"] == 0
+        assert data["findings_stored"] == 0
+        assert data["genes_with_findings"] == []
+
+    @pytest.mark.parametrize("inferred_sex", ["XY", "unknown"])
+    def test_search_panel_keeps_y_variant_when_not_confident_xx(
+        self,
+        panel_client: TestClient,
+        sample_db_path: Path,
+        inferred_sex: str,
+    ) -> None:
+        """Only confident XX suppresses chrY findings from custom panel search."""
+        _insert_annotated_variant(sample_db_path, SRY_PATHOGENIC_VARIANT)
+
+        upload_resp = panel_client.post(
+            "/api/panels/upload?name=SRY+Panel",
+            files={"file": ("sry.txt", io.BytesIO(b"SRY"), "text/plain")},
+        )
+        panel_id = upload_resp.json()["panel"]["id"]
+
+        with patch(
+            "backend.api.routes.custom_panels.infer_biological_sex",
+            return_value=inferred_sex,
+        ):
+            resp = panel_client.post(
+                f"/api/panels/{panel_id}/search?sample_id=1",
+                json={},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["variants_found"] == 1
+        assert data["findings_stored"] == 1
+        assert data["genes_with_findings"] == ["SRY"]
 
     def test_search_panel_not_found(self, panel_client: TestClient) -> None:
         """Search with non-existent panel returns 404."""
