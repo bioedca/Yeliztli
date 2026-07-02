@@ -26,3 +26,31 @@ export interface HlaDrugHypersensitivityResponse {
   unavailable_note: string | null
   research_use_only: boolean
 }
+
+type CeliacRuleOutStatus = "rule_out" | "permissive_present" | "not_typed"
+type NarcolepsyRuleOutStatus = "absent_lowers" | "present" | "not_typed"
+
+export interface CeliacRuleOut {
+  status: CeliacRuleOutStatus
+  detected: string[]
+  low_confidence: boolean
+  interpretation: string
+}
+
+export interface NarcolepsyRuleOut {
+  status: NarcolepsyRuleOutStatus
+  carried: boolean
+  zygosity: string | null
+  low_confidence: boolean
+  interpretation: string
+}
+
+export interface HlaRuleOutsResponse {
+  available: boolean
+  celiac: CeliacRuleOut | null
+  narcolepsy: NarcolepsyRuleOut | null
+  caveat: string
+  unavailable_note: string | null
+  citations: string[]
+  research_use_only: boolean
+}

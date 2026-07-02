@@ -8,13 +8,18 @@
  */
 
 import { useSearchParams } from "react-router-dom"
-import { HelpCircle, Info, ShieldAlert, ShieldCheck, Syringe } from "lucide-react"
+import { HelpCircle, Info, Moon, ShieldAlert, ShieldCheck, Syringe, Wheat } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
-import { useHlaDrugHypersensitivity } from "@/api/hla"
-import type { HlaDrugRiskAssessment, HlaDrugRiskStatus } from "@/types/hla"
+import { useHlaDrugHypersensitivity, useHlaRuleOuts } from "@/api/hla"
+import type {
+  CeliacRuleOut,
+  HlaDrugRiskAssessment,
+  HlaDrugRiskStatus,
+  NarcolepsyRuleOut,
+} from "@/types/hla"
 
 const STATUS_ORDER: Record<HlaDrugRiskStatus, number> = {
   at_risk: 0,
@@ -121,10 +126,90 @@ function DrugRiskCard({ a }: { a: HlaDrugRiskAssessment }) {
   )
 }
 
+type RuleOutTone = "reassuring" | "non_diagnostic" | "unknown"
+
+const TONE_STYLE: Record<RuleOutTone, { box: string; badge: string }> = {
+  reassuring: {
+    box: "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20",
+    badge: "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200",
+  },
+  non_diagnostic: {
+    box: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20",
+    badge: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200",
+  },
+  unknown: {
+    box: "border-border bg-muted/40",
+    badge: "bg-muted text-muted-foreground",
+  },
+}
+
+const CELIAC_STATUS: Record<CeliacRuleOut["status"], { tone: RuleOutTone; label: string }> = {
+  rule_out: { tone: "reassuring", label: "Very unlikely" },
+  permissive_present: { tone: "non_diagnostic", label: "Permissive HLA — non-diagnostic" },
+  not_typed: { tone: "unknown", label: "Not typed" },
+}
+
+const NARCO_STATUS: Record<NarcolepsyRuleOut["status"], { tone: RuleOutTone; label: string }> = {
+  absent_lowers: { tone: "reassuring", label: "DQB1*06:02 absent — argues against NT1" },
+  present: { tone: "non_diagnostic", label: "DQB1*06:02 present — non-diagnostic" },
+  not_typed: { tone: "unknown", label: "Not typed" },
+}
+
+function RuleOutCard({
+  testid,
+  title,
+  icon: Icon,
+  tone,
+  label,
+  interpretation,
+  detected,
+  lowConfidence,
+}: {
+  testid: string
+  title: string
+  icon: typeof Wheat
+  tone: RuleOutTone
+  label: string
+  interpretation: string
+  detected?: string[]
+  lowConfidence: boolean
+}) {
+  const style = TONE_STYLE[tone]
+  return (
+    <div className={`rounded-lg border p-4 ${style.box}`} data-testid={testid} data-tone={tone}>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="flex items-center gap-2 font-semibold">
+          <Icon className="h-4 w-4" />
+          {title}
+        </h3>
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${style.badge}`}
+        >
+          {label}
+        </span>
+      </div>
+      <p className="mt-3 text-sm">{interpretation}</p>
+      {detected && detected.length > 0 && (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+          {detected.map((d) => (
+            <li key={d}>{d}</li>
+          ))}
+        </ul>
+      )}
+      {lowConfidence && (
+        <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+          Low-confidence imputation call — interpret with extra caution.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function HLAView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
   const query = useHlaDrugHypersensitivity(sampleId)
+  const ruleOuts = useHlaRuleOuts(sampleId)
 
   if (sampleId == null) {
     return (
@@ -136,6 +221,7 @@ export default function HLAView() {
   }
 
   const data = query.data
+  const ro = ruleOuts.data
   const sorted = data?.assessments
     ? [...data.assessments].sort((x, y) => STATUS_ORDER[x.status] - STATUS_ORDER[y.status])
     : []
@@ -193,6 +279,41 @@ export default function HLAView() {
             )}
           </section>
         </>
+      )}
+
+      {ro?.available && (
+        <section aria-label="HLA disease rule-outs" data-testid="hla-rule-outs" className="mt-8">
+          <h2 className="text-lg font-semibold mb-1">Disease rule-outs</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            High negative-predictive-value HLA tests: absence makes the disease unlikely; presence
+            is common and non-diagnostic.
+          </p>
+          <div className="space-y-3">
+            {ro.celiac && (
+              <RuleOutCard
+                testid="hla-rule-out-celiac"
+                title="Celiac disease (HLA-DQ)"
+                icon={Wheat}
+                tone={CELIAC_STATUS[ro.celiac.status].tone}
+                label={CELIAC_STATUS[ro.celiac.status].label}
+                interpretation={ro.celiac.interpretation}
+                detected={ro.celiac.detected}
+                lowConfidence={ro.celiac.low_confidence}
+              />
+            )}
+            {ro.narcolepsy && (
+              <RuleOutCard
+                testid="hla-rule-out-narcolepsy"
+                title="Narcolepsy type 1 (HLA-DQB1*06:02)"
+                icon={Moon}
+                tone={NARCO_STATUS[ro.narcolepsy.status].tone}
+                label={NARCO_STATUS[ro.narcolepsy.status].label}
+                interpretation={ro.narcolepsy.interpretation}
+                lowConfidence={ro.narcolepsy.low_confidence}
+              />
+            )}
+          </div>
+        </section>
       )}
     </div>
   )

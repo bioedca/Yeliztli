@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
-import type { HlaDrugHypersensitivityResponse } from "@/types/hla"
+import type { HlaDrugHypersensitivityResponse, HlaRuleOutsResponse } from "@/types/hla"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
 
@@ -15,9 +15,11 @@ vi.mock("react-router-dom", async (importOriginal) => {
 })
 
 const mockUseHlaDrug = vi.fn()
+const mockUseHlaRuleOuts = vi.fn()
 
 vi.mock("@/api/hla", () => ({
   useHlaDrugHypersensitivity: () => mockUseHlaDrug(),
+  useHlaRuleOuts: () => mockUseHlaRuleOuts(),
 }))
 
 import HLAView from "@/pages/HLAView"
@@ -73,9 +75,33 @@ function q(over: Record<string, unknown> = {}) {
   }
 }
 
+const RULE_OUTS_RESPONSE: HlaRuleOutsResponse = {
+  available: true,
+  caveat: "caveat",
+  unavailable_note: null,
+  research_use_only: true,
+  citations: ["PMID:31274511", "PMID:30321823"],
+  celiac: {
+    status: "permissive_present",
+    detected: ["DQ2.5 (DQA1*05 + DQB1*02:01)"],
+    low_confidence: false,
+    interpretation: "A celiac-permissive HLA-DQ haplotype is present. This does NOT diagnose celiac.",
+  },
+  narcolepsy: {
+    status: "absent_lowers",
+    carried: false,
+    zygosity: null,
+    low_confidence: false,
+    interpretation: "HLA-DQB1*06:02 was not detected — argues strongly against narcolepsy type 1.",
+  },
+}
+
 beforeEach(() => {
   routerMock.search = "sample_id=1"
   vi.clearAllMocks()
+  // Default both queries to "no data" so a section renders only when a test opts in.
+  mockUseHlaDrug.mockReturnValue(q())
+  mockUseHlaRuleOuts.mockReturnValue(q())
 })
 
 describe("HLAView drug hypersensitivity", () => {
@@ -113,5 +139,32 @@ describe("HLAView drug hypersensitivity", () => {
       "No imputed HLA calls for this sample.",
     )
     expect(screen.queryByTestId(/^hla-drug-HLA-/)).not.toBeInTheDocument()
+  })
+})
+
+describe("HLAView disease rule-outs", () => {
+  it("renders celiac (permissive) and narcolepsy (absent) rule-out cards", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaRuleOuts.mockReturnValue(q({ data: RULE_OUTS_RESPONSE }))
+    render(<HLAView />)
+
+    const celiac = screen.getByTestId("hla-rule-out-celiac")
+    expect(celiac).toHaveAttribute("data-tone", "non_diagnostic")
+    expect(celiac).toHaveTextContent("DQ2.5")
+    expect(celiac).toHaveTextContent("does NOT diagnose celiac")
+
+    const narco = screen.getByTestId("hla-rule-out-narcolepsy")
+    expect(narco).toHaveAttribute("data-tone", "reassuring")
+    expect(narco).toHaveTextContent("argues strongly against narcolepsy")
+  })
+
+  it("omits the rule-outs section when unavailable", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaRuleOuts.mockReturnValue(
+      q({ data: { available: false, celiac: null, narcolepsy: null, caveat: "", unavailable_note: "n", citations: [], research_use_only: true } }),
+    )
+    render(<HLAView />)
+
+    expect(screen.queryByTestId("hla-rule-outs")).not.toBeInTheDocument()
   })
 })

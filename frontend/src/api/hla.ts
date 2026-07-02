@@ -2,7 +2,7 @@
  * offline (scripts/predict_hla.py) and stored, so the views only GET + interpret. */
 
 import { useQuery } from "@tanstack/react-query"
-import type { HlaDrugHypersensitivityResponse } from "@/types/hla"
+import type { HlaDrugHypersensitivityResponse, HlaRuleOutsResponse } from "@/types/hla"
 
 export function useHlaDrugHypersensitivity(sampleId: number | null) {
   return useQuery({
@@ -12,6 +12,22 @@ export function useHlaDrugHypersensitivity(sampleId: number | null) {
       if (!res.ok) {
         const text = await res.text().catch(() => "")
         throw new Error(`HLA drug-hypersensitivity failed: ${res.status}${text ? ` - ${text}` : ""}`)
+      }
+      return res.json()
+    },
+    enabled: sampleId != null,
+    staleTime: Infinity,
+  })
+}
+
+export function useHlaRuleOuts(sampleId: number | null) {
+  return useQuery({
+    queryKey: ["hla-rule-outs", sampleId],
+    queryFn: async (): Promise<HlaRuleOutsResponse> => {
+      const res = await fetch(`/api/hla/rule-outs?sample_id=${sampleId}`)
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(`HLA rule-outs failed: ${res.status}${text ? ` - ${text}` : ""}`)
       }
       return res.json()
     },

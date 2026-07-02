@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from backend.analysis.hibag_runner import hibag_runtime_status
 from backend.analysis.hla_drug_hypersensitivity import assess_drug_hypersensitivity
 from backend.analysis.hla_resolver import read_hla_calls
+from backend.analysis.hla_rule_outs import assess_rule_outs
 from backend.db.connection import get_registry
 from backend.db.tables import samples
 
@@ -105,4 +106,50 @@ def get_hla_drug_hypersensitivity(
         assessments=[DrugRiskAssessmentResponse(**vars(a)) for a in report.assessments],
         caveat=report.caveat,
         unavailable_note=report.unavailable_note,
+    )
+
+
+class CeliacRuleOutResponse(BaseModel):
+    status: str  # rule_out | permissive_present | not_typed
+    detected: list[str]
+    low_confidence: bool
+    interpretation: str
+
+
+class NarcolepsyRuleOutResponse(BaseModel):
+    status: str  # absent_lowers | present | not_typed
+    carried: bool
+    zygosity: str | None
+    low_confidence: bool
+    interpretation: str
+
+
+class RuleOutsResponse(BaseModel):
+    """HLA high-NPV rule-out report (celiac + narcolepsy) for a sample."""
+
+    available: bool
+    celiac: CeliacRuleOutResponse | None = None
+    narcolepsy: NarcolepsyRuleOutResponse | None = None
+    caveat: str = ""
+    unavailable_note: str | None = None
+    citations: list[str] = []
+    research_use_only: bool = True
+
+
+@router.get("/rule-outs", response_model=RuleOutsResponse)
+def get_hla_rule_outs(
+    sample_id: int = Query(..., description="Sample ID"),
+) -> RuleOutsResponse:
+    """Assess a sample's imputed HLA calls for the celiac + narcolepsy rule-outs."""
+    engine = _get_sample_engine(sample_id)
+    report = assess_rule_outs(read_hla_calls(engine))
+    return RuleOutsResponse(
+        available=report.available,
+        celiac=CeliacRuleOutResponse(**vars(report.celiac)) if report.celiac else None,
+        narcolepsy=NarcolepsyRuleOutResponse(**vars(report.narcolepsy))
+        if report.narcolepsy
+        else None,
+        caveat=report.caveat,
+        unavailable_note=report.unavailable_note,
+        citations=report.citations,
     )
