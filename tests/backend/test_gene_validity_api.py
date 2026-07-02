@@ -27,19 +27,22 @@ from backend.db.tables import (
 # gene → (clinvar_significance, finding conditions)
 # A gene may have multiple curations; the guardrail should use matching conditions.
 _FINDINGS = {
-    "rs_brca1": ("BRCA1", "Pathogenic", "hereditary breast ovarian cancer"),
+    "rs_brca1": ("BRCA1", "Pathogenic", "Hereditary breast and ovarian cancer syndrome"),
     "rs_ttn": ("TTN", "Likely pathogenic", "dilated cardiomyopathy"),
-    "rs_abcb6_limited": ("ABCB6", "Pathogenic", "microphthalmia"),
+    "rs_abcb6_limited": ("ABCB6", "Pathogenic", "microphthalmia, isolated, with coloboma 7"),
     "rs_abcb6_unresolved": ("ABCB6", "Pathogenic", None),
+    "rs_kcnq1_mixed": ("KCNQ1", "Pathogenic", "long QT syndrome|hypertrophic cardiomyopathy"),
     "rs_foo": ("FOO1", "Pathogenic", "disputed disease"),
     "rs_uncurated": ("ZZZGENE", "Pathogenic", "uncurated disease"),
 }
 
 _CURATIONS = [
-    ("BRCA1", "hereditary breast ovarian cancer", "Definitive"),
+    ("BRCA1", "BRCA1-related cancer predisposition", "Definitive"),
     ("TTN", "dilated cardiomyopathy", "Limited"),
-    ("ABCB6", "microphthalmia", "Limited"),  # pleiotropic — see below
+    ("ABCB6", "microphthalmia, isolated, with coloboma 7", "Limited"),
     ("ABCB6", "dyschromatosis", "Moderate"),
+    ("KCNQ1", "long QT syndrome", "Definitive"),
+    ("KCNQ1", "hypertrophic cardiomyopathy", "Disputed"),
     ("FOO1", "disputed disease", "Disputed"),
 ]
 
@@ -148,7 +151,7 @@ class TestGeneValidityEndpoint:
         assert brca1["validity_established"] is True
         assert brca1["caution"] is False
         assert brca1["disease_context_match"] == "matched"
-        assert brca1["matched_disease_label"] == "hereditary breast ovarian cancer"
+        assert brca1["matched_disease_label"] == "BRCA1-related cancer predisposition"
 
     def test_limited_gene_triggers_caution(self, gv_client: TestClient) -> None:
         by_rsid = {
@@ -166,12 +169,26 @@ class TestGeneValidityEndpoint:
             d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
         }
         abcb6 = by_rsid["rs_abcb6_limited"]
-        assert abcb6["disease_context"] == "microphthalmia"
+        assert abcb6["disease_context"] == "microphthalmia, isolated, with coloboma 7"
         assert abcb6["disease_context_match"] == "matched"
-        assert abcb6["matched_disease_label"] == "microphthalmia"
+        assert abcb6["matched_disease_label"] == "microphthalmia, isolated, with coloboma 7"
         assert abcb6["best_classification"] == "Limited"
         assert abcb6["validity_established"] is False
         assert abcb6["caution"] is True
+
+    def test_multiple_matched_contexts_with_mixed_validity_are_caution(
+        self, gv_client: TestClient
+    ) -> None:
+        by_rsid = {
+            d["rsid"]: d for d in gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
+        }
+        kcnq1 = by_rsid["rs_kcnq1_mixed"]
+        assert kcnq1["disease_context"] == "long QT syndrome|hypertrophic cardiomyopathy"
+        assert kcnq1["disease_context_match"] == "matched_mixed"
+        assert kcnq1["matched_disease_label"] is None
+        assert kcnq1["best_classification"] is None
+        assert kcnq1["validity_established"] is False
+        assert kcnq1["caution"] is True
 
     def test_mixed_curations_without_context_are_unresolved_caution(
         self, gv_client: TestClient

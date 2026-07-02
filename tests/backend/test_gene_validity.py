@@ -15,9 +15,9 @@ from backend.analysis.gene_validity import (
 from backend.db.tables import clingen_gene_validity, findings
 
 
-def _cur(classification: str, disease: str = "some disease") -> dict:
+def _cur(classification: str, disease: str = "some disease", gene: str = "G") -> dict:
     return {
-        "gene_symbol": "G",
+        "gene_symbol": gene,
         "classification": classification,
         "disease_label": disease,
         "disease_id": "MONDO:0000000",
@@ -115,6 +115,44 @@ def test_guardrail_matching_disease_context_selects_specific_curation() -> None:
     assert moderate["disease_context_match"] == "matched"
 
 
+def test_guardrail_matches_comma_containing_disease_label() -> None:
+    curs = [_cur("Limited", "microphthalmia, isolated, with coloboma 7", gene="ABCB6")]
+    g = gene_validity_guardrail(
+        "ABCB6", curs, disease_context="microphthalmia, isolated, with coloboma 7"
+    )
+    assert g["best_classification"] == "Limited"
+    assert g["disease_context_match"] == "matched"
+    assert g["matched_disease_label"] == "microphthalmia, isolated, with coloboma 7"
+    assert g["caution"] is True
+
+
+def test_guardrail_matches_gene_related_cancer_predisposition_label() -> None:
+    curs = [_cur("Definitive", "BRCA1-related cancer predisposition", gene="BRCA1")]
+    g = gene_validity_guardrail(
+        "BRCA1", curs, disease_context="Hereditary breast and ovarian cancer syndrome"
+    )
+    assert g["best_classification"] == "Definitive"
+    assert g["validity_established"] is True
+    assert g["disease_context_match"] == "matched"
+    assert g["matched_disease_label"] == "BRCA1-related cancer predisposition"
+    assert g["caution"] is False
+
+
+def test_guardrail_mixed_matched_disease_context_is_caution() -> None:
+    curs = [
+        _cur("Definitive", "long QT syndrome", gene="KCNQ1"),
+        _cur("Disputed", "hypertrophic cardiomyopathy", gene="KCNQ1"),
+    ]
+    g = gene_validity_guardrail(
+        "KCNQ1", curs, disease_context="long QT syndrome|hypertrophic cardiomyopathy"
+    )
+    assert g["best_classification"] is None
+    assert g["validity_established"] is False
+    assert g["caution"] is True
+    assert g["disease_context_match"] == "matched_mixed"
+    assert g["matched_disease_label"] is None
+
+
 def test_guardrail_mixed_across_diseases_without_context_is_caution() -> None:
     curs = [_cur("Limited", "disease A"), _cur("Moderate", "disease B")]
     g = gene_validity_guardrail("ABCB6", curs)
@@ -199,7 +237,7 @@ def test_assess_finding_gene_validity_uses_finding_conditions(
                 {
                     "gene_symbol": "ABCB6",
                     "hgnc_id": "HGNC:47",
-                    "disease_label": "microphthalmia",
+                    "disease_label": "microphthalmia, isolated, with coloboma 7",
                     "disease_id": "MONDO:0000001",
                     "moi": "AD",
                     "sop": "SOP10",
@@ -234,7 +272,7 @@ def test_assess_finding_gene_validity_uses_finding_conditions(
                     "gene_symbol": "ABCB6",
                     "rsid": "rs_abcb6_microphthalmia",
                     "finding_text": "ABCB6 rs_abcb6_microphthalmia — Pathogenic",
-                    "conditions": "microphthalmia",
+                    "conditions": "microphthalmia, isolated, with coloboma 7",
                     "clinvar_significance": "Pathogenic",
                 },
                 {
@@ -256,7 +294,7 @@ def test_assess_finding_gene_validity_uses_finding_conditions(
     matched = by_rsid["rs_abcb6_microphthalmia"]
     assert matched["best_classification"] == "Limited"
     assert matched["disease_context_match"] == "matched"
-    assert matched["matched_disease_label"] == "microphthalmia"
+    assert matched["matched_disease_label"] == "microphthalmia, isolated, with coloboma 7"
     assert matched["caution"] is True
 
     unresolved = by_rsid["rs_abcb6_no_context"]

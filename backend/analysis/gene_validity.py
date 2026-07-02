@@ -24,6 +24,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from backend.analysis.clinvar_conditions import format_clinvar_conditions
 from backend.analysis.clinvar_significance import pathogenic_significance_filter
 from backend.annotation.clingen import lookup_gene_validities
 from backend.disclaimers import GENE_VALIDITY_CONTEXT_ONLY
@@ -51,7 +52,6 @@ ESTABLISHED_CLASSIFICATIONS = frozenset({"Definitive", "Strong", "Moderate"})
 
 _CONTRADICTED = frozenset({"Disputed", "Refuted"})
 _DISEASE_TOKEN_RE = re.compile(r"[a-z0-9]+")
-_CONDITION_SPLIT_RE = re.compile(r"[,;|]+")
 _DISEASE_STOPWORDS = frozenset(
     {
         "and",
@@ -61,11 +61,28 @@ _DISEASE_STOPWORDS = frozenset(
         "of",
         "or",
         "phenotype",
+        "predisposition",
+        "related",
         "syndrome",
+        "susceptibility",
         "the",
         "type",
     }
 )
+_DISEASE_TOKEN_ALIASES = {
+    "cancers": "cancer",
+    "carcinoma": "cancer",
+    "carcinomas": "cancer",
+    "malignancies": "cancer",
+    "malignancy": "cancer",
+    "neoplasm": "cancer",
+    "neoplasms": "cancer",
+    "tumor": "cancer",
+    "tumors": "cancer",
+    "tumour": "cancer",
+    "tumours": "cancer",
+}
+_CANCER_TOKENS = frozenset({"cancer", "carcinoma", "malignancy", "neoplasm", "tumor", "tumour"})
 _UNINFORMATIVE_CONDITIONS = frozenset(
     {
         "",
@@ -100,15 +117,17 @@ def best_curation(curations: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 def _condition_parts(conditions: str | None) -> list[str]:
     """Split a finding condition string into informative disease-context chunks."""
-    if not conditions:
-        return []
-    parts = []
-    for raw in _CONDITION_SPLIT_RE.split(conditions):
-        part = raw.strip()
+    parts = format_clinvar_conditions(conditions)
+    out = []
+    for part in parts:
         lowered = part.lower()
         if lowered and lowered not in _UNINFORMATIVE_CONDITIONS:
-            parts.append(part)
-    return parts
+            out.append(part)
+    return out
+
+
+def _normalise_disease_token(token: str) -> str:
+    return _DISEASE_TOKEN_ALIASES.get(token, token)
 
 
 def _disease_tokens(value: str | None) -> frozenset[str]:
@@ -116,19 +135,49 @@ def _disease_tokens(value: str | None) -> frozenset[str]:
     if not value:
         return frozenset()
     return frozenset(
-        token
+        _normalise_disease_token(token)
         for token in _DISEASE_TOKEN_RE.findall(value.lower())
         if token not in _DISEASE_STOPWORDS
     )
 
 
-def _disease_context_matches(curation: dict[str, Any], condition_part: str) -> bool:
+def _raw_disease_tokens(value: str | None) -> frozenset[str]:
+    if not value:
+        return frozenset()
+    return frozenset(_DISEASE_TOKEN_RE.findall(value.lower()))
+
+
+def _has_cancer_context(tokens: frozenset[str]) -> bool:
+    return bool({_normalise_disease_token(token) for token in tokens} & {"cancer"})
+
+
+def _is_gene_related_cancer_predisposition(
+    curation: dict[str, Any], gene_symbol: str | None
+) -> bool:
+    """Broad ClinGen labels like BRCA1-related cancer predisposition."""
+    tokens = _raw_disease_tokens(curation.get("disease_label"))
+    gene = (gene_symbol or curation.get("gene_symbol") or "").strip().lower()
+    return (
+        bool(gene and gene in tokens)
+        and "related" in tokens
+        and bool(tokens & _CANCER_TOKENS)
+        and bool(tokens & {"predisposition", "susceptibility"})
+    )
+
+
+def _disease_context_matches(
+    curation: dict[str, Any], condition_part: str, gene_symbol: str | None
+) -> bool:
     """Whether one finding condition plausibly names the curation's disease."""
     curation_tokens = _disease_tokens(curation.get("disease_label"))
     condition_tokens = _disease_tokens(condition_part)
     if not curation_tokens or not condition_tokens:
         return False
     if curation_tokens == condition_tokens:
+        return True
+    if _is_gene_related_cancer_predisposition(curation, gene_symbol) and _has_cancer_context(
+        condition_tokens
+    ):
         return True
     shared = curation_tokens & condition_tokens
     return (
@@ -137,7 +186,7 @@ def _disease_context_matches(curation: dict[str, Any], condition_part: str) -> b
 
 
 def _matching_curations(
-    curations: list[dict[str, Any]], conditions: str | None
+    gene_symbol: str | None, curations: list[dict[str, Any]], conditions: str | None
 ) -> list[dict[str, Any]]:
     """Curations whose disease label matches the finding's disease context."""
     parts = _condition_parts(conditions)
@@ -146,7 +195,7 @@ def _matching_curations(
     return [
         curation
         for curation in curations
-        if any(_disease_context_matches(curation, part) for part in parts)
+        if any(_disease_context_matches(curation, part, gene_symbol) for part in parts)
     ]
 
 
@@ -232,6 +281,39 @@ def _unresolved_context_guardrail(
     }
 
 
+def _mixed_matched_context_guardrail(
+    gene_symbol: str,
+    curations: list[dict[str, Any]],
+    matched_curations: list[dict[str, Any]],
+    disease_context: str,
+) -> dict[str, Any]:
+    """Caution when multiple matched disease contexts have mixed validity."""
+    disease_summary = _curation_disease_summary(matched_curations)
+    return {
+        "gene_symbol": gene_symbol,
+        "has_clingen_curation": True,
+        "best_classification": None,
+        "validity_established": False,
+        "caution": True,
+        "label": "Multiple matched ClinGen disease-validity contexts",
+        "detail": (
+            f"This finding is reported for {disease_context}, which matches multiple "
+            "ClinGen disease-specific curations with both established and "
+            f"non-established validity: {disease_summary}. Do not treat the "
+            "established matched curation as reassurance for the weaker matched "
+            "disease context. Confirm the disease context clinically before any "
+            "action."
+        ),
+        "disease_context": disease_context,
+        "disease_context_match": "matched_mixed",
+        "matched_disease_label": None,
+        "curations": curations,
+        "context_only": True,
+        "note": GENE_VALIDITY_CONTEXT_ONLY,
+        "pmid_citations": [CLINGEN_FRAMEWORK_PMID, CLINGEN_VARIANT_INTERP_PMID],
+    }
+
+
 def _unmatched_context_guardrail(
     gene_symbol: str, curations: list[dict[str, Any]], disease_context: str
 ) -> dict[str, Any]:
@@ -274,8 +356,12 @@ def gene_validity_guardrail(
     if not gene_symbol or not curations:
         return None
     context_parts = _condition_parts(disease_context)
-    matches = _matching_curations(curations, disease_context)
+    matches = _matching_curations(gene_symbol, curations, disease_context)
     if matches:
+        if _has_mixed_established_status(matches):
+            return _mixed_matched_context_guardrail(
+                gene_symbol, curations, matches, disease_context or ""
+            )
         best = best_curation(matches)
         disease_context_match = "matched"
     elif context_parts:
