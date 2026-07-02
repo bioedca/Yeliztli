@@ -1020,6 +1020,37 @@ class TestAssignHaplogroups:
         assert results[0].haplogroup == "H1a"
         assert results[0].defining_snps_present > 0
 
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("conflict_first", [False, True])
+    def test_mt_duplicate_position_discordance_is_order_independent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        conflict_first: bool,
+    ) -> None:
+        """#1388: discordant duplicate MT probes must not depend on row order.
+
+        Position 769 defines the L3 step in the H1a fixture. A second, non-alias
+        probe at the same rCRS position but with an ancestral call is ambiguous
+        evidence for that coordinate, not evidence against L3. The position is
+        therefore treated as missing, leaving the rest of the H1a motif to drive
+        a stable result regardless of insertion order or source table.
+        """
+        conflict = {"rsid": "i_conflict_769", "chrom": "MT", "pos": 769, "genotype": "AA"}
+        rows = [conflict, *_H1A_GENOTYPES] if conflict_first else [*_H1A_GENOTYPES, conflict]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        assert len(results) == 1
+        mt = results[0]
+        assert mt.tree_type == "mt"
+        assert mt.haplogroup == "H1a"
+        assert mt.defining_snps_present == 14
+        assert mt.defining_snps_total == 15
+
     def test_both_mt_and_y(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
         """XY sample gets both mt and Y haplogroup assignments."""
         _seed_both(sample_engine)

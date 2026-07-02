@@ -1945,7 +1945,18 @@ def assign_haplogroups(
         mt_rows = conn.execute(
             sa.select(source.c.pos, source.c.genotype).where(source.c.chrom == _MT_CHROM)
         ).fetchall()
-        mt_pos_to_genotype = {row.pos: row.genotype for row in mt_rows}
+        mt_pos_to_genotypes: dict[int, list[str]] = {}
+        for row in mt_rows:
+            genotype = row.genotype
+            if row.pos is None or genotype is None or is_no_call(genotype):
+                continue
+            mt_pos_to_genotypes.setdefault(row.pos, []).append(genotype)
+
+        mt_pos_to_genotype: dict[int, str] = {}
+        for pos, genotypes in mt_pos_to_genotypes.items():
+            allele_sets = {frozenset(genotype.strip().upper()) for genotype in genotypes}
+            if len(allele_sets) == 1:
+                mt_pos_to_genotype[pos] = genotypes[0]
         for snp in _collect_snps(bundle.mt_tree):
             genotype = mt_pos_to_genotype.get(snp.pos)
             if genotype is not None:
