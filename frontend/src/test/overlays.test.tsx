@@ -174,6 +174,12 @@ describe("OverlaysView", () => {
       "/api/overlays/parse",
       expect.objectContaining({ method: "POST", body: expect.any(FormData) })
     )
+    const previewCall = mockFetch.mock.calls.at(-1)
+    const previewOptions = previewCall?.[1] as RequestInit | undefined
+    const sentFile = (previewOptions?.body as FormData).get("file")
+    expect(sentFile).toBeInstanceOf(File)
+    expect((sentFile as File).name).toBe("track.vcf.gz")
+    expect((sentFile as File).type).toBe("application/gzip")
   })
 
   it("shows page heading", () => {
