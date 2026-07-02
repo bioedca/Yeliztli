@@ -14,6 +14,7 @@ import CardiovascularView from '@/pages/CardiovascularView'
 import MetabolicView from '@/pages/MetabolicView'
 import FHView from '@/pages/FHView'
 import EBMDView from '@/pages/EBMDView'
+import HLAView from '@/pages/HLAView'
 import APOEView from '@/pages/APOEView'
 import CarrierStatusView from '@/pages/CarrierStatusView'
 import AncestryView from '@/pages/AncestryView'
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/metabolic" element={<MetabolicView />} />
           <Route path="/fh" element={<FHView />} />
           <Route path="/ebmd" element={<EBMDView />} />
+          <Route path="/hla" element={<HLAView />} />
           <Route path="/apoe" element={<APOEView />} />
           <Route path="/carrier-status" element={<CarrierStatusView />} />
           <Route path="/ancestry" element={<AncestryView />} />

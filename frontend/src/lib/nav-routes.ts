@@ -39,6 +39,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Sun,
+  Syringe,
   Table2,
 } from 'lucide-react'
 
@@ -62,6 +63,7 @@ export const navRoutes: NavRoute[] = [
   { to: '/metabolic', icon: Droplet, label: 'Metabolic (T2D & Obesity)' },
   { to: '/fh', icon: Heart, label: 'Familial Hypercholesterolemia' },
   { to: '/ebmd', icon: Bone, label: 'Bone Density (eBMD)' },
+  { to: '/hla', icon: Syringe, label: 'HLA (imputed)' },
   { to: '/apoe', icon: Brain, label: 'APOE' },
   { to: '/carrier-status', icon: Baby, label: 'Carrier Status' },
   { to: '/fitness', icon: Dumbbell, label: 'Gene Fitness' },
