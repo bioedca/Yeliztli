@@ -270,6 +270,29 @@ describe("CeliacCombinedCard indeterminate state (#847)", () => {
   })
 })
 
+describe("CeliacCombinedCard DQ8 marker identity (#1372)", () => {
+  beforeEach(() => {
+    routerMock.search = "sample_id=1"
+    mockUsePathways.mockReset()
+  })
+
+  it("labels DQ8 genotypes with the scored rs7454108 proxy, not rs7775228", () => {
+    pathwaysWith({
+      ...CELIAC_INDETERMINATE,
+      state: "dq8_only",
+      label: "HLA-DQ8 Detected",
+      dq8_genotype: "CT",
+      description: "HLA-DQ8 proxy allele detected.",
+    })
+
+    render(<AllergyView />)
+
+    expect(screen.getByText(/DQ8 proxy \(rs7454108\):/)).toBeInTheDocument()
+    expect(screen.queryByText(/DQ8 proxy \(rs7775228\):/)).not.toBeInTheDocument()
+    expect(screen.getByText("CT")).toBeInTheDocument()
+  })
+})
+
 // ── HLAProxyBadge (via PathwayDetailPanel) tests ──────────────────────
 // Regression for #402: the badge previously read snp.hla_proxy.r_squared
 // (singular), which is undefined on the backend's hla_proxy block, so

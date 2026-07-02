@@ -106,7 +106,7 @@ function CeliacCombinedCard({
         )}
         {celiac.dq8_genotype && (
           <p className="text-sm text-muted-foreground">
-            DQ8 proxy (rs7775228): <span className="font-mono">{celiac.dq8_genotype}</span>
+            DQ8 proxy (rs7454108): <span className="font-mono">{celiac.dq8_genotype}</span>
           </p>
         )}
       </div>
