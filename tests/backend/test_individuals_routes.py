@@ -325,6 +325,7 @@ class TestHappyPaths:
         body = resp.json()
         assert [s["id"] for s in body["linked_samples"]] == [sample1_id]
         assert body["linked_samples"][0]["vendor"] == "23andme"
+        assert body["linked_samples"][0]["is_merged"] is False
 
         # Link sample 2 — both now attached, vendors deduped to two entries.
         resp = individuals_client.post(
@@ -362,6 +363,33 @@ class TestHappyPaths:
         assert resp.status_code == 200
         body = resp.json()
         assert [s["id"] for s in body["linked_samples"]] == [sample2_id]
+
+    def test_linked_samples_mark_merged_outputs(
+        self, individuals_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        sample1_id = individuals_client.sample1_id  # type: ignore[attr-defined]
+        merged_id = _seed_extra_sample(
+            tmp_data_dir,
+            name="Subject merged",
+            db_path="samples/sample_merged.db",
+            file_format="merged_v1",
+            file_hash="hash_merged",
+        )
+
+        ind_id = individuals_client.post(
+            "/api/individuals", json={"display_name": "Subject"}
+        ).json()["id"]
+        for sid in (sample1_id, merged_id):
+            resp = individuals_client.post(
+                f"/api/individuals/{ind_id}/link-sample",
+                json={"sample_id": sid},
+            )
+            assert resp.status_code == 200
+
+        body = individuals_client.get(f"/api/individuals/{ind_id}").json()
+        merged_flags = {sample["id"]: sample["is_merged"] for sample in body["linked_samples"]}
+        assert merged_flags[sample1_id] is False
+        assert merged_flags[merged_id] is True
 
     def test_create_minimal_body(self, individuals_client: TestClient) -> None:
         resp = individuals_client.post("/api/individuals", json={"display_name": "Minimal"})

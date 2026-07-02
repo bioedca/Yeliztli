@@ -253,17 +253,18 @@ export default function IndividualDetail() {
   } = useIndividual(validId ? individualId : null)
 
   const linkedSamples = individual?.linked_samples ?? []
+  const mergeSourceSamples = linkedSamples.filter((sample) => !sample.is_merged)
 
-  // Plan §10.7 — "Merge samples" action is visible only when ≥2 linked
-  // samples. The two-source wizard surface (Plan §10.5 step 1) covers
-  // exactly-2 linked samples; 3+ sample pickers are deferred.
+  // Plan §10.7 — the current wizard supports one explicit source pair.
+  // Already-merged samples stay linked after completion, but do not count
+  // against the two-source gate; 3+ source pickers are deferred.
   const [showMergeWizard, setShowMergeWizard] = useState(false)
   const [mergeWizardSourcePair, setMergeWizardSourcePair] = useState<
     [number, number] | null
   >(null)
-  const canMerge = linkedSamples.length === 2
+  const canMerge = mergeSourceSamples.length === 2
   const mergeSourcePair = canMerge
-    ? ([linkedSamples[0].id, linkedSamples[1].id] as [number, number])
+    ? ([mergeSourceSamples[0].id, mergeSourceSamples[1].id] as [number, number])
     : null
 
   const openMergeWizard = () => {

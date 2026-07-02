@@ -53,6 +53,7 @@ router = APIRouter(prefix="/individuals", tags=["individuals"])
 
 
 _BIOLOGICAL_SEX = Literal["XX", "XY"]
+_MERGED_FILE_FORMAT = "merged_v1"
 
 
 # ── Request / response models ────────────────────────────────────────
@@ -79,6 +80,7 @@ class LinkedSample(BaseModel):
     name: str
     file_format: str | None = None
     vendor: str | None = None
+    is_merged: bool = False
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -177,6 +179,10 @@ def _vendor_from_file_format(file_format: str | None) -> str | None:
     return file_format.split("_", 1)[0].lower()
 
 
+def _is_merged_file_format(file_format: str | None) -> bool:
+    return file_format == _MERGED_FILE_FORMAT
+
+
 def _iso(value: datetime | None) -> str | None:
     if value is None:
         return None
@@ -251,6 +257,7 @@ def _linked_sample_payload(row: sa.Row) -> LinkedSample:
         name=row.name,
         file_format=row.file_format,
         vendor=_vendor_from_file_format(row.file_format),
+        is_merged=_is_merged_file_format(row.file_format),
         created_at=_iso(row.created_at),
         updated_at=_iso(row.updated_at),
     )

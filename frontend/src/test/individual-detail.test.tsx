@@ -91,6 +91,7 @@ interface MockLinkedSample {
   name: string
   file_format: string
   vendor: string
+  is_merged?: boolean
   variantCount: number | null
   highConfidenceFindings: Array<{
     id: number
@@ -129,6 +130,7 @@ function installMocks(individual: MockIndividual) {
             name: s.name,
             file_format: s.file_format,
             vendor: s.vendor,
+            is_merged: s.is_merged ?? s.file_format === "merged_v1",
             created_at: "2026-05-01T00:00:00",
             updated_at: null,
           })),
@@ -201,6 +203,7 @@ function individualPayload(individual: MockIndividual) {
       name: s.name,
       file_format: s.file_format,
       vendor: s.vendor,
+      is_merged: s.is_merged ?? s.file_format === "merged_v1",
       created_at: "2026-05-01T00:00:00",
       updated_at: null,
     })),
@@ -326,6 +329,99 @@ describe("IndividualDetail page", () => {
     expect(MockEventSource.instances[0].url).toBe(
       "/api/annotation/status/merge-job-1",
     )
+  })
+
+  it("offers the merge action when two source samples and one merged sample are linked", async () => {
+    installMocks({
+      id: 11,
+      display_name: "Eve",
+      linked_samples: [
+        {
+          id: 11,
+          name: "eve_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 612345,
+          highConfidenceFindings: [],
+        },
+        {
+          id: 12,
+          name: "eve_ancestry.txt",
+          file_format: "ancestrydna_v2.0",
+          vendor: "ancestrydna",
+          variantCount: 720000,
+          highConfidenceFindings: [],
+        },
+        {
+          id: 99,
+          name: "Eve (merged)",
+          file_format: "merged_v1",
+          vendor: "merged",
+          variantCount: 950000,
+          highConfidenceFindings: [],
+        },
+      ],
+    })
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/11"]),
+    })
+
+    expect(await screen.findByTestId("linked-sample-row-99")).toBeInTheDocument()
+
+    const mergeButton = screen.getByTestId("merge-samples-button")
+    expect(mergeButton).toBeInTheDocument()
+
+    fireEvent.click(mergeButton)
+    expect(screen.getByTestId("merge-source-pair")).toHaveTextContent(
+      "eve_23andme.txt",
+    )
+    expect(screen.getByTestId("merge-source-pair")).toHaveTextContent(
+      "eve_ancestry.txt",
+    )
+    expect(screen.getByTestId("merge-source-pair")).not.toHaveTextContent(
+      "Eve (merged)",
+    )
+  })
+
+  it("hides the merge action when more than two source samples are linked", async () => {
+    installMocks({
+      id: 12,
+      display_name: "Frank",
+      linked_samples: [
+        {
+          id: 31,
+          name: "frank_23andme_v4.txt",
+          file_format: "23andme_v4",
+          vendor: "23andme",
+          variantCount: 580000,
+          highConfidenceFindings: [],
+        },
+        {
+          id: 32,
+          name: "frank_23andme_v5.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 612345,
+          highConfidenceFindings: [],
+        },
+        {
+          id: 33,
+          name: "frank_ancestry.txt",
+          file_format: "ancestrydna_v2.0",
+          vendor: "ancestrydna",
+          variantCount: 720000,
+          highConfidenceFindings: [],
+        },
+      ],
+    })
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/12"]),
+    })
+
+    expect(await screen.findByTestId("linked-sample-row-31")).toBeInTheDocument()
+    expect(screen.queryByTestId("merge-samples-button")).not.toBeInTheDocument()
   })
 
   it("renders metadata, linked samples table, and per-sample variant counts", async () => {

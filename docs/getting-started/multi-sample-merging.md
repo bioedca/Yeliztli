@@ -23,8 +23,9 @@ continue to merging.
 Merging creates a **new, combined sample** — the **union** of variants from both sources —
 with extra columns recording where each call came from and whether the two sources agreed.
 
-From the individual's page, once **exactly two** linked samples are present, choose **Merge
-samples**. A short wizard walks you through:
+From the individual's page, once **exactly two source samples** are linked, choose **Merge
+samples**. Already-merged samples linked to the same individual do not count as sources, so the
+button remains available after a previous two-source merge. A short wizard walks you through:
 
 1. **Strategy** — how to handle sites where the two sources disagree:
     - **Flag discordant calls** *(recommended)* — keep neither call at a conflicting site; mark
@@ -63,8 +64,9 @@ only the sites where your two sources disagreed.
 
 ## Good to know
 
-- **Two samples at a time.** Merging combines exactly two sources; merging three or more isn't
-  supported yet.
+- **Two source samples at a time.** Merging combines exactly two unmerged source samples. A
+  merged sample can remain linked without blocking another run, but pair selection from three or
+  more source uploads isn't supported yet.
 - **Same genome build only.** Merging matches sites by coordinate, so both files must be on the
   same build. 23andMe and AncestryDNA are both GRCh37, so this is normally fine — just don't
   try to merge files from different builds.

@@ -84,6 +84,7 @@ const DETAIL: IndividualDetail = {
       name: "23andme.txt",
       file_format: "23andme_v5",
       vendor: "23andme",
+      is_merged: false,
       created_at: "2026-05-01T00:00:00",
       updated_at: null,
     },

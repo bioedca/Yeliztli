@@ -8,6 +8,7 @@ export interface LinkedSample {
   name: string
   file_format: string | null
   vendor: string | null
+  is_merged: boolean
   created_at: string | null
   updated_at: string | null
 }

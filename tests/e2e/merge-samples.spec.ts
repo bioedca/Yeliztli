@@ -4,8 +4,8 @@
  * Drives the canonical multi-source merge user journey end-to-end against
  * a fully-mocked backend:
  *
- *   1. /individuals/{id} renders two linked samples + a "Merge samples"
- *      action (Plan §10.7 visibility rule: ≥2 linked samples).
+ *   1. /individuals/{id} renders two source samples + a "Merge samples"
+ *      action (Plan §10.7 visibility rule: exactly two source samples).
  *   2. The MergeWizard opens. Default strategy is `flag_only` (Plan §10.3
  *      "clinically safest"). Preview returns the §10.4(c) concordance
  *      summary; Confirm commits the merge and binds the returned
@@ -20,6 +20,8 @@
  *      report (Plan §10.6).
  *   6. /variants?sample_id={merged} renders the merged-sample variant
  *      table with Source + Concordance filter chips (Plan §10.7 / Step 71).
+ *   7. Returning to the individual keeps the two-source merge action
+ *      available even though the merged output is now linked too.
  *
  * Patterned after `individuals.spec.ts` (Step 57) for stateful mocks and
  * `setup-wizard-lai.spec.ts` (Step 25) for the `text/event-stream` route
@@ -332,6 +334,7 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
         name: SAMPLE_23ANDME.name,
         file_format: SAMPLE_23ANDME.file_format,
         vendor: '23andme',
+        is_merged: false,
         created_at: SAMPLE_23ANDME.created_at,
         updated_at: SAMPLE_23ANDME.updated_at,
       },
@@ -340,6 +343,7 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
         name: SAMPLE_ANCESTRYDNA.name,
         file_format: SAMPLE_ANCESTRYDNA.file_format,
         vendor: 'ancestrydna',
+        is_merged: false,
         created_at: SAMPLE_ANCESTRYDNA.created_at,
         updated_at: SAMPLE_ANCESTRYDNA.updated_at,
       },
@@ -351,6 +355,7 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
     name: SAMPLE_MERGED.name,
     file_format: SAMPLE_MERGED.file_format,
     vendor: 'merged',
+    is_merged: true,
     created_at: SAMPLE_MERGED.created_at,
     updated_at: SAMPLE_MERGED.updated_at,
   }
@@ -509,7 +514,7 @@ test.describe('Step 86 — Merge samples E2E', () => {
     const state: MergeState = { committed: false }
     await setupRoutes(page, state)
 
-    // ── 1. /individuals/{id} renders both linked samples + the Merge CTA.
+    // ── 1. /individuals/{id} renders both source samples + the Merge CTA.
     await page.goto(`/individuals/${INDIVIDUAL_ID}`)
     await expect(page.getByTestId('individual-detail-page')).toBeVisible()
     await expect(
@@ -604,5 +609,23 @@ test.describe('Step 86 — Merge samples E2E', () => {
     await expect(
       page.getByRole('button', { name: /Filter by concordance/i }),
     ).toBeVisible()
+
+    // ── 6. The merged output remains linked, but does not block a fresh
+    // two-source merge run from the original source pair.
+    await page.goto(`/individuals/${INDIVIDUAL_ID}`)
+    await expect(page.getByTestId(`linked-sample-row-${SAMPLE_1_ID}`)).toBeVisible()
+    await expect(page.getByTestId(`linked-sample-row-${SAMPLE_2_ID}`)).toBeVisible()
+    await expect(
+      page.getByTestId(`linked-sample-row-${MERGED_SAMPLE_ID}`),
+    ).toBeVisible()
+
+    const repeatMergeButton = page.getByTestId('merge-samples-button')
+    await expect(repeatMergeButton).toBeVisible()
+    await repeatMergeButton.click()
+
+    const repeatSourcePair = page.getByTestId('merge-source-pair')
+    await expect(repeatSourcePair).toContainText(SAMPLE_23ANDME.name)
+    await expect(repeatSourcePair).toContainText(SAMPLE_ANCESTRYDNA.name)
+    await expect(repeatSourcePair).not.toContainText(SAMPLE_MERGED.name)
   })
 })
