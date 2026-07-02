@@ -337,7 +337,9 @@ function downloadHlaCsv(view: HlaViewerResponse, sampleId: number): void {
   document.body.appendChild(link)
   link.click()
   link.remove()
-  URL.revokeObjectURL(url)
+  // Defer the revoke: revoking synchronously after click() can intermittently
+  // break the download before it starts in some browsers (e.g. Firefox).
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function RawHlaViewer({ view, sampleId }: { view: HlaViewerResponse; sampleId: number }) {

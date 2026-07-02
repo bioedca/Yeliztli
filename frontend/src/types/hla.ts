@@ -81,7 +81,8 @@ export interface HlaSusceptibilityResponse {
   research_use_only: boolean
 }
 
-interface HlaAlleleView {
+/** One imputed per-locus HLA genotype row. @public — element type of HlaViewerResponse.alleles, for downstream consumers. */
+export interface HlaAlleleView {
   locus: string
   allele1: string
   allele2: string
