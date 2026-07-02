@@ -143,6 +143,7 @@ _BENIGN_AF_EXCEPTION_RSIDS: frozenset[str] = _BA1_EXCEPTION_RSIDS | frozenset(
     {
         "rs113993960",  # CFTR c.1521_1523del p.Phe508del — cystic fibrosis
         "rs1799963",  # F2 c.*97G>A / prothrombin G20210A — thrombophilia risk allele
+        "rs6025",  # F5 c.1601G>A p.Arg534Gln / Factor V Leiden — thrombophilia risk allele
     }
 )
 # BS1: "allele frequency greater than expected for the disorder" — a general 1%

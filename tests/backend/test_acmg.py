@@ -378,6 +378,7 @@ class TestOtherCriteria:
         [
             ("rs113993960", 0.0132),  # CFTR F508del (#1343)
             ("rs1799963", 0.0124),  # F2 prothrombin G20210A (#1343)
+            ("rs6025", 0.0176),  # F5 Factor V Leiden (#1395)
         ],
     )
     def test_bs1_skipped_for_common_pathogenic_frequency_exception(
@@ -547,6 +548,16 @@ class TestClassifyAcmg:
                     gene_symbol="F2",
                     consequence="3_prime_UTR_variant",
                     gnomad_af_popmax=0.0124,
+                    clinvar_significance="Pathogenic",
+                ),
+                set(),
+            ),
+            (
+                AcmgEvidence(
+                    rsid="rs6025",
+                    gene_symbol="F5",
+                    consequence="missense_variant",
+                    gnomad_af_popmax=0.02,
                     clinvar_significance="Pathogenic",
                 ),
                 set(),
