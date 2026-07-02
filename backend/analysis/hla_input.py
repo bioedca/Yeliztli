@@ -87,7 +87,12 @@ class MHCRegion:
     end: int = 34_000_000
 
     def contains(self, chrom: str, pos: int) -> bool:
-        return chrom == self.chrom and self.start <= pos <= self.end
+        # Normalize both sides so a configured ``chr6`` window still matches the
+        # bare ``6`` tokens collect_plink_snps compares against (and vice versa).
+        return (
+            _normalize_chrom_token(chrom) == _normalize_chrom_token(self.chrom)
+            and self.start <= pos <= self.end
+        )
 
 
 # Default export window — a generous superset of the extended MHC (Horton 2004),
@@ -271,9 +276,13 @@ def write_hibag_plink_input(
         return result
 
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
-    bed_path = out_prefix.with_suffix(".bed")
-    bim_path = out_prefix.with_suffix(".bim")
-    fam_path = out_prefix.with_suffix(".fam")
+    # APPEND the extensions (never with_suffix): a prefix may contain dots (e.g.
+    # ``sample.hla``), and ``hibag_runner.HibagRunner.predict`` / the R script's
+    # ``paste0(prefix, ".bed")`` both append — with_suffix would replace the
+    # trailing ``.hla`` and write files HIBAG then cannot find.
+    bed_path = Path(f"{out_prefix}.bed")
+    bim_path = Path(f"{out_prefix}.bim")
+    fam_path = Path(f"{out_prefix}.fam")
     bed_path.write_bytes(build_bed_bytes(snps))
     bim_path.write_text(build_bim_text(snps, chrom=region.chrom), encoding="utf-8")
     fam_path.write_text(build_fam_text(sample_name), encoding="utf-8")

@@ -161,6 +161,12 @@ class TestMHCRegion:
     def test_other_chromosome_excluded(self) -> None:
         assert not XMHC_GRCH37.contains("1", 30_000_000)
 
+    def test_chrom_token_normalized_on_both_sides(self) -> None:
+        # A configured "chr6" window must still match bare "6" tokens (and vice versa),
+        # otherwise a CLI-supplied region could silently drop every chr6 SNP.
+        assert MHCRegion(chrom="chr6").contains("6", 31_000_000)
+        assert MHCRegion(chrom="6").contains("chr6", 31_000_000)
+
 
 class TestCollectPlinkSnps:
     def test_region_filter_and_sort(self) -> None:
@@ -242,6 +248,22 @@ class TestWriteHibagPlinkInput:
 
         fam = (tmp_path / "hla" / "sample.fam").read_text(encoding="utf-8")
         assert fam == "S1\tS1\t0\t0\t0\t-9\n"
+
+    def test_dotted_prefix_appends_extensions(
+        self, sample_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        # A prefix with a dot (e.g. "sample.hla") must APPEND ".bed" — not have its
+        # ".hla" replaced — so it matches what HibagRunner.predict / the R script
+        # (paste0(prefix, ".bed")) look for.
+        _insert(sample_engine, [_row("rs_a", "6", 31_000_000, "A", "G", "het")])
+        prefix = tmp_path / "sample.hla"
+        result = write_hibag_plink_input(sample_engine, prefix)
+        assert result.plink_prefix == prefix
+        assert result.bed_path == tmp_path / "sample.hla.bed"
+        assert (tmp_path / "sample.hla.bed").exists()
+        assert (tmp_path / "sample.hla.bim").exists()
+        assert (tmp_path / "sample.hla.fam").exists()
+        assert not (tmp_path / "sample.bed").exists()
 
     def test_empty_db_writes_nothing(self, sample_engine: sa.Engine, tmp_path: Path) -> None:
         result = write_hibag_plink_input(sample_engine, tmp_path / "hla" / "sample")
