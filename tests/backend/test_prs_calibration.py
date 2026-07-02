@@ -49,6 +49,14 @@ def _reference_with_gnomad(rows: list[dict]) -> sa.Engine:
                 "af_eur": None,
                 "af_fin": None,
                 "af_sas": None,
+                "an_global": None,
+                "an_afr": None,
+                "an_amr": None,
+                "an_asj": None,
+                "an_eas": None,
+                "an_eur": None,
+                "an_fin": None,
+                "an_sas": None,
                 "homozygous_count": 0,
             }
             params.update(row)
