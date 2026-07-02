@@ -22,9 +22,9 @@ report must distinguish "typed and absent" from "not typed at all".
 
 **Confidence travels with the call.** HIBAG's posterior ``prob`` is the confidence
 (``matching`` is a QC signal, not a confidence — Zheng 2014, PMID:23712092); calls
-below the gate carry ``low_confidence=True``. Because every HLA call here is
-**imputed**, the standing :data:`HLA_IMPUTED_CONFIRMATION_CAVEAT` must accompany any
-clinical claim built on it.
+below the gate carry ``low_confidence=True``. Every HLA call here is **imputed**, so
+the clinical layers (SW-D2–D5) that consume this resolver must attach the standing
+confirmatory-typing caveat to any claim they build on a call.
 """
 
 from __future__ import annotations
@@ -38,15 +38,6 @@ import structlog
 from backend.db.tables import hla_calls
 
 logger = structlog.get_logger(__name__)
-
-# Standing caveat for any clinical claim built on an imputed HLA call. Imputed HLA
-# is not a substitute for a clinical high-resolution HLA typing lab result, and is
-# never valid for transplant/donor matching (that guard is enforced in SW-D5).
-HLA_IMPUTED_CONFIRMATION_CAVEAT = (
-    "HLA alleles here are statistically imputed from SNP genotypes, not directly "
-    "typed. Confirm with clinical high-resolution HLA typing before acting on any "
-    "result; never use imputed HLA for transplant or donor matching."
-)
 
 
 @dataclass(frozen=True)
