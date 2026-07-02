@@ -147,26 +147,29 @@ def _assess_b27(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             notes,
         )
     risk = [a for a in b27 if _two_field(a) not in _B27_NEUTRAL_SUBTYPES]
-    zyg = "homozygous" if len(b27) == 2 else "heterozygous"
     if not risk:
+        neutral_zyg = "homozygous" if len(b27) == 2 else "heterozygous"
         return SusceptibilityFinding(
             condition,
             "HLA-B*27",
             STATUS_NEUTRAL_SUBTYPE,
             True,
-            f"HLA-B*{'/B*'.join(b27)} ({zyg})",
+            f"HLA-B*{'/B*'.join(b27)} ({neutral_zyg})",
             "The HLA-B*27 subtype(s) detected (B*27:06 / B*27:09) are not disease-associated, "
             "so they do not confer increased ankylosing-spondylitis susceptibility.",
             b_call.low_confidence,
             citations,
             notes,
         )
+    # Zygosity of the DISEASE-ASSOCIATED subtypes only: a risk + neutral compound
+    # heterozygote (e.g. B*27:05 + B*27:06) carries one risk copy, not two.
+    risk_zyg = "homozygous" if len(risk) == 2 else "heterozygous"
     return SusceptibilityFinding(
         condition,
         "HLA-B*27",
         STATUS_INCREASED,
         True,
-        f"HLA-B*{'/B*'.join(risk)} ({zyg})",
+        f"HLA-B*{'/B*'.join(risk)} ({risk_zyg})",
         f"HLA-B*27 is present. It is the strongest genetic risk factor for ankylosing "
         f"spondylitis, but {_NOT_DIAGNOSTIC.lower()} (~1–5% of B*27 carriers develop AS, "
         f"and ~25–40% of patients are B*27-negative).",

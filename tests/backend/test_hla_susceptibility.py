@@ -52,9 +52,18 @@ class TestB27:
         assert f.status == STATUS_NEUTRAL_SUBTYPE
 
     def test_risk_plus_neutral_is_increased(self) -> None:
+        # One risk subtype + one disease-neutral subtype = ONE risk copy → the
+        # detail must read heterozygous, not homozygous (must not overstate).
         f = _find(assess_susceptibility([_c("B", "27:05", "27:06")]), "HLA-B*27")
         assert f.status == STATUS_INCREASED
         assert "27:05" in f.detail
+        assert "heterozygous" in f.detail
+        assert "27:06" not in f.detail  # the neutral copy is not shown as a risk allele
+
+    def test_two_risk_subtypes_homozygous(self) -> None:
+        f = _find(assess_susceptibility([_c("B", "27:05", "27:02")]), "HLA-B*27")
+        assert f.status == STATUS_INCREASED
+        assert "homozygous" in f.detail
 
     def test_absent(self) -> None:
         f = _find(assess_susceptibility([_c("B", "07:02", "08:01")]), "HLA-B*27")
