@@ -16,10 +16,11 @@
 
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup } from './helpers'
+import { bypassSetup, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockPassiveUpdateEndpoints(page)
 })
 
 // ── Core pages representing every major workflow area ───────────────────
@@ -127,6 +128,21 @@ async function mockVisualScreenshotData(page: Page) {
   )
 }
 
+async function mockPassiveUpdateEndpoints(page: Page) {
+  await page.route('**/api/preferences/update-check-interval', (route) =>
+    route.fulfill(jsonRoute({ update_check_interval: 'off' })),
+  )
+  await page.route('**/api/updates/status', (route) => route.fulfill(jsonRoute([])))
+  await page.route('**/api/updates/check', (route) =>
+    route.fulfill(jsonRoute({ available: [], up_to_date: [], errors: [], checked_at: null })),
+  )
+  await page.route('**/api/updates/app-update', (route) =>
+    route.fulfill(jsonRoute({ update_available: false, latest_version: null })),
+  )
+  await page.route('**/api/updates/history**', (route) => route.fulfill(jsonRoute([])))
+  await page.route('**/api/updates/prompts**', (route) => route.fulfill(jsonRoute([])))
+}
+
 async function expectAppChromeSettled(page: Page) {
   await expect(page.getByRole('button', { name: 'Switch sample' })).toBeVisible()
 }
@@ -139,7 +155,7 @@ test.describe('P4-26d: Cross-browser — page rendering', () => {
       page.on('pageerror', (err) => errors.push(err.message))
 
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       // Verify h1 heading is present
       const h1 = page.getByRole('heading', { level: 1 })
@@ -155,7 +171,7 @@ test.describe('P4-26d: Cross-browser — page rendering', () => {
       page.on('pageerror', (err) => errors.push(err.message))
 
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       expect(errors, `JS errors on ${pg.path}:\n${errors.join('\n')}`).toEqual([])
     })
@@ -166,7 +182,7 @@ test.describe('P4-26d: Cross-browser — page rendering', () => {
 test.describe('P4-26d: Cross-browser — client-side navigation', () => {
   test('navigate between multiple pages via sidebar links', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     // Navigate to Variant Explorer using sidebar NavLink (title attribute is always present)
     const variantsLink = page.locator('nav[aria-label="Main navigation"] a[title="Variant Explorer"]')
@@ -188,7 +204,7 @@ test.describe('P4-26d: Cross-browser — client-side navigation', () => {
 
   test('browser back/forward navigation works', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     // Navigate via click (not page.goto) to build history stack
     const settingsLink = page.locator('nav[aria-label="Main navigation"] a[title="Settings"]')
@@ -209,7 +225,7 @@ test.describe('P4-26d: Cross-browser — client-side navigation', () => {
       const response = await page.goto(path)
       expect(response, `Navigation to ${path} failed`).not.toBeNull()
       expect(response!.status(), `${path} returned ${response!.status()}`).toBeLessThan(400)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     }
   })
@@ -234,7 +250,7 @@ test.describe('P4-26d: Cross-browser — dark mode', () => {
       page.on('pageerror', (err) => errors.push(err.message))
 
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       expect(errors).toEqual([])
@@ -253,7 +269,7 @@ test.describe('P4-26d: Cross-browser — dark mode', () => {
 test.describe('P4-26d: Cross-browser — interactive elements', () => {
   test('interactive elements exist and are tabbable', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     // Verify interactive elements exist in the DOM with correct attributes
     // (Tab key behavior varies across browsers in headless mode)
@@ -273,7 +289,7 @@ test.describe('P4-26d: Cross-browser — interactive elements', () => {
 
   test('command palette opens, searches, navigates, and closes (P4-26e)', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     // Use click trigger directly (Ctrl+K behavior varies across browsers)
     const trigger = page.getByTestId('command-palette-trigger')
@@ -308,7 +324,7 @@ test.describe('P4-26d: Cross-browser — interactive elements', () => {
 
   test('sidebar collapse/expand works', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     // Sidebar toggle uses aria-label "Collapse sidebar" or "Expand sidebar"
     const collapseBtn = page.locator('[aria-label="Collapse sidebar"]')
@@ -350,7 +366,7 @@ test.describe('P4-26d: Cross-browser — console errors', () => {
       })
 
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       expect(
         consoleErrors,
@@ -372,7 +388,7 @@ test.describe('P4-26d: Cross-browser — resource loading', () => {
     })
 
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     expect(
       failedRequests,
@@ -394,7 +410,7 @@ test.describe('P4-26d: Cross-browser — resource loading', () => {
       })
 
       await page.goto(path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       expect(failedAssets, `Failed assets on ${path}`).toEqual([])
     }
@@ -420,7 +436,7 @@ test.describe('P4-26d: Cross-browser — WCAG 2.1 AA compliance', () => {
   for (const pg of axePages) {
     test(`${pg.title} (${pg.path}) passes axe-core`, async ({ page, browserName }) => {
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       let builder = new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -464,7 +480,7 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
     test(`capture ${pg.name} screenshot`, async ({ page }) => {
       await mockVisualScreenshotData(page)
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
       await expectAppChromeSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -480,7 +496,7 @@ test.describe('P4-26d: Cross-browser — visual screenshots', () => {
       await mockVisualScreenshotData(page)
       await page.emulateMedia({ colorScheme: 'dark' })
       await page.goto(pg.path)
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
       await expectAppChromeSettled(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -507,7 +523,7 @@ test.describe('P4-26d: Cross-browser — responsive layout', () => {
       page.on('pageerror', (err) => errors.push(err.message))
 
       await page.goto('/')
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       expect(errors).toEqual([])
@@ -520,7 +536,7 @@ test.describe('P4-26d: Cross-browser — responsive layout', () => {
       page.on('pageerror', (err) => errors.push(err.message))
 
       await page.goto('/settings')
-      await page.waitForLoadState('networkidle')
+      await waitForReactHydration(page)
 
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       expect(errors).toEqual([])
@@ -538,7 +554,7 @@ test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () =>
   }) => {
     // Fresh context → clean localStorage → the one-time notice is shown.
     await page.goto('/genome-browser')
-    await page.waitForLoadState('networkidle')
+    await waitForReactHydration(page)
 
     const notice = page.getByRole('region', { name: /reference-data notice/i })
     await expect(notice).toBeVisible()

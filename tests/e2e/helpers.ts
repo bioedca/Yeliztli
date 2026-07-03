@@ -87,7 +87,8 @@ export async function walkWizardToDatabases(page: Page): Promise<void> {
 }
 
 /**
- * Stub `/api/setup/status` so AuthGuard treats the install as fully set up.
+ * Stub AuthGuard endpoints so protected app routes render without depending on
+ * live backend auth/setup state.
  *
  * The dashboard gate is health-based: `needs_setup` stays true until every
  * required, downloadable reference DB is integrity-`ready`. E2E specs that drive
@@ -100,6 +101,17 @@ export async function walkWizardToDatabases(page: Page): Promise<void> {
  * first `page.goto` so the very first AuthGuard poll is intercepted.
  */
 export async function bypassSetup(page: Page): Promise<void> {
+  await page.route('**/api/auth/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        auth_enabled: false,
+        has_password: false,
+        authenticated: true,
+      }),
+    })
+  })
   await page.route('**/api/setup/status', async (route) => {
     await route.fulfill({
       status: 200,
