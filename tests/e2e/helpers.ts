@@ -91,7 +91,7 @@ export async function walkWizardToDatabases(page: Page): Promise<void> {
  * live backend auth/setup state.
  *
  * The dashboard gate is health-based: `needs_setup` stays true until every
- * required, downloadable reference DB is integrity-`ready`. E2E specs that drive
+ * setup-gated required reference DB is integrity-`ready`. E2E specs that drive
  * real module pages don't seed real multi-GB databases, so they intercept the
  * status poll to report a ready install — the same `page.route` pattern the
  * setup-wizard specs already use, factored out here so these specs no longer

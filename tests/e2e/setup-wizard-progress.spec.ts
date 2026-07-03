@@ -165,4 +165,104 @@ test.describe('Setup wizard — download progress observability', () => {
     // The per-DB rate line carries the byte counts + speed.
     await expect(page.getByTestId('db-rate-encode_ccres')).toContainText('8.0 MB/s')
   })
+
+  test('missing required bundled databases are selected for download', async ({
+    page,
+  }) => {
+    await mockWizardChrome(page)
+
+    await page.route('**/api/setup/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          needs_setup: true,
+          disclaimer_accepted: true,
+          has_databases: true,
+          required_dbs_ready: false,
+          db_readiness: [
+            { name: 'gnomad', state: 'not_installed', ready: false, build_mode: 'bundled' },
+          ],
+          has_samples: false,
+          data_dir: '/tmp/.yeliztli',
+        }),
+      }),
+    )
+
+    await page.route('**/api/databases', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          databases: [
+            {
+              name: 'clinvar',
+              display_name: 'ClinVar',
+              description: 'Clinical variant interpretations from NCBI ClinVar',
+              filename: 'clinvar.db',
+              expected_size_bytes: 250_000_000,
+              required: true,
+              phase: 1,
+              downloaded: true,
+              file_size_bytes: 250_000_000,
+              build_mode: 'pipeline',
+            },
+            {
+              name: 'gnomad',
+              display_name: 'gnomAD',
+              description: 'Population allele frequencies',
+              filename: 'gnomad_af.db',
+              expected_size_bytes: 1_301_509_755,
+              required: true,
+              phase: 2,
+              downloaded: false,
+              file_size_bytes: null,
+              build_mode: 'bundled',
+            },
+          ],
+          total_size_bytes: 1_551_509_755,
+          downloaded_count: 1,
+          total_count: 2,
+        }),
+      }),
+    )
+    await page.route('**/api/databases/health', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ databases: [] }),
+      }),
+    )
+
+    let requestedDatabases: string[] = []
+    await page.route('**/api/databases/download', async (route) => {
+      const body = await route.request().postDataJSON()
+      requestedDatabases = body.databases ?? []
+      return route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          session_id: 'sess-gnomad',
+          downloads: [{ db_name: 'gnomad', job_id: 'job-gnomad-1' }],
+        }),
+      })
+    })
+
+    await page.addInitScript(() => {
+      class FakeEventSource {
+        addEventListener() {}
+        close() {}
+      }
+      ;(window as unknown as { EventSource: unknown }).EventSource = FakeEventSource
+    })
+
+    await walkWizardToDatabases(page)
+
+    await expect(page.getByTestId('db-checkbox-gnomad')).toBeChecked()
+    await expect(page.getByTestId('db-checkbox-gnomad')).toBeDisabled()
+    await expect(page.getByText('Download required')).toBeVisible()
+
+    await page.getByRole('button', { name: /Download Selected/i }).click()
+    expect(requestedDatabases).toEqual(['gnomad'])
+  })
 })

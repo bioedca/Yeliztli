@@ -6,7 +6,7 @@
  * calling the API.
  *
  * NOTE: the dashboard gate is now health-based — `needs_setup` stays true until
- * every required, downloadable reference DB is integrity-`ready`, which an empty
+ * every setup-gated required reference DB is integrity-`ready`, which an empty
  * dummy file no longer satisfies. Specs that drive the dashboard therefore stub
  * `/api/setup/status` via `bypassSetup(page)` (see `helpers.ts`) rather than rely
  * on an on-disk DB. The dummy `gnomad_af.db` below is kept only as a harmless

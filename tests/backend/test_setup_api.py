@@ -73,12 +73,25 @@ def setup_settings(tmp_data_dir: Path) -> Settings:
     return Settings(data_dir=tmp_data_dir, wal_mode=False)
 
 
-def _seed_required_dbs_ready(tmp_data_dir: Path) -> None:
-    """Seed every required, downloadable DB to integrity-``ready`` state.
+def _seed_gnomad_ready(tmp_data_dir: Path) -> None:
+    """Seed a tiny standalone gnomAD DB that satisfies structural health checks."""
+    import sqlite3
+
+    conn = sqlite3.connect(str(tmp_data_dir / "gnomad_af.db"))
+    try:
+        conn.execute("CREATE TABLE gnomad_af (rsid TEXT)")
+        conn.execute("INSERT INTO gnomad_af VALUES ('rs429358')")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _seed_required_dbs_ready(tmp_data_dir: Path, *, include_gnomad: bool = True) -> None:
+    """Seed every setup-gated required DB to integrity-``ready`` state.
 
     Mirrors the row shapes the db_health integrity spec checks: the consumer
     table non-empty for each reference-resident DB plus a ``database_versions``
-    stamp (pipeline mode requires a version), and a standalone ``dbnsfp.db``.
+    stamp (pipeline mode requires a version), plus standalone DB fixtures.
     After this, ``_required_dbs_ready()`` should report every gate DB ready.
     """
     import sqlite3
@@ -123,12 +136,12 @@ def _seed_required_dbs_ready(tmp_data_dir: Path) -> None:
                 }
             ],
         )
+        versioned_dbs = ["clinvar", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo", "dbnsfp"]
+        if include_gnomad:
+            versioned_dbs.append("gnomad")
         conn.execute(
             database_versions.insert(),
-            [
-                {"db_name": name, "version": "20260101"}
-                for name in ("clinvar", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo", "dbnsfp")
-            ],
+            [{"db_name": name, "version": "20260101"} for name in versioned_dbs],
         )
     engine.dispose()
 
@@ -141,10 +154,22 @@ def _seed_required_dbs_ready(tmp_data_dir: Path) -> None:
     finally:
         conn.close()
 
+    if include_gnomad:
+        _seed_gnomad_ready(tmp_data_dir)
 
-# The required, downloadable databases that gate the dashboard (the universe of
-# ``_required_dbs_ready``). gnomad is required but ``bundled`` → exempt.
-_GATE_DB_NAMES = {"clinvar", "dbnsfp", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo"}
+
+# The required databases that gate the dashboard (the universe of
+# ``_required_dbs_ready``). Required bundled DBs gate too when the repo has no
+# committed fixture, which is the current gnomAD packaging model.
+_GATE_DB_NAMES = {
+    "clinvar",
+    "dbnsfp",
+    "gnomad",
+    "cpic",
+    "gwas_catalog",
+    "dbsnp",
+    "mondo_hpo",
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -188,7 +213,7 @@ class TestSetupStatus:
         """
         flag_path = tmp_data_dir / ".disclaimer_accepted"
         flag_path.write_text('{"accepted_at": "2026-01-01T00:00:00", "version": "1.0"}')
-        (tmp_data_dir / "gnomad_af.db").write_text("fake")  # bundled → exempt anyway
+        (tmp_data_dir / "gnomad_af.db").write_text("fake")  # corrupt required bundled DB
         (tmp_data_dir / "dbnsfp.db").write_text("fake")  # corrupt required DB
 
         data = setup_client.get("/api/setup/status").json()
@@ -252,8 +277,9 @@ class TestRequiredDbsReadyGate:
         assert data["required_dbs_ready"] is False
         assert {d["name"] for d in data["db_readiness"]} == _GATE_DB_NAMES
         assert all(d["ready"] is False for d in data["db_readiness"])
-        # gnomad is required but bundled → exempt from the gate set.
-        assert "gnomad" not in {d["name"] for d in data["db_readiness"]}
+        gnomad = next(d for d in data["db_readiness"] if d["name"] == "gnomad")
+        assert gnomad["state"] == "not_installed"
+        assert gnomad["ready"] is False
 
     def test_empty_required_file_does_not_satisfy_gate(
         self, setup_client: TestClient, tmp_data_dir: Path
@@ -312,17 +338,20 @@ class TestRequiredDbsReadyGate:
         assert {d["name"] for d in data["db_readiness"]} == _GATE_DB_NAMES
         assert all(d["ready"] for d in data["db_readiness"])
 
-    def test_bundled_required_db_is_exempt(
+    def test_missing_required_bundle_blocks_gate(
         self, setup_client: TestClient, tmp_data_dir: Path
     ) -> None:
-        """gnomad (required + bundled) is exempt; absent gnomad does not block."""
+        """gnomAD is bundled, but absent without a committed fixture must block."""
         _accept_disclaimer(tmp_data_dir)
-        _seed_required_dbs_ready(tmp_data_dir)
+        _seed_required_dbs_ready(tmp_data_dir, include_gnomad=False)
         # No gnomad artifact created at all.
 
         data = setup_client.get("/api/setup/status").json()
-        assert data["required_dbs_ready"] is True
-        assert "gnomad" not in {d["name"] for d in data["db_readiness"]}
+        assert data["required_dbs_ready"] is False
+        assert data["needs_setup"] is True
+        gnomad = next(d for d in data["db_readiness"] if d["name"] == "gnomad")
+        assert gnomad["state"] == "not_installed"
+        assert gnomad["ready"] is False
 
     def test_partial_required_db_blocks_gate(
         self, setup_client: TestClient, tmp_data_dir: Path

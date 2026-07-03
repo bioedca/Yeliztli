@@ -1379,8 +1379,8 @@ describe('DatabasesStep', () => {
           expected_size_bytes: 500_000_000,
           required: true,
           phase: 2,
-          downloaded: false,
-          file_size_bytes: null,
+          downloaded: true,
+          file_size_bytes: 500_000_000,
           build_mode: 'bundled',
         },
         {
@@ -1421,7 +1421,7 @@ describe('DatabasesStep', () => {
         },
       ],
       total_size_bytes: 1_111_000_000,
-      downloaded_count: 0,
+      downloaded_count: 1,
       total_count: 5,
     }
   }
@@ -1453,10 +1453,9 @@ describe('DatabasesStep', () => {
     expect(otherBox.disabled).toBe(false)
   })
 
-  it('does not render a checkbox for bundled databases', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockDatabaseListWithModes()),
+  it('does not render a checkbox for bundled databases already present', async () => {
+    routeDatabasesFetch({
+      list: mockDatabaseListWithModes(),
     })
 
     render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
@@ -1466,6 +1465,53 @@ describe('DatabasesStep', () => {
     })
 
     expect(screen.queryByTestId('db-checkbox-vep_bundle')).not.toBeInTheDocument()
+  })
+
+  it('renders a locked checkbox for a required bundled database that is missing', async () => {
+    const list = {
+      ...mockDatabaseListWithModes(),
+      databases: [
+        {
+          name: 'clinvar',
+          display_name: 'ClinVar',
+          description: 'Clinical variants',
+          filename: 'clinvar.db',
+          expected_size_bytes: 100_000_000,
+          required: true,
+          phase: 1,
+          downloaded: false,
+          file_size_bytes: null,
+          build_mode: 'pipeline',
+        },
+        {
+          name: 'gnomad',
+          display_name: 'gnomAD',
+          description: 'Population allele frequencies',
+          filename: 'gnomad_af.db',
+          expected_size_bytes: 1_300_000_000,
+          required: true,
+          phase: 2,
+          downloaded: false,
+          file_size_bytes: null,
+          build_mode: 'bundled',
+        },
+      ],
+      total_size_bytes: 1_400_000_000,
+      downloaded_count: 0,
+      total_count: 2,
+    }
+    routeDatabasesFetch({ list })
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('gnomAD')).toBeInTheDocument()
+    })
+
+    const gnomadBox = screen.getByTestId('db-checkbox-gnomad') as HTMLInputElement
+    expect(gnomadBox.checked).toBe(true)
+    expect(gnomadBox.disabled).toBe(true)
+    expect(screen.getByText('Download required')).toBeInTheDocument()
   })
 
   it('updates the running total when a checkbox is toggled', async () => {
@@ -1668,8 +1714,8 @@ describe('DatabasesStep', () => {
           expected_size_bytes: 500_000_000,
           required: true,
           phase: 2,
-          downloaded: false,
-          file_size_bytes: null,
+          downloaded: true,
+          file_size_bytes: 500_000_000,
           build_mode: 'bundled',
         },
         {

@@ -44,7 +44,7 @@ from backend.config import (
     write_data_dir_pointer,
 )
 from backend.db.connection import get_registry
-from backend.db.database_registry import get_all_databases
+from backend.db.database_registry import BUNDLED_DIR, DatabaseInfo, get_all_databases
 from backend.db.db_health import get_database_health
 from backend.disclaimers import (
     GLOBAL_DISCLAIMER_ACCEPT_LABEL,
@@ -231,21 +231,34 @@ def _has_any_samples() -> bool:
     return any(samples_dir.glob("sample_*.db"))
 
 
-# Build modes the readiness gate enforces. ``bundled`` ships with the app and
-# ``manual`` is user-built, so both are exempt — only artifacts the wizard must
-# fetch/build (download/pipeline) gate the dashboard.
+# Build modes the readiness gate always enforces. ``manual`` is user-built, and
+# committed bundled fixtures are exempt because they ship with the app. Required
+# bundled DBs without a committed fixture still gate setup: the wizard must fetch
+# them before the dashboard can rely on their data.
 _GATE_BUILD_MODES = frozenset({"download", "pipeline"})
 
 
+def _db_gates_setup_readiness(db_info: DatabaseInfo) -> bool:
+    """Whether ``db_info`` participates in the setup readiness gate."""
+    if not db_info.required:
+        return False
+    if db_info.build_mode in _GATE_BUILD_MODES:
+        return True
+    if db_info.build_mode == "bundled":
+        return not db_info.filename or not (BUNDLED_DIR / db_info.filename).exists()
+    return False
+
+
 def _required_dbs_ready() -> tuple[bool, list[DbReadiness]]:
-    """Whether every required, downloadable database is integrity-``ready``.
+    """Whether every setup-gated required database is integrity-``ready``.
 
     Reuses the :mod:`backend.db.db_health` state machine (it never re-implements
-    integrity), so this gate and ``GET /databases/health`` cannot disagree. Only
-    databases with ``required and build_mode in {download, pipeline}`` count;
-    ``bundled``/``manual`` are exempt. Fails closed: if health cannot be
-    determined the database is treated as not-ready, so a broken install never
-    silently satisfies setup and routes the user to a non-functional dashboard.
+    integrity), so this gate and ``GET /databases/health`` cannot disagree.
+    Required download/pipeline DBs always count; required bundled DBs count only
+    when the repo does not ship their fixture under ``bundles/``. Fails closed:
+    if health cannot be determined the database is treated as not-ready, so a
+    broken install never silently satisfies setup and routes the user to a
+    non-functional dashboard.
     """
     settings = get_settings()
     try:
@@ -257,7 +270,7 @@ def _required_dbs_ready() -> tuple[bool, list[DbReadiness]]:
     readiness: list[DbReadiness] = []
     all_ready = True
     for db in get_all_databases():
-        if not (db.required and db.build_mode in _GATE_BUILD_MODES):
+        if not _db_gates_setup_readiness(db):
             continue
         try:
             state = get_database_health(db, settings, engine).state
@@ -287,10 +300,10 @@ async def setup_status() -> SetupStatusResponse:
     required_ready, db_readiness = _required_dbs_ready()
     has_samples = _has_any_samples()
 
-    # Needs setup until the disclaimer is accepted AND every required,
-    # downloadable reference database is integrity-``ready`` (health-verified,
-    # not merely present). A present-but-empty/partial/corrupt file must NOT
-    # satisfy setup — that is the hole that routed users to a broken dashboard.
+    # Needs setup until the disclaimer is accepted AND every setup-gated
+    # required reference database is integrity-``ready`` (health-verified, not
+    # merely present). A present-but-empty/partial/corrupt file must NOT satisfy
+    # setup — that is the hole that routed users to a broken dashboard.
     needs_setup = not disclaimer_accepted or not required_ready
 
     return SetupStatusResponse(

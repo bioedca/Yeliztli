@@ -4,7 +4,8 @@
  * parallel downloads. Progress is streamed via SSE from the backend.
  *
  * Databases with build_mode="manual" show an amber "Manual Build" badge.
- * Databases with build_mode="bundled" show a green "Included" badge.
+ * Databases with build_mode="bundled" show a green "Included" badge only when
+ * they are actually present; missing required bundles are selected for install.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -50,11 +51,11 @@ import {
 
 const DEFAULT_OPTIONAL_DBS = new Set(['lai_bundle', 'encode_ccres'])
 
-function isSelectable(db: { build_mode: string; downloaded: boolean }) {
+function isSelectable(db: { build_mode: string; downloaded: boolean; required: boolean }) {
   return (
     !db.downloaded &&
-    db.build_mode !== 'bundled' &&
-    db.build_mode !== 'manual'
+    db.build_mode !== 'manual' &&
+    (db.build_mode !== 'bundled' || db.required)
   )
 }
 
@@ -348,8 +349,8 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
 
   // Whether the user may proceed past the Databases step. This is the SAME
   // health-verified gate the backend uses for needs_setup (required_dbs_ready):
-  // every required, downloadable DB must be integrity-`ready`, with bundled and
-  // manual modes exempt. Using the backend truth — instead of the old
+  // every setup-gated required DB must be integrity-`ready`. Using the backend
+  // truth — instead of the old
   // presence/SSE-`complete` heuristic — means Continue can never enable on a DB
   // that merely downloaded but is empty/partial/corrupt, and the wizard cannot
   // disagree with AuthGuard. SETUP_STATUS_KEY is invalidated when a download
@@ -511,11 +512,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
             const progress = dbProgress[db.name]
             const isBundled = db.build_mode === 'bundled'
             const isManual = db.build_mode === 'manual'
-            const isComplete = isBundled
-              ? true
-              : progress
-                ? progress.status === 'complete'
-                : db.downloaded
+            const isComplete = progress
+              ? progress.status === 'complete'
+              : db.downloaded
+            const bundledIncluded = isBundled && isComplete
             const isFailed = progress?.status === 'failed'
             const isRunning = progress?.status === 'running'
             const isPending = progress?.status === 'pending'
@@ -563,25 +563,25 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
 
                   {/* Status icon */}
                   <div className="mt-0.5 flex-shrink-0">
-                    {isBundled && (
+                    {bundledIncluded && (
                       <PackageCheck className="h-5 w-5 text-green-500" />
                     )}
-                    {!isBundled && isComplete && (
+                    {!bundledIncluded && isComplete && (
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     )}
-                    {!isBundled && isFailed && (
+                    {isFailed && (
                       <AlertCircle className="h-5 w-5 text-destructive" />
                     )}
-                    {!isBundled && isRunning && (
+                    {isRunning && (
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     )}
-                    {!isBundled && isPending && (
+                    {isPending && (
                       <Download className="h-5 w-5 text-muted-foreground" />
                     )}
-                    {!isBundled && isManual && !isComplete && !isFailed && !isRunning && !isPending && (
+                    {isManual && !isComplete && !isFailed && !isRunning && !isPending && (
                       <Wrench className="h-5 w-5 text-amber-500" />
                     )}
-                    {!isBundled && !isManual && !progress && !db.downloaded && (
+                    {!isManual && !progress && !db.downloaded && (
                       <HardDrive className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
@@ -595,7 +595,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                       <span className="text-xs text-muted-foreground">
                         {formatBytes(db.expected_size_bytes)}
                       </span>
-                      {isBundled && (
+                      {bundledIncluded && (
                         <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">
                           Included
                         </span>
@@ -605,12 +605,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                           Manual Build
                         </span>
                       )}
-                      {!isBundled && !isManual && db.required && (
+                      {!bundledIncluded && !isManual && db.required && (
                         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                           Required
                         </span>
                       )}
-                      {!isBundled && !isManual && !db.required && (
+                      {!bundledIncluded && !isManual && !db.required && (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                           Optional
                         </span>
@@ -762,7 +762,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     )}
 
                     {/* Downloaded status + integrity verdict */}
-                    {isComplete && !isBundled && (
+                    {isComplete && !bundledIncluded && (
                       <div className="mt-0.5 space-y-1">
                         <p className="text-xs text-green-700 dark:text-green-400">
                           Downloaded
@@ -825,9 +825,14 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     )}
 
                     {/* Bundled status */}
-                    {isBundled && (
+                    {bundledIncluded && (
                       <p className="mt-0.5 text-xs text-green-700 dark:text-green-400">
                         Ships with Yeliztli
+                      </p>
+                    )}
+                    {isBundled && !bundledIncluded && !isRunning && !isPending && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Download required
                       </p>
                     )}
                   </div>
