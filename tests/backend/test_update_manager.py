@@ -1445,6 +1445,44 @@ class TestUpdateAPI:
             assert resp.status_code == 202, (db_name, resp.text)
             assert resp.json()["db_name"] == db_name
 
+    def test_trigger_encode_ccres_uses_remote_size_for_bandwidth_window(
+        self, update_client, tmp_data_dir: Path
+    ):
+        settings = Settings(
+            data_dir=tmp_data_dir,
+            wal_mode=False,
+            update_download_window="02:00-06:00",
+        )
+        registry = MagicMock()
+        registry.settings = settings
+        remote_info = VersionInfo(
+            db_name="encode_ccres",
+            latest_version="20260203",
+            download_url="https://example.com/GRCh38-cCREs.bed",
+            download_size_bytes=BANDWIDTH_WINDOW_THRESHOLD,
+        )
+
+        with (
+            patch("backend.api.routes.updates.get_registry", return_value=registry),
+            patch(
+                "backend.db.update_manager._fetch_encode_ccres_remote_info",
+                return_value=remote_info,
+            ) as mock_remote,
+            patch(
+                "backend.api.routes.updates.should_download_now", return_value=True
+            ) as mock_window,
+            patch("backend.tasks.huey_tasks.run_database_update_task"),
+            patch(
+                "backend.tasks.huey_tasks.create_database_update_job",
+                return_value="job-encode-ccres",
+            ),
+        ):
+            resp = update_client.post("/api/updates/trigger", json={"db_name": "encode_ccres"})
+
+        assert resp.status_code == 202
+        mock_remote.assert_called_once_with(timeout=10.0)
+        mock_window.assert_called_once_with(BANDWIDTH_WINDOW_THRESHOLD, "02:00-06:00")
+
     def test_status_returns_enhanced_fields(self, update_client):
         """P4-17: status returns display_name, version_display, downloaded_at."""
         resp = update_client.get("/api/updates/status")

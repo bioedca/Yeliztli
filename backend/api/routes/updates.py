@@ -276,6 +276,13 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
     registry = get_registry()
     settings = registry.settings
     estimated_size = db_info.expected_size_bytes if db_info else 0
+    if is_download and settings.update_download_window is not None:
+        from backend.db.update_manager import _fetch_encode_ccres_remote_info
+
+        if req.db_name == "encode_ccres":
+            remote_info = _fetch_encode_ccres_remote_info(timeout=10.0)
+            if remote_info is not None:
+                estimated_size = remote_info.download_size_bytes
     if not should_download_now(estimated_size, settings.update_download_window):
         raise HTTPException(
             status_code=409,

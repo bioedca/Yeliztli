@@ -47,6 +47,7 @@ class DBRegistry:
         self._gtex_eqtl_engine: sa.Engine | None = None
         self._spliceai_engine: sa.Engine | None = None
         self._encode_ccres_engine: sa.Engine | None = None
+        self._encode_ccres_fingerprint: tuple[int, int, int, int] | None = None
 
     @property
     def settings(self) -> Settings:
@@ -97,6 +98,14 @@ class DBRegistry:
             cursor.close()
 
         return engine
+
+    @staticmethod
+    def _file_fingerprint(db_path: Path) -> tuple[int, int, int, int] | None:
+        try:
+            stat = db_path.stat()
+        except FileNotFoundError:
+            return None
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
 
     @property
     def vep_engine(self) -> sa.Engine:
@@ -167,10 +176,13 @@ class DBRegistry:
     @property
     def encode_ccres_engine(self) -> sa.Engine:
         """Lazy-loaded ENCODE cCREs engine (read-only, ~30 MB)."""
-        if self._encode_ccres_engine is None:
-            self._encode_ccres_engine = self._create_engine(
-                self._settings.encode_ccres_db_path, wal=self._settings.wal_mode
-            )
+        db_path = self._settings.encode_ccres_db_path
+        fingerprint = self._file_fingerprint(db_path)
+        if self._encode_ccres_engine is None or self._encode_ccres_fingerprint != fingerprint:
+            if self._encode_ccres_engine is not None:
+                self._encode_ccres_engine.dispose()
+            self._encode_ccres_engine = self._create_engine(db_path, wal=self._settings.wal_mode)
+            self._encode_ccres_fingerprint = fingerprint
         return self._encode_ccres_engine
 
     def get_sample_engine(self, sample_db_path: str | Path) -> sa.Engine:
@@ -233,6 +245,7 @@ class DBRegistry:
         if self._encode_ccres_engine is not None:
             self._encode_ccres_engine.dispose()
             self._encode_ccres_engine = None
+            self._encode_ccres_fingerprint = None
 
 
 _registry: DBRegistry | None = None
