@@ -2,8 +2,8 @@
 
 Pins the four associations (B*27/AS, C*06:02/psoriasis, DRB1-SE/RA, DR3-DQ2/DR4-DQ8
 T1D), each framed as susceptibility-not-diagnostic, plus the edge cases: the
-disease-neutral B*27:06/*27:09 subtypes, the DR3/DR4 heterozygote (highest risk),
-the DQB1*06:02 protective note, and not_typed vs typed-negative.
+disease-neutral B*27:06/*27:09 subtypes, unphased T1D DR-DQ calls, the DQB1*06:02
+protective note, and not_typed vs typed-negative.
 """
 
 from __future__ import annotations
@@ -110,28 +110,53 @@ class TestRaSharedEpitope:
 
 
 class TestT1D:
-    def test_dr3_dr4_heterozygote_highest(self) -> None:
+    def test_dqa_dqb_risk_pattern_without_drb1_not_reported_as_haplotype(self) -> None:
         calls = [_c("DQA1", "05:01", "03:01"), _c("DQB1", "02:01", "03:02")]
         f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
-        assert f.status == STATUS_INCREASED
-        assert "heterozygote" in f.detail.lower()
-        assert "greatest" in f.interpretation.lower()
+        assert f.status == STATUS_NOT_TYPED
+        assert f.carried is False
+        assert "DRB1 missing" in f.detail
+        assert "does not establish DR3-DQ2 or DR4-DQ8" in f.interpretation
+        assert "heterozygote" not in f.detail.lower()
+        assert "greatest" not in f.interpretation.lower()
 
-    def test_dr3_only_increased(self) -> None:
-        calls = [_c("DQA1", "05:01", "01:01"), _c("DQB1", "02:01", "05:01")]
+    def test_full_t1d_pattern_without_phase_is_possible_not_confirmed(self) -> None:
+        calls = [
+            _c("DRB1", "03:01", "04:01"),
+            _c("DQA1", "05:01", "03:01"),
+            _c("DQB1", "02:01", "03:02"),
+        ]
         f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
-        assert f.status == STATUS_INCREASED
-        assert "DR3-DQ2" in f.detail
+        assert f.status == STATUS_NOT_TYPED
+        assert f.carried is False
+        assert "Possible DR3-DQ2-like and DR4-DQ8-like allele patterns" in f.detail
+        assert "phase not established" in f.detail
+        assert "do not establish" in f.interpretation
+        assert "DR3/DR4 diplotype" in f.interpretation
+
+    def test_dr4_dq8_requires_risk_drb1_subtype(self) -> None:
+        calls = [
+            _c("DRB1", "04:03", "15:01"),
+            _c("DQA1", "03:01", "01:01"),
+            _c("DQB1", "03:02", "05:01"),
+        ]
+        f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
+        assert f.status == STATUS_NOT_INCREASED
+        assert "No complete DRB1-DQA1-DQB1 T1D-risk allele pattern" in f.detail
 
     def test_protective_dqb1_0602_noted(self) -> None:
-        # DR4-DQ8 present + protective DQB1*06:02 present.
+        # DQA1/DQB1 risk-pattern alleles are present but DRB1/phase are not established.
         calls = [_c("DQA1", "01:02", "03:01"), _c("DQB1", "06:02", "03:02")]
         f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
-        assert f.status == STATUS_INCREASED
+        assert f.status == STATUS_NOT_TYPED
         assert "protective" in f.interpretation.lower()
 
     def test_neither_haplotype(self) -> None:
-        calls = [_c("DQA1", "01:01", "04:01"), _c("DQB1", "05:01", "06:03")]
+        calls = [
+            _c("DRB1", "15:01", "13:01"),
+            _c("DQA1", "01:01", "04:01"),
+            _c("DQB1", "05:01", "06:03"),
+        ]
         f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
         assert f.status == STATUS_NOT_INCREASED
 

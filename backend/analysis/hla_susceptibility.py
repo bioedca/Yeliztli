@@ -24,10 +24,13 @@ Associations:
   NS for anti-CCP-negative). Bax 2011 PMID:21556860; Pedersen 2007 PMID:17469102.
   The SE is the QKRAA/QRRAA/RRRAA motif at DRβ1 70–74; the major SE alleles are
   DRB1*01:01, *04:01, *04:04, *04:05, *10:01 (non-exhaustive).
-- **HLA DR3-DQ2 / DR4-DQ8 → type 1 diabetes**. DR3-DQ2 (DQA1*05:01-DQB1*02:01) and
-  DR4-DQ8 (DQA1*03:01-DQB1*03:02) are the highest-risk haplotypes, with the DR3/DR4
-  heterozygote at greatest risk (OR ~16.6); HLA-DQB1*06:02 is strongly protective.
-  Noble & Valdes 2011 PMID:21912932; Pugliese 1995 PMID:7789622. Risk hierarchy is
+- **HLA DR3-DQ2 / DR4-DQ8 → type 1 diabetes**. The highest-risk signals are
+  DRB1-DQA1-DQB1 haplotypes: DR3
+  (DRB1*03:01-DQA1*05:01-DQB1*02:01) and DR4
+  (risk DRB1*04-DQA1*03:01-DQB1*03:02/04); the DR3/DR4 diplotype carries the
+  greatest HLA risk. This report uses unphased per-locus imputed calls, so it only
+  reports possible allele patterns and does not confirm DR-DQ haplotypes. Noble &
+  Valdes 2011 PMID:21912932; Pugliese 1995 PMID:7789622. Risk hierarchy is
   European-derived; some DRB1*04 subtypes (e.g. *04:03) are protective despite DQ8.
 
 Imputed, not typed — every response carries :data:`HLA_IMPUTED_CONFIRMATION_CAVEAT`.
@@ -45,7 +48,7 @@ from backend.analysis.hla_resolver import ResolvedHLACall, carries_allele
 STATUS_INCREASED = "increased_risk"  # a risk allele/haplotype is carried
 STATUS_NOT_INCREASED = "not_increased"  # locus typed, risk allele absent
 STATUS_NEUTRAL_SUBTYPE = "neutral_subtype"  # carries only a disease-neutral B*27 subtype
-STATUS_NOT_TYPED = "not_typed"  # required locus not called
+STATUS_NOT_TYPED = "not_typed"  # required locus or haplotype phase not called
 
 # HLA-B*27 subtypes that are NOT disease-associated: a group "B*27" match would
 # otherwise flag these as risk, so they are downgraded to a neutral subtype.
@@ -54,6 +57,13 @@ _B27_NEUTRAL_SUBTYPES = frozenset({"27:06", "27:09"})
 # Major RA shared-epitope DRB1 alleles (2-field; non-exhaustive — the SE is defined
 # by the QKRAA/QRRAA/RRRAA motif at DRβ1 70-74, and these are its common carriers).
 _SE_ALLELES = ("DRB1*01:01", "DRB1*04:01", "DRB1*04:04", "DRB1*04:05", "DRB1*10:01")
+_T1D_DR4_RISK_DRB1 = (
+    "DRB1*04:01",
+    "DRB1*04:02",
+    "DRB1*04:04",
+    "DRB1*04:05",
+    "DRB1*04:08",
+)
 
 
 @dataclass(frozen=True)
@@ -99,6 +109,10 @@ def _locus_called(calls: Sequence[ResolvedHLACall], locus: str) -> bool:
 def _carried(calls: Sequence[ResolvedHLACall], allele: str) -> bool:
     c = carries_allele(calls, allele)
     return c is not None and c.carried
+
+
+def _any_carried(calls: Sequence[ResolvedHLACall], alleles: Sequence[str]) -> bool:
+    return any(_carried(calls, allele) for allele in alleles)
 
 
 def _two_field(allele: str) -> str:
@@ -286,55 +300,75 @@ def _assess_t1d(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
         "populations have different top haplotypes.",
         "Some DRB1*04 subtypes (e.g. DRB1*04:03) are protective despite carrying DQ8.",
     ]
-    if not (_locus_called(calls, "DQA1") and _locus_called(calls, "DQB1")):
-        return SusceptibilityFinding(
-            condition,
-            "HLA DR3-DQ2 / DR4-DQ8",
-            STATUS_NOT_TYPED,
-            False,
-            "HLA-DQA1/DQB1 not imputed",
-            "HLA-DQA1/DQB1 were not both imputed — risk unknown; clinical HLA typing required.",
-            False,
-            citations,
-            notes,
-        )
-    dr3_dq2 = _carried(calls, "DQA1*05") and _carried(calls, "DQB1*02:01")
-    dr4_dq8 = _carried(calls, "DQA1*03") and _carried(calls, "DQB1*03:02")
+    required_loci = ("DRB1", "DQA1", "DQB1")
     protective = _carried(calls, "DQB1*06:02")
-    low_conf = _low_conf(calls, ["DQA1", "DQB1"])
     protective_note = (
         " HLA-DQB1*06:02, which is strongly protective against type 1 diabetes, is also present."
         if protective
         else ""
     )
-    if dr3_dq2 and dr4_dq8:
-        detail = "DR3-DQ2 + DR4-DQ8 (DR3/DR4 heterozygote)"
+    low_conf = _low_conf(calls, required_loci)
+    dr3_components = (
+        _carried(calls, "DRB1*03:01")
+        and _carried(calls, "DQA1*05")
+        and _carried(calls, "DQB1*02:01")
+    )
+    dr4_components = (
+        _any_carried(calls, _T1D_DR4_RISK_DRB1)
+        and _carried(calls, "DQA1*03")
+        and _carried(calls, "DQB1*03:02")
+    )
+    dqa_dqb_only = (_carried(calls, "DQA1*05") and _carried(calls, "DQB1*02:01")) or (
+        _carried(calls, "DQA1*03") and _carried(calls, "DQB1*03:02")
+    )
+    if not all(_locus_called(calls, locus) for locus in required_loci):
+        missing = "/".join(locus for locus in required_loci if not _locus_called(calls, locus))
+        detail = f"HLA-{missing} not imputed"
         interp = (
-            "Both the DR3-DQ2 and DR4-DQ8 high-risk haplotypes are present — the DR3/DR4 "
-            "heterozygote carries the greatest HLA type-1-diabetes susceptibility. "
-            f"{_NOT_DIAGNOSTIC}"
+            "HLA-DRB1, DQA1, and DQB1 are required to evaluate T1D DR-DQ susceptibility "
+            "haplotypes; risk unknown without clinical HLA typing."
         )
+        if dqa_dqb_only:
+            detail = (
+                "DQA1/DQB1 alleles consistent with a possible T1D-risk haplotype; DRB1 missing"
+            )
+            interp = (
+                "DQA1/DQB1 allele carriage alone does not establish DR3-DQ2 or DR4-DQ8. "
+                "HLA-DRB1 context and haplotype-aware clinical typing are required before "
+                "reporting these T1D DR-DQ susceptibility haplotypes."
+            )
         return SusceptibilityFinding(
             condition,
             "HLA DR3-DQ2 / DR4-DQ8",
-            STATUS_INCREASED,
-            True,
+            STATUS_NOT_TYPED,
+            False,
             detail,
             interp + protective_note,
             low_conf,
             citations,
             notes,
         )
-    if dr3_dq2 or dr4_dq8:
-        which = "DR3-DQ2" if dr3_dq2 else "DR4-DQ8"
+    if dr3_components or dr4_components:
+        if dr3_components and dr4_components:
+            detail = (
+                "Possible DR3-DQ2-like and DR4-DQ8-like allele patterns; phase not established"
+            )
+        else:
+            which = "DR3-DQ2-like" if dr3_components else "DR4-DQ8-like"
+            detail = f"Possible {which} allele pattern; phase not established"
+        interp = (
+            "DRB1/DQA1/DQB1 alleles are consistent with a possible T1D-risk HLA background, "
+            "but these imputed calls are per-locus and unphased. They do not establish the "
+            "cis DR-DQ haplotype or high-risk DR3/DR4 diplotype; confirm with haplotype-aware "
+            "clinical HLA typing before using this as an increased-susceptibility finding."
+        )
         return SusceptibilityFinding(
             condition,
             "HLA DR3-DQ2 / DR4-DQ8",
-            STATUS_INCREASED,
-            True,
-            which,
-            f"A high-risk type-1-diabetes HLA haplotype ({which}) is present. {_NOT_DIAGNOSTIC}"
-            + protective_note,
+            STATUS_NOT_TYPED,
+            False,
+            detail,
+            interp + protective_note,
             low_conf,
             citations,
             notes,
@@ -344,9 +378,10 @@ def _assess_t1d(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
         "HLA DR3-DQ2 / DR4-DQ8",
         STATUS_NOT_INCREASED,
         False,
-        "Neither DR3-DQ2 nor DR4-DQ8 detected",
-        "Neither of the high-risk type-1-diabetes HLA haplotypes (DR3-DQ2, DR4-DQ8) was "
-        "detected — lower HLA-conferred susceptibility." + protective_note,
+        "No complete DRB1-DQA1-DQB1 T1D-risk allele pattern detected",
+        "The unphased calls do not contain the DRB1/DQA1/DQB1 allele set required for a "
+        "possible DR3-DQ2 or DR4-DQ8 T1D-risk background — lower HLA-conferred "
+        "susceptibility." + protective_note,
         low_conf,
         citations,
         notes,
@@ -359,7 +394,7 @@ def assess_susceptibility(calls: Sequence[ResolvedHLACall]) -> SusceptibilityRep
     With no calls the report is ``available=False``. Otherwise each association is
     assessed as ``increased_risk`` / ``not_increased`` / ``neutral_subtype`` (B*27
     disease-neutral subtypes) / ``not_typed`` — always distinguishing a typed
-    negative from a locus that was never called.
+    negative from a locus or haplotype phase that was never called.
     """
     if not calls:
         return SusceptibilityReport(available=False, unavailable_note=_UNAVAILABLE_NOTE)
