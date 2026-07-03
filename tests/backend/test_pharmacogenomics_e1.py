@@ -316,6 +316,35 @@ def test_ugt1a1_star6_is_intermediate(reference_engine: sa.Engine) -> None:
     assert result.phenotype == "Intermediate Metabolizer"
 
 
+def test_ugt1a1_star6_with_untyped_star28_alerts_use_conservative_poor(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample({_UGT1A1_6: "GA"})  # *28 omitted
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"UGT1A1"}))
+    ugt = next(r for r in results if r.gene == "UGT1A1")
+
+    assert ugt.diplotype == "*1/*6"
+    assert ugt.phenotype == "Intermediate Metabolizer"
+    assert ugt.indeterminate_alleles == ["*28"]
+    assert ugt.conservative_diplotype == "*6/*28"
+    assert ugt.conservative_phenotype == "Poor Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    ugt_alerts = {a.drug: a for a in alerts if a.gene == "UGT1A1"}
+
+    assert {"atazanavir", "irinotecan"} <= set(ugt_alerts)
+    for alert in ugt_alerts.values():
+        assert alert.phenotype == "Poor Metabolizer"
+        assert alert.called_phenotype == "Intermediate Metabolizer"
+        assert alert.conservative_alert is True
+        assert alert.conservative_diplotype == "*6/*28"
+        assert alert.conservative_allele == "*28"
+        assert "*28" in alert.indeterminate_alleles
+
+    assert "Consider an alternative agent" in ugt_alerts["atazanavir"].recommendation
+    assert "Reduce the irinotecan starting dose" in ugt_alerts["irinotecan"].recommendation
+
+
 def test_ugt1a1_star28_is_indeterminate_when_unassayed(reference_engine: sa.Engine) -> None:
     # The TA-repeat *28 cannot be typed from a SNP array: it must be flagged
     # indeterminate (cannot be excluded), not silently called as reference.
