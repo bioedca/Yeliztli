@@ -639,10 +639,13 @@ async def gnomad_region(
         logger.debug("gnomad_engine_unavailable", error=str(exc))
         return []
 
+    # gnomad_af.pos is a VCF POS value (1-based); IGV annotation features use
+    # BED-like 0-based half-open intervals, so POS p overlaps [start, end) when
+    # p > start and p <= end.
     query = sa.text(
         "SELECT rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_eas, af_eur "
         "FROM gnomad_af "
-        "WHERE chrom = :chrom AND pos >= :start AND pos <= :end "
+        "WHERE chrom = :chrom AND pos > :start AND pos <= :end "
         "ORDER BY pos "
         "LIMIT 5000"
     )
@@ -661,8 +664,8 @@ async def gnomad_region(
         features.append(
             GnomadFeature(
                 chr=f"chr{row.chrom}",
-                start=row.pos,
-                end=row.pos + 1,
+                start=row.pos - 1,
+                end=row.pos,
                 name=label,
                 score=af,
                 af_global=af,

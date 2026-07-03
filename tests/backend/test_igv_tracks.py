@@ -11,10 +11,15 @@ Validates:
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.db.connection import get_registry
+from backend.annotation.gnomad import _create_gnomad_table
+from backend.api.routes import igv_tracks as igv_tracks_route
+from backend.db.connection import DBRegistry, get_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -75,6 +80,37 @@ def _seed_clinvar(test_client: TestClient) -> None:
                 },
             ],
         )
+
+
+@pytest.fixture()
+def _seed_gnomad(db_registry: DBRegistry) -> DBRegistry:
+    """Insert test gnomAD variants into gnomad_af.db via the active registry."""
+    engine = db_registry.gnomad_engine
+    _create_gnomad_table(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO gnomad_af "
+                "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_eas, af_eur) "
+                "VALUES (:rsid, :chrom, :pos, :ref, :alt, :af_global, :af_afr, "
+                ":af_amr, :af_eas, :af_eur)"
+            ),
+            [
+                {
+                    "rsid": "rsGnomad1",
+                    "chrom": "17",
+                    "pos": 41245466,
+                    "ref": "A",
+                    "alt": "G",
+                    "af_global": 0.0123,
+                    "af_afr": 0.001,
+                    "af_amr": 0.002,
+                    "af_eas": None,
+                    "af_eur": 0.003,
+                }
+            ],
+        )
+    return db_registry
 
 
 @pytest.fixture()
@@ -433,6 +469,35 @@ class TestGnomadTrack:
         )
         assert resp1.status_code == 200
         assert resp2.status_code == 200
+
+    def test_gnomad_converts_vcf_pos_to_igv_feature_interval(
+        self, monkeypatch: pytest.MonkeyPatch, _seed_gnomad: DBRegistry
+    ) -> None:
+        """VCF POS p should be emitted as the 0-based half-open interval [p-1, p)."""
+        pos = 41245466
+        monkeypatch.setattr(igv_tracks_route, "get_registry", lambda: _seed_gnomad)
+
+        features = asyncio.run(igv_tracks_route.gnomad_region(chr="chr17", start=pos - 1, end=pos))
+
+        assert [feature.model_dump() for feature in features] == [
+            {
+                "chr": "chr17",
+                "start": pos - 1,
+                "end": pos,
+                "name": "rsGnomad1 AF=0.0123",
+                "score": 0.0123,
+                "af_global": 0.0123,
+                "af_afr": 0.001,
+                "af_amr": 0.002,
+                "af_eas": None,
+                "af_eur": 0.003,
+            }
+        ]
+
+        shifted_right = asyncio.run(
+            igv_tracks_route.gnomad_region(chr="chr17", start=pos, end=pos + 1)
+        )
+        assert shifted_right == []
 
 
 # ── ENCODE cCREs Track Tests ─────────────────────────────────────────
