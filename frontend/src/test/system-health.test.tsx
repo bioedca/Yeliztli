@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "./test-utils"
 import SystemHealth from "@/components/settings/SystemHealth"
+import type { DatabaseStat } from "@/api/admin"
 
 const mockFetch = vi.fn()
 beforeEach(() => {
@@ -98,8 +99,14 @@ const LOGS_RESPONSE = {
   has_more: false,
 }
 
-function mockAllEndpoints(overrides: { disk?: Partial<typeof DISK_RESPONSE> } = {}) {
+function mockAllEndpoints(
+  overrides: {
+    disk?: Partial<typeof DISK_RESPONSE>
+    dbStats?: DatabaseStat[]
+  } = {},
+) {
   const diskResponse = { ...DISK_RESPONSE, ...overrides.disk }
+  const dbStatsResponse = overrides.dbStats ?? DB_STATS_RESPONSE
   mockFetch.mockImplementation(async (url: string) => {
     if (url.includes("/api/admin/status")) {
       return { ok: true, json: async () => STATUS_RESPONSE }
@@ -108,7 +115,7 @@ function mockAllEndpoints(overrides: { disk?: Partial<typeof DISK_RESPONSE> } = 
       return { ok: true, json: async () => diskResponse }
     }
     if (url.includes("/api/admin/db-stats")) {
-      return { ok: true, json: async () => DB_STATS_RESPONSE }
+      return { ok: true, json: async () => dbStatsResponse }
     }
     if (url.includes("/api/admin/sample-stats")) {
       return { ok: true, json: async () => SAMPLE_STATS_RESPONSE }
@@ -179,6 +186,43 @@ describe("SystemHealth", () => {
     })
     expect(screen.getByText("Reference DB")).toBeInTheDocument()
     expect(screen.getByText("ClinVar")).toBeInTheDocument()
+  })
+
+  it("displays unknown database sizes as an em dash without changing real zero sizes", async () => {
+    mockAllEndpoints({
+      dbStats: [
+        {
+          name: "cpic",
+          display_name: "CPIC",
+          file_path: "/home/test/.yeliztli/reference.db",
+          file_size_bytes: null,
+          exists: true,
+          row_count: 42,
+          last_updated: "2026-03-20T10:00:00",
+          version: "2026-03-15",
+        },
+        {
+          name: "empty_reference",
+          display_name: "Empty Reference",
+          file_path: "/home/test/.yeliztli/empty.db",
+          file_size_bytes: 0,
+          exists: true,
+          row_count: 0,
+          last_updated: "2026-03-20T10:00:00",
+          version: "2026-03-15",
+        },
+      ],
+    })
+    render(<SystemHealth />)
+
+    const cpicRow = (await screen.findByText("CPIC")).closest("tr")
+    expect(cpicRow).toHaveTextContent("Available")
+    expect(cpicRow).toHaveTextContent("—")
+    expect(cpicRow).not.toHaveTextContent("0 B")
+
+    const zeroRow = screen.getByText("Empty Reference").closest("tr")
+    expect(zeroRow).toHaveTextContent("Available")
+    expect(zeroRow).toHaveTextContent("0 B")
   })
 
   it("displays log explorer section", async () => {
