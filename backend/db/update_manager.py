@@ -1125,13 +1125,17 @@ def run_encode_ccres_update(
 
         final_dest = db_info.dest_path(settings)
         final_dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp_dest = final_dest.with_name(f".{final_dest.name}.update.tmp")
+        tmp_dest.unlink(missing_ok=True)
         try:
             if db_info.post_download is None:
-                shutil.move(str(downloaded_path), str(final_dest))
+                shutil.move(str(downloaded_path), str(tmp_dest))
             else:
-                db_info.post_download(downloaded_path, final_dest)
+                db_info.post_download(downloaded_path, tmp_dest)
+            tmp_dest.replace(final_dest)
         except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)
+            tmp_dest.unlink(missing_ok=True)
             logger.exception("encode_ccres_materialize_failed", error=str(exc))
             return None
 
