@@ -121,7 +121,36 @@ _STANDALONE_REQUIRED_COLUMNS: dict[str, dict[str, frozenset[str]]] = {
                 "homozygous_count",
             }
         )
-    }
+    },
+    "pgs_scores": {
+        "pgs_score_metadata": frozenset(
+            {
+                "pgs_id",
+                "pgs_name",
+                "trait_reported",
+                "trait_efo",
+                "genome_build",
+                "variants_number",
+                "weight_type",
+                "license",
+                "license_bundle_ok",
+                "citation",
+                "pgp_id",
+            }
+        ),
+        "pgs_score_weights": frozenset(
+            {
+                "id",
+                "pgs_id",
+                "rsid",
+                "chrom",
+                "pos",
+                "effect_allele",
+                "other_allele",
+                "effect_weight",
+            }
+        ),
+    },
 }
 
 # numpy array keys that ``backend.analysis.ancestry.load_ancestry_bundle`` (the
@@ -344,6 +373,35 @@ def _check_npz(path: Path, required_keys: frozenset[str]) -> IntegrityResult:
     return IntegrityResult(ok=True, detail="ok", depth="structural")
 
 
+def validate_standalone_sqlite_file(
+    db_name: str,
+    path: Path,
+    *,
+    deep: bool = False,
+) -> IntegrityResult:
+    """Validate a standalone SQLite artifact at ``path`` using its DB contract."""
+    std_spec = _STANDALONE_TABLE_SPEC.get(db_name)
+    if std_spec is None:
+        return IntegrityResult(
+            ok=False,
+            detail=f"unknown standalone SQLite database '{db_name}'",
+            depth="absent",
+        )
+    if not path.exists():
+        return IntegrityResult(ok=False, detail="not present", depth="absent")
+
+    probe = _standalone_engine(path)
+    try:
+        return _check_sqlite_tables(
+            probe,
+            std_spec,
+            deep=deep,
+            required_columns_by_table=_STANDALONE_REQUIRED_COLUMNS.get(db_name),
+        )
+    finally:
+        probe.dispose()
+
+
 # ── Public integrity API ─────────────────────────────────────────────
 
 
@@ -403,16 +461,7 @@ def validate_database(
     # standalone SQLite DBs.
     std_spec = _STANDALONE_TABLE_SPEC.get(db_name)
     if std_spec is not None:
-        probe = _standalone_engine(path)
-        try:
-            return _check_sqlite_tables(
-                probe,
-                std_spec,
-                deep=deep,
-                required_columns_by_table=_STANDALONE_REQUIRED_COLUMNS.get(db_name),
-            )
-        finally:
-            probe.dispose()
+        return validate_standalone_sqlite_file(db_name, path, deep=deep)
 
     # No integrity contract registered (e.g. manual-mode DBs): presence is all
     # we can vouch for.

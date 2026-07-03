@@ -925,6 +925,7 @@ def run_pgs_scores_bundle_update(
 
     from backend.config import get_settings
     from backend.db.database_registry import DATABASES, _record_db_version
+    from backend.db.db_health import validate_standalone_sqlite_file
     from backend.db.manifest import get_bundle_info
 
     if settings is None:
@@ -961,6 +962,16 @@ def run_pgs_scores_bundle_update(
         if download is None:
             return None
         downloaded_path, downloaded_bytes = download
+
+        integrity = validate_standalone_sqlite_file("pgs_scores", downloaded_path, deep=True)
+        if not integrity.ok:
+            downloaded_path.unlink(missing_ok=True)
+            logger.warning(
+                "pgs_scores_update_skipped_invalid_bundle",
+                detail=integrity.detail,
+                depth=integrity.depth,
+            )
+            return None
 
         final_dest = db_info.dest_path(settings)
         final_dest.parent.mkdir(parents=True, exist_ok=True)

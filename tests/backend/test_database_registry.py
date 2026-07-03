@@ -496,12 +496,39 @@ def test_pgs_scores_registry_matches_manifest_bundle() -> None:
 
 
 def test_pgs_scores_db_health_spec() -> None:
-    """db_health checks pgs_score_weights (must be non-empty) + pgs_score_metadata."""
-    from backend.db.db_health import _STANDALONE_TABLE_SPEC
+    """db_health checks the PGS tables, rows, and consumer schema."""
+    from backend.db.db_health import _STANDALONE_REQUIRED_COLUMNS, _STANDALONE_TABLE_SPEC
 
     spec = dict(_STANDALONE_TABLE_SPEC["pgs_scores"])
     assert spec["pgs_score_weights"] is True
     assert spec["pgs_score_metadata"] is False
+    assert _STANDALONE_REQUIRED_COLUMNS["pgs_scores"]["pgs_score_weights"] == frozenset(
+        {
+            "id",
+            "pgs_id",
+            "rsid",
+            "chrom",
+            "pos",
+            "effect_allele",
+            "other_allele",
+            "effect_weight",
+        }
+    )
+    assert _STANDALONE_REQUIRED_COLUMNS["pgs_scores"]["pgs_score_metadata"] == frozenset(
+        {
+            "pgs_id",
+            "pgs_name",
+            "trait_reported",
+            "trait_efo",
+            "genome_build",
+            "variants_number",
+            "weight_type",
+            "license",
+            "license_bundle_ok",
+            "citation",
+            "pgp_id",
+        }
+    )
 
 
 # ── F30: genome-build provenance ──────────────────────────────────────

@@ -17,8 +17,8 @@ Conventions (match tests/backend/conftest.py — do NOT modify it):
   * A real reference.db file is built in ``tmp_path`` via
     ``reference_metadata.create_all`` so the health code's throwaway engines and
     version-stamp lookups hit a real on-disk SQLite.
-  * Standalone DBs (gnomad/dbnsfp/vep_bundle/encode_ccres) are written as tiny
-    valid SQLite files with the expected table + 1 row to exercise "ready".
+  * Standalone DBs are written as tiny valid SQLite files with the expected
+    table + 1 row to exercise "ready".
   * No real network / no real bundles — fast unit tests only.
 """
 
@@ -244,6 +244,76 @@ def _make_valid_vep_bundle(settings: Settings, *, rows: bool = True) -> Path:
     return path
 
 
+def _make_valid_pgs_scores(settings: Settings, *, rows: bool = True) -> Path:
+    db_info = get_database("pgs_scores")
+    assert db_info is not None
+    path = db_info.dest_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE pgs_score_metadata (
+                pgs_id TEXT PRIMARY KEY,
+                pgs_name TEXT,
+                trait_reported TEXT,
+                trait_efo TEXT,
+                genome_build TEXT NOT NULL,
+                variants_number INTEGER,
+                weight_type TEXT,
+                license TEXT,
+                license_bundle_ok INTEGER NOT NULL,
+                citation TEXT,
+                pgp_id TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE pgs_score_weights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pgs_id TEXT NOT NULL,
+                rsid TEXT,
+                chrom TEXT NOT NULL,
+                pos INTEGER NOT NULL,
+                effect_allele TEXT NOT NULL,
+                other_allele TEXT,
+                effect_weight REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO pgs_score_metadata
+            VALUES (
+                'PGS000001',
+                'Minimal test score',
+                'test trait',
+                'EFO_0000001',
+                'GRCh37',
+                1,
+                'NR',
+                'CC-BY',
+                1,
+                'Test citation',
+                'PGP000001'
+            )
+            """
+        )
+        if rows:
+            conn.execute(
+                """
+                INSERT INTO pgs_score_weights
+                    (pgs_id, rsid, chrom, pos, effect_allele, other_allele, effect_weight)
+                VALUES ('PGS000001', 'rs1', '1', 100, 'A', 'G', 0.1)
+                """
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
 def _make_valid_ancestry_pca(settings: Settings) -> Path:
     path = settings.data_dir / "ancestry_pca_bundle.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -326,7 +396,7 @@ class TestValidateReferenceResident:
 
 
 class TestValidateStandalone:
-    """Standalone SQLite DBs: gnomad / dbnsfp / vep_bundle / encode_ccres."""
+    """Standalone SQLite DBs: gnomad / dbnsfp / vep_bundle / encode_ccres / PGS."""
 
     def test_gnomad_valid_ok(self, settings: Settings) -> None:
         _make_valid_gnomad(settings)
@@ -390,6 +460,53 @@ class TestValidateStandalone:
         result = validate_database("gnomad", settings)
         assert result.ok is False
         assert result.depth == "absent"
+
+    def test_pgs_scores_valid_ok(self, settings: Settings) -> None:
+        _make_valid_pgs_scores(settings)
+        result = validate_database("pgs_scores", settings)
+        assert result.ok is True
+        assert result.depth == "structural"
+
+    def test_pgs_scores_empty_weights_not_ok(self, settings: Settings) -> None:
+        _make_valid_pgs_scores(settings, rows=False)
+        result = validate_database("pgs_scores", settings)
+        assert result.ok is False
+        assert "pgs_score_weights" in result.detail
+        assert "is empty" in result.detail
+
+    def test_pgs_scores_missing_consumer_columns_not_ok(self, settings: Settings) -> None:
+        db_info = get_database("pgs_scores")
+        assert db_info is not None
+        path = db_info.dest_path(settings)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute("CREATE TABLE pgs_score_metadata (pgs_id TEXT PRIMARY KEY)")
+            conn.execute(
+                """
+                CREATE TABLE pgs_score_weights (
+                    pgs_id TEXT,
+                    rsid TEXT,
+                    chrom TEXT,
+                    pos INTEGER,
+                    effect_allele TEXT,
+                    effect_weight REAL
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO pgs_score_weights VALUES ('PGS000001', 'rs1', '1', 100, 'A', 0.1)"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = validate_database("pgs_scores", settings)
+
+        assert result.ok is False
+        assert result.depth == "structural"
+        assert "missing required column(s)" in result.detail
+        assert "other_allele" in result.detail
 
     def test_gnomad_corrupt_file(self, settings: Settings) -> None:
         path = settings.gnomad_db_path
