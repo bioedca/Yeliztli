@@ -158,6 +158,23 @@ async def test_reference_status_rejects_wrong_assembly_sentinel_lengths(
     assert any("sentinel contig lengths" in item for item in payload["missing"])
 
 
+async def test_reference_status_rejects_malformed_manifest_runtime_files(
+    patch_route_settings: Settings,
+) -> None:
+    _write_local_reference_bundle(patch_route_settings.data_dir)
+    manifest_path = patch_route_settings.data_dir / "genome_browser_reference_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["runtime_files"] = ["grch37.fa", None, "grch37_refseq.bed"]
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+    status = await genome_browser_reference_status()
+
+    payload = status.model_dump()
+    assert payload["available"] is False
+    assert payload["mode"] == "remote"
+    assert any("runtime_files must list" in item for item in payload["missing"])
+
+
 async def test_reference_file_handlers_return_file_responses(
     patch_route_settings: Settings,
 ) -> None:

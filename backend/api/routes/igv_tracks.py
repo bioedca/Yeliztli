@@ -194,7 +194,7 @@ def _validate_reference_manifest(
     if manifest_path is None:
         return ["GRCh37 reference manifest must live beside grch37.fa and grch37_refseq.bed"]
     if not manifest_path.is_file():
-        return [f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME})"]
+        return [f"GRCh37 reference manifest ({_REFERENCE_MANIFEST_NAME}) is missing"]
 
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -210,7 +210,9 @@ def _validate_reference_manifest(
         errors.append(f"name must be {_REFERENCE_MANIFEST_BUNDLE_NAME!r}")
 
     runtime_files = payload.get("runtime_files")
-    if not isinstance(runtime_files, list):
+    if not isinstance(runtime_files, list) or not all(
+        isinstance(item, str) for item in runtime_files
+    ):
         errors.append("runtime_files must list grch37.fa, grch37.fa.fai, and grch37_refseq.bed")
     else:
         expected_runtime_files = {fasta_path.name, index_path.name, refseq_path.name}
