@@ -52,6 +52,7 @@ NCBI_NUCCORE_SYSTEM = "https://www.ncbi.nlm.nih.gov/nuccore"
 SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
 
 FHIR_GENOME_BUILD = "GRCh37/hg19"
+FHIR_MITOCHONDRIAL_REFERENCE = "rCRS"
 
 # LOINC codes for genomics reporting
 LOINC_MASTER_PANEL = "81247-9"  # Master HL7 genetic variant reporting panel
@@ -219,8 +220,10 @@ def _reference_sequence_text(chrom: Any) -> str:
     if chrom_label is None:
         return FHIR_GENOME_BUILD
 
-    display_chrom = "M" if chrom_label == "MT" else chrom_label
-    return f"{FHIR_GENOME_BUILD} chr{display_chrom}"
+    if chrom_label == "MT":
+        return f"{FHIR_MITOCHONDRIAL_REFERENCE} chrM"
+
+    return f"{FHIR_GENOME_BUILD} chr{chrom_label}"
 
 
 def _genomic_reference_sequence_value(row: dict[str, Any]) -> dict[str, Any]:
@@ -282,8 +285,9 @@ def _variant_to_observation(
     )
 
     # Reference sequence/build for any coordinate-bearing Observation. The
-    # exporter is GRCh37/hg19-native, so the exact-start coordinate is ambiguous
-    # without a colocated build/reference sequence marker (#1407).
+    # exporter is GRCh37/hg19-native for nuclear loci and rCRS for MT, so the
+    # exact-start coordinate is ambiguous without a colocated reference sequence
+    # marker (#1407).
     if row.get("pos") is not None:
         components.append(
             _component(

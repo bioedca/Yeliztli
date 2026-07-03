@@ -25,6 +25,7 @@ from backend.db.tables import (
 )
 from backend.reports.fhir_export import (
     FHIR_GENOME_BUILD,
+    FHIR_MITOCHONDRIAL_REFERENCE,
     HGNC_SYSTEM,
     LOINC_ALLELIC_STATE,
     LOINC_CLINVAR_SIGNIFICANCE,
@@ -536,8 +537,14 @@ class TestFhirObservations:
         _full_url, obs = _variant_to_observation(row)
         value = _components_by_code(obs, LOINC_GENOMIC_REF_SEQ)[0]["valueCodeableConcept"]
 
-        assert value["text"] == "GRCh37/hg19 chrM"
-        assert value["coding"][0]["code"] == "NC_012920.1"
+        assert value["text"] == "rCRS chrM"
+        assert value["coding"] == [
+            {
+                "system": NCBI_NUCCORE_SYSTEM,
+                "code": "NC_012920.1",
+                "display": f"{FHIR_MITOCHONDRIAL_REFERENCE} chrM",
+            }
+        ]
 
     def test_observation_has_allelic_state(self, client) -> None:
         tc, sid = client
