@@ -230,7 +230,7 @@ def _unique_vep_allele_identity(pairs: set[tuple[str | None, str | None]]) -> di
     ref, alt = next(iter(pairs))
     if ref is None or alt is None:
         return None
-    return {"_vep_ref": ref, "_vep_alt": alt}
+    return {"_vep_ref": ref, "_vep_alt": alt, "_vep_alleles_unambiguous": True}
 
 
 def _lookup_vep(
@@ -829,7 +829,7 @@ def _merge_annotations(
         # zygosity stays NULL.
         ref = row_data.get("ref")
         alt = row_data.get("alt")
-        if ref is None and alt is None:
+        if ref is None and alt is None and row_data.get("_vep_alleles_unambiguous"):
             vep_ref = row_data.get("_vep_ref")
             vep_alt = row_data.get("_vep_alt")
             if vep_ref is not None and vep_alt is not None:
