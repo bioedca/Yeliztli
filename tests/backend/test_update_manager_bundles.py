@@ -25,6 +25,7 @@ from backend.db.update_manager import (
     VersionInfo,
     check_ancestry_pca_update,
     check_clinvar_update,
+    check_encode_ccres_update,
     check_gnomad_bundle_update,
     check_lai_bundle_update,
     check_pgs_scores_bundle_update,
@@ -524,6 +525,71 @@ class TestCheckVepBundleUpdate:
         assert check_vep_bundle_update(reference_engine, settings=object()) is None
 
 
+# ── check_encode_ccres_update ─────────────────────────────────────────
+
+
+class TestCheckEncodeCcresUpdate:
+    def _mock_head(
+        self,
+        *,
+        status_code: int = 200,
+        last_modified: str | None = "Tue, 03 Feb 2026 04:05:06 GMT",
+        content_length: str | None = "12345",
+    ):
+        headers: dict[str, str] = {}
+        if last_modified is not None:
+            headers["Last-Modified"] = last_modified
+        if content_length is not None:
+            headers["Content-Length"] = content_length
+        response = httpx.Response(
+            status_code,
+            headers=headers,
+            request=httpx.Request("HEAD", "https://example.com/ccres.bed"),
+        )
+        return patch("backend.db.update_manager.httpx.Client"), response
+
+    def test_remote_last_modified_newer_returns_version_info(self, reference_engine):
+        _record_version_row(reference_engine, "encode_ccres", "20250101")
+        client_patch, response = self._mock_head()
+
+        with client_patch as mock_client:
+            mock_client.return_value.__enter__.return_value.head.return_value = response
+            result = check_encode_ccres_update(reference_engine)
+
+        assert result is not None
+        assert isinstance(result, VersionInfo)
+        assert result.db_name == "encode_ccres"
+        assert result.latest_version == "20260203"
+        assert result.download_size_bytes == 12345
+        assert result.release_date == "20260203"
+
+    def test_matching_or_newer_recorded_version_returns_none(self, reference_engine):
+        _record_version_row(reference_engine, "encode_ccres", "20260203")
+        client_patch, response = self._mock_head()
+
+        with client_patch as mock_client:
+            mock_client.return_value.__enter__.return_value.head.return_value = response
+            assert check_encode_ccres_update(reference_engine) is None
+
+    def test_non_date_recorded_version_returns_version_info(self, reference_engine):
+        _record_version_row(reference_engine, "encode_ccres", "unknown-pre-manifest")
+        client_patch, response = self._mock_head()
+
+        with client_patch as mock_client:
+            mock_client.return_value.__enter__.return_value.head.return_value = response
+            result = check_encode_ccres_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "20260203"
+
+    def test_no_last_modified_returns_none(self, reference_engine):
+        client_patch, response = self._mock_head(last_modified=None)
+
+        with client_patch as mock_client:
+            mock_client.return_value.__enter__.return_value.head.return_value = response
+            assert check_encode_ccres_update(reference_engine) is None
+
+
 # ── CHECK_FNS dispatch dict ───────────────────────────────────────────
 
 
@@ -539,6 +605,7 @@ class TestCheckFnsDispatch:
             "ancestry_pca",
             "gnomad",
             "pgs_scores",
+            "encode_ccres",
         }
 
     def test_each_value_is_callable(self):
@@ -552,6 +619,7 @@ class TestCheckFnsDispatch:
         assert CHECK_FNS["ancestry_pca"] is check_ancestry_pca_update
         assert CHECK_FNS["gnomad"] is check_gnomad_bundle_update
         assert CHECK_FNS["pgs_scores"] is check_pgs_scores_bundle_update
+        assert CHECK_FNS["encode_ccres"] is check_encode_ccres_update
 
     def test_bundle_dispatch_via_check_fns(self, tmp_path: Path, monkeypatch, reference_engine):
         """Round-trip the dispatch path used by Step 25's scheduler refactor."""

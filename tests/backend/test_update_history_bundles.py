@@ -17,19 +17,24 @@ import sqlite3
 import tarfile
 import threading
 from collections.abc import Callable
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
 
 from backend.config import Settings
 from backend.db import manifest as manifest_mod
+from backend.db.database_registry import DATABASES
 from backend.db.tables import database_versions, reference_metadata, update_history
 from backend.db.update_manager import (
     UpdateResult,
+    VersionInfo,
     run_ancestry_pca_bundle_update,
+    run_encode_ccres_update,
     run_gnomad_bundle_update,
     run_lai_bundle_update,
     run_pgs_scores_bundle_update,
@@ -185,6 +190,13 @@ def _build_minimal_lai_tarball() -> bytes:
                 info.size = len(data)
                 tf.addfile(info, fileobj=io.BytesIO(data))
     return buf.getvalue()
+
+
+SAMPLE_ENCODE_CCRES_BED = b"""\
+#chrom\tstart\tend\taccession\tscore\tstrand\tthickStart\tthickEnd\titemRgb\tccre_class
+chr1\t10000\t10500\tEH38E0000001\t0\t.\t10000\t10500\t255,0,0\tPLS
+chr2\t20000\t20800\tEH38E0000002\t0\t.\t20000\t20800\t255,205,0\tpELS
+"""
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1002,6 +1014,94 @@ class TestRunPgsScoresBundleUpdate:
         ref_path = data_dir_with_ref / "reference.db"
         assert _query_one(ref_path, database_versions, "pgs_scores") is None
         assert _query_all(ref_path, update_history, "pgs_scores") == []
+
+
+# ──────────────────────────────────────────────────────────────────────
+# run_encode_ccres_update
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestRunEncodeCcresUpdate:
+    def test_writes_database_versions_and_update_history(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        url = serve_payload(SAMPLE_ENCODE_CCRES_BED)
+        db_info = replace(
+            DATABASES["encode_ccres"],
+            url=url,
+            expected_size_bytes=len(SAMPLE_ENCODE_CCRES_BED),
+        )
+        monkeypatch.setitem(DATABASES, "encode_ccres", db_info)
+
+        remote = VersionInfo(
+            db_name="encode_ccres",
+            latest_version="20260203",
+            download_url=url,
+            download_size_bytes=len(SAMPLE_ENCODE_CCRES_BED),
+            release_date="20260203",
+        )
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        with patch(
+            "backend.db.update_manager._fetch_encode_ccres_remote_info", return_value=remote
+        ):
+            result = run_encode_ccres_update(settings)
+
+        assert isinstance(result, UpdateResult)
+        assert result.db_name == "encode_ccres"
+        assert result.new_version == "20260203"
+        assert result.download_size_bytes == len(SAMPLE_ENCODE_CCRES_BED)
+
+        dest = data_dir_with_ref / "encode_ccres.db"
+        assert dest.exists()
+        db = sa.create_engine(f"sqlite:///{dest}")
+        try:
+            with db.connect() as conn:
+                count = conn.execute(sa.text("SELECT COUNT(*) FROM encode_ccres")).scalar_one()
+        finally:
+            db.dispose()
+        assert count == 2
+
+        ref_path = data_dir_with_ref / "reference.db"
+        version_row = _query_one(ref_path, database_versions, "encode_ccres")
+        assert version_row is not None
+        assert version_row.version == "20260203"
+        assert version_row.file_size_bytes == dest.stat().st_size
+
+        history = _query_all(ref_path, update_history, "encode_ccres")
+        assert len(history) == 1
+        assert history[0].new_version == "20260203"
+        assert history[0].download_size_bytes == len(SAMPLE_ENCODE_CCRES_BED)
+        assert history[0].previous_version is None
+
+    def test_returns_none_when_reference_db_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        url = serve_payload(SAMPLE_ENCODE_CCRES_BED)
+        db_info = replace(DATABASES["encode_ccres"], url=url)
+        monkeypatch.setitem(DATABASES, "encode_ccres", db_info)
+
+        remote = VersionInfo(
+            db_name="encode_ccres",
+            latest_version="20260203",
+            download_url=url,
+            download_size_bytes=len(SAMPLE_ENCODE_CCRES_BED),
+            release_date="20260203",
+        )
+
+        data_dir = tmp_path / "empty_data"
+        data_dir.mkdir()
+        settings = Settings(data_dir=data_dir, wal_mode=False)
+        with patch(
+            "backend.db.update_manager._fetch_encode_ccres_remote_info", return_value=remote
+        ):
+            assert run_encode_ccres_update(settings) is None
 
     def test_returns_none_on_checksum_mismatch(
         self,

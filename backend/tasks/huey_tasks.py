@@ -824,6 +824,31 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
             )
             return
 
+        if db_name == "encode_ccres":
+            from backend.db.update_manager import run_encode_ccres_update
+
+            _update_job(
+                job_id,
+                status="running",
+                progress_pct=10.0,
+                message="Downloading ENCODE cCREs",
+            )
+            result = run_encode_ccres_update(registry.settings)
+            if result is None:
+                raise RuntimeError("ENCODE cCREs update failed")
+            _run_version_staleness_check()
+            _update_job(
+                job_id,
+                status="complete",
+                progress_pct=100.0,
+                message="encode_ccres update complete",
+            )
+            logger.info(
+                "database_update_task_complete",
+                extra={"job_id": job_id, "db_name": db_name},
+            )
+            return
+
         build_fn = get_build_fn(db_name)
         if build_fn is None:
             raise ValueError(f"No build function registered for '{db_name}'")

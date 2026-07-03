@@ -485,3 +485,31 @@ class TestDatabaseUpdateBundleDispatch:
         assert row.status == "complete"
         assert row.progress_pct == 100.0
         assert row.message == "pgs_scores update complete"
+
+    def test_encode_ccres_uses_direct_download_runner(self, huey_env: dict) -> None:
+        """User-triggered encode_ccres updates must not fall through to build_fn lookup."""
+        from backend.db.update_manager import UpdateResult
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-encode-ccres"
+        _make_job(job_id, "database_update")
+
+        with (
+            patch(
+                "backend.db.update_manager.run_encode_ccres_update",
+                return_value=UpdateResult(
+                    db_name="encode_ccres",
+                    previous_version=None,
+                    new_version="20260203",
+                ),
+            ) as mock_runner,
+            patch("backend.db.update_manager.run_precheck_all_samples") as mock_precheck,
+        ):
+            _execute_database_update(job_id, "encode_ccres")
+
+        mock_runner.assert_called_once_with(huey_env["settings"])
+        mock_precheck.assert_called_once()
+        row = _job_row(job_id)
+        assert row.status == "complete"
+        assert row.progress_pct == 100.0
+        assert row.message == "encode_ccres update complete"

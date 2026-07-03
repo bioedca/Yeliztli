@@ -1009,6 +1009,170 @@ def run_pgs_scores_bundle_update(
         engine.dispose()
 
 
+def _fetch_encode_ccres_remote_info(*, timeout: float = 30.0) -> VersionInfo | None:
+    """Return remote metadata for the ENCODE cCREs BED download.
+
+    The upstream BED has no embedded semantic version, so its Last-Modified
+    header is the least surprising update token. Without that header there is
+    no stable value to compare or stamp, so the update check withholds an offer.
+    """
+    from email.utils import parsedate_to_datetime
+
+    from backend.db.database_registry import DATABASES
+
+    db_info = DATABASES["encode_ccres"]
+
+    try:
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=httpx.Timeout(timeout, connect=10.0),
+        ) as client:
+            resp = client.head(db_info.url)
+            resp.raise_for_status()
+
+        last_modified = resp.headers.get("Last-Modified", "")
+        if not last_modified:
+            logger.warning("encode_ccres_update_check_no_last_modified", url=db_info.url)
+            return None
+
+        try:
+            content_length = int(resp.headers.get("Content-Length", "0"))
+        except ValueError:
+            content_length = db_info.expected_size_bytes
+
+        remote_dt = parsedate_to_datetime(last_modified)
+        remote_version = remote_dt.strftime("%Y%m%d")
+
+        return VersionInfo(
+            db_name="encode_ccres",
+            latest_version=remote_version,
+            download_url=db_info.url,
+            download_size_bytes=content_length,
+            release_date=remote_version,
+        )
+    except Exception as exc:
+        logger.warning("encode_ccres_update_check_failed", error=str(exc))
+        return None
+
+
+def check_encode_ccres_update(
+    reference_engine: Engine,
+    settings: Settings | None = None,
+    *,
+    timeout: float = 30.0,
+) -> VersionInfo | None:
+    """Check whether the remote ENCODE cCREs BED is newer than local."""
+    del settings  # unused; kept for signature parity
+
+    info = _fetch_encode_ccres_remote_info(timeout=timeout)
+    if info is None:
+        return None
+
+    current = get_current_version(reference_engine, "encode_ccres")
+    if current == info.latest_version:
+        return None
+    if (
+        current is not None
+        and len(current) == 8
+        and current.isdigit()
+        and current >= info.latest_version
+    ):
+        return None
+
+    return info
+
+
+def run_encode_ccres_update(
+    settings: Settings | None = None,
+    *,
+    timeout: float = 3600.0,
+) -> UpdateResult | None:
+    """Download and rebuild the ENCODE cCREs SQLite track database."""
+    from backend.config import get_settings
+    from backend.db.database_registry import DATABASES, _record_db_version
+
+    if settings is None:
+        settings = get_settings()
+
+    db_info = DATABASES["encode_ccres"]
+    remote_info = _fetch_encode_ccres_remote_info(timeout=min(timeout, 30.0))
+    if remote_info is None:
+        logger.warning("encode_ccres_update_skipped_no_remote_version")
+        return None
+
+    ref_path = settings.reference_db_path
+    if not ref_path.exists():
+        logger.warning("encode_ccres_update_skipped_no_reference_db", path=str(ref_path))
+        return None
+
+    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    start_time = time.monotonic()
+
+    try:
+        previous_version = get_current_version(engine, "encode_ccres")
+
+        download = _run_bundle_download(
+            settings,
+            engine,
+            url=db_info.url,
+            filename=db_info.filename,
+            expected_sha256=db_info.sha256,
+            total_timeout=timeout,
+        )
+        if download is None:
+            return None
+        downloaded_path, downloaded_bytes = download
+
+        final_dest = db_info.dest_path(settings)
+        final_dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if db_info.post_download is None:
+                shutil.move(str(downloaded_path), str(final_dest))
+            else:
+                db_info.post_download(downloaded_path, final_dest)
+        except Exception as exc:  # noqa: BLE001
+            downloaded_path.unlink(missing_ok=True)
+            logger.exception("encode_ccres_materialize_failed", error=str(exc))
+            return None
+
+        file_size = final_dest.stat().st_size
+        duration = int(time.monotonic() - start_time)
+
+        _record_db_version(
+            engine,
+            db_name="encode_ccres",
+            version=remote_info.latest_version,
+            file_size_bytes=file_size,
+            sha256=db_info.sha256,
+        )
+        _record_update_history(
+            engine,
+            db_name="encode_ccres",
+            previous_version=previous_version,
+            new_version=remote_info.latest_version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+
+        logger.info(
+            "encode_ccres_update_complete",
+            previous_version=previous_version,
+            new_version=remote_info.latest_version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+
+        return UpdateResult(
+            db_name="encode_ccres",
+            previous_version=previous_version,
+            new_version=remote_info.latest_version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+    finally:
+        engine.dispose()
+
+
 def _check_manifest_bundle_update(
     reference_engine: Engine,
     db_name: str,
@@ -1116,6 +1280,7 @@ CHECK_FNS: dict[str, object] = {
     "ancestry_pca": check_ancestry_pca_update,
     "gnomad": check_gnomad_bundle_update,
     "pgs_scores": check_pgs_scores_bundle_update,
+    "encode_ccres": check_encode_ccres_update,
     "dbnsfp": check_dbnsfp_update,
     "cpic": check_cpic_update,
     "gwas_catalog": check_gwas_update,
@@ -1816,6 +1981,8 @@ _BUNDLE_DBS: frozenset[str] = frozenset(
     {"vep_bundle", "lai_bundle", "ancestry_pca", "gnomad", "pgs_scores"}
 )
 
+_DOWNLOAD_DBS: frozenset[str] = frozenset({"encode_ccres"})
+
 
 def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     """Apply an auto-update for a single database.
@@ -1852,6 +2019,22 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
             "ancestry_pca": "run_ancestry_pca_bundle_update",
             "gnomad": "run_gnomad_bundle_update",
             "pgs_scores": "run_pgs_scores_bundle_update",
+        }[db_name]
+        runner = globals()[runner_name]
+        with build_claim(db_name, settings.data_dir) as acquired:
+            if not acquired:
+                logger.info("auto_update_skipped_claimed", db_name=db_name)
+                return
+            result = runner(settings)
+            if result is None:
+                raise RuntimeError(f"{db_name} auto-update failed")
+            version = get_current_version(registry.reference_engine, db_name) or "unknown"
+            run_precheck_all_samples(registry, db_name=db_name, db_version=version)
+        return
+
+    if db_name in _DOWNLOAD_DBS:
+        runner_name = {
+            "encode_ccres": "run_encode_ccres_update",
         }[db_name]
         runner = globals()[runner_name]
         with build_claim(db_name, settings.data_dir) as acquired:

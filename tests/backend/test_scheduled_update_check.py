@@ -342,6 +342,32 @@ class TestBundleDispatch:
         mock_run_task.assert_not_called()
         assert result.errors == []
 
+    def test_encode_ccres_download_dispatch(self, reference_engine, tmp_path: Path):
+        """encode_ccres routes through its direct-download runner, not build_fn lookup."""
+        registry = _make_registry(reference_engine, tmp_path)
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[_info("encode_ccres")]),
+            ),
+            patch(
+                "backend.db.update_manager.run_encode_ccres_update",
+                return_value=UpdateResult(
+                    db_name="encode_ccres",
+                    previous_version=None,
+                    new_version="20260203",
+                ),
+            ) as mock_ccres,
+            patch("backend.tasks.huey_tasks.create_database_update_job") as mock_create_job,
+            patch("backend.tasks.huey_tasks.run_database_update_task") as mock_run_task,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_ccres.assert_called_once_with(registry.settings)
+        mock_create_job.assert_not_called()
+        mock_run_task.assert_not_called()
+        assert result.errors == []
+
     def test_bundle_runner_none_result_is_recorded_as_error(
         self, reference_engine, tmp_path: Path
     ):

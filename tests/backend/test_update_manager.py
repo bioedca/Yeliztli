@@ -1419,14 +1419,21 @@ class TestUpdateAPI:
         assert data["db_name"] == "clinvar"
         assert data["job_id"] == "test-job-id"
 
-    def test_trigger_bundle_dbs_accepted(self, update_client):
-        """Regression: vep_bundle / lai_bundle / ancestry_pca are valid update
-        targets. lai_bundle and ancestry_pca previously 400'd because the
-        endpoint's supported set only covered build-function DBs + vep_bundle,
-        even though check_all_updates surfaces them and the scheduler can apply
-        them. The UI must never offer an update the endpoint rejects.
+    def test_trigger_non_build_fn_update_targets_accepted(self, update_client):
+        """Regression: non-build-fn update targets must still be valid.
+
+        Bundles and direct-download DBs can be surfaced by check_all_updates and
+        applied by the scheduler, so the manual trigger endpoint must not reject
+        them just because they have no database_registry build function.
         """
-        for db_name in ("vep_bundle", "lai_bundle", "ancestry_pca"):
+        for db_name in (
+            "vep_bundle",
+            "lai_bundle",
+            "ancestry_pca",
+            "gnomad",
+            "pgs_scores",
+            "encode_ccres",
+        ):
             with (
                 patch("backend.tasks.huey_tasks.run_database_update_task"),
                 patch(
