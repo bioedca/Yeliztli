@@ -134,6 +134,28 @@ class TestT1D:
         assert "do not establish" in f.interpretation
         assert "DR3/DR4 diplotype" in f.interpretation
 
+    def test_dr3_like_pattern_without_phase_is_possible_not_confirmed(self) -> None:
+        calls = [
+            _c("DRB1", "03:01", "15:01"),
+            _c("DQA1", "05:01", "01:01"),
+            _c("DQB1", "02:01", "05:01"),
+        ]
+        f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
+        assert f.status == STATUS_NOT_TYPED
+        assert f.carried is False
+        assert f.detail == "Possible DR3-DQ2-like allele pattern; phase not established"
+
+    def test_dr4_like_pattern_without_phase_accepts_dqb1_0304(self) -> None:
+        calls = [
+            _c("DRB1", "04:01", "15:01"),
+            _c("DQA1", "03:01", "01:01"),
+            _c("DQB1", "03:04", "05:01"),
+        ]
+        f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
+        assert f.status == STATUS_NOT_TYPED
+        assert f.carried is False
+        assert f.detail == "Possible DR4-DQ8-like allele pattern; phase not established"
+
     def test_dr4_dq8_requires_risk_drb1_subtype(self) -> None:
         calls = [
             _c("DRB1", "04:03", "15:01"),

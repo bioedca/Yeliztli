@@ -64,6 +64,7 @@ _T1D_DR4_RISK_DRB1 = (
     "DRB1*04:05",
     "DRB1*04:08",
 )
+_T1D_DR4_DQB1 = ("DQB1*03:02", "DQB1*03:04")
 
 
 @dataclass(frozen=True)
@@ -316,10 +317,10 @@ def _assess_t1d(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
     dr4_components = (
         _any_carried(calls, _T1D_DR4_RISK_DRB1)
         and _carried(calls, "DQA1*03")
-        and _carried(calls, "DQB1*03:02")
+        and _any_carried(calls, _T1D_DR4_DQB1)
     )
     dqa_dqb_only = (_carried(calls, "DQA1*05") and _carried(calls, "DQB1*02:01")) or (
-        _carried(calls, "DQA1*03") and _carried(calls, "DQB1*03:02")
+        _carried(calls, "DQA1*03") and _any_carried(calls, _T1D_DR4_DQB1)
     )
     if not all(_locus_called(calls, locus) for locus in required_loci):
         missing = "/".join(locus for locus in required_loci if not _locus_called(calls, locus))
