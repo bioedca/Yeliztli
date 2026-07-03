@@ -244,7 +244,12 @@ def _make_valid_vep_bundle(settings: Settings, *, rows: bool = True) -> Path:
     return path
 
 
-def _make_valid_pgs_scores(settings: Settings, *, rows: bool = True) -> Path:
+def _make_valid_pgs_scores(
+    settings: Settings,
+    *,
+    metadata_rows: bool = True,
+    weight_rows: bool = True,
+) -> Path:
     db_info = get_database("pgs_scores")
     assert db_info is not None
     path = db_info.dest_path(settings)
@@ -282,25 +287,26 @@ def _make_valid_pgs_scores(settings: Settings, *, rows: bool = True) -> Path:
             )
             """
         )
-        conn.execute(
-            """
-            INSERT INTO pgs_score_metadata
-            VALUES (
-                'PGS000001',
-                'Minimal test score',
-                'test trait',
-                'EFO_0000001',
-                'GRCh37',
-                1,
-                'NR',
-                'CC-BY',
-                1,
-                'Test citation',
-                'PGP000001'
+        if metadata_rows:
+            conn.execute(
+                """
+                INSERT INTO pgs_score_metadata
+                VALUES (
+                    'PGS000001',
+                    'Minimal test score',
+                    'test trait',
+                    'EFO_0000001',
+                    'GRCh37',
+                    1,
+                    'NR',
+                    'CC-BY',
+                    1,
+                    'Test citation',
+                    'PGP000001'
+                )
+                """
             )
-            """
-        )
-        if rows:
+        if weight_rows:
             conn.execute(
                 """
                 INSERT INTO pgs_score_weights
@@ -468,10 +474,17 @@ class TestValidateStandalone:
         assert result.depth == "structural"
 
     def test_pgs_scores_empty_weights_not_ok(self, settings: Settings) -> None:
-        _make_valid_pgs_scores(settings, rows=False)
+        _make_valid_pgs_scores(settings, weight_rows=False)
         result = validate_database("pgs_scores", settings)
         assert result.ok is False
         assert "pgs_score_weights" in result.detail
+        assert "is empty" in result.detail
+
+    def test_pgs_scores_empty_metadata_not_ok(self, settings: Settings) -> None:
+        _make_valid_pgs_scores(settings, metadata_rows=False)
+        result = validate_database("pgs_scores", settings)
+        assert result.ok is False
+        assert "pgs_score_metadata" in result.detail
         assert "is empty" in result.detail
 
     def test_pgs_scores_missing_consumer_columns_not_ok(self, settings: Settings) -> None:

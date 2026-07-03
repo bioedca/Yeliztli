@@ -501,7 +501,7 @@ def test_pgs_scores_db_health_spec() -> None:
 
     spec = dict(_STANDALONE_TABLE_SPEC["pgs_scores"])
     assert spec["pgs_score_weights"] is True
-    assert spec["pgs_score_metadata"] is False
+    assert spec["pgs_score_metadata"] is True
     assert _STANDALONE_REQUIRED_COLUMNS["pgs_scores"]["pgs_score_weights"] == frozenset(
         {
             "id",

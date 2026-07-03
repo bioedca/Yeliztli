@@ -102,8 +102,8 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
     # bundle_metadata only needs to exist; vep_annotations carries the data.
     "vep_bundle": [("vep_annotations", True), ("bundle_metadata", False)],
     "encode_ccres": [("encode_ccres", True)],
-    # pgs_score_weights carries the data; pgs_score_metadata only needs to exist.
-    "pgs_scores": [("pgs_score_weights", True), ("pgs_score_metadata", False)],
+    # PGS consumers discover available scores from metadata, then load weights.
+    "pgs_scores": [("pgs_score_weights", True), ("pgs_score_metadata", True)],
 }
 
 # Non-negotiable columns required by standalone SQLite consumers. Optional

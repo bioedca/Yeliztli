@@ -72,38 +72,46 @@ def data_dir_with_ref(tmp_path: Path) -> Path:
     return data_dir
 
 
-def _build_minimal_pgs_scores_db(tmp_path: Path) -> bytes:
-    path = tmp_path / "pgs_scores.db"
+def _build_minimal_pgs_scores_db(
+    tmp_path: Path,
+    *,
+    filename: str = "pgs_scores.db",
+    metadata_rows: bool = True,
+    weight_rows: bool = True,
+) -> bytes:
+    path = tmp_path / filename
     engine = sa.create_engine(f"sqlite:///{path}")
     try:
         create_pgs_tables(engine)
         with engine.begin() as conn:
-            conn.execute(
-                pgs_score_metadata.insert().values(
-                    pgs_id="PGS000001",
-                    pgs_name="Minimal test score",
-                    trait_reported="test trait",
-                    trait_efo="EFO_0000001",
-                    genome_build="GRCh37",
-                    variants_number=1,
-                    weight_type="NR",
-                    license="CC-BY",
-                    license_bundle_ok=1,
-                    citation="Test citation",
-                    pgp_id="PGP000001",
+            if metadata_rows:
+                conn.execute(
+                    pgs_score_metadata.insert().values(
+                        pgs_id="PGS000001",
+                        pgs_name="Minimal test score",
+                        trait_reported="test trait",
+                        trait_efo="EFO_0000001",
+                        genome_build="GRCh37",
+                        variants_number=1,
+                        weight_type="NR",
+                        license="CC-BY",
+                        license_bundle_ok=1,
+                        citation="Test citation",
+                        pgp_id="PGP000001",
+                    )
                 )
-            )
-            conn.execute(
-                pgs_score_weights.insert().values(
-                    pgs_id="PGS000001",
-                    rsid="rs1",
-                    chrom="1",
-                    pos=100,
-                    effect_allele="A",
-                    other_allele="G",
-                    effect_weight=0.1,
+            if weight_rows:
+                conn.execute(
+                    pgs_score_weights.insert().values(
+                        pgs_id="PGS000001",
+                        rsid="rs1",
+                        chrom="1",
+                        pos=100,
+                        effect_allele="A",
+                        other_allele="G",
+                        effect_weight=0.1,
+                    )
                 )
-            )
     finally:
         engine.dispose()
     return path.read_bytes()
@@ -1092,6 +1100,68 @@ class TestRunPgsScoresBundleUpdate:
             seed_engine.dispose()
 
         payload = b"SQLite format 3\x00fake-pgs-scores-db" * 64
+        url = serve_payload(payload) + "/pgs_scores.db"
+        manifest_path = _write_manifest(
+            tmp_path,
+            {
+                "pgs_scores": {
+                    "version": "v1.0.0",
+                    "build_date": "2026-07-01",
+                    "url": url,
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                    "size_bytes": len(payload),
+                },
+            },
+        )
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(manifest_path))
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        assert run_pgs_scores_bundle_update(settings) is None
+
+        assert dest.read_bytes() == existing_payload
+
+        version_row = _query_one(ref_path, database_versions, "pgs_scores")
+        assert version_row is not None
+        assert version_row.version == "v0.9.0"
+        assert version_row.checksum_sha256 == existing_sha
+        assert version_row.file_size_bytes == len(existing_payload)
+        assert _query_all(ref_path, update_history, "pgs_scores") == []
+
+    def test_rejects_empty_metadata_bundle_before_replacing_existing_db(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        existing_payload = _build_minimal_pgs_scores_db(
+            tmp_path,
+            filename="existing_pgs_scores.db",
+        )
+        existing_sha = hashlib.sha256(existing_payload).hexdigest()
+        dest = data_dir_with_ref / "pgs_scores.db"
+        dest.write_bytes(existing_payload)
+
+        ref_path = data_dir_with_ref / "reference.db"
+        seed_engine = sa.create_engine(f"sqlite:///{ref_path}")
+        try:
+            with seed_engine.begin() as conn:
+                conn.execute(
+                    database_versions.insert().values(
+                        db_name="pgs_scores",
+                        version="v0.9.0",
+                        file_size_bytes=len(existing_payload),
+                        checksum_sha256=existing_sha,
+                    )
+                )
+        finally:
+            seed_engine.dispose()
+
+        payload = _build_minimal_pgs_scores_db(
+            tmp_path,
+            filename="empty_metadata_pgs_scores.db",
+            metadata_rows=False,
+        )
         url = serve_payload(payload) + "/pgs_scores.db"
         manifest_path = _write_manifest(
             tmp_path,
