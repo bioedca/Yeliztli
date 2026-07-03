@@ -23,6 +23,8 @@ Evidence (accessed 2026-07-02):
 - HLA-B*57:01 / abacavir hypersensitivity — CPIC, PMID:24561393 (DOI:10.1038/clpt.2014.38).
 - HLA-B*15:02 / carbamazepine & oxcarbazepine SJS-TEN — CPIC 2017, PMID:29392710
   (DOI:10.1002/cpt.1004); discovery Chung 2004 PMID:15057820.
+- HLA-B*15:02 / phenytoin & fosphenytoin SJS-TEN — CPIC 2020, PMID:32779747
+  (DOI:10.1002/cpt.2008); meta-analysis Phung 2021 PMID:34816768.
 - HLA-A*31:01 / carbamazepine DRESS/MPE/SJS-TEN — CPIC 2017, PMID:29392710.
 - HLA-B*58:01 / allopurinol severe cutaneous adverse reactions — CPIC, PMID:23232549
   (DOI:10.1038/clpt.2012.209).
@@ -84,21 +86,29 @@ _DRUG_HLA_RISKS: tuple[DrugHLARisk, ...] = (
     DrugHLARisk(
         query="B*15:02",
         display_allele="HLA-B*15:02",
-        drugs=("carbamazepine", "oxcarbazepine"),
+        drugs=("carbamazepine", "oxcarbazepine", "phenytoin", "fosphenytoin"),
         reaction="Stevens-Johnson syndrome / toxic epidermal necrolysis (SJS/TEN)",
         positive_recommendation=(
             "CPIC: avoid carbamazepine and oxcarbazepine in carbamazepine-naive "
-            "HLA-B*15:02-positive patients (use an alternative)."
+            "HLA-B*15:02-positive patients; if phenytoin-naive, do not use "
+            "phenytoin/fosphenytoin unless benefits clearly outweigh SJS/TEN risk."
         ),
         guideline="CPIC",
-        citations=("PMID:29392710", "PMID:15057820"),
+        citations=("PMID:29392710", "PMID:15057820", "PMID:32779747", "PMID:34816768"),
         ancestry_note=(
             "HLA-B*15:02 is common in Han Chinese, Thai and Malay/South-East-Asian "
             "ancestries and rare in Europeans and Japanese — where HLA-B*15:11 "
             "(Japanese) or HLA-A*31:01 are the relevant carbamazepine risk alleles, "
             "so a negative here does not exclude risk in those populations."
         ),
-        extra_notes=("HLA-B*15:02 also associates with phenytoin-induced SJS/TEN.",),
+        extra_notes=(
+            "CPIC phenytoin/fosphenytoin guidance applies before first use; patients "
+            "with more than three months of continuous tolerated exposure have lower "
+            "future hypersensitivity risk.",
+            "Other aromatic anticonvulsants, including eslicarbazepine, lamotrigine "
+            "and phenobarbital, have weaker HLA-B*15:02 SJS/TEN evidence; choose "
+            "alternatives with caution.",
+        ),
     ),
     DrugHLARisk(
         query="A*31:01",

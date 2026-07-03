@@ -16,6 +16,9 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.analysis.hla_drug_hypersensitivity import assess_drug_hypersensitivity
+from backend.analysis.hla_resolver import ResolvedHLACall
+from backend.api.routes.hla import DrugRiskAssessmentResponse
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -75,6 +78,18 @@ def _row(locus, a1, a2, *, prob=0.95, low=0) -> dict:
     }
 
 
+def _resolved_call(locus, a1, a2, *, prob=0.95, low=False) -> ResolvedHLACall:
+    return ResolvedHLACall(
+        locus=locus,
+        allele1=a1,
+        allele2=a2,
+        prob=prob,
+        low_confidence=low,
+        source="hibag",
+        ancestry_model="European",
+    )
+
+
 @pytest.fixture
 def carrier_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     # B*57:01 carrier (abacavir at-risk) + an A call without A*31:01.
@@ -84,6 +99,18 @@ def carrier_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 @pytest.fixture
 def empty_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     yield from _client(tmp_data_dir, [])
+
+
+def test_b1502_response_model_preserves_phenytoin_alert_fields() -> None:
+    report = assess_drug_hypersensitivity([_resolved_call("B", "15:02", "07:02")])
+    b1502 = next(a for a in report.assessments if a.allele == "HLA-B*15:02")
+    payload = DrugRiskAssessmentResponse(**vars(b1502)).model_dump()
+
+    assert payload["status"] == "at_risk"
+    assert "phenytoin" in payload["drugs"]
+    assert "fosphenytoin" in payload["drugs"]
+    assert "phenytoin-naive" in payload["recommendation"].lower()
+    assert "PMID:32779747" in payload["citations"]
 
 
 class TestDrugHypersensitivityRoute:

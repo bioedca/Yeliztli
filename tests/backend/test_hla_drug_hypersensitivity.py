@@ -73,7 +73,7 @@ class TestAssessDrugHypersensitivity:
         # A*31:01 IS assessable (A locus typed, allele absent).
         assert by["HLA-A*31:01"].status == STATUS_NO_RISK_ALLELE
 
-    def test_allopurinol_and_carbamazepine_b_alleles(self) -> None:
+    def test_allopurinol_and_b1502_anticonvulsant_alleles(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "58:01", "15:02")])
         by = _by_allele(report)
         assert by["HLA-B*58:01"].status == STATUS_AT_RISK
@@ -81,6 +81,8 @@ class TestAssessDrugHypersensitivity:
         assert by["HLA-B*15:02"].status == STATUS_AT_RISK
         assert "carbamazepine" in by["HLA-B*15:02"].drugs
         assert "oxcarbazepine" in by["HLA-B*15:02"].drugs
+        assert "phenytoin" in by["HLA-B*15:02"].drugs
+        assert "fosphenytoin" in by["HLA-B*15:02"].drugs
 
     def test_homozygous_reports_two_copies(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "57:01", "57:01")])
@@ -88,12 +90,17 @@ class TestAssessDrugHypersensitivity:
         assert a.copies == 2
         assert a.zygosity == "homozygous"
 
-    def test_b1502_carries_ancestry_and_phenytoin_notes(self) -> None:
+    def test_b1502_surfaces_phenytoin_as_first_class_drug_alert(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "15:02", "07:02")])
         a = _by_allele(report)["HLA-B*15:02"]
         joined = " ".join(a.notes).lower()
         assert "han chinese" in joined  # ancestry scoping note
-        assert "phenytoin" in joined  # extra note
+        assert "phenytoin" in a.drugs
+        assert "fosphenytoin" in a.drugs
+        assert "phenytoin-naive" in a.recommendation.lower()
+        assert "phenytoin/fosphenytoin" in a.recommendation.lower()
+        assert "PMID:32779747" in a.citations
+        assert "PMID:34816768" in a.citations
 
     def test_dapsone_low_ppv_note(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "13:01", "07:02")])
