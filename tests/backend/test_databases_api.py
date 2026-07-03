@@ -570,6 +570,51 @@ class TestBundledInstall:
             engine.dispose()
             manifest_mod.reset_cache()
 
+    def test_execute_bundle_install_allows_auto_copied_first_install_fallback(
+        self, tmp_data_dir: Path, monkeypatch
+    ) -> None:
+        from backend.api.routes.databases import _execute_bundle_install
+        from backend.db import manifest as manifest_mod
+
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(_REPO_MANIFEST))
+        manifest_mod.reset_cache()
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _make_reference_db(tmp_data_dir)
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            db_info = get_database("vep_bundle")
+            assert db_info is not None
+            status = get_database_status(db_info, settings)
+            assert status["downloaded"] is True
+            assert db_info.dest_path(settings).exists()
+            assert _recorded_version(tmp_data_dir, "vep_bundle") is None
+
+            job_id = "dbdl-vep-first-install"
+            _create_job_record(engine, job_id, db_info.name)
+
+            with patch("backend.db.update_manager.run_vep_bundle_update", return_value=None):
+                _execute_bundle_install(
+                    db_info=db_info,
+                    job_id=job_id,
+                    engine=engine,
+                    settings=settings,
+                )
+
+            assert _recorded_version(tmp_data_dir, "vep_bundle") == "v1.0.0"
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(
+                        jobs.c.status, jobs.c.progress_pct, jobs.c.message, jobs.c.error
+                    ).where(jobs.c.job_id == job_id)
+                ).one()
+            assert row.status == "complete"
+            assert row.progress_pct == 100.0
+            assert row.error is None
+            assert "installed (bundled copy)" in row.message
+        finally:
+            engine.dispose()
+            manifest_mod.reset_cache()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Tests: GET /api/databases
