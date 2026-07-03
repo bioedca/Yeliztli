@@ -30,10 +30,11 @@ starve the model. The window is configurable.
 
 **Conservative SNP-only filter.** Only biallelic single-nucleotide records with a
 resolved ``hom_ref``/``het``/``hom_alt`` zygosity are emitted. Indels,
-no-calls/unresolved zygosity, and unresolved-reference (``REF=N``) sites are
-**dropped**, never guessed — HIBAG cannot match a non-SNP or an ``N`` allele to
-its SNP model. We never strand-flip (ingest already normalises to the plus
-strand); a residual allele mismatch is dropped, not flipped.
+no-calls/unresolved zygosity, unresolved-reference (``REF=N``) sites, and
+ambiguous same-position marker representations are **dropped**, never guessed —
+HIBAG cannot match a non-SNP, an ``N`` allele, or a contradictory physical-site
+encoding to its SNP model. We never strand-flip (ingest already normalises to the
+plus strand); a residual allele mismatch is dropped, not flipped.
 
 **PLINK binary layout** (variant-major .bed, per the PLINK 1 spec): magic bytes
 ``0x6c 0x1b 0x01``; one block of ``ceil(n_samples/4)`` bytes per SNP; the
@@ -157,6 +158,34 @@ def bed_code(ref: str | None, alt: str | None, zygosity: str | None) -> int | No
     return _ZYG_TO_BED_CODE.get(zygosity or "")
 
 
+def _drop_ambiguous_same_position_snps(
+    snps: Sequence[PlinkSnp],
+) -> tuple[list[PlinkSnp], int, int]:
+    """Collapse exact duplicate markers and drop discordant same-position markers."""
+    by_pos: dict[int, list[PlinkSnp]] = {}
+    for snp in snps:
+        by_pos.setdefault(snp.pos, []).append(snp)
+
+    resolved: list[PlinkSnp] = []
+    ambiguous_positions = 0
+    ambiguous_rows = 0
+    for pos in sorted(by_pos):
+        candidates = by_pos[pos]
+        if len(candidates) == 1:
+            resolved.append(candidates[0])
+            continue
+
+        identities = {(s.snp_id, s.ref, s.alt, s.code) for s in candidates}
+        if len(identities) == 1:
+            resolved.append(candidates[0])
+            continue
+
+        ambiguous_positions += 1
+        ambiguous_rows += len(candidates)
+
+    return resolved, ambiguous_positions, ambiguous_rows
+
+
 def collect_plink_snps(
     rows: Iterable[tuple[str, str, int, str | None, str | None, str | None]],
     region: MHCRegion = XMHC_GRCH37,
@@ -166,7 +195,9 @@ def collect_plink_snps(
     Each row is ``(rsid, chrom, pos, ref, alt, zygosity)``. Returns
     ``(snps, n_total, n_emitted)``. A SNP's ``snp_id`` is its rsID when present,
     else a synthetic ``{chrom}:{pos}`` (HIBAG matches on position + allele, not the
-    variant ID, so the label only needs to be unique/non-empty).
+    variant ID, so the label only needs to be unique/non-empty). If multiple
+    passing rows share a physical coordinate, exact duplicate representations are
+    collapsed and discordant rsID/ref/alt/zygosity representations are dropped.
     """
     snps: list[PlinkSnp] = []
     n_total = 0
@@ -191,7 +222,13 @@ def collect_plink_snps(
                 code=code,
             )
         )
-    snps.sort(key=lambda s: s.pos)
+    snps, ambiguous_positions, ambiguous_rows = _drop_ambiguous_same_position_snps(snps)
+    if ambiguous_positions:
+        logger.info(
+            "hibag_input_ambiguous_same_position_markers_dropped",
+            n_positions=ambiguous_positions,
+            n_rows=ambiguous_rows,
+        )
     return snps, n_total, len(snps)
 
 

@@ -198,6 +198,33 @@ class TestCollectPlinkSnps:
         assert n_emitted == 2
         assert [s.snp_id for s in snps] == ["6:31000000", "6:31500000"]
 
+    def test_discordant_same_position_markers_dropped(self) -> None:
+        rows = [
+            ("rs_hla_a", "6", 30_000_000, "A", "G", "het"),
+            ("rs_hla_b", "6", 30_000_000, "A", "T", "het"),
+            ("rs_keep", "6", 31_000_000, "C", "T", "hom_alt"),
+        ]
+        snps, n_total, n_emitted = collect_plink_snps(rows)
+        assert n_total == 3
+        assert n_emitted == 1
+        assert [(s.snp_id, s.pos, s.ref, s.alt, s.code) for s in snps] == [
+            ("rs_keep", 31_000_000, "C", "T", 0b11),
+        ]
+
+    def test_exact_duplicate_same_position_marker_collapsed(self) -> None:
+        rows = [
+            ("rs_hla_a", "6", 30_000_000, "A", "G", "het"),
+            ("rs_hla_a", "chr6", 30_000_000, "a", "g", "het"),
+            ("rs_keep", "6", 31_000_000, "C", "T", "hom_alt"),
+        ]
+        snps, n_total, n_emitted = collect_plink_snps(rows)
+        assert n_total == 3
+        assert n_emitted == 2
+        assert [(s.snp_id, s.pos, s.ref, s.alt, s.code) for s in snps] == [
+            ("rs_hla_a", 30_000_000, "A", "G", 0b10),
+            ("rs_keep", 31_000_000, "C", "T", 0b11),
+        ]
+
     def test_custom_region_narrows_scope(self) -> None:
         rows = [
             ("rs_in", "6", 31_000_000, "A", "G", "het"),
