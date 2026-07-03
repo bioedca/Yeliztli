@@ -167,9 +167,9 @@ def _parse_ccre_bed_line(line: str) -> tuple[CCRERecord | None, str | None]:
     """Parse a single line from the ENCODE cCREs BED file.
 
     Supports multiple ENCODE BED formats:
-      - V3 (6-col): chrom start end accession1 accession2 class[,modifier]
+      - V3 (6-col): chrom start end rdhs_accession ccre_accession class[,modifier]
       - BED9+:      chrom start end accession score strand ... ccre_class
-      - Simplified:  chrom start end accession ccre_class
+      - Simplified: chrom start end accession ccre_class
 
     Args:
         line: A single BED line.
@@ -195,11 +195,20 @@ def _parse_ccre_bed_line(line: str) -> tuple[CCRERecord | None, str | None]:
 
     accession = parts[3]
 
+    ccre_class = None
+
+    # Registry V3 6-column rows place an rDHS/source identifier in column 4
+    # and the cCRE accession in column 5.
+    if len(parts) == 6:
+        v3_class = _extract_ccre_class(parts[5])
+        if v3_class is not None:
+            accession = parts[4]
+            ccre_class = v3_class
+
     # Try to find the cCRE classification across known column layouts:
     # 1. Column 9 (BED9+ full ENCODE format)
     # 2. Column 5 (V3 6-column format: accession1 accession2 class)
     # 3. Column 4 (simplified 5-column format: accession class)
-    ccre_class = None
     for col_idx in (9, 5, 4):
         if ccre_class is None and len(parts) > col_idx:
             ccre_class = _extract_ccre_class(parts[col_idx])

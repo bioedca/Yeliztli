@@ -168,6 +168,18 @@ class TestParseBedLine:
         assert record is not None
         assert record.ccre_class == "PLS"
 
+    def test_v3_6_column_format_uses_ccre_accession(self):
+        """V3 rows store rDHS in column 4 and the cCRE accession in column 5."""
+        line = "chr1\t104896\t105048\tEH38D4327509\tEH38E2776520\tCTCF-only,CTCF-bound"
+        record, skip = _parse_ccre_bed_line(line)
+        assert skip is None
+        assert record is not None
+        assert record.chrom == "1"
+        assert record.start_pos == 104896
+        assert record.end_pos == 105048
+        assert record.accession == "EH38E2776520"
+        assert record.ccre_class == "CTCF-only"
+
 
 # ── Tests: BED file iteration ────────────────────────────────────────
 
@@ -243,6 +255,26 @@ class TestLoadEncodeCcres:
         with ccres_engine.connect() as conn:
             count = conn.execute(sa.text("SELECT COUNT(*) FROM encode_ccres")).scalar()
             assert count == 5
+
+    def test_load_v3_rows_store_ccre_accession(self, ccres_engine: sa.Engine, tmp_path: Path):
+        bed = tmp_path / "v3_ccres.bed"
+        bed.write_text("chr1\t104896\t105048\tEH38D4327509\tEH38E2776520\tCTCF-only,CTCF-bound\n")
+
+        stats = load_encode_ccres(bed, ccres_engine)
+        assert stats.records_loaded == 1
+
+        with ccres_engine.connect() as conn:
+            stored = conn.execute(
+                sa.text("SELECT accession, ccre_class FROM encode_ccres")
+            ).fetchone()
+            assert stored is not None
+            assert stored[0] == "EH38E2776520"
+            assert stored[1] == "CTCF-only"
+
+            rdhs_count = conn.execute(
+                sa.text("SELECT COUNT(*) FROM encode_ccres WHERE accession = 'EH38D4327509'")
+            ).scalar()
+            assert rdhs_count == 0
 
     def test_load_with_skips(self, ccres_engine: sa.Engine, tmp_path: Path):
         bed = tmp_path / "mixed.bed"
