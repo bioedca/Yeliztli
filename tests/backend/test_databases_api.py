@@ -515,6 +515,61 @@ class TestBundledInstall:
         finally:
             engine.dispose()
 
+    def test_execute_bundle_install_fails_when_existing_bundle_still_needs_manifest_update(
+        self, tmp_data_dir: Path, monkeypatch
+    ) -> None:
+        from backend.api.routes.databases import _execute_bundle_install
+        from backend.db import manifest as manifest_mod
+        from backend.db.database_registry import _record_db_version
+
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(_REPO_MANIFEST))
+        manifest_mod.reset_cache()
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _make_reference_db(tmp_data_dir)
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            db_info = get_database("vep_bundle")
+            assert db_info is not None
+            job_id = "dbdl-vep-stale"
+            _create_job_record(engine, job_id, db_info.name)
+
+            dest = db_info.dest_path(settings)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            existing_bytes = b"already installed real vep bundle"
+            dest.write_bytes(existing_bytes)
+            _record_db_version(
+                engine,
+                db_name="vep_bundle",
+                version="v3.0.0",
+                file_size_bytes=dest.stat().st_size,
+            )
+
+            with patch("backend.db.update_manager.run_vep_bundle_update", return_value=None):
+                _execute_bundle_install(
+                    db_info=db_info,
+                    job_id=job_id,
+                    engine=engine,
+                    settings=settings,
+                )
+
+            assert dest.read_bytes() == existing_bytes
+            assert _recorded_version(tmp_data_dir, "vep_bundle") == "v3.0.0"
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(
+                        jobs.c.status, jobs.c.progress_pct, jobs.c.message, jobs.c.error
+                    ).where(jobs.c.job_id == job_id)
+                ).one()
+            assert row.status == "failed"
+            assert row.progress_pct == 0.0
+            assert "update unavailable" in row.message
+            assert "left unchanged" in row.message
+            assert "update unavailable" in row.error
+            assert "left unchanged" in row.error
+        finally:
+            engine.dispose()
+            manifest_mod.reset_cache()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Tests: GET /api/databases
