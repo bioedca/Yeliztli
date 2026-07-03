@@ -247,6 +247,11 @@ class TestExpandedDeficiencyPanel:
             (n, rs, ref, deff)
             for n, rs, _, ref, deff in G6PD_DEFICIENCY_VARIANTS
             if not _is_palindromic(ref, deff)
+            # Canton shares rs72554665 with Cosenza. A hemizygous "C" is Canton's
+            # reference allele, but it is also Cosenza's unresolved palindromic
+            # reference/deficiency call, so the sample-level result should now warn
+            # rather than assert "normal."
+            and n != "Canton (R459L)"
         ],
     )
     def test_each_variant_strand_direction(
@@ -284,23 +289,45 @@ class TestExpandedDeficiencyPanel:
         assert cosenza["called"] is False
         assert r["phenotype"] == "deficient" and r["at_risk"] is True
 
-    def test_palindromic_hemizygous_male_is_withheld(self) -> None:
+    def test_palindromic_hemizygous_male_is_withheld_but_warns(self) -> None:
         # Seattle/Lodi (C/G palindromic): a hemizygous male "G" cannot be strand-
         # resolved (a minus-strand report of reference C is identical), so it is
         # withheld — NOT a confident "deficient" — and flagged strand_ambiguous.
-        r = self._assess("XY", {"rs137852318": "G"})
+        # Because the observation cannot clear deficiency risk, high-risk oxidative
+        # drug context is still surfaced with an enzyme-assay confirmation prompt.
+        r = self._assess("XY", {"rs137852318": "G", G6PD_A_MINUS_RSID: "C"})
         seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
         assert seattle["called"] is False
         assert seattle["strand_ambiguous"] is True
         assert r["strand_ambiguous_loci"] == ["Seattle/Lodi (D282H)"]
+        assert r["any_called"] is True
         # No confident deficiency call from the palindromic hemizygote alone.
         assert r["phenotype"] == "indeterminate"
-        assert r["at_risk"] is False
+        assert r["at_risk"] is True
+        assert "rasburicase" in r["high_risk_drugs"]
+        assert "quantitative enzyme-activity assay" in r["detail"]
 
     def test_palindromic_homozygous_female_is_withheld(self) -> None:
         r = self._assess("XX", {"rs137852318": "GG"})
         seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
         assert seattle["called"] is False and seattle["strand_ambiguous"] is True
+        assert r["phenotype"] == "indeterminate"
+        assert r["at_risk"] is True
+        assert r["high_risk_drugs"]
+
+    def test_palindromic_cosenza_hemizygous_male_is_withheld_but_warns(self) -> None:
+        # Cosenza is the other C/G palindromic deficiency allele. It shares rs72554665
+        # with non-palindromic Canton, so this locks both the ambiguity warning and the
+        # no-cross-call behavior at the multiallelic position.
+        r = self._assess("XY", {"rs72554665": "G"})
+        canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
+        cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
+        assert canton["called"] is False and canton["strand_ambiguous"] is False
+        assert cosenza["called"] is False and cosenza["strand_ambiguous"] is True
+        assert r["strand_ambiguous_loci"] == ["Cosenza (R459P)"]
+        assert r["phenotype"] == "indeterminate"
+        assert r["at_risk"] is True
+        assert r["high_risk_drugs"]
 
     def test_palindromic_heterozygous_female_is_variable(self) -> None:
         # The heterozygote {C,G} is strand-invariant → callable → variable.

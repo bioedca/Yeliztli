@@ -106,9 +106,11 @@ minus-strand report of the gene-normal base is indistinguishable from a plus-str
 deficiency base and would fabricate a "deficient" call. We therefore *withhold* such
 calls (flagged ``strand_ambiguous``) and count only the strand-invariant heterozygote,
 mirroring :func:`backend.analysis.genotype_lookup.is_strand_ambiguous` (Deelen 2014,
-PMID 25495213). A withheld locus is reported not-called, never excluded — so for these
-two variants only a heterozygous female (→ *variable*) is resolvable; hemizygous males
-and homozygous females are surfaced as strand-ambiguous and deferred to an enzyme assay.
+PMID 25495213). A withheld locus is reported not-called, never excluded. It is not a
+confident deficiency call, but it also cannot clear oxidative-drug risk, so it still
+surfaces the high-risk-drug caution and is deferred to an enzyme assay. For these two
+variants only a heterozygous female (→ *variable*) is resolvable; hemizygous males and
+homozygous females are surfaced as strand-ambiguous.
 
 **Context only — not a diagnosis.** An array types only a handful of the 200+
 known G6PD variants; a non-deficient genotype does not exclude an untyped
@@ -389,6 +391,18 @@ def _gsa_v3_typed(rsid: str, ref: str, deficiency_allele: str) -> bool:
     return probe is not None and frozenset({ref.upper(), deficiency_allele.upper()}) == probe
 
 
+def _strand_ambiguous_detail(loci: list[str]) -> str:
+    locus_text = ", ".join(loci)
+    verb = "was" if len(loci) == 1 else "were"
+    return (
+        f"{locus_text} {verb} observed as a palindromic homozygous/hemizygous G6PD "
+        "call, but the array strand cannot be resolved. This is not a confident "
+        "deficient genotype, but it cannot clear G6PD oxidative-drug risk. Treat as "
+        "potentially deficient and confirm with a quantitative enzyme-activity assay "
+        "before a high-risk oxidative drug."
+    )
+
+
 def _locus_call(
     *, name: str, rsid: str, cdna: str, ref: str, deficiency_allele: str, genotype: str | None
 ) -> dict[str, Any]:
@@ -475,12 +489,22 @@ def assess_g6pd(
     )
 
     verdict = g6pd_phenotype(sex, total_deficiency, any_called, max_locus_deficiency)
+    if strand_ambiguous_loci and total_deficiency == 0:
+        verdict = {
+            "phenotype": "indeterminate",
+            "detail": _strand_ambiguous_detail(strand_ambiguous_loci),
+        }
     phenotype = verdict["phenotype"]
     # Surface the drug warning whenever a deficiency allele is present — including the
     # phase-indeterminate compound and the sex-indeterminate case, both of which the
-    # phenotype detail says to treat as potentially deficient.
-    at_risk = phenotype in {"deficient", "variable", "phase_indeterminate"} or (
-        phenotype == "indeterminate" and total_deficiency >= 1
+    # phenotype detail says to treat as potentially deficient. Also surface it for an
+    # observed palindromic homozygous/hemizygous call that was withheld only because
+    # strand could not be resolved: that result is not diagnostic, but it cannot be used
+    # to clear high-risk oxidative drugs.
+    at_risk = (
+        phenotype in {"deficient", "variable", "phase_indeterminate"}
+        or (phenotype == "indeterminate" and total_deficiency >= 1)
+        or bool(strand_ambiguous_loci)
     )
 
     return {
