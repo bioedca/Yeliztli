@@ -8,7 +8,7 @@ GET  /api/analysis/sex-aneuploidy/disclaimer
 GET  /api/analysis/sex-aneuploidy/gate-status?sample_id=N
 POST /api/analysis/sex-aneuploidy/acknowledge-gate?sample_id=N
 GET  /api/analysis/sex-aneuploidy/findings?sample_id=N   — gate-protected
-POST /api/analysis/sex-aneuploidy/run?sample_id=N
+POST /api/analysis/sex-aneuploidy/run?sample_id=N        — compute/store; outcome gated
 """
 
 from __future__ import annotations
@@ -71,7 +71,15 @@ class ScreenFindingResponse(BaseModel):
 
 
 class RunResponse(BaseModel):
-    outcome: str
+    """Result of running the sex-aneuploidy screen.
+
+    ``outcome`` is gate-protected because it is the sensitive screen result the
+    disclosure gate exists to protect. Running the screen computes and stores
+    results, but the outcome is populated only after gate acknowledgment.
+    """
+
+    computed: bool
+    outcome: str | None = None
 
 
 def _gate_status(sample_engine: sa.Engine) -> tuple[bool, str | None]:
@@ -176,4 +184,5 @@ def run(sample_id: int = Query(..., description="Sample ID")) -> RunResponse:
     engine = resolve_sample_engine(sample_id)
     result = screen_aneuploidy(engine)
     store_aneuploidy_findings(result, engine)
-    return RunResponse(outcome=result.outcome)
+    acknowledged, _ = _gate_status(engine)
+    return RunResponse(computed=True, outcome=result.outcome if acknowledged else None)

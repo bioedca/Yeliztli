@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
@@ -95,7 +96,17 @@ class TestGateFlow:
     def test_screen_blocked_until_acknowledged(self, client: TestClient) -> None:
         run = client.post("/api/analysis/sex-aneuploidy/run?sample_id=1")
         assert run.status_code == 200
-        assert run.json()["outcome"] == "possible_xxy"
+        run_data = run.json()
+        assert run_data["computed"] is True
+        assert run_data["outcome"] is None
+        body = json.dumps(run_data)
+        for outcome in (
+            "possible_xxy",
+            "manual_review",
+            "no_aneuploidy_signal",
+            "indeterminate",
+        ):
+            assert outcome not in body
 
         assert (
             client.get("/api/analysis/sex-aneuploidy/gate-status?sample_id=1").json()[
@@ -114,3 +125,7 @@ class TestGateFlow:
         data = listing.json()
         assert data["computed"] is True
         assert data["outcome"] == "possible_xxy"
+
+        rerun = client.post("/api/analysis/sex-aneuploidy/run?sample_id=1")
+        assert rerun.status_code == 200
+        assert rerun.json()["outcome"] == "possible_xxy"
