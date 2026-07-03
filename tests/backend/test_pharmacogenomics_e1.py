@@ -327,6 +327,39 @@ def test_ugt1a1_star28_is_indeterminate_when_unassayed(reference_engine: sa.Engi
     assert result.call_confidence == CallConfidence.PARTIAL
 
 
+def test_ugt1a1_star28_indeterminate_alerts_use_conservative_intermediate(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample({_UGT1A1_6: "GG"})  # *28 omitted
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"UGT1A1"}))
+    ugt = next(r for r in results if r.gene == "UGT1A1")
+
+    assert ugt.diplotype == "*1/*1"
+    assert ugt.phenotype == "Normal Metabolizer"
+    assert ugt.call_confidence == CallConfidence.PARTIAL
+    assert ugt.indeterminate_alleles == ["*28"]
+    assert ugt.conservative_diplotype == "*1/*28"
+    assert ugt.conservative_phenotype == "Intermediate Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    ugt_alerts = {a.drug: a for a in alerts if a.gene == "UGT1A1"}
+
+    assert {"atazanavir", "irinotecan"} <= set(ugt_alerts)
+    for alert in ugt_alerts.values():
+        assert alert.phenotype == "Intermediate Metabolizer"
+        assert alert.called_phenotype == "Normal Metabolizer"
+        assert alert.conservative_alert is True
+        assert alert.conservative_diplotype == "*1/*28"
+        assert alert.conservative_allele == "*28"
+        assert "*28" in alert.indeterminate_alleles
+        assert "Conservative prescribing alert uses Intermediate Metabolizer" in (
+            alert.confidence_note
+        )
+
+    assert "low likelihood" in ugt_alerts["atazanavir"].recommendation
+    assert "consider reduction for high-dose" in ugt_alerts["irinotecan"].recommendation
+
+
 def test_ugt1a1_uncallable_repeat_genotype_is_indeterminate(reference_engine: sa.Engine) -> None:
     # Even if the array reports *something* at the repeat, a multi-base/indel
     # genotype is uncallable → *28 still indeterminate (not a confident exclusion).

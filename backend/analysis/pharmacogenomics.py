@@ -101,12 +101,12 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
     "NUDT15": ("*3.002", "*6", "*9"),
 }
 
-# Issue #1081: for CYP2C9 and CYP2B6, an untyped reduced/no-function marker can
-# make the direct reference-filled call clinically milder than the worst
-# plausible CPIC phenotype. Keep this policy scoped to the reproduced genes so
-# existing gene-specific caveats (e.g. NUDT15 non-SNV alleles) do not change
-# alert semantics without separate review.
-CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2C9", "CYP2B6"})
+# Issue #1081/#1413: for these genes, an untyped reduced/no-function marker can
+# make the direct reference-filled call clinically milder than a plausible CPIC
+# phenotype. Keep this policy scoped to reproduced genes so existing
+# gene-specific caveats (e.g. NUDT15 non-SNV alleles) do not change alert
+# semantics without separate review.
+CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP2C9", "UGT1A1"})
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
