@@ -106,6 +106,24 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
     "pgs_scores": [("pgs_score_weights", True), ("pgs_score_metadata", False)],
 }
 
+# Non-negotiable columns required by standalone SQLite consumers. Optional
+# compatibility fields stay in the consumer's SELECT fallback logic; these are
+# columns the lookup paths require to run at all.
+_STANDALONE_REQUIRED_COLUMNS: dict[str, dict[str, frozenset[str]]] = {
+    "gnomad": {
+        "gnomad_af": frozenset(
+            {
+                "rsid",
+                "chrom",
+                "pos",
+                "ref",
+                "alt",
+                "homozygous_count",
+            }
+        )
+    }
+}
+
 # numpy array keys that ``backend.analysis.ancestry.load_ancestry_bundle`` (the
 # ancestry_pca consumer) dereferences. This MUST match every ``data[...]`` read
 # in that loader — a missing key would otherwise let a structurally-incomplete
@@ -245,8 +263,9 @@ def _check_sqlite_tables(
     spec: list[tuple[str, bool]],
     *,
     deep: bool,
+    required_columns_by_table: dict[str, frozenset[str]] | None = None,
 ) -> IntegrityResult:
-    """Validate that ``spec`` tables exist (and, where required, are non-empty).
+    """Validate ``spec`` tables exist, have required columns, and hold data.
 
     With ``deep=True`` a ``PRAGMA quick_check`` runs first to detect a corrupt
     or truncated SQLite image. The structural pass then confirms each consumer
@@ -264,6 +283,24 @@ def _check_sqlite_tables(
             for table, must_have_rows in spec:
                 # Existence + queryability: a missing table raises here.
                 conn.execute(sa.text(f'SELECT 1 FROM "{table}" LIMIT 1'))  # noqa: S608
+                required_columns = (
+                    required_columns_by_table.get(table, frozenset())
+                    if required_columns_by_table is not None
+                    else frozenset()
+                )
+                if required_columns:
+                    present_columns = {
+                        column["name"] for column in sa.inspect(conn).get_columns(table)
+                    }
+                    missing = sorted(required_columns - present_columns)
+                    if missing:
+                        return IntegrityResult(
+                            ok=False,
+                            detail=(
+                                f"table '{table}' missing required column(s): {', '.join(missing)}"
+                            ),
+                            depth="deep" if deep else "structural",
+                        )
                 if must_have_rows:
                     has_row = conn.execute(
                         sa.text(f'SELECT EXISTS(SELECT 1 FROM "{table}")')  # noqa: S608
@@ -368,7 +405,12 @@ def validate_database(
     if std_spec is not None:
         probe = _standalone_engine(path)
         try:
-            return _check_sqlite_tables(probe, std_spec, deep=deep)
+            return _check_sqlite_tables(
+                probe,
+                std_spec,
+                deep=deep,
+                required_columns_by_table=_STANDALONE_REQUIRED_COLUMNS.get(db_name),
+            )
         finally:
             probe.dispose()
 

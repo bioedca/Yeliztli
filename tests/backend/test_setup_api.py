@@ -79,8 +79,22 @@ def _seed_gnomad_ready(tmp_data_dir: Path) -> None:
 
     conn = sqlite3.connect(str(tmp_data_dir / "gnomad_af.db"))
     try:
-        conn.execute("CREATE TABLE gnomad_af (rsid TEXT)")
-        conn.execute("INSERT INTO gnomad_af VALUES ('rs429358')")
+        conn.execute(
+            """
+            CREATE TABLE gnomad_af (
+                rsid TEXT,
+                chrom TEXT,
+                pos INTEGER,
+                ref TEXT,
+                alt TEXT,
+                af_global REAL,
+                homozygous_count INTEGER
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO gnomad_af VALUES ('rs429358', '19', 44908684, 'T', 'C', 0.15, 4)"
+        )
         conn.commit()
     finally:
         conn.close()

@@ -221,10 +221,20 @@ def _write_ready_gnomad(path: Path) -> None:
     with engine.begin() as conn:
         conn.execute(
             sa.text(
-                "CREATE TABLE gnomad_af (chrom TEXT, pos INTEGER, ref TEXT, alt TEXT, af REAL)"
+                """
+                CREATE TABLE gnomad_af (
+                    rsid TEXT,
+                    chrom TEXT,
+                    pos INTEGER,
+                    ref TEXT,
+                    alt TEXT,
+                    af_global REAL,
+                    homozygous_count INTEGER
+                )
+                """
             )
         )
-        conn.execute(sa.text("INSERT INTO gnomad_af VALUES ('1', 100, 'A', 'G', 0.01)"))
+        conn.execute(sa.text("INSERT INTO gnomad_af VALUES ('rs1', '1', 100, 'A', 'G', 0.01, 0)"))
     engine.dispose()
 
 

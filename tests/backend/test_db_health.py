@@ -177,9 +177,23 @@ def _make_valid_gnomad(settings: Settings, *, rows: bool = True) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     try:
-        conn.execute("CREATE TABLE gnomad_af (chrom TEXT, pos INTEGER, af_global REAL)")
+        conn.execute(
+            """
+            CREATE TABLE gnomad_af (
+                rsid TEXT,
+                chrom TEXT,
+                pos INTEGER,
+                ref TEXT,
+                alt TEXT,
+                af_global REAL,
+                homozygous_count INTEGER
+            )
+            """
+        )
         if rows:
-            conn.execute("INSERT INTO gnomad_af VALUES ('19', 44908684, 0.15)")
+            conn.execute(
+                "INSERT INTO gnomad_af VALUES ('rs429358', '19', 44908684, 'T', 'C', 0.15, 4)"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -326,6 +340,24 @@ class TestValidateStandalone:
         assert result.ok is False
         assert "gnomad_af" in result.detail
         assert "is empty" in result.detail
+
+    def test_gnomad_missing_lookup_columns_not_ok(self, settings: Settings) -> None:
+        path = settings.gnomad_db_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute("CREATE TABLE gnomad_af (rsid TEXT)")
+            conn.execute("INSERT INTO gnomad_af VALUES ('rs429358')")
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = validate_database("gnomad", settings)
+
+        assert result.ok is False
+        assert result.depth == "structural"
+        assert "missing required column(s)" in result.detail
+        assert "homozygous_count" in result.detail
 
     def test_gnomad_absent(self, settings: Settings) -> None:
         result = validate_database("gnomad", settings)
@@ -807,6 +839,26 @@ class TestBundledHealthMatrix:
         h = _health(settings, ref_db, "gnomad")
         assert h.state == "ready"
         assert h.integrity_ok is True
+
+    def test_gnomad_bundled_schema_incomplete_is_corrupt(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        path = settings.gnomad_db_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute("CREATE TABLE gnomad_af (rsid TEXT)")
+            conn.execute("INSERT INTO gnomad_af VALUES ('rs429358')")
+            conn.commit()
+        finally:
+            conn.close()
+        _record_db_version(ref_db, "gnomad", "v1", path.stat().st_size)
+
+        h = _health(settings, ref_db, "gnomad")
+
+        assert h.state == "corrupt"
+        assert h.integrity_ok is False
+        assert "missing required column(s)" in h.integrity_detail
 
 
 class TestActiveJobHealth:
