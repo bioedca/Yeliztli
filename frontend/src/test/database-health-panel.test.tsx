@@ -389,6 +389,30 @@ describe('DatabaseHealthPanel — Resume', () => {
     expect(await screen.findByText(/47\.7 MB \/ 95\.4 MB/)).toBeInTheDocument()
     expect(screen.getByText('(50%)')).toBeInTheDocument()
   })
+
+  it('renders live downloaded / total progress for an active download', async () => {
+    setupHealth([
+      makeDb({
+        name: 'gnomad',
+        display_name: 'gnomAD',
+        state: 'downloading',
+        version: null,
+        file_size_bytes: null,
+        integrity_ok: null,
+        resumable: false,
+        downloaded_bytes: 650_000_000,
+        total_bytes: 1_300_000_000,
+        progress_pct: 50,
+        can_resume: false,
+        can_clean: false,
+        can_verify: false,
+      }),
+    ])
+    renderPanel()
+
+    expect(await screen.findByText(/619\.9 MB \/ 1\.21 GB/)).toBeInTheDocument()
+    expect(screen.getByText('(50%)')).toBeInTheDocument()
+  })
 })
 
 // ── Tests: Verify action ─────────────────────────────────────────────

@@ -108,6 +108,9 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
   const [verifyResult, setVerifyResult] = useState<string | null>(null)
 
   const busy = resume.isPending || verify.isPending || clean.isPending
+  const showTransferProgress =
+    db.total_bytes != null &&
+    (db.state === 'downloading' || (db.state === 'partial' && db.resumable))
 
   const integrityNote =
     db.integrity_ok === false
@@ -130,7 +133,7 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
 
         {/* Size / progress */}
         <td className="py-2.5 pr-4 text-xs tabular-nums">
-          {db.state === 'partial' && db.resumable && db.total_bytes ? (
+          {showTransferProgress ? (
             <span>
               {formatBytes(db.downloaded_bytes)} / {formatBytes(db.total_bytes)}
               {db.progress_pct != null && (
