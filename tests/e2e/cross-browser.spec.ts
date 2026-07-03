@@ -137,7 +137,16 @@ async function mockPassiveUpdateEndpoints(page: Page) {
     route.fulfill(jsonRoute({ available: [], up_to_date: [], errors: [], checked_at: null })),
   )
   await page.route('**/api/updates/app-update', (route) =>
-    route.fulfill(jsonRoute({ update_available: false, latest_version: null })),
+    route.fulfill(
+      jsonRoute({
+        update_available: false,
+        current_version: '0.2.0',
+        latest_version: null,
+        release_url: null,
+        release_notes: null,
+        error: null,
+      }),
+    ),
   )
   await page.route('**/api/updates/history**', (route) => route.fulfill(jsonRoute([])))
   await page.route('**/api/updates/prompts**', (route) => route.fulfill(jsonRoute([])))
