@@ -462,7 +462,12 @@ def _active_download_row(
     if row is None:
         return None
     tmp_path = dl_dest.with_suffix(dl_dest.suffix + ".tmp")
-    on_disk = tmp_path.stat().st_size if tmp_path.exists() else (row.downloaded_bytes or 0)
+    on_disk = row.downloaded_bytes or 0
+    if tmp_path.exists():
+        try:
+            on_disk = tmp_path.stat().st_size
+        except OSError:
+            pass
     return {
         "download_id": row.id,
         "downloaded_bytes": on_disk,

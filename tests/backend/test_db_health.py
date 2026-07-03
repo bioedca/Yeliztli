@@ -937,6 +937,51 @@ class TestGetAllDatabaseHealth:
         names = {r.name for r in records}
         assert {"clinvar", "gnomad", "vep_bundle", "lai_bundle", "ancestry_pca"} <= names
 
+    def test_active_download_tmp_stat_race_uses_checkpoint(
+        self, settings: Settings, ref_db: sa.Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A finalized .tmp can vanish after exists() but before stat().
+
+        get_all_database_health powers GET /api/databases/health, so this must
+        not let one racing DownloadManager row 500 the whole list.
+        """
+        db_info = get_database("encode_ccres")
+        dl_dest = settings.downloads_dir / db_info.filename
+        tmp_path = dl_dest.with_suffix(dl_dest.suffix + ".tmp")
+        with ref_db.begin() as conn:
+            conn.execute(
+                downloads.insert().values(
+                    url="http://example/encode_ccres.db",
+                    dest_path=str(dl_dest),
+                    total_bytes=1000,
+                    downloaded_bytes=321,
+                    status="downloading",
+                )
+            )
+
+        original_exists = Path.exists
+        original_stat = Path.stat
+
+        def racing_exists(path: Path) -> bool:
+            if path == tmp_path:
+                return True
+            return original_exists(path)
+
+        def racing_stat(path: Path, *args: object, **kwargs: object) -> object:
+            if path == tmp_path:
+                raise FileNotFoundError(tmp_path)
+            return original_stat(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "exists", racing_exists)
+        monkeypatch.setattr(Path, "stat", racing_stat)
+
+        records = get_all_database_health(settings, ref_db)
+        health = next(record for record in records if record.name == "encode_ccres")
+        assert health.state == "downloading"
+        assert health.downloaded_bytes == 321
+        assert health.total_bytes == 1000
+        assert health.progress_pct == 32.1
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # recover_orphaned_downloads
