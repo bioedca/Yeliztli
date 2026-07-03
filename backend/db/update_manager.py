@@ -1082,6 +1082,26 @@ def check_encode_ccres_update(
     return info
 
 
+def _build_encode_ccres_update_db(raw_bed_path: Path, db_path: Path) -> None:
+    """Transform an ENCODE cCREs BED into SQLite without recording metadata.
+
+    The setup-wizard post-download hook records ``database_versions`` as soon
+    as it builds the SQLite file. Updates need a stricter order: build into a
+    temporary file, atomically replace the live DB, then stamp the reference DB.
+    """
+    from backend.annotation.encode_ccres import load_encode_ccres
+
+    target_engine = sa.create_engine(f"sqlite:///{db_path}", echo=False)
+    try:
+        load_encode_ccres(raw_bed_path, target_engine)
+    except Exception:
+        target_engine.dispose()
+        db_path.unlink(missing_ok=True)
+        raise
+    target_engine.dispose()
+    raw_bed_path.unlink(missing_ok=True)
+
+
 def run_encode_ccres_update(
     settings: Settings | None = None,
     *,
@@ -1131,7 +1151,7 @@ def run_encode_ccres_update(
             if db_info.post_download is None:
                 shutil.move(str(downloaded_path), str(tmp_dest))
             else:
-                db_info.post_download(downloaded_path, tmp_dest)
+                _build_encode_ccres_update_db(downloaded_path, tmp_dest)
             tmp_dest.replace(final_dest)
         except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)

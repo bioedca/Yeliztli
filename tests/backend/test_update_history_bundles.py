@@ -1146,17 +1146,19 @@ class TestRunEncodeCcresUpdate:
         old_bed.write_text(OLD_ENCODE_CCRES_BED, encoding="utf-8")
         _build_encode_ccres_db(old_bed, dest)
         before_rows = _query_encode_ccres_rows(dest)
+        before_version = _query_one(
+            data_dir_with_ref / "reference.db", database_versions, "encode_ccres"
+        )
 
         url = serve_payload(SAMPLE_ENCODE_CCRES_BED)
+        db_info = replace(DATABASES["encode_ccres"], url=url)
+        monkeypatch.setitem(DATABASES, "encode_ccres", db_info)
 
         def failing_transform(raw_path: Path, db_path: Path) -> None:
             assert db_path != dest
             db_path.write_bytes(b"partial")
             raw_path.unlink(missing_ok=True)
             raise ValueError("bad cCRE BED")
-
-        db_info = replace(DATABASES["encode_ccres"], url=url, post_download=failing_transform)
-        monkeypatch.setitem(DATABASES, "encode_ccres", db_info)
 
         remote = VersionInfo(
             db_name="encode_ccres",
@@ -1167,12 +1169,79 @@ class TestRunEncodeCcresUpdate:
         )
 
         settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        with (
+            patch(
+                "backend.db.update_manager._fetch_encode_ccres_remote_info", return_value=remote
+            ),
+            patch(
+                "backend.db.update_manager._build_encode_ccres_update_db",
+                side_effect=failing_transform,
+            ),
+        ):
+            assert run_encode_ccres_update(settings) is None
+
+        assert _query_encode_ccres_rows(dest) == before_rows
+        after_version = _query_one(
+            data_dir_with_ref / "reference.db", database_versions, "encode_ccres"
+        )
+        assert after_version.version == before_version.version
+        assert not (data_dir_with_ref / ".encode_ccres.db.update.tmp").exists()
+
+    def test_replace_failure_preserves_existing_database_and_version_row(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        dest = data_dir_with_ref / "encode_ccres.db"
+        old_bed = data_dir_with_ref / "old_ccres.bed"
+        old_bed.write_text(OLD_ENCODE_CCRES_BED, encoding="utf-8")
+        _build_encode_ccres_db(old_bed, dest)
+        ref_engine = sa.create_engine(f"sqlite:///{data_dir_with_ref / 'reference.db'}")
+        try:
+            with ref_engine.begin() as conn:
+                conn.execute(
+                    database_versions.update()
+                    .where(database_versions.c.db_name == "encode_ccres")
+                    .values(version="20250101")
+                )
+        finally:
+            ref_engine.dispose()
+        before_rows = _query_encode_ccres_rows(dest)
+
+        url = serve_payload(SAMPLE_ENCODE_CCRES_BED)
+        db_info = replace(DATABASES["encode_ccres"], url=url)
+        monkeypatch.setitem(DATABASES, "encode_ccres", db_info)
+
+        remote = VersionInfo(
+            db_name="encode_ccres",
+            latest_version="20260203",
+            download_url=url,
+            download_size_bytes=len(SAMPLE_ENCODE_CCRES_BED),
+            release_date="20260203",
+        )
+
+        original_replace = Path.replace
+
+        def fail_update_replace(self: Path, target: Path) -> Path:
+            if self.name == ".encode_ccres.db.update.tmp":
+                raise OSError("replace failed")
+            return original_replace(self, target)
+
+        monkeypatch.setattr(Path, "replace", fail_update_replace)
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
         with patch(
             "backend.db.update_manager._fetch_encode_ccres_remote_info", return_value=remote
         ):
             assert run_encode_ccres_update(settings) is None
 
         assert _query_encode_ccres_rows(dest) == before_rows
+        version_row = _query_one(
+            data_dir_with_ref / "reference.db", database_versions, "encode_ccres"
+        )
+        assert version_row.version == "20250101"
+        assert _query_all(data_dir_with_ref / "reference.db", update_history, "encode_ccres") == []
         assert not (data_dir_with_ref / ".encode_ccres.db.update.tmp").exists()
 
     def test_returns_none_when_reference_db_missing(
