@@ -289,6 +289,33 @@ def _parse_coverage(detail: dict[str, Any]) -> CoverageInfo | None:
     return CoverageInfo(assessed=assessed, total=total)
 
 
+def _gene_summary_values(
+    row: Any, detail: dict[str, Any]
+) -> tuple[str | None, float | None, str | None]:
+    """Return gene-level phenotype fields without leaking conservative alerts.
+
+    Stored prescribing-alert rows intentionally keep the conservative phenotype
+    because drug-specific recommendations are keyed to that safer phenotype. Gene
+    cards and report coverage, however, summarize the called gene result itself.
+    """
+    phenotype = row.metabolizer_status
+    activity_score = detail.get("activity_score")
+    ehr_notation = detail.get("ehr_notation")
+
+    if detail.get("conservative_alert") is True:
+        phenotype = detail.get("called_phenotype") or phenotype
+        called_activity_score = detail.get("called_activity_score")
+        if called_activity_score is not None:
+            activity_score = called_activity_score
+        ehr_notation = detail.get("called_ehr_notation")
+        if ehr_notation is None:
+            ehr_notation = (
+                f"{row.gene_symbol} {phenotype}" if row.gene_symbol and phenotype else None
+            )
+
+    return phenotype, activity_score, ehr_notation
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
@@ -465,13 +492,14 @@ def gene_results(
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        phenotype, activity_score, ehr_notation = _gene_summary_values(row, detail)
         gene_map[gene] = {
             "diplotype": row.diplotype,
-            "phenotype": row.metabolizer_status,
+            "phenotype": phenotype,
             "call_confidence": detail.get("call_confidence"),
             "confidence_note": detail.get("confidence_note"),
-            "activity_score": detail.get("activity_score"),
-            "ehr_notation": detail.get("ehr_notation"),
+            "activity_score": activity_score,
+            "ehr_notation": ehr_notation,
             "evidence_level": row.evidence_level,
             "involved_rsids": detail.get("involved_rsids", []),
             "gene_caveat": detail.get("gene_caveat"),
@@ -576,15 +604,16 @@ def medication_safety_report(
 
         # First finding per gene wins for the coverage summary (mirrors /genes).
         if gene not in gene_summaries:
+            phenotype, activity_score, ehr_notation = _gene_summary_values(row, detail)
             gene_summaries[gene] = GeneCoverageSummary(
                 gene=gene,
                 diplotype=row.diplotype,
-                phenotype=row.metabolizer_status,
+                phenotype=phenotype,
                 call_confidence=detail.get("call_confidence"),
                 confidence_note=detail.get("confidence_note"),
                 coverage=coverage,
-                activity_score=detail.get("activity_score"),
-                ehr_notation=detail.get("ehr_notation"),
+                activity_score=activity_score,
+                ehr_notation=ehr_notation,
                 evidence_level=row.evidence_level,
                 gene_caveat=detail.get("gene_caveat"),
                 indeterminate_alleles=detail.get("indeterminate_alleles", []),

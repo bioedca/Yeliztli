@@ -144,6 +144,98 @@ SAMPLE_FINDINGS = [
 ]
 
 
+_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = (
+    "No dose reduction recommended; consider reduction for high-dose therapy."
+)
+
+
+_UGT1A1_GUIDELINES = [
+    {
+        "gene": "UGT1A1",
+        "drug": "atazanavir",
+        "phenotype": "Intermediate Metabolizer",
+        "recommendation": "Low likelihood of bilirubin-related discontinuation.",
+        "classification": "A",
+        "guideline_url": "https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/",
+    },
+    {
+        "gene": "UGT1A1",
+        "drug": "irinotecan",
+        "phenotype": "Intermediate Metabolizer",
+        "recommendation": _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION,
+        "classification": "A",
+        "guideline_url": "https://www.pharmgkb.org/guidelineAnnotation/PA166104951",
+    },
+]
+
+
+def _ugt1a1_conservative_detail(recommendation: str, guideline_url: str) -> str:
+    return json.dumps(
+        {
+            "recommendation": recommendation,
+            "classification": "A",
+            "guideline_url": guideline_url,
+            "call_confidence": "Partial",
+            "confidence_note": (
+                "Cannot exclude UGT1A1*28. Conservative prescribing alert uses "
+                "Intermediate Metabolizer."
+            ),
+            "activity_score": 1.0,
+            "ehr_notation": "UGT1A1 Intermediate Metabolizer",
+            "involved_rsids": ["rs4148323"],
+            "coverage": {"assessed": 1, "total": 2},
+            "indeterminate_alleles": ["*28"],
+            "conservative_alert": True,
+            "called_phenotype": "Normal Metabolizer",
+            "called_activity_score": 2.0,
+            "called_ehr_notation": "UGT1A1 Normal Metabolizer",
+            "conservative_diplotype": "*1/*28",
+            "conservative_phenotype": "Intermediate Metabolizer",
+            "conservative_activity_score": 1.0,
+            "conservative_allele": "*28",
+        }
+    )
+
+
+_UGT1A1_CONSERVATIVE_FINDINGS = [
+    {
+        "module": "pharmacogenomics",
+        "category": "prescribing_alert",
+        "evidence_level": 4,
+        "gene_symbol": "UGT1A1",
+        "diplotype": "*1/*1",
+        "metabolizer_status": "Intermediate Metabolizer",
+        "drug": "atazanavir",
+        "finding_text": (
+            "UGT1A1 *1/*1 (possible *1/*28): Intermediate Metabolizer -- "
+            "atazanavir: Low likelihood of bilirubin-related discontinuation."
+        ),
+        "detail_json": _ugt1a1_conservative_detail(
+            "Low likelihood of bilirubin-related discontinuation.",
+            "https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/",
+        ),
+    },
+    {
+        "module": "pharmacogenomics",
+        "category": "prescribing_alert",
+        "evidence_level": 4,
+        "gene_symbol": "UGT1A1",
+        "diplotype": "*1/*1",
+        "metabolizer_status": "Intermediate Metabolizer",
+        "drug": "irinotecan",
+        "finding_text": (
+            "UGT1A1 *1/*1 (possible *1/*28): Intermediate Metabolizer -- "
+            "irinotecan: No dose reduction recommended; consider reduction for "
+            "high-dose therapy."
+        ),
+        "detail_json": _ugt1a1_conservative_detail(
+            _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION,
+            "https://www.pharmgkb.org/guidelineAnnotation/PA166104951",
+        ),
+    },
+]
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────
 
 
@@ -233,6 +325,42 @@ def client_no_findings(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], 
 def client_no_guidelines(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], None, None]:
     """Client with no CPIC guidelines loaded."""
     yield from _setup_client(tmp_data_dir, [])
+
+
+@pytest.fixture
+def ugt1a1_conservative_sample(tmp_data_dir: Path) -> Generator[int, None, None]:
+    """Registry-backed sample with conservative UGT1A1 alert rows."""
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(ref_engine)
+    with ref_engine.begin() as conn:
+        result = conn.execute(
+            samples.insert().values(
+                name="test_ugt1a1_conservative",
+                db_path="samples/sample_1.db",
+                file_format="23andme_v5",
+                file_hash="hash_ugt1a1_conservative",
+            )
+        )
+        sample_id = result.lastrowid
+        conn.execute(cpic_guidelines.insert(), CPIC_GUIDELINES_DATA + _UGT1A1_GUIDELINES)
+    ref_engine.dispose()
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+    with sample_engine.begin() as conn:
+        conn.execute(findings.insert(), _UGT1A1_CONSERVATIVE_FINDINGS)
+    sample_engine.dispose()
+
+    with patch("backend.api.routes.pharma.get_registry") as mock_reg:
+        reset_registry()
+        registry = DBRegistry(settings)
+        mock_reg.return_value = registry
+        yield sample_id
+        registry.dispose_all()
+        reset_registry()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -486,6 +614,61 @@ class TestGeneResults:
         items = resp.json()["items"]
         cyp2c19 = next(i for i in items if i["gene"] == "CYP2C19")
         assert cyp2c19.get("gene_caveat") is None
+
+
+class TestUgt1a1ConservativeSummary:
+    """Conservative drug alerts must not replace the gene-level called phenotype."""
+
+    def test_genes_endpoint_prefers_called_phenotype(
+        self,
+        ugt1a1_conservative_sample: int,
+    ):
+        from backend.api.routes.pharma import gene_results
+
+        resp = gene_results(sample_id=ugt1a1_conservative_sample)
+        ugt = next(i for i in resp.items if i.gene == "UGT1A1")
+
+        assert ugt.diplotype == "*1/*1"
+        assert ugt.phenotype == "Normal Metabolizer"
+        assert ugt.activity_score == 2.0
+        assert ugt.ehr_notation == "UGT1A1 Normal Metabolizer"
+        assert ugt.call_confidence == "Partial"
+        assert set(ugt.drugs) == {"atazanavir", "irinotecan"}
+
+    def test_drug_endpoint_keeps_conservative_alert_phenotype(
+        self,
+        ugt1a1_conservative_sample: int,
+    ):
+        from backend.api.routes.pharma import drug_lookup
+
+        resp = drug_lookup("atazanavir", sample_id=ugt1a1_conservative_sample)
+        effect = resp.gene_effects[0]
+
+        assert effect.gene == "UGT1A1"
+        assert effect.metabolizer_status == "Intermediate Metabolizer"
+        assert effect.activity_score == 1.0
+        assert effect.ehr_notation == "UGT1A1 Intermediate Metabolizer"
+        assert effect.recommendation == "Low likelihood of bilirubin-related discontinuation."
+
+    def test_report_gene_coverage_uses_called_phenotype_but_drug_effects_do_not(
+        self,
+        ugt1a1_conservative_sample: int,
+    ):
+        from backend.api.routes.pharma import medication_safety_report
+
+        resp = medication_safety_report(sample_id=ugt1a1_conservative_sample)
+
+        ugt_coverage = next(g for g in resp.gene_coverage if g.gene == "UGT1A1")
+        assert ugt_coverage.phenotype == "Normal Metabolizer"
+        assert ugt_coverage.activity_score == 2.0
+        assert ugt_coverage.ehr_notation == "UGT1A1 Normal Metabolizer"
+        assert ugt_coverage.indeterminate_alleles == ["*28"]
+
+        atazanavir = next(d for d in resp.drugs if d.drug == "atazanavir")
+        effect = atazanavir.gene_effects[0]
+        assert effect.phenotype == "Intermediate Metabolizer"
+        assert effect.activity_score == 1.0
+        assert effect.recommendation == "Low likelihood of bilirubin-related discontinuation."
 
 
 # ── DPYD fluoropyrimidine caveat surfacing (SW-E5) ────────────────────

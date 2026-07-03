@@ -1107,6 +1107,7 @@ class PrescribingAlert:
     conservative_alert: bool = False
     called_phenotype: str | None = None
     called_activity_score: float | None = None
+    called_ehr_notation: str | None = None
     conservative_diplotype: str | None = None
     conservative_allele: str | None = None
 
@@ -1278,6 +1279,7 @@ def generate_prescribing_alerts(
                 conservative_alert=conservative is not None,
                 called_phenotype=result.phenotype if conservative is not None else None,
                 called_activity_score=result.activity_score if conservative is not None else None,
+                called_ehr_notation=result.ehr_notation if conservative is not None else None,
                 conservative_diplotype=conservative.diplotype if conservative else None,
                 conservative_allele=conservative.allele if conservative else None,
             )
@@ -1361,6 +1363,7 @@ def store_prescribing_alerts(
                     "conservative_alert": True,
                     "called_phenotype": alert.called_phenotype,
                     "called_activity_score": alert.called_activity_score,
+                    "called_ehr_notation": alert.called_ehr_notation,
                     "conservative_diplotype": alert.conservative_diplotype,
                     "conservative_phenotype": alert.phenotype,
                     "conservative_activity_score": alert.activity_score,

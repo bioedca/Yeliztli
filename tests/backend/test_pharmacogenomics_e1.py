@@ -10,6 +10,7 @@ array cannot type). All genotypes are GRCh37 plus/forward strand (as real
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from backend.analysis.pharmacogenomics import (
     call_all_star_alleles,
     call_star_alleles_for_gene,
     generate_prescribing_alerts,
+    store_prescribing_alerts,
 )
 from backend.annotation.cpic import (
     CPIC_GENES,
@@ -28,7 +30,7 @@ from backend.annotation.cpic import (
     load_cpic_from_csvs,
 )
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import raw_variants, reference_metadata
+from backend.db.tables import findings, raw_variants, reference_metadata
 
 _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 
@@ -387,6 +389,43 @@ def test_ugt1a1_star28_indeterminate_alerts_use_conservative_intermediate(
 
     assert "low likelihood" in ugt_alerts["atazanavir"].recommendation
     assert "consider reduction for high-dose" in ugt_alerts["irinotecan"].recommendation
+
+
+def test_ugt1a1_conservative_alert_store_preserves_called_summary_fields(
+    reference_engine: sa.Engine,
+) -> None:
+    sample = _make_sample({_UGT1A1_6: "GG"})  # *1/*1, but *28 omitted
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"UGT1A1"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+
+    assert store_prescribing_alerts(alerts, sample) >= 2
+
+    with sample.connect() as conn:
+        rows = conn.execute(
+            sa.select(
+                findings.c.drug,
+                findings.c.metabolizer_status,
+                findings.c.detail_json,
+            )
+            .where(
+                sa.and_(
+                    findings.c.module == "pharmacogenomics",
+                    findings.c.category == "prescribing_alert",
+                    findings.c.gene_symbol == "UGT1A1",
+                )
+            )
+            .order_by(findings.c.drug)
+        ).fetchall()
+
+    assert {row.drug for row in rows} >= {"atazanavir", "irinotecan"}
+    for row in rows:
+        detail = json.loads(row.detail_json)
+        assert row.metabolizer_status == "Intermediate Metabolizer"
+        assert detail["conservative_alert"] is True
+        assert detail["called_phenotype"] == "Normal Metabolizer"
+        assert detail["called_activity_score"] == 2.0
+        assert detail["called_ehr_notation"] == "UGT1A1 Normal Metabolizer"
+        assert detail["conservative_phenotype"] == "Intermediate Metabolizer"
 
 
 def test_ugt1a1_uncallable_repeat_genotype_is_indeterminate(reference_engine: sa.Engine) -> None:
