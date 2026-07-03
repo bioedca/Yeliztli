@@ -32,6 +32,7 @@ from backend.db.update_manager import (
     run_ancestry_pca_bundle_update,
     run_gnomad_bundle_update,
     run_lai_bundle_update,
+    run_pgs_scores_bundle_update,
     run_vep_bundle_update,
 )
 
@@ -928,3 +929,106 @@ class TestRunGnomadBundleUpdate:
         settings = Settings(data_dir=data_dir, wal_mode=False)
 
         assert run_gnomad_bundle_update(settings) is None
+
+
+# ──────────────────────────────────────────────────────────────────────
+# run_pgs_scores_bundle_update
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestRunPgsScoresBundleUpdate:
+    def test_writes_database_versions_and_update_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        payload = b"SQLite format 3\x00fake-pgs-scores-db" * 64
+        url = serve_payload(payload) + "/pgs_scores.db"
+        sha = hashlib.sha256(payload).hexdigest()
+
+        manifest_path = _write_manifest(
+            tmp_path,
+            {
+                "pgs_scores": {
+                    "version": "v1.0.0",
+                    "build_date": "2026-07-01",
+                    "url": url,
+                    "sha256": sha,
+                    "size_bytes": len(payload),
+                },
+            },
+        )
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(manifest_path))
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        result = run_pgs_scores_bundle_update(settings)
+
+        assert isinstance(result, UpdateResult)
+        assert result.db_name == "pgs_scores"
+        assert result.new_version == "v1.0.0"
+        assert result.download_size_bytes == len(payload)
+
+        dest = data_dir_with_ref / "pgs_scores.db"
+        assert dest.exists()
+        assert dest.read_bytes() == payload
+
+        ref_path = data_dir_with_ref / "reference.db"
+        version_row = _query_one(ref_path, database_versions, "pgs_scores")
+        assert version_row is not None
+        assert version_row.version == "v1.0.0"
+        assert version_row.checksum_sha256 == sha
+        assert version_row.file_size_bytes == len(payload)
+
+        history = _query_all(ref_path, update_history, "pgs_scores")
+        assert len(history) == 1
+        assert history[0].new_version == "v1.0.0"
+        assert history[0].download_size_bytes == len(payload)
+        assert history[0].previous_version is None
+
+    def test_returns_none_when_manifest_missing_entry(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+    ) -> None:
+        manifest_path = _write_manifest(tmp_path, {})
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(manifest_path))
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        assert run_pgs_scores_bundle_update(settings) is None
+
+        ref_path = data_dir_with_ref / "reference.db"
+        assert _query_one(ref_path, database_versions, "pgs_scores") is None
+        assert _query_all(ref_path, update_history, "pgs_scores") == []
+
+    def test_returns_none_on_checksum_mismatch(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir_with_ref: Path,
+        serve_payload: Callable[[bytes], str],
+    ) -> None:
+        payload = b"pgs-bytes" * 16
+        url = serve_payload(payload) + "/pgs_scores.db"
+        manifest_path = _write_manifest(
+            tmp_path,
+            {
+                "pgs_scores": {
+                    "version": "v1.0.0",
+                    "build_date": "2026-07-01",
+                    "url": url,
+                    "sha256": "0" * 64,
+                    "size_bytes": len(payload),
+                },
+            },
+        )
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(manifest_path))
+
+        settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        assert run_pgs_scores_bundle_update(settings) is None
+
+        ref_path = data_dir_with_ref / "reference.db"
+        assert _query_one(ref_path, database_versions, "pgs_scores") is None
+        assert _query_all(ref_path, update_history, "pgs_scores") == []

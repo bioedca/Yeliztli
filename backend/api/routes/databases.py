@@ -1267,6 +1267,7 @@ def _execute_bundle_install(
         from backend.db.update_manager import (
             run_ancestry_pca_bundle_update,
             run_gnomad_bundle_update,
+            run_pgs_scores_bundle_update,
             run_vep_bundle_update,
         )
 
@@ -1274,6 +1275,7 @@ def _execute_bundle_install(
             "vep_bundle": run_vep_bundle_update,
             "ancestry_pca": run_ancestry_pca_bundle_update,
             "gnomad": run_gnomad_bundle_update,
+            "pgs_scores": run_pgs_scores_bundle_update,
         }
         runner = runners.get(db_info.name)
         result = runner(settings, timeout=3600.0) if runner is not None else None

@@ -412,6 +412,53 @@ class TestBundledInstall:
             engine.dispose()
             manifest_mod.reset_cache()
 
+    def test_execute_bundle_install_uses_pgs_scores_manifest_runner(
+        self, tmp_data_dir: Path
+    ) -> None:
+        from backend.api.routes.databases import _execute_bundle_install
+        from backend.db.update_manager import UpdateResult
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _make_reference_db(tmp_data_dir)
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            db_info = get_database("pgs_scores")
+            assert db_info is not None
+            job_id = "dbdl-pgs"
+            _create_job_record(engine, job_id, db_info.name)
+
+            with (
+                patch(
+                    "backend.db.update_manager.run_pgs_scores_bundle_update",
+                    return_value=UpdateResult(
+                        db_name="pgs_scores",
+                        previous_version=None,
+                        new_version="v1.0.0",
+                    ),
+                ) as mock_runner,
+                patch("backend.api.routes.databases.install_committed_bundle") as mock_fallback,
+            ):
+                _execute_bundle_install(
+                    db_info=db_info,
+                    job_id=job_id,
+                    engine=engine,
+                    settings=settings,
+                )
+
+            mock_runner.assert_called_once_with(settings, timeout=3600.0)
+            mock_fallback.assert_not_called()
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(jobs.c.status, jobs.c.progress_pct, jobs.c.message).where(
+                        jobs.c.job_id == job_id
+                    )
+                ).one()
+            assert row.status == "complete"
+            assert row.progress_pct == 100.0
+            assert "PGS Catalog scores download complete" in row.message
+        finally:
+            engine.dispose()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Tests: GET /api/databases

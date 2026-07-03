@@ -73,6 +73,7 @@ AUTO_UPDATE_DEFAULTS: dict[str, bool] = {
     "cpic": True,
     "encode_ccres": True,
     "ancestry_pca": True,
+    "pgs_scores": True,
 }
 
 # Size threshold for bandwidth-window enforcement (100 MB)
@@ -914,6 +915,100 @@ def run_gnomad_bundle_update(
         engine.dispose()
 
 
+def run_pgs_scores_bundle_update(
+    settings: Settings | None = None,
+    *,
+    timeout: float = 600.0,
+) -> UpdateResult | None:
+    """Download the latest PGS Catalog scores bundle via the manifest."""
+    import shutil
+
+    from backend.config import get_settings
+    from backend.db.database_registry import DATABASES, _record_db_version
+    from backend.db.manifest import get_bundle_info
+
+    if settings is None:
+        settings = get_settings()
+
+    db_info = DATABASES["pgs_scores"]
+    entry = get_bundle_info("pgs_scores", timeout=min(timeout, 30.0))
+    if entry is None:
+        logger.warning("pgs_scores_update_skipped_no_manifest")
+        return None
+    if not entry.url:
+        logger.info("pgs_scores_update_skipped_no_url", version=entry.version)
+        return None
+
+    ref_path = settings.reference_db_path
+    if not ref_path.exists():
+        logger.warning("pgs_scores_update_skipped_no_reference_db", path=str(ref_path))
+        return None
+
+    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    start_time = time.monotonic()
+
+    try:
+        previous_version = get_current_version(engine, "pgs_scores")
+
+        download = _run_bundle_download(
+            settings,
+            engine,
+            url=entry.url,
+            filename=_bundle_asset_filename(entry.url, db_info.filename),
+            expected_sha256=entry.sha256,
+            total_timeout=timeout,
+        )
+        if download is None:
+            return None
+        downloaded_path, downloaded_bytes = download
+
+        final_dest = db_info.dest_path(settings)
+        final_dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.move(str(downloaded_path), str(final_dest))
+        except OSError as exc:
+            downloaded_path.unlink(missing_ok=True)
+            logger.exception("pgs_scores_move_failed", error=str(exc))
+            return None
+
+        file_size = final_dest.stat().st_size
+        duration = int(time.monotonic() - start_time)
+
+        _record_db_version(
+            engine,
+            db_name="pgs_scores",
+            version=entry.version,
+            file_size_bytes=file_size,
+            sha256=entry.sha256,
+        )
+        _record_update_history(
+            engine,
+            db_name="pgs_scores",
+            previous_version=previous_version,
+            new_version=entry.version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+
+        logger.info(
+            "pgs_scores_update_complete",
+            previous_version=previous_version,
+            new_version=entry.version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+
+        return UpdateResult(
+            db_name="pgs_scores",
+            previous_version=previous_version,
+            new_version=entry.version,
+            download_size_bytes=downloaded_bytes,
+            duration_seconds=duration,
+        )
+    finally:
+        engine.dispose()
+
+
 def _check_manifest_bundle_update(
     reference_engine: Engine,
     db_name: str,
@@ -996,6 +1091,17 @@ def check_gnomad_bundle_update(
     return _check_manifest_bundle_update(reference_engine, "gnomad", timeout=timeout)
 
 
+def check_pgs_scores_bundle_update(
+    reference_engine: Engine,
+    settings: Settings | None = None,
+    *,
+    timeout: float = 30.0,
+) -> VersionInfo | None:
+    """Check whether the PGS scores bundle in the manifest is newer than local."""
+    del settings  # unused; kept for signature parity
+    return _check_manifest_bundle_update(reference_engine, "pgs_scores", timeout=timeout)
+
+
 # ── Check-function dispatch ──────────────────────────────────────────
 # Maps db_name → callable that returns ``VersionInfo | None``.
 #
@@ -1009,6 +1115,7 @@ CHECK_FNS: dict[str, object] = {
     "lai_bundle": check_lai_bundle_update,
     "ancestry_pca": check_ancestry_pca_update,
     "gnomad": check_gnomad_bundle_update,
+    "pgs_scores": check_pgs_scores_bundle_update,
     "dbnsfp": check_dbnsfp_update,
     "cpic": check_cpic_update,
     "gwas_catalog": check_gwas_update,
@@ -1705,7 +1812,9 @@ def set_auto_update(engine: Engine, db_name: str, enabled: bool) -> None:
 # manifest-driven ``run_<bundle>_update`` functions defined above. Each
 # runner is resolved by name at dispatch time so test patches against this
 # module's attributes are honored.
-_BUNDLE_DBS: frozenset[str] = frozenset({"vep_bundle", "lai_bundle", "ancestry_pca", "gnomad"})
+_BUNDLE_DBS: frozenset[str] = frozenset(
+    {"vep_bundle", "lai_bundle", "ancestry_pca", "gnomad", "pgs_scores"}
+)
 
 
 def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
@@ -1742,6 +1851,7 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
             "lai_bundle": "run_lai_bundle_update",
             "ancestry_pca": "run_ancestry_pca_bundle_update",
             "gnomad": "run_gnomad_bundle_update",
+            "pgs_scores": "run_pgs_scores_bundle_update",
         }[db_name]
         runner = globals()[runner_name]
         with build_claim(db_name, settings.data_dir) as acquired:

@@ -5,7 +5,8 @@ Covers the orchestrator's behavior across every dispatch branch:
 * per-DB auto-update toggle (``get_auto_update``) skips the update
 * bandwidth window (``should_download_now``) defers the update
 * bundle dispatch routes through the manifest-driven ``run_<bundle>_update``
-  functions for ``vep_bundle``, ``lai_bundle``, and ``ancestry_pca``
+  functions for ``vep_bundle``, ``lai_bundle``, ``ancestry_pca``, and standalone
+  bundles such as ``gnomad`` / ``pgs_scores``
 * ClinVar dispatch routes through ``run_clinvar_update(registry)``
 * pipeline DBs dispatch through ``huey_tasks.run_database_update_task``
 * a failure in one dispatch is recorded in ``errors`` and does not abort
@@ -311,6 +312,32 @@ class TestBundleDispatch:
             result = run_scheduled_update_check(registry)
 
         mock_gnomad.assert_called_once_with(registry.settings)
+        mock_create_job.assert_not_called()
+        mock_run_task.assert_not_called()
+        assert result.errors == []
+
+    def test_pgs_scores_bundle_dispatch(self, reference_engine, tmp_path: Path):
+        """pgs_scores routes through the bundle runner, not the unsupported build path."""
+        registry = _make_registry(reference_engine, tmp_path)
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[_info("pgs_scores")]),
+            ),
+            patch(
+                "backend.db.update_manager.run_pgs_scores_bundle_update",
+                return_value=UpdateResult(
+                    db_name="pgs_scores",
+                    previous_version=None,
+                    new_version="v1.0.0",
+                ),
+            ) as mock_pgs,
+            patch("backend.tasks.huey_tasks.create_database_update_job") as mock_create_job,
+            patch("backend.tasks.huey_tasks.run_database_update_task") as mock_run_task,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_pgs.assert_called_once_with(registry.settings)
         mock_create_job.assert_not_called()
         mock_run_task.assert_not_called()
         assert result.errors == []

@@ -27,6 +27,7 @@ from backend.db.update_manager import (
     check_clinvar_update,
     check_gnomad_bundle_update,
     check_lai_bundle_update,
+    check_pgs_scores_bundle_update,
     check_vep_bundle_update,
 )
 
@@ -54,6 +55,13 @@ SAMPLE_MANIFEST: dict = {
             "url": "https://example.com/gnomad_af.db",
             "sha256": "11" * 32,
             "size_bytes": 2_000_000_123,
+        },
+        "pgs_scores": {
+            "version": "v1.0.0",
+            "build_date": "2026-07-01",
+            "url": "https://example.com/pgs_scores.db",
+            "sha256": "33" * 32,
+            "size_bytes": 103_874_560,
         },
         "vep_bundle": {
             "version": "v4.0.0",
@@ -334,6 +342,84 @@ class TestCheckGnomadBundleUpdate:
         assert check_gnomad_bundle_update(reference_engine, settings=object()) is None
 
 
+# ── check_pgs_scores_bundle_update ─────────────────────────────────────
+
+
+class TestCheckPgsScoresBundleUpdate:
+    def test_manifest_newer_than_recorded_returns_version_info(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "pgs_scores", "v0.9.0")
+
+        result = check_pgs_scores_bundle_update(reference_engine)
+
+        assert result is not None
+        assert isinstance(result, VersionInfo)
+        assert result.db_name == "pgs_scores"
+        assert result.latest_version == "v1.0.0"
+        assert result.download_url == "https://example.com/pgs_scores.db"
+        assert result.download_size_bytes == 103_874_560
+        assert result.release_date == "2026-07-01"
+
+    def test_manifest_matches_recorded_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "pgs_scores", "v1.0.0")
+
+        assert check_pgs_scores_bundle_update(reference_engine) is None
+
+    def test_no_recorded_version_returns_version_info(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        result = check_pgs_scores_bundle_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v1.0.0"
+
+    def test_manifest_missing_bundle_entry_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        payload = json.loads(json.dumps(SAMPLE_MANIFEST))
+        del payload["bundles"]["pgs_scores"]
+        path = _write_manifest(tmp_path, payload)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        assert check_pgs_scores_bundle_update(reference_engine) is None
+
+    def test_no_url_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
+        payload = json.loads(json.dumps(SAMPLE_MANIFEST))
+        payload["bundles"]["pgs_scores"]["url"] = ""
+        path = _write_manifest(tmp_path, payload)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "pgs_scores", "v0.9.0")
+
+        assert check_pgs_scores_bundle_update(reference_engine) is None
+
+    def test_manifest_unreachable_returns_none(self, reference_engine):
+        with patch(
+            "backend.db.manifest.httpx.get",
+            side_effect=httpx.ConnectError("nope"),
+        ):
+            assert check_pgs_scores_bundle_update(reference_engine) is None
+
+    def test_settings_argument_accepted_and_ignored(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "pgs_scores", "v1.0.0")
+
+        assert check_pgs_scores_bundle_update(reference_engine, None) is None
+        assert check_pgs_scores_bundle_update(reference_engine, settings=object()) is None
+
+
 # ── check_vep_bundle_update ───────────────────────────────────────────
 
 
@@ -452,6 +538,7 @@ class TestCheckFnsDispatch:
             "lai_bundle",
             "ancestry_pca",
             "gnomad",
+            "pgs_scores",
         }
 
     def test_each_value_is_callable(self):
@@ -464,6 +551,7 @@ class TestCheckFnsDispatch:
         assert CHECK_FNS["lai_bundle"] is check_lai_bundle_update
         assert CHECK_FNS["ancestry_pca"] is check_ancestry_pca_update
         assert CHECK_FNS["gnomad"] is check_gnomad_bundle_update
+        assert CHECK_FNS["pgs_scores"] is check_pgs_scores_bundle_update
 
     def test_bundle_dispatch_via_check_fns(self, tmp_path: Path, monkeypatch, reference_engine):
         """Round-trip the dispatch path used by Step 25's scheduler refactor."""

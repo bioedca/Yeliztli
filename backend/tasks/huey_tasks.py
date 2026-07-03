@@ -767,16 +767,17 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
             )
             return
 
-        # LAI / ancestry-PCA / gnomAD bundles flow through their manifest-driven
+        # LAI / ancestry-PCA / gnomAD / PGS bundles flow through their manifest-driven
         # runners (same path as the scheduler's _dispatch_auto_update), not a
         # build_fn. gnomAD is no longer in _BUILD_FN_REGISTRY, so it MUST be
         # caught here before the build_fn branch below (which would raise).
-        if db_name in ("lai_bundle", "ancestry_pca", "gnomad"):
+        if db_name in ("lai_bundle", "ancestry_pca", "gnomad", "pgs_scores"):
             from backend.db.manifest import get_bundle_info
             from backend.db.update_manager import (
                 run_ancestry_pca_bundle_update,
                 run_gnomad_bundle_update,
                 run_lai_bundle_update,
+                run_pgs_scores_bundle_update,
             )
 
             _update_job(
@@ -789,6 +790,7 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
                 "lai_bundle": run_lai_bundle_update,
                 "ancestry_pca": run_ancestry_pca_bundle_update,
                 "gnomad": run_gnomad_bundle_update,
+                "pgs_scores": run_pgs_scores_bundle_update,
             }[db_name]
             result = runner(registry.settings)
             if result is None:

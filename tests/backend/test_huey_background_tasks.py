@@ -455,3 +455,33 @@ class TestRunDatabaseUpdateTaskClaim:
             run_database_update_task.call_local(job_id, "clinvar")
 
         exec_mock.assert_called_once_with(job_id, "clinvar")
+
+
+class TestDatabaseUpdateBundleDispatch:
+    def test_pgs_scores_uses_manifest_bundle_runner(self, huey_env: dict) -> None:
+        """User-triggered pgs_scores updates must not fall through to build_fn lookup."""
+        from backend.db.update_manager import UpdateResult
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-pgs"
+        _make_job(job_id, "database_update")
+
+        with (
+            patch(
+                "backend.db.update_manager.run_pgs_scores_bundle_update",
+                return_value=UpdateResult(
+                    db_name="pgs_scores",
+                    previous_version=None,
+                    new_version="v1.0.0",
+                ),
+            ) as mock_runner,
+            patch("backend.db.update_manager.run_precheck_all_samples") as mock_precheck,
+        ):
+            _execute_database_update(job_id, "pgs_scores")
+
+        mock_runner.assert_called_once_with(huey_env["settings"])
+        mock_precheck.assert_called_once()
+        row = _job_row(job_id)
+        assert row.status == "complete"
+        assert row.progress_pct == 100.0
+        assert row.message == "pgs_scores update complete"
