@@ -98,13 +98,14 @@ const LOGS_RESPONSE = {
   has_more: false,
 }
 
-function mockAllEndpoints() {
+function mockAllEndpoints(overrides: { disk?: Partial<typeof DISK_RESPONSE> } = {}) {
+  const diskResponse = { ...DISK_RESPONSE, ...overrides.disk }
   mockFetch.mockImplementation(async (url: string) => {
     if (url.includes("/api/admin/status")) {
       return { ok: true, json: async () => STATUS_RESPONSE }
     }
     if (url.includes("/api/admin/disk-usage")) {
-      return { ok: true, json: async () => DISK_RESPONSE }
+      return { ok: true, json: async () => diskResponse }
     }
     if (url.includes("/api/admin/db-stats")) {
       return { ok: true, json: async () => DB_STATS_RESPONSE }
@@ -146,6 +147,28 @@ describe("SystemHealth", () => {
     })
     expect(screen.getByText("Reference DBs")).toBeInTheDocument()
     expect(screen.getByText("Sample DBs")).toBeInTheDocument()
+  })
+
+  it("does not emit non-finite disk segment widths when total bytes is unavailable", async () => {
+    mockAllEndpoints({
+      disk: {
+        total_bytes: 0,
+        free_bytes: 0,
+        used_bytes: 0,
+        reference_dbs_bytes: 4_000_000_000,
+      },
+    })
+    render(<SystemHealth />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Reference DBs")).toBeInTheDocument()
+    })
+
+    const styleValues = Array.from(document.querySelectorAll<HTMLElement>("[style]")).map(
+      (node) => node.getAttribute("style") ?? "",
+    )
+    expect(styleValues.join(" ")).not.toContain("Infinity")
+    expect(styleValues.join(" ")).not.toContain("NaN")
   })
 
   it("displays database stats table", async () => {

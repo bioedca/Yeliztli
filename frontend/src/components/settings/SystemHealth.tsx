@@ -66,6 +66,13 @@ function formatDateTime(isoStr: string | null): string {
   }
 }
 
+function diskSegmentWidth(bytes: number, totalBytes: number): string {
+  if (bytes <= 0 || totalBytes <= 0) return '0%'
+  const percent = (bytes / totalBytes) * 100
+  if (!Number.isFinite(percent)) return '0%'
+  return `${Math.min(100, Math.max(0, percent))}%`
+}
+
 const LOG_LEVELS = ['', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] as const
 
 function levelColor(level: string): string {
@@ -158,7 +165,6 @@ function DiskUsageSection() {
   if (isLoading) return <LoadingSkeleton label="Disk Usage" />
   if (error || !disk) return <ErrorCard label="Disk Usage" error={error} />
 
-  const totalData = disk.reference_dbs_bytes + disk.sample_dbs_bytes + disk.logs_bytes + disk.other_bytes
   const segments = [
     { label: 'Reference DBs', bytes: disk.reference_dbs_bytes, color: 'bg-teal-500' },
     { label: 'Sample DBs', bytes: disk.sample_dbs_bytes, color: 'bg-blue-500' },
@@ -193,11 +199,11 @@ function DiskUsageSection() {
           {segments.map(
             (seg) =>
               seg.bytes > 0 &&
-              totalData > 0 && (
+              disk.total_bytes > 0 && (
                 <div
                   key={seg.label}
                   className={cn('h-full', seg.color)}
-                  style={{ width: `${(seg.bytes / disk.total_bytes) * 100}%` }}
+                  style={{ width: diskSegmentWidth(seg.bytes, disk.total_bytes) }}
                   title={`${seg.label}: ${formatBytes(seg.bytes)}`}
                 />
               ),
