@@ -10,7 +10,9 @@ URL template variables ($CHR, $START, $END) consumed by IGV.js.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path as FilePath
 
 import sqlalchemy as sa
@@ -184,6 +186,90 @@ def _manifest_path_value(payload: object, *keys: str) -> str | None:
     return cursor if isinstance(cursor, str) else None
 
 
+def _manifest_int_value(payload: object, *keys: str) -> int | None:
+    cursor = payload
+    for key in keys:
+        if not isinstance(cursor, dict):
+            return None
+        cursor = cursor.get(key)
+    return cursor if type(cursor) is int else None
+
+
+def _is_sha256_hex(value: str | None) -> bool:
+    return (
+        value is not None
+        and len(value) == 64
+        and all(char in "0123456789abcdefABCDEF" for char in value)
+    )
+
+
+@lru_cache(maxsize=32)
+def _sha256_file_cached(path: str, *, size_bytes: int, mtime_ns: int) -> str:
+    del size_bytes, mtime_ns  # cache key fields; the file hash only needs the path.
+    digest = hashlib.sha256()
+    with FilePath(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_manifest_output_file(
+    payload: object,
+    output_key: str,
+    *,
+    expected_path: str,
+    actual_path: FilePath,
+) -> list[str]:
+    errors: list[str] = []
+    dotted = f"outputs.{output_key}"
+
+    output_payload = payload.get("outputs") if isinstance(payload, dict) else None
+    if not isinstance(output_payload, dict):
+        return ["outputs must describe fasta, fasta_index, and refseq_bed files"]
+    entry = output_payload.get(output_key)
+    if not isinstance(entry, dict):
+        return [f"{dotted} must be an object with path, sha256, and size_bytes"]
+
+    observed_path = entry.get("path")
+    if observed_path != expected_path:
+        errors.append(f"{dotted}.path must be {expected_path!r}")
+
+    expected_size = _manifest_int_value(payload, "outputs", output_key, "size_bytes")
+    if expected_size is None or expected_size < 0:
+        errors.append(f"{dotted}.size_bytes must be a non-negative integer")
+
+    expected_sha256 = _manifest_path_value(payload, "outputs", output_key, "sha256")
+    if not _is_sha256_hex(expected_sha256):
+        errors.append(f"{dotted}.sha256 must be a 64-character hex digest")
+
+    try:
+        stat = actual_path.stat()
+    except OSError as exc:
+        errors.append(f"{dotted}.path file cannot be statted: {exc}")
+        return errors
+
+    size_matches = expected_size is None or stat.st_size == expected_size
+    if expected_size is not None and not size_matches:
+        errors.append(
+            f"{dotted}.size_bytes mismatch for {actual_path.name}: "
+            f"manifest {expected_size:,}, observed {stat.st_size:,}"
+        )
+
+    if _is_sha256_hex(expected_sha256) and size_matches:
+        observed_sha256 = _sha256_file_cached(
+            actual_path.as_posix(),
+            size_bytes=stat.st_size,
+            mtime_ns=stat.st_mtime_ns,
+        )
+        if observed_sha256 != expected_sha256.lower():
+            errors.append(
+                f"{dotted}.sha256 mismatch for {actual_path.name}: "
+                f"manifest {expected_sha256.lower()}, observed {observed_sha256}"
+            )
+
+    return errors
+
+
 def _validate_reference_manifest(
     manifest_path: FilePath | None,
     *,
@@ -231,16 +317,19 @@ def _validate_reference_manifest(
             dotted = ".".join(keys)
             errors.append(f"{dotted} must be {expected_value}")
 
-    expected_outputs = {
-        ("outputs", "fasta", "path"): fasta_path.name,
-        ("outputs", "fasta_index", "path"): index_path.name,
-        ("outputs", "refseq_bed", "path"): refseq_path.name,
-    }
-    for keys, expected_value in expected_outputs.items():
-        observed_value = _manifest_path_value(payload, *keys)
-        if observed_value != expected_value:
-            dotted = ".".join(keys)
-            errors.append(f"{dotted} must be {expected_value!r}")
+    for output_key, expected_path, actual_path in (
+        ("fasta", fasta_path.name, fasta_path),
+        ("fasta_index", index_path.name, index_path),
+        ("refseq_bed", refseq_path.name, refseq_path),
+    ):
+        errors.extend(
+            _validate_manifest_output_file(
+                payload,
+                output_key,
+                expected_path=expected_path,
+                actual_path=actual_path,
+            )
+        )
 
     if not errors:
         return []

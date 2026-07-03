@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -22,6 +23,14 @@ UCSC_HG19_FASTA_URL = "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/h
 UCSC_HG19_REFGENE_URL = "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz"
 
 
+def _manifest_file_info(path: Path) -> dict[str, object]:
+    return {
+        "path": path.name,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "size_bytes": path.stat().st_size,
+    }
+
+
 def _write_toy_reference_bundle(data_dir: Path) -> None:
     (data_dir / "grch37.fa").write_text(">chr1\nACGTACGT\n", encoding="ascii")
     (data_dir / "grch37.fa.fai").write_text("chr1\t8\t6\t8\t9\n", encoding="ascii")
@@ -32,8 +41,11 @@ def _write_toy_reference_bundle(data_dir: Path) -> None:
 
 
 def _write_local_reference_bundle(data_dir: Path) -> None:
-    (data_dir / "grch37.fa").write_text(">chr1\nACGTACGT\n", encoding="ascii")
-    (data_dir / "grch37.fa.fai").write_text(
+    fasta_path = data_dir / "grch37.fa"
+    index_path = data_dir / "grch37.fa.fai"
+    refseq_path = data_dir / "grch37_refseq.bed"
+    fasta_path.write_text(">chr1\nACGTACGT\n", encoding="ascii")
+    index_path.write_text(
         "\n".join(
             [
                 "chr1\t249250621\t6\t50\t51",
@@ -47,7 +59,7 @@ def _write_local_reference_bundle(data_dir: Path) -> None:
         + "\n",
         encoding="ascii",
     )
-    (data_dir / "grch37_refseq.bed").write_text(
+    refseq_path.write_text(
         "chr1\t11873\t14409\tDDX11L1\t0\t+\t11873\t11873\t51,65,85\t3\t354,109,1189\t0,739,1347\n",
         encoding="ascii",
     )
@@ -62,9 +74,9 @@ def _write_local_reference_bundle(data_dir: Path) -> None:
                     "refgene": {"url": UCSC_HG19_REFGENE_URL},
                 },
                 "outputs": {
-                    "fasta": {"path": "grch37.fa"},
-                    "fasta_index": {"path": "grch37.fa.fai"},
-                    "refseq_bed": {"path": "grch37_refseq.bed"},
+                    "fasta": _manifest_file_info(fasta_path),
+                    "fasta_index": _manifest_file_info(index_path),
+                    "refseq_bed": _manifest_file_info(refseq_path),
                 },
             }
         )
@@ -173,6 +185,37 @@ async def test_reference_status_rejects_malformed_manifest_runtime_files(
     assert payload["available"] is False
     assert payload["mode"] == "remote"
     assert any("runtime_files must list" in item for item in payload["missing"])
+
+
+async def test_reference_status_rejects_fasta_checksum_mismatch(
+    patch_route_settings: Settings,
+) -> None:
+    _write_local_reference_bundle(patch_route_settings.data_dir)
+    (patch_route_settings.data_dir / "grch37.fa").write_text(">chr1\nTTTTTTTT\n", encoding="ascii")
+
+    status = await genome_browser_reference_status()
+
+    payload = status.model_dump()
+    assert payload["available"] is False
+    assert payload["mode"] == "remote"
+    assert any("outputs.fasta.sha256 mismatch" in item for item in payload["missing"])
+
+
+async def test_reference_status_rejects_refseq_size_mismatch(
+    patch_route_settings: Settings,
+) -> None:
+    _write_local_reference_bundle(patch_route_settings.data_dir)
+    (patch_route_settings.data_dir / "grch37_refseq.bed").write_text(
+        "chr1\t0\t8\tSTALE\t0\t+\t0\t8\t0\t1\t8,\t0,\n",
+        encoding="ascii",
+    )
+
+    status = await genome_browser_reference_status()
+
+    payload = status.model_dump()
+    assert payload["available"] is False
+    assert payload["mode"] == "remote"
+    assert any("outputs.refseq_bed.size_bytes mismatch" in item for item in payload["missing"])
 
 
 async def test_reference_file_handlers_return_file_responses(
