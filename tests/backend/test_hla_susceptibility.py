@@ -100,9 +100,22 @@ class TestRaSharedEpitope:
         assert "04:01" in f.detail
         assert "seropositive" in f.interpretation.lower()
 
+    def test_drb10410_present(self) -> None:
+        f = _find(assess_susceptibility([_c("DRB1", "04:10", "15:01")]), "HLA-DRB1 shared epitope")
+        assert f.status == STATUS_INCREASED
+        assert f.carried is True
+        assert "DRB1*04:10" in f.detail
+
+    def test_protective_0403_is_not_screened_as_shared_epitope_risk(self) -> None:
+        f = _find(assess_susceptibility([_c("DRB1", "04:03", "15:01")]), "HLA-DRB1 shared epitope")
+        assert f.status == STATUS_NOT_INCREASED
+        assert f.carried is False
+        assert "curated" in f.detail
+
     def test_absent(self) -> None:
         f = _find(assess_susceptibility([_c("DRB1", "15:01", "13:01")]), "HLA-DRB1 shared epitope")
         assert f.status == STATUS_NOT_INCREASED
+        assert "curated imputed-HLA screen" in f.interpretation
 
     def test_not_typed(self) -> None:
         f = _find(assess_susceptibility([_c("B", "07:02", "08:01")]), "HLA-DRB1 shared epitope")

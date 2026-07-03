@@ -22,8 +22,9 @@ Associations:
 - **HLA-DRB1 shared epitope → rheumatoid arthritis**, especially seropositive
   (ACPA/anti-CCP-positive) RA (SE-homozygote OR ~17.8 for anti-CCP-positive vs ~1.07
   NS for anti-CCP-negative). Bax 2011 PMID:21556860; Pedersen 2007 PMID:17469102.
-  The SE is the QKRAA/QRRAA/RRRAA motif at DRβ1 70–74; the major SE alleles are
-  DRB1*01:01, *04:01, *04:04, *04:05, *10:01 (non-exhaustive).
+  The SE is the QKRAA/QRRAA/RRRAA motif at DRβ1 70–74; this curated report covers
+  common literature-supported risk alleles including DRB1*01:01, *04:01, *04:04,
+  *04:05, *04:10, and *10:01, but is not an exhaustive residue classifier.
 - **HLA DR3-DQ2 / DR4-DQ8 → type 1 diabetes**. The highest-risk signals are
   DRB1-DQA1-DQB1 haplotypes: DR3
   (DRB1*03:01-DQA1*05:01-DQB1*02:01) and DR4
@@ -54,9 +55,16 @@ STATUS_NOT_TYPED = "not_typed"  # required locus or haplotype phase not called
 # otherwise flag these as risk, so they are downgraded to a neutral subtype.
 _B27_NEUTRAL_SUBTYPES = frozenset({"27:06", "27:09"})
 
-# Major RA shared-epitope DRB1 alleles (2-field; non-exhaustive — the SE is defined
-# by the QKRAA/QRRAA/RRRAA motif at DRβ1 70-74, and these are its common carriers).
-_SE_ALLELES = ("DRB1*01:01", "DRB1*04:01", "DRB1*04:04", "DRB1*04:05", "DRB1*10:01")
+# Curated RA shared-epitope/risk DRB1 alleles (2-field; non-exhaustive). The SE
+# itself is motif-defined at DRβ1 70-74, but imputed reports use explicit alleles.
+_SE_ALLELES = (
+    "DRB1*01:01",
+    "DRB1*04:01",
+    "DRB1*04:04",
+    "DRB1*04:05",
+    "DRB1*04:10",
+    "DRB1*10:01",
+)
 _T1D_DR4_RISK_DRB1 = (
     "DRB1*04:01",
     "DRB1*04:02",
@@ -244,7 +252,13 @@ def _assess_c0602(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
 
 def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
     condition = "Rheumatoid arthritis (seropositive)"
-    citations = ["PMID:21556860", "PMID:17469102", "DOI:10.1111/tan.70442"]
+    citations = [
+        "PMID:21556860",
+        "PMID:17469102",
+        "PMID:15818663",
+        "PMID:16255021",
+        "DOI:10.3346/jkms.2007.22.6.973",
+    ]
     notes = [
         "The shared-epitope association is strongest for seropositive (ACPA/anti-CCP-"
         "positive) RA and weak/absent for seronegative RA.",
@@ -271,9 +285,10 @@ def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             "HLA-DRB1 shared epitope",
             STATUS_NOT_INCREASED,
             False,
-            "No shared-epitope DRB1 allele detected",
-            "No major shared-epitope HLA-DRB1 allele was detected — no increased "
-            "seropositive-RA susceptibility from the shared epitope.",
+            "No curated shared-epitope DRB1 allele detected",
+            "No shared-epitope HLA-DRB1 allele from this curated imputed-HLA screen "
+            "was detected — no increased seropositive-RA susceptibility from the "
+            "alleles currently screened.",
             _low_conf(calls, ["DRB1"]),
             citations,
             notes,
