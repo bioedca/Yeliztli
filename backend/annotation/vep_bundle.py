@@ -126,6 +126,7 @@ class VEPAnnotation:
     matched_by: str  # "rsid" or "chrom_pos"
     ref: str | None = None
     alt: str | None = None
+    allele_unambiguous: bool = False
 
 
 @dataclass
@@ -161,6 +162,7 @@ def _pick_best(
     *,
     matched_by: str,
     key_col: str = "rsid",
+    allele_unambiguous_by_key: Mapping[str, bool] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Deduplicate VEP rows, preferring MANE Select then most-severe.
 
@@ -197,6 +199,10 @@ def _pick_best(
                 matched_by=matched_by,
                 ref=getattr(row, "ref", None),
                 alt=getattr(row, "alt", None),
+                allele_unambiguous=bool(
+                    allele_unambiguous_by_key
+                    and allele_unambiguous_by_key.get(str(key), False)
+                ),
             )
             best_score[key] = score
 
@@ -220,14 +226,31 @@ def _normal_chrom(value: str | None) -> str | None:
 
 
 AlleleIdentity = tuple[str, int, str, str]
+CoordinateIdentity = tuple[str, int]
+
+
+def _rows_match_coordinate(rows: list[sa.Row], coordinate: CoordinateIdentity | None) -> bool:
+    if coordinate is None or not rows:
+        return False
+    chrom, pos = coordinate
+    chrom_norm = _normal_chrom(chrom)
+    for row in rows:
+        try:
+            row_pos = int(getattr(row, "pos"))
+        except (TypeError, ValueError):
+            return False
+        if _normal_chrom(getattr(row, "chrom", None)) != chrom_norm or row_pos != pos:
+            return False
+    return True
 
 
 def _filter_rows_for_sample_allele(
     rows: list[sa.Row],
     *,
     allele_identity: AlleleIdentity | None = None,
+    sample_coordinate: CoordinateIdentity | None = None,
     genotype: str | None = None,
-) -> list[sa.Row]:
+) -> tuple[list[sa.Row], bool]:
     """Keep only VEP rows whose allele can be tied to the sample.
 
     VEP consequences are allele-specific. For a multi-ALT rsID, selecting by
@@ -238,7 +261,7 @@ def _filter_rows_for_sample_allele(
     still retain their marker annotation and downstream zygosity can be derived.
     """
     if not rows:
-        return []
+        return [], False
 
     if allele_identity is not None:
         chrom, pos, ref, alt = allele_identity
@@ -257,14 +280,14 @@ def _filter_rows_for_sample_allele(
                 and _normal_allele(getattr(row, "alt", None)) == alt_norm
             ):
                 exact_rows.append(row)
-        return exact_rows
+        return exact_rows, bool(exact_rows)
 
     allele_pairs = {
         (_normal_allele(getattr(row, "ref", None)), _normal_allele(getattr(row, "alt", None)))
         for row in rows
     }
     if len(allele_pairs) <= 1:
-        return rows
+        return rows, _rows_match_coordinate(rows, sample_coordinate)
 
     if genotype:
         carried = [
@@ -285,9 +308,9 @@ def _filter_rows_for_sample_allele(
             for row in carried
         }
         if len(carried_pairs) == 1:
-            return carried
+            return carried, _rows_match_coordinate(carried, sample_coordinate)
 
-    return []
+    return [], False
 
 
 # ── VEP bundle SQL fragments ─────────────────────────────────────────────
@@ -310,6 +333,7 @@ def lookup_vep_by_rsids(
     *,
     genotype_by_rsid: Mapping[str, str] | None = None,
     allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
+    coordinate_by_rsid: Mapping[str, CoordinateIdentity] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Look up VEP annotations for a batch of rsids.
 
@@ -326,6 +350,9 @@ def lookup_vep_by_rsids(
             multi-allelic rsids to the carried VEP ALT.
         allele_by_rsid: Optional map of rsid → ``(chrom, pos, ref, alt)`` for
             callers that have exact variant identity.
+        coordinate_by_rsid: Optional map of rsid → ``(chrom, pos)`` for callers
+            that need selected VEP alleles exposed only when they are at the
+            sample coordinate.
 
     Returns:
         Dict mapping rsid to the best :class:`VEPAnnotation`.
@@ -354,16 +381,30 @@ def lookup_vep_by_rsids(
                 rows_by_rsid.setdefault(row.rsid, []).append(row)
 
             filtered_rows: list[sa.Row] = []
+            allele_unambiguous_by_rsid: dict[str, bool] = {}
             for rsid, candidate_rows in rows_by_rsid.items():
-                filtered_rows.extend(
-                    _filter_rows_for_sample_allele(
-                        candidate_rows,
-                        allele_identity=allele_by_rsid.get(rsid) if allele_by_rsid else None,
-                        genotype=genotype_by_rsid.get(rsid) if genotype_by_rsid else None,
-                    )
+                allele_identity = allele_by_rsid.get(rsid) if allele_by_rsid else None
+                sample_coordinate = (
+                    (allele_identity[0], allele_identity[1])
+                    if allele_identity is not None
+                    else coordinate_by_rsid.get(rsid)
+                    if coordinate_by_rsid
+                    else None
                 )
+                candidate_rows, allele_unambiguous = _filter_rows_for_sample_allele(
+                    candidate_rows,
+                    allele_identity=allele_identity,
+                    sample_coordinate=sample_coordinate,
+                    genotype=genotype_by_rsid.get(rsid) if genotype_by_rsid else None,
+                )
+                filtered_rows.extend(candidate_rows)
+                allele_unambiguous_by_rsid[rsid] = allele_unambiguous
 
-            batch_best = _pick_best(filtered_rows, matched_by="rsid")
+            batch_best = _pick_best(
+                filtered_rows,
+                matched_by="rsid",
+                allele_unambiguous_by_key=allele_unambiguous_by_rsid,
+            )
             results.update(batch_best)
 
     return results
@@ -428,9 +469,10 @@ def lookup_vep_by_positions(
                 if key not in pos_rows or sample_rsid in results:
                     continue
 
-                candidate_rows = _filter_rows_for_sample_allele(
+                candidate_rows, allele_unambiguous = _filter_rows_for_sample_allele(
                     pos_rows[key],
                     allele_identity=allele_by_rsid.get(sample_rsid) if allele_by_rsid else None,
+                    sample_coordinate=(chrom, pos),
                     genotype=genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None,
                 )
                 if not candidate_rows:
@@ -449,7 +491,12 @@ def lookup_vep_by_positions(
                     )
                     continue
 
-                best = _pick_best(candidate_rows, matched_by="chrom_pos")
+                candidate_rsid = next(iter(candidate_rsids))
+                best = _pick_best(
+                    candidate_rows,
+                    matched_by="chrom_pos",
+                    allele_unambiguous_by_key={candidate_rsid: allele_unambiguous},
+                )
                 if best:
                     # best is keyed by the bundle rsid; re-key by sample rsid
                     annot = next(iter(best.values()))
@@ -502,12 +549,14 @@ def annotate_sample_vep(
     all_rsids = [r.rsid for r in raw_rows]
     raw_by_rsid = {r.rsid: r for r in raw_rows}
     genotype_by_rsid = {r.rsid: r.genotype for r in raw_rows}
+    coordinate_by_rsid = {r.rsid: (r.chrom, r.pos) for r in raw_rows}
 
     # 2. Primary match: by rsid
     rsid_matches = lookup_vep_by_rsids(
         all_rsids,
         vep_engine,
         genotype_by_rsid=genotype_by_rsid,
+        coordinate_by_rsid=coordinate_by_rsid,
     )
     result.matched_by_rsid = len(rsid_matches)
 

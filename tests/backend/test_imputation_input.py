@@ -217,7 +217,7 @@ class TestCollectInputSites:
         ]
         assert recs[0].samples[0]["GT"] == (0, 1)
 
-    def test_run_annotation_ambiguous_vep_alleles_do_not_emit_imputation_site(
+    def test_run_annotation_multiallelic_vep_uses_carried_allele_for_imputation_site(
         self, tmp_path: Path
     ) -> None:
         sample_engine = _threadsafe_sqlite_engine()
@@ -276,17 +276,25 @@ class TestCollectInputSites:
                 sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_multi_alt")
             ).one()
         assert row.annotation_coverage == VEP_BIT
-        assert row.ref is None
-        assert row.alt is None
-        assert row.zygosity is None
+        assert row.transcript_id == "ENST00000000001"
+        assert row.consequence == "intron_variant"
+        assert row.ref == "A"
+        assert row.alt == "G"
+        assert row.zygosity == "het"
 
         imputation_result = write_imputation_input_vcfs(
             sample_engine, tmp_path / "vcfs", chromosomes=("1",)
         )
 
         assert imputation_result.n_total == 1
-        assert imputation_result.n_emitted == 0
-        assert imputation_result.vcf_paths == {}
+        assert imputation_result.n_emitted == 1
+        chr1 = tmp_path / "vcfs" / "chr1.vcf.gz"
+        with pysam.VariantFile(str(chr1)) as vf:
+            recs = list(vf)
+        assert [(r.chrom, r.pos, r.id, r.ref, r.alts) for r in recs] == [
+            ("1", 12345, "rs_multi_alt", "A", ("G",))
+        ]
+        assert recs[0].samples[0]["GT"] == (0, 1)
 
     def test_run_annotation_shared_rsid_off_coordinate_alleles_do_not_emit_imputation_site(
         self, tmp_path: Path

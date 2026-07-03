@@ -200,10 +200,11 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
 def _vep_sample_context(
     rsids: list[str],
     raw_by_rsid: dict[str, sa.Row],
-) -> tuple[dict[str, str], dict[str, tuple[str, int, str, str]]]:
+) -> tuple[dict[str, str], dict[str, tuple[str, int, str, str]], dict[str, tuple[str, int]]]:
     """Build genotype/exact-allele maps for allele-specific VEP lookup."""
     genotype_by_rsid: dict[str, str] = {}
     allele_by_rsid: dict[str, tuple[str, int, str, str]] = {}
+    coordinate_by_rsid: dict[str, tuple[str, int]] = {}
     for rsid in rsids:
         raw = raw_by_rsid.get(rsid)
         if raw is None:
@@ -213,6 +214,11 @@ def _vep_sample_context(
             genotype_by_rsid[rsid] = genotype
         chrom = getattr(raw, "chrom", None)
         pos = getattr(raw, "pos", None)
+        if chrom is not None and pos is not None:
+            try:
+                coordinate_by_rsid[rsid] = (str(chrom), int(pos))
+            except (TypeError, ValueError):
+                pass
         ref = getattr(raw, "ref", None)
         alt = getattr(raw, "alt", None)
         if chrom is not None and pos is not None and ref and alt:
@@ -220,7 +226,7 @@ def _vep_sample_context(
                 allele_by_rsid[rsid] = (str(chrom), int(pos), str(ref), str(alt))
             except (TypeError, ValueError):
                 pass
-    return genotype_by_rsid, allele_by_rsid
+    return genotype_by_rsid, allele_by_rsid, coordinate_by_rsid
 
 
 def _unique_vep_allele_identity(pairs: set[tuple[str | None, str | None]]) -> dict | None:
@@ -241,12 +247,13 @@ def _lookup_vep(
     """Look up VEP annotations for a batch of rsids."""
     from backend.annotation.vep_bundle import lookup_vep_by_rsids
 
-    genotype_by_rsid, allele_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
+    genotype_by_rsid, allele_by_rsid, coordinate_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
     matches = lookup_vep_by_rsids(
         rsids,
         vep_engine,
         genotype_by_rsid=genotype_by_rsid,
         allele_by_rsid=allele_by_rsid,
+        coordinate_by_rsid=coordinate_by_rsid,
     )
 
     results: dict[str, dict] = {}
@@ -265,6 +272,8 @@ def _lookup_vep(
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref
             row["_vep_alt"] = annot.alt
+            if annot.allele_unambiguous:
+                row["_vep_alleles_unambiguous"] = True
         results[rsid] = row
     return results
 
@@ -1096,7 +1105,10 @@ def _vep_coord_fallback(
     if not positions:
         return 0
 
-    genotype_by_rsid, allele_by_rsid = _vep_sample_context(unmatched_rsids, raw_by_rsid)
+    genotype_by_rsid, allele_by_rsid, _coordinate_by_rsid = _vep_sample_context(
+        unmatched_rsids,
+        raw_by_rsid,
+    )
     t0 = time.perf_counter()
     matches = lookup_vep_by_positions(
         positions,
@@ -1121,6 +1133,8 @@ def _vep_coord_fallback(
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref
             row["_vep_alt"] = annot.alt
+            if annot.allele_unambiguous:
+                row["_vep_alleles_unambiguous"] = True
         vep_data[sample_rsid] = row
     return len(matches)
 
