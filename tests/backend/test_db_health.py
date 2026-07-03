@@ -359,6 +359,33 @@ class TestValidateStandalone:
         assert "missing required column(s)" in result.detail
         assert "homozygous_count" in result.detail
 
+    def test_gnomad_optional_af_columns_not_required(self, settings: Settings) -> None:
+        path = settings.gnomad_db_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE gnomad_af (
+                    rsid TEXT,
+                    chrom TEXT,
+                    pos INTEGER,
+                    ref TEXT,
+                    alt TEXT,
+                    homozygous_count INTEGER
+                )
+                """
+            )
+            conn.execute("INSERT INTO gnomad_af VALUES ('rs429358', '19', 44908684, 'T', 'C', 4)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = validate_database("gnomad", settings)
+
+        assert result.ok is True
+        assert result.depth == "structural"
+
     def test_gnomad_absent(self, settings: Settings) -> None:
         result = validate_database("gnomad", settings)
         assert result.ok is False
