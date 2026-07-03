@@ -265,4 +265,81 @@ test.describe('Setup wizard — download progress observability', () => {
     await page.getByRole('button', { name: /Download Selected/i }).click()
     expect(requestedDatabases).toEqual(['gnomad'])
   })
+
+  test('corrupt bundled databases expose clean recovery controls', async ({
+    page,
+  }) => {
+    await mockWizardChrome(page)
+
+    await page.route('**/api/setup/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          needs_setup: true,
+          disclaimer_accepted: true,
+          has_databases: true,
+          required_dbs_ready: false,
+          db_readiness: [
+            { name: 'gnomad', state: 'corrupt', ready: false, build_mode: 'bundled' },
+          ],
+          has_samples: false,
+          data_dir: '/tmp/.yeliztli',
+        }),
+      }),
+    )
+
+    await page.route('**/api/databases', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          databases: [
+            {
+              name: 'gnomad',
+              display_name: 'gnomAD',
+              description: 'Population allele frequencies',
+              filename: 'gnomad_af.db',
+              expected_size_bytes: 1_301_509_755,
+              required: true,
+              phase: 2,
+              downloaded: true,
+              file_size_bytes: 1_301_509_755,
+              build_mode: 'bundled',
+            },
+          ],
+          total_size_bytes: 1_301_509_755,
+          downloaded_count: 1,
+          total_count: 1,
+        }),
+      }),
+    )
+    await page.route('**/api/databases/health', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          databases: [
+            {
+              name: 'gnomad',
+              state: 'corrupt',
+              integrity_ok: false,
+              integrity_detail: 'gnomad_af table is empty',
+              can_clean: true,
+              can_verify: true,
+            },
+          ],
+        }),
+      }),
+    )
+
+    await walkWizardToDatabases(page)
+
+    await expect(page.getByTestId('db-integrity-failed-gnomad')).toContainText(
+      'gnomad_af table is empty',
+    )
+    await expect(page.getByTestId('db-clean-gnomad')).toBeVisible()
+    await expect(page.getByText('Included')).toHaveCount(0)
+    await expect(page.getByText('Download required')).toHaveCount(0)
+  })
 })

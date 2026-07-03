@@ -512,20 +512,32 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
             const progress = dbProgress[db.name]
             const isBundled = db.build_mode === 'bundled'
             const isManual = db.build_mode === 'manual'
-            const isComplete = progress
-              ? progress.status === 'complete'
-              : db.downloaded
-            const bundledIncluded = isBundled && isComplete
+            const dbHealth = healthMap[db.name]
+            const hasHealth = dbHealth != null
+            const hasIntegrityFailure = dbHealth?.integrity_ok === false
+            let isComplete = false
+            if (!hasIntegrityFailure) {
+              if (progress) {
+                isComplete = progress.status === 'complete'
+              } else if (isBundled && hasHealth) {
+                isComplete = dbHealth.state === 'ready'
+              } else {
+                isComplete = db.downloaded
+              }
+            }
+            const bundledIncluded = isBundled && isComplete && !hasIntegrityFailure
             const isFailed = progress?.status === 'failed'
             const isRunning = progress?.status === 'running'
             const isPending = progress?.status === 'pending'
             const showCheckbox = isSelectable(db)
             const isSelected = selectedDbs.has(db.name)
             const checkboxId = `db-select-${db.name}`
-            const dbHealth = healthMap[db.name]
             // A resumable partial exists when a prior download was interrupted.
             // Surface it (and an explicit Resume) only when not already running.
+            // Bundled DBs install through the manifest bundle path, not the
+            // generic resume endpoint, so retry them via Download Selected.
             const showResume =
+              !isBundled &&
               !!dbHealth?.resumable &&
               !isDownloading &&
               !isRunning &&
@@ -535,6 +547,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
             const failAction = isFailed
               ? classifyFailure(progress?.error ?? null, dbHealth)
               : null
+            const recoveryAction =
+              failAction === 'resume' && isBundled ? 'retry' : failAction
+            const showIntegrityStatus =
+              hasIntegrityFailure || (isComplete && !bundledIncluded)
 
             return (
               <div
@@ -542,8 +558,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                 className={cn(
                   'rounded-lg border p-4 transition-colors',
                   isComplete && 'border-green-500/30 bg-green-500/5',
-                  isFailed && 'border-destructive/30 bg-destructive/5',
-                  !isComplete && !isFailed && 'border-border bg-card',
+                  (isFailed || hasIntegrityFailure) &&
+                    'border-destructive/30 bg-destructive/5',
+                  !isComplete &&
+                    !isFailed &&
+                    !hasIntegrityFailure &&
+                    'border-border bg-card',
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -569,7 +589,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     {!bundledIncluded && isComplete && (
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     )}
-                    {isFailed && (
+                    {(isFailed || hasIntegrityFailure) && (
                       <AlertCircle className="h-5 w-5 text-destructive" />
                     )}
                     {isRunning && (
@@ -689,7 +709,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                           </p>
                         )}
                         <div className="flex flex-wrap gap-2">
-                          {failAction === 'resume' ? (
+                          {recoveryAction === 'resume' ? (
                             <button
                               type="button"
                               onClick={() => handleResume(db.name)}
@@ -703,7 +723,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                               <RefreshCw className="h-3 w-3" />
                               Resume
                             </button>
-                          ) : failAction === 'clean' ? (
+                          ) : recoveryAction === 'clean' ? (
                             <button
                               type="button"
                               onClick={() => handleCleanAndRetry(db.name)}
@@ -762,13 +782,15 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     )}
 
                     {/* Downloaded status + integrity verdict */}
-                    {isComplete && !bundledIncluded && (
+                    {showIntegrityStatus && (
                       <div className="mt-0.5 space-y-1">
-                        <p className="text-xs text-green-700 dark:text-green-400">
-                          Downloaded
-                          {db.file_size_bytes != null &&
-                            ` (${formatBytes(db.file_size_bytes)})`}
-                        </p>
+                        {isComplete && !bundledIncluded && (
+                          <p className="text-xs text-green-700 dark:text-green-400">
+                            Downloaded
+                            {db.file_size_bytes != null &&
+                              ` (${formatBytes(db.file_size_bytes)})`}
+                          </p>
+                        )}
                         {dbHealth?.integrity_ok === true && dbHealth.version && (
                           <span
                             className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400"
@@ -830,11 +852,15 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         Ships with Yeliztli
                       </p>
                     )}
-                    {isBundled && !bundledIncluded && !isRunning && !isPending && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Download required
-                      </p>
-                    )}
+                    {isBundled &&
+                      !bundledIncluded &&
+                      !hasIntegrityFailure &&
+                      !isRunning &&
+                      !isPending && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Download required
+                        </p>
+                      )}
                   </div>
                 </div>
               </div>

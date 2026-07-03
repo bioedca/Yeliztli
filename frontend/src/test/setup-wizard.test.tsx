@@ -1991,6 +1991,90 @@ describe('DatabasesStep', () => {
     expect(screen.getByTestId('db-clean-clinvar')).toBeInTheDocument()
   })
 
+  it('surfaces integrity failure controls for a corrupt bundled DB', async () => {
+    routeDatabasesFetch({
+      list: mockDatabaseList({
+        databases: [
+          {
+            name: 'gnomad',
+            display_name: 'gnomAD',
+            description: 'Population allele frequencies',
+            filename: 'gnomad_af.db',
+            expected_size_bytes: 1_300_000_000,
+            required: true,
+            phase: 2,
+            downloaded: true,
+            file_size_bytes: 1_300_000_000,
+            build_mode: 'bundled',
+          },
+        ],
+        downloaded_count: 1,
+        total_count: 1,
+      }),
+      health: {
+        databases: [
+          {
+            name: 'gnomad',
+            state: 'corrupt',
+            integrity_ok: false,
+            integrity_detail: 'gnomad_af table is empty',
+            can_clean: true,
+            can_verify: true,
+          },
+        ],
+      },
+    })
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    expect(
+      await screen.findByTestId('db-integrity-failed-gnomad'),
+    ).toHaveTextContent('gnomad_af table is empty')
+    expect(screen.getByTestId('db-clean-gnomad')).toBeInTheDocument()
+    expect(screen.queryByText('Included')).not.toBeInTheDocument()
+    expect(screen.queryByText('Download required')).not.toBeInTheDocument()
+  })
+
+  it('does not expose generic resume for bundled partial downloads', async () => {
+    routeDatabasesFetch({
+      list: mockDatabaseList({
+        databases: [
+          {
+            name: 'gnomad',
+            display_name: 'gnomAD',
+            description: 'Population allele frequencies',
+            filename: 'gnomad_af.db',
+            expected_size_bytes: 1_300_000_000,
+            required: true,
+            phase: 2,
+            downloaded: false,
+            file_size_bytes: null,
+            build_mode: 'bundled',
+          },
+        ],
+        downloaded_count: 0,
+        total_count: 1,
+      }),
+      health: {
+        databases: [
+          {
+            name: 'gnomad',
+            state: 'partial',
+            resumable: true,
+            can_resume: true,
+            progress_pct: 30,
+          },
+        ],
+      },
+    })
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    expect(await screen.findByTestId('db-checkbox-gnomad')).toBeChecked()
+    expect(screen.queryByTestId('db-resume-gnomad')).not.toBeInTheDocument()
+    expect(screen.getByText('Download required')).toBeInTheDocument()
+  })
+
   it('Clean & re-download re-downloads only the cleaned DB (not the stale set)', async () => {
     routeDatabasesFetch({
       list: downloadedClinvar(),
