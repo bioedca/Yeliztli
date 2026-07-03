@@ -200,8 +200,7 @@ def _pick_best(
                 ref=getattr(row, "ref", None),
                 alt=getattr(row, "alt", None),
                 allele_unambiguous=bool(
-                    allele_unambiguous_by_key
-                    and allele_unambiguous_by_key.get(str(key), False)
+                    allele_unambiguous_by_key and allele_unambiguous_by_key.get(str(key), False)
                 ),
             )
             best_score[key] = score
