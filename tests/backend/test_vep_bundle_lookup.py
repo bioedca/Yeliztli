@@ -483,6 +483,59 @@ class TestLookupByPositions:
         # Ambiguous: multiple rsids at same position, should be skipped
         assert len(result) == 0
 
+    def test_multiallelic_position_uses_carried_alt(
+        self,
+        vep_engine_inmemory: sa.Engine,
+    ) -> None:
+        """Coordinate fallback also filters same-rsid multi-ALT rows by genotype."""
+        _insert_vep_rows(
+            vep_engine_inmemory,
+            [
+                {
+                    "rsid": "rs_bundle_multi",
+                    "chrom": "1",
+                    "pos": 103,
+                    "ref": "A",
+                    "alt": "C",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_C",
+                    "consequence": "synonymous_variant",
+                    "hgvs_coding": "c.3A>C",
+                    "hgvs_protein": "p.=",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+                {
+                    "rsid": "rs_bundle_multi",
+                    "chrom": "1",
+                    "pos": 103,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_G",
+                    "consequence": "stop_gained",
+                    "hgvs_coding": "c.3A>G",
+                    "hgvs_protein": "p.Ter",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+            ],
+        )
+
+        result = lookup_vep_by_positions(
+            [("1", 103, "internal_probe")],
+            vep_engine_inmemory,
+            genotype_by_rsid={"internal_probe": "AC"},
+        )
+
+        assert result["internal_probe"].transcript_id == "ENST_C"
+        assert result["internal_probe"].consequence == "synonymous_variant"
+        assert result["internal_probe"].alt == "C"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # MANE Select & severity preference

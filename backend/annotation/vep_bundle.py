@@ -411,7 +411,7 @@ def lookup_vep_by_positions(
 
             where = " OR ".join(clauses)
             stmt = sa.text(
-                f"SELECT {_VEP_COLS}, chrom, pos "  # noqa: S608
+                f"SELECT {_VEP_COLS}, chrom, pos, ref, alt "  # noqa: S608
                 f"FROM vep_annotations WHERE {where}"
             )
             rows = conn.execute(stmt, params).fetchall()
