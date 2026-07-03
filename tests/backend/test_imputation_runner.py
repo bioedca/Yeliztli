@@ -24,6 +24,7 @@ from backend.analysis.imputation_runner import (
     parse_imputed_vcf,
     summarize_dr2,
 )
+from backend.annotation.imputation_panel_af import PanelAfLookup, panel_af_path
 
 # Real Beagle 5.5 output shape (verified via a live imputation run 2026-06-26):
 # DR2 / target-sample AF are Number=A (per-ALT); IMP flags ref-only (imputed)
@@ -79,6 +80,38 @@ class TestParse:
         assert by_id[(20000500, "A")].af is None
         assert by_id[(20000500, "T")].af is None
         assert by_id[(20000500, "T")].imputed is True
+
+    def test_joins_reference_panel_af_by_exact_allele(self, tmp_path: Path) -> None:
+        _write_gz(
+            panel_af_path(tmp_path, "22"),
+            "chrom\tpos\tref\talt\taf\n"
+            "22\t20000146\tG\tA\t0.30\n"
+            "22\t20000500\tC\tA\t0.05\n"
+            "22\t20000500\tC\tT\t0.002\n",
+        )
+        vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)
+
+        by_id = {
+            (v.pos, v.alt): v for v in parse_imputed_vcf(vcf, panel_af=PanelAfLookup(tmp_path))
+        }
+
+        assert by_id[(20000146, "A")].af == 0.30  # panel AF, not Beagle AF=0.01
+        assert by_id[(20000428, "T")].af is None  # typed marker: firewall does not need it
+        assert by_id[(20000500, "A")].af == 0.05
+        assert by_id[(20000500, "T")].af == 0.002
+
+    def test_missing_panel_lookup_never_falls_back_to_target_af(self, tmp_path: Path) -> None:
+        _write_gz(
+            panel_af_path(tmp_path, "22"),
+            "chrom\tpos\tref\talt\taf\n22\t999999\tG\tA\t0.40\n",
+        )
+        vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)
+
+        by_id = {
+            (v.pos, v.alt): v for v in parse_imputed_vcf(vcf, panel_af=PanelAfLookup(tmp_path))
+        }
+
+        assert by_id[(20000146, "A")].af is None  # Beagle AF=0.01 is not a fallback.
 
     def test_parses_per_alt_ds_dosage(self, tmp_path: Path) -> None:
         vcf = _write_gz(tmp_path / "imp.vcf.gz", _IMPUTED_VCF)

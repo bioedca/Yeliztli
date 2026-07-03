@@ -22,6 +22,7 @@ from backend.analysis.imputation_persist import (
     persist_imputed_variants,
 )
 from backend.analysis.imputation_runner import ImputationRunner, ImputedVariant
+from backend.annotation.imputation_panel_af import panel_af_path
 from backend.db.tables import annotated_variants, imputed_variants
 
 
@@ -142,6 +143,21 @@ _FAKE_IMPUTED_VCF = (
     "22\t400\trs4\tT\tC\t.\tPASS\tDR2=1.00;AF=0.40\tGT:DS\t0|1:1\n"  # typed (no IMP)
 )
 
+_FAKE_IMPUTED_VCF_WITH_PANEL_AF = (
+    "##fileformat=VCFv4.2\n"
+    '##INFO=<ID=AF,Number=A,Type=Float,Description="Estimated ALT Allele Frequencies">\n'
+    '##INFO=<ID=DR2,Number=A,Type=Float,Description="Dosage R-Squared">\n'
+    '##INFO=<ID=IMP,Number=0,Type=Flag,Description="Imputed marker">\n'
+    '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
+    '##FORMAT=<ID=DS,Number=A,Type=Float,Description="estimated ALT dose">\n'
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+    # Target AF=1.0 would look rare if used; panel AF=0.20 below makes it pass.
+    "22\t100\trsCommon\tG\tA\t.\tPASS\tDR2=0.95;AF=1.0;IMP\tGT:DS\t1|1:2\n"
+    "22\t200\trsLowDr2\tC\tT\t.\tPASS\tDR2=0.50;AF=0.20;IMP\tGT:DS\t0|0:0\n"
+    # Target AF=0.5 would pass if used; panel AF=0.002 below makes it rare.
+    "22\t300\trsRare\tA\tG\t.\tPASS\tDR2=0.99;AF=0.50;IMP\tGT:DS\t0|1:1\n"
+)
+
 
 def _stub_panel_and_jar(tmp_path: Path, *, chroms: tuple[str, ...] = ("22",)) -> tuple[Path, Path]:
     jar = tmp_path / "lai" / "beagle" / "beagle.jar"
@@ -153,6 +169,12 @@ def _stub_panel_and_jar(tmp_path: Path, *, chroms: tuple[str, ...] = ("22",)) ->
         (panel / f"chr{c}.1kg.phase3.v5a.b37.bref3").touch()
         (panel / f"plink.chr{c}.GRCh37.map").touch()
     return panel, jar
+
+
+def _write_panel_af(panel: Path, chrom: str, rows: str) -> None:
+    with gzip.open(panel_af_path(panel, chrom), "wt", encoding="utf-8") as fh:
+        fh.write("chrom\tpos\tref\talt\taf\n")
+        fh.write(rows)
 
 
 class TestImputeAndPersistSample:
@@ -202,6 +224,58 @@ class TestImputeAndPersistSample:
 
         rows = _read_rows(sample_engine)
         assert rows == []
+
+    def test_end_to_end_beagle_uses_panel_af_for_firewall(
+        self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert(),
+                [
+                    {
+                        "rsid": "rsIn",
+                        "chrom": "22",
+                        "pos": 500,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "zygosity": "het",
+                    }
+                ],
+            )
+
+        def fake_run(cmd, **_kw):  # noqa: ANN001, ANN202
+            out_prefix = next(a.split("=", 1)[1] for a in cmd if a.startswith("out="))
+            with gzip.open(Path(out_prefix + ".vcf.gz"), "wt", encoding="utf-8") as fh:
+                fh.write(_FAKE_IMPUTED_VCF_WITH_PANEL_AF)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(ir_mod.subprocess, "run", fake_run)
+        panel, jar = _stub_panel_and_jar(tmp_path)
+        _write_panel_af(
+            panel,
+            "22",
+            "22\t100\tG\tA\t0.20\n"  # common hom-alt passes
+            "22\t200\tC\tT\t0.20\n"  # still low_dr2
+            "22\t300\tA\tG\t0.002\n",  # rare het quarantines
+        )
+
+        result = impute_and_persist_sample(
+            sample_engine,
+            tmp_path / "work",
+            panel_dir=panel,
+            beagle_jar=jar,
+            chromosomes=("22",),
+        )
+
+        assert result.n_imputed == 3
+        assert result.n_persisted == 1
+        assert result.firewall.n_reportable == 1
+        assert result.firewall.quarantine_reasons == {"low_dr2": 1, "imputed_rare": 1}
+        rows = _read_rows(sample_engine)
+        assert [(r["pos"], r["af"], r["dosage"], r["best_guess_copies"]) for r in rows] == [
+            (100, 0.20, 2.0, 2)
+        ]
 
     def test_x_region_units_are_imputed_with_beagle_intervals(
         self, sample_engine: sa.Engine, tmp_path: Path, monkeypatch

@@ -32,6 +32,7 @@ from backend.analysis.imputation_runner import (
     summarize_dr2,
 )
 from backend.annotation.imputation_panel import PANEL_CHROMOSOMES
+from backend.annotation.imputation_panel_af import PanelAfLookup
 from backend.db.connection import get_registry
 
 
@@ -97,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     runner = ImputationRunner.from_settings(
         registry.settings, java_mem=args.java_mem, nthreads=args.nthreads
     )
+    panel_af = PanelAfLookup(registry.settings.imputation_panel_dir)
 
     total = ImputationSummary()
     fw_total = FirewallSummary()
@@ -120,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         # Materialize once: both the DR2 quality summary and the SW-C3 firewall
         # consume the same per-ALT records.
-        variants = list(parse_imputed_vcf(res.output_vcf))
+        variants = list(parse_imputed_vcf(res.output_vcf, panel_af=panel_af))
         s = summarize_dr2(variants)
         fw = summarize_firewall(variants)
         total.n_total += s.n_total

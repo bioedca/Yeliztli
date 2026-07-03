@@ -48,6 +48,7 @@ from backend.analysis.imputation_runner import (
     parse_imputed_vcf,
     summarize_dr2,
 )
+from backend.annotation.imputation_panel_af import PanelAfLookup
 from backend.db.tables import imputed_variants
 
 logger = structlog.get_logger(__name__)
@@ -140,6 +141,7 @@ def impute_and_persist_sample(
     )
 
     runner = ImputationRunner(panel_dir, beagle_jar, java_mem=java_mem, nthreads=nthreads)
+    panel_af = PanelAfLookup(panel_dir)
     out_dir = work_dir / "imputed"
     all_variants: list[ImputedVariant] = []
     chrom_results: list[ImputationChromResult] = []
@@ -154,7 +156,7 @@ def impute_and_persist_sample(
         )
         chrom_results.append(res)
         if res.return_ok and res.output_vcf is not None:
-            all_variants.extend(parse_imputed_vcf(res.output_vcf))
+            all_variants.extend(parse_imputed_vcf(res.output_vcf, panel_af=panel_af))
 
     quality = summarize_dr2(all_variants)
     quality.chrom_runtimes = {r.chrom: r.runtime_seconds for r in chrom_results if r.return_ok}

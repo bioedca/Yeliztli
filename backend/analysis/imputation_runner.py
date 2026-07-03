@@ -38,7 +38,7 @@ import re
 import subprocess
 import time
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import structlog
@@ -46,6 +46,7 @@ import structlog
 from backend.analysis.imputation_vcf import ImputedVariant, parse_engine_vcf
 from backend.analysis.imputation_vcf import normalize_chrom as _normalize_chrom
 from backend.annotation.imputation_panel import panel_bref3_path, panel_map_path
+from backend.annotation.imputation_panel_af import PanelAfLookup
 
 __all__ = [
     "DEFAULT_JAVA_MEM",
@@ -87,15 +88,28 @@ def beagle_jar_path(lai_bundle_dir: Path) -> Path:
     return Path(lai_bundle_dir) / "beagle" / "beagle.jar"
 
 
-def parse_imputed_vcf(vcf_path: Path) -> Iterator[ImputedVariant]:
+def parse_imputed_vcf(
+    vcf_path: Path, *, panel_af: PanelAfLookup | None = None
+) -> Iterator[ImputedVariant]:
     """Yield :class:`ImputedVariant` per ALT from a Beagle imputed VCF (gz or plain).
 
     Beagle-specialised wrapper over
     :func:`backend.analysis.imputation_vcf.parse_engine_vcf`: quality ``DR2``,
     no population/reference-panel AF key (Beagle ``AF`` is target-sample AF), and
-    imputed markers flagged by ``IMP``.
+    imputed markers flagged by ``IMP``. When ``panel_af`` is provided, imputed ALT
+    alleles are joined to an external 1000G reference-panel AF source by exact
+    normalized ``chrom/pos/ref/alt``; missing or ambiguous lookups stay ``None``
+    so the firewall fails closed.
     """
-    return parse_engine_vcf(vcf_path, quality_key="DR2", af_key=None, imputed_flag_key="IMP")
+    for variant in parse_engine_vcf(
+        vcf_path, quality_key="DR2", af_key=None, imputed_flag_key="IMP"
+    ):
+        if panel_af is not None and variant.imputed:
+            af = panel_af.lookup(variant.chrom, variant.pos, variant.ref, variant.alt)
+            if af is not None:
+                yield replace(variant, af=af)
+                continue
+        yield variant
 
 
 @dataclass
