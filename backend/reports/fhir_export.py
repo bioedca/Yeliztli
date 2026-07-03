@@ -48,12 +48,16 @@ logger = structlog.get_logger(__name__)
 
 HGNC_SYSTEM = "http://www.genenames.org"
 DBSNP_SYSTEM = "http://www.ncbi.nlm.nih.gov/snp"
+NCBI_NUCCORE_SYSTEM = "https://www.ncbi.nlm.nih.gov/nuccore"
 SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
+
+FHIR_GENOME_BUILD = "GRCh37/hg19"
 
 # LOINC codes for genomics reporting
 LOINC_MASTER_PANEL = "81247-9"  # Master HL7 genetic variant reporting panel
 LOINC_VARIANT_ASSESSMENT = "69548-6"  # Genetic variant assessment
 LOINC_GENE_STUDIED = "48018-6"  # Gene studied [ID]
+LOINC_GENOMIC_REF_SEQ = "48013-7"  # Genomic reference sequence [ID]
 LOINC_GENOMIC_COORD_SYSTEM = "92822-6"  # Genomic coordinate system
 LOINC_VARIANT_EXACT_START = "81254-5"  # Genomic structural variant start
 LOINC_REF_ALLELE = "69547-8"  # Genomic ref allele [ID]
@@ -61,6 +65,34 @@ LOINC_ALT_ALLELE = "69551-0"  # Genomic alt allele [ID]
 LOINC_DBSNP_ID = "81255-2"  # dbSNP [ID]
 LOINC_CLINVAR_SIGNIFICANCE = "53037-8"  # Genetic variation clinical significance
 LOINC_POPULATION_AF = "92821-8"  # Allelic frequency in Population
+
+_GRCH37_REFSEQ_BY_CHROM: dict[str, str] = {
+    "1": "NC_000001.10",
+    "2": "NC_000002.11",
+    "3": "NC_000003.11",
+    "4": "NC_000004.11",
+    "5": "NC_000005.9",
+    "6": "NC_000006.11",
+    "7": "NC_000007.13",
+    "8": "NC_000008.10",
+    "9": "NC_000009.11",
+    "10": "NC_000010.10",
+    "11": "NC_000011.9",
+    "12": "NC_000012.11",
+    "13": "NC_000013.10",
+    "14": "NC_000014.8",
+    "15": "NC_000015.9",
+    "16": "NC_000016.9",
+    "17": "NC_000017.10",
+    "18": "NC_000018.9",
+    "19": "NC_000019.9",
+    "20": "NC_000020.10",
+    "21": "NC_000021.8",
+    "22": "NC_000022.10",
+    "X": "NC_000023.10",
+    "Y": "NC_000024.9",
+    "MT": "NC_012920.1",
+}
 
 # Research-use caveat embedded in the bundle so it travels with the exported file
 # (#1291). A FHIR DiagnosticReport is the resource clinical systems ingest as a lab
@@ -182,6 +214,32 @@ def _gene_studied_value(row: dict[str, Any]) -> dict[str, Any]:
     return {"valueString": gene_symbol}
 
 
+def _reference_sequence_text(chrom: Any) -> str:
+    chrom_label = norm_chrom_label(chrom)
+    if chrom_label is None:
+        return FHIR_GENOME_BUILD
+
+    display_chrom = "M" if chrom_label == "MT" else chrom_label
+    return f"{FHIR_GENOME_BUILD} chr{display_chrom}"
+
+
+def _genomic_reference_sequence_value(row: dict[str, Any]) -> dict[str, Any]:
+    chrom_label = norm_chrom_label(row.get("chrom"))
+    text = _reference_sequence_text(row.get("chrom"))
+    refseq_accession = None if chrom_label is None else _GRCH37_REFSEQ_BY_CHROM.get(chrom_label)
+    if refseq_accession is None:
+        return {"valueString": text}
+
+    return {
+        "valueCodeableConcept": _codeable_concept(
+            NCBI_NUCCORE_SYSTEM,
+            refseq_accession,
+            text,
+            text=text,
+        )
+    }
+
+
 def _variant_to_observation(
     row: dict[str, Any],
     *,
@@ -222,6 +280,19 @@ def _variant_to_observation(
             },
         )
     )
+
+    # Reference sequence/build for any coordinate-bearing Observation. The
+    # exporter is GRCh37/hg19-native, so the exact-start coordinate is ambiguous
+    # without a colocated build/reference sequence marker (#1407).
+    if row.get("pos") is not None:
+        components.append(
+            _component(
+                LOINC_SYSTEM,
+                LOINC_GENOMIC_REF_SEQ,
+                "Genomic reference sequence [ID]",
+                _genomic_reference_sequence_value(row),
+            )
+        )
 
     # Exact start position
     if row.get("pos") is not None:

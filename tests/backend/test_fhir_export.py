@@ -24,12 +24,16 @@ from backend.db.tables import (
     samples,
 )
 from backend.reports.fhir_export import (
+    FHIR_GENOME_BUILD,
     HGNC_SYSTEM,
     LOINC_ALLELIC_STATE,
     LOINC_CLINVAR_SIGNIFICANCE,
     LOINC_GENE_STUDIED,
+    LOINC_GENOMIC_REF_SEQ,
     LOINC_POPULATION_AF,
     LOINC_SYSTEM,
+    LOINC_VARIANT_EXACT_START,
+    NCBI_NUCCORE_SYSTEM,
     _clinical_significance_value,
     _variant_to_observation,
 )
@@ -488,11 +492,52 @@ class TestFhirObservations:
         resp = tc.post("/api/export/fhir", json={"sample_id": sid})
         bundle = resp.json()
         obs = bundle["entry"][1]["resource"]
-        pos_components = [
-            c for c in obs["component"] if c["code"]["coding"][0]["code"] == "81254-5"
-        ]
+        pos_components = _components_by_code(obs, LOINC_VARIANT_EXACT_START)
         assert len(pos_components) == 1
         assert "valueInteger" in pos_components[0]
+
+    def test_coordinate_observations_carry_reference_sequence_build(self) -> None:
+        for row in ANNOTATED_VARIANTS:
+            _full_url, obs = _variant_to_observation(row)
+            if not _components_by_code(obs, LOINC_VARIANT_EXACT_START):
+                continue
+
+            refseq_components = _components_by_code(obs, LOINC_GENOMIC_REF_SEQ)
+            assert len(refseq_components) == 1
+            value = refseq_components[0]["valueCodeableConcept"]
+            assert value["text"].startswith(FHIR_GENOME_BUILD)
+            assert value["coding"][0]["system"] == NCBI_NUCCORE_SYSTEM
+
+    def test_observation_reference_sequence_is_chromosome_specific(self) -> None:
+        _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
+
+        value = _components_by_code(obs, LOINC_GENOMIC_REF_SEQ)[0]["valueCodeableConcept"]
+
+        assert value["text"] == "GRCh37/hg19 chr1"
+        assert value["coding"] == [
+            {
+                "system": NCBI_NUCCORE_SYSTEM,
+                "code": "NC_000001.10",
+                "display": "GRCh37/hg19 chr1",
+            }
+        ]
+
+    def test_observation_reference_sequence_handles_mitochondrial_label(self) -> None:
+        row = {
+            "rsid": "rs_mt_test",
+            "chrom": "chrM",
+            "pos": 73,
+            "ref": "A",
+            "alt": "G",
+            "genotype": "G",
+            "zygosity": "hom_alt",
+            "gene_symbol": "MT-TF",
+        }
+        _full_url, obs = _variant_to_observation(row)
+        value = _components_by_code(obs, LOINC_GENOMIC_REF_SEQ)[0]["valueCodeableConcept"]
+
+        assert value["text"] == "GRCh37/hg19 chrM"
+        assert value["coding"][0]["code"] == "NC_012920.1"
 
     def test_observation_has_allelic_state(self, client) -> None:
         tc, sid = client
