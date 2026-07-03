@@ -2168,6 +2168,180 @@ describe('DatabasesStep', () => {
     expect(screen.getByTestId('db-fail-resume-clinvar')).toBeInTheDocument()
     vi.unstubAllGlobals()
   })
+
+  it('disables failed-row recovery actions while another database is still downloading', async () => {
+    const databases = [
+      {
+        name: 'resume_db',
+        display_name: 'Resume DB',
+        description: 'Failed with resumable partial',
+        filename: 'resume.db',
+        expected_size_bytes: 100_000_000,
+        required: true,
+        phase: 1,
+        downloaded: false,
+        file_size_bytes: null,
+        build_mode: 'pipeline',
+      },
+      {
+        name: 'clean_db',
+        display_name: 'Clean DB',
+        description: 'Failed with corrupt partial',
+        filename: 'clean.db',
+        expected_size_bytes: 100_000_000,
+        required: true,
+        phase: 1,
+        downloaded: false,
+        file_size_bytes: null,
+        build_mode: 'pipeline',
+      },
+      {
+        name: 'retry_db',
+        display_name: 'Retry DB',
+        description: 'Failed without resumable partial',
+        filename: 'retry.db',
+        expected_size_bytes: 100_000_000,
+        required: true,
+        phase: 1,
+        downloaded: false,
+        file_size_bytes: null,
+        build_mode: 'pipeline',
+      },
+      {
+        name: 'running_db',
+        display_name: 'Running DB',
+        description: 'Still downloading',
+        filename: 'running.db',
+        expected_size_bytes: 100_000_000,
+        required: true,
+        phase: 1,
+        downloaded: false,
+        file_size_bytes: null,
+        build_mode: 'pipeline',
+      },
+    ]
+
+    routeDatabasesFetch({
+      list: mockDatabaseList({
+        databases,
+        total_size_bytes: 400_000_000,
+        downloaded_count: 0,
+        total_count: 4,
+      }),
+      download: {
+        body: {
+          session_id: 's1',
+          downloads: databases.map((db) => ({
+            db_name: db.name,
+            job_id: `j-${db.name}`,
+          })),
+        },
+      },
+      health: {
+        databases: [
+          {
+            name: 'resume_db',
+            state: 'partial',
+            resumable: true,
+            can_resume: true,
+            progress_pct: 30,
+          },
+          {
+            name: 'clean_db',
+            state: 'corrupt',
+            resumable: false,
+            can_clean: true,
+          },
+        ],
+      },
+    })
+    const getHandler = stubEventSource()
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await waitFor(() =>
+      expect(screen.getByText('Download Selected')).toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByText('Download Selected'))
+    await waitFor(() => expect(getHandler()).not.toBeNull())
+
+    act(() => {
+      getHandler()!(
+        new MessageEvent('progress', {
+          data: JSON.stringify({
+            session_id: 's1',
+            databases: [
+              {
+                db_name: 'resume_db',
+                job_id: 'j-resume_db',
+                status: 'failed',
+                progress_pct: 30,
+                message: 'Failed',
+                error: 'Connection reset',
+                total_bytes: 100_000_000,
+                downloaded_bytes: 30_000_000,
+                speed_bps: null,
+                eta_seconds: null,
+              },
+              {
+                db_name: 'clean_db',
+                job_id: 'j-clean_db',
+                status: 'failed',
+                progress_pct: 0,
+                message: 'Failed',
+                error: 'Checksum mismatch',
+                total_bytes: 100_000_000,
+                downloaded_bytes: 100_000_000,
+                speed_bps: null,
+                eta_seconds: null,
+              },
+              {
+                db_name: 'retry_db',
+                job_id: 'j-retry_db',
+                status: 'failed',
+                progress_pct: 0,
+                message: 'Failed',
+                error: 'Server unavailable',
+                total_bytes: 100_000_000,
+                downloaded_bytes: 0,
+                speed_bps: null,
+                eta_seconds: null,
+              },
+              {
+                db_name: 'running_db',
+                job_id: 'j-running_db',
+                status: 'running',
+                progress_pct: 40,
+                message: 'Downloading',
+                error: null,
+                total_bytes: 100_000_000,
+                downloaded_bytes: 40_000_000,
+                speed_bps: 1_000_000,
+                eta_seconds: 60,
+              },
+            ],
+            aggregate: {
+              total_bytes: 400_000_000,
+              downloaded_bytes: 170_000_000,
+              remaining_bytes: 230_000_000,
+              overall_pct: 42.5,
+              speed_bps: 1_000_000,
+              eta_seconds: 60,
+              size_unknown_count: 0,
+            },
+          }),
+        }),
+      )
+    })
+
+    expect(await screen.findByTestId('db-fail-resume-resume_db')).toBeDisabled()
+    expect(screen.getByTestId('db-fail-clean-clean_db')).toBeDisabled()
+    expect(screen.getByTestId('db-fail-retry-retry_db')).toBeDisabled()
+    expect(screen.getByRole('progressbar', { name: /running db/i })).toHaveAttribute(
+      'aria-valuenow',
+      '40',
+    )
+    vi.unstubAllGlobals()
+  })
 })
 
 // ─── UploadStep tests ─────────────────────────────────────────────

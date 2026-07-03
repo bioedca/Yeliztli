@@ -713,10 +713,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                             <button
                               type="button"
                               onClick={() => handleResume(db.name)}
+                              disabled={isDownloading}
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-md border border-amber-400 px-2 py-1 text-xs font-medium',
                                 'text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30',
                                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                'disabled:cursor-not-allowed disabled:opacity-60',
                               )}
                               data-testid={`db-fail-resume-${db.name}`}
                             >
@@ -727,10 +729,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                             <button
                               type="button"
                               onClick={() => handleCleanAndRetry(db.name)}
+                              disabled={isDownloading}
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2 py-1 text-xs font-medium',
                                 'text-destructive hover:bg-destructive/10',
                                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                'disabled:cursor-not-allowed disabled:opacity-60',
                               )}
                               data-testid={`db-fail-clean-${db.name}`}
                             >
@@ -741,10 +745,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                             <button
                               type="button"
                               onClick={handleRetry}
+                              disabled={isDownloading}
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium',
                                 'text-foreground hover:bg-accent',
                                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                'disabled:cursor-not-allowed disabled:opacity-60',
                               )}
                               data-testid={`db-fail-retry-${db.name}`}
                             >
