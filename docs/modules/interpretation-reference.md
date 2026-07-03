@@ -16,15 +16,15 @@ frameworks:
 | Rating | Roughly corresponds to |
 |--------|------------------------|
 | ★★★★ | ClinVar **Pathogenic / Likely-Pathogenic** with a reviewed (2+ star) status, **CPIC Level A**, or a **genome-wide-significant** GWAS association with a very large effect size (for example, odds ratio > 5) |
-| ★★★ | ClinVar **Pathogenic / Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated** GWAS association |
+| ★★★ | ClinVar **Pathogenic / Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated, genome-wide-significant** GWAS association |
 | ★★ | A **variant of uncertain significance** with functional support, a single **genome-wide-significant** GWAS association without independent replication, or PharmGKB level 2A/2B |
 | ★ | A single study, a candidate-gene association, or PharmGKB level 3/4 |
 
 For GWAS findings, the conventional p < 5×10⁻⁸ threshold controls genome-wide multiple
 testing, but it does not by itself make an association definitive. Yeliztli reserves higher
-GWAS tiers for independent replication or genome-wide significance plus a very large effect
-size, consistent with GWAS guidance emphasizing analytic rigor, replication, and false-positive
-control [1,2].
+GWAS tiers for genome-wide significance plus independent replication, or for genome-wide
+significance plus a very large effect size under Yeliztli's tiering rule. The cited GWAS papers
+support the p-value, replication, and false-positive-control rationale [1,2].
 
 Two rules keep weak signals from looking strong:
 

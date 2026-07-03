@@ -26,14 +26,15 @@ Every analysis module produces **findings**, and each finding carries an **evide
 | Rating | Roughly means |
 |--------|---------------|
 | ★★★★ | Strong clinical evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (reviewed), CPIC Level A, or genome-wide-significant GWAS with a very large effect size. |
-| ★★★ | Good evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (single submitter), CPIC Level B, or replicated GWAS. |
+| ★★★ | Good evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (single submitter), CPIC Level B, or replicated, genome-wide-significant GWAS. |
 | ★★ | Moderate — e.g. a variant of uncertain significance with functional support, or a single genome-wide-significant GWAS association without independent replication. |
 | ★ | Weak/preliminary — e.g. a single study or candidate-gene association. |
 
 For GWAS findings, genome-wide significance addresses multiple testing, but Yeliztli does not
-treat a single significant association as definitive unless it is replicated or has an unusually
-large effect size. That matches GWAS guidance emphasizing replication and false-positive control
-[1,2].
+treat a single significant association as definitive. Higher GWAS tiers require genome-wide
+significance plus independent replication, or genome-wide significance plus a very large effect
+size under Yeliztli's tiering rule. The cited GWAS papers support the p-value, replication, and
+false-positive-control rationale [1,2].
 
 The **[module reference](../modules/index.md)** explains what each module reports and how to
 interpret it. Some modules (wellness/trait scores) are intentionally **capped** at lower
