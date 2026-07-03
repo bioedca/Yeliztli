@@ -25,10 +25,15 @@ Every analysis module produces **findings**, and each finding carries an **evide
 
 | Rating | Roughly means |
 |--------|---------------|
-| ★★★★ | Strong clinical evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (reviewed), CPIC Level A, or genome-wide-significant GWAS. |
+| ★★★★ | Strong clinical evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (reviewed), CPIC Level A, or genome-wide-significant GWAS with a very large effect size. |
 | ★★★ | Good evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (single submitter), CPIC Level B, or replicated GWAS. |
-| ★★ | Moderate — e.g. a variant of uncertain significance with functional support, or a single large GWAS. |
+| ★★ | Moderate — e.g. a variant of uncertain significance with functional support, or a single genome-wide-significant GWAS association without independent replication. |
 | ★ | Weak/preliminary — e.g. a single study or candidate-gene association. |
+
+For GWAS findings, genome-wide significance addresses multiple testing, but Yeliztli does not
+treat a single significant association as definitive unless it is replicated or has an unusually
+large effect size. That matches GWAS guidance emphasizing replication and false-positive control
+[1,2].
 
 The **[module reference](../modules/index.md)** explains what each module reports and how to
 interpret it. Some modules (wellness/trait scores) are intentionally **capped** at lower
@@ -64,3 +69,9 @@ From here you can dig into individual variants in the
 **[Variant Explorer](../features/variant-explorer.md)**, visualise them in the
 **[Genome Browser](../features/genome-browser.md)**, build **[custom queries](../features/query-builder.md)**,
 and generate **[PDF reports](../features/reports.md)**.
+
+## References
+
+[1] Barsh GS, Copenhaver GP, Gibson G, Williams SM. [Guidelines for Genome-Wide Association Studies](https://doi.org/10.1371/journal.pgen.1002812). *PLOS Genetics*. 2012;8(7):e1002812.
+
+[2] Chen Z, Boehnke M, Wen X, Mukherjee B. [Revisiting the genome-wide significance threshold for common variant GWAS](https://doi.org/10.1093/g3journal/jkaa056). *G3: Genes, Genomes, Genetics*. 2021;11(2):jkaa056.

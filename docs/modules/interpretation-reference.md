@@ -15,10 +15,16 @@ frameworks:
 
 | Rating | Roughly corresponds to |
 |--------|------------------------|
-| ★★★★ | ClinVar **Pathogenic / Likely-Pathogenic** with a reviewed (2+ star) status, **CPIC Level A**, or a **genome-wide-significant** GWAS association (p < 5×10⁻⁸) |
+| ★★★★ | ClinVar **Pathogenic / Likely-Pathogenic** with a reviewed (2+ star) status, **CPIC Level A**, or a **genome-wide-significant** GWAS association with a very large effect size (for example, odds ratio > 5) |
 | ★★★ | ClinVar **Pathogenic / Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated** GWAS association |
-| ★★ | A **variant of uncertain significance** with functional support, a single large GWAS, or PharmGKB level 2A/2B |
+| ★★ | A **variant of uncertain significance** with functional support, a single **genome-wide-significant** GWAS association without independent replication, or PharmGKB level 2A/2B |
 | ★ | A single study, a candidate-gene association, or PharmGKB level 3/4 |
+
+For GWAS findings, the conventional p < 5×10⁻⁸ threshold controls genome-wide multiple
+testing, but it does not by itself make an association definitive. Yeliztli reserves higher
+GWAS tiers for independent replication or genome-wide significance plus a very large effect
+size, consistent with GWAS guidance emphasizing analytic rigor, replication, and false-positive
+control [1,2].
 
 Two rules keep weak signals from looking strong:
 
@@ -130,6 +136,12 @@ limitations.
 | Diplotype / risk genotype (gated) | APOE, Parkinson's, Sex-aneuploidy |
 | Mitochondrial / pharmacogenomic risk | LHON, MT-RNR1, G6PD, BChE |
 | Ancestry & haplogroups | Ancestry |
+
+## References
+
+[1] Barsh GS, Copenhaver GP, Gibson G, Williams SM. [Guidelines for Genome-Wide Association Studies](https://doi.org/10.1371/journal.pgen.1002812). *PLOS Genetics*. 2012;8(7):e1002812.
+
+[2] Chen Z, Boehnke M, Wen X, Mukherjee B. [Revisiting the genome-wide significance threshold for common variant GWAS](https://doi.org/10.1093/g3journal/jkaa056). *G3: Genes, Genomes, Genetics*. 2021;11(2):jkaa056.
 
 [^1]: [Principles and methods for transferring polygenic risk scores across global populations](https://consensus.app/papers/details/186416618e965ebf97cb3e095a9a217d/) (Kachuri et al., 2023, *Nature Reviews Genetics*).
 [^2]: [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).
