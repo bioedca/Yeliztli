@@ -18,11 +18,13 @@ Usage::
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
 from backend.db.tables import annotated_variants, raw_variants
 
 logger = logging.getLogger(__name__)
@@ -122,6 +124,8 @@ class VEPAnnotation:
     intron_number: int | None
     mane_select: bool
     matched_by: str  # "rsid" or "chrom_pos"
+    ref: str | None = None
+    alt: str | None = None
 
 
 @dataclass
@@ -191,10 +195,99 @@ def _pick_best(
                 intron_number=row.intron_number,
                 mane_select=mane,
                 matched_by=matched_by,
+                ref=getattr(row, "ref", None),
+                alt=getattr(row, "alt", None),
             )
             best_score[key] = score
 
     return best
+
+
+def _normal_allele(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = str(value).strip().upper()
+    return value or None
+
+
+def _normal_chrom(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = str(value).strip()
+    if value.lower().startswith("chr"):
+        value = value[3:]
+    return value or None
+
+
+AlleleIdentity = tuple[str, int, str, str]
+
+
+def _filter_rows_for_sample_allele(
+    rows: list[sa.Row],
+    *,
+    allele_identity: AlleleIdentity | None = None,
+    genotype: str | None = None,
+) -> list[sa.Row]:
+    """Keep only VEP rows whose allele can be tied to the sample.
+
+    VEP consequences are allele-specific. For a multi-ALT rsID, selecting by
+    severity alone can attach the wrong HGVS/consequence to the sample. Exact
+    sample ref/alt identity wins when available; otherwise genotype carriage is
+    used only when it resolves to one unique VEP ALT. Single-allele rsID rows
+    keep the historical behavior so ordinary homozygous-reference chip calls
+    still retain their marker annotation and downstream zygosity can be derived.
+    """
+    if not rows:
+        return []
+
+    if allele_identity is not None:
+        chrom, pos, ref, alt = allele_identity
+        ref_norm = _normal_allele(ref)
+        alt_norm = _normal_allele(alt)
+        exact_rows: list[sa.Row] = []
+        for row in rows:
+            try:
+                row_pos = int(getattr(row, "pos"))
+            except (TypeError, ValueError):
+                continue
+            if (
+                _normal_chrom(getattr(row, "chrom", None)) == _normal_chrom(chrom)
+                and row_pos == pos
+                and _normal_allele(getattr(row, "ref", None)) == ref_norm
+                and _normal_allele(getattr(row, "alt", None)) == alt_norm
+            ):
+                exact_rows.append(row)
+        return exact_rows
+
+    allele_pairs = {
+        (_normal_allele(getattr(row, "ref", None)), _normal_allele(getattr(row, "alt", None)))
+        for row in rows
+    }
+    if len(allele_pairs) <= 1:
+        return rows
+
+    if genotype:
+        carried = [
+            row
+            for row in rows
+            if classify_zygosity(
+                genotype,
+                getattr(row, "ref", None),
+                getattr(row, "alt", None),
+            )
+            in CARRIED_ZYGOSITIES
+        ]
+        carried_pairs = {
+            (
+                _normal_allele(getattr(row, "ref", None)),
+                _normal_allele(getattr(row, "alt", None)),
+            )
+            for row in carried
+        }
+        if len(carried_pairs) == 1:
+            return carried
+
+    return []
 
 
 # ── VEP bundle SQL fragments ─────────────────────────────────────────────
@@ -214,16 +307,25 @@ _VEP_COLS = (
 def lookup_vep_by_rsids(
     rsids: list[str],
     vep_engine: sa.Engine,
+    *,
+    genotype_by_rsid: Mapping[str, str] | None = None,
+    allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Look up VEP annotations for a batch of rsids.
 
     When multiple records share the same rsid (e.g. multiple transcripts),
     the record marked MANE Select is preferred, with ties broken by the
-    most-severe consequence.
+    most-severe consequence. If one rsid has multiple VEP ref/alt allele
+    identities, selection is allele-aware: exact sample ref/alt identity wins
+    when supplied, otherwise the sample genotype must carry one unique ALT.
 
     Args:
         rsids: List of rsid strings (e.g. ``["rs429358", "rs7412"]``).
         vep_engine: SQLAlchemy engine for ``vep_bundle.db``.
+        genotype_by_rsid: Optional sample genotype map used to resolve
+            multi-allelic rsids to the carried VEP ALT.
+        allele_by_rsid: Optional map of rsid → ``(chrom, pos, ref, alt)`` for
+            callers that have exact variant identity.
 
     Returns:
         Dict mapping rsid to the best :class:`VEPAnnotation`.
@@ -242,12 +344,26 @@ def lookup_vep_by_rsids(
             params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
 
             stmt = sa.text(
-                f"SELECT {_VEP_COLS} FROM vep_annotations "  # noqa: S608
+                f"SELECT {_VEP_COLS}, chrom, pos, ref, alt FROM vep_annotations "  # noqa: S608
                 f"WHERE rsid IN ({placeholders})"
             )
             rows = conn.execute(stmt, params).fetchall()
 
-            batch_best = _pick_best(rows, matched_by="rsid")
+            rows_by_rsid: dict[str, list[sa.Row]] = {}
+            for row in rows:
+                rows_by_rsid.setdefault(row.rsid, []).append(row)
+
+            filtered_rows: list[sa.Row] = []
+            for rsid, candidate_rows in rows_by_rsid.items():
+                filtered_rows.extend(
+                    _filter_rows_for_sample_allele(
+                        candidate_rows,
+                        allele_identity=allele_by_rsid.get(rsid) if allele_by_rsid else None,
+                        genotype=genotype_by_rsid.get(rsid) if genotype_by_rsid else None,
+                    )
+                )
+
+            batch_best = _pick_best(filtered_rows, matched_by="rsid")
             results.update(batch_best)
 
     return results
@@ -256,6 +372,9 @@ def lookup_vep_by_rsids(
 def lookup_vep_by_positions(
     positions: list[tuple[str, int, str]],
     vep_engine: sa.Engine,
+    *,
+    genotype_by_rsid: Mapping[str, str] | None = None,
+    allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Fallback VEP lookup by (chrom, pos) for unmatched variants.
 
@@ -264,6 +383,10 @@ def lookup_vep_by_positions(
             third element is the sample variant's rsid, used as the dict
             key in the result.
         vep_engine: SQLAlchemy engine for ``vep_bundle.db``.
+        genotype_by_rsid: Optional sample genotype map used to resolve
+            same-rsid, multi-ALT position hits to the carried VEP ALT.
+        allele_by_rsid: Optional map of sample rsid → ``(chrom, pos, ref, alt)``
+            for callers that have exact variant identity.
 
     Returns:
         Dict mapping sample rsid to the best :class:`VEPAnnotation` for
@@ -305,7 +428,14 @@ def lookup_vep_by_positions(
                 if key not in pos_rows or sample_rsid in results:
                     continue
 
-                candidate_rows = pos_rows[key]
+                candidate_rows = _filter_rows_for_sample_allele(
+                    pos_rows[key],
+                    allele_identity=allele_by_rsid.get(sample_rsid) if allele_by_rsid else None,
+                    genotype=genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None,
+                )
+                if not candidate_rows:
+                    continue
+
                 candidate_rsids = {r.rsid for r in candidate_rows}
                 if len(candidate_rsids) > 1:
                     logger.warning(
@@ -371,16 +501,25 @@ def annotate_sample_vep(
     # Build lookup structures
     all_rsids = [r.rsid for r in raw_rows]
     raw_by_rsid = {r.rsid: r for r in raw_rows}
+    genotype_by_rsid = {r.rsid: r.genotype for r in raw_rows}
 
     # 2. Primary match: by rsid
-    rsid_matches = lookup_vep_by_rsids(all_rsids, vep_engine)
+    rsid_matches = lookup_vep_by_rsids(
+        all_rsids,
+        vep_engine,
+        genotype_by_rsid=genotype_by_rsid,
+    )
     result.matched_by_rsid = len(rsid_matches)
 
     # 3. Fallback: by (chrom, pos) for unmatched variants
     unmatched_positions = [
         (r.chrom, r.pos, r.rsid) for r in raw_rows if r.rsid not in rsid_matches
     ]
-    pos_matches = lookup_vep_by_positions(unmatched_positions, vep_engine)
+    pos_matches = lookup_vep_by_positions(
+        unmatched_positions,
+        vep_engine,
+        genotype_by_rsid=genotype_by_rsid,
+    )
     result.matched_by_position = len(pos_matches)
 
     # 4. Merge all matches

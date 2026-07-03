@@ -368,6 +368,32 @@ class TestLookupVep:
         result = _lookup_vep([], {}, vep_engine_inmemory)
         assert len(result) == 0
 
+    def test_multiallelic_rsid_uses_carried_alt(self, vep_engine_inmemory: sa.Engine) -> None:
+        """VEP consequence/HGVS selection must be allele-specific before merge."""
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid, chrom, pos, ref, alt, gene_symbol, transcript_id, "
+                    "consequence, hgvs_coding, hgvs_protein, strand, exon_number, "
+                    "intron_number, mane_select) "
+                    "VALUES "
+                    "('rs_multi', '1', 101, 'A', 'C', 'GENE', 'ENST_C', "
+                    "'synonymous_variant', 'c.1A>C', 'p.=', '+', 1, NULL, 0), "
+                    "('rs_multi', '1', 101, 'A', 'G', 'GENE', 'ENST_G', "
+                    "'stop_gained', 'c.1A>G', 'p.Ter', '+', 1, NULL, 0)"
+                )
+            )
+        raw = SimpleNamespace(rsid="rs_multi", chrom="1", pos=101, genotype="AC")
+
+        result = _lookup_vep(["rs_multi"], {"rs_multi": raw}, vep_engine_inmemory)
+
+        assert result["rs_multi"]["transcript_id"] == "ENST_C"
+        assert result["rs_multi"]["consequence"] == "synonymous_variant"
+        assert result["rs_multi"]["hgvs_coding"] == "c.1A>C"
+        assert result["rs_multi"]["_vep_ref"] == "A"
+        assert result["rs_multi"]["_vep_alt"] == "C"
+
 
 class TestLookupClinvar:
     def test_returns_clinvar_fields(self, reference_engine: sa.Engine) -> None:

@@ -146,6 +146,24 @@ SEED_RAW_VARIANTS = [
 ]
 
 
+def _insert_vep_rows(engine: sa.Engine, rows: list[dict]) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations "
+                "(rsid, chrom, pos, ref, alt, gene_symbol, "
+                "transcript_id, consequence, hgvs_coding, "
+                "hgvs_protein, strand, exon_number, "
+                "intron_number, mane_select) "
+                "VALUES (:rsid, :chrom, :pos, :ref, :alt, "
+                ":gene_symbol, :transcript_id, :consequence, "
+                ":hgvs_coding, :hgvs_protein, :strand, "
+                ":exon_number, :intron_number, :mane_select)"
+            ),
+            rows,
+        )
+
+
 @pytest.fixture
 def sample_with_variants(sample_engine: sa.Engine) -> sa.Engine:
     """Sample engine pre-loaded with known raw variants."""
@@ -271,6 +289,107 @@ class TestLookupByRsids:
         result = lookup_vep_by_rsids(rsids, vep_engine_inmemory)
         assert "rs429358" in result
         assert "rs7412" in result
+
+    def test_multiallelic_rsid_uses_carried_alt(self, vep_engine_inmemory: sa.Engine) -> None:
+        """A multi-ALT rsID must not pick a non-carried severe consequence."""
+        _insert_vep_rows(
+            vep_engine_inmemory,
+            [
+                {
+                    "rsid": "rs_multi",
+                    "chrom": "1",
+                    "pos": 101,
+                    "ref": "A",
+                    "alt": "C",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_C",
+                    "consequence": "synonymous_variant",
+                    "hgvs_coding": "c.1A>C",
+                    "hgvs_protein": "p.=",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+                {
+                    "rsid": "rs_multi",
+                    "chrom": "1",
+                    "pos": 101,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_G",
+                    "consequence": "stop_gained",
+                    "hgvs_coding": "c.1A>G",
+                    "hgvs_protein": "p.Ter",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+            ],
+        )
+
+        result = lookup_vep_by_rsids(
+            ["rs_multi"],
+            vep_engine_inmemory,
+            genotype_by_rsid={"rs_multi": "AC"},
+        )
+
+        assert result["rs_multi"].transcript_id == "ENST_C"
+        assert result["rs_multi"].consequence == "synonymous_variant"
+        assert result["rs_multi"].alt == "C"
+
+    def test_multiallelic_rsid_without_carried_alt_is_unmatched(
+        self,
+        vep_engine_inmemory: sa.Engine,
+    ) -> None:
+        """Ambiguous multi-ALT rsIDs must not fall back to severity-only."""
+        _insert_vep_rows(
+            vep_engine_inmemory,
+            [
+                {
+                    "rsid": "rs_multi_ref",
+                    "chrom": "1",
+                    "pos": 102,
+                    "ref": "A",
+                    "alt": "C",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_C",
+                    "consequence": "synonymous_variant",
+                    "hgvs_coding": "c.2A>C",
+                    "hgvs_protein": "p.=",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+                {
+                    "rsid": "rs_multi_ref",
+                    "chrom": "1",
+                    "pos": 102,
+                    "ref": "A",
+                    "alt": "G",
+                    "gene_symbol": "GENE",
+                    "transcript_id": "ENST_G",
+                    "consequence": "stop_gained",
+                    "hgvs_coding": "c.2A>G",
+                    "hgvs_protein": "p.Ter",
+                    "strand": "+",
+                    "exon_number": 1,
+                    "intron_number": None,
+                    "mane_select": 0,
+                },
+            ],
+        )
+
+        result = lookup_vep_by_rsids(
+            ["rs_multi_ref"],
+            vep_engine_inmemory,
+            genotype_by_rsid={"rs_multi_ref": "AA"},
+        )
+
+        assert result == {}
 
 
 # ═══════════════════════════════════════════════════════════════════════

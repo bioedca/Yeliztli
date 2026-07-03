@@ -197,6 +197,32 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
 # a dict mapping rsid -> dict of column values to merge.
 
 
+def _vep_sample_context(
+    rsids: list[str],
+    raw_by_rsid: dict[str, sa.Row],
+) -> tuple[dict[str, str], dict[str, tuple[str, int, str, str]]]:
+    """Build genotype/exact-allele maps for allele-specific VEP lookup."""
+    genotype_by_rsid: dict[str, str] = {}
+    allele_by_rsid: dict[str, tuple[str, int, str, str]] = {}
+    for rsid in rsids:
+        raw = raw_by_rsid.get(rsid)
+        if raw is None:
+            continue
+        genotype = getattr(raw, "genotype", None)
+        if genotype is not None:
+            genotype_by_rsid[rsid] = genotype
+        chrom = getattr(raw, "chrom", None)
+        pos = getattr(raw, "pos", None)
+        ref = getattr(raw, "ref", None)
+        alt = getattr(raw, "alt", None)
+        if chrom is not None and pos is not None and ref and alt:
+            try:
+                allele_by_rsid[rsid] = (str(chrom), int(pos), str(ref), str(alt))
+            except (TypeError, ValueError):
+                pass
+    return genotype_by_rsid, allele_by_rsid
+
+
 def _unique_vep_allele_identity(pairs: set[tuple[str | None, str | None]]) -> dict | None:
     """Return private VEP alleles only when a lookup proves one allele pair."""
     if len(pairs) != 1:
@@ -215,11 +241,17 @@ def _lookup_vep(
     """Look up VEP annotations for a batch of rsids."""
     from backend.annotation.vep_bundle import lookup_vep_by_rsids
 
-    matches = lookup_vep_by_rsids(rsids, vep_engine)
+    genotype_by_rsid, allele_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
+    matches = lookup_vep_by_rsids(
+        rsids,
+        vep_engine,
+        genotype_by_rsid=genotype_by_rsid,
+        allele_by_rsid=allele_by_rsid,
+    )
 
     results: dict[str, dict] = {}
     for rsid, annot in matches.items():
-        results[rsid] = {
+        row = {
             "gene_symbol": annot.gene_symbol,
             "transcript_id": annot.transcript_id,
             "consequence": annot.consequence,
@@ -230,6 +262,10 @@ def _lookup_vep(
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
         }
+        if annot.ref is not None and annot.alt is not None:
+            row["_vep_ref"] = annot.ref
+            row["_vep_alt"] = annot.alt
+        results[rsid] = row
     return results
 
 
@@ -1060,12 +1096,18 @@ def _vep_coord_fallback(
     if not positions:
         return 0
 
+    genotype_by_rsid, allele_by_rsid = _vep_sample_context(unmatched_rsids, raw_by_rsid)
     t0 = time.perf_counter()
-    matches = lookup_vep_by_positions(positions, vep_engine)
+    matches = lookup_vep_by_positions(
+        positions,
+        vep_engine,
+        genotype_by_rsid=genotype_by_rsid,
+        allele_by_rsid=allele_by_rsid,
+    )
     result.timing_vep_s += time.perf_counter() - t0
 
     for sample_rsid, annot in matches.items():
-        vep_data[sample_rsid] = {
+        row = {
             "gene_symbol": annot.gene_symbol,
             "transcript_id": annot.transcript_id,
             "consequence": annot.consequence,
@@ -1076,6 +1118,10 @@ def _vep_coord_fallback(
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
         }
+        if annot.ref is not None and annot.alt is not None:
+            row["_vep_ref"] = annot.ref
+            row["_vep_alt"] = annot.alt
+        vep_data[sample_rsid] = row
     return len(matches)
 
 
