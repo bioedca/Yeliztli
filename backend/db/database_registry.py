@@ -701,8 +701,8 @@ def check_genome_build_consistency(reference_engine: Engine) -> list[str]:
 # ── Bundled-DB materialization (offline fallback) ────────────────
 
 
-def _committed_bundle_version(db_info: DatabaseInfo) -> str:
-    """Return an honest version string for a bundled DB's committed fixture.
+def _bundle_file_version(db_info: DatabaseInfo, bundle_path: Path) -> str:
+    """Return an honest version string for an on-disk bundled DB artifact.
 
     The repo ships small fixtures under ``bundles/`` so the app works offline,
     but they are *not* always the current release (notably ``vep_bundle.db`` is
@@ -710,7 +710,7 @@ def _committed_bundle_version(db_info: DatabaseInfo) -> str:
     release asset). Recording a truthful version keeps the §5.4 AncestryDNA gate
     and the Update Manager honest:
 
-    - ``vep_bundle``: read the fixture's own ``bundle_metadata.bundle_version``;
+    - ``vep_bundle``: read the file's own ``bundle_metadata.bundle_version``;
       fixtures predating v2.0.0 omit that key → fall back to ``"v1.0.0"`` (the
       version the staleness machinery already assumes for pre-Phase-0 bundles).
     - everything else (e.g. ``ancestry_pca``): the committed fixture *is* the
@@ -718,11 +718,9 @@ def _committed_bundle_version(db_info: DatabaseInfo) -> str:
     """
     import sqlite3
 
-    src = BUNDLED_DIR / db_info.filename
-
-    if db_info.name == "vep_bundle" and src.exists():
+    if db_info.name == "vep_bundle" and bundle_path.exists():
         try:
-            with sqlite3.connect(str(src)) as conn:
+            with sqlite3.connect(str(bundle_path)) as conn:
                 row = conn.execute(
                     "SELECT value FROM bundle_metadata WHERE key = 'bundle_version'"
                 ).fetchone()
@@ -743,12 +741,13 @@ def _committed_bundle_version(db_info: DatabaseInfo) -> str:
 def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
     """Materialize a bundled DB from its committed fixture and record a version.
 
-    Copies ``bundles/<filename>`` into ``data_dir`` (only when the destination
-    is absent) and upserts a ``database_versions`` row with the honest fixture
-    version (:func:`_committed_bundle_version`). This is the *offline fallback*
-    install path — the setup wizard prefers the manifest download (real latest
-    release) and only falls back here when the release is unreachable or the
-    manifest carries no URL (e.g. the out-of-band ``ancestry_pca`` bundle).
+    Copies ``bundles/<filename>`` into ``data_dir`` only when the destination is
+    absent. Existing ``database_versions`` rows are left intact; otherwise this
+    records the version of the bundle file actually present at ``dest``. This is
+    the *offline fallback* install path — the setup wizard prefers the manifest
+    download (real latest release) and only falls back here when the release is
+    unreachable or the manifest carries no URL (e.g. the out-of-band
+    ``ancestry_pca`` bundle).
 
     Returns ``True`` when the destination file exists after the call. Version
     recording is best-effort: a missing reference DB is logged, not fatal.
@@ -757,11 +756,13 @@ def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
 
     src = BUNDLED_DIR / db_info.filename
     dest = db_info.dest_path(settings)
+    copied = False
     if not dest.exists():
         if not src.exists():
             return False
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(src), str(dest))
+        copied = True
         logger.info(
             "bundled_db_copied",
             db_name=db_info.name,
@@ -769,18 +770,30 @@ def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
             dest=str(dest),
         )
 
-    version = _committed_bundle_version(db_info)
     ref_path = settings.reference_db_path
-    if ref_path.exists():
+    if dest.exists() and ref_path.exists():
         try:
             engine = sa.create_engine(f"sqlite:///{ref_path}")
             try:
-                _record_db_version(
-                    engine,
-                    db_name=db_info.name,
-                    version=version,
-                    file_size_bytes=dest.stat().st_size if dest.exists() else None,
-                )
+                from backend.db.tables import database_versions
+
+                should_record = copied
+                if not should_record:
+                    with engine.connect() as conn:
+                        existing = conn.execute(
+                            sa.select(database_versions.c.db_name).where(
+                                database_versions.c.db_name == db_info.name
+                            )
+                        ).fetchone()
+                    should_record = existing is None
+
+                if should_record:
+                    _record_db_version(
+                        engine,
+                        db_name=db_info.name,
+                        version=_bundle_file_version(db_info, dest),
+                        file_size_bytes=dest.stat().st_size,
+                    )
             finally:
                 engine.dispose()
         except Exception as exc:

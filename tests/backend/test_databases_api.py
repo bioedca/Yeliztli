@@ -337,6 +337,37 @@ class TestBundledInstall:
         # which keeps the §5.4 AncestryDNA gate blocking until the real release.
         assert _recorded_version(tmp_data_dir, "vep_bundle") == "v1.0.0"
 
+    def test_install_committed_bundle_existing_vep_preserves_recorded_version(
+        self, tmp_data_dir: Path
+    ):
+        from backend.db.database_registry import _record_db_version, install_committed_bundle
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _make_reference_db(tmp_data_dir)
+        db_info = get_database("vep_bundle")
+        assert db_info is not None
+
+        dest = db_info.dest_path(settings)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        existing_bytes = b"already installed real vep bundle"
+        dest.write_bytes(existing_bytes)
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            _record_db_version(
+                engine,
+                db_name="vep_bundle",
+                version="v3.0.0",
+                file_size_bytes=dest.stat().st_size,
+            )
+        finally:
+            engine.dispose()
+
+        assert install_committed_bundle(db_info, settings) is True
+
+        assert dest.read_bytes() == existing_bytes
+        assert _recorded_version(tmp_data_dir, "vep_bundle") == "v3.0.0"
+
     def test_install_committed_bundle_ancestry_records_manifest_version(
         self, tmp_data_dir: Path, monkeypatch
     ):
@@ -354,6 +385,31 @@ class TestBundledInstall:
             assert install_committed_bundle(db_info, settings) is True
             assert db_info.dest_path(settings).exists()
             # The committed npz IS the shipped release → version from manifest.
+            assert _recorded_version(tmp_data_dir, "ancestry_pca") == "v1.0"
+        finally:
+            manifest_mod.reset_cache()
+
+    def test_install_committed_bundle_records_auto_copied_ancestry_fixture(
+        self, tmp_data_dir: Path, monkeypatch
+    ):
+        from backend.db import manifest as manifest_mod
+        from backend.db.database_registry import install_committed_bundle
+
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(_REPO_MANIFEST))
+        manifest_mod.reset_cache()
+        try:
+            settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+            _make_reference_db(tmp_data_dir)
+            db_info = get_database("ancestry_pca")
+            assert db_info is not None
+
+            status = get_database_status(db_info, settings)
+            assert status["downloaded"] is True
+            assert db_info.dest_path(settings).exists()
+            assert _recorded_version(tmp_data_dir, "ancestry_pca") is None
+
+            assert install_committed_bundle(db_info, settings) is True
+
             assert _recorded_version(tmp_data_dir, "ancestry_pca") == "v1.0"
         finally:
             manifest_mod.reset_cache()
