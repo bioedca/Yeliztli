@@ -18,10 +18,12 @@ the cluster (Plan §6.3 step 1, runbook §4).
 from __future__ import annotations
 
 import importlib.util
+import json
 import py_compile
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -494,6 +496,37 @@ class TestLaiAccuracyParser:
 
     def test_no_match_returns_none(self) -> None:
         assert self._mod().parse_val_accuracy("no accuracy here\n") is None
+
+    def test_failing_report_exits_nonzero(self, tmp_path: Path) -> None:
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        (log_dir / "gnomix_train_chr1.log").write_text("Estimated val accuracy: 50.0%\n")
+        report_path = tmp_path / "lai_accuracy_report.json"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "06e_lai_accuracy.py"),
+                "--log-dir",
+                str(log_dir),
+                "--chroms",
+                "1 2",
+                "--out-report",
+                str(report_path),
+                "--min-accuracy",
+                "0.88",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 1
+        assert "LAI ACCURACY GATE FAILED" in result.stdout
+        report = json.loads(report_path.read_text())
+        assert report["passes"] is False
+        assert report["missing_chroms"] == ["2"]
+        assert report["mean_val_accuracy"] == pytest.approx(0.5)
 
 
 class TestPhase06WiresLogParser:

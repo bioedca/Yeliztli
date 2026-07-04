@@ -128,6 +128,8 @@ def main() -> int:
         }
     composition_ok = args.sample_map is None or not under_represented
 
+    passes = bool(accs) and not missing and mean_acc >= args.min_accuracy and composition_ok
+
     report = {
         "per_chrom": per_chrom,
         "mean_val_accuracy": mean_acc,
@@ -138,9 +140,7 @@ def main() -> int:
         "train_per_region": train_per_region,
         "train_min_per_region": args.min_per_region,
         "train_under_represented": under_represented,
-        "passes": (
-            bool(accs) and not missing and mean_acc >= args.min_accuracy and composition_ok
-        ),
+        "passes": passes,
     }
     args.out_report.write_text(json.dumps(report, indent=2))
     print(f"mean per-window LAI (gnomix val) accuracy: {mean_acc:.4f} over {len(accs)} chrom")
@@ -152,6 +152,9 @@ def main() -> int:
             f"(< {args.min_per_region} training samples): {under_represented}"
         )
     print(f"target (v1.1 baseline): >= {args.min_accuracy}")
+    if not passes:
+        print(f"LAI ACCURACY GATE FAILED: report -> {args.out_report}")
+        return 1
     return 0
 
 
