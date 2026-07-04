@@ -12,8 +12,12 @@ from __future__ import annotations
 
 from backend.analysis.kinship import (
     MIN_SHARED_SNPS,
+    KinshipPair,
+    KinshipStats,
+    _classify,
     _hom_allele,
     _is_het,
+    _pair_text,
     king_kinship,
 )
 
@@ -79,6 +83,22 @@ class TestKingRobust:
         assert 0.177 <= s.phi <= 0.354
         assert s.relationship == "full_sibling"
 
+    def test_second_degree(self) -> None:
+        # φ = 0.125, IBS0 = 0 → 2nd-degree band [0.0884, 0.177).
+        gi, gj = _build([(500, "AG", "AG"), (1500, "AG", "AA"), (1500, "AA", "AG")])
+        s = king_kinship(gi, gj)
+        assert s.phi == 0.125
+        assert s.ibs0 == 0
+        assert s.relationship == "second_degree"
+
+    def test_third_degree(self) -> None:
+        # φ = 0.0625, IBS0 = 0 → 3rd-degree band [0.0442, 0.0884).
+        gi, gj = _build([(250, "AG", "AG"), (1750, "AG", "AA"), (1750, "AA", "AG")])
+        s = king_kinship(gi, gj)
+        assert s.phi == 0.0625
+        assert s.ibs0 == 0
+        assert s.relationship == "third_degree"
+
     def test_unrelated_scores_zero(self) -> None:
         gi, gj = _build([(2000, "AG", "AA"), (2000, "AA", "AG")])
         s = king_kinship(gi, gj)
@@ -104,3 +124,48 @@ class TestKingRobust:
         gj = {"r1": "GG", "r2": "GG", "r3": "GG"}
         s = king_kinship(gi, gj)
         assert s.ibs0 == 1
+
+
+class TestRelationshipBoundaries:
+    def test_second_degree_boundary_is_inclusive(self) -> None:
+        assert _classify(0.0884, 0.0) == "second_degree"
+        assert _classify(0.0883, 0.0) == "third_degree"
+
+    def test_third_degree_boundary_is_inclusive(self) -> None:
+        assert _classify(0.0442, 0.0) == "third_degree"
+        assert _classify(0.0441, 0.0) == "unrelated"
+
+
+def _pair_text_for(relationship: str, phi: float) -> str:
+    stats = KinshipStats(
+        phi=phi,
+        ibs0=0,
+        ibs0_proportion=0.0,
+        n_shared=3500,
+        het_i=2000,
+        het_j=2000,
+        hethet=500,
+        relationship=relationship,
+    )
+    pair = KinshipPair(
+        other_sample_id=2,
+        other_sample_name="Sample 2",
+        same_vendor=True,
+        stats=stats,
+    )
+    return _pair_text(pair)
+
+
+class TestPairText:
+    def test_second_degree_label_is_rendered(self) -> None:
+        text = _pair_text_for("second_degree", 0.125)
+        assert "2nd-degree relative" in text
+        assert "grandparent" in text
+        assert "half-sibling" in text
+        assert "KING kinship φ=0.125" in text
+
+    def test_third_degree_label_is_rendered(self) -> None:
+        text = _pair_text_for("third_degree", 0.0625)
+        assert "3rd-degree relative" in text
+        assert "first cousin" in text
+        assert "KING kinship φ=0.062" in text
