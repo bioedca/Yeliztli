@@ -75,10 +75,12 @@ resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are mar
 ### Star-allele diplotypes & metabolizer status
 
 [Pharmacogenomics](pharma/pharmacogenomics.md) reports a **diplotype** (e.g. `*1/*4`) and a
-**metabolizer phenotype** (poor / intermediate / normal / ultrarapid), each with a
-**call-confidence** of *Complete*, *Partial*, or *Insufficient*. Drug alerts use **CPIC**
-levels. Treat *Partial*/*Insufficient* calls with extra caution — arrays can miss copy-number
-and structural variation.
+**metabolizer phenotype** (poor / intermediate / normal / rapid / ultrarapid), each with a
+**call-confidence** of *Complete*, *Partial*, or *Insufficient*. **Rapid** is a distinct
+increased-activity category, not a synonym for **ultrarapid**; for example, Yeliztli maps
+`CYP2C19 *1/*17` to **Rapid Metabolizer** and `*17/*17` to **Ultrarapid Metabolizer**.[^cpic-terms]
+Drug alerts use **CPIC** levels. Treat *Partial*/*Insufficient* calls with extra caution —
+arrays can miss copy-number and structural variation.
 
 ### Polygenic scores (percentiles)
 
@@ -148,3 +150,4 @@ limitations.
 [^3]: [Variable prediction accuracy of polygenic scores within an ancestry group](https://consensus.app/papers/details/dcbc46184d195a21965cf4614828d104/) (Mostafavi et al., 2019, *eLife*).
 [^4]: [Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort](https://consensus.app/papers/details/41027bd6083a52a7adc632d041a4a299/) (Privé et al., 2022, *Am. J. Hum. Genet.*).
 [^clinvar-conflict]: [ClinVar: improving access to variant interpretations and supporting evidence](https://doi.org/10.1093/nar/gkx1153) (Landrum et al., 2018, *Nucleic Acids Research*) describes ClinVar as a public archive of submitted clinical-significance interpretations for human variants.
+[^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.

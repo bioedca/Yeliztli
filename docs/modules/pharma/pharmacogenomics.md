@@ -13,7 +13,10 @@ surfaces the relevant CPIC prescribing guidance.
 ## What you'll see
 
 - **Star-allele diplotypes** (e.g. `*1/*4`) and the resulting **metabolizer phenotype**
-  (poor / intermediate / normal / ultrarapid).
+  (poor / intermediate / normal / rapid / ultrarapid).
+- **Rapid** and **ultrarapid** are separate CPIC phenotype categories, so a result such as
+  `CYP2C19 *1/*17` is reported as **Rapid Metabolizer**, while `*17/*17` is reported as
+  **Ultrarapid Metabolizer**.[^cpic-terms]
 - A **three-state call confidence** — *Complete*, *Partial*, or *Insufficient* — so you know
   how much to trust each call.
 - **Per-drug prescribing alerts** based on CPIC guidelines, with the CPIC level mapped to an
@@ -40,3 +43,4 @@ surfaces the relevant CPIC prescribing guidance.
 [^ugt1a1-repeat]: [Correlation between the UDP-glucuronosyltransferase (UGT1A1) TATAA box polymorphism and carcinogen detoxification phenotype](https://doi.org/10.1158/1055-9965.epi-03-0070) (Fang & Lazarus, 2004, *Cancer Epidemiology, Biomarkers & Prevention*; [PMID 14744740](https://pubmed.ncbi.nlm.nih.gov/14744740/)) describes `UGT1A1*28` as an additional `(TA)` repeat in the promoter TATA box linked to lower UGT1A1 expression/activity.
 [^ugt1a1-irinotecan]: [Dutch Pharmacogenetics Working Group guideline for the gene-drug interaction between UGT1A1 and irinotecan](https://doi.org/10.1038/s41431-022-01243-2) (Hulshof et al., 2023, *European Journal of Human Genetics*; [PMID 36443464](https://pubmed.ncbi.nlm.nih.gov/36443464/)) describes UGT1A1 poor metabolizers and genotype-informed irinotecan starting-dose adjustment.
 [^ugt1a1-atazanavir]: [Clinical Pharmacogenetics Implementation Consortium guideline for UGT1A1 and atazanavir prescribing](https://doi.org/10.1002/cpt.269) (Gammal et al., 2016, *Clinical Pharmacology & Therapeutics*; [PMID 26417955](https://pubmed.ncbi.nlm.nih.gov/26417955/)) summarizes atazanavir prescribing recommendations when UGT1A1 genotype is known.
+[^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
