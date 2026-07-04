@@ -356,7 +356,7 @@ describe("ReportBuilder", () => {
 // ── Module completeness / drift-proofing (#596) ─────────────────────
 
 const COMPLETE_SUMMARY: FindingsSummaryResponse = {
-  total_findings: 10,
+  total_findings: 11,
   modules: [
     { module: "cancer", count: 2, max_evidence_level: 4, top_finding_text: "BRCA1 pathogenic variant" },
     // module value the backend actually writes is "carrier" (not "carrier_status")
@@ -364,8 +364,10 @@ const COMPLETE_SUMMARY: FindingsSummaryResponse = {
     { module: "metabolic", count: 1, max_evidence_level: 2, top_finding_text: "T2D risk" },
     { module: "fh", count: 1, max_evidence_level: 3, top_finding_text: "FH variant" },
     { module: "ebmd", count: 1, max_evidence_level: 2, top_finding_text: "Low BMD" },
-    // an unknown / risk-panel module not in MODULE_ORDER or the display-name map
-    { module: "gout", count: 2, max_evidence_level: 2, top_finding_text: "Gout risk" },
+    // panel-only module: absent from the local display-name map, present in MODULE_META
+    { module: "amd", count: 1, max_evidence_level: 2, top_finding_text: "AMD risk" },
+    // truly unmapped module: absent from MODULE_ORDER, the display-name map, and MODULE_META
+    { module: "research_panel", count: 2, max_evidence_level: 2, top_finding_text: "Research risk" },
   ],
   high_confidence_findings: [],
 }
@@ -402,21 +404,27 @@ describe("ReportBuilder — module completeness (#596)", () => {
     expect(screen.getByText("Bone Density (eBMD)")).toBeInTheDocument()
   })
 
-  it("renders an unknown finding module with a humanized label (drift-proof)", async () => {
+  it("uses canonical registry labels for panel-only modules missing from the local label map", async () => {
     mockCompleteSummary()
     renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
     await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
-    // "gout" is in neither MODULE_ORDER nor the display-name map, yet it must
-    // still appear (data-driven), title-cased.
-    expect(screen.getByText("Gout")).toBeInTheDocument()
+    expect(screen.getByText("AMD")).toBeInTheDocument()
+    expect(screen.queryByText("Amd")).not.toBeInTheDocument()
+  })
+
+  it("renders a truly unknown finding module with a humanized label (drift-proof)", async () => {
+    mockCompleteSummary()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+    await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
+    expect(screen.getByText("Research Panel")).toBeInTheDocument()
   })
 
   it("counts every module's findings (no silent undercount)", async () => {
     mockCompleteSummary()
     renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
     await waitFor(() => expect(screen.getByText("Cancer Predisposition")).toBeInTheDocument())
-    // All 6 modules auto-selected; total findings = 2+3+1+1+1+2 = 10.
-    expect(screen.getByText("Modules (6 of 6 selected)")).toBeInTheDocument()
-    expect(screen.getByText("10")).toBeInTheDocument()
+    // All 7 modules auto-selected; total findings = 2+3+1+1+1+1+2 = 11.
+    expect(screen.getByText("Modules (7 of 7 selected)")).toBeInTheDocument()
+    expect(screen.getByText("11")).toBeInTheDocument()
   })
 })

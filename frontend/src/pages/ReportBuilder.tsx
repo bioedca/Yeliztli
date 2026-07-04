@@ -29,12 +29,14 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import { MODULE_META } from "@/lib/modules"
 import type { FindingSummaryItem } from "@/types/findings"
 
 /** Human-readable labels for finding module keys. Note the key is "carrier"
  * (the value `carrier_status.py` writes), not "carrier_status". This map is for
- * *labels only* — it never gates which modules appear (see `availableModules`),
- * so a module missing here still renders with a humanized fallback. */
+ * *labels only* — it never gates which modules appear (see `availableModules`).
+ * Modules missing here can still use the canonical shared registry before the
+ * last-resort humanized fallback. */
 const MODULE_DISPLAY_NAMES: Record<string, string> = {
   cancer: "Cancer Predisposition",
   cardiovascular: "Cardiovascular Genetics",
@@ -87,6 +89,10 @@ function humanizeModule(key: string): string {
     .split("_")
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ")
+}
+
+function getModuleDisplayName(key: string): string {
+  return MODULE_DISPLAY_NAMES[key] ?? MODULE_META[key]?.label ?? humanizeModule(key)
 }
 
 export default function ReportBuilder() {
@@ -354,7 +360,7 @@ export default function ReportBuilder() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-label="Module selection">
             {availableModules.map((mod) => {
               const isSelected = selectedModules.has(mod.module)
-              const displayName = MODULE_DISPLAY_NAMES[mod.module] || humanizeModule(mod.module)
+              const displayName = getModuleDisplayName(mod.module)
               return (
                 <button
                   key={mod.module}
