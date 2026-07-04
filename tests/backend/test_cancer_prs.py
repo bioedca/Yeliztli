@@ -178,7 +178,7 @@ def _patch_cancer_run_dependencies(
     )
     monkeypatch.setattr(cancer_prs_module, "load_cancer_prs_weights", lambda: [])
     monkeypatch.setattr(ancestry_module, "get_inferred_ancestry", lambda _sample_engine: "EUR")
-    monkeypatch.setattr(ancestry_module, "get_top_ancestry_fraction", lambda _sample_engine: 1.0)
+    monkeypatch.setattr(ancestry_module, "get_top_ancestry_fraction", lambda _sample_engine: 0.55)
 
     def fake_resolve(
         sample_engine: sa.Engine,
@@ -196,6 +196,8 @@ def _patch_cancer_run_dependencies(
         _sample_engine: sa.Engine,
         **kwargs: object,
     ) -> SimpleNamespace:
+        captured["inferred_ancestry"] = kwargs["inferred_ancestry"]
+        captured["top_ancestry_fraction"] = kwargs["top_ancestry_fraction"]
         captured["inferred_sex"] = kwargs["inferred_sex"]
         captured["prs_reference_engine"] = kwargs.get("reference_engine")
         return SimpleNamespace(results=[])
@@ -293,6 +295,8 @@ class TestCancerPRSCallSites:
         assert captured["resolved_sample_engine"] is sample_engine
         assert captured["reference_engine"] is reference_engine
         assert captured["sample_id"] == 42
+        assert captured["inferred_ancestry"] == "EUR"
+        assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XY"
         assert captured["prs_reference_engine"] is reference_engine
 
@@ -311,6 +315,8 @@ class TestCancerPRSCallSites:
         assert captured["resolved_sample_engine"] is sample_engine
         assert captured["reference_engine"] is reference_engine
         assert captured["sample_id"] == 43
+        assert captured["inferred_ancestry"] == "EUR"
+        assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XX"
         assert captured["prs_reference_engine"] is reference_engine
 
