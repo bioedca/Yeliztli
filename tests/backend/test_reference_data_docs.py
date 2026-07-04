@@ -4,9 +4,11 @@ import re
 from pathlib import Path
 
 from backend.db.database_registry import DATABASES
+from backend.db.update_manager import AUTO_UPDATE_DEFAULTS, CHECK_FNS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_DATA_DOC = REPO_ROOT / "docs" / "install" / "reference-data.md"
+UPDATING_DOC = REPO_ROOT / "docs" / "install" / "updating.md"
 
 DOC_ROW_LABELS = {
     "clinvar": "ClinVar",
@@ -25,6 +27,13 @@ DOC_ROW_LABELS = {
     "gwas_catalog": "GWAS Catalog",
     "dbsnp": "dbSNP",
     "mondo_hpo": "MONDO/HPO",
+}
+
+STATIC_MANUAL_LABELS = {
+    "alphamissense": "AlphaMissense",
+    "gtex_eqtl": "GTEx eQTL",
+    "clingen": "ClinGen",
+    "spliceai": "SpliceAI",
 }
 
 
@@ -49,3 +58,18 @@ def test_reference_data_doc_marks_registry_setup_roles() -> None:
             assert role == "**Required**", db_name
         else:
             assert role.startswith("Optional"), db_name
+
+
+def test_reference_data_doc_discloses_sources_outside_update_manager() -> None:
+    """Docs must name registered sources that lack auto-update/check coverage."""
+    assert set(AUTO_UPDATE_DEFAULTS) == set(CHECK_FNS)
+    assert set(DATABASES) - set(AUTO_UPDATE_DEFAULTS) == set(STATIC_MANUAL_LABELS)
+
+    reference_doc = REFERENCE_DATA_DOC.read_text(encoding="utf-8")
+    updating_doc = UPDATING_DOC.read_text(encoding="utf-8")
+
+    assert "Static / manual-refresh sources" in reference_doc
+    assert "outside that update-manager registry" in updating_doc
+    for label in STATIC_MANUAL_LABELS.values():
+        assert label in reference_doc
+        assert label in updating_doc

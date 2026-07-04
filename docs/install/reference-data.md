@@ -112,6 +112,24 @@ The SLURM procedure and provenance checklist are in the
 
 ## Updating reference data
 
-Reference data can be refreshed any time from **Settings → Database Management**, with
-per-database auto-update toggles and an optional bandwidth window for large downloads. See
-[updating](updating.md).
+The per-database auto-update table in **Settings → Database Management** covers the sources
+registered in the update manager: ClinVar, dbNSFP, CPIC, GWAS Catalog, dbSNP, MONDO/HPO,
+ENCODE cCREs, and the published gnomAD, VEP, LAI, ancestry PCA, and PGS score bundles. For those
+sources you can configure auto-update toggles and an optional bandwidth window for large
+downloads. See [updating](updating.md).
+
+### Static / manual-refresh sources
+
+Some registered sources are install-time or bring-your-own context layers, not auto-updated
+reference data:
+
+- **AlphaMissense** is built when installed and is not version-checked by the automatic update
+  system.
+- **GTEx eQTL** is built when installed and is not version-checked by the automatic update system.
+- **ClinGen** gene-disease validity data is built when installed and is not version-checked by the
+  automatic update system.
+- **SpliceAI** is a manual, user-supplied database and is never downloaded or updated by Yeliztli.
+
+These sources do not appear in the per-database auto-update table and do not have automatic
+upstream release checks. To refresh them, use the relevant manual rebuild, local ingest, or setup
+flow; then re-annotate samples whose results should reflect the refreshed snapshot.

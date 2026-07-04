@@ -27,8 +27,10 @@ docker compose up -d --build
 
 ## Reference-database updates
 
-Reference data (ClinVar, gnomAD, and the rest — see [reference data](reference-data.md)) is
-updated from **Settings → Database Management**, where you can configure:
+Reference data updates are managed from **Settings → Database Management** for the sources
+registered in the update manager (see [reference data](reference-data.md)). That panel currently
+tracks ClinVar, dbNSFP, CPIC, GWAS Catalog, dbSNP, MONDO/HPO, ENCODE cCREs, and the published
+bundles for gnomAD, VEP, LAI, ancestry PCA, and PGS scores. There you can configure:
 
 - per-database auto-update toggles,
 - update check frequency (startup / daily / weekly),
@@ -36,7 +38,11 @@ updated from **Settings → Database Management**, where you can configure:
   `"HH:MM-HH:MM"` range (e.g. `"02:00-06:00"`). The updates route holds large downloads to
   that window; a **Force update** action bypasses it when you need a download now.
 
-Update history is logged and viewable in the Settings panel.
+Update history is logged and viewable in the Settings panel. A few installed or optional
+reference sources are outside that update-manager registry: AlphaMissense, GTEx eQTL, ClinGen,
+and bring-your-own SpliceAI. Yeliztli does not check upstream releases for those sources, does
+not show them in the per-database auto-update table, and cannot auto-refresh them; refresh them
+only through the relevant manual rebuild, local ingest, or setup flow.
 
 ## How updates affect your existing results
 
@@ -56,8 +62,10 @@ does **not** change results you already have.
   **significance** changes that affect one of a sample's variants (or a variant you are
   watching). Those prompts identify potential reclassifications; the broader reference-data
   prompt only says the sample should be re-annotated to refresh against newer sources such as
-  gnomAD allele frequencies, dbNSFP predictions, CPIC prescribing guidance, AlphaMissense,
-  ClinGen, the GWAS catalog, or the VEP bundle.
+  gnomAD allele frequencies, dbNSFP predictions, CPIC prescribing guidance, the GWAS catalog,
+  ENCODE cCREs, or the VEP/LAI/ancestry/PGS bundles. Sources outside the update-manager registry
+  can participate only after you manually rebuild or ingest them and their installed version stamp
+  changes; they are not proactively checked for upstream releases.
 - **Re-annotate to refresh.** To bring a sample's findings up to date after *any* reference-data
   update, re-annotate it: accept the re-annotation prompt when one appears, or re-run annotation
   for the sample. The status bar's reference-database versions (see
