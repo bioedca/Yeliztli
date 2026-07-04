@@ -219,9 +219,22 @@ def _make_valid_encode(settings: Settings, *, rows: bool = True) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     try:
-        conn.execute("CREATE TABLE encode_ccres (chrom TEXT, start INTEGER, end INTEGER)")
+        conn.execute(
+            """
+            CREATE TABLE encode_ccres (
+                accession TEXT PRIMARY KEY,
+                chrom TEXT NOT NULL,
+                start_pos INTEGER NOT NULL,
+                end_pos INTEGER NOT NULL,
+                ccre_class TEXT NOT NULL
+            )
+            """
+        )
         if rows:
-            conn.execute("INSERT INTO encode_ccres VALUES ('chr19', 100, 200)")
+            conn.execute(
+                "INSERT INTO encode_ccres VALUES (?, ?, ?, ?, ?)",
+                ("EH38E2776520", "1", 104896, 105048, "CTCF-only"),
+            )
         conn.commit()
     finally:
         conn.close()
@@ -546,6 +559,56 @@ class TestValidateStandalone:
         _make_valid_encode(settings)
         result = validate_database("encode_ccres", settings)
         assert result.ok is True
+
+    def test_encode_missing_consumer_columns_not_ok(self, settings: Settings) -> None:
+        path = settings.encode_ccres_db_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute("CREATE TABLE encode_ccres (chrom TEXT, start INTEGER, end INTEGER)")
+            conn.execute("INSERT INTO encode_ccres VALUES ('chr1', 104896, 105048)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = validate_database("encode_ccres", settings)
+
+        assert result.ok is False
+        assert result.depth == "structural"
+        assert "missing required column(s)" in result.detail
+        assert "accession" in result.detail
+        assert "ccre_class" in result.detail
+
+    def test_encode_stale_rdhs_accessions_not_ok(self, settings: Settings) -> None:
+        path = settings.encode_ccres_db_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE encode_ccres (
+                    accession TEXT PRIMARY KEY,
+                    chrom TEXT NOT NULL,
+                    start_pos INTEGER NOT NULL,
+                    end_pos INTEGER NOT NULL,
+                    ccre_class TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO encode_ccres VALUES (?, ?, ?, ?, ?)",
+                ("EH38D4327509", "1", 104896, 105048, "CTCF-only"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = validate_database("encode_ccres", settings)
+
+        assert result.ok is False
+        assert result.depth == "structural"
+        assert "stale rDHS accession EH38D4327509" in result.detail
+        assert "rebuild encode_ccres.db" in result.detail
 
     def test_encode_empty_not_ok(self, settings: Settings) -> None:
         _make_valid_encode(settings, rows=False)

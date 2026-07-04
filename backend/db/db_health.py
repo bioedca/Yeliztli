@@ -151,6 +151,17 @@ _STANDALONE_REQUIRED_COLUMNS: dict[str, dict[str, frozenset[str]]] = {
             }
         ),
     },
+    "encode_ccres": {
+        "encode_ccres": frozenset(
+            {
+                "accession",
+                "chrom",
+                "start_pos",
+                "end_pos",
+                "ccre_class",
+            }
+        )
+    },
 }
 
 # numpy array keys that ``backend.analysis.ancestry.load_ancestry_bundle`` (the
@@ -354,6 +365,55 @@ def _standalone_engine(path: Path) -> sa.Engine:
     return sa.create_engine(f"sqlite:///{path}", poolclass=NullPool)
 
 
+def _check_encode_ccres_content(engine: sa.Engine, *, deep: bool = False) -> IntegrityResult:
+    """Detect stale ENCODE cCRE DBs that stored V3 rDHS IDs as accessions."""
+    depth = "deep" if deep else "structural"
+    try:
+        with engine.connect() as conn:
+            stale_rdhs = conn.execute(
+                sa.text(
+                    """
+                    SELECT accession
+                    FROM encode_ccres
+                    WHERE accession GLOB 'EH38D*'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if stale_rdhs:
+                return IntegrityResult(
+                    ok=False,
+                    detail=(
+                        "table 'encode_ccres' contains stale rDHS accession "
+                        f"{stale_rdhs}; rebuild encode_ccres.db"
+                    ),
+                    depth=depth,
+                )
+
+            unexpected = conn.execute(
+                sa.text(
+                    """
+                    SELECT accession
+                    FROM encode_ccres
+                    WHERE accession NOT GLOB 'EH38E*'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if unexpected:
+                return IntegrityResult(
+                    ok=False,
+                    detail=(
+                        "table 'encode_ccres' has unexpected cCRE accession "
+                        f"{unexpected}; expected EH38E* accessions"
+                    ),
+                    depth=depth,
+                )
+    except Exception as exc:
+        return IntegrityResult(ok=False, detail=f"{type(exc).__name__}: {exc}", depth=depth)
+    return IntegrityResult(ok=True, detail="ok", depth=depth)
+
+
 def _check_npz(path: Path, required_keys: frozenset[str]) -> IntegrityResult:
     """Validate that an ``.npz`` loads and carries the required array keys."""
     try:
@@ -392,12 +452,17 @@ def validate_standalone_sqlite_file(
 
     probe = _standalone_engine(path)
     try:
-        return _check_sqlite_tables(
+        result = _check_sqlite_tables(
             probe,
             std_spec,
             deep=deep,
             required_columns_by_table=_STANDALONE_REQUIRED_COLUMNS.get(db_name),
         )
+        if not result.ok:
+            return result
+        if db_name == "encode_ccres":
+            return _check_encode_ccres_content(probe, deep=deep)
+        return result
     finally:
         probe.dispose()
 
