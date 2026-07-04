@@ -30,7 +30,8 @@ debug = false
 
 # Authentication (optional)
 auth_enabled = false
-auth_password_hash = ""        # bcrypt hash — set via the Settings UI, not by hand
+auth_password_hash = ""        # bcrypt hash; normally set via Settings, not by hand.
+                               # Forgotten password recovery is the exception; see Troubleshooting.
 session_timeout_hours = 4
 
 # External services (optional)
@@ -66,7 +67,7 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 | `port` | `YELIZTLI_PORT` | `8000` | Server port. |
 | `data_dir` | `YELIZTLI_DATA_DIR` | `~/.yeliztli` | Where all databases, samples, and logs live. Set via the **env var only** — it cannot be configured in `config.toml`. |
 | `auth_enabled` | `YELIZTLI_AUTH_ENABLED` | `false` | Require a PIN/password to use the app. This protects requests only when a password hash is also configured. |
-| `auth_password_hash` | `YELIZTLI_AUTH_PASSWORD_HASH` | `""` | bcrypt hash for the PIN/password. If this is empty, requests remain open even when `auth_enabled` is `true`. |
+| `auth_password_hash` | `YELIZTLI_AUTH_PASSWORD_HASH` | `""` | bcrypt hash for the PIN/password. If this is empty, requests remain open even when `auth_enabled` is `true`. Normally set this through **Settings → Authentication**; manual edits are only for recovery from a forgotten password. |
 | `pubmed_email` | `YELIZTLI_PUBMED_EMAIL` | `""` | Contact email for NCBI literature lookups. |
 | `omim_api_key` | `YELIZTLI_OMIM_API_KEY` | `""` | Optional OMIM enrichment key. |
 | `hibag_rscript` | `YELIZTLI_HIBAG_RSCRIPT` | unset | Optional path to `Rscript`, or a directory containing it, for the operator-provisioned HIBAG HLA imputation runtime. When unset, Yeliztli tries `Rscript` on `PATH`. |

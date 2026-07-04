@@ -12,6 +12,24 @@
 | A reference-database download fails | Network interruption | Re-run it from **Settings → Database Management** — downloads are **resumable**. Check **Settings → System Health → Database Health** for the specific error. |
 | Ancestry "chromosome painting" (Tier-2) is unavailable | The LAI bundle or Java is missing | Tier-1 ancestry still works without it. For Tier-2, install **Java 8+** and download the optional LAI bundle (see [reference data](reference-data.md)). |
 | Port 8000 already in use | Another process owns the port | Set a different port: `YELIZTLI_PORT=9000 make run-api`, `YELIZTLI_PORT=9000 docker compose up -d`, or set `port = 9000` in `~/.yeliztli/config.toml` and restart installed services (see [configuration](configuration.md)). |
+| Locked out after forgetting your PIN/password | Password changes and removal require the current password, and Yeliztli has no in-app reset flow | Use local file recovery below. |
+
+## Recover from a forgotten PIN/password
+
+Yeliztli authentication protects network and browser access. It is not encryption for
+the files in your data directory, so anyone who can edit `~/.yeliztli/config.toml`
+already has local access to the same data. If you are the local owner and forgot the
+PIN/password, disable authentication from the config file and restart Yeliztli:
+
+1. Stop the running app or installed services.
+2. Open `~/.yeliztli/config.toml`.
+3. Under `[yeliztli]`, set `auth_enabled = false`. You may also clear
+   `auth_password_hash = ""`.
+4. Restart Yeliztli so it reloads the config file.
+5. Open **Settings → Authentication** and set a new PIN/password.
+
+Do not hand-edit `auth_password_hash` for normal password changes. Use
+**Settings → Authentication** whenever you still know the current PIN/password.
 
 ## Still stuck?
 

@@ -38,6 +38,9 @@ Optionally protect your instance with a PIN or password:
 3. Sessions expire after a period of inactivity. Once a password exists, API routes require
    a valid session except for health, login, and auth-status endpoints; first-run setup
    endpoints remain reachable only before a password has been configured.
+4. If you forget the PIN/password, there is no in-app reset. Recover as the local owner by
+   disabling auth in `~/.yeliztli/config.toml`, restarting Yeliztli, and setting a new
+   PIN/password; see [Troubleshooting](../install/troubleshooting.md#recover-from-a-forgotten-pinpassword).
 
 ## Theme
 
