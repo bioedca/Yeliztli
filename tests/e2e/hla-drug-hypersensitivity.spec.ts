@@ -106,6 +106,9 @@ test.describe('HLA drug hypersensitivity (SW-D2)', () => {
     await expect(page.getByTestId('hla-drug-hypersensitivity')).toContainText(
       'No imputed HLA calls for this sample.',
     )
+    await expect(
+      page.getByTestId('hla-drug-hypersensitivity').getByRole('button', { name: 'HLA setup docs' }),
+    ).toBeVisible()
     await expect(page.locator('[data-testid^="hla-drug-HLA-"]')).toHaveCount(0)
   })
 })

@@ -40,6 +40,7 @@ Modules come in three kinds:
 | Module | What it analyses |
 |--------|------------------|
 | [Pharmacogenomics](pharma/pharmacogenomics.md) | Star-allele calling + CPIC prescribing context for 11 drug-metabolism genes |
+| [HLA (imputed)](hla.md) | Operator-provisioned imputed classical-HLA calls for drug hypersensitivity, disease rule-outs, susceptibility context, and raw HLA export |
 
 ## Wellness & traits
 

@@ -45,6 +45,8 @@ const STATUS_ORDER: Record<HlaDrugRiskStatus, number> = {
   not_typed: 2,
 }
 
+const HLA_DOCS_URL = "https://bioedca.github.io/Yeliztli/modules/hla/"
+
 const STATUS_STYLE: Record<
   HlaDrugRiskStatus,
   { label: string; icon: typeof ShieldAlert; box: string; badge: string }
@@ -482,6 +484,10 @@ export default function HLAView() {
                 icon={Syringe}
                 title="No imputed HLA calls for this sample."
                 description={data.unavailable_note ?? undefined}
+                action={{
+                  label: "HLA setup docs",
+                  onClick: () => window.open(HLA_DOCS_URL, "_blank", "noopener,noreferrer"),
+                }}
               />
             )}
           </section>

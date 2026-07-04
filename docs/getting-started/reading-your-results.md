@@ -40,6 +40,10 @@ The **[module reference](../modules/index.md)** explains what each module report
 interpret it. Some modules (wellness/trait scores) are intentionally **capped** at lower
 ratings, and some report **categorical levels** rather than numeric risk.
 
+Some sidebar pages depend on optional operator provisioning. For example,
+**[HLA (imputed)](../modules/hla.md)** stays empty until HIBAG and ancestry-specific HLA model
+files are configured and run for that sample.
+
 Some ClinVar records are intentionally withheld from findings. Variants marked
 **Conflicting classifications of pathogenicity** are not shown as definitive findings; see
 [ClinVar classifications that conflict](../modules/interpretation-reference.md#clinvar-classifications-that-conflict)

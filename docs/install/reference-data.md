@@ -64,6 +64,18 @@ attribution list lives in the repository
     can resume without starting another large download. The build and index step can take a
     long time after the archive has already downloaded.
 
+## HIBAG HLA model files
+
+The **[HLA (imputed)](../modules/hla.md)** feature uses HIBAG pre-fit model files, but those
+files are **not** Yeliztli release bundles or setup-wizard downloads. They are bring-your-own
+external inputs because HIBAG itself is an operator-installed R/Bioconductor runtime and the
+model files carry their own distribution terms.
+
+If you enable HLA imputation, fetch the model files yourself, place them in the directory
+configured by `YELIZTLI_HIBAG_MODEL_DIR`, and keep their expected names:
+`European-HLA4.RData`, `Asian-HLA4.RData`, `Hispanic-HLA4.RData`, or `African-HLA4.RData`.
+Then run `scripts/predict_hla.py` for each sample to populate `hla_calls`.
+
 ## Genome Browser local reference files
 
 The Genome Browser can run without contacting IGV.js reference hosts when these local files

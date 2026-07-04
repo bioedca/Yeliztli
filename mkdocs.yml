@@ -92,6 +92,7 @@ nav:
   - Modules:
       - modules/index.md
       - Interpretation reference: modules/interpretation-reference.md
+      - HLA (imputed): modules/hla.md
       - Health & hereditary risk:
           - Hereditary cancer: modules/health-risk/cancer.md
           - Cardiovascular: modules/health-risk/cardiovascular.md

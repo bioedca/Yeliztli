@@ -44,6 +44,10 @@ update_check_interval = "daily"          # "startup", "daily", "weekly"
 # Ancestry Tier-2 (LAI) — only used if you install the LAI bundle
 # lai_java_mem = "4g"
 
+# HLA imputation (optional) — only used if you provision R + HIBAG + BYO models
+# hibag_rscript = "/usr/bin/Rscript"
+# hibag_model_dir = "/path/to/hibag-models"
+
 # UI
 theme = "system"               # "light", "dark", "system"
 
@@ -65,12 +69,21 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 | `auth_password_hash` | `YELIZTLI_AUTH_PASSWORD_HASH` | `""` | bcrypt hash for the PIN/password. If this is empty, requests remain open even when `auth_enabled` is `true`. |
 | `pubmed_email` | `YELIZTLI_PUBMED_EMAIL` | `""` | Contact email for NCBI literature lookups. |
 | `omim_api_key` | `YELIZTLI_OMIM_API_KEY` | `""` | Optional OMIM enrichment key. |
+| `hibag_rscript` | `YELIZTLI_HIBAG_RSCRIPT` | unset | Optional path to `Rscript`, or a directory containing it, for the operator-provisioned HIBAG HLA imputation runtime. When unset, Yeliztli tries `Rscript` on `PATH`. |
+| `hibag_model_dir` | `YELIZTLI_HIBAG_MODEL_DIR` | unset | Optional directory containing BYO ancestry-specific HIBAG model files named `{ancestry}-HLA4.RData`. Required before the HLA (imputed) page can be populated. |
 | `theme` | `YELIZTLI_THEME` | `system` | UI theme. |
 | `log_level` | `YELIZTLI_LOG_LEVEL` | `INFO` | Logging verbosity. |
 
 !!! note "Authoritative list"
     The complete, always-current set of settings (including paths derived from `data_dir`)
     is defined in [`backend/config.py`](https://github.com/bioedca/Yeliztli/blob/main/backend/config.py).
+
+## Optional HLA imputation runtime
+
+The **[HLA (imputed)](../modules/hla.md)** page is off by default. To populate it, an operator
+must install R + Bioconductor `HIBAG`, supply ancestry-specific model files, configure
+`hibag_rscript` / `hibag_model_dir`, and run the HLA prediction script for each sample. Missing
+runtime pieces are reported as unavailable rather than fatal; other modules continue to work.
 
 ## Launch behavior
 
