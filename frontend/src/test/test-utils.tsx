@@ -16,21 +16,32 @@ function createTestQueryClient() {
 
 interface WrapperProps {
   children: ReactNode
+  route?: string
 }
 
-function AllProviders({ children }: WrapperProps) {
+function AllProviders({ children, route = '/' }: WrapperProps) {
   const queryClient = createTestQueryClient()
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <MemoryRouter>{children}</MemoryRouter>
+        <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>
   )
 }
 
-function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
-  return render(ui, { wrapper: AllProviders, ...options })
+interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
+  route?: string
+}
+
+function customRender(
+  ui: ReactElement,
+  { route = '/', ...options }: CustomRenderOptions = {},
+) {
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <AllProviders route={route}>{children}</AllProviders>
+  )
+  return render(ui, { wrapper: Wrapper, ...options })
 }
 
 export * from '@testing-library/react'
