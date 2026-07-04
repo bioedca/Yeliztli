@@ -256,6 +256,13 @@ def _strand_ambiguous_call(genotype: str | None, ref: str, deficiency_allele: st
     return _is_palindromic(ref_u, def_u) and len(set(g)) == 1
 
 
+def _has_deficiency_base(genotype: str | None, deficiency_allele: str) -> bool:
+    """Whether the raw call contains this row's deficiency base."""
+    if not genotype or is_no_call(genotype):
+        return False
+    return deficiency_allele.upper() in genotype.strip().upper()
+
+
 def _deficiency_alleles(
     genotype: str | None, ref: str, deficiency_allele: str
 ) -> dict[str, int] | None:
@@ -413,6 +420,14 @@ def _locus_call(
     a plain no-call, so the API can say "seen but could not be strand-resolved".
     """
     state = _deficiency_alleles(genotype, ref, deficiency_allele)
+    gsa_v3_typed = _gsa_v3_typed(rsid, ref, deficiency_allele)
+    strand_ambiguous = _strand_ambiguous_call(genotype, ref, deficiency_allele)
+    if strand_ambiguous and not gsa_v3_typed:
+        # At shared multiallelic sites, a row can be rsID-present but allele-untagged.
+        # Cosenza C>G shares rs72554665 with the Canton [A/C] GSA probe; a reference
+        # "C" is not an observed Cosenza ambiguity, while an observed "G" still cannot
+        # be confidently strand-resolved and remains a conservative warning.
+        strand_ambiguous = _has_deficiency_base(genotype, deficiency_allele)
     return {
         "name": name,
         "rsid": rsid,
@@ -420,13 +435,13 @@ def _locus_call(
         "observed_genotype": genotype,
         "called": state is not None,
         "deficiency_alleles": state["deficiency"] if state else None,
-        "strand_ambiguous": _strand_ambiguous_call(genotype, ref, deficiency_allele),
+        "strand_ambiguous": strand_ambiguous,
         # Whether the GSA-24v3 backbone (23andMe v5 / AncestryDNA) interrogates this
         # variant's alleles (#321/#842). Allele-level: True only when the probe's
         # biallelic set is this row's {ref, deficiency}. When True, a no-call is a
         # genuine reference/absent call on a covered probe; when False the array does
         # not assay this allele (e.g. Cosenza C>G under the Canton-only [A/C] probe).
-        "gsa_v3_typed": _gsa_v3_typed(rsid, ref, deficiency_allele),
+        "gsa_v3_typed": gsa_v3_typed,
     }
 
 

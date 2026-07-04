@@ -247,11 +247,6 @@ class TestExpandedDeficiencyPanel:
             (n, rs, ref, deff)
             for n, rs, _, ref, deff in G6PD_DEFICIENCY_VARIANTS
             if not _is_palindromic(ref, deff)
-            # Canton shares rs72554665 with Cosenza. A hemizygous "C" is Canton's
-            # reference allele, but it is also Cosenza's unresolved palindromic
-            # reference/deficiency call, so the sample-level result should now warn
-            # rather than assert "normal."
-            and n != "Canton (R459L)"
         ],
     )
     def test_each_variant_strand_direction(
@@ -288,6 +283,24 @@ class TestExpandedDeficiencyPanel:
         assert canton["called"] is True and canton["deficiency_alleles"] == 1
         assert cosenza["called"] is False
         assert r["phenotype"] == "deficient" and r["at_risk"] is True
+
+    def test_canton_reference_does_not_fabricate_cosenza_warning(self) -> None:
+        # rs72554665 is GSA-typed as a Canton [A/C] probe. A hemizygous "C" is the
+        # shared reference base observed on that probe; it should not be reinterpreted
+        # as an observed Cosenza C/G palindromic ambiguity because Cosenza's G allele is
+        # not interrogated by the GSA probe.
+        r = self._assess("XY", {"rs72554665": "C"})
+        canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
+        cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
+        assert canton["called"] is True and canton["deficiency_alleles"] == 0
+        assert canton["gsa_v3_typed"] is True
+        assert cosenza["called"] is False
+        assert cosenza["gsa_v3_typed"] is False
+        assert cosenza["strand_ambiguous"] is False
+        assert r["strand_ambiguous_loci"] == []
+        assert r["phenotype"] == "normal"
+        assert r["at_risk"] is False
+        assert r["high_risk_drugs"] == []
 
     def test_palindromic_hemizygous_male_is_withheld_but_warns(self) -> None:
         # Seattle/Lodi (C/G palindromic): a hemizygous male "G" cannot be strand-
