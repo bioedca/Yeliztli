@@ -4,14 +4,19 @@ import { PanelLeftClose, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navRoutes } from '@/lib/nav-routes'
 
-export default function Sidebar() {
+type SidebarProps = {
+  className?: string
+}
+
+export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
     <aside
       className={cn(
         'flex h-16 w-full max-w-full shrink-0 flex-col overflow-x-auto overflow-y-hidden border-t border-sidebar-border bg-sidebar-background transition-all duration-200 md:h-auto md:overflow-x-visible md:overflow-y-visible md:border-t-0 md:border-r',
-        collapsed ? 'md:w-12' : 'md:w-56'
+        collapsed ? 'md:w-12' : 'md:w-56',
+        className
       )}
     >
       <div className="flex-1 py-1 md:py-2 md:overflow-y-auto">
