@@ -67,9 +67,10 @@ def test_reference_data_doc_discloses_sources_outside_update_manager() -> None:
 
     reference_doc = REFERENCE_DATA_DOC.read_text(encoding="utf-8")
     updating_doc = UPDATING_DOC.read_text(encoding="utf-8")
+    _, static_section = reference_doc.split("### Static / manual-refresh sources", maxsplit=1)
 
     assert "Static / manual-refresh sources" in reference_doc
     assert "outside that update-manager registry" in updating_doc
     for label in STATIC_MANUAL_LABELS.values():
-        assert label in reference_doc
+        assert label in static_section
         assert label in updating_doc

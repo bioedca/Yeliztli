@@ -30,7 +30,8 @@ docker compose up -d --build
 Reference data updates are managed from **Settings → Database Management** for the sources
 registered in the update manager (see [reference data](reference-data.md)). That panel currently
 tracks ClinVar, dbNSFP, CPIC, GWAS Catalog, dbSNP, MONDO/HPO, ENCODE cCREs, and the published
-bundles for gnomAD, VEP, LAI, ancestry PCA, and PGS scores. There you can configure:
+bundles for gnomAD, VEP, LAI, and PGS scores, plus the app-shipped ancestry PCA bundle. There you
+can configure:
 
 - per-database auto-update toggles,
 - update check frequency (startup / daily / weekly),

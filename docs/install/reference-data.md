@@ -114,7 +114,8 @@ The SLURM procedure and provenance checklist are in the
 
 The per-database auto-update table in **Settings → Database Management** covers the sources
 registered in the update manager: ClinVar, dbNSFP, CPIC, GWAS Catalog, dbSNP, MONDO/HPO,
-ENCODE cCREs, and the published gnomAD, VEP, LAI, ancestry PCA, and PGS score bundles. For those
+ENCODE cCREs, the published gnomAD, VEP, LAI, and PGS score bundles, and the app-shipped
+ancestry PCA bundle. For those
 sources you can configure auto-update toggles and an optional bandwidth window for large
 downloads. See [updating](updating.md).
 
