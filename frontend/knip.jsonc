@@ -20,10 +20,6 @@
   "ignore": ["**/*.d.ts"],
 
   "ignoreDependencies": [
-    // Lazy-loaded at runtime through an indirected `importFn("igv")` in
-    // src/components/igv-browser/IgvBrowser.tsx (code-split + test-injectable),
-    // which knip's static analysis cannot trace to the `igv` package.
-    "igv",
     // Backs the repo-root Playwright e2e suite (../tests/e2e/ +
     // playwright.config.ts), not frontend/src — knip, run from frontend/,
     // cannot see those consumers.

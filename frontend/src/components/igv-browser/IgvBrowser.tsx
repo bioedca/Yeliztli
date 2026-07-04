@@ -185,12 +185,10 @@ function browserReducer(_state: BrowserState, action: BrowserAction): BrowserSta
 async function loadIgv() {
   const override = __getIgvOverride()
   if (override) return override
-  // Dynamic import using Function constructor to prevent vitest/vite from
-  // statically analyzing and pre-bundling the large igv module (~3MB / 84K lines)
-  const importFn = new Function("specifier", "return import(specifier)") as (
-    specifier: string,
-  ) => Promise<{ default: IgvModule }>
-  const igv = await importFn("igv")
+  // Keep IGV out of the initial bundle while still letting Vite/Rollup resolve
+  // the package into a lazy chunk. Hiding this import from the bundler makes the
+  // browser try to resolve the bare "igv" specifier natively, which fails.
+  const igv = (await import("igv")) as unknown as { default: IgvModule }
   return igv.default!
 }
 

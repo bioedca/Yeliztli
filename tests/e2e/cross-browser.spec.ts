@@ -557,6 +557,31 @@ test.describe('P4-26d: Cross-browser — responsive layout', () => {
 // On first open, the Genome Browser must show a one-time notice that the GRCh37
 // reference + RefSeq track are fetched from the IGV.js project's third-party
 // servers, and must NOT initialize IGV (the fetch) until the user acknowledges.
+const IGV_MODULE_URL =
+  /(?:\/node_modules\/\.vite\/deps\/igv[^/?]*\.js|\/node_modules\/igv\/dist\/igv[^/?]*\.js|\/@id\/igv)(?:\?.*)?$/
+const IGV_MODULE_STUB = `
+  export default {
+    async createBrowser(div) {
+      const root = document.createElement('div')
+      root.className = 'igv-root-div'
+      root.dataset.mockIgv = 'true'
+      div.appendChild(root)
+      return { search() {}, on() {} }
+    },
+    removeBrowser() {}
+  }
+`
+
+async function mockIgvModule(page: Page) {
+  await page.route(IGV_MODULE_URL, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: IGV_MODULE_STUB,
+    })
+  })
+}
+
 test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () => {
   test('shows the one-time third-party fetch disclosure before loading IGV', async ({
     page,
@@ -582,5 +607,32 @@ test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () =>
       window.localStorage.getItem('yeliztli.genome-browser-reference-disclosure'),
     )
     expect(ack).toBe('acknowledged')
+  })
+
+  test('continues past the disclosure and loads the bundled IGV module', async ({
+    page,
+  }) => {
+    await mockIgvModule(page)
+
+    const pageErrors: string[] = []
+    page.on('pageerror', (err) => pageErrors.push(err.message))
+
+    await page.goto('/genome-browser')
+    await waitForReactHydration(page)
+
+    await page
+      .getByRole('button', { name: /continue to the genome browser/i })
+      .click()
+
+    await expect(page.locator('.igv-root-div')).toHaveAttribute(
+      'data-mock-igv',
+      'true',
+    )
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    expect(
+      pageErrors.filter((message) =>
+        message.includes("Failed to resolve module specifier 'igv'"),
+      ),
+    ).toEqual([])
   })
 })
