@@ -23,8 +23,9 @@ PIN/password, disable authentication from the config file and restart Yeliztli:
 
 1. Stop the running app or installed services.
 2. Open `~/.yeliztli/config.toml`.
-3. Under `[yeliztli]`, set `auth_enabled = false`. You may also clear
-   `auth_password_hash = ""`.
+3. Under `[yeliztli]`, set `auth_enabled = false` and clear
+   `auth_password_hash = ""`. Clearing the saved hash is required before you can set a
+   new PIN/password without knowing the old one.
 4. Restart Yeliztli so it reloads the config file.
 5. Open **Settings → Authentication** and set a new PIN/password.
 
