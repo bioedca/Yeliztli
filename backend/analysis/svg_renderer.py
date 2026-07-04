@@ -650,9 +650,15 @@ def _render_apoe_card(
     phenotype = finding.get("phenotype") or detail.get("phenotype", "")
     category = finding.get("category") or ""
 
-    # Determine risk color from diplotype
-    has_e4 = "4" in str(diplotype)
-    e4_count = detail.get("e4_count", 0)
+    # Determine risk color from diplotype. Genotype rows carry ``e4_count`` in
+    # detail_json; derived APOE findings carry only the displayed diplotype.
+    diplotype_e4_count = str(diplotype).count("4")
+    try:
+        detail_e4_count = int(detail.get("e4_count", diplotype_e4_count))
+    except (TypeError, ValueError):
+        detail_e4_count = diplotype_e4_count
+    e4_count = max(detail_e4_count, diplotype_e4_count)
+    has_e4 = e4_count > 0
 
     if e4_count >= 2:
         risk_color = "#EF4444"  # red

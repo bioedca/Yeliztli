@@ -232,21 +232,23 @@ class TestRenderFindingSvg:
         assert "CFTR" in svg
 
     @pytest.mark.parametrize(
-        ("diplotype", "detail_extra", "expected_label"),
+        ("category", "diplotype", "detail_extra", "expected_label"),
         [
-            ("\u03b54/\u03b54", {"e4_count": 2}, "Increased Risk"),
-            ("\u03b53/\u03b54", {}, "Moderately Increased Risk"),
-            ("\u03b52/\u03b53", {}, "Potentially Protective"),
-            ("\u03b53/\u03b53", {}, "Average Risk"),
+            ("alzheimers_risk", "\u03b54/\u03b54", {}, "Increased Risk"),
+            ("genotype", "\u03b53/\u03b54", {}, "Moderately Increased Risk"),
+            ("genotype", "\u03b52/\u03b53", {}, "Potentially Protective"),
+            ("genotype", "\u03b53/\u03b53", {}, "Average Risk"),
         ],
     )
     def test_apoe_generates_card(
         self,
         apoe_finding,
+        category,
         diplotype,
         detail_extra,
         expected_label,
     ):
+        apoe_finding["category"] = category
         apoe_finding["finding_text"] = f"APOE genotype: {diplotype}"
         apoe_finding["detail_json"] = json.dumps(
             {
@@ -260,8 +262,8 @@ class TestRenderFindingSvg:
 
         assert svg is not None
         assert "<svg" in svg
-        assert diplotype in svg
-        assert expected_label in svg
+        assert f">{diplotype}</text>" in svg
+        assert f">{expected_label}</text>" in svg
 
     def test_ancestry_admixture_generates_bar(self, ancestry_finding):
         svg = render_finding_svg(ancestry_finding)
