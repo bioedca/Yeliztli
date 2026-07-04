@@ -499,6 +499,18 @@ class TestGeneMetadata:
         assert "parent of origin" in sdhd.clinical_caveat
         assert {"15064708", "23493432"} <= set(sdhd.pmids)
 
+    def test_sdhd_expected_clinvar_rsids_are_sdhd_variants(self, panel: CancerPanel) -> None:
+        sdhd = panel.get_gene("SDHD")
+        assert sdhd is not None
+        assert sdhd.expected_clinvar_rsids == [
+            "rs104894302",
+            "rs104894303",
+            "rs104894304",
+        ]
+        assert "rs28934575" not in sdhd.expected_clinvar_rsids
+        assert "rs587783368" not in sdhd.expected_clinvar_rsids
+        assert "rs104893901" not in sdhd.expected_clinvar_rsids
+
 
 # ── Dataclass properties ─────────────────────────────────────────────────
 

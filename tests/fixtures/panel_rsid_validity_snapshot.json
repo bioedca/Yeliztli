@@ -1,9 +1,9 @@
 {
   "_provenance": {
     "source": "dbSNP refsnp v2: api.ncbi.nlm.nih.gov/variation/v0/refsnp/{id}",
-    "accessed": "2026-07-01",
+    "accessed": "2026-07-04",
     "generator": "scripts/build_panel_rsid_validity_snapshot.py",
-    "panel_rsid_count": 521,
+    "panel_rsid_count": 522,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -1700,11 +1700,6 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893829"
     },
-    "rs104893901": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893901"
-    },
     "rs104893940": {
       "status": "current",
       "merged_into": null,
@@ -1764,6 +1759,21 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104894256"
+    },
+    "rs104894302": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104894302"
+    },
+    "rs104894303": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104894303"
+    },
+    "rs104894304": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104894304"
     },
     "rs111033313": {
       "status": "current",
@@ -2589,11 +2599,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782813"
-    },
-    "rs587783368": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587783368"
     },
     "rs587783520": {
       "status": "current",

@@ -485,9 +485,9 @@
       "evidence_level": 3,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs28934575",
-        "rs587783368",
-        "rs104893901"
+        "rs104894302",
+        "rs104894303",
+        "rs104894304"
       ],
       "pmids": ["20301715", "24344213", "15064708", "23493432"],
       "notes": "Parent-of-origin effect: disease penetrance primarily with paternal inheritance.",

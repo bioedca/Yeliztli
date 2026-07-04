@@ -226,6 +226,24 @@ class TestPanelRsidValidity:
             "array-typeable loci: " + ", ".join(offenders)
         )
 
+    def test_sdhd_expected_clinvar_rsids_resolve_to_chr11(self) -> None:
+        """The #1498 SDHD expected-variant list cannot regress to off-chromosome rsIDs."""
+        cancer_panel = json.loads((PANELS_DIR / "cancer_panel.json").read_text(encoding="utf-8"))
+        sdhd = next(gene for gene in cancer_panel["genes"] if gene["gene_symbol"] == "SDHD")
+        expected_rsids = sdhd["expected_clinvar_rsids"]
+        assert expected_rsids
+        assert not {"rs28934575", "rs587783368", "rs104893901"} & set(expected_rsids)
+
+        coords = _coordinate_fixture()["rsids"]
+        offenders = [
+            f"{rsid} -> chr{coords[rsid]['chrom']}:{coords[rsid]['start']}"
+            for rsid in expected_rsids
+            if str(coords[rsid]["chrom"]) != "11"
+        ]
+        assert not offenders, "SDHD expected_clinvar_rsids are not on chr11: " + ", ".join(
+            offenders
+        )
+
 
 class TestPanelRsidDbsnpMergeValidity:
     """Systemic dbSNP-merge / withdrawal guard (#787).
