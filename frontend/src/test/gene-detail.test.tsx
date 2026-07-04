@@ -228,8 +228,7 @@ describe("GeneDetailPage", () => {
     expect(screen.getByTestId("gene-symbol")).toHaveTextContent("CFTR")
     expect(screen.getAllByText(uniprotError)).toHaveLength(1)
 
-    const proteinHeading = screen.getByRole("heading", { name: "Protein Structure" })
-    const proteinPlaceholder = proteinHeading.parentElement?.nextElementSibling
+    const proteinPlaceholder = screen.getByTestId("protein-structure-placeholder")
     expect(proteinPlaceholder).toHaveTextContent(uniprotError)
   })
 })
