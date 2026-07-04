@@ -27,8 +27,8 @@ def test_pharmacogenomics_docs_warn_about_ugt1a1_star28_array_gap() -> None:
 
 
 def test_pharmacogenomics_docs_cover_all_cpic_metabolizer_phenotypes() -> None:
-    expected_terms = _cpic_metabolizer_terms()
-    assert expected_terms, "cpic_diplotypes.csv should define metabolizer phenotype terms"
+    expected_phenotypes = _cpic_metabolizer_phenotypes()
+    assert expected_phenotypes, "cpic_diplotypes.csv should define metabolizer phenotypes"
 
     sections = {
         "pharmacogenomics page": _between(
@@ -45,11 +45,12 @@ def test_pharmacogenomics_docs_cover_all_cpic_metabolizer_phenotypes() -> None:
 
     for name, section in sections.items():
         missing = [
-            term for term in expected_terms if not re.search(rf"\b{re.escape(term)}\b", section)
+            phenotype
+            for phenotype in expected_phenotypes
+            if not re.search(rf"\b{re.escape(phenotype)}\b", section)
         ]
         assert not missing, (
-            f"{name} omits CPIC metabolizer phenotype term(s) present in "
-            f"cpic_diplotypes.csv: {missing}"
+            f"{name} omits CPIC metabolizer phenotype(s) present in cpic_diplotypes.csv: {missing}"
         )
 
 
@@ -80,11 +81,19 @@ def test_pharmacogenomics_docs_cover_non_metabolizer_cpic_status_families() -> N
         )
 
 
-def _cpic_metabolizer_terms() -> list[str]:
+def test_interpretation_reference_output_table_uses_cpic_status_label() -> None:
+    text = _INTERPRETATION_DOC.read_text(encoding="utf-8")
+    output_table = text.split("## Module → output type", 1)[1].split("## References", 1)[0]
+
+    assert "Star-allele diplotype + CPIC phenotype/status" in output_table
+    assert "Star-allele diplotype + metabolizer | Pharmacogenomics" not in output_table
+
+
+def _cpic_metabolizer_phenotypes() -> list[str]:
     with _CPIC_DIPLOTYPES.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         terms = {
-            phenotype.removesuffix(" Metabolizer").lower()
+            phenotype.lower()
             for row in reader
             if (phenotype := row["phenotype"]).endswith(" Metabolizer")
         }

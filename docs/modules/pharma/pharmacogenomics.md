@@ -13,8 +13,9 @@ surfaces the relevant CPIC prescribing guidance.
 ## What you'll see
 
 - **Star-allele diplotypes** (e.g. `*1/*4`) and the resulting CPIC phenotype or functional
-  status. Drug-metabolizing enzyme genes use **metabolizer phenotypes**
-  (poor / intermediate / normal / rapid / ultrarapid).
+  status. Genes reported with **metabolizer phenotypes** use **Poor Metabolizer**,
+  **Intermediate Metabolizer**, **Normal Metabolizer**, **Rapid Metabolizer**, and
+  **Ultrarapid Metabolizer**.
 - **Rapid** and **ultrarapid** are separate metabolizer categories, so a result such as
   `CYP2C19 *1/*17` is reported as **Rapid Metabolizer**, while `*17/*17` is reported as
   **Ultrarapid Metabolizer**.[^cpic-terms] Other pharmacogenes use different CPIC status

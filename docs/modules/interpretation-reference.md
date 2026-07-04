@@ -76,8 +76,9 @@ resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are mar
 
 [Pharmacogenomics](pharma/pharmacogenomics.md) reports a **diplotype** (e.g. `*1/*4`) and a
 CPIC phenotype or functional status, each with a **call-confidence** of *Complete*, *Partial*,
-or *Insufficient*. Drug-metabolizing enzyme genes use **metabolizer phenotypes**
-(poor / intermediate / normal / rapid / ultrarapid). **Rapid** is a distinct
+or *Insufficient*. Genes reported with **metabolizer phenotypes** use **Poor Metabolizer**,
+**Intermediate Metabolizer**, **Normal Metabolizer**, **Rapid Metabolizer**, and
+**Ultrarapid Metabolizer**. **Rapid** is a distinct
 increased-activity category, not a synonym for **ultrarapid**; for example, Yeliztli maps
 `CYP2C19 *1/*17` to **Rapid Metabolizer** and `*17/*17` to **Ultrarapid Metabolizer**.[^cpic-terms]
 Other CPIC pharmacogenes use different status families, such as **Normal function**,
@@ -136,7 +137,7 @@ limitations.
 |-------------|---------|
 | Pathogenic variants (ClinVar P/LP) | Cancer, Cardiovascular, Carrier status, Rare variants |
 | Categorical pathway levels | Nutrigenomics, Methylation, Fitness, Sleep, Skin, Allergy, Gene health |
-| Star-allele diplotype + metabolizer | Pharmacogenomics |
+| Star-allele diplotype + CPIC phenotype/status | Pharmacogenomics |
 | Polygenic percentile | Metabolic, Bone density, Familial hypercholesterolemia, Cancer (PRS), Traits |
 | Common-variant odds ratios | Haemochromatosis, Thrombophilia, Alpha-1, AMD, APOL1, Gout |
 | Diplotype / risk genotype (gated) | APOE, Parkinson's, Sex-aneuploidy |
