@@ -10,12 +10,15 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        'border-r border-sidebar-border bg-sidebar-background flex flex-col shrink-0 transition-all duration-200',
-        collapsed ? 'w-12' : 'w-56'
+        'flex h-16 w-full max-w-full shrink-0 flex-col overflow-x-auto overflow-y-hidden border-t border-sidebar-border bg-sidebar-background transition-all duration-200 md:h-auto md:overflow-x-visible md:overflow-y-visible md:border-t-0 md:border-r',
+        collapsed ? 'md:w-12' : 'md:w-56'
       )}
     >
-      <div className="flex-1 py-2 overflow-y-auto">
-        <nav aria-label="Main navigation" className="flex flex-col gap-0.5 px-2">
+      <div className="flex-1 py-1 md:py-2 md:overflow-y-auto">
+        <nav
+          aria-label="Main navigation"
+          className="flex h-full flex-row items-stretch gap-1 px-2 md:h-auto md:flex-col md:gap-0.5"
+        >
           {navRoutes.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -23,24 +26,25 @@ export default function Sidebar() {
               end={to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors',
+                  'flex shrink-0 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors md:flex-row md:justify-start md:gap-3 md:px-2',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  collapsed && 'justify-center px-0'
+                  collapsed && 'md:justify-center md:px-0'
                 )
               }
               title={label}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {!collapsed && <span>{label}</span>}
-              {collapsed && <span className="sr-only">{label}</span>}
+              <span className={cn('whitespace-nowrap text-xs md:text-sm', collapsed && 'md:sr-only')}>
+                {label}
+              </span>
             </NavLink>
           ))}
         </nav>
       </div>
 
-      <div className="border-t border-sidebar-border p-2">
+      <div className="hidden border-t border-sidebar-border p-2 md:block">
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}

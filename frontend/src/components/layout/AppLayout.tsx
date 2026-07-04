@@ -8,10 +8,10 @@ export default function AppLayout() {
     <div className="h-screen flex flex-col">
       <SkipNav />
       <TopNav />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden md:flex-row">
         <Sidebar />
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- main scrollable region must be keyboard-accessible (axe: scrollable-region-focusable) */}
-        <main id="main-content" className="flex-1 overflow-y-auto" tabIndex={0}>
+        <main id="main-content" className="min-w-0 flex-1 overflow-y-auto" tabIndex={0}>
           <Outlet />
         </main>
       </div>
