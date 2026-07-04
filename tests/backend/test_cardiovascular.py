@@ -765,6 +765,38 @@ class TestExtractCardiovascularVariants:
         assert result.variants == []
         assert result.hom_alt_plausibility_suppressed == 1
 
+    def test_suppresses_dominant_hom_alt_when_frequency_is_missing(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ldlr_missing_af",
+                        "chrom": "19",
+                        "pos": 11210004,
+                        "ref": "G",
+                        "alt": "A",
+                        "genotype": "AA",
+                        "zygosity": "hom_alt",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 4,
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "gnomad_af_popmax": None,
+                        "gnomad_af_global": None,
+                        "gnomad_homozygous_count": None,
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 1
+
     def test_keeps_dominant_hom_alt_when_gnomad_homozygotes_are_observed(
         self, panel: CardiovascularPanel, sample_engine: sa.Engine
     ) -> None:

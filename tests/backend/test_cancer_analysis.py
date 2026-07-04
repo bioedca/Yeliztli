@@ -763,7 +763,7 @@ class TestExtractCancerVariants:
         assert [v.rsid for v in result.variants] == ["rs_mutyh_rare_hom"]
         assert result.hom_alt_plausibility_suppressed == 0
 
-    def test_keeps_dominant_hom_alt_when_frequency_is_missing(
+    def test_suppresses_dominant_hom_alt_when_frequency_is_missing(
         self, panel: CancerPanel, sample_engine: sa.Engine
     ) -> None:
         with sample_engine.begin() as conn:
@@ -771,7 +771,7 @@ class TestExtractCancerVariants:
                 sa.insert(annotated_variants),
                 [
                     {
-                        "rsid": "rs_vhl_missing_af",
+                        "rsid": "rs5030814",
                         "chrom": "3",
                         "pos": 10188246,
                         "genotype": "GG",
@@ -790,8 +790,8 @@ class TestExtractCancerVariants:
 
         result = extract_cancer_variants(panel, sample_engine)
 
-        assert [v.rsid for v in result.variants] == ["rs_vhl_missing_af"]
-        assert result.hom_alt_plausibility_suppressed == 0
+        assert result.variants == []
+        assert result.hom_alt_plausibility_suppressed == 1
 
 
 # ── Findings storage tests ───────────────────────────────────────────────

@@ -187,7 +187,7 @@ def is_implausible_dominant_hom_alt(
     *,
     expected_freq_max: float = DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX,
 ) -> bool:
-    """Return true for rare dominant hom-alt calls without population support."""
+    """Return true for dominant hom-alt calls without population support."""
     if getattr(row, "zygosity", None) != ZYG_HOM_ALT or (inheritance or "").upper() != "AD":
         return False
     hom_count = getattr(row, "gnomad_homozygous_count", None)
@@ -196,5 +196,7 @@ def is_implausible_dominant_hom_alt(
 
     af = effective_gnomad_af(row)
     if af is None:
-        return False
+        # Missing frequency plus no observed homozygotes is absence of population support,
+        # not evidence that an ultra-rare dominant hom-alt call is plausible.
+        return True
     return af * af <= expected_freq_max

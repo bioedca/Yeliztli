@@ -8,6 +8,8 @@ that must return ``None`` so callers never treat them as carried.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from backend.analysis.zygosity import (
@@ -18,6 +20,7 @@ from backend.analysis.zygosity import (
     ZYG_HOM_ALT,
     ZYG_HOM_REF,
     classify_zygosity,
+    is_implausible_dominant_hom_alt,
     is_no_call,
 )
 
@@ -149,3 +152,25 @@ class TestModuleConstants:
         # stay the same object as the internal map so they cannot diverge.
         assert COMPLEMENT is _COMPLEMENT
         assert COMPLEMENT == {"A": "T", "T": "A", "C": "G", "G": "C"}
+
+
+class TestDominantHomAltPlausibility:
+    def test_missing_gnomad_af_without_observed_homozygotes_is_implausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=None,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=None,
+        )
+
+        assert is_implausible_dominant_hom_alt(row, "AD") is True
+
+    def test_observed_gnomad_homozygotes_keep_missing_af_plausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=None,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=1,
+        )
+
+        assert is_implausible_dominant_hom_alt(row, "AD") is False
