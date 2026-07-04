@@ -127,6 +127,15 @@ class TestKingRobust:
 
 
 class TestRelationshipBoundaries:
+    def test_duplicate_boundary_is_exclusive(self) -> None:
+        assert _classify(0.3541, 0.0) == "duplicate_or_mz_twin"
+        assert _classify(0.354, 0.0) == "parent_offspring"
+
+    def test_first_degree_boundary_is_inclusive(self) -> None:
+        assert _classify(0.177, 0.0) == "parent_offspring"
+        assert _classify(0.177, 0.01) == "full_sibling"
+        assert _classify(0.1769, 0.0) == "second_degree"
+
     def test_second_degree_boundary_is_inclusive(self) -> None:
         assert _classify(0.0884, 0.0) == "second_degree"
         assert _classify(0.0883, 0.0) == "third_degree"
