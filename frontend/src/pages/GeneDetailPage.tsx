@@ -203,11 +203,6 @@ export default function GeneDetailPage() {
               )}
             </p>
           )}
-          {data.uniprot_error && !data.uniprot && (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              {data.uniprot_error}
-            </p>
-          )}
         </div>
       </div>
 
