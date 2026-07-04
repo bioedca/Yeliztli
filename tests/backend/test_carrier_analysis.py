@@ -314,6 +314,7 @@ class TestExtractCarrierVariants:
                     "clinvar_review_stars": 2,
                     "clinvar_accession": "VCV000007106",
                     "clinvar_conditions": "Cystic fibrosis",
+                    "gnomad_homozygous_count": 1,
                     "annotation_coverage": 2,
                 },
             )
@@ -343,6 +344,105 @@ class TestExtractCarrierVariants:
         assert detail["variant_ids"] == ["rs75961395"]
         assert detail["component_variants"][0]["rsid"] == "rs75961395"
         assert detail["component_variants"][0]["zygosity"] == "hom_alt"
+
+    def test_ultra_rare_ar_homozygote_without_population_support_is_suppressed(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """HEXA i-ID homozygotes with no population support must not be affected calls."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "i5004859",
+                    "chrom": "15",
+                    "pos": 72642858,
+                    "ref": "C",
+                    "alt": "G",
+                    "genotype": "GG",
+                    "zygosity": "hom_alt",
+                    "gene_symbol": "HEXA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000003899",
+                    "clinvar_conditions": "Tay-Sachs disease",
+                    "gnomad_af_global": 3.977155220413942e-6,
+                    "gnomad_homozygous_count": 0,
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.affected_status_findings == 0
+        assert result.affected_hom_alt_plausibility_suppressed == 1
+        assert result.homozygous_plp_skipped == 0
+        assert store_carrier_findings(result, sample_engine) == 0
+
+    def test_ar_homozygote_absent_from_gnomad_is_suppressed(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Missing AF and no observed gnomAD homozygotes is not support for affected status."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_hexa_missing_gnomad",
+                    "chrom": "15",
+                    "pos": 72642859,
+                    "ref": "C",
+                    "alt": "T",
+                    "genotype": "TT",
+                    "zygosity": "hom_alt",
+                    "gene_symbol": "HEXA",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000003900",
+                    "clinvar_conditions": "Tay-Sachs disease",
+                    "gnomad_af_global": None,
+                    "gnomad_af_popmax": None,
+                    "gnomad_homozygous_count": None,
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.variants == []
+        assert result.affected_hom_alt_plausibility_suppressed == 1
+
+    def test_common_cftr_f508del_homozygote_still_produces_affected_status(
+        self, panel: CarrierPanel, sample_engine: sa.Engine
+    ) -> None:
+        """Common AR homozygotes remain reportable when q-squared clears the guard."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs113993960",
+                    "chrom": "7",
+                    "pos": 117559590,
+                    "ref": "ATCT",
+                    "alt": "A",
+                    "genotype": "DD",
+                    "zygosity": None,
+                    "gene_symbol": "CFTR",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_review_stars": 3,
+                    "clinvar_accession": "VCV000007105",
+                    "clinvar_conditions": "Cystic fibrosis",
+                    "gnomad_af_popmax": 0.02,
+                    "gnomad_homozygous_count": 0,
+                    "annotation_coverage": 2,
+                },
+            )
+
+        result = extract_carrier_variants(panel, sample_engine)
+
+        assert result.affected_status_findings == 1
+        assert result.affected_hom_alt_plausibility_suppressed == 0
+        assert [variant.rsid for variant in result.variants] == ["rs113993960"]
+        assert result.variants[0].finding_type == "affected_homozygous"
 
     def test_two_distinct_cftr_het_plp_rows_produce_compound_het_finding(
         self, panel: CarrierPanel, sample_engine: sa.Engine
@@ -643,6 +743,7 @@ class TestExtractCarrierVariants:
                     "clinvar_review_stars": 3,
                     "clinvar_accession": "VCV000003889",
                     "clinvar_conditions": "Tay-Sachs disease",
+                    "gnomad_homozygous_count": 1,
                     "annotation_coverage": 2,
                 },
             )
@@ -813,6 +914,7 @@ class TestExtractCarrierVariants:
                     "clinvar_review_stars": 2,
                     "clinvar_accession": "VCV000012345",
                     "clinvar_conditions": "Spinal muscular atrophy",
+                    "gnomad_homozygous_count": 1,
                     "annotation_coverage": 2,
                 },
             )

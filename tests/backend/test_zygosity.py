@@ -21,6 +21,7 @@ from backend.analysis.zygosity import (
     ZYG_HOM_REF,
     classify_zygosity,
     is_implausible_dominant_hom_alt,
+    is_implausible_recessive_affected_hom_alt,
     is_no_call,
 )
 
@@ -174,3 +175,72 @@ class TestDominantHomAltPlausibility:
         )
 
         assert is_implausible_dominant_hom_alt(row, "AD") is False
+
+
+class TestRecessiveAffectedHomAltPlausibility:
+    def test_rare_ar_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is True
+
+    def test_missing_gnomad_af_without_observed_homozygotes_is_implausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=None,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=None,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is True
+
+    def test_common_ar_hom_alt_is_plausible_by_expected_homozygote_frequency(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=0.02,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is False
+
+    def test_observed_gnomad_homozygotes_keep_rare_ar_hom_alt_plausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=1,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is False
+
+    def test_legacy_carrier_hom_label_can_be_checked_explicitly(self) -> None:
+        row = SimpleNamespace(
+            zygosity="hom",
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, "AR", zygosity="hom") is True
+
+    def test_dominant_or_heterozygous_rows_do_not_use_recessive_guard(self) -> None:
+        hom_alt_row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+        het_row = SimpleNamespace(
+            zygosity=ZYG_HET,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(hom_alt_row, "AD") is False
+        assert is_implausible_recessive_affected_hom_alt(het_row, "AR") is False

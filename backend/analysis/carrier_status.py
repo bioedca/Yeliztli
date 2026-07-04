@@ -58,6 +58,7 @@ from backend.analysis.clinvar_significance import (
     pathogenic_significance_filter,
 )
 from backend.analysis.evidence import assign_clinvar_evidence_level
+from backend.analysis.zygosity import is_implausible_recessive_affected_hom_alt
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -332,6 +333,7 @@ class CarrierAnalysisResult:
     homozygous_plp_skipped: int = 0
     affected_status_findings: int = 0
     possible_compound_heterozygous_findings: int = 0
+    affected_hom_alt_plausibility_suppressed: int = 0
     # P/LP rows dropped because the gene is pseudogene-confounded from array data
     # (GBA1/GBAP1) and not reportable as a carrier finding (#221).
     pseudogene_suppressed: int = 0
@@ -730,6 +732,9 @@ def extract_carrier_variants(
                 annotated_variants.c.clinvar_review_stars,
                 annotated_variants.c.clinvar_accession,
                 annotated_variants.c.clinvar_conditions,
+                annotated_variants.c.gnomad_af_global,
+                annotated_variants.c.gnomad_af_popmax,
+                annotated_variants.c.gnomad_homozygous_count,
             )
             .where(
                 annotated_variants.c.gene_symbol.in_(gene_symbols),
@@ -750,6 +755,7 @@ def extract_carrier_variants(
     carrier_rows_seen = 0
     hom_skipped = 0
     pseudogene_suppressed = 0
+    affected_hom_alt_plausibility_suppressed = 0
 
     for row in rows:
         gene_info = gene_map.get((row.gene_symbol or "").upper())
@@ -774,6 +780,13 @@ def extract_carrier_variants(
             and not lower_penetrance
             and zygosity in _AFFECTED_HOMOZYGOUS_ZYGOSITIES
         ):
+            if is_implausible_recessive_affected_hom_alt(
+                row,
+                gene_info.inheritance,
+                zygosity=zygosity,
+            ):
+                affected_hom_alt_plausibility_suppressed += 1
+                continue
             dedupe_key = _carrier_variant_dedupe_key(row, "hom_alt")
             existing = homozygous_affected_rows.get(dedupe_key)
             if existing is None or _carrier_rsid_preference_key(
@@ -876,6 +889,7 @@ def extract_carrier_variants(
         homozygous_plp_skipped=hom_skipped,
         affected_status_findings=len(affected_genes),
         possible_compound_heterozygous_findings=len(compound_het_genes),
+        affected_hom_alt_plausibility_suppressed=affected_hom_alt_plausibility_suppressed,
         pseudogene_suppressed=pseudogene_suppressed,
         copy_number_disclosed=copy_number_disclosed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
@@ -888,6 +902,7 @@ def extract_carrier_variants(
         homozygous_plp_skipped=hom_skipped,
         affected_status_findings=len(affected_genes),
         possible_compound_heterozygous_findings=len(compound_het_genes),
+        affected_hom_alt_plausibility_suppressed=affected_hom_alt_plausibility_suppressed,
         pseudogene_suppressed=pseudogene_suppressed,
         copy_number_disclosed=copy_number_disclosed,
     )

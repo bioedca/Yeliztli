@@ -78,11 +78,13 @@ ZYG_HOM_ALT = "hom_alt"
 # homozygous-reference chip position never produces a "Pathogenic" finding.
 CARRIED_ZYGOSITIES: frozenset[str] = frozenset({ZYG_HET, ZYG_HOM_ALT})
 
-# Guard for rare autosomal-dominant homozygous-alt calls. For a rare allele,
-# the expected true-homozygote frequency is approximately q^2; rows at or below
-# this threshold and with no population homozygotes are treated as implausible
-# for consumer monogenic findings rather than as confident biallelic calls.
-DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
+# Guard for rare homozygous-alt calls. For a rare allele, the expected true-
+# homozygote frequency is approximately q^2; rows at or below this threshold and
+# with no population homozygotes are treated as implausible for consumer
+# monogenic findings rather than as confident biallelic calls.
+HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
+DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = HOM_ALT_EXPECTED_FREQ_MAX
+_RECESSIVE_AFFECTED_HOM_ALT_ZYGOSITIES: frozenset[str] = frozenset({ZYG_HOM_ALT, "hom"})
 
 
 def _zygosity_from_alleles(alleles: set[str], ref: str, alt: str) -> str:
@@ -181,6 +183,24 @@ def effective_gnomad_af(row: object) -> float | None:
     return None
 
 
+def _lacks_hom_alt_population_support(
+    row: object,
+    *,
+    expected_freq_max: float,
+) -> bool:
+    """Return true when a hom-alt call has no population-level support."""
+    hom_count = getattr(row, "gnomad_homozygous_count", None)
+    if hom_count is not None and hom_count > 0:
+        return False
+
+    af = effective_gnomad_af(row)
+    if af is None:
+        # Missing frequency plus no observed homozygotes is absence of population support,
+        # not evidence that an ultra-rare hom-alt call is plausible.
+        return True
+    return af * af <= expected_freq_max
+
+
 def is_implausible_dominant_hom_alt(
     row: object,
     inheritance: str | None,
@@ -190,13 +210,20 @@ def is_implausible_dominant_hom_alt(
     """Return true for dominant hom-alt calls without population support."""
     if getattr(row, "zygosity", None) != ZYG_HOM_ALT or (inheritance or "").upper() != "AD":
         return False
-    hom_count = getattr(row, "gnomad_homozygous_count", None)
-    if hom_count is not None and hom_count > 0:
-        return False
+    return _lacks_hom_alt_population_support(row, expected_freq_max=expected_freq_max)
 
-    af = effective_gnomad_af(row)
-    if af is None:
-        # Missing frequency plus no observed homozygotes is absence of population support,
-        # not evidence that an ultra-rare dominant hom-alt call is plausible.
-        return True
-    return af * af <= expected_freq_max
+
+def is_implausible_recessive_affected_hom_alt(
+    row: object,
+    inheritance: str | None,
+    *,
+    zygosity: str | None = None,
+    expected_freq_max: float = HOM_ALT_EXPECTED_FREQ_MAX,
+) -> bool:
+    """Return true for AR affected-status hom-alt calls without population support."""
+    row_zygosity = zygosity if zygosity is not None else getattr(row, "zygosity", None)
+    if row_zygosity not in _RECESSIVE_AFFECTED_HOM_ALT_ZYGOSITIES:
+        return False
+    if (inheritance or "").upper() != "AR":
+        return False
+    return _lacks_hom_alt_population_support(row, expected_freq_max=expected_freq_max)
