@@ -245,6 +245,39 @@ class TestBackupExport:
         assert data["message"] == "Backup export started."
         mock_task.assert_called_once()
 
+    def test_export_rejected_when_backup_already_running(self, tmp_data_dir: Path) -> None:
+        """A second export while one is pending/running is rejected with 409."""
+        from contextlib import ExitStack
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        _seed_data_dir(tmp_data_dir, settings)
+
+        with ExitStack() as stack:
+            for target in (
+                "backend.db.connection.get_settings",
+                "backend.api.routes.backup.get_settings",
+                "backend.tasks.huey_tasks.get_settings",
+            ):
+                stack.enter_context(patch(target, return_value=settings))
+            stack.enter_context(patch("backend.config.DEFAULT_DATA_DIR", settings.data_dir))
+            reset_registry()
+            from backend.api.routes.backup import BackupExportRequest, backup_export
+            from backend.tasks.huey_tasks import create_backup_job
+
+            try:
+                create_backup_job()
+                with patch("backend.tasks.huey_tasks.run_backup_export_task") as mock_task:
+                    with pytest.raises(HTTPException) as exc_info:
+                        asyncio.run(
+                            backup_export(BackupExportRequest(include_reference_dbs=False))
+                        )
+            finally:
+                reset_registry()
+
+        assert exc_info.value.status_code == 409
+        assert "already in progress" in exc_info.value.detail
+        mock_task.assert_not_called()
+
     def test_export_and_status_and_download(self, tmp_data_dir: Path) -> None:
         """Full flow: export → poll status → download archive."""
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
