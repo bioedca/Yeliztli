@@ -284,12 +284,15 @@ class TestExpandedDeficiencyPanel:
         assert cosenza["called"] is False
         assert r["phenotype"] == "deficient" and r["at_risk"] is True
 
-    def test_canton_reference_does_not_fabricate_cosenza_warning(self) -> None:
+    @pytest.mark.parametrize(("sex", "genotype"), [("XY", "C"), ("XX", "CC")])
+    def test_canton_reference_does_not_fabricate_cosenza_warning(
+        self, sex: str, genotype: str
+    ) -> None:
         # rs72554665 is GSA-typed as a Canton [A/C] probe. A hemizygous "C" is the
         # shared reference base observed on that probe; it should not be reinterpreted
         # as an observed Cosenza C/G palindromic ambiguity because Cosenza's G allele is
         # not interrogated by the GSA probe.
-        r = self._assess("XY", {"rs72554665": "C"})
+        r = self._assess(sex, {"rs72554665": genotype})
         canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
         cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
         assert canton["called"] is True and canton["deficiency_alleles"] == 0
