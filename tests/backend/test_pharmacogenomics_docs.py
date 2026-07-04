@@ -28,6 +28,7 @@ def test_pharmacogenomics_docs_warn_about_ugt1a1_star28_array_gap() -> None:
 
 def test_pharmacogenomics_docs_cover_all_cpic_metabolizer_phenotypes() -> None:
     expected_terms = _cpic_metabolizer_terms()
+    assert expected_terms, "cpic_diplotypes.csv should define metabolizer phenotype terms"
 
     sections = {
         "pharmacogenomics page": _between(
