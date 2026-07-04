@@ -12,7 +12,7 @@ HLA (imputed) predicts classical HLA alleles from SNP-array data and uses those 
 power four surfaces:
 
 - **Drug hypersensitivity** — HLA-drug safety findings for abacavir, carbamazepine,
-  oxcarbazepine, phenytoin/fosphenytoin, allopurinol, and dapsone [1-6,9].
+  oxcarbazepine, phenytoin/fosphenytoin, allopurinol, and dapsone [1-6,9-13].
 - **Disease rule-outs** — celiac HLA-DQ and narcolepsy type 1 HLA-DQB1\*06:02 context.
 - **Autoimmune susceptibility** — selected HLA susceptibility markers such as HLA-B\*27,
   HLA-C\*06:02, rheumatoid-arthritis shared epitope alleles, and type-1-diabetes DR-DQ
@@ -35,7 +35,7 @@ Treat every result as a **screening lead**, not a clinical HLA type.
   viewer repeats this guard and embeds it in exported CSV files.
 - **A positive drug-safety finding is not a medication order.** It means the imputed allele
   matches an HLA-drug association that should be discussed with a clinician and confirmed before
-  changing therapy [1-6,9].
+  changing therapy [1-6,9-13].
 - **A negative finding is not universal reassurance.** HLA-drug test performance varies by drug
   pair and population; many pairs have high negative predictive value but low positive predictive
   value [9].
@@ -115,3 +115,11 @@ R/Bioconductor HIBAG package or pre-fit HLA model files.
 [8] Pappas DJ, Lizee A, Paunic V, et al. [Significant variation between SNP-based HLA imputations in diverse populations: the last mile is the hardest](https://doi.org/10.1038/tpj.2017.7). *The Pharmacogenomics Journal*. 2018;18:367-376. DOI: 10.1038/tpj.2017.7.
 
 [9] Manson LEN, Swen JJ, Guchelaar HJ. [Diagnostic Test Criteria for HLA Genotyping to Prevent Drug Hypersensitivity Reactions: A Systematic Review of Actionable HLA Recommendations in CPIC and DPWG Guidelines](https://doi.org/10.3389/fphar.2020.567048). *Frontiers in Pharmacology*. 2020;11:567048. DOI: 10.3389/fphar.2020.567048.
+
+[10] Kaniwa N, Saito Y, Aihara M, et al. [HLA-B\*1511 is a risk factor for carbamazepine-induced Stevens-Johnson syndrome and toxic epidermal necrolysis in Japanese patients](https://doi.org/10.1111/j.1528-1167.2010.02766.x). *Epilepsia*. 2010;51:2461-2465. DOI: 10.1111/j.1528-1167.2010.02766.x; PMID: 21204807.
+
+[11] Wong CSM, Yap DYH, Ip P, et al. [HLA-B\*15:11 status and carbamazepine-induced severe cutaneous adverse drug reactions in HLA-B\*15:02 negative Chinese](https://doi.org/10.1111/ijd.15792). *International Journal of Dermatology*. 2022;61:486-491. DOI: 10.1111/ijd.15792; PMID: 34553372.
+
+[12] Biswas M, Ershadian M, Shobana J, Nguyen AH, Sukasem C. [Associations of HLA genetic variants with carbamazepine-induced cutaneous adverse drug reactions: An updated meta-analysis](https://doi.org/10.1111/cts.13291). *Clinical and Translational Science*. 2022;15:1887-1905. DOI: 10.1111/cts.13291; PMID: 35599240.
+
+[13] Manson LEN, Nijenhuis M, Soree B, et al. [Dutch Pharmacogenetics Working Group (DPWG) guideline for the gene-drug interaction of CYP2C9, HLA-A and HLA-B with anti-epileptic drugs](https://doi.org/10.1038/s41431-024-01572-4). *European Journal of Human Genetics*. 2024;32:903-911. DOI: 10.1038/s41431-024-01572-4; PMID: 38570725.

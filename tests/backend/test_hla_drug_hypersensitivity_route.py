@@ -113,6 +113,19 @@ def test_b1502_response_model_preserves_phenytoin_alert_fields() -> None:
     assert "PMID:32779747" in payload["citations"]
 
 
+def test_b1511_response_model_preserves_carbamazepine_alert_fields() -> None:
+    report = assess_drug_hypersensitivity([_resolved_call("B", "15:11", "07:02")])
+    b1511 = next(a for a in report.assessments if a.allele == "HLA-B*15:11")
+    payload = DrugRiskAssessmentResponse(**vars(b1511)).model_dump()
+
+    assert payload["status"] == "at_risk"
+    assert payload["drugs"] == ["carbamazepine"]
+    assert "alternative" in payload["recommendation"].lower()
+    assert "HLA-B*15:02 screening alone" in payload["notes"][0]
+    assert "PMID:21204807" in payload["citations"]
+    assert "PMID:38570725" in payload["citations"]
+
+
 class TestDrugHypersensitivityRoute:
     def test_carrier_surfaces_at_risk(self, carrier_client: TestClient) -> None:
         resp = carrier_client.get("/api/hla/drug-hypersensitivity", params={"sample_id": 1})

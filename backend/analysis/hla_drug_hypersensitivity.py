@@ -3,7 +3,7 @@
 Turns a sample's imputed classical-HLA calls (persisted in ``hla_calls``, resolved
 by :mod:`backend.analysis.hla_resolver`) into per-drug hypersensitivity-risk
 assessments for the well-established HLA pharmacogenetic contraindications. Every
-association here is a CPIC Level-A / guideline-grade HLA–drug pairing, evidence-
+association here is a CPIC Level-A or guideline-grade HLA–drug pairing, evidence-
 verified (≥2 agreeing peer-reviewed sources) before encoding; each carries its
 citation.
 
@@ -23,6 +23,11 @@ Evidence (accessed 2026-07-02):
 - HLA-B*57:01 / abacavir hypersensitivity — CPIC, PMID:24561393 (DOI:10.1038/clpt.2014.38).
 - HLA-B*15:02 / carbamazepine & oxcarbazepine SJS-TEN — CPIC 2017, PMID:29392710
   (DOI:10.1002/cpt.1004); discovery Chung 2004 PMID:15057820.
+- HLA-B*15:11 / carbamazepine SCAR — Kaniwa 2010 PMID:21204807
+  (DOI:10.1111/j.1528-1167.2010.02766.x); Wong 2021 PMID:34553372
+  (DOI:10.1111/ijd.15792); meta-analysis Biswas 2022 PMID:35599240
+  (DOI:10.1111/cts.13291); DPWG 2024 PMID:38570725
+  (DOI:10.1038/s41431-024-01572-4).
 - HLA-B*15:02 / phenytoin & fosphenytoin SJS-TEN — CPIC 2020, PMID:32779747
   (DOI:10.1002/cpt.2008); meta-analysis Phung 2021 PMID:34816768.
 - HLA-A*31:01 / carbamazepine DRESS/MPE/SJS-TEN — CPIC 2017, PMID:29392710.
@@ -108,6 +113,29 @@ _DRUG_HLA_RISKS: tuple[DrugHLARisk, ...] = (
             "Other aromatic anticonvulsants, including eslicarbazepine, lamotrigine "
             "and phenobarbital, have weaker HLA-B*15:02 SJS/TEN evidence; choose "
             "alternatives with caution.",
+        ),
+    ),
+    DrugHLARisk(
+        query="B*15:11",
+        display_allele="HLA-B*15:11",
+        drugs=("carbamazepine",),
+        reaction="carbamazepine severe cutaneous adverse reactions (SJS/TEN, DRESS, MPE)",
+        positive_recommendation=(
+            "DPWG: choose an alternative anti-epileptic drug instead of carbamazepine "
+            "in HLA-B*15:11-positive patients when possible; if no alternative is "
+            "possible, start only after careful benefit-risk review and counsel the "
+            "patient to report any rash immediately."
+        ),
+        guideline="DPWG / PharmGKB",
+        citations=("PMID:21204807", "PMID:34553372", "PMID:35599240", "PMID:38570725"),
+        ancestry_note=(
+            "HLA-B*15:11 carbamazepine SCAR evidence is strongest in Japanese, Korean "
+            "and Chinese cohorts, and in Asian HLA-B75 contexts; HLA-B*15:02 "
+            "screening alone does not cover this risk."
+        ),
+        extra_notes=(
+            "This row is limited to carbamazepine SCAR evidence; oxcarbazepine, "
+            "phenytoin and fosphenytoin guidance is not inferred for HLA-B*15:11.",
         ),
     ),
     DrugHLARisk(
