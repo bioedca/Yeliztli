@@ -38,7 +38,7 @@ def test_pharmacogenomics_docs_cover_all_cpic_metabolizer_phenotypes() -> None:
         ),
         "interpretation reference": _between(
             _INTERPRETATION_DOC.read_text(encoding="utf-8"),
-            "### Star-allele diplotypes & metabolizer status",
+            "### Star-allele diplotypes & CPIC status",
             "### Polygenic scores",
         ),
     }
@@ -53,6 +53,33 @@ def test_pharmacogenomics_docs_cover_all_cpic_metabolizer_phenotypes() -> None:
         )
 
 
+def test_pharmacogenomics_docs_cover_non_metabolizer_cpic_status_families() -> None:
+    expected_terms = _cpic_non_metabolizer_terms()
+    assert expected_terms, "cpic_diplotypes.csv should define non-metabolizer CPIC status terms"
+
+    sections = {
+        "pharmacogenomics page": _between(
+            _PHARMA_DOC.read_text(encoding="utf-8"),
+            "## What you'll see",
+            "## Good to know",
+        ),
+        "interpretation reference": _between(
+            _INTERPRETATION_DOC.read_text(encoding="utf-8"),
+            "### Star-allele diplotypes & CPIC status",
+            "### Polygenic scores",
+        ),
+    }
+
+    for name, section in sections.items():
+        missing = [
+            term for term in expected_terms if not re.search(rf"\b{re.escape(term)}\b", section)
+        ]
+        assert not missing, (
+            f"{name} omits non-metabolizer CPIC status term(s) present in "
+            f"cpic_diplotypes.csv: {missing}"
+        )
+
+
 def _cpic_metabolizer_terms() -> list[str]:
     with _CPIC_DIPLOTYPES.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -60,6 +87,18 @@ def _cpic_metabolizer_terms() -> list[str]:
             phenotype.removesuffix(" Metabolizer").lower()
             for row in reader
             if (phenotype := row["phenotype"]).endswith(" Metabolizer")
+        }
+
+    return sorted(terms)
+
+
+def _cpic_non_metabolizer_terms() -> list[str]:
+    with _CPIC_DIPLOTYPES.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        terms = {
+            phenotype.lower()
+            for row in reader
+            if not (phenotype := row["phenotype"]).endswith(" Metabolizer")
         }
 
     return sorted(terms)

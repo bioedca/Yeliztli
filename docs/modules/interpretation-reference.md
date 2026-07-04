@@ -72,13 +72,17 @@ highest-category contributing variant, subject to the evidence cap above. Sites 
 resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are marked
 **Indeterminate** and withheld from the level rather than guessed.
 
-### Star-allele diplotypes & metabolizer status
+### Star-allele diplotypes & CPIC status
 
 [Pharmacogenomics](pharma/pharmacogenomics.md) reports a **diplotype** (e.g. `*1/*4`) and a
-**metabolizer phenotype** (poor / intermediate / normal / rapid / ultrarapid), each with a
-**call-confidence** of *Complete*, *Partial*, or *Insufficient*. **Rapid** is a distinct
+CPIC phenotype or functional status, each with a **call-confidence** of *Complete*, *Partial*,
+or *Insufficient*. Drug-metabolizing enzyme genes use **metabolizer phenotypes**
+(poor / intermediate / normal / rapid / ultrarapid). **Rapid** is a distinct
 increased-activity category, not a synonym for **ultrarapid**; for example, Yeliztli maps
 `CYP2C19 *1/*17` to **Rapid Metabolizer** and `*17/*17` to **Ultrarapid Metabolizer**.[^cpic-terms]
+Other CPIC pharmacogenes use different status families, such as **Normal function**,
+**Decreased function**, and **Poor function** for *SLCO1B1*, or **Rapid Acetylator**,
+**Intermediate Acetylator**, and **Slow Acetylator** for *NAT2*.
 Drug alerts use **CPIC** levels. Treat *Partial*/*Insufficient* calls with extra caution —
 arrays can miss copy-number and structural variation.
 
