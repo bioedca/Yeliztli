@@ -22,15 +22,14 @@ test.describe('mobile app navigation layout', () => {
     const nav = page.getByRole('navigation', { name: 'Main navigation' })
     const mainBox = await main.boundingBox()
     const navBox = await nav.boundingBox()
-    const navPrecedesMain = await page.evaluate(() => {
-      const navElement = document.querySelector('nav[aria-label="Main navigation"]')
+    const mainPrecedesNav = await nav.evaluate((navElement) => {
       const mainElement = document.querySelector('#main-content')
 
-      if (!navElement || !mainElement) {
+      if (!mainElement) {
         return false
       }
 
-      return Boolean(navElement.compareDocumentPosition(mainElement) & Node.DOCUMENT_POSITION_FOLLOWING)
+      return Boolean(mainElement.compareDocumentPosition(navElement) & Node.DOCUMENT_POSITION_FOLLOWING)
     })
 
     expect(mainBox).not.toBeNull()
@@ -38,7 +37,7 @@ test.describe('mobile app navigation layout', () => {
     expect(mainBox!.width).toBeGreaterThanOrEqual(viewportWidth - 2)
     expect(navBox!.width).toBeGreaterThanOrEqual(viewportWidth - 2)
     expect(navBox!.height).toBeLessThan(100)
-    expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(mainBox!.y + 1)
-    expect(navPrecedesMain).toBe(true)
+    expect(mainBox!.y + mainBox!.height).toBeLessThanOrEqual(navBox!.y + 1)
+    expect(mainPrecedesNav).toBe(true)
   })
 })
