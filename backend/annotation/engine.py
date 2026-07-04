@@ -380,6 +380,7 @@ def _lookup_clinvar(
     carriage (zygosity). Without these two the engine is genotype-agnostic.
     """
     from backend.annotation.clinvar import (
+        clinvar_position_concordant,
         lookup_clinvar_by_positions,
         lookup_clinvar_by_rsids,
     )
@@ -401,6 +402,8 @@ def _lookup_clinvar(
 
     matches = lookup_clinvar_by_rsids(rsids, reference_engine, genotype_by_rsid=genotype_by_rsid)
     for rsid, annot in matches.items():
+        if not clinvar_position_concordant(raw_by_rsid.get(rsid), annot):
+            continue
         _record(rsid, annot)
 
     # Coordinate fallback for rsids that missed the rsid index but have a

@@ -72,6 +72,7 @@ from backend.db.tables import (
     annotation_state,
     clinvar_variants,
     database_versions,
+    dbsnp_merges,
     raw_variants,
     reference_metadata,
     sample_metadata_table,
@@ -457,13 +458,13 @@ class TestLookupClinvar:
         assert result["rs_array_probe"]["clinvar_significance"] == "Pathogenic"
         assert result["rs_array_probe"]["alt"] == "A"
 
-    def test_rsid_hit_skips_coord_fallback(self, reference_engine: sa.Engine) -> None:
-        """An rsID match short-circuits the fallback (no coord override of a hit)."""
-        # rs1801133 is filed at chrom 1; pretend the raw row carries a *different*
-        # coordinate. The rsID match must win and the bogus coordinate is ignored.
+    def test_rsid_hit_requires_coordinate_concordance(self, reference_engine: sa.Engine) -> None:
+        """An rsID match at a different coordinate is rejected."""
+        # rs1801133 is filed at chrom 1; pretend the raw row carries a different
+        # coordinate. The ClinVar hit must not be attached to that row.
         raw = SimpleNamespace(rsid="rs1801133", chrom="99", pos=1, genotype="AG")
         result = _lookup_clinvar(["rs1801133"], {"rs1801133": raw}, reference_engine)
-        assert result["rs1801133"]["clinvar_significance"] == "drug_response"
+        assert result == {}
 
 
 class TestLookupGnomad:
@@ -869,6 +870,59 @@ class TestRunAnnotation:
         assert row.annotation_coverage & CLINVAR_BIT
         # genotype AA vs ref G / alt A → homozygous carrier (non-NULL zygosity)
         assert row.zygosity is not None
+
+    def test_merged_rsid_clinvar_hit_rejected_when_position_differs(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        """A merged rsID must not re-key an adjacent ClinVar record onto a sample row."""
+        with mock_registry.reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert(),
+                [
+                    {
+                        "old_rsid": "rs2854121",
+                        "current_rsid": "rs1556423844",
+                        "build_id": 151,
+                    }
+                ],
+            )
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": "rs1556423844",
+                        "chrom": "MT",
+                        "pos": 10663,
+                        "ref": "T",
+                        "alt": "C",
+                        "significance": "Likely pathogenic",
+                        "review_stars": 3,
+                        "accession": "VCV000009707",
+                        "conditions": "Mitochondrial disease|Leber optic atrophy",
+                        "gene_symbol": "MT-ND4L",
+                        "variation_id": 9707,
+                    }
+                ],
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs2854121", "chrom": "MT", "pos": 10664, "genotype": "C"}],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs2854121")
+            ).fetchone()
+
+        assert row is not None
+        assert row.dbsnp_rsid_current == "rs1556423844"
+        assert row.clinvar_significance is None
+        assert not (row.annotation_coverage & CLINVAR_BIT)
 
     def test_engine_populates_zygosity(
         self,

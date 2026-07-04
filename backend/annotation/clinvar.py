@@ -575,6 +575,8 @@ class ClinVarAnnotation:
     """ClinVar annotation data for a single variant."""
 
     rsid: str
+    chrom: str | None
+    pos: int | None
     clinvar_significance: str | None
     clinvar_review_stars: int
     clinvar_accession: str | None
@@ -623,6 +625,38 @@ def _pick_clinvar_row(rows: list[sa.Row], genotype: str | None) -> sa.Row:
     return rows[0]
 
 
+def _concordance_chrom(chrom: object) -> str | None:
+    if chrom is None:
+        return None
+    normalized = str(chrom).upper()
+    if normalized.startswith("CHR"):
+        normalized = normalized[3:]
+    return "MT" if normalized == "M" else normalized
+
+
+def clinvar_position_concordant(raw: object | None, annot: ClinVarAnnotation) -> bool:
+    """Return whether a ClinVar hit describes the same row position.
+
+    rsID merge recovery is useful only when the replacement rsID still points
+    to the same physical variant. If the replacement record lives at a
+    different coordinate, attaching its clinical significance to the sample row
+    conflates adjacent variants.
+    """
+    if raw is None:
+        return True
+
+    raw_chrom = _concordance_chrom(getattr(raw, "chrom", None))
+    annot_chrom = _concordance_chrom(annot.chrom)
+    raw_pos = getattr(raw, "pos", None)
+    if raw_chrom is None or annot_chrom is None or raw_pos is None or annot.pos is None:
+        return True
+
+    try:
+        return raw_chrom == annot_chrom and int(raw_pos) == int(annot.pos)
+    except (TypeError, ValueError):
+        return True
+
+
 def lookup_clinvar_by_rsids(
     rsids: list[str],
     reference_engine: sa.Engine,
@@ -660,6 +694,8 @@ def lookup_clinvar_by_rsids(
             stmt = (
                 sa.select(
                     clinvar_variants.c.rsid,
+                    clinvar_variants.c.chrom,
+                    clinvar_variants.c.pos,
                     clinvar_variants.c.significance,
                     clinvar_variants.c.review_stars,
                     clinvar_variants.c.accession,
@@ -689,6 +725,8 @@ def lookup_clinvar_by_rsids(
                 row = _pick_clinvar_row(cand_rows, genotype)
                 results[rsid] = ClinVarAnnotation(
                     rsid=rsid,
+                    chrom=row.chrom,
+                    pos=row.pos,
                     clinvar_significance=row.significance,
                     clinvar_review_stars=row.review_stars or 0,
                     clinvar_accession=row.accession,
@@ -778,6 +816,8 @@ def lookup_clinvar_by_positions(
                     row = _pick_clinvar_row(pos_candidates[key], genotype)
                     results[sample_rsid] = ClinVarAnnotation(
                         rsid=sample_rsid,
+                        chrom=row.chrom,
+                        pos=row.pos,
                         clinvar_significance=row.significance,
                         clinvar_review_stars=row.review_stars or 0,
                         clinvar_accession=row.accession,
@@ -836,6 +876,11 @@ def annotate_sample_clinvar(
     rsid_matches = lookup_clinvar_by_rsids(
         all_rsids, reference_engine, genotype_by_rsid=genotype_by_rsid
     )
+    rsid_matches = {
+        rsid: annot
+        for rsid, annot in rsid_matches.items()
+        if clinvar_position_concordant(raw_by_rsid.get(rsid), annot)
+    }
     result.matched_by_rsid = len(rsid_matches)
 
     # 3. Fallback: by (chrom, pos) for unmatched variants

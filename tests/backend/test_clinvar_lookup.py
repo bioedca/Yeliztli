@@ -523,6 +523,48 @@ class TestAnnotateSampleClinvar:
         assert result.not_matched == len(SEED_RAW_VARIANTS)
         assert result.rows_written == 0
 
+    def test_rsid_match_rejected_when_position_disagrees(
+        self,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """An rsID hit must not attach ClinVar significance from a nearby variant."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs2854121", "chrom": "MT", "pos": 10664, "genotype": "C"}],
+            )
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": "rs2854121",
+                        "chrom": "MT",
+                        "pos": 10663,
+                        "ref": "T",
+                        "alt": "C",
+                        "significance": "Likely pathogenic",
+                        "review_stars": 3,
+                        "accession": "VCV000009707",
+                        "conditions": "Mitochondrial disease|Leber optic atrophy",
+                        "gene_symbol": "MT-ND4L",
+                        "variation_id": 9707,
+                    }
+                ],
+            )
+
+        result = annotate_sample_clinvar(sample_engine, reference_engine)
+
+        assert result.matched_by_rsid == 0
+        assert result.matched_by_position == 0
+        assert result.rows_written == 0
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs2854121")
+            ).first()
+        assert row is None
+
     def test_chrom_pos_fallback(
         self,
         sample_engine: sa.Engine,
