@@ -45,8 +45,8 @@ repair any database later under **Settings → System Health → Database Health
 
 The required setup gate is **ClinVar**, **gnomAD**, **dbNSFP**, **CPIC**, **GWAS Catalog**,
 **dbSNP**, and **MONDO/HPO**. Setup cannot complete, and the dashboard is not reachable, until
-all seven are `Ready`. Optional sources can be added later from **Settings → Database
-Management**.
+all seven are `Ready`. Most optional sources can be added later from **Settings → Database
+Management**; manual or bring-your-own sources use their documented local ingest path.
 
 Plan for full first-run setup to take on the order of an hour or more. The exact time depends
 on bandwidth, CPU, disk speed, and which optional databases you choose. The largest required

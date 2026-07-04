@@ -6,8 +6,9 @@ their original providers. They also have two setup roles:
 
 - **Required** databases must be downloaded or built and pass integrity checks before the
   first-time [setup wizard](setup-wizard.md) can complete.
-- **Optional** sources add context or optional features and can be installed later from
-  **Settings → Database Management**.
+- **Optional** sources add context or optional features. Most can be installed later from
+  **Settings → Database Management**; manual or bring-your-own sources use the local ingest
+  path documented for that source.
 
 The setup-blocking required databases are **ClinVar**, **gnomAD**, **dbNSFP**, **CPIC**,
 **GWAS Catalog**, **dbSNP**, and **MONDO/HPO**. If any required database is `Failed` or not
@@ -56,7 +57,7 @@ attribution list lives in the repository
 | **dbNSFP** | **Required** | In-silico pathogenicity predictions (REVEL, CADD, ...) | ~50 GB transient ZIP + ~10+ GB built DB | Academic / non-commercial |
 | **CPIC** | **Required** | Pharmacogenomics allele & guideline data | ~5 MB | CC0-1.0 |
 | **ClinGen** | Optional | Gene-disease validity & dosage | ~1 MB | CC0-1.0 |
-| **PharmVar** | Required (via CPIC) | Pharmacogene star-allele definitions | Small metadata source | Open |
+| **PharmVar** | Supporting source for CPIC | Pharmacogene star-allele definitions | Small metadata source | Open |
 | **AlphaMissense** | Optional | Missense pathogenicity predictions | ~3.5 GB when installed | CC-BY-4.0 |
 | **GWAS Catalog** (EBI) | **Required** | Trait/disease associations for risk modules | ~100 MB | Open |
 | **dbSNP** (NCBI) | **Required** | rsID merge/identity resolution | ~20 MB | Public domain |
