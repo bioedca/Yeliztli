@@ -267,6 +267,60 @@ class TestRunAnnotationTask:
         assert row.progress_pct == 100.0
         assert "Annotated" in row.message
 
+    def test_task_marks_source_failures_partial(self, annotation_env: dict) -> None:
+        """Unreadable annotation sources downgrade the job status to partial."""
+        from backend.annotation.engine import AnnotationEngineResult
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        result = AnnotationEngineResult(
+            total_variants=5,
+            rows_written=5,
+            vep_matched=4,
+            clinvar_matched=3,
+            gnomad_matched=2,
+            dbnsfp_matched=0,
+            alphamissense_matched=1,
+            gene_phenotype_matched=1,
+            coverage_stats={"bundle_version": "test-bundle"},
+            source_failures={"dbnsfp": "database is locked"},
+        )
+
+        with (
+            patch("backend.annotation.engine.run_annotation", return_value=result),
+            patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
+            patch("backend.analysis.run_all.run_all_analyses", return_value={}),
+            patch(
+                "backend.services.staleness.read_current_reference_versions",
+                return_value={},
+            ),
+            patch(
+                "backend.analysis.provenance.stamp_findings_provenance",
+                return_value=0,
+            ),
+            patch(
+                "backend.analysis.finding_diff.compute_and_store_finding_diff",
+                return_value=None,
+            ),
+            patch(
+                "backend.analysis.svg_renderer.generate_svgs_for_sample",
+                return_value=0,
+            ),
+        ):
+            run_annotation_task.call_local(sample_id, job_id)
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
+
+        assert row.status == "partial"
+        assert row.progress_pct == 100.0
+        assert row.error is None
+        assert "Annotated 5 variants" in row.message
+        assert "source(s) unavailable" in row.message
+        assert "dbnsfp" in row.message
+
     def test_task_populates_annotated_variants(self, annotation_env: dict) -> None:
         """After task completes, annotated_variants has rows."""
         from backend.db.connection import get_registry
