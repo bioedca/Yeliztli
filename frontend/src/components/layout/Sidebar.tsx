@@ -26,7 +26,7 @@ export default function Sidebar() {
               end={to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex shrink-0 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors md:flex-row md:justify-start md:gap-3 md:px-2',
+                  'flex min-w-0 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors md:flex-row md:justify-start md:gap-3 md:px-2',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -36,7 +36,7 @@ export default function Sidebar() {
               title={label}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className={cn('whitespace-nowrap text-xs md:text-sm', collapsed && 'md:sr-only')}>
+              <span className={cn('max-w-20 truncate text-xs md:max-w-full md:min-w-0 md:text-sm', collapsed && 'md:sr-only')}>
                 {label}
               </span>
             </NavLink>

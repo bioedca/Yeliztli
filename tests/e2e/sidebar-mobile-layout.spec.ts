@@ -18,13 +18,27 @@ test.describe('mobile app navigation layout', () => {
     await waitForReactHydration(page)
 
     const viewportWidth = page.viewportSize()?.width ?? 375
-    const mainBox = await page.locator('#main-content').boundingBox()
-    const navBox = await page.getByRole('navigation', { name: 'Main navigation' }).boundingBox()
+    const main = page.locator('#main-content')
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    const mainBox = await main.boundingBox()
+    const navBox = await nav.boundingBox()
+    const navPrecedesMain = await page.evaluate(() => {
+      const navElement = document.querySelector('nav[aria-label="Main navigation"]')
+      const mainElement = document.querySelector('#main-content')
+
+      if (!navElement || !mainElement) {
+        return false
+      }
+
+      return Boolean(navElement.compareDocumentPosition(mainElement) & Node.DOCUMENT_POSITION_FOLLOWING)
+    })
 
     expect(mainBox).not.toBeNull()
     expect(navBox).not.toBeNull()
     expect(mainBox!.width).toBeGreaterThanOrEqual(viewportWidth - 2)
     expect(navBox!.width).toBeGreaterThanOrEqual(viewportWidth - 2)
     expect(navBox!.height).toBeLessThan(100)
+    expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(mainBox!.y + 1)
+    expect(navPrecedesMain).toBe(true)
   })
 })
