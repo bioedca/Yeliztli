@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from './test-utils'
+import { fireEvent, render, screen } from './test-utils'
 import App from '../App'
 
 function jsonResponse(body: unknown): Promise<Response> {
@@ -66,6 +66,17 @@ describe('App', () => {
     expect(screen.getByText('/individuals')).toBeInTheDocument()
     expect(
       screen.getByRole('navigation', { name: 'Main navigation' }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the Back action inside the app on direct 404 entry', async () => {
+    render(<App />, { route: '/individuals' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Page not found' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeInTheDocument()
   })
 })

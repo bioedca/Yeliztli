@@ -6,6 +6,15 @@ export default function NotFound() {
   const navigate = useNavigate()
   const requestedPath = `${location.pathname}${location.search}${location.hash}`
 
+  const handleBack = () => {
+    const historyState = window.history.state as { idx?: unknown } | null
+    if (typeof historyState?.idx === 'number' && historyState.idx > 0) {
+      navigate(-1)
+      return
+    }
+    navigate('/', { replace: true })
+  }
+
   return (
     <div className="min-h-full px-6 py-8">
       <div className="max-w-3xl">
@@ -37,7 +46,7 @@ export default function NotFound() {
           </Link>
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
