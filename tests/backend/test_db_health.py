@@ -1150,6 +1150,44 @@ class TestActiveJobHealth:
         assert h.last_error == "boom"
 
 
+class TestBuildLockHealth:
+    """A held per-DB build lock also reports an active pipeline build."""
+
+    def test_held_pipeline_build_lock_without_job_reports_building(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        import threading
+
+        from backend.db.build_guard import build_lock, is_build_locked
+
+        assert get_database("dbnsfp").build_mode == "pipeline"
+
+        held = threading.Event()
+        release = threading.Event()
+
+        def hold_lock() -> None:
+            with build_lock("dbnsfp"):
+                held.set()
+                release.wait(30)
+
+        thread = threading.Thread(target=hold_lock, name="dbnsfp-build-lock-holder")
+        thread.start()
+        try:
+            assert held.wait(5)
+            assert is_build_locked("dbnsfp") is True
+
+            h = _health(settings, ref_db, "dbnsfp")
+
+            assert h.state == "building"
+            assert h.active_job_id is None
+        finally:
+            release.set()
+            thread.join(timeout=5)
+
+        assert thread.is_alive() is False
+        assert is_build_locked("dbnsfp") is False
+
+
 class TestResumablePartialHealth:
     def test_partial_resumable_with_progress(self, settings: Settings, ref_db: sa.Engine) -> None:
         # encode_ccres: .tmp partial + a failed downloads row -> partial+resumable.
