@@ -332,7 +332,7 @@
         "rs121909219",
         "rs587776674"
       ],
-      "pmids": ["20301661", "29895982"],
+      "pmids": ["20301661"],
       "notes": "Multi-organ cancer risk. Lifetime breast cancer risk ~85% for female carriers."
     },
     {
@@ -350,7 +350,7 @@
         "rs199919362",
         "rs587780612"
       ],
-      "pmids": ["20301443", "30311386"],
+      "pmids": ["20301443"],
       "notes": "Peutz-Jeghers syndrome with hamartomatous polyps and elevated multi-organ cancer risk."
     },
     {
@@ -368,7 +368,7 @@
         "rs587782412",
         "rs587782415"
       ],
-      "pmids": ["20301318", "26062993"],
+      "pmids": ["20301318"],
       "notes": "Prophylactic gastrectomy may be recommended. Lobular breast cancer screening for female carriers."
     },
     {
@@ -386,7 +386,7 @@
         "rs267606815",
         "rs267606802"
       ],
-      "pmids": ["20301288", "29392898"],
+      "pmids": ["20301288"],
       "notes": "Neurofibromatosis type 1. Cancer risk is part of broader clinical syndrome."
     },
     {
@@ -404,7 +404,7 @@
         "rs137854553",
         "rs137854554"
       ],
-      "pmids": ["20301380", "22407877"],
+      "pmids": ["20301380"],
       "notes": "Bilateral vestibular schwannomas are hallmark. Surveillance MRI recommended."
     },
     {
@@ -422,7 +422,7 @@
         "rs104894256",
         "rs104894255"
       ],
-      "pmids": ["20301710", "25073840"],
+      "pmids": ["20301710"],
       "notes": "MEN1 classic triad: parathyroid adenoma, pituitary adenoma, pancreatic neuroendocrine tumor."
     },
     {
@@ -507,7 +507,7 @@
         "rs587782400",
         "rs587782401"
       ],
-      "pmids": ["27813044", "26014290"],
+      "pmids": ["27748099", "37607989"],
       "notes": "BAP1 tumor predisposition syndrome. Dermal melanocytic tumors are common early sign."
     },
     {

@@ -320,6 +320,56 @@ class TestLynchCitations:
             )
 
 
+class TestCancerPanelSecondSlotCitationProvenance:
+    """Guard the cancer-panel second-citation cleanup (issue #1546).
+
+    Several rows had a correct GeneReviews first citation plus an unrelated
+    second PMID from a shuffled/bulk-populated source. BAP1 was worse: both
+    citations were unrelated or wrong-gene, so it is pinned to the BAP1
+    GeneReviews chapter plus the 2023 BAP1-TPDS clinical-practice guideline.
+    """
+
+    _VERIFIED: dict[str, frozenset[str]] = {
+        "PTEN": frozenset({"20301661"}),  # PTEN Hamartoma Tumor Syndrome GeneReviews
+        "STK11": frozenset({"20301443"}),  # Peutz-Jeghers Syndrome GeneReviews
+        "CDH1": frozenset({"20301318"}),  # Hereditary Diffuse Gastric Cancer GeneReviews
+        "NF1": frozenset({"20301288"}),  # Neurofibromatosis 1 GeneReviews
+        "NF2": frozenset({"20301380"}),  # NF2-Related Schwannomatosis GeneReviews
+        "MEN1": frozenset({"20301710"}),  # Multiple Endocrine Neoplasia Type 1 GeneReviews
+        "BAP1": frozenset(
+            {
+                "27748099",  # BAP1 Tumor Predisposition Syndrome GeneReviews
+                "37607989",  # 2023 BAP1-TPDS diagnosis/surveillance guideline
+            }
+        ),
+    }
+
+    _BANNED_FROM_CANCER_PANEL = frozenset(
+        {
+            "27813044",  # OSCE medical-school exam inventory, formerly BAP1
+            "26014290",  # TP53 / Li-Fraumeni paper, formerly BAP1
+            "22407877",  # organic-chemistry tyrosine synthesis, formerly NF2
+            "26062993",  # omega-3/6 microbiome-lipid paper, formerly CDH1
+            "29392898",  # ATP mechanobiology in T24 cells, formerly NF1
+            "29895982",  # anti-TNF exposure in utero letter, formerly PTEN
+            "25073840",  # clinician/researcher methodology paper, formerly MEN1
+            "30311386",  # hearing-loss ACMG/AMP specification, formerly STK11
+        }
+    )
+
+    def test_affected_rows_cite_verified_references(self, panel: CancerPanel) -> None:
+        for symbol, expected in self._VERIFIED.items():
+            gene = panel.get_gene(symbol)
+            assert gene is not None, symbol
+            assert set(gene.pmids) == expected, (symbol, gene.pmids)
+
+    def test_shuffled_second_slot_pmids_absent_from_cancer_panel(self, panel: CancerPanel) -> None:
+        assert panel.genes, "cancer panel has no genes - collector regression"
+        for gene in panel.genes:
+            leaked = self._BANNED_FROM_CANCER_PANEL & set(gene.pmids)
+            assert not leaked, f"{gene.gene_symbol} cites unrelated PMID(s) {sorted(leaked)}"
+
+
 # ── Cross-links and dual-role genes ──────────────────────────────────────
 
 

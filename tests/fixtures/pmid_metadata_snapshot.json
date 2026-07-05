@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-30",
-    "pmid_count": 372,
+    "pmid_count": 366,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -1052,11 +1052,6 @@
       "journal": "Clin Pharmacol Ther",
       "year": "2012"
     },
-    "22407877": {
-      "title": "S(N)1-type substitution reactions of N-protected β-hydroxytyrosine esters: stereoselective synthesis of β-aryl and β-alkyltyrosines.",
-      "journal": "Chem Asian J",
-      "year": "2012"
-    },
     "22884227": {
       "title": "Early gastric fistula after laparoscopic sleeve gastrectomy: surgical management.",
       "journal": "J Visc Surg",
@@ -1222,11 +1217,6 @@
       "journal": "Ophthalmology",
       "year": "2014"
     },
-    "25073840": {
-      "title": "Bridging the clinician/researcher gap with systemic research: the case for process research, dyadic, and sequential analysis.",
-      "journal": "J Marital Fam Ther",
-      "year": "2013"
-    },
     "25129146": {
       "title": "Joint analysis of three genome-wide association studies of esophageal squamous cell carcinoma in Chinese populations.",
       "journal": "Nat Genet",
@@ -1272,11 +1262,6 @@
       "journal": "Nat Genet",
       "year": "2015"
     },
-    "26014290": {
-      "title": "Revisiting Li-Fraumeni Syndrome From TP53 Mutation Carriers.",
-      "journal": "J Clin Oncol",
-      "year": "2015"
-    },
     "26044055": {
       "title": "Association of glutathione S-transferase pi (GSTP1) Ile105Val polymorphism with the risk of skin cancer: a meta-analysis.",
       "journal": "Arch Dermatol Res",
@@ -1290,11 +1275,6 @@
     "26062626": {
       "title": "Age-specific penetrance of LRRK2 G2019S in the Michael J. Fox Ashkenazi Jewish LRRK2 Consortium.",
       "journal": "Neurology",
-      "year": "2015"
-    },
-    "26062993": {
-      "title": "A host-microbiome interaction mediates the opposing effects of omega-6 and omega-3 fatty acids on metabolic endotoxemia.",
-      "journal": "Sci Rep",
       "year": "2015"
     },
     "26199118": {
@@ -1377,10 +1357,10 @@
       "journal": "Nat Rev Dis Primers",
       "year": "2016"
     },
-    "27813044": {
-      "title": "[Application of the Objective Structured Clinical Examination (OSCE) in German Medical Schools: An Inventory].",
-      "journal": "Gesundheitswesen",
-      "year": "2018"
+    "27748099": {
+      "title": "BAP1 Tumor Predisposition Syndrome.",
+      "journal": "",
+      "year": "1993"
     },
     "28206959": {
       "title": "Association of polymorphisms rs1800012 in COL1A1 with sports-related tendon and ligament injuries: a meta-analysis.",
@@ -1437,11 +1417,6 @@
       "journal": "Clin Pharmacol Ther",
       "year": "2018"
     },
-    "29392898": {
-      "title": "The role of ATP signalling in response to mechanical stimulation studied in T24 cells using new microphysiological tools.",
-      "journal": "J Cell Mol Med",
-      "year": "2018"
-    },
     "29446198": {
       "title": "Mutational spectrum in a worldwide study of 29,700 families with BRCA1 or BRCA2 mutations.",
       "journal": "Hum Mutat",
@@ -1470,11 +1445,6 @@
     "29892016": {
       "title": "Association analyses of more than 140,000 men identify 63 new prostate cancer susceptibility loci.",
       "journal": "Nat Genet",
-      "year": "2018"
-    },
-    "29895982": {
-      "title": "Anti-TNF Exposure in Utero, What About My Twins?",
-      "journal": "Am J Gastroenterol",
       "year": "2018"
     },
     "29904014": {
@@ -1516,11 +1486,6 @@
       "title": "Myocilin Gene Gln368Ter Variant Penetrance and Association With Glaucoma in Population-Based and Registry-Based Studies.",
       "journal": "JAMA Ophthalmol",
       "year": "2019"
-    },
-    "30311386": {
-      "title": "Expert specification of the ACMG/AMP variant interpretation guidelines for genetic hearing loss.",
-      "journal": "Hum Mutat",
-      "year": "2018"
     },
     "30335238": {
       "title": "Classical HLA alleles tag SNP in families from Antioquia with type 1 diabetes mellitus.",
@@ -1770,6 +1735,11 @@
     "37490054": {
       "title": "Management of individuals with germline pathogenic/likely pathogenic variants in CHEK2: A clinical practice resource of the American College of Medical Genetics and Genomics (ACMG).",
       "journal": "Genet Med",
+      "year": "2023"
+    },
+    "37607989": {
+      "title": "Clinical practice guidelines for the diagnosis and surveillance of BAP1 tumour predisposition syndrome.",
+      "journal": "Eur J Hum Genet",
       "year": "2023"
     },
     "38036523": {
