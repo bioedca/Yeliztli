@@ -59,9 +59,10 @@ their findings here.
 
 After a full annotation run, the total finding count may be dominated by
 [Rare Variant Finder](../modules/rare-variants.md) rows. A typical sample can have tens of
-thousands of carried rare or gnomAD-AF-missing variants, usually at ★. Those rows are an
-inventory for review, not diagnoses and not known disease associations. Use the module,
-category, and minimum-evidence filters to narrow the list.
+thousands of carried rare or gnomAD-AF-missing variants, usually at ★. Those
+discovery-context ★ rows are an inventory for review, not diagnoses and not known disease
+associations. ClinVar pathogenic and lower-penetrance/risk-allele rows are labelled
+separately. Use the module, category, and minimum-evidence filters to narrow the list.
 
 ## Sensitive results are opt-in
 
