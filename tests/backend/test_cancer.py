@@ -541,6 +541,16 @@ class TestGeneMetadata:
         for gene in panel.genes:
             assert gene.notes, f"{gene.gene_symbol} has no notes"
 
+    def test_sdhx_pmids_exclude_pediatric_all_trial_network_editorial(
+        self, panel: CancerPanel
+    ) -> None:
+        """SDHx cancer rows must not cite the off-topic pediatric ALL editorial."""
+        for symbol in ("SDHA", "SDHB", "SDHC", "SDHD"):
+            gene = panel.get_gene(symbol)
+            assert gene is not None
+            assert "20301715" in gene.pmids
+            assert "24344213" not in gene.pmids
+
     def test_sdhd_has_user_facing_clinical_caveat(self, panel: CancerPanel) -> None:
         sdhd = panel.get_gene("SDHD")
         assert sdhd is not None

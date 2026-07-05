@@ -80,6 +80,11 @@ BANNED_OFF_TOPIC_PMIDS: dict[str, dict[str, str]] = {
         "field": "patient communication / decision science",
         "caught_in": "allergy",
     },
+    "24344213": {
+        "title": "Expanding clinical trial networks in pediatric acute lymphoblastic leukemia.",
+        "field": "pediatric ALL clinical-trial-network editorial, not germline variant evidence",
+        "caught_in": "cancer (SDHx, #1524)",
+    },
     "25904306": {
         "title": "Dispersant (not nanocarbon) induced lysosome abnormality in macrophages",
         "field": "nanotechnology toxicology",

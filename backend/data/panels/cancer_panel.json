@@ -438,7 +438,7 @@
         "rs5790770",
         "rs587782786"
       ],
-      "pmids": ["20301715", "24344213"],
+      "pmids": ["20301715"],
       "notes": "Lower penetrance compared to SDHB. Surveillance recommended for carriers."
     },
     {
@@ -456,7 +456,7 @@
         "rs74315370",
         "rs587782768"
       ],
-      "pmids": ["20301715", "24344213"],
+      "pmids": ["20301715"],
       "notes": "Higher penetrance and malignancy risk compared to other SDH subunits."
     },
     {
@@ -472,7 +472,7 @@
         "rs587782789",
         "rs587782790"
       ],
-      "pmids": ["20301715", "24344213"],
+      "pmids": ["20301715"],
       "notes": "Lower penetrance. Head and neck paragangliomas most common."
     },
     {
@@ -489,7 +489,7 @@
         "rs104894303",
         "rs104894304"
       ],
-      "pmids": ["20301715", "24344213", "15064708", "23493432"],
+      "pmids": ["20301715", "15064708", "23493432"],
       "notes": "Parent-of-origin effect: disease penetrance primarily with paternal inheritance.",
       "clinical_caveat": "Clinical caveat: SDHD has a parent-of-origin effect; disease penetrance is primarily associated with paternal inheritance. Array data do not determine parent of origin, so clinical/genetic confirmation and family-history review are needed."
     },
