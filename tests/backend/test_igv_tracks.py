@@ -219,6 +219,35 @@ def sample_with_annotations(test_client: TestClient) -> int:
     return sample_id
 
 
+@pytest.mark.parametrize(
+    ("path_template", "params"),
+    [
+        ("/api/igv-tracks/clinvar", {"chr": "chr17", "start": "inf", "end": "100"}),
+        (
+            "/api/igv-tracks/sample/{sample_id}/variants",
+            {"chr": "chr17", "start": "0", "end": "nan"},
+        ),
+        ("/api/igv-tracks/gnomad", {"chr": "chr17", "start": "inf", "end": "100"}),
+        ("/api/igv-tracks/encode-ccres", {"chr": "chr1", "start": "0", "end": "nan"}),
+    ],
+)
+def test_track_regions_reject_non_finite_bounds(
+    test_client: TestClient,
+    sample_with_variants: int,
+    path_template: str,
+    params: dict[str, str],
+) -> None:
+    """Non-finite IGV bounds should return validation-style 422 responses."""
+    path = path_template.format(sample_id=sample_with_variants)
+
+    resp = test_client.get(path, params=params)
+
+    assert resp.status_code == 422
+    payload = resp.json()
+    assert "detail" in payload
+    assert payload["detail"]
+
+
 # ── ClinVar VCF Track Tests ─────────────────────────────────────────
 
 

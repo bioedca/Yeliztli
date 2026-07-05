@@ -58,6 +58,8 @@ def _normalize_igv_bounds(start: float, end: float) -> tuple[int, int]:
     Floor the start and ceil the end so the requested region remains inclusive
     after conversion instead of becoming a narrower fractional slice.
     """
+    if not math.isfinite(start) or not math.isfinite(end):
+        raise HTTPException(status_code=422, detail="IGV track bounds must be finite.")
     return math.floor(start), math.ceil(end)
 
 
