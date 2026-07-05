@@ -55,6 +55,20 @@ class TestAssessDrugHypersensitivity:
         assert "abacavir" in a.recommendation.lower()
         assert "PMID:24561393" in a.citations
 
+    def test_a3101_carrier_is_at_risk_for_carbamazepine(self) -> None:
+        report = assess_drug_hypersensitivity([_call("A", "31:01", "02:01")])
+        assert report.available is True
+        assert report.any_at_risk is True
+        a = _by_allele(report)["HLA-A*31:01"]
+        assert a.status == STATUS_AT_RISK
+        assert a.carried is True
+        assert a.copies == 1
+        assert a.zygosity == "heterozygous"
+        assert a.drugs == ["carbamazepine"]
+        assert "carbamazepine" in a.recommendation.lower()
+        assert "alternative" in a.recommendation.lower()
+        assert "PMID:29392710" in a.citations
+
     def test_b_locus_typed_without_5701_is_no_risk_allele(self) -> None:
         # A B call that isn't a curated B risk allele resolves those B rows to no_risk_allele.
         report = assess_drug_hypersensitivity([_call("B", "07:02", "08:01")])

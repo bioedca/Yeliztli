@@ -97,6 +97,11 @@ def carrier_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
+def a3101_carrier_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    yield from _client(tmp_data_dir, [_row("A", "31:01", "02:01")])
+
+
+@pytest.fixture
 def empty_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     yield from _client(tmp_data_dir, [])
 
@@ -140,6 +145,20 @@ class TestDrugHypersensitivityRoute:
         assert "abacavir" in by["HLA-B*57:01"]["drugs"]
         # A locus typed but no A*31:01 → assessable negative, not "not_typed".
         assert by["HLA-A*31:01"]["status"] == "no_risk_allele"
+
+    def test_a3101_carrier_surfaces_at_risk(self, a3101_carrier_client: TestClient) -> None:
+        resp = a3101_carrier_client.get("/api/hla/drug-hypersensitivity", params={"sample_id": 1})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["available"] is True
+        assert body["any_at_risk"] is True
+        by = {a["allele"]: a for a in body["assessments"]}
+        a3101 = by["HLA-A*31:01"]
+        assert a3101["status"] == "at_risk"
+        assert a3101["carried"] is True
+        assert a3101["drugs"] == ["carbamazepine"]
+        assert "carbamazepine" in a3101["recommendation"].lower()
+        assert "PMID:29392710" in a3101["citations"]
 
     def test_empty_sample_unavailable(self, empty_client: TestClient) -> None:
         resp = empty_client.get("/api/hla/drug-hypersensitivity", params={"sample_id": 1})
