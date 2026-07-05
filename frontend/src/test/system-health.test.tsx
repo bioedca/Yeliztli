@@ -1,7 +1,7 @@
 /** Tests for SystemHealth component (P4-21b). */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "./test-utils"
+import { fireEvent, render, screen, waitFor } from "./test-utils"
 import SystemHealth from "@/components/settings/SystemHealth"
 import type { DatabaseStat } from "@/api/admin"
 
@@ -103,10 +103,12 @@ function mockAllEndpoints(
   overrides: {
     disk?: Partial<typeof DISK_RESPONSE>
     dbStats?: DatabaseStat[]
+    logs?: typeof LOGS_RESPONSE
   } = {},
 ) {
   const diskResponse = { ...DISK_RESPONSE, ...overrides.disk }
   const dbStatsResponse = overrides.dbStats ?? DB_STATS_RESPONSE
+  const logsResponse = overrides.logs ?? LOGS_RESPONSE
   mockFetch.mockImplementation(async (url: string) => {
     if (url.includes("/api/admin/status")) {
       return { ok: true, json: async () => STATUS_RESPONSE }
@@ -121,7 +123,7 @@ function mockAllEndpoints(
       return { ok: true, json: async () => SAMPLE_STATS_RESPONSE }
     }
     if (url.includes("/api/admin/logs")) {
-      return { ok: true, json: async () => LOGS_RESPONSE }
+      return { ok: true, json: async () => logsResponse }
     }
     if (url.includes("/api/databases/health")) {
       return { ok: true, json: async () => ({ databases: [] }) }
@@ -277,9 +279,59 @@ describe("SystemHealth", () => {
   it("has log level filter dropdown", async () => {
     mockAllEndpoints()
     render(<SystemHealth />)
+    const levelFilter = (await screen.findByLabelText(
+      "Filter by log level",
+    )) as HTMLSelectElement
+
+    expect(Array.from(levelFilter.options).map((option) => option.value)).toEqual([
+      "",
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR",
+      "EXCEPTION",
+      "CRITICAL",
+    ])
+  })
+
+  it("filters logs by exception level", async () => {
+    mockAllEndpoints()
+    render(<SystemHealth />)
+    const levelFilter = await screen.findByLabelText("Filter by log level")
+
+    fireEvent.change(levelFilter, { target: { value: "EXCEPTION" } })
+
     await waitFor(() => {
-      expect(screen.getByLabelText("Filter by log level")).toBeInTheDocument()
+      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("level=EXCEPTION"))
     })
+  })
+
+  it("styles exception log rows as high severity", async () => {
+    mockAllEndpoints({
+      logs: {
+        entries: [
+          {
+            id: 6,
+            timestamp: "2026-03-26T12:05:00",
+            level: "EXCEPTION",
+            logger: "backend.api.routes.genes",
+            message: "uniprot_fetch_failed",
+            event_data: '{"exception": "Traceback (most recent call last)"}',
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 50,
+        has_more: false,
+      },
+    })
+    render(<SystemHealth />)
+
+    const logRow = (await screen.findByText("uniprot_fetch_failed")).closest("tr")
+    const levelCell = Array.from(logRow?.querySelectorAll("td") ?? []).find(
+      (cell) => cell.textContent === "EXCEPTION",
+    )
+    expect(levelCell).toHaveClass("text-red-700", "dark:text-red-400")
   })
 
   it("shows error state when API fails", async () => {

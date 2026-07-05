@@ -74,11 +74,12 @@ function diskSegmentWidth(bytes: number, totalBytes: number): string {
   return `${Math.min(100, Math.max(0, percent))}%`
 }
 
-const LOG_LEVELS = ['', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] as const
+const LOG_LEVELS = ['', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'EXCEPTION', 'CRITICAL'] as const
 
 function levelColor(level: string): string {
   switch (level.toUpperCase()) {
     case 'ERROR':
+    case 'EXCEPTION':
     case 'CRITICAL':
       return 'text-red-700 dark:text-red-400'
     case 'WARNING':
