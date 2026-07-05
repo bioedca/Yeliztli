@@ -620,6 +620,8 @@ def _mutyh_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
         "rsid": rsid,
         "chrom": "1",
         "pos": pos,
+        "ref": "C",
+        "alt": "T",
         "genotype": genotype,
         "zygosity": zygosity,
         "gene_symbol": "MUTYH",
@@ -745,6 +747,27 @@ class TestRecessiveInheritanceGating:
             assert "Pathogenic for MUTYH-Associated Polyposis" not in text
             assert json.loads(row["detail_json"])["disease_status"] == DISEASE_POSSIBLE_BIALLELIC
             assert "compound" in text.lower() or "unconfirmed" in text.lower()
+
+    def test_dual_probe_same_mutyh_locus_dedupes_to_single_carrier_finding(
+        self, panel: CancerPanel, sample_engine: sa.Engine
+    ) -> None:
+        """An rsID+i-ID duplicate of one MUTYH het allele is one carrier finding."""
+        result, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                _mutyh_variant("i5001099", 45330000, "CT", "het"),
+                _mutyh_variant("rs36053993", 45330000, "CT", "het"),
+            ],
+        )
+
+        assert len(result.variants) == 1
+        assert result.variants[0].rsid == "rs36053993"
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "carrier" in text.lower()
+        assert "compound" not in text.lower()
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_CARRIER
 
     def test_ad_gene_het_finding_unchanged(
         self, panel: CancerPanel, sample_engine: sa.Engine

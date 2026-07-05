@@ -49,6 +49,45 @@ class DiseaseVariant(Protocol):
     gene_symbol: str
 
 
+def _normalized_gene_symbol(variant: object) -> str:
+    return (getattr(variant, "gene_symbol", "") or "").strip().upper()
+
+
+def carried_variant_identity_key(variant: object) -> tuple[object, ...]:
+    """Return a key for one carried biological allele, not one probe/result row.
+
+    Consumer genotyping arrays can report the same physical variant under both a
+    dbSNP rsID and a legacy probe ID. Compound-heterozygous heuristics must count
+    distinct carried loci, so coordinate identity wins over display/probe ID.
+    """
+    gene_symbol = _normalized_gene_symbol(variant)
+    chrom = (getattr(variant, "chrom", None) or "").strip().casefold()
+    ref = (getattr(variant, "ref", None) or "").strip().upper()
+    alt = (getattr(variant, "alt", None) or "").strip().upper()
+    pos = getattr(variant, "pos", None)
+    zygosity = (getattr(variant, "zygosity", None) or "").strip().casefold()
+
+    if chrom and pos is not None and ref and alt:
+        return ("allele", gene_symbol, chrom, int(pos), ref, alt, zygosity)
+
+    rsid = (getattr(variant, "rsid", None) or "").strip().casefold()
+    if rsid:
+        return ("rsid", gene_symbol, rsid, zygosity)
+
+    # Preserve pre-coordinate behavior for minimal duck-typed test doubles and
+    # any future incomplete records: unknown identity should not collapse two
+    # potentially distinct variants into one locus.
+    return ("object", id(variant))
+
+
+def variant_rsid_preference_key(variant: object) -> tuple[int, str]:
+    """Prefer public dbSNP rsIDs over legacy array probe IDs for duplicate rows."""
+    rsid = (getattr(variant, "rsid", None) or "").strip()
+    normalized = rsid.casefold()
+    is_dbsnp_rsid = normalized.startswith("rs") and normalized[2:].isdigit()
+    return (0 if is_dbsnp_rsid else 1, normalized)
+
+
 def classify_disease_status(
     variant: DiseaseVariant,
     variants: list[DiseaseVariant],
@@ -89,10 +128,13 @@ def classify_disease_status(
         # AR needs a biallelic genotype; a single het P/LP allele is a carrier.
         if variant.zygosity == ZYG_HOM_ALT:
             return DISEASE_AFFECTED
-        gene_het_plp = sum(
-            1 for v in variants if v.gene_symbol == variant.gene_symbol and v.zygosity == ZYG_HET
-        )
-        if gene_het_plp >= 2:
+        gene_symbol = _normalized_gene_symbol(variant)
+        gene_het_loci = {
+            carried_variant_identity_key(v)
+            for v in variants
+            if _normalized_gene_symbol(v) == gene_symbol and v.zygosity == ZYG_HET
+        }
+        if len(gene_het_loci) >= 2:
             return DISEASE_POSSIBLE_BIALLELIC
         return DISEASE_CARRIER
     if inheritance in _DOMINANT_INHERITANCE:

@@ -1776,6 +1776,8 @@ def _abcg_variant(rsid: str, pos: int, genotype: str, zygosity: str) -> dict:
         "rsid": rsid,
         "chrom": "2",
         "pos": pos,
+        "ref": "C",
+        "alt": "T",
         "genotype": genotype,
         "zygosity": zygosity,
         "gene_symbol": "ABCG5",
@@ -2133,6 +2135,27 @@ class TestRecessiveInheritanceGating:
             assert "Pathogenic for Sitosterolemia" not in text
             assert json.loads(row["detail_json"])["disease_status"] == DISEASE_POSSIBLE_BIALLELIC
             assert "compound" in text.lower() or "unconfirmed" in text.lower()
+
+    def test_dual_probe_same_abcg5_locus_dedupes_to_single_carrier_finding(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """An rsID+i-ID duplicate of one AR het allele is one carrier finding."""
+        result, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [
+                _abcg_variant("i5001099", 44039611, "CT", "het"),
+                _abcg_variant("rs4245791", 44039611, "CT", "het"),
+            ],
+        )
+
+        assert len(result.variants) == 1
+        assert result.variants[0].rsid == "rs4245791"
+        assert len(rows) == 1
+        text = rows[0]["finding_text"]
+        assert "carrier" in text.lower()
+        assert "compound" not in text.lower()
+        assert json.loads(rows[0]["detail_json"])["disease_status"] == DISEASE_CARRIER
 
 
 class TestSitosterolemiaCitationProvenance:

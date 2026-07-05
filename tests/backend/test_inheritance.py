@@ -30,6 +30,11 @@ class _V:
     inheritance: str
     zygosity: str | None
     gene_symbol: str
+    rsid: str | None = None
+    chrom: str | None = None
+    pos: int | None = None
+    ref: str | None = None
+    alt: str | None = None
 
 
 class TestClassifyDiseaseStatus:
@@ -54,6 +59,18 @@ class TestClassifyDiseaseStatus:
         # ≥2 heterozygous P/LP loci in one AR gene → possible compound het.
         v1 = _V("AR", ZYG_HET, "MUTYH")
         v2 = _V("AR", ZYG_HET, "MUTYH")
+        assert classify_disease_status(v1, [v1, v2]) == DISEASE_POSSIBLE_BIALLELIC
+
+    def test_recessive_duplicate_probe_rows_same_locus_stay_carrier(self) -> None:
+        # One physical heterozygous allele typed under an rsID and a legacy i-ID
+        # is still one locus, not possible compound heterozygosity (#1530).
+        rs_row = _V("AR", ZYG_HET, "MUTYH", "rs36053993", "1", 45330000, "C", "T")
+        iid_row = _V("AR", ZYG_HET, "MUTYH", "i5001099", "1", 45330000, "C", "T")
+        assert classify_disease_status(rs_row, [rs_row, iid_row]) == DISEASE_CARRIER
+
+    def test_recessive_distinct_het_loci_same_gene_still_possible_biallelic(self) -> None:
+        v1 = _V("AR", ZYG_HET, "MUTYH", "rs1", "1", 45330000, "C", "T")
+        v2 = _V("AR", ZYG_HET, "MUTYH", "rs2", "1", 45335000, "A", "G")
         assert classify_disease_status(v1, [v1, v2]) == DISEASE_POSSIBLE_BIALLELIC
 
     def test_recessive_hets_in_different_genes_stay_carriers(self) -> None:

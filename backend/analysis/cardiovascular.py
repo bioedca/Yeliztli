@@ -61,7 +61,9 @@ from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.inheritance import (
     DISEASE_CARRIER,
     DISEASE_POSSIBLE_BIALLELIC,
+    carried_variant_identity_key,
     classify_disease_status,
+    variant_rsid_preference_key,
 )
 from backend.analysis.insilico_tiers import insilico_block
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, is_implausible_dominant_hom_alt
@@ -254,6 +256,10 @@ class CardiovascularVariantResult:
     revel: float | None = None
     consequence: str | None = None
     clinvar_low_penetrance_or_risk_allele: bool = False
+    chrom: str | None = None
+    pos: int | None = None
+    ref: str | None = None
+    alt: str | None = None
 
 
 @dataclass
@@ -391,6 +397,10 @@ def extract_cardiovascular_variants(
         stmt = (
             sa.select(
                 annotated_variants.c.rsid,
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
                 annotated_variants.c.gene_symbol,
                 annotated_variants.c.genotype,
                 annotated_variants.c.zygosity,
@@ -419,8 +429,9 @@ def extract_cardiovascular_variants(
         )
         rows = conn.execute(stmt).fetchall()
 
-    variants: list[CardiovascularVariantResult] = []
+    variant_entries: dict[tuple[object, ...], CardiovascularVariantResult] = {}
     hom_alt_plausibility_suppressed = 0
+    duplicate_variant_suppressed = 0
     for row in rows:
         gene_info = gene_map.get((row.gene_symbol or "").upper())
         if gene_info is None:
@@ -439,27 +450,39 @@ def extract_cardiovascular_variants(
             gene_info, row.clinvar_conditions
         )
 
-        variants.append(
-            CardiovascularVariantResult(
-                rsid=row.rsid,
-                gene_symbol=row.gene_symbol,
-                genotype=row.genotype or "",
-                zygosity=row.zygosity,
-                clinvar_significance=row.clinvar_significance,
-                clinvar_review_stars=row.clinvar_review_stars or 0,
-                clinvar_accession=row.clinvar_accession,
-                clinvar_conditions=row.clinvar_conditions,
-                conditions=conditions,
-                cardiovascular_category=cardiovascular_category,
-                inheritance=gene_info.inheritance,
-                evidence_level=evidence,
-                cross_links=gene_info.cross_links,
-                pmids=gene_info.pmids,
-                revel=row.revel,
-                consequence=row.consequence,
-                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
-            )
+        variant = CardiovascularVariantResult(
+            rsid=row.rsid,
+            chrom=row.chrom,
+            pos=row.pos,
+            ref=row.ref,
+            alt=row.alt,
+            gene_symbol=row.gene_symbol,
+            genotype=row.genotype or "",
+            zygosity=row.zygosity,
+            clinvar_significance=row.clinvar_significance,
+            clinvar_review_stars=row.clinvar_review_stars or 0,
+            clinvar_accession=row.clinvar_accession,
+            clinvar_conditions=row.clinvar_conditions,
+            conditions=conditions,
+            cardiovascular_category=cardiovascular_category,
+            inheritance=gene_info.inheritance,
+            evidence_level=evidence,
+            cross_links=gene_info.cross_links,
+            pmids=gene_info.pmids,
+            revel=row.revel,
+            consequence=row.consequence,
+            clinvar_low_penetrance_or_risk_allele=lower_penetrance,
         )
+        dedupe_key = carried_variant_identity_key(variant)
+        existing = variant_entries.get(dedupe_key)
+        if existing is None:
+            variant_entries[dedupe_key] = variant
+        else:
+            duplicate_variant_suppressed += 1
+            if variant_rsid_preference_key(variant) < variant_rsid_preference_key(existing):
+                variant_entries[dedupe_key] = variant
+
+    variants = list(variant_entries.values())
 
     logger.info(
         "cardiovascular_variants_extracted",
@@ -474,6 +497,7 @@ def extract_cardiovascular_variants(
             [v for v in variants if v.cardiovascular_category == CATEGORY_CHANNELOPATHY]
         ),
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
+        duplicate_variant_suppressed=duplicate_variant_suppressed,
     )
 
     return CardiovascularAnalysisResult(

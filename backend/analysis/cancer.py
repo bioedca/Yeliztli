@@ -58,7 +58,9 @@ from backend.analysis.gene_constraint import lookup_gene_constraints
 from backend.analysis.inheritance import (
     DISEASE_CARRIER,
     DISEASE_POSSIBLE_BIALLELIC,
+    carried_variant_identity_key,
     classify_disease_status,
+    variant_rsid_preference_key,
 )
 from backend.analysis.insilico_tiers import insilico_block
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, is_implausible_dominant_hom_alt
@@ -250,6 +252,10 @@ class CancerVariantResult:
     consequence: str | None = None
     clinvar_low_penetrance_or_risk_allele: bool = False
     clinical_caveat: str = ""
+    chrom: str | None = None
+    pos: int | None = None
+    ref: str | None = None
+    alt: str | None = None
 
 
 @dataclass
@@ -338,6 +344,10 @@ def extract_cancer_variants(
         stmt = (
             sa.select(
                 annotated_variants.c.rsid,
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
                 annotated_variants.c.gene_symbol,
                 annotated_variants.c.genotype,
                 annotated_variants.c.zygosity,
@@ -367,10 +377,11 @@ def extract_cancer_variants(
         )
         rows = conn.execute(stmt).fetchall()
 
-    variants: list[CancerVariantResult] = []
+    variant_entries: dict[tuple[object, ...], CancerVariantResult] = {}
     pseudogene_suppressed = 0
     hom_alt_plausibility_suppressed = 0
     condition_mismatch_suppressed = 0
+    duplicate_variant_suppressed = 0
     for row in rows:
         gene_symbol = (row.gene_symbol or "").upper()
         gene_info = gene_map.get(gene_symbol)
@@ -393,28 +404,40 @@ def extract_cancer_variants(
         )
         lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
 
-        variants.append(
-            CancerVariantResult(
-                rsid=row.rsid,
-                gene_symbol=row.gene_symbol,
-                genotype=row.genotype or "",
-                zygosity=row.zygosity,
-                clinvar_significance=row.clinvar_significance,
-                clinvar_review_stars=row.clinvar_review_stars or 0,
-                clinvar_accession=row.clinvar_accession,
-                clinvar_conditions=row.clinvar_conditions,
-                syndromes=gene_info.syndromes,
-                cancer_types=gene_info.cancer_types,
-                inheritance=gene_info.inheritance,
-                evidence_level=evidence,
-                cross_links=gene_info.cross_links,
-                pmids=gene_info.pmids,
-                revel=row.revel,
-                consequence=row.consequence,
-                clinvar_low_penetrance_or_risk_allele=lower_penetrance,
-                clinical_caveat=gene_info.clinical_caveat,
-            )
+        variant = CancerVariantResult(
+            rsid=row.rsid,
+            chrom=row.chrom,
+            pos=row.pos,
+            ref=row.ref,
+            alt=row.alt,
+            gene_symbol=row.gene_symbol,
+            genotype=row.genotype or "",
+            zygosity=row.zygosity,
+            clinvar_significance=row.clinvar_significance,
+            clinvar_review_stars=row.clinvar_review_stars or 0,
+            clinvar_accession=row.clinvar_accession,
+            clinvar_conditions=row.clinvar_conditions,
+            syndromes=gene_info.syndromes,
+            cancer_types=gene_info.cancer_types,
+            inheritance=gene_info.inheritance,
+            evidence_level=evidence,
+            cross_links=gene_info.cross_links,
+            pmids=gene_info.pmids,
+            revel=row.revel,
+            consequence=row.consequence,
+            clinvar_low_penetrance_or_risk_allele=lower_penetrance,
+            clinical_caveat=gene_info.clinical_caveat,
         )
+        dedupe_key = carried_variant_identity_key(variant)
+        existing = variant_entries.get(dedupe_key)
+        if existing is None:
+            variant_entries[dedupe_key] = variant
+        else:
+            duplicate_variant_suppressed += 1
+            if variant_rsid_preference_key(variant) < variant_rsid_preference_key(existing):
+                variant_entries[dedupe_key] = variant
+
+    variants = list(variant_entries.values())
 
     logger.info(
         "cancer_variants_extracted",
@@ -424,6 +447,7 @@ def extract_cancer_variants(
         pseudogene_suppressed=pseudogene_suppressed,
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
         condition_mismatch_suppressed=condition_mismatch_suppressed,
+        duplicate_variant_suppressed=duplicate_variant_suppressed,
         dual_role_variants=len([v for v in variants if v.cross_links]),
     )
 
