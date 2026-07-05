@@ -69,6 +69,10 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     return gl, ref, gmap
 
 
+def _flag_values(cmd: list[str]) -> dict[str, str]:
+    return {token: cmd[i + 1] for i, token in enumerate(cmd[:-1]) if token.startswith("--")}
+
+
 class TestAvailability:
     def test_missing_when_absent(self, tmp_path: Path) -> None:
         empty = tmp_path / "empty"
@@ -180,11 +184,13 @@ class TestOrchestration:
         runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out")
         phase_cmds = [c for c in seen if Path(c[0]).name == "GLIMPSE2_phase"]
         assert len(phase_cmds) == 2  # one per chunk
-        joined = " ".join(phase_cmds[0])
-        assert "--input-gl" in joined and "--reference" in joined and "--map" in joined
-        assert "--input-region 22:1-2500000" in joined
-        assert "--output-region 22:1-2000000" in joined
-        assert "--threads 2" in joined
+        args = _flag_values(phase_cmds[0])
+        assert args["--input-gl"] == str(gl)
+        assert args["--reference"] == str(ref)
+        assert args["--map"] == str(gmap)
+        assert args["--input-region"] == "22:1-2500000"
+        assert args["--output-region"] == "22:1-2000000"
+        assert args["--threads"] == "2"
 
     def test_chunk_failure_returns_not_ok(self, tmp_path: Path, monkeypatch) -> None:
         runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))
