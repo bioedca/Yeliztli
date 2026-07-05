@@ -26,6 +26,14 @@ yeliztli-setup uninstall    # remove services, keep your data
 yeliztli-setup uninstall --remove-data   # remove services, data, and control files
 ```
 
+`yeliztli-setup install` also installs the Playwright Chromium browser used by
+**Generate PDF** and single-variant evidence-card PDF/PNG exports. If you are doing a
+manual or offline install and skip that step, run:
+
+```bash
+python -m playwright install chromium
+```
+
 With `--remove-data`, the installer deletes the configured data directory, including a
 storage path chosen in the setup wizard or supplied through `YELIZTLI_DATA_DIR`. It also
 removes the default `~/.yeliztli/` control/config directory when that directory is
@@ -62,6 +70,7 @@ yeliztli-setup start
 
 ```bash
 yeliztli-setup install --skip-pip        # skip the Python package install
+yeliztli-setup install --skip-browser-install   # skip Playwright Chromium install
 yeliztli-setup install --skip-frontend   # skip the frontend build
 ```
 

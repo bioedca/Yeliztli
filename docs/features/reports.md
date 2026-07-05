@@ -10,7 +10,12 @@ Generate a PDF report from your analysis results:
 
 Reports use clinical typography with evidence stars rendered for print. You can also produce
 single-variant **evidence cards** (PDF or PNG) from any [variant detail](variant-detail.md)
-page.
+page. These exports require the Playwright Chromium browser, which the native installer and
+Docker image install automatically. Manual environments can run:
+
+```bash
+python -m playwright install chromium
+```
 
 !!! warning "Reports are not clinical documents"
     A generated report summarises Yeliztli's research-use findings. It is **not** a clinical

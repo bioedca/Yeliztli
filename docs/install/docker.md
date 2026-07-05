@@ -15,6 +15,10 @@ This starts two services:
 - **api** — the FastAPI server on [http://localhost:8000](http://localhost:8000)
 - **huey** — the background task worker that runs the annotation pipeline
 
+The image includes the Playwright Chromium browser and Linux browser dependencies required
+for **Generate PDF** and single-variant evidence-card PDF/PNG exports. If you built an older
+image before this support was added, rebuild it with `docker compose up -d --build`.
+
 Your data persists in a Docker volume named `yeliztli-data`.
 
 !!! warning "Keep the published port on loopback unless auth is configured"

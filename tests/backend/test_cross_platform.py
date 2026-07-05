@@ -204,6 +204,11 @@ class TestDockerConfiguration:
         content = (_repo_root() / "Dockerfile").read_text()
         assert "HEALTHCHECK" in content
 
+    def test_dockerfile_installs_report_browser(self):
+        content = (_repo_root() / "Dockerfile").read_text()
+        assert "python -m playwright install --with-deps chromium" in content
+        assert "HOME=/home/appuser" in content
+
     def test_dockerfile_exposes_port(self):
         content = (_repo_root() / "Dockerfile").read_text()
         assert "ARG YELIZTLI_PORT=8000" in content

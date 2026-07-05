@@ -166,15 +166,22 @@ def render_variant_card_html(
 async def _html_to_pdf_single_page(html: str) -> bytes:
     """Convert HTML to a single-page PDF via Playwright."""
     try:
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
     except ImportError as exc:
         raise RuntimeError(
             "Playwright is required for PDF generation. "
-            "Install it with: pip install playwright && playwright install chromium"
+            "Install it with: pip install playwright && python -m playwright install chromium"
         ) from exc
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        try:
+            browser = await pw.chromium.launch(headless=True)
+        except PlaywrightError as exc:
+            raise RuntimeError(
+                "Playwright Chromium is required for PDF generation. "
+                "Install it with: python -m playwright install chromium"
+            ) from exc
         try:
             page = await browser.new_page()
             await page.set_content(html, wait_until="networkidle", timeout=30000)
@@ -197,15 +204,22 @@ async def _html_to_pdf_single_page(html: str) -> bytes:
 async def _html_to_png(html: str) -> bytes:
     """Convert HTML to PNG via Playwright screenshot."""
     try:
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
     except ImportError as exc:
         raise RuntimeError(
             "Playwright is required for PNG generation. "
-            "Install it with: pip install playwright && playwright install chromium"
+            "Install it with: pip install playwright && python -m playwright install chromium"
         ) from exc
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        try:
+            browser = await pw.chromium.launch(headless=True)
+        except PlaywrightError as exc:
+            raise RuntimeError(
+                "Playwright Chromium is required for PNG generation. "
+                "Install it with: python -m playwright install chromium"
+            ) from exc
         try:
             page = await browser.new_page(
                 viewport={"width": 800, "height": 1200},

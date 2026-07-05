@@ -251,6 +251,13 @@ def build_frontend() -> bool:
     return True
 
 
+def install_playwright_chromium() -> None:
+    """Install the Chromium browser used by report and evidence-card exports."""
+    print("  Installing Playwright Chromium browser...")
+    _run([_find_python(), "-m", "playwright", "install", "chromium"])
+    print("  Playwright Chromium browser installed.")
+
+
 # ── macOS launchd ──────────────────────────────────────────
 
 
@@ -451,30 +458,39 @@ def cmd_install(args: argparse.Namespace) -> int:
     print()
 
     # 1. Data directory
-    print("[1/4] Creating data directory...")
+    print("[1/5] Creating data directory...")
     ensure_data_dir()
     print()
 
     # 2. pip install
     if not args.skip_pip:
-        print("[2/4] Installing Python package...")
+        print("[2/5] Installing Python package...")
         _run([_find_python(), "-m", "pip", "install", "-e", str(_repo_root())])
         print()
     else:
-        print("[2/4] Skipping pip install (--skip-pip)")
+        print("[2/5] Skipping pip install (--skip-pip)")
         print()
 
-    # 3. Frontend build
+    # 3. Browser used by PDF report and evidence-card rendering
+    if not getattr(args, "skip_browser_install", False):
+        print("[3/5] Installing report browser...")
+        install_playwright_chromium()
+        print()
+    else:
+        print("[3/5] Skipping report browser install (--skip-browser-install)")
+        print()
+
+    # 4. Frontend build
     if not args.skip_frontend:
-        print("[3/4] Building frontend...")
+        print("[4/5] Building frontend...")
         build_frontend()
         print()
     else:
-        print("[3/4] Skipping frontend build (--skip-frontend)")
+        print("[4/5] Skipping frontend build (--skip-frontend)")
         print()
 
-    # 4. Service installation
-    print("[4/4] Installing services...")
+    # 5. Service installation
+    print("[5/5] Installing services...")
     if plat == "macos":
         install_launchd()
     else:
@@ -586,6 +602,11 @@ def main(argv: list[str] | None = None) -> int:
     # install
     p_install = subparsers.add_parser("install", help="Install Yeliztli services")
     p_install.add_argument("--skip-pip", action="store_true", help="Skip pip install step")
+    p_install.add_argument(
+        "--skip-browser-install",
+        action="store_true",
+        help="Skip Playwright Chromium install; PDF reports and evidence cards need it",
+    )
     p_install.add_argument("--skip-frontend", action="store_true", help="Skip frontend build step")
     p_install.set_defaults(func=cmd_install)
 

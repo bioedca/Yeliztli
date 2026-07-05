@@ -18,6 +18,12 @@ COPY pyproject.toml README.md ./
 COPY backend/ backend/
 RUN pip install --no-cache-dir .
 
+# Browser runtime for PDF reports and evidence-card exports. Run as root so
+# Playwright can install Debian browser dependencies, but write the browser cache
+# under appuser's home so the runtime process can launch Chromium.
+RUN HOME=/home/appuser python -m playwright install --with-deps chromium \
+    && chown -R appuser:appuser /home/appuser/.cache
+
 # Frontend build
 COPY --chown=appuser:appuser frontend/ frontend/
 RUN cd frontend && npm install && npm run build

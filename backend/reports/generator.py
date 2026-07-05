@@ -343,15 +343,22 @@ async def _html_to_pdf(html: str) -> bytes:
     screen media for full-colour rendering of backgrounds and SVGs.
     """
     try:
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
     except ImportError as exc:
         raise RuntimeError(
             "Playwright is required for PDF generation. "
-            "Install it with: pip install playwright && playwright install chromium"
+            "Install it with: pip install playwright && python -m playwright install chromium"
         ) from exc
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        try:
+            browser = await pw.chromium.launch(headless=True)
+        except PlaywrightError as exc:
+            raise RuntimeError(
+                "Playwright Chromium is required for PDF generation. "
+                "Install it with: python -m playwright install chromium"
+            ) from exc
         try:
             page = await browser.new_page()
             await page.set_content(html, wait_until="networkidle")

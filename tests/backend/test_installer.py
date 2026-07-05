@@ -206,13 +206,16 @@ class TestCLIParsing:
         with patch.object(installer, "cmd_install", return_value=0) as mock:
             installer.main(["install"])
             mock.assert_called_once()
+            args = mock.call_args[0][0]
+            assert args.skip_browser_install is False
 
     def test_install_skip_flags(self):
-        """install --skip-pip --skip-frontend are parsed."""
+        """install skip flags are parsed."""
         with patch.object(installer, "cmd_install", return_value=0) as mock:
-            installer.main(["install", "--skip-pip", "--skip-frontend"])
+            installer.main(["install", "--skip-pip", "--skip-browser-install", "--skip-frontend"])
             args = mock.call_args[0][0]
             assert args.skip_pip is True
+            assert args.skip_browser_install is True
             assert args.skip_frontend is True
 
     def test_uninstall_defaults(self):
@@ -250,6 +253,21 @@ class TestCLIParsing:
 # ── Install flow (mocked subprocess) ──────────────────────
 
 
+class TestPlaywrightBrowserInstall:
+    @patch("backend.installer._run")
+    def test_install_playwright_chromium_uses_python_module(
+        self, mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Browser install uses the active Python environment's Playwright CLI."""
+        monkeypatch.setattr(installer, "_find_python", lambda: "/opt/yeliztli/bin/python")
+
+        installer.install_playwright_chromium()
+
+        mock_run.assert_called_once_with(
+            ["/opt/yeliztli/bin/python", "-m", "playwright", "install", "chromium"]
+        )
+
+
 class TestInstallFlow:
     @patch("backend.installer._detect_platform", return_value="linux")
     @patch("backend.installer._has_systemd", return_value=False)
@@ -272,6 +290,10 @@ class TestInstallFlow:
 
         assert result == 0
         assert (tmp_path / ".yeliztli").is_dir()
+        mock_run.assert_any_call(
+            ["/tmp/Python Dir/python", "-m", "playwright", "install", "chromium"],
+            check=True,
+        )
         assert "    '/tmp/Python Dir/python' -m backend.main &" in capsys.readouterr().out
 
     @patch("backend.installer._detect_platform", return_value="macos")
@@ -294,12 +316,40 @@ class TestInstallFlow:
         result = installer.cmd_install(ns)
 
         assert result == 0
+        mock_run.assert_any_call(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+        )
         # Verify plists were written
         for label in installer.LAUNCHD_LABELS:
             plist = tmp_path / "LaunchAgents" / f"{label}.plist"
             assert plist.exists()
             content = plist.read_text()
             assert "__INSTALL_DIR__" not in content
+
+    @patch("backend.installer._detect_platform", return_value="linux")
+    @patch("backend.installer._has_systemd", return_value=False)
+    @patch("backend.installer.install_playwright_chromium")
+    def test_install_skip_browser_install(
+        self,
+        mock_browser_install: MagicMock,
+        mock_systemd: MagicMock,
+        mock_plat: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """The explicit skip flag leaves PDF/PNG browser setup to the operator."""
+        monkeypatch.setattr(installer, "DATA_DIR", tmp_path / ".yeliztli")
+
+        ns = argparse.Namespace(
+            skip_pip=True,
+            skip_browser_install=True,
+            skip_frontend=True,
+        )
+        result = installer.cmd_install(ns)
+
+        assert result == 0
+        mock_browser_install.assert_not_called()
 
 
 # ── Uninstall flow ─────────────────────────────────────────
