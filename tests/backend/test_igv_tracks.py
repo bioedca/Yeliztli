@@ -260,6 +260,19 @@ class TestClinVarTrack:
         assert len(data_lines) == 2
 
     @pytest.mark.usefixtures("_seed_clinvar")
+    def test_clinvar_region_accepts_fractional_igv_bounds(self, test_client: TestClient) -> None:
+        """IGV.js can emit floating-point bounds; the API floors/ceils them."""
+        resp = test_client.get(
+            "/api/igv-tracks/clinvar",
+            params={"chr": "chr17", "start": 41245465.35, "end": 41245500.65},
+        )
+        assert resp.status_code == 200
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 2
+        assert "rs123" in data_lines[0]
+        assert "rs456" in data_lines[1]
+
+    @pytest.mark.usefixtures("_seed_clinvar")
     def test_clinvar_region_empty_when_no_overlap(self, test_client: TestClient) -> None:
         resp = test_client.get(
             "/api/igv-tracks/clinvar",
@@ -314,6 +327,19 @@ class TestSampleVariantsTrack:
         lines = resp.text.strip().split("\n")
         data_lines = [line for line in lines if not line.startswith("#")]
         assert len(data_lines) == 3  # rs100, rs101, rs102 on chr17
+
+    def test_sample_region_accepts_fractional_igv_bounds(
+        self, test_client: TestClient, sample_with_variants: int
+    ) -> None:
+        """Fractional IGV.js bounds should not 422 the sample VCF track."""
+        resp = test_client.get(
+            f"/api/igv-tracks/sample/{sample_with_variants}/variants",
+            params={"chr": "chr17", "start": 41245465.35, "end": 41245466.65},
+        )
+        assert resp.status_code == 200
+        data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
+        assert len(data_lines) == 1
+        assert "rs100" in data_lines[0]
 
     def test_sample_region_het_unannotated_fallback(
         self, test_client: TestClient, sample_with_variants: int
@@ -470,6 +496,23 @@ class TestGnomadTrack:
         assert resp1.status_code == 200
         assert resp2.status_code == 200
 
+    def test_gnomad_accepts_fractional_igv_bounds(
+        self,
+        test_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        _seed_gnomad: DBRegistry,
+    ) -> None:
+        """Fractional IGV.js bounds should not 422 the gnomAD JSON track."""
+        monkeypatch.setattr(igv_tracks_route, "get_registry", lambda: _seed_gnomad)
+
+        resp = test_client.get(
+            "/api/igv-tracks/gnomad",
+            params={"chr": "chr17", "start": 41245465.35, "end": 41245466.65},
+        )
+
+        assert resp.status_code == 200
+        assert [item["name"] for item in resp.json()] == ["rsGnomad1 AF=0.0123"]
+
     def test_gnomad_converts_vcf_pos_to_igv_feature_interval(
         self, monkeypatch: pytest.MonkeyPatch, _seed_gnomad: DBRegistry
     ) -> None:
@@ -511,6 +554,15 @@ class TestEncodeCcresTrack:
         resp = test_client.get(
             "/api/igv-tracks/encode-ccres",
             params={"chr": "chr1", "start": 0, "end": 100000},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_ccres_accepts_fractional_igv_bounds(self, test_client: TestClient) -> None:
+        """Fractional IGV.js bounds should not 422 the ENCODE cCRE track."""
+        resp = test_client.get(
+            "/api/igv-tracks/encode-ccres",
+            params={"chr": "chr1", "start": 0.35, "end": 100000.65},
         )
         assert resp.status_code == 200
         assert resp.json() == []

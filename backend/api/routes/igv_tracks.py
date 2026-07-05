@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from functools import lru_cache
 from pathlib import Path as FilePath
 
@@ -48,6 +49,11 @@ router = APIRouter(prefix="/igv-tracks", tags=["igv-tracks"])
 def _normalize_chrom(chrom: str) -> str:
     """Strip 'chr' prefix for DB lookup (our DBs store '1', 'X', etc.)."""
     return chrom.removeprefix("chr")
+
+
+def _normalize_igv_bounds(start: float, end: float) -> tuple[int, int]:
+    """Convert IGV.js fractional query bounds to integer genomic coordinates."""
+    return math.floor(start), math.ceil(end)
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -500,22 +506,23 @@ async def clinvar_vcf_header() -> Response:
 @router.get("/clinvar")
 async def clinvar_vcf_region(
     chr: str = Query(..., description="Chromosome (e.g., 'chr1', '1')"),
-    start: int = Query(..., ge=0, description="Region start (0-based)"),
-    end: int = Query(..., gt=0, description="Region end"),
+    start: float = Query(..., ge=0, allow_inf_nan=False, description="Region start (0-based)"),
+    end: float = Query(..., gt=0, allow_inf_nan=False, description="Region end"),
 ) -> Response:
     """Return ClinVar variants in VCF format for a genomic region.
 
     Used by IGV.js ``sourceType: "service"`` with ``format: "vcf"``.
     """
     chrom = _normalize_chrom(chr)
+    start_i, end_i = _normalize_igv_bounds(start, end)
     registry = get_registry()
 
     query = (
         sa.select(clinvar_variants)
         .where(
             clinvar_variants.c.chrom == chrom,
-            clinvar_variants.c.pos >= start,
-            clinvar_variants.c.pos <= end,
+            clinvar_variants.c.pos >= start_i,
+            clinvar_variants.c.pos <= end_i,
         )
         .order_by(clinvar_variants.c.pos)
     )
@@ -635,14 +642,15 @@ async def sample_vcf_header(
 async def sample_vcf_region(
     sample_id: int = Path(..., description="Sample ID"),
     chr: str = Query(..., description="Chromosome (e.g., 'chr1', '1')"),
-    start: int = Query(..., ge=0, description="Region start (0-based)"),
-    end: int = Query(..., gt=0, description="Region end"),
+    start: float = Query(..., ge=0, allow_inf_nan=False, description="Region start (0-based)"),
+    end: float = Query(..., gt=0, allow_inf_nan=False, description="Region end"),
 ) -> Response:
     """Return user sample variants in VCF format for a region.
 
     Used by IGV.js ``sourceType: "service"`` with ``format: "vcf"``.
     """
     chrom = _normalize_chrom(chr)
+    start_i, end_i = _normalize_igv_bounds(start, end)
     sample_engine = _get_sample_engine(sample_id)
 
     # LEFT JOIN the per-sample annotated_variants (reference-resolved ref/alt +
@@ -672,8 +680,8 @@ async def sample_vcf_region(
         )
         .where(
             raw_variants.c.chrom == chrom,
-            raw_variants.c.pos >= start,
-            raw_variants.c.pos <= end,
+            raw_variants.c.pos >= start_i,
+            raw_variants.c.pos <= end_i,
         )
         .order_by(raw_variants.c.pos)
     )
@@ -712,14 +720,15 @@ class GnomadFeature(BaseModel):
 @router.get("/gnomad")
 async def gnomad_region(
     chr: str = Query(..., description="Chromosome (e.g., 'chr1', '1')"),
-    start: int = Query(..., ge=0, description="Region start (0-based)"),
-    end: int = Query(..., gt=0, description="Region end"),
+    start: float = Query(..., ge=0, allow_inf_nan=False, description="Region start (0-based)"),
+    end: float = Query(..., gt=0, allow_inf_nan=False, description="Region end"),
 ) -> list[GnomadFeature]:
     """Return gnomAD allele frequencies as JSON features for a region.
 
     Used by IGV.js ``sourceType: "custom"`` annotation track.
     """
     chrom = _normalize_chrom(chr)
+    start_i, end_i = _normalize_igv_bounds(start, end)
     registry = get_registry()
 
     try:
@@ -741,7 +750,7 @@ async def gnomad_region(
 
     try:
         with engine.connect() as conn:
-            rows = conn.execute(query, {"chrom": chrom, "start": start, "end": end}).fetchall()
+            rows = conn.execute(query, {"chrom": chrom, "start": start_i, "end": end_i}).fetchall()
     except Exception as exc:
         logger.debug("gnomad_query_failed", error=str(exc))
         return []
@@ -794,8 +803,8 @@ CCRE_COLORS: dict[str, str] = {
 @router.get("/encode-ccres")
 async def encode_ccres_region(
     chr: str = Query(..., description="Chromosome (e.g., 'chr1', '1')"),
-    start: int = Query(..., ge=0, description="Region start (0-based)"),
-    end: int = Query(..., gt=0, description="Region end"),
+    start: float = Query(..., ge=0, allow_inf_nan=False, description="Region start (0-based)"),
+    end: float = Query(..., gt=0, allow_inf_nan=False, description="Region end"),
 ) -> list[CCREFeature]:
     """Return ENCODE cCREs as JSON features for a region.
 
@@ -804,6 +813,7 @@ async def encode_ccres_region(
     from backend.annotation.encode_ccres import is_loaded, query_ccres_by_region
 
     chrom = _normalize_chrom(chr)
+    start_i, end_i = _normalize_igv_bounds(start, end)
     registry = get_registry()
 
     try:
@@ -815,7 +825,7 @@ async def encode_ccres_region(
     if not is_loaded(engine):
         return []
 
-    results = query_ccres_by_region(chrom, start, end, engine)
+    results = query_ccres_by_region(chrom, start_i, end_i, engine)
 
     return [
         CCREFeature(
