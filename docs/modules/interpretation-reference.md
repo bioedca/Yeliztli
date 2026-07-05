@@ -18,7 +18,12 @@ frameworks:
 | ★★★★ | ClinVar **Pathogenic / Likely-Pathogenic** with a reviewed (2+ star) status, **CPIC Level A**, or a **genome-wide-significant** GWAS association with a very large effect size (for example, odds ratio > 5) |
 | ★★★ | ClinVar **Pathogenic / Likely-Pathogenic** (single submitter), **CPIC Level B**, or a **replicated, genome-wide-significant** GWAS association |
 | ★★ | A **variant of uncertain significance** with functional support, a single **genome-wide-significant** GWAS association without independent replication, or PharmGKB level 2A/2B |
-| ★ | A single study, a candidate-gene association, or PharmGKB level 3/4 |
+| ★ | A single study, a candidate-gene association, PharmGKB level 3/4, or a carried rare/novel variant surfaced for discovery context without stronger ClinVar or functional evidence |
+
+Not every ★ row is a disease association. The [Rare Variant Finder](rare-variants.md) also
+uses ★ for carried rare, AF-missing, or novel variants that pass its discovery filters but lack
+stronger clinical or functional evidence. Treat those rows as a low-evidence variant inventory
+until you review the variant details and any linked evidence.
 
 For GWAS findings, the conventional p < 5×10⁻⁸ threshold controls genome-wide multiple
 testing, but it does not by itself make an association definitive. Yeliztli reserves higher
@@ -38,9 +43,13 @@ Two rules keep weak signals from looking strong:
 ### Pathogenic-variant findings
 
 The hereditary-risk modules ([cancer](health-risk/cancer.md),
-[cardiovascular](health-risk/cardiovascular.md), [carrier status](health-risk/carrier-status.md),
-[rare variants](rare-variants.md)) report **specific variants** classified by ClinVar using the
-ACMG/AMP framework. Read these with the inheritance pattern in mind:
+[cardiovascular](health-risk/cardiovascular.md), [carrier status](health-risk/carrier-status.md))
+report **specific variants** classified by ClinVar using the ACMG/AMP framework. The
+[Rare Variant Finder](rare-variants.md) overlaps with that when a carried rare variant has a
+ClinVar Pathogenic/Likely-Pathogenic assertion, but it also reports a broader inventory of
+carried rare, AF-missing, ensemble-pathogenic, and novel variants. Only its ClinVar pathogenic
+categories should be read as pathogenic-variant findings. Read these with the inheritance
+pattern in mind:
 
 - **Carrier vs affected.** For recessive conditions, carrying **one** copy makes you a *carrier*
   (usually unaffected); **two** copies is an *affected* state. Yeliztli labels which applies.
@@ -135,7 +144,8 @@ limitations.
 
 | Output type | Modules |
 |-------------|---------|
-| Pathogenic variants (ClinVar P/LP) | Cancer, Cardiovascular, Carrier status, Rare variants |
+| Pathogenic variants (ClinVar P/LP) | Cancer, Cardiovascular, Carrier status, Rare variants (ClinVar pathogenic category) |
+| Carried rare/novel variant inventory (mostly ★ discovery context) | Rare variants |
 | Categorical pathway levels | Nutrigenomics, Methylation, Fitness, Sleep, Skin, Allergy, Gene health |
 | Star-allele diplotype + CPIC phenotype/status | Pharmacogenomics |
 | Polygenic percentile | Metabolic, Bone density, Familial hypercholesterolemia, Cancer (PRS), Traits |

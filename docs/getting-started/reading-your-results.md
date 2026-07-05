@@ -28,7 +28,7 @@ Every analysis module produces **findings**, and each finding carries an **evide
 | ★★★★ | Strong clinical evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (reviewed), CPIC Level A, or genome-wide-significant GWAS with a very large effect size. |
 | ★★★ | Good evidence — e.g. ClinVar Pathogenic/Likely-Pathogenic (single submitter), CPIC Level B, or replicated, genome-wide-significant GWAS. |
 | ★★ | Moderate — e.g. a variant of uncertain significance with functional support, or a single genome-wide-significant GWAS association without independent replication. |
-| ★ | Weak/preliminary — e.g. a single study or candidate-gene association. |
+| ★ | Weak/preliminary or discovery context — e.g. a single study, candidate-gene association, or carried rare/novel variant without stronger clinical evidence. |
 
 For GWAS findings, genome-wide significance addresses multiple testing, but Yeliztli does not
 treat a single significant association as definitive. Higher GWAS tiers require genome-wide
@@ -56,6 +56,12 @@ module at once by module and minimum evidence rating. Each finding links back to
 module when that module has a dedicated page, and gene symbols or variant IDs link to their
 detail pages when available. Modules that do not have their own dashboard page still surface
 their findings here.
+
+After a full annotation run, the total finding count may be dominated by
+[Rare Variant Finder](../modules/rare-variants.md) rows. A typical sample can have tens of
+thousands of carried rare or gnomAD-AF-missing variants, usually at ★. Those rows are an
+inventory for review, not diagnoses and not known disease associations. Use the module,
+category, and minimum-evidence filters to narrow the list.
 
 ## Sensitive results are opt-in
 
