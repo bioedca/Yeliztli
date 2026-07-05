@@ -26,12 +26,23 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 
+const RARE_VARIANT_TABLE_PAGE_SIZE = 200
+const RARE_VARIANT_TABLE_RENDER_LIMIT = 5000
+
 export default function RareVariantsView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
 
   const [selectedVariant, setSelectedVariant] = useState<RareVariant | null>(null)
-  const [searchResult, setSearchResult] = useState<RareVariantSearchResponse | null>(null)
+  const [searchState, setSearchState] = useState<{
+    sampleId: number | null
+    result: RareVariantSearchResponse | null
+    limit: number
+  }>({ sampleId, result: null, limit: RARE_VARIANT_TABLE_PAGE_SIZE })
+  const [findingsPage, setFindingsPage] = useState<{
+    sampleId: number | null
+    limit: number
+  }>({ sampleId, limit: RARE_VARIANT_TABLE_PAGE_SIZE })
 
   // Close detail panel on Escape key
   useEffect(() => {
@@ -44,7 +55,12 @@ export default function RareVariantsView() {
     return () => document.removeEventListener("keydown", handleEscape)
   }, [selectedVariant])
 
-  const findingsQuery = useRareVariantFindings(sampleId)
+  const searchResult = searchState.sampleId === sampleId ? searchState.result : null
+  const searchLimit =
+    searchState.sampleId === sampleId ? searchState.limit : RARE_VARIANT_TABLE_PAGE_SIZE
+  const findingsLimit =
+    findingsPage.sampleId === sampleId ? findingsPage.limit : RARE_VARIANT_TABLE_PAGE_SIZE
+  const findingsQuery = useRareVariantFindings(sampleId, { limit: findingsLimit })
   const searchMutation = useRareVariantSearch(sampleId)
 
   // No sample selected
@@ -61,6 +77,26 @@ export default function RareVariantsView() {
   const hasFindingsOnly = !hasSearchResult && findingsQuery.data && findingsQuery.data.items.length > 0
   const isLoading = findingsQuery.isLoading
   const hasError = findingsQuery.isError
+  const searchItems = searchResult?.items ?? []
+  const displayedSearchItems = searchItems.slice(0, searchLimit)
+  const canLoadMoreSearchResults =
+    hasSearchResult &&
+    displayedSearchItems.length < searchItems.length &&
+    searchLimit < RARE_VARIANT_TABLE_RENDER_LIMIT
+  const isSearchRenderCapped =
+    hasSearchResult &&
+    displayedSearchItems.length < searchItems.length &&
+    searchLimit >= RARE_VARIANT_TABLE_RENDER_LIMIT
+  const storedFindings = findingsQuery.data?.items ?? []
+  const storedFindingsTotal = findingsQuery.data?.total ?? 0
+  const canLoadMoreStoredFindings =
+    Boolean(hasFindingsOnly) &&
+    storedFindings.length < storedFindingsTotal &&
+    findingsLimit < RARE_VARIANT_TABLE_RENDER_LIMIT
+  const isStoredFindingsRenderCapped =
+    Boolean(hasFindingsOnly) &&
+    storedFindings.length < storedFindingsTotal &&
+    findingsLimit >= RARE_VARIANT_TABLE_RENDER_LIMIT
 
   return (
     <div className="p-6">
@@ -88,7 +124,11 @@ export default function RareVariantsView() {
           onSearch={(filters) => {
             searchMutation.mutate(filters, {
               onSuccess: (data) => {
-                setSearchResult(data)
+                setSearchState({
+                  sampleId,
+                  result: data,
+                  limit: RARE_VARIANT_TABLE_PAGE_SIZE,
+                })
                 setSelectedVariant(null)
               },
             })
@@ -145,7 +185,7 @@ export default function RareVariantsView() {
           {/* Results table */}
           <section aria-label="Search results">
             <ResultsTable
-              items={searchResult.items}
+              items={displayedSearchItems}
               selectedRsid={selectedVariant?.rsid ?? null}
               onSelect={(v) =>
                 setSelectedVariant(
@@ -153,6 +193,34 @@ export default function RareVariantsView() {
                 )
               }
             />
+            {(canLoadMoreSearchResults || isSearchRenderCapped) && (
+              <div className="flex flex-col items-center gap-1 pt-3">
+                {canLoadMoreSearchResults && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSearchState((current) => ({
+                        ...current,
+                        sampleId,
+                        limit: Math.min(
+                          searchLimit + RARE_VARIANT_TABLE_PAGE_SIZE,
+                          RARE_VARIANT_TABLE_RENDER_LIMIT,
+                        ),
+                      }))
+                    }
+                    className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
+                  >
+                    Load more results
+                  </button>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  Showing the top {displayedSearchItems.length} of {searchResult.total} variants
+                  {isSearchRenderCapped
+                    ? "; export files include the full stored finding set"
+                    : " (highest evidence first)"}
+                </span>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -163,7 +231,7 @@ export default function RareVariantsView() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Previous Findings</h2>
             <p className="text-xs text-muted-foreground">
-              {findingsQuery.data!.total} findings from last analysis run
+              {storedFindingsTotal} findings from last analysis run
             </p>
           </div>
           <div className="rounded-lg border overflow-hidden">
@@ -181,7 +249,7 @@ export default function RareVariantsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {findingsQuery.data!.items.map((f, i) => (
+                  {storedFindings.map((f, i) => (
                     <tr key={`${f.rsid}-${i}`} className="border-b" data-testid="finding-row">
                       <td className="px-3 py-2 font-medium">{f.gene_symbol ?? "—"}</td>
                       <td className="px-3 py-2 font-mono text-xs">{f.rsid ?? "—"}</td>
@@ -209,6 +277,40 @@ export default function RareVariantsView() {
               </table>
             </div>
           </div>
+
+          {canLoadMoreStoredFindings && (
+            <div className="flex flex-col items-center gap-1 pt-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setFindingsPage({
+                    sampleId,
+                    limit: Math.min(
+                      findingsLimit + RARE_VARIANT_TABLE_PAGE_SIZE,
+                      RARE_VARIANT_TABLE_RENDER_LIMIT,
+                    ),
+                  })
+                }
+                disabled={findingsQuery.isFetching}
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              >
+                {findingsQuery.isFetching ? "Loading…" : "Load more findings"}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Showing the top {storedFindings.length} of {storedFindingsTotal} findings
+                (highest evidence first)
+              </span>
+            </div>
+          )}
+
+          {isStoredFindingsRenderCapped && (
+            <div className="flex justify-center pt-3">
+              <span className="text-xs text-muted-foreground">
+                Showing the top {storedFindings.length} of {storedFindingsTotal} findings;
+                export files include the full set.
+              </span>
+            </div>
+          )}
 
           {/* Export buttons for stored findings */}
           <div className="flex gap-2 mt-3 justify-end" data-testid="findings-export">

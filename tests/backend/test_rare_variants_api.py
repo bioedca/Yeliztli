@@ -27,6 +27,7 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    findings,
     reference_metadata,
     samples,
 )
@@ -221,6 +222,51 @@ def sample_db_path(tmp_data_dir: Path) -> Path:
 
     engine.dispose()
     return db_path
+
+
+def seed_rare_variant_findings(sample_db_path: Path) -> None:
+    """Seed stored rare-variant findings without running the finder."""
+    engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                {
+                    "module": "rare_variants",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "BRCA1",
+                    "rsid": "rs_first",
+                    "finding_text": "BRCA1 high-evidence rare finding",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "detail_json": '{"zygosity_label": "Heterozygous"}',
+                },
+                {
+                    "module": "rare_variants",
+                    "category": "rare",
+                    "evidence_level": 1,
+                    "gene_symbol": "TP53",
+                    "rsid": "rs_second",
+                    "finding_text": "TP53 lower-evidence rare finding",
+                    "zygosity": "het",
+                    "clinvar_significance": None,
+                    "detail_json": "{}",
+                },
+                {
+                    "module": "cancer",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "BRCA2",
+                    "rsid": "rs_other_module",
+                    "finding_text": "Cancer module finding should not count here",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "detail_json": "{}",
+                },
+            ],
+        )
+    engine.dispose()
 
 
 @pytest.fixture()
@@ -549,6 +595,31 @@ class TestFindingsEndpoint:
             assert "category" in item
             assert "evidence_level" in item
             assert "finding_text" in item
+
+    def test_findings_limit_and_offset_paginate(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """Stored findings support bounded pages without changing the total."""
+        seed_rare_variant_findings(sample_db_path)
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(
+            "backend.api.routes.rare_variants._get_sample_engine",
+            lambda sample_id: engine,
+        )
+
+        from backend.api.routes.rare_variants import list_rare_variant_findings
+
+        first = list_rare_variant_findings(sample_id=1, limit=1, offset=0).model_dump()
+        second = list_rare_variant_findings(sample_id=1, limit=1, offset=1).model_dump()
+
+        assert first["total"] == 2
+        assert second["total"] == first["total"]
+        assert len(first["items"]) == 1
+        assert len(second["items"]) == 1
+        assert first["items"][0]["rsid"] != second["items"][0]["rsid"]
+        assert first["items"][0]["zygosity_label"] == "Heterozygous"
+
+        engine.dispose()
 
     def test_findings_sorted_by_evidence(self, rare_client: TestClient) -> None:
         """Findings are sorted by evidence level descending."""
