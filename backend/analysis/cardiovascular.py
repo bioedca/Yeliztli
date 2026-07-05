@@ -270,6 +270,7 @@ class CardiovascularAnalysisResult:
     panel_genes_checked: int = 0
     variants_in_panel_genes: int = 0
     hom_alt_plausibility_suppressed: int = 0
+    duplicate_variant_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -505,6 +506,7 @@ def extract_cardiovascular_variants(
         panel_genes_checked=len(gene_symbols),
         variants_in_panel_genes=total_in_panel,
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
+        duplicate_variant_suppressed=duplicate_variant_suppressed,
     )
 
 

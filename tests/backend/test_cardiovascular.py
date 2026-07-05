@@ -2150,6 +2150,7 @@ class TestRecessiveInheritanceGating:
         )
 
         assert len(result.variants) == 1
+        assert result.duplicate_variant_suppressed == 1
         assert result.variants[0].rsid == "rs4245791"
         assert len(rows) == 1
         text = rows[0]["finding_text"]

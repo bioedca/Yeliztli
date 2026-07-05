@@ -268,6 +268,7 @@ class CancerAnalysisResult:
     pseudogene_suppressed: int = 0
     hom_alt_plausibility_suppressed: int = 0
     condition_mismatch_suppressed: int = 0
+    duplicate_variant_suppressed: int = 0
 
     @property
     def pathogenic_count(self) -> int:
@@ -458,6 +459,7 @@ def extract_cancer_variants(
         pseudogene_suppressed=pseudogene_suppressed,
         hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
         condition_mismatch_suppressed=condition_mismatch_suppressed,
+        duplicate_variant_suppressed=duplicate_variant_suppressed,
     )
 
 
