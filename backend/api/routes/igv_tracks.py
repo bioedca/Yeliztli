@@ -52,7 +52,12 @@ def _normalize_chrom(chrom: str) -> str:
 
 
 def _normalize_igv_bounds(start: float, end: float) -> tuple[int, int]:
-    """Convert IGV.js fractional query bounds to integer genomic coordinates."""
+    """Widen IGV.js fractional bounds outward to integer genomic coordinates.
+
+    IGV.js derives query bounds from pixels and can emit fractional bp values.
+    Floor the start and ceil the end so the requested region remains inclusive
+    after conversion instead of becoming a narrower fractional slice.
+    """
     return math.floor(start), math.ceil(end)
 
 

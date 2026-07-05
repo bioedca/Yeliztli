@@ -17,6 +17,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.encode_ccres import CCREResult
 from backend.annotation.gnomad import _create_gnomad_table
 from backend.api.routes import igv_tracks as igv_tracks_route
 from backend.db.connection import DBRegistry, get_registry
@@ -264,13 +265,12 @@ class TestClinVarTrack:
         """IGV.js can emit floating-point bounds; the API floors/ceils them."""
         resp = test_client.get(
             "/api/igv-tracks/clinvar",
-            params={"chr": "chr17", "start": 41245465.35, "end": 41245500.65},
+            params={"chr": "chr17", "start": 41245466.35, "end": 41245466.65},
         )
         assert resp.status_code == 200
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
-        assert len(data_lines) == 2
+        assert len(data_lines) == 1
         assert "rs123" in data_lines[0]
-        assert "rs456" in data_lines[1]
 
     @pytest.mark.usefixtures("_seed_clinvar")
     def test_clinvar_region_empty_when_no_overlap(self, test_client: TestClient) -> None:
@@ -334,7 +334,7 @@ class TestSampleVariantsTrack:
         """Fractional IGV.js bounds should not 422 the sample VCF track."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41245465.35, "end": 41245466.65},
+            params={"chr": "chr17", "start": 41245466.35, "end": 41245466.65},
         )
         assert resp.status_code == 200
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
@@ -507,7 +507,7 @@ class TestGnomadTrack:
 
         resp = test_client.get(
             "/api/igv-tracks/gnomad",
-            params={"chr": "chr17", "start": 41245465.35, "end": 41245466.65},
+            params={"chr": "chr17", "start": 41245464.35, "end": 41245465.35},
         )
 
         assert resp.status_code == 200
@@ -558,14 +558,47 @@ class TestEncodeCcresTrack:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_ccres_accepts_fractional_igv_bounds(self, test_client: TestClient) -> None:
+    def test_ccres_accepts_fractional_igv_bounds(
+        self,
+        test_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        db_registry: DBRegistry,
+    ) -> None:
         """Fractional IGV.js bounds should not 422 the ENCODE cCRE track."""
+        observed: dict[str, int | str] = {}
+
+        def fake_query(chrom: str, start: int, end: int, _engine: sa.Engine) -> list[CCREResult]:
+            observed.update({"chrom": chrom, "start": start, "end": end})
+            return [
+                CCREResult(
+                    accession="EH38E0000001",
+                    chrom=chrom,
+                    start_pos=start,
+                    end_pos=end,
+                    ccre_class="PLS",
+                )
+            ]
+
+        monkeypatch.setattr(igv_tracks_route, "get_registry", lambda: db_registry)
+        monkeypatch.setattr("backend.annotation.encode_ccres.is_loaded", lambda _engine: True)
+        monkeypatch.setattr("backend.annotation.encode_ccres.query_ccres_by_region", fake_query)
+
         resp = test_client.get(
             "/api/igv-tracks/encode-ccres",
-            params={"chr": "chr1", "start": 0.35, "end": 100000.65},
+            params={"chr": "chr1", "start": 10400.35, "end": 10499.35},
         )
+
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert observed == {"chrom": "1", "start": 10400, "end": 10500}
+        assert resp.json() == [
+            {
+                "chr": "chr1",
+                "start": 10400,
+                "end": 10500,
+                "name": "EH38E0000001 (PLS)",
+                "color": "rgb(255,0,0)",
+            }
+        ]
 
 
 # ── Genotype conversion unit tests ───────────────────────────────────
