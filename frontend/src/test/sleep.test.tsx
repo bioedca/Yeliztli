@@ -4,8 +4,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/sleep/PathwayCard"
-import { MetabolizerCard } from "@/pages/SleepView"
-import type { MetabolizerState, PathwaySummary } from "@/types/sleep"
+import SleepView, { MetabolizerCard } from "@/pages/SleepView"
+import { useSleepPathways } from "@/api/sleep"
+import type { CrossModuleItem, MetabolizerState, PathwaySummary } from "@/types/sleep"
+
+vi.mock("@/api/sleep", () => ({
+  useSleepPathways: vi.fn(),
+  useSleepPathwayDetail: vi.fn(),
+}))
+
+const mockUseSleepPathways = vi.mocked(useSleepPathways)
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -40,6 +48,33 @@ const DISORDERS_PATHWAY: PathwaySummary = {
   total_snps: 2,
   missing_snps: [],
   pmids: ["19923809"],
+}
+
+function crossModule(targetModule: string): CrossModuleItem {
+  return {
+    rsid: `rs-${targetModule}`,
+    gene: "GENE1",
+    source_module: "sleep",
+    target_module: targetModule,
+    finding_text: "Shared sleep variant also assessed elsewhere.",
+    evidence_level: 2,
+    pmids: [],
+  }
+}
+
+function mockSleepPathways(crossModuleItems: CrossModuleItem[]) {
+  mockUseSleepPathways.mockReturnValue({
+    data: {
+      items: [CAFFEINE_PATHWAY],
+      total: 1,
+      cross_module: crossModuleItems,
+      metabolizer: null,
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useSleepPathways>)
 }
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
@@ -192,5 +227,32 @@ describe("MetabolizerCard (#758)", () => {
     render(<MetabolizerCard metabolizer={meta(null)} />)
     expect(screen.getByText("Unknown")).toBeInTheDocument()
     expect(screen.getByText(/could not be determined/i)).toBeInTheDocument()
+  })
+})
+
+describe("SleepView cross-module references (#1547)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("uses the shared registry route and label for non-Pharmacogenomics targets", () => {
+    mockSleepPathways([crossModule("nutrigenomics")])
+
+    const { container } = render(<SleepView />, { route: "/sleep?sample_id=1" })
+
+    const link = screen.getByRole("link", { name: /View in Nutrigenomics/i })
+    expect(link).toHaveAttribute("href", "/nutrigenomics?sample_id=1")
+    expect(container.textContent).toContain("Nutrigenomics")
+    expect(screen.queryByRole("link", { name: /View in Pharmacogenomics/i })).toBeNull()
+  })
+
+  it("shows panel-only module labels without rendering a stale Pharmacogenomics link", () => {
+    mockSleepPathways([crossModule("lhon")])
+
+    const { container } = render(<SleepView />, { route: "/sleep?sample_id=1" })
+
+    expect(container.textContent).toContain("LHON")
+    expect(screen.queryByRole("link", { name: /View in LHON/i })).toBeNull()
+    expect(screen.queryByRole("link", { name: /View in Pharmacogenomics/i })).toBeNull()
   })
 })
