@@ -92,13 +92,17 @@ _H1A_GENOTYPES = [
     # R defining SNPs (T12705C, T16223C).
     {"rsid": "i5012705", "chrom": "MT", "pos": 12705, "genotype": "CC"},
     {"rsid": "i5016223", "chrom": "MT", "pos": 16223, "genotype": "CC"},
-    # R0 defining SNPs
-    {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "GG"},
-    # HV defining SNPs
-    {"rsid": "i5014766", "chrom": "MT", "pos": 14766, "genotype": "TT"},
-    # H defining SNPs
-    {"rsid": "i5002706", "chrom": "MT", "pos": 2706, "genotype": "GG"},
-    {"rsid": "rs1000687", "chrom": "MT", "pos": 13252, "genotype": "TT"},
+    # R0: m.73 — a true H carrier carries the rCRS base 73=A (the 73G re-mutation
+    # is HV0/V-specific), so AA keeps this H path out of HV0 (#1579).
+    {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "AA"},
+    # HV defining SNP T14766C — a true HV/H carrier is C (the derived allele;
+    # rCRS is H2a2a1). The prior "TT" was the ancestral, biologically-impossible
+    # for an HV/H person, and masked the #1579 inversion.
+    {"rsid": "i5014766", "chrom": "MT", "pos": 14766, "genotype": "CC"},
+    # H defining SNP G2706A — a true H carrier is A (derived; rCRS base). The prior
+    # "GG" was ancestral. (rs1000687 @ m.13252 removed — it is autosomal chr11,
+    # not an H-defining mtDNA marker; #1579.)
+    {"rsid": "i5002706", "chrom": "MT", "pos": 2706, "genotype": "AA"},
     # H1 defining SNPs
     {"rsid": "i5003010", "chrom": "MT", "pos": 3010, "genotype": "AA"},
     # H1a defining SNPs
@@ -655,6 +659,27 @@ class TestTreeWalk:
         assert "H1" in haplogroups_in_path
         assert "H1a" in haplogroups_in_path
 
+    def test_true_h_carrier_reaches_h_and_ancestral_is_blocked(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1579: a true H carrier carries the DERIVED alleles HV m.14766=C and
+        H m.2706=A (rCRS is haplogroup H2a2a1, so carries them — Ensembl GRCh37
+        MT:14766=C, MT:2706=A), and must reach H. The ancestral 14766T/2706G that
+        a non-HV/H person carries must NOT reach H (it is evidence against the
+        clade). Before #1579 the bundle stored the ancestral alleles, scoring
+        every real H carrier (~40-45% of Europeans) as conflicting → blocked."""
+        trunk = {row["rsid"]: row["genotype"] for row in _MT_R_TRUNK_GENOTYPES}
+        derived = {**trunk, "i5014766": "CC", "i5002706": "AA"}  # true HV/H carrier
+        ancestral = {**trunk, "i5014766": "TT", "i5002706": "GG"}  # rCRS-ancestral, non-HV/H
+
+        derived_terminal, derived_path = _tree_walk(bundle.mt_tree, derived, [])
+        assert derived_terminal.haplogroup == "H"
+        assert "HV" in [s.haplogroup for s in derived_path]
+
+        anc_terminal, anc_path = _tree_walk(bundle.mt_tree, ancestral, [])
+        assert anc_terminal.haplogroup == "R"  # blocked below R
+        assert "H" not in [s.haplogroup for s in anc_path]
+
     def test_source_polarity_trunk_resolves_to_r_on_real_bundle(
         self, bundle: HaplogroupBundle
     ) -> None:
@@ -1048,8 +1073,10 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.tree_type == "mt"
         assert mt.haplogroup == "H1a"
-        assert mt.defining_snps_present == 14
-        assert mt.defining_snps_total == 15
+        # 13 H1a-path defining SNPs (#1579 removed R0's m.73 + H's rs1000687); the
+        # ambiguous duplicate at m.769 is treated as missing, so 12 of 13 present.
+        assert mt.defining_snps_present == 12
+        assert mt.defining_snps_total == 13
 
     def test_both_mt_and_y(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
         """XY sample gets both mt and Y haplogroup assignments."""
@@ -1096,9 +1123,11 @@ class TestAssignHaplogroups:
         to INDEPENDENTLY-derived literals (#640).
 
         The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
-        HV → H → H1 → H1a, with 3 + 3 + 2 + 1 + 1 + 2 + 1 + 2 = 15 defining SNPs,
-        all 15 derived in the fixture — so the expected present/total/confidence
-        are knowable offline (15 / 15 → 1.0). Asserting those literals, rather
+        HV → H → H1 → H1a, with 3 + 3 + 2 + 0 + 1 + 1 + 1 + 2 = 13 defining SNPs
+        (R0's recurrent m.73 marker and H's spurious autosomal rs1000687 were
+        removed in #1579), all 13 derived in the fixture — so the expected
+        present/total/confidence are knowable offline (13 / 13 → 1.0). Asserting
+        those literals, rather
         than recomputing from the result's own ``defining_snps_present`` /
         ``defining_snps_total`` (the old self-derivation tautology), means a
         present/total miscount (e.g. an #498-class tree-walk counting a
@@ -1110,8 +1139,8 @@ class TestAssignHaplogroups:
 
         mt = results[0]
         assert mt.haplogroup == "H1a"
-        assert mt.defining_snps_present == 15
-        assert mt.defining_snps_total == 15
+        assert mt.defining_snps_present == 13
+        assert mt.defining_snps_total == 13
         assert mt.confidence == 1.0
 
     def test_traversal_path_populated(
@@ -1126,7 +1155,9 @@ class TestAssignHaplogroups:
         for step in mt.traversal_path:
             assert isinstance(step.haplogroup, str)
             assert step.snps_present >= 0
-            assert step.snps_total > 0
+            # R0 is a structural pass-through node with no defining SNP (its only
+            # marker, the recurrent m.73, was removed in #1579), so total may be 0.
+            assert step.snps_total >= 0
 
     def test_empty_sample(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
         """Empty sample returns mt-MRCA (root) with empty traversal path."""

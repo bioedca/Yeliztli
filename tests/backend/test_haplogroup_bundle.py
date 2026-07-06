@@ -352,9 +352,18 @@ class TestMtDNATree:
         assert bundle["stats"]["mt_unique_snps"] == len(unique_rsids)
 
     def test_non_root_nodes_have_defining_snps(self, mt_tree: dict) -> None:
-        """Every non-root node should have at least one defining SNP."""
+        """Every non-root node should have at least one defining SNP.
+
+        Exception: R0 is retained as a structural pass-through node with no
+        defining SNP — its only array-typeable marker (the recurrent m.73) was
+        removed in #1579 because it cannot discriminate the rCRS/H spine (73A)
+        from HV0/V (73G); descent is scored on HV's m.14766 and below.
+        """
         nodes = collect_all_nodes(mt_tree)
         for node in nodes[1:]:  # Skip root
+            if node["haplogroup"] == "R0":
+                assert node["defining_snps"] == []  # documented structural exception
+                continue
             assert len(node["defining_snps"]) > 0, f"{node['haplogroup']} has no defining SNPs"
 
 
@@ -479,15 +488,17 @@ class TestFixtureIntegration:
         assert len(overlap) >= 3, f"Only {len(overlap)} fixture Y SNPs found in bundle: {overlap}"
 
     def test_fixture_sample_resolves_to_h_lineage(self, mt_tree: dict) -> None:
-        """Fixture MT SNPs should enable resolution to H branch.
+        """H is defined by G2706A (derived allele A; rCRS is H2a2a1 so carries it).
 
-        The fixture sample has rs1000687 (pos 13252, T) which is a defining
-        SNP for haplogroup H in our tree.
+        The spurious autosomal ``rs1000687`` (chr11) was removed as an H marker in
+        #1579; ``i5002706`` (m.2706=A) is H's real array-typeable defining SNP.
         """
         h_node = find_node(mt_tree, "H")
         assert h_node is not None
-        h_rsids = {s["rsid"] for s in h_node["defining_snps"]}
-        assert "rs1000687" in h_rsids
+        h_snps = {s["rsid"]: s for s in h_node["defining_snps"]}
+        assert "rs1000687" not in h_snps  # autosomal chr11 id, never an mtDNA marker
+        assert h_snps["i5002706"]["pos"] == 2706
+        assert h_snps["i5002706"]["allele"] == "A"  # derived (was ancestral "G")
 
     def test_fixture_sample_resolves_to_r1b_lineage(self, y_tree: dict) -> None:
         """Fixture Y SNPs should enable resolution to R1b branch.

@@ -1071,8 +1071,14 @@ def build_mt_tree() -> dict[str, Any]:
     h = _node(
         "H",
         [
-            _mt_snp("i5002706", 2706, "G"),
-            _mt_snp("rs1000687", 13252, "T"),
+            # H is defined by G2706A: the DERIVED allele is A. rCRS is haplogroup
+            # H2a2a1, so it carries the derived base (Ensembl GRCh37 MT:2706=A);
+            # the prior "G" was the ancestral allele, which scored every true H
+            # carrier (~40-45% of Europeans) as conflicting and blocked H (#1579).
+            _mt_snp("i5002706", 2706, "A"),
+            # (removed) rs1000687 @ m.13252 was spurious: rs1000687 is an autosomal
+            # chr11:133005679 dbSNP variant, not an mtDNA marker, so it never
+            # matched a real MT call and its conflict blocked descent into H (#1579).
         ],
         [h1, h2, h3, h4, h5, h6, h7, h10, h11, h13],
     )
@@ -1116,7 +1122,10 @@ def build_mt_tree() -> dict[str, Any]:
     hv = _node(
         "HV",
         [
-            _mt_snp("i5014766", 14766, "T"),
+            # HV is defined by T14766C: the DERIVED allele is C. rCRS (H2a2a1 ⊂ HV)
+            # carries it (Ensembl GRCh37 MT:14766=C); the prior "T" was ancestral,
+            # blocking every true HV/H carrier as conflicting (#1579).
+            _mt_snp("i5014766", 14766, "C"),
         ],
         [h, hv0, hv1],
     )
@@ -1508,9 +1517,13 @@ def build_mt_tree() -> dict[str, Any]:
     # Assemble R branch
     r0 = _node(
         "R0",
-        [
-            _mt_snp("i5000073", 73, "G"),
-        ],
+        # m.73 is a recurrent (homoplasic) site: the rCRS/H spine carries 73A
+        # (Ensembl GRCh37 MT:73=A) while HV0/V carry the 73G re-mutation, so a
+        # single 73 marker on R0 cannot discriminate the two children — as "G" it
+        # scored a true H carrier as conflicting and blocked the entire rCRS spine;
+        # as "A" it would instead block HV0/V. R0 is retained as a structural node
+        # (descent is scored on HV's 14766 and below) rather than mis-polarised (#1579).
+        [],
         [hv],
     )
 

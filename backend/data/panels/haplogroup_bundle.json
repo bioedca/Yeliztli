@@ -1555,13 +1555,7 @@
                   "children": [
                     {
                       "haplogroup": "R0",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5000073",
-                          "pos": 73,
-                          "allele": "G"
-                        }
-                      ],
+                      "defining_snps": [],
                       "children": [
                         {
                           "haplogroup": "HV",
@@ -1569,7 +1563,7 @@
                             {
                               "rsid": "i5014766",
                               "pos": 14766,
-                              "allele": "T"
+                              "allele": "C"
                             }
                           ],
                           "children": [
@@ -1579,12 +1573,7 @@
                                 {
                                   "rsid": "i5002706",
                                   "pos": 2706,
-                                  "allele": "G"
-                                },
-                                {
-                                  "rsid": "rs1000687",
-                                  "pos": 13252,
-                                  "allele": "T"
+                                  "allele": "A"
                                 }
                               ],
                               "children": [
@@ -4582,15 +4571,15 @@
   },
   "stats": {
     "mt_haplogroups": 192,
-    "mt_defining_snps": 373,
-    "mt_unique_snps": 284,
+    "mt_defining_snps": 371,
+    "mt_unique_snps": 283,
     "mt_max_depth": 9,
     "y_haplogroups": 129,
     "y_defining_snps": 163,
     "y_unique_snps": 99,
     "y_max_depth": 12,
     "total_haplogroups": 321,
-    "total_defining_snps": 536,
-    "total_unique_snps": 383
+    "total_defining_snps": 534,
+    "total_unique_snps": 382
   }
 }
