@@ -749,12 +749,12 @@
           "gene": "INS",
           "variant_name": "INS VNTR proxy",
           "hgvs_protein": null,
-          "risk_allele": "A",
-          "ref_allele": "T",
+          "risk_allele": "T",
+          "ref_allele": "A",
           "genotype_effects": {
             "TT": {
-              "category": "Standard",
-              "effect_summary": "Homozygous for INS VNTR class III proxy (protective). Higher thymic insulin expression promotes central tolerance to insulin, reducing autoimmune risk."
+              "category": "Moderate",
+              "effect_summary": "Homozygous INS VNTR class I proxy (risk). Lower thymic insulin expression reduces central immune tolerance to insulin. Associated with increased type 1 diabetes risk (OR ~2.0). This is the second strongest T1D locus after HLA."
             },
             "TA": {
               "category": "Moderate",
@@ -765,8 +765,8 @@
               "effect_summary": "Heterozygous INS VNTR proxy. Intermediate thymic insulin expression levels. Modestly increased type 1 diabetes susceptibility."
             },
             "AA": {
-              "category": "Moderate",
-              "effect_summary": "Homozygous INS VNTR class I proxy (risk). Lower thymic insulin expression reduces central immune tolerance to insulin. Associated with increased type 1 diabetes risk (OR ~2.0). This is the second strongest T1D locus after HLA."
+              "category": "Standard",
+              "effect_summary": "Homozygous for INS VNTR class III proxy (protective). Higher thymic insulin expression promotes central tolerance to insulin, reducing autoimmune risk."
             }
           },
           "evidence_level": 3,

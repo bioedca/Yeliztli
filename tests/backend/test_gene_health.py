@@ -2460,3 +2460,75 @@ class TestEvidenceGatingCap:
     def test_evidence_level_2_allows_elevated(self) -> None:
         result = _score_snp(self._snp(evidence_level=2, aa_category=ELEVATED), "AA")
         assert result.category == ELEVATED
+
+
+class TestInsVntrRs689Direction:
+    """rs689 INS VNTR (IDDM2) risk-allele + VNTR-class direction guard (#1570).
+
+    The INS VNTR class I (short repeats) is the *common, predisposing* allele;
+    class III (long repeats) is the *minor, protective* allele — protective
+    class III VNTRs raise thymic insulin expression, promoting central tolerance
+    (Pugliese 1997, PMID 9054945). rs689 tags the VNTR: the common ``T`` allele
+    is class I (T1D risk, OR ~2.0-2.4), the minor ``A`` allele is class III
+    (protective). The panel previously had this inverted (``risk_allele: "A"``,
+    ``AA`` labelled the class I *risk* proxy) — which is frequency-self-
+    contradictory: the population-minor allele cannot tag the *common* class I.
+
+    Sources (accessed 2026-07-06): Ensembl GRCh37 REST rs689 (11:2182224,
+    +strand, allele_string A/G/T, minor allele A, MAF 0.350); EBI GWAS Catalog
+    (rs689-T risk, OR 2.21-2.38, RAF ~0.70; rs689-A protective, OR 0.56);
+    Pugliese et al. 1997, Nat Genet (PMID 9054945). Class of #545/#748/#750.
+    """
+
+    # Ensembl GRCh37 REST (rs689, MAF 0.350): A is the population-MINOR allele,
+    # so T is the common/major allele. A minor allele cannot tag the common
+    # VNTR class I — this is what makes the inversion strand-independently wrong.
+    MINOR_ALLELE = "A"
+    MAJOR_ALLELE = "T"
+
+    def _rs689(self) -> dict:
+        panel = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+        for pathway in panel["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == "rs689":
+                    return snp
+        raise AssertionError("rs689 not found in gene_health_panel.json")
+
+    def test_risk_allele_is_the_common_class_I_allele(self) -> None:
+        snp = self._rs689()
+        assert snp["risk_allele"] == self.MAJOR_ALLELE, (
+            "rs689 risk allele must be the common T allele (class I VNTR; T1D "
+            "OR ~2.0-2.4 per GWAS Catalog), not the minor A allele (#1570)."
+        )
+        # ref_allele is the non-risk allele of the pair (also the GRCh37 reference).
+        assert snp["ref_allele"] == self.MINOR_ALLELE
+
+    def test_vntr_class_labels_match_allele_frequency(self) -> None:
+        """The minor allele must tag the minor VNTR class III (protective) and the
+        major allele the common class I (risk) — the minor allele cannot tag the
+        common class (#1570). This holds regardless of A/T strand convention."""
+        effects = self._rs689()["genotype_effects"]
+        major_hom = self.MAJOR_ALLELE * 2  # "TT"
+        minor_hom = self.MINOR_ALLELE * 2  # "AA"
+        major = effects[major_hom]
+        minor = effects[minor_hom]
+        major_summary = major["effect_summary"].lower()
+        minor_summary = minor["effect_summary"].lower()
+
+        # Common (major) allele homozygote -> class I (predisposing), elevated risk.
+        assert "class i" in major_summary and "class iii" not in major_summary, (
+            f"{major_hom} (common allele) must be the class I VNTR proxy — {major_summary!r}"
+        )
+        assert major["category"] in (MODERATE, ELEVATED), (
+            f"{major_hom} (class I, risk) must not be Standard — {major['category']}"
+        )
+        assert "risk" in major_summary
+
+        # Minor allele homozygote -> class III (protective), Standard.
+        assert "class iii" in minor_summary, (
+            f"{minor_hom} (minor allele) must be the class III VNTR proxy — {minor_summary!r}"
+        )
+        assert minor["category"] == STANDARD, (
+            f"{minor_hom} (class III, protective) must be Standard — {minor['category']}"
+        )
+        assert "protective" in minor_summary
