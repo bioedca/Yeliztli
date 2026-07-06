@@ -8,7 +8,9 @@ the full release snapshot stamped onto every finding).
 from __future__ import annotations
 
 import json
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
@@ -93,6 +95,23 @@ class TestPipelineVersion:
     def test_returns_a_string(self) -> None:
         v = pipeline_version()
         assert isinstance(v, str) and v
+
+    def test_uses_installed_distribution_version(self) -> None:
+        """Returns the ``version("yeliztli")`` lookup result — not a constant.
+
+        Patching keeps this env-agnostic (no dependency on the real installed
+        version, which changes every release) while killing the mutation that
+        replaces the real lookup with the ``"unknown"`` constant: a stubbed
+        ``version`` must flow through, and it must be queried for *this* dist.
+        """
+        with patch("backend.analysis.provenance.version", return_value="9.9.9") as mock_version:
+            assert pipeline_version() == "9.9.9"
+        mock_version.assert_called_once_with("yeliztli")
+
+    def test_falls_back_to_unknown_when_not_installed(self) -> None:
+        """A bare source checkout (dist not installed) pins ``"unknown"``."""
+        with patch("backend.analysis.provenance.version", side_effect=PackageNotFoundError):
+            assert pipeline_version() == "unknown"
 
 
 class TestDecodeCoverage:
