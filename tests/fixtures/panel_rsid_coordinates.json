@@ -4,7 +4,7 @@
     "assembly": "GRCh37",
     "accessed": "2026-07-06",
     "generator": "scripts/build_panel_rsid_coordinates.py",
-    "panel_rsid_count": 518,
+    "panel_rsid_count": 515,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -758,17 +758,6 @@
       "allele_string": "T/C/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1562430"
-    },
-    "rs1652507": {
-      "assembly": "GRCh37",
-      "chrom": "6",
-      "start": 161082461,
-      "end": 161082461,
-      "location": "6:161082461",
-      "strand": 1,
-      "allele_string": "T/C",
-      "variant_class": "SNP",
-      "source": "https://grch37.rest.ensembl.org/variation/human/rs1652507"
     },
     "rs1677693": {
       "assembly": "GRCh37",
@@ -1694,17 +1683,6 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6001930"
     },
-    "rs6415084": {
-      "assembly": "GRCh37",
-      "chrom": "6",
-      "start": 160980330,
-      "end": 160980330,
-      "location": "6:160980330",
-      "strand": 1,
-      "allele_string": "T/C",
-      "variant_class": "SNP",
-      "source": "https://grch37.rest.ensembl.org/variation/human/rs6415084"
-    },
     "rs6495446": {
       "assembly": "GRCh37",
       "chrom": "15",
@@ -1759,17 +1737,6 @@
       "allele_string": "C/A/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6897932"
-    },
-    "rs6907156": {
-      "assembly": "GRCh37",
-      "chrom": "6",
-      "start": 161016009,
-      "end": 161016009,
-      "location": "6:161016009",
-      "strand": 1,
-      "allele_string": "T/C",
-      "variant_class": "SNP",
-      "source": "https://grch37.rest.ensembl.org/variation/human/rs6907156"
     },
     "rs6910071": {
       "assembly": "GRCh37",

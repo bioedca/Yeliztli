@@ -32,6 +32,9 @@ COORDINATE_FIXTURE = (
 VALIDITY_SNAPSHOT = (
     Path(__file__).resolve().parent.parent / "fixtures" / "panel_rsid_validity_snapshot.json"
 )
+EXPECTED_CLINVAR_SNAPSHOT = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "panel_expected_clinvar_snapshot.json"
+)
 
 # dbSNP-merged panel rsIDs that already exist on ``main`` — the #787 guard surfaced
 # 12, all in cancer/carrier/cardiovascular ``expected_clinvar_rsids`` ClinVar-match
@@ -142,6 +145,10 @@ def _validity_snapshot() -> dict:
     return json.loads(VALIDITY_SNAPSHOT.read_text(encoding="utf-8"))
 
 
+def _expected_clinvar_snapshot() -> dict:
+    return json.loads(EXPECTED_CLINVAR_SNAPSHOT.read_text(encoding="utf-8"))
+
+
 def _expected_clinvar_gene_records() -> list[tuple[str, str, str, list[str]]]:
     """Return gene-level expected ClinVar lists with declared chromosomes."""
     records: list[tuple[str, str, str, list[str]]] = []
@@ -246,8 +253,8 @@ class TestPanelRsidValidity:
 
         The rsID validity guard catches malformed, retired, and unmapped rsIDs,
         but #1539 showed that valid ClinVar rsIDs can still be curated under the
-        wrong gene. These expected lists are gene-level fields, so they are not
-        covered by row-level declared-gene overlap tests.
+        wrong chromosome. These expected lists are gene-level fields, so they are
+        not covered by row-level declared-gene overlap tests.
         """
         coords = _coordinate_fixture()["rsids"]
         missing: list[str] = []
@@ -268,6 +275,84 @@ class TestPanelRsidValidity:
         )
         assert not offenders, (
             "expected ClinVar rsIDs assigned to a gene on a different chromosome:\n"
+            + "\n".join(offenders)
+        )
+
+    def test_expected_clinvar_snapshot_shape_is_locked(self) -> None:
+        """The offline expected ClinVar snapshot is auditable (#1539)."""
+        snapshot = _expected_clinvar_snapshot()
+        provenance = snapshot.get("_provenance")
+        assert isinstance(provenance, dict)
+        assert provenance.get("source") == "ClinVar Clinical Tables variants v4 search"
+        assert provenance.get("generator") == "scripts/build_panel_expected_clinvar_snapshot.py"
+        assert provenance.get("panel_files") == sorted(_EXPECTED_CLINVAR_PANEL_FILES)
+        assert provenance.get("gene_aliases") == {"GBA": ["GBA1"]}
+        assert provenance.get("evidence_mode") == "saved_gene_search_payloads"
+        assert isinstance(provenance.get("raw_evidence_dir"), str)
+        assert isinstance(provenance.get("accessed"), str) and provenance["accessed"]
+
+        expected_panel_genes: dict[str, list[dict[str, str]]] = {}
+        for panel, symbol, _chromosome, rsids in _expected_clinvar_gene_records():
+            for rsid in rsids:
+                expected_panel_genes.setdefault(rsid, []).append(
+                    {"panel": panel, "gene_symbol": symbol}
+                )
+        records = snapshot.get("rsids")
+        assert isinstance(records, dict)
+        assert set(records) <= set(expected_panel_genes)
+        assert provenance.get("panel_rsid_count") == len(records)
+        assert len(records) >= 100, "expected ClinVar snapshot coverage regressed"
+        assert {"rs10455872", "rs3798220", "rs33914668"} <= set(records)
+        for rsid, rec in records.items():
+            assert _RSID_RE.match(rsid), rsid
+            panel_genes = rec.get("panel_genes")
+            assert isinstance(panel_genes, list) and panel_genes, rsid
+            assert panel_genes == expected_panel_genes[rsid], rsid
+            for panel_gene in panel_genes:
+                assert panel_gene.get("panel") in _EXPECTED_CLINVAR_PANEL_FILES, rsid
+                assert isinstance(panel_gene.get("gene_symbol"), str), rsid
+
+            rows = rec.get("clinvar_rows")
+            assert isinstance(rows, list) and rows, rsid
+            for row in rows:
+                assert isinstance(row.get("variation_id"), str) and row["variation_id"], rsid
+                assert isinstance(row.get("name"), str) and row["name"], rsid
+                assert isinstance(row.get("gene_symbols"), list), rsid
+                assert isinstance(row.get("clinical_significance"), str), rsid
+                assert rsid in row.get("dbsnp", []), rsid
+
+    def test_expected_clinvar_rsids_match_declared_clinvar_gene(self) -> None:
+        """Expected ClinVar rsIDs must have ClinVar rows for the panel gene."""
+        snapshot = _expected_clinvar_snapshot()
+        aliases = snapshot["_provenance"]["gene_aliases"]
+        records = snapshot["rsids"]
+
+        offenders: list[str] = []
+        for rsid, rec in records.items():
+            clinvar_rows = rec["clinvar_rows"]
+            for panel_gene in rec["panel_genes"]:
+                panel = panel_gene["panel"]
+                symbol = panel_gene["gene_symbol"]
+                accepted_symbols = {symbol, *aliases.get(symbol, [])}
+                matching_rows = [
+                    row for row in clinvar_rows if accepted_symbols & set(row["gene_symbols"])
+                ]
+                if matching_rows:
+                    continue
+                observed = sorted(
+                    {
+                        f"{'/'.join(row['gene_symbols']) or '<no gene>'}: "
+                        f"{row['clinical_significance']}"
+                        for row in clinvar_rows
+                    }
+                )
+                offenders.append(
+                    f"{panel}: {symbol}: {rsid}; expected ClinVar gene in "
+                    f"{sorted(accepted_symbols)}, observed {observed}"
+                )
+
+        assert not offenders, (
+            "expected ClinVar rsIDs lack a ClinVar row for their declared panel gene:\n"
             + "\n".join(offenders)
         )
 

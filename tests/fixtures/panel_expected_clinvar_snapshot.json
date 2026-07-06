@@ -1,0 +1,2915 @@
+{
+  "_provenance": {
+    "source": "ClinVar Clinical Tables variants v4 search",
+    "accessed": "2026-07-06",
+    "generator": "scripts/build_panel_expected_clinvar_snapshot.py",
+    "panel_files": [
+      "cancer_panel.json",
+      "cardiovascular_panel.json",
+      "carrier_panel.json"
+    ],
+    "panel_rsid_count": 111,
+    "gene_aliases": {
+      "GBA": [
+        "GBA1"
+      ]
+    },
+    "evidence_mode": "saved_gene_search_payloads",
+    "raw_evidence_dir": "data/science-evidence/2026-07-06-fix-1539-clinvar-rsid-gene-mapping",
+    "note": "Committed offline reference for the gene-level expected ClinVar rsID guard (#1539). Saved-evidence mode covers the expected rsIDs present in the captured raw ClinVar payloads; tests never fetch this at runtime."
+  },
+  "rsids": {
+    "rs364897": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4314",
+          "name": "NM_000157.4(GBA1):c.680A>G (p.Asn227Ser)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs364897"
+          ]
+        },
+        {
+          "variation_id": "3251365",
+          "name": "NM_000157.4(GBA1):c.680A>T (p.Asn227Ile)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs364897"
+          ]
+        }
+      ]
+    },
+    "rs381418": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "93458",
+          "name": "NM_000157.4(GBA1):c.681T>G (p.Asn227Lys)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs381418"
+          ]
+        }
+      ]
+    },
+    "rs421016": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "93449",
+          "name": "NM_000157.4(GBA1):c.1448T>G (p.Leu483Arg)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs421016"
+          ]
+        },
+        {
+          "variation_id": "4288",
+          "name": "NM_000157.4(GBA1):c.1448T>C (p.Leu483Pro)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Conflicting classifications of pathogenicity; risk factor",
+          "dbsnp": [
+            "rs421016"
+          ]
+        }
+      ]
+    },
+    "rs1064651": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4293",
+          "name": "NM_000157.4(GBA1):c.1342G>C (p.Asp448His)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs1064651"
+          ]
+        }
+      ]
+    },
+    "rs3798220": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "LPA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "975030",
+          "name": "NM_005577.4(LPA):c.5673A>G (p.Ile1891Met)",
+          "gene_symbols": [
+            "LPA"
+          ],
+          "clinical_significance": "Benign",
+          "dbsnp": [
+            "rs3798220"
+          ]
+        }
+      ]
+    },
+    "rs5030814": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "VHL"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "569414",
+          "name": "NM_000551.4(VHL):c.463+2T>C",
+          "gene_symbols": [
+            "VHL"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs5030814"
+          ]
+        }
+      ]
+    },
+    "rs5030816": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "VHL"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "223222",
+          "name": "NM_000551.4(VHL):c.464-2A>G",
+          "gene_symbols": [
+            "VHL"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs5030816"
+          ]
+        }
+      ]
+    },
+    "rs5030817": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "VHL"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "223221",
+          "name": "NM_000551.4(VHL):c.464-1G>T",
+          "gene_symbols": [
+            "VHL"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs5030817"
+          ]
+        }
+      ]
+    },
+    "rs9848343": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "BAP1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1504011",
+          "name": "NM_004656.4(BAP1):c.932-1G>T",
+          "gene_symbols": [
+            "BAP1"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs9848343"
+          ]
+        }
+      ]
+    },
+    "rs10455872": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "LPA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "225938",
+          "name": "NM_005577.4(LPA):c.3947+467T>C",
+          "gene_symbols": [
+            "LPA"
+          ],
+          "clinical_significance": "Benign",
+          "dbsnp": [
+            "rs10455872"
+          ]
+        }
+      ]
+    },
+    "rs11575997": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "TP53"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "379801",
+          "name": "NM_000546.6(TP53):c.993+1G>C",
+          "gene_symbols": [
+            "TP53"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs11575997"
+          ]
+        },
+        {
+          "variation_id": "634766",
+          "name": "NM_000546.6(TP53):c.993+1G>T",
+          "gene_symbols": [
+            "TP53"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs11575997"
+          ]
+        }
+      ]
+    },
+    "rs28937316": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "SCN5A"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "9369",
+          "name": "NM_000335.5(SCN5A):c.4928G>A (p.Arg1643His)",
+          "gene_symbols": [
+            "SCN5A"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs28937316"
+          ]
+        }
+      ]
+    },
+    "rs28937318": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "SCN5A"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "9390",
+          "name": "NM_000335.5(SCN5A):c.1100G>A (p.Arg367His)",
+          "gene_symbols": [
+            "SCN5A"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs28937318"
+          ]
+        }
+      ]
+    },
+    "rs33913413": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HBB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "15451",
+          "name": "NM_000518.5(HBB):c.316-3C>A",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs33913413"
+          ]
+        },
+        {
+          "variation_id": "1330020",
+          "name": "NM_000518.5(HBB):c.316-3C>T",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Uncertain significance",
+          "dbsnp": [
+            "rs33913413"
+          ]
+        }
+      ]
+    },
+    "rs33914668": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HBB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "21191",
+          "name": "NM_000518.5(HBB):c.316-2A>G",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs33914668"
+          ]
+        }
+      ]
+    },
+    "rs34451549": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HBB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "15458",
+          "name": "NM_000518.5(HBB):c.316-197C>T",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs34451549"
+          ]
+        }
+      ]
+    },
+    "rs34598529": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HBB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "15469",
+          "name": "NC_000011.10:g.5227100T>C",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs34598529"
+          ]
+        },
+        {
+          "variation_id": "869288",
+          "name": "NM_000518.5(HBB):c.-79A>C",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs34598529"
+          ]
+        }
+      ]
+    },
+    "rs35724775": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HBB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "15450",
+          "name": "NM_000518.5(HBB):c.92+6T>C",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs35724775"
+          ]
+        },
+        {
+          "variation_id": "439165",
+          "name": "NM_000518.5(HBB):c.92+6T>A",
+          "gene_symbols": [
+            "HBB"
+          ],
+          "clinical_significance": "Uncertain significance",
+          "dbsnp": [
+            "rs35724775"
+          ]
+        }
+      ]
+    },
+    "rs57920071": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "LMNA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "14489",
+          "name": "NM_170707.4(LMNA):c.1444C>T (p.Arg482Trp)",
+          "gene_symbols": [
+            "LMNA"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs57920071"
+          ]
+        }
+      ]
+    },
+    "rs63750035": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MLH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "89888",
+          "name": "NM_000249.4(MLH1):c.1783_1784del (p.Ser595fs)",
+          "gene_symbols": [
+            "MLH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs63750035"
+          ]
+        }
+      ]
+    },
+    "rs63750049": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "PMS2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "9240",
+          "name": "NM_000535.7(PMS2):c.1021del (p.Arg341fs)",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs63750049"
+          ]
+        }
+      ]
+    },
+    "rs63750793": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "PMS2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "91316",
+          "name": "NM_000535.7(PMS2):c.182del (p.Tyr61fs)",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs63750793"
+          ]
+        }
+      ]
+    },
+    "rs63751642": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MLH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "90067",
+          "name": "NM_000249.4(MLH1):c.210AGA[1] (p.Glu71del)",
+          "gene_symbols": [
+            "MLH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs63751642"
+          ]
+        }
+      ]
+    },
+    "rs75822236": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4311",
+          "name": "NM_000157.4(GBA1):c.1604G>A (p.Arg535His)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs75822236"
+          ]
+        }
+      ]
+    },
+    "rs75991011": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "9171",
+          "name": "NM_000344.4(SMN1):c.439_443del (p.Glu147fs)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs75991011"
+          ]
+        }
+      ]
+    },
+    "rs76163360": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "928622",
+          "name": "NM_000344.4(SMN1):c.836G>A (p.Gly279Asp)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Uncertain significance",
+          "dbsnp": [
+            "rs76163360"
+          ]
+        },
+        {
+          "variation_id": "9167",
+          "name": "NM_000344.4(SMN1):c.836G>T (p.Gly279Val)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs76163360"
+          ]
+        }
+      ]
+    },
+    "rs76173977": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HEXA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "3920",
+          "name": "NM_000520.6(HEXA):c.1073+1G>A",
+          "gene_symbols": [
+            "HEXA"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs76173977"
+          ]
+        },
+        {
+          "variation_id": "1076289",
+          "name": "NM_000520.6(HEXA):c.1073+1G>C",
+          "gene_symbols": [
+            "HEXA"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs76173977"
+          ]
+        },
+        {
+          "variation_id": "550303",
+          "name": "NM_000520.6(HEXA):c.1073+1G>T",
+          "gene_symbols": [
+            "HEXA"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs76173977"
+          ]
+        }
+      ]
+    },
+    "rs76763715": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4290",
+          "name": "NM_000157.4(GBA1):c.1226A>G (p.Asn409Ser)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic; risk factor",
+          "dbsnp": [
+            "rs76763715"
+          ]
+        },
+        {
+          "variation_id": "38301",
+          "name": "NM_000157.4(GBA1):c.1226A>C (p.Asn409Thr)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "not provided",
+          "dbsnp": [
+            "rs76763715"
+          ]
+        }
+      ]
+    },
+    "rs77301881": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2690717",
+          "name": "NM_000344.4(SMN1):c.823G>A (p.Gly275Ser)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs77301881"
+          ]
+        }
+      ]
+    },
+    "rs77369218": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4294",
+          "name": "NM_000157.4(GBA1):c.1343A>T (p.Asp448Val)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs77369218"
+          ]
+        }
+      ]
+    },
+    "rs77668214": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "634947",
+          "name": "NM_000344.4(SMN1):c.399_402del (p.Glu134fs)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs77668214"
+          ]
+        }
+      ]
+    },
+    "rs77804083": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "9173",
+          "name": "NM_000344.4(SMN1):c.305G>A (p.Trp102Ter)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs77804083"
+          ]
+        }
+      ]
+    },
+    "rs77969175": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1929368",
+          "name": "NM_000344.4(SMN1):c.835G>C (p.Gly279Arg)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs77969175"
+          ]
+        }
+      ]
+    },
+    "rs78897684": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "PKP2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "201989",
+          "name": "NM_001005242.3(PKP2):c.1557-1G>C",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs78897684"
+          ]
+        }
+      ]
+    },
+    "rs79310136": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2684388",
+          "name": "NM_000344.4(SMN1):c.43C>T (p.Gln15Ter)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs79310136"
+          ]
+        }
+      ]
+    },
+    "rs79784540": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "SMN1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "448429",
+          "name": "NM_000344.4(SMN1):c.683T>A (p.Leu228Ter)",
+          "gene_symbols": [
+            "SMN1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs79784540"
+          ]
+        }
+      ]
+    },
+    "rs80356769": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4292",
+          "name": "NM_000157.4(GBA1):c.1297G>T (p.Val433Leu)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs80356769"
+          ]
+        }
+      ]
+    },
+    "rs80356771": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4295",
+          "name": "NM_000157.4(GBA1):c.1504C>T (p.Arg502Cys)",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs80356771"
+          ]
+        }
+      ]
+    },
+    "rs104886460": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "GBA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "93445",
+          "name": "NM_000157.4(GBA1):c.115+1G>A",
+          "gene_symbols": [
+            "GBA1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs104886460"
+          ]
+        }
+      ]
+    },
+    "rs111466480": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "PMS2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2011770",
+          "name": "NM_000535.7(PMS2):c.353+2T>A",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs111466480"
+          ]
+        },
+        {
+          "variation_id": "411055",
+          "name": "NM_000535.7(PMS2):c.353+2T>C",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs111466480"
+          ]
+        },
+        {
+          "variation_id": "2833881",
+          "name": "NM_000535.7(PMS2):c.353+2T>G",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs111466480"
+          ]
+        }
+      ]
+    },
+    "rs111517471": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "PKP2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "6757",
+          "name": "NM_001005242.3(PKP2):c.2357+1G>A",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs111517471"
+          ]
+        },
+        {
+          "variation_id": "45071",
+          "name": "NM_001005242.3(PKP2):c.2357+1G>T",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs111517471"
+          ]
+        }
+      ]
+    },
+    "rs111683277": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "MYBPC3"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "3072403",
+          "name": "NM_000256.3(MYBPC3):c.3190+1G>T",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs111683277"
+          ]
+        },
+        {
+          "variation_id": "177837",
+          "name": "NM_000256.3(MYBPC3):c.3190+1G>A",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs111683277"
+          ]
+        }
+      ]
+    },
+    "rs111729952": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "MYBPC3"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "42613",
+          "name": "NM_000256.3(MYBPC3):c.2309-2A>G",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs111729952"
+          ]
+        }
+      ]
+    },
+    "rs112675807": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "STK11"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "574932",
+          "name": "NM_000455.5(STK11):c.291-1G>T",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs112675807"
+          ]
+        },
+        {
+          "variation_id": "1075652",
+          "name": "NM_000455.5(STK11):c.291-1G>C",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs112675807"
+          ]
+        }
+      ]
+    },
+    "rs112738974": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "MYBPC3"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "42610",
+          "name": "NM_000256.3(MYBPC3):c.2308+1G>A",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs112738974"
+          ]
+        },
+        {
+          "variation_id": "42611",
+          "name": "NM_000256.3(MYBPC3):c.2308+1G>T",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs112738974"
+          ]
+        }
+      ]
+    },
+    "rs113276889": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "MYBPC3"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "692124",
+          "name": "NM_000256.3(MYBPC3):c.1227-1G>C",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs113276889"
+          ]
+        },
+        {
+          "variation_id": "619251",
+          "name": "NM_000256.3(MYBPC3):c.1227-1G>T",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs113276889"
+          ]
+        }
+      ]
+    },
+    "rs113709679": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "MYBPC3"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2798109",
+          "name": "NM_000256.3(MYBPC3):c.25+1G>C",
+          "gene_symbols": [
+            "MYBPC3"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs113709679"
+          ]
+        }
+      ]
+    },
+    "rs113726158": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "DSP"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "581651",
+          "name": "NM_004415.4(DSP):c.778-2A>G",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs113726158"
+          ]
+        }
+      ]
+    },
+    "rs121964873": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "CDH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "12234",
+          "name": "NM_004360.5(CDH1):c.781G>T (p.Glu261Ter)",
+          "gene_symbols": [
+            "CDH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs121964873"
+          ]
+        }
+      ]
+    },
+    "rs121964874": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "CDH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "12237",
+          "name": "NM_004360.5(CDH1):c.2095C>T (p.Gln699Ter)",
+          "gene_symbols": [
+            "CDH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs121964874"
+          ]
+        }
+      ]
+    },
+    "rs121964875": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "CDH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "12239",
+          "name": "NM_004360.5(CDH1):c.59G>A (p.Trp20Ter)",
+          "gene_symbols": [
+            "CDH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs121964875"
+          ]
+        }
+      ]
+    },
+    "rs121964876": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "CDH1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "12240",
+          "name": "NM_004360.5(CDH1):c.70G>T (p.Glu24Ter)",
+          "gene_symbols": [
+            "CDH1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs121964876"
+          ]
+        }
+      ]
+    },
+    "rs137852990": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "ABCG8"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4970",
+          "name": "NM_022437.3(ABCG8):c.788G>A (p.Arg263Gln)",
+          "gene_symbols": [
+            "ABCG8"
+          ],
+          "clinical_significance": "Conflicting classifications of pathogenicity",
+          "dbsnp": [
+            "rs137852990"
+          ]
+        }
+      ]
+    },
+    "rs137852991": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "ABCG8"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4972",
+          "name": "NM_022437.3(ABCG8):c.1234C>T (p.Arg412Ter)",
+          "gene_symbols": [
+            "ABCG8"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs137852991"
+          ]
+        }
+      ]
+    },
+    "rs137852993": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "ABCG8"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "4974",
+          "name": "NM_022437.3(ABCG8):c.691C>A (p.Pro231Thr)",
+          "gene_symbols": [
+            "ABCG8"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs137852993"
+          ]
+        }
+      ]
+    },
+    "rs137854558": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "355",
+          "name": "NM_001042492.3(NF1):c.1523T>C (p.Leu508Pro)",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs137854558"
+          ]
+        }
+      ]
+    },
+    "rs145310733": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RAD51C"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "480521",
+          "name": "NM_058216.3(RAD51C):c.572-2A>G",
+          "gene_symbols": [
+            "RAD51C"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs145310733"
+          ]
+        }
+      ]
+    },
+    "rs147324677": {
+      "panel_genes": [
+        {
+          "panel": "carrier_panel.json",
+          "gene_symbol": "HEXA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "3890",
+          "name": "NM_000520.6(HEXA):c.1421+1G>C",
+          "gene_symbols": [
+            "HEXA"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs147324677"
+          ]
+        },
+        {
+          "variation_id": "554686",
+          "name": "NM_000520.6(HEXA):c.1421+1G>T",
+          "gene_symbols": [
+            "HEXA"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs147324677"
+          ]
+        }
+      ]
+    },
+    "rs193922372": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "36563",
+          "name": "NM_000251.2(MSH2):c.1077-66_1146del",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs193922372"
+          ]
+        }
+      ]
+    },
+    "rs193922674": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "PKP2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "6756",
+          "name": "NM_001005242.3(PKP2):c.2014-1G>C",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs193922674"
+          ]
+        }
+      ]
+    },
+    "rs199472954": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "67309",
+          "name": "NM_000238.4(KCNH2):c.1879T>C (p.Phe627Leu)",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs199472954"
+          ]
+        }
+      ]
+    },
+    "rs200564819": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RAD51D"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "239393",
+          "name": "NM_002878.4(RAD51D):c.263+2T>C",
+          "gene_symbols": [
+            "RAD51D"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs200564819"
+          ]
+        }
+      ]
+    },
+    "rs267604791": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1177439",
+          "name": "NM_001042492.3(NF1):c.1392+1G>T",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267604791"
+          ]
+        },
+        {
+          "variation_id": "80403",
+          "name": "NM_001042492.3(NF1):c.1392+1G>A",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267604791"
+          ]
+        }
+      ]
+    },
+    "rs267606599": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "345",
+          "name": "NM_001042492.3(NF1):c.3113+1G>A",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267606599"
+          ]
+        },
+        {
+          "variation_id": "976156",
+          "name": "NM_001042492.3(NF1):c.3113+1G>C",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267606599"
+          ]
+        },
+        {
+          "variation_id": "216062",
+          "name": "NM_001042492.3(NF1):c.3113+1G>T",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267606599"
+          ]
+        }
+      ]
+    },
+    "rs267606603": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "356",
+          "name": "NM_001042492.3(NF1):c.1260+1G>A",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267606603"
+          ]
+        },
+        {
+          "variation_id": "848717",
+          "name": "NM_001042492.3(NF1):c.1260+1G>C",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267606603"
+          ]
+        },
+        {
+          "variation_id": "570670",
+          "name": "NM_001042492.3(NF1):c.1260+1G>T",
+          "gene_symbols": [
+            "NF1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267606603"
+          ]
+        }
+      ]
+    },
+    "rs267607602": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "LMNA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "66941",
+          "name": "NM_170707.4(LMNA):c.810+63C>A",
+          "gene_symbols": [
+            "LMNA"
+          ],
+          "clinical_significance": "not provided",
+          "dbsnp": [
+            "rs267607602"
+          ]
+        }
+      ]
+    },
+    "rs267607917": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "940043",
+          "name": "NM_000251.3(MSH2):c.212-2A>T",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267607917"
+          ]
+        },
+        {
+          "variation_id": "90893",
+          "name": "NM_000251.3(MSH2):c.212-2A>G",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267607917"
+          ]
+        },
+        {
+          "variation_id": "846676",
+          "name": "NM_000251.3(MSH2):c.212-2A>C",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267607917"
+          ]
+        }
+      ]
+    },
+    "rs267607933": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "91210",
+          "name": "NM_000251.3(MSH2):c.793-2A>C",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267607933"
+          ]
+        },
+        {
+          "variation_id": "947991",
+          "name": "NM_000251.3(MSH2):c.793-2A>G",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267607933"
+          ]
+        },
+        {
+          "variation_id": "1761296",
+          "name": "NM_000251.3(MSH2):c.793-2A>T",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267607933"
+          ]
+        }
+      ]
+    },
+    "rs267607943": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "90528",
+          "name": "NM_000251.3(MSH2):c.1077-2A>C",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267607943"
+          ]
+        },
+        {
+          "variation_id": "90529",
+          "name": "NM_000251.3(MSH2):c.1077-2A>G",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267607943"
+          ]
+        },
+        {
+          "variation_id": "90530",
+          "name": "NM_000251.3(MSH2):c.1077-2A>T",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267607943"
+          ]
+        }
+      ]
+    },
+    "rs267607949": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "619528",
+          "name": "NM_000251.3(MSH2):c.1277-2A>T",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs267607949"
+          ]
+        },
+        {
+          "variation_id": "90604",
+          "name": "NM_000251.3(MSH2):c.1277-2A>C",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267607949"
+          ]
+        },
+        {
+          "variation_id": "90605",
+          "name": "NM_000251.3(MSH2):c.1277-2A>G",
+          "gene_symbols": [
+            "MSH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267607949"
+          ]
+        }
+      ]
+    },
+    "rs267608096": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MSH6"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "89386",
+          "name": "NM_000179.3(MSH6):c.3438+1G>A",
+          "gene_symbols": [
+            "MSH6"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267608096"
+          ]
+        },
+        {
+          "variation_id": "2584304",
+          "name": "NM_000179.3(MSH6):c.3438+1G>T",
+          "gene_symbols": [
+            "MSH6"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs267608096"
+          ]
+        }
+      ]
+    },
+    "rs267608150": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "PMS2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "91366",
+          "name": "NM_000535.7(PMS2):c.736_741delinsTGTGTGTGAAG (p.Pro246_Pro247delinsCysValTer)",
+          "gene_symbols": [
+            "PMS2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs267608150"
+          ]
+        }
+      ]
+    },
+    "rs369940136": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "ATM"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "3148045",
+          "name": "NM_000051.4(ATM):c.6147T>G (p.Tyr2049Ter)",
+          "gene_symbols": [
+            "ATM"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs369940136"
+          ]
+        }
+      ]
+    },
+    "rs370228071": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RAD51D"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1232294",
+          "name": "NM_002878.4(RAD51D):c.620C>A (p.Ser207Ter)",
+          "gene_symbols": [
+            "RAD51D"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs370228071"
+          ]
+        }
+      ]
+    },
+    "rs371646728": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "ABCG8"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1677645",
+          "name": "NM_022437.3(ABCG8):c.811C>T (p.Gln271Ter)",
+          "gene_symbols": [
+            "ABCG8"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs371646728"
+          ]
+        }
+      ]
+    },
+    "rs372267274": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MUTYH"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "234229",
+          "name": "NM_001048174.2(MUTYH):c.305-1G>C",
+          "gene_symbols": [
+            "MUTYH"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs372267274"
+          ]
+        }
+      ]
+    },
+    "rs387906290": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNQ1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "3134",
+          "name": "NM_000218.3(KCNQ1):c.922-1G>C",
+          "gene_symbols": [
+            "KCNQ1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs387906290"
+          ]
+        },
+        {
+          "variation_id": "372568",
+          "name": "NM_000218.3(KCNQ1):c.922-1G>A",
+          "gene_symbols": [
+            "KCNQ1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs387906290"
+          ]
+        }
+      ]
+    },
+    "rs397508070": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNQ1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2017498",
+          "name": "NM_000218.3(KCNQ1):c.1032+1G>C",
+          "gene_symbols": [
+            "KCNQ1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs397508070"
+          ]
+        },
+        {
+          "variation_id": "52937",
+          "name": "NM_000218.3(KCNQ1):c.1032+1G>A",
+          "gene_symbols": [
+            "KCNQ1"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs397508070"
+          ]
+        },
+        {
+          "variation_id": "2136962",
+          "name": "NM_000218.3(KCNQ1):c.1032+1G>T",
+          "gene_symbols": [
+            "KCNQ1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs397508070"
+          ]
+        }
+      ]
+    },
+    "rs397516833": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "SDHB"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "44642",
+          "name": "NM_003000.3(SDHB):c.287-1G>C",
+          "gene_symbols": [
+            "SDHB"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs397516833"
+          ]
+        }
+      ]
+    },
+    "rs397516987": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "PKP2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "45011",
+          "name": "NM_001005242.3(PKP2):c.1170+2T>A",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs397516987"
+          ]
+        },
+        {
+          "variation_id": "1685407",
+          "name": "NM_001005242.3(PKP2):c.1170+2T>C",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs397516987"
+          ]
+        }
+      ]
+    },
+    "rs397516994": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "PKP2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "45022",
+          "name": "NM_001005242.3(PKP2):c.1378+1G>C",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs397516994"
+          ]
+        },
+        {
+          "variation_id": "923177",
+          "name": "NM_001005242.3(PKP2):c.1378+1G>A",
+          "gene_symbols": [
+            "PKP2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs397516994"
+          ]
+        }
+      ]
+    },
+    "rs398123406": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "STK11"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "93100",
+          "name": "NM_000455.5(STK11):c.921-1G>T",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs398123406"
+          ]
+        }
+      ]
+    },
+    "rs553975112": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "STK11"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2138176",
+          "name": "NM_000455.5(STK11):c.735-10C>A",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs553975112"
+          ]
+        },
+        {
+          "variation_id": "412543",
+          "name": "NM_000455.5(STK11):c.735-10C>T",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Benign/Likely benign",
+          "dbsnp": [
+            "rs553975112"
+          ]
+        }
+      ]
+    },
+    "rs587776562": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "963818",
+          "name": "NM_000268.4(NF2):c.240+1G>A",
+          "gene_symbols": [
+            "NF2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587776562"
+          ]
+        },
+        {
+          "variation_id": "3283",
+          "name": "NM_000268.4(NF2):c.240+1G>T",
+          "gene_symbols": [
+            "NF2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587776562"
+          ]
+        }
+      ]
+    },
+    "rs587776653": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "SDHC"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "7244",
+          "name": "NM_003001.5(SDHC):c.405+1G>A",
+          "gene_symbols": [
+            "SDHC"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587776653"
+          ]
+        },
+        {
+          "variation_id": "428934",
+          "name": "NM_003001.5(SDHC):c.405+1G>C",
+          "gene_symbols": [
+            "SDHC"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587776653"
+          ]
+        },
+        {
+          "variation_id": "7242",
+          "name": "NM_003001.5(SDHC):c.405+1G>T",
+          "gene_symbols": [
+            "SDHC"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587776653"
+          ]
+        }
+      ]
+    },
+    "rs587776878": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "BAP1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "30300",
+          "name": "NM_004656.4(BAP1):c.2057-2A>G",
+          "gene_symbols": [
+            "BAP1"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs587776878"
+          ]
+        }
+      ]
+    },
+    "rs587776879": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "BAP1"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "30301",
+          "name": "NM_004656.4(BAP1):c.438-2A>G",
+          "gene_symbols": [
+            "BAP1"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587776879"
+          ]
+        }
+      ]
+    },
+    "rs587780259": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RAD51C"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "631112",
+          "name": "NM_058216.3(RAD51C):c.706-2A>C",
+          "gene_symbols": [
+            "RAD51C"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587780259"
+          ]
+        }
+      ]
+    },
+    "rs587780751": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "MUTYH"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "135992",
+          "name": "NM_001048174.2(MUTYH):c.849+3A>C",
+          "gene_symbols": [
+            "MUTYH"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587780751"
+          ]
+        }
+      ]
+    },
+    "rs587781299": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "ATM"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "140818",
+          "name": "NM_000051.4(ATM):c.6997dup",
+          "gene_symbols": [
+            "ATM"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587781299"
+          ]
+        }
+      ]
+    },
+    "rs587781905": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "ATM"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "141647",
+          "name": "NM_000051.4(ATM):c.7517_7520del",
+          "gene_symbols": [
+            "ATM"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587781905"
+          ]
+        },
+        {
+          "variation_id": "827096",
+          "name": "NM_000051.4(ATM):c.7519_7520del",
+          "gene_symbols": [
+            "ATM"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587781905"
+          ]
+        }
+      ]
+    },
+    "rs587782018": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "STK11"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "141795",
+          "name": "NM_000455.5(STK11):c.734+1G>T",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587782018"
+          ]
+        },
+        {
+          "variation_id": "428792",
+          "name": "NM_000455.5(STK11):c.734+1G>C",
+          "gene_symbols": [
+            "STK11"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs587782018"
+          ]
+        }
+      ]
+    },
+    "rs587782036": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RAD51C"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "409834",
+          "name": "NM_058216.3(RAD51C):c.405-1G>A",
+          "gene_symbols": [
+            "RAD51C"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587782036"
+          ]
+        },
+        {
+          "variation_id": "141823",
+          "name": "NM_058216.3(RAD51C):c.405-1G>C",
+          "gene_symbols": [
+            "RAD51C"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587782036"
+          ]
+        },
+        {
+          "variation_id": "3148220",
+          "name": "NM_058216.3(RAD51C):c.405-1G>T",
+          "gene_symbols": [
+            "RAD51C"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs587782036"
+          ]
+        }
+      ]
+    },
+    "rs587782927": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "DSP"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "143947",
+          "name": "NM_004415.4(DSP):c.2131_2132del",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs587782927"
+          ]
+        }
+      ]
+    },
+    "rs727502996": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "DSP"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "163233",
+          "name": "NM_004415.4(DSP):c.170+5G>A",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs727502996"
+          ]
+        },
+        {
+          "variation_id": "972327",
+          "name": "NM_004415.4(DSP):c.170+5G>C",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Uncertain significance",
+          "dbsnp": [
+            "rs727502996"
+          ]
+        }
+      ]
+    },
+    "rs727503003": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "DSP"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "163276",
+          "name": "NM_001008844.3(DSP):c.3582+1242dup",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs727503003"
+          ]
+        }
+      ]
+    },
+    "rs727504443": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "DSP"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "178282",
+          "name": "NM_004415.4(DSP):c.939+1G>A",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs727504443"
+          ]
+        },
+        {
+          "variation_id": "1076116",
+          "name": "NM_004415.4(DSP):c.939+1G>T",
+          "gene_symbols": [
+            "DSP"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs727504443"
+          ]
+        }
+      ]
+    },
+    "rs747939816": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "SDHA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "480769",
+          "name": "NM_004168.4(SDHA):c.1909-2A>G",
+          "gene_symbols": [
+            "SDHA"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs747939816"
+          ]
+        }
+      ]
+    },
+    "rs748440817": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "SDHC"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "1790882",
+          "name": "NM_003001.5(SDHC):c.241+1G>T",
+          "gene_symbols": [
+            "SDHC"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs748440817"
+          ]
+        },
+        {
+          "variation_id": "821235",
+          "name": "NM_003001.5(SDHC):c.241+1G>A",
+          "gene_symbols": [
+            "SDHC"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs748440817"
+          ]
+        }
+      ]
+    },
+    "rs751904543": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "SDHA"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2452802",
+          "name": "NM_004168.4(SDHA):c.1663+3G>A",
+          "gene_symbols": [
+            "SDHA"
+          ],
+          "clinical_significance": "Conflicting classifications of pathogenicity",
+          "dbsnp": [
+            "rs751904543"
+          ]
+        },
+        {
+          "variation_id": "577461",
+          "name": "NM_004168.4(SDHA):c.1663+3G>C",
+          "gene_symbols": [
+            "SDHA"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs751904543"
+          ]
+        }
+      ]
+    },
+    "rs794728365": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "200325",
+          "name": "NM_000238.4(KCNH2):c.1129-2A>G",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs794728365"
+          ]
+        }
+      ]
+    },
+    "rs794728375": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "200376",
+          "name": "NM_000238.4(KCNH2):c.1946-1G>A",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs794728375"
+          ]
+        },
+        {
+          "variation_id": "1521307",
+          "name": "NM_000238.4(KCNH2):c.1946-1G>C",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs794728375"
+          ]
+        }
+      ]
+    },
+    "rs794728380": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "200400",
+          "name": "NM_000238.4(KCNH2):c.1945+6T>C",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs794728380"
+          ]
+        }
+      ]
+    },
+    "rs794728391": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "372377",
+          "name": "NM_000238.4(KCNH2):c.2398+1G>T",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs794728391"
+          ]
+        },
+        {
+          "variation_id": "200444",
+          "name": "NM_000238.4(KCNH2):c.2398+1G>C",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs794728391"
+          ]
+        }
+      ]
+    },
+    "rs794728394": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "KCNH2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "200462",
+          "name": "NM_000238.4(KCNH2):c.2693-2A>T",
+          "gene_symbols": [
+            "KCNH2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs794728394"
+          ]
+        }
+      ]
+    },
+    "rs794728682": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "201123",
+          "name": "NM_000268.4(NF2):c.810+1G>A",
+          "gene_symbols": [
+            "NF2"
+          ],
+          "clinical_significance": "Pathogenic/Likely pathogenic",
+          "dbsnp": [
+            "rs794728682"
+          ]
+        }
+      ]
+    },
+    "rs794728712": {
+      "panel_genes": [
+        {
+          "panel": "cardiovascular_panel.json",
+          "gene_symbol": "RYR2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2626900",
+          "name": "NM_001035.3(RYR2):c.727G>T (p.Glu243Ter)",
+          "gene_symbols": [
+            "RYR2"
+          ],
+          "clinical_significance": "Likely pathogenic",
+          "dbsnp": [
+            "rs794728712"
+          ]
+        }
+      ]
+    },
+    "rs863225310": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "APC"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2632586",
+          "name": "NM_000038.6(APC):c.1312+1G>C",
+          "gene_symbols": [
+            "APC"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs863225310"
+          ]
+        }
+      ]
+    },
+    "rs1060503666": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "412199",
+          "name": "NM_000268.4(NF2):c.676-2A>G",
+          "gene_symbols": [
+            "NF2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs1060503666"
+          ]
+        }
+      ]
+    },
+    "rs1060503670": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "NF2"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "412207",
+          "name": "NM_000268.4(NF2):c.517-2A>G",
+          "gene_symbols": [
+            "NF2"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs1060503670"
+          ]
+        }
+      ]
+    },
+    "rs1278030644": {
+      "panel_genes": [
+        {
+          "panel": "cancer_panel.json",
+          "gene_symbol": "RET"
+        }
+      ],
+      "clinvar_rows": [
+        {
+          "variation_id": "2584517",
+          "name": "NM_020975.6(RET):c.971G>A (p.Trp324Ter)",
+          "gene_symbols": [
+            "RET"
+          ],
+          "clinical_significance": "Pathogenic",
+          "dbsnp": [
+            "rs1278030644"
+          ]
+        }
+      ]
+    }
+  }
+}

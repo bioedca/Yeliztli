@@ -78,10 +78,7 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs10455872",
-        "rs3798220",
-        "rs6415084",
-        "rs6907156",
-        "rs1652507"
+        "rs3798220"
       ],
       "pmids": ["20032323", "32681934"],
       "notes": "Elevated Lp(a) is an independent cardiovascular risk factor. rs10455872 and rs3798220 are well-established risk alleles."
