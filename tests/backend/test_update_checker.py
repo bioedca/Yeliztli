@@ -14,6 +14,7 @@ import pytest
 from backend.utils.update_checker import (
     AppUpdateInfo,
     _compare_versions,
+    _select_latest_app_release,
     check_app_update,
     parse_version,
 )
@@ -72,6 +73,12 @@ class TestCompareVersions:
         assert info.update_available is False
         assert info.latest_version == "0.2.0rc1"
 
+    def test_app_prefixed_release_tag(self):
+        release = {"tag_name": "app-v1.0.0", "html_url": "https://example.com", "body": ""}
+        info = _compare_versions("0.1.0", release)
+        assert info.update_available is True
+        assert info.latest_version == "1.0.0"
+
     def test_invalid_tag(self):
         release = {"tag_name": "broken", "html_url": "https://example.com", "body": ""}
         info = _compare_versions("0.1.0", release)
@@ -83,6 +90,48 @@ class TestCompareVersions:
         info = _compare_versions("0.1.0", release)
         assert info.release_notes is not None
         assert len(info.release_notes) == 500
+
+
+# ── _select_latest_app_release ───────────────────────────────────────
+
+
+class TestSelectLatestAppRelease:
+    def test_ignores_bundle_releases_and_selects_app_tag(self):
+        releases = [
+            {"tag_name": "gnomad-bundle-v1.1.0", "html_url": "bundle"},
+            {"tag_name": "bundle-v4.0.0", "html_url": "vep"},
+            {"tag_name": "v0.2.0", "html_url": "app-old"},
+            {"tag_name": "app-v0.3.0", "html_url": "app-new"},
+        ]
+        release = _select_latest_app_release(releases)
+        assert release is not None
+        assert release["tag_name"] == "app-v0.3.0"
+
+    def test_bundle_only_releases_have_no_app_release(self):
+        releases = [
+            {"tag_name": "gnomad-bundle-v1.1.0", "html_url": "bundle"},
+            {"tag_name": "pgs-scores-v1.0.0", "html_url": "pgs"},
+            {"tag_name": "lai-bundle-v2.0.0", "html_url": "lai"},
+        ]
+        assert _select_latest_app_release(releases) is None
+
+    def test_skips_prerelease_app_tags(self):
+        releases = [
+            {"tag_name": "v0.3.0rc1", "html_url": "candidate", "prerelease": True},
+            {"tag_name": "v0.2.0", "html_url": "stable"},
+        ]
+        release = _select_latest_app_release(releases)
+        assert release is not None
+        assert release["tag_name"] == "v0.2.0"
+
+    def test_skips_draft_app_tags(self):
+        releases = [
+            {"tag_name": "v0.4.0", "html_url": "draft", "draft": True},
+            {"tag_name": "v0.3.0", "html_url": "stable"},
+        ]
+        release = _select_latest_app_release(releases)
+        assert release is not None
+        assert release["tag_name"] == "v0.3.0"
 
 
 # ── check_app_update (mocked async HTTP) ─────────────────────────────
@@ -116,11 +165,18 @@ class TestCheckAppUpdate:
     async def test_update_available(self, mock_cls):
         resp = _make_mock_response(
             200,
-            {
-                "tag_name": "v1.0.0",
-                "html_url": "https://github.com/bioedca/Yeliztli/releases/v1.0.0",
-                "body": "Release notes",
-            },
+            [
+                {
+                    "tag_name": "gnomad-bundle-v1.1.0",
+                    "html_url": "https://github.com/bioedca/Yeliztli/releases/gnomad",
+                    "body": "Bundle release",
+                },
+                {
+                    "tag_name": "v1.0.0",
+                    "html_url": "https://github.com/bioedca/Yeliztli/releases/v1.0.0",
+                    "body": "Release notes",
+                },
+            ],
         )
         _mock_async_client(mock_cls, resp)
 
@@ -138,7 +194,7 @@ class TestCheckAppUpdate:
         slug. Without follow_redirects=True the 301 is not followed and the
         update banner silently dies for pre-rename installs.
         """
-        resp = _make_mock_response(200, {"tag_name": "v0.1.0", "html_url": "u", "body": ""})
+        resp = _make_mock_response(200, [{"tag_name": "v0.1.0", "html_url": "u", "body": ""}])
         _mock_async_client(mock_cls, resp)
 
         await check_app_update(current_version="0.1.0")
@@ -148,11 +204,78 @@ class TestCheckAppUpdate:
     @pytest.mark.asyncio
     @patch("backend.utils.update_checker.httpx.AsyncClient")
     async def test_no_update(self, mock_cls):
-        resp = _make_mock_response(200, {"tag_name": "v0.1.0", "html_url": "url", "body": ""})
+        resp = _make_mock_response(200, [{"tag_name": "v0.1.0", "html_url": "url", "body": ""}])
         _mock_async_client(mock_cls, resp)
 
         info = await check_app_update(current_version="0.1.0")
         assert info.update_available is False
+
+    @pytest.mark.asyncio
+    @patch("backend.utils.update_checker.httpx.AsyncClient")
+    async def test_bundle_latest_release_does_not_surface_parse_error(self, mock_cls):
+        resp = _make_mock_response(
+            200,
+            [
+                {
+                    "tag_name": "gnomad-bundle-v1.1.0",
+                    "html_url": "https://github.com/bioedca/Yeliztli/releases/gnomad",
+                    "body": "Bundle release",
+                },
+                {
+                    "tag_name": "bundle-v4.0.0",
+                    "html_url": "https://github.com/bioedca/Yeliztli/releases/vep",
+                    "body": "VEP bundle release",
+                },
+            ],
+        )
+        _mock_async_client(mock_cls, resp)
+
+        info = await check_app_update(current_version="0.2.0")
+        assert info.update_available is False
+        assert info.latest_version is None
+        assert info.release_url is None
+        assert info.error is None
+
+    @pytest.mark.asyncio
+    @patch("backend.utils.update_checker.httpx.AsyncClient")
+    async def test_paginates_past_full_bundle_release_page(self, mock_cls):
+        first_page = _make_mock_response(
+            200,
+            [
+                {
+                    "tag_name": f"gnomad-bundle-v1.{i}.0",
+                    "html_url": f"https://github.com/bioedca/Yeliztli/releases/gnomad-{i}",
+                }
+                for i in range(100)
+            ],
+        )
+        second_page = _make_mock_response(
+            200,
+            [
+                {
+                    "tag_name": "v1.0.0",
+                    "html_url": "https://github.com/bioedca/Yeliztli/releases/v1.0.0",
+                    "body": "Release notes",
+                }
+            ],
+        )
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = [first_page, second_page]
+        mock_cls.return_value = mock_client
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = False
+
+        info = await check_app_update(current_version="0.2.0")
+        assert info.update_available is True
+        assert info.latest_version == "1.0.0"
+        assert mock_client.get.call_args_list[0].kwargs["params"] == {
+            "per_page": 100,
+            "page": 1,
+        }
+        assert mock_client.get.call_args_list[1].kwargs["params"] == {
+            "per_page": 100,
+            "page": 2,
+        }
 
     @pytest.mark.asyncio
     @patch("backend.utils.update_checker.httpx.AsyncClient")

@@ -18,7 +18,8 @@ from backend.main import VERSION
 logger = logging.getLogger(__name__)
 
 GITHUB_REPO = "bioedca/Yeliztli"
-RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
+RELEASES_PER_PAGE = 100
 REQUEST_TIMEOUT = 10.0  # seconds
 USER_AGENT = f"Yeliztli/{VERSION}"
 
@@ -44,6 +45,33 @@ def parse_version(version_str: str) -> Version | None:
         return None
 
 
+def _parse_app_release_tag(tag: str) -> Version | None:
+    """Return the app version encoded by an app release tag, if any."""
+    if tag.startswith("app-v"):
+        return parse_version(tag.removeprefix("app-v"))
+    if tag.startswith("v"):
+        return parse_version(tag.removeprefix("v"))
+    return None
+
+
+def _select_latest_app_release(releases: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Select the highest stable Yeliztli app release from GitHub releases."""
+    latest: tuple[Version, dict[str, Any]] | None = None
+    for release in releases:
+        tag = str(release.get("tag_name") or "")
+        version = _parse_app_release_tag(tag)
+        if (
+            version is None
+            or version.is_prerelease
+            or release.get("prerelease")
+            or release.get("draft")
+        ):
+            continue
+        if latest is None or version > latest[0]:
+            latest = (version, release)
+    return latest[1] if latest else None
+
+
 async def check_app_update(current_version: str | None = None) -> AppUpdateInfo:
     """Check GitHub Releases for a newer Yeliztli version.
 
@@ -56,33 +84,56 @@ async def check_app_update(current_version: str | None = None) -> AppUpdateInfo:
     current = current_version or VERSION
 
     try:
+        releases: list[dict[str, Any]] = []
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(
-                RELEASES_URL,
-                headers={
-                    "Accept": "application/vnd.github+json",
-                    "User-Agent": USER_AGENT,
-                },
-            )
+            page = 1
+            while True:
+                resp = await client.get(
+                    RELEASES_URL,
+                    params={"per_page": RELEASES_PER_PAGE, "page": page},
+                    headers={
+                        "Accept": "application/vnd.github+json",
+                        "User-Agent": USER_AGENT,
+                    },
+                )
 
-        if resp.status_code == 404:
-            # No releases published yet
+                if resp.status_code == 404:
+                    # No releases published yet
+                    return AppUpdateInfo(
+                        update_available=False,
+                        current_version=current,
+                        error="No releases found",
+                    )
+
+                if resp.status_code == 403:
+                    return AppUpdateInfo(
+                        update_available=False,
+                        current_version=current,
+                        error="GitHub API rate limit exceeded",
+                    )
+
+                resp.raise_for_status()
+                data = resp.json()
+                if not isinstance(data, list):
+                    return AppUpdateInfo(
+                        update_available=False,
+                        current_version=current,
+                        error="Unexpected GitHub releases response",
+                    )
+
+                releases.extend(item for item in data if isinstance(item, dict))
+                if len(data) < RELEASES_PER_PAGE:
+                    break
+                page += 1
+
+        latest_app_release = _select_latest_app_release(releases)
+        if latest_app_release is None:
             return AppUpdateInfo(
                 update_available=False,
                 current_version=current,
-                error="No releases found",
             )
 
-        if resp.status_code == 403:
-            return AppUpdateInfo(
-                update_available=False,
-                current_version=current,
-                error="GitHub API rate limit exceeded",
-            )
-
-        resp.raise_for_status()
-        data: dict[str, Any] = resp.json()
-        return _compare_versions(current, data)
+        return _compare_versions(current, latest_app_release)
 
     except httpx.TimeoutException:
         logger.warning("App update check timed out")
@@ -107,7 +158,7 @@ def _compare_versions(current: str, release_data: dict[str, Any]) -> AppUpdateIn
     body = release_data.get("body", "")
 
     current_ver = parse_version(current)
-    latest_ver = parse_version(tag)
+    latest_ver = _parse_app_release_tag(tag) or parse_version(tag)
 
     if current_ver is None or latest_ver is None:
         return AppUpdateInfo(
