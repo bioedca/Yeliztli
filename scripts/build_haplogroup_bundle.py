@@ -1517,12 +1517,16 @@ def build_mt_tree() -> dict[str, Any]:
     # Assemble R branch
     r0 = _node(
         "R0",
-        # m.73 is a recurrent (homoplasic) site: the rCRS/H spine carries 73A
-        # (Ensembl GRCh37 MT:73=A) while HV0/V carry the 73G re-mutation, so a
-        # single 73 marker on R0 cannot discriminate the two children — as "G" it
-        # scored a true H carrier as conflicting and blocked the entire rCRS spine;
-        # as "A" it would instead block HV0/V. R0 is retained as a structural node
-        # (descent is scored on HV's 14766 and below) rather than mis-polarised (#1579).
+        # m.73 (A73G) is a recurrent control-region site that cannot serve as a
+        # single R0 discriminator. PhyloTree defines R0 by G73A, so the rCRS/H
+        # spine carries 73A (Ensembl GRCh37 MT:73=A) — but the prior bundle stored
+        # R0 as 73G (inverted) AND m.73 recurs on sub-branches, so no single R0
+        # allele works: as "G" it scored a true H carrier (73A) as conflicting and
+        # blocked the whole rCRS spine; as "A" it would block whichever descendants
+        # carry 73G (empirically the bundle's HV0/V branch). Verified by the shipped
+        # classifier: dropping m.73 lets the rCRS genotype reach H while the HV0/V
+        # sibling still resolves. R0 is kept as a structural node (descent is scored
+        # on HV's 14766 and below) rather than mis-polarised (#1579).
         [],
         [hv],
     )

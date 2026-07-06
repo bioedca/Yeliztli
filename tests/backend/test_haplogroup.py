@@ -92,8 +92,9 @@ _H1A_GENOTYPES = [
     # R defining SNPs (T12705C, T16223C).
     {"rsid": "i5012705", "chrom": "MT", "pos": 12705, "genotype": "CC"},
     {"rsid": "i5016223", "chrom": "MT", "pos": 16223, "genotype": "CC"},
-    # R0: m.73 — a true H carrier carries the rCRS base 73=A (the 73G re-mutation
-    # is HV0/V-specific), so AA keeps this H path out of HV0 (#1579).
+    # R0: m.73 — a true H carrier carries the rCRS base 73=A (PhyloTree R0 = G73A;
+    # Ensembl MT:73=A), so AA keeps this H path out of the bundle's HV0 branch,
+    # which (mis)encodes 73G (#1579; the HV0 marker itself is corrected separately).
     {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "AA"},
     # HV defining SNP T14766C — a true HV/H carrier is C (the derived allele;
     # rCRS is H2a2a1). The prior "TT" was the ancestral, biologically-impossible

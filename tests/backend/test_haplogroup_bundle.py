@@ -356,8 +356,9 @@ class TestMtDNATree:
 
         Exception: R0 is retained as a structural pass-through node with no
         defining SNP — its only array-typeable marker (the recurrent m.73) was
-        removed in #1579 because it cannot discriminate the rCRS/H spine (73A)
-        from HV0/V (73G); descent is scored on HV's m.14766 and below.
+        removed in #1579 because m.73 (A73G) recurs across sub-branches and so
+        cannot serve as a single R0 discriminator; descent is scored on HV's
+        m.14766 and below.
         """
         nodes = collect_all_nodes(mt_tree)
         for node in nodes[1:]:  # Skip root
