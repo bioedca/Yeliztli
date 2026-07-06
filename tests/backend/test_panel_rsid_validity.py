@@ -259,7 +259,9 @@ class TestPanelRsidValidity:
         coords = _coordinate_fixture()["rsids"]
         missing: list[str] = []
         offenders: list[str] = []
-        for panel, symbol, chromosome, rsids in _expected_clinvar_gene_records():
+        records = _expected_clinvar_gene_records()
+        assert records, "no gene-level expected_clinvar_rsids found across allowlisted panels"
+        for panel, symbol, chromosome, rsids in records:
             for rsid in rsids:
                 rec = coords.get(rsid)
                 if rec is None:
@@ -326,6 +328,7 @@ class TestPanelRsidValidity:
         snapshot = _expected_clinvar_snapshot()
         aliases = snapshot["_provenance"]["gene_aliases"]
         records = snapshot["rsids"]
+        assert records, "expected ClinVar snapshot rsids map is empty"
 
         offenders: list[str] = []
         for rsid, rec in records.items():
