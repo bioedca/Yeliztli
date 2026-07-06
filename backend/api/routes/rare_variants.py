@@ -29,7 +29,7 @@ from backend.analysis.rare_variant_finder import (
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
-from backend.db.tables import findings, samples
+from backend.db.tables import annotated_variants, findings, samples
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
@@ -472,12 +472,14 @@ def export_rare_variants_vcf(
     """Export stored rare variant findings as a minimal VCF 4.2 file.
 
     Each record is rebuilt from the finding's own stored locus/allele identity
-    (``chrom``/``pos``/``ref``/``alt`` persisted in ``detail_json``), not by
-    re-resolving via an rsID join to ``annotated_variants``. A shared, aliased,
-    or absent rsID is not a unique row key, so such a join could emit a record at
-    the wrong locus/allele, duplicate a finding, or drop a no-rsID variant — and a
-    VCF 4.2 record is keyed on CHROM/POS/REF/ALT, with ID only an identifier
-    ("No identifier should be present in more than one data record") (#1575).
+    (``chrom``/``pos``/``ref``/``alt`` persisted in ``detail_json``), rather than
+    re-resolving CHROM/POS/REF/ALT via an rsID join to ``annotated_variants``.
+    A VCF 4.2 record is keyed on CHROM/POS/REF/ALT — ID is only an identifier
+    ("No identifier should be present in more than one data record") — so the
+    finding's own stored identity, not a re-lookup by the (potentially shared,
+    aliased, or absent) rsID, is authoritative. Findings written before #1575
+    lack the persisted coordinates; for those only, the export falls back to the
+    annotated_variants row for the finding's rsid (unique — it is the PK). (#1575)
 
     Example: ``GET /api/analysis/rare-variants/export/vcf?sample_id=1``
     """
@@ -515,6 +517,33 @@ def export_rare_variants_vcf(
                 "evidence_level": row.evidence_level,
             }
         )
+    # Backward-compat backfill: findings stored before #1575 have no chrom/pos in
+    # detail_json. For those (only), fall back to the annotated_variants row for
+    # the finding's rsid so an already-analysed sample that has not been re-run
+    # still exports real coordinates rather than placeholders. av.rsid is the
+    # primary key, so this resolves to exactly one row; the finding's own stored
+    # identity is always preferred whenever present.
+    legacy = [r for r in records if r["chrom"] is None or r["pos"] is None]
+    legacy_rsids = {r["rsid"] for r in legacy if r["rsid"]}
+    if legacy_rsids:
+        av = annotated_variants
+        with sample_engine.connect() as conn:
+            av_by_rsid = {
+                row.rsid: row
+                for row in conn.execute(
+                    sa.select(av.c.rsid, av.c.chrom, av.c.pos, av.c.ref, av.c.alt).where(
+                        av.c.rsid.in_(legacy_rsids)
+                    )
+                ).fetchall()
+            }
+        for r in legacy:
+            av_row = av_by_rsid.get(r["rsid"])
+            if av_row is None:
+                continue
+            for field in ("chrom", "pos", "ref", "alt"):
+                if r[field] is None:
+                    r[field] = getattr(av_row, field)
+
     records.sort(
         key=lambda r: (r["chrom"] is None, r["chrom"] or "", r["pos"] is None, r["pos"] or 0)
     )

@@ -892,3 +892,41 @@ class TestVCFExport:
         assert cols[0] == "3" and cols[1] == "300"
         assert cols[2] == "."  # ID is the VCF missing value when no rsID
         assert cols[3] == "G" and cols[4] == "A"
+
+    def test_vcf_export_backfills_legacy_finding_coords_from_annotated_variants(
+        self, rare_client: TestClient, sample_db_path: Path
+    ) -> None:
+        """A finding stored before coordinates were persisted in detail_json
+        (pre-#1575) still exports real coordinates: the export falls back to the
+        finding's annotated_variants row (rsid is the av primary key) rather than
+        emitting placeholders for an already-analysed, not-yet-re-run sample."""
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs_legacy", "chrom": "5", "pos": 500, "ref": "T", "alt": "C"}],
+            )
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "rare_variants",
+                        "category": "rare",
+                        "evidence_level": 1,
+                        "gene_symbol": "GENEZ",
+                        "rsid": "rs_legacy",
+                        "finding_text": "legacy finding (no coords in detail_json)",
+                        "clinvar_significance": None,
+                        "detail_json": "{}",  # pre-#1575: no chrom/pos/ref/alt persisted
+                    }
+                ],
+            )
+        engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+        assert resp.status_code == 200
+        data_lines = [ln for ln in resp.text.splitlines() if ln and not ln.startswith("#")]
+        assert len(data_lines) == 1, f"expected exactly one record, got: {data_lines}"
+        cols = data_lines[0].split("\t")
+        assert cols[0] == "5" and cols[1] == "500"  # real coords, not placeholders
+        assert cols[3] == "T" and cols[4] == "C"
