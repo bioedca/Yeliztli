@@ -15,7 +15,10 @@ import { render as rtlRender, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import ReportBuilder from "@/pages/ReportBuilder"
+import ReportBuilder, {
+  MAX_INLINE_PREVIEW_FINDINGS,
+  MAX_INLINE_PREVIEW_HTML_CHARS,
+} from "@/pages/ReportBuilder"
 import type { FindingsSummaryResponse } from "@/types/findings"
 import type { ReactElement, ReactNode } from "react"
 
@@ -43,6 +46,20 @@ const MOCK_SUMMARY: FindingsSummaryResponse = {
     { module: "cancer", count: 3, max_evidence_level: 4, top_finding_text: "BRCA1 pathogenic variant" },
     { module: "pharmacogenomics", count: 5, max_evidence_level: 4, top_finding_text: "CYP2C19 poor metabolizer" },
     { module: "nutrigenomics", count: 4, max_evidence_level: 2, top_finding_text: "Vitamin D metabolism" },
+  ],
+  high_confidence_findings: [],
+}
+
+const LARGE_SUMMARY: FindingsSummaryResponse = {
+  total_findings: MAX_INLINE_PREVIEW_FINDINGS + 2,
+  modules: [
+    {
+      module: "rare_variants",
+      count: MAX_INLINE_PREVIEW_FINDINGS + 1,
+      max_evidence_level: 1,
+      top_finding_text: "Large rare-variant inventory",
+    },
+    { module: "carrier", count: 1, max_evidence_level: 3, top_finding_text: "CFTR carrier" },
   ],
   high_confidence_findings: [],
 }
@@ -189,6 +206,62 @@ describe("ReportBuilder", () => {
 
     // Modal should have close button
     expect(screen.getByLabelText("Close preview")).toBeInTheDocument()
+  })
+
+  it("disables inline preview for reports with too many selected findings", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return { ok: true, json: async () => LARGE_SUMMARY, text: async () => JSON.stringify(LARGE_SUMMARY) }
+      }
+      if (typeof url === "string" && url.includes("/api/reports/preview")) {
+        return { ok: true, text: async () => "<html><body>Too large</body></html>" }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+
+    const user = userEvent.setup()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    expect(await screen.findByText("Rare Variant Finder")).toBeInTheDocument()
+    expect(screen.getByText(/Inline preview is disabled for reports with more than/)).toBeInTheDocument()
+
+    const previewButton = screen.getByLabelText("Preview report")
+    expect(previewButton).toBeDisabled()
+    expect(screen.getByLabelText("Download PDF report")).not.toBeDisabled()
+
+    await user.click(previewButton)
+
+    expect(
+      mockFetch.mock.calls.some(
+        ([url]) => typeof url === "string" && url.includes("/api/reports/preview"),
+      ),
+    ).toBe(false)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("does not mount the preview iframe when returned HTML exceeds the inline limit", async () => {
+    const oversizedPreview = "x".repeat(MAX_INLINE_PREVIEW_HTML_CHARS + 1)
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return { ok: true, json: async () => MOCK_SUMMARY, text: async () => JSON.stringify(MOCK_SUMMARY) }
+      }
+      if (typeof url === "string" && url.includes("/api/reports/preview")) {
+        return { ok: true, text: async () => oversizedPreview }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+
+    const user = userEvent.setup()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    await screen.findByText("Cancer Predisposition")
+    await user.click(screen.getByLabelText("Preview report"))
+
+    await waitFor(() => {
+      expect(screen.getByText(/rendered preview is too large to display safely/)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.queryByTitle("Report preview")).not.toBeInTheDocument()
   })
 
   it("closes preview modal on close button click", async () => {

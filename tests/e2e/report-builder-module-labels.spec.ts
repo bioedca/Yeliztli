@@ -30,7 +30,26 @@ const SUMMARY = {
   high_confidence_findings: [],
 }
 
-test.describe('Report Builder module labels (#1497)', () => {
+const LARGE_REPORT_SUMMARY = {
+  total_findings: 66771,
+  modules: [
+    {
+      module: 'rare_variants',
+      count: 66770,
+      max_evidence_level: 1,
+      top_finding_text: 'Large rare-variant inventory',
+    },
+    {
+      module: 'carrier',
+      count: 1,
+      max_evidence_level: 3,
+      top_finding_text: 'Carrier finding',
+    },
+  ],
+  high_confidence_findings: [],
+}
+
+test.describe('Report Builder module labels and preview guard (#1497, #1559)', () => {
   test('uses canonical registry labels before humanizing module keys', async ({ page }) => {
     await page.route('**/api/analysis/findings/summary**', async (route) => {
       await route.fulfill({
@@ -48,5 +67,34 @@ test.describe('Report Builder module labels (#1497)', () => {
     await expect(page.getByText('Amd', { exact: true })).toHaveCount(0)
 
     await expect(page.getByRole('button', { name: 'Research Panel: 2 findings' })).toBeVisible()
+  })
+
+  test('disables inline preview for large default report selections', async ({ page }) => {
+    await page.route('**/api/analysis/findings/summary**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(LARGE_REPORT_SUMMARY),
+      })
+    })
+
+    await page.route('**/api/reports/preview', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>Should not render</body></html>',
+      })
+    })
+
+    await page.goto('/reports?sample_id=1')
+    await waitForReactHydration(page)
+
+    await expect(page.getByRole('button', { name: 'Rare Variant Finder: 66770 findings' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Carrier Status: 1 findings' })).toBeVisible()
+
+    await expect(page.getByRole('button', { name: 'Preview report' })).toBeDisabled()
+    await expect(page.getByText(/Inline preview is disabled for reports with more than/)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeEnabled()
+    await expect(page.locator('iframe[title="Report preview"]')).toHaveCount(0)
   })
 })

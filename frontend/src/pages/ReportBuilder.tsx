@@ -32,6 +32,9 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import { MODULE_META } from "@/lib/modules"
 import type { FindingSummaryItem } from "@/types/findings"
 
+export const MAX_INLINE_PREVIEW_FINDINGS = 1_000
+export const MAX_INLINE_PREVIEW_HTML_CHARS = 2_000_000
+
 /** Human-readable labels for finding module keys. Note the key is "carrier"
  * (the value `carrier_status.py` writes), not "carrier_status". This map is for
  * *labels only* — it never gates which modules appear (see `availableModules`).
@@ -93,6 +96,22 @@ function humanizeModule(key: string): string {
 
 function getModuleDisplayName(key: string): string {
   return MODULE_DISPLAY_NAMES[key] ?? MODULE_META[key]?.label ?? humanizeModule(key)
+}
+
+function formatCount(value: number): string {
+  return value.toLocaleString()
+}
+
+function getInlinePreviewTooLargeMessage(totalFindings: number): string {
+  return `Inline preview is disabled for reports with more than ${formatCount(
+    MAX_INLINE_PREVIEW_FINDINGS,
+  )} findings. This selection has ${formatCount(totalFindings)} findings; download the PDF or select fewer modules.`
+}
+
+function getPreviewHtmlTooLargeMessage(htmlLength: number): string {
+  return `The rendered preview is too large to display safely (${formatCount(
+    htmlLength,
+  )} characters). Download the PDF or select fewer modules.`
 }
 
 export default function ReportBuilder() {
@@ -163,9 +182,19 @@ export default function ReportBuilder() {
       .filter((m) => selectedModules.has(m.module))
       .reduce((sum, m) => sum + m.count, 0)
   }, [availableModules, selectedModules])
+  const isInlinePreviewTooLarge = totalFindings > MAX_INLINE_PREVIEW_FINDINGS
+  const largePreviewMessage = isInlinePreviewTooLarge
+    ? getInlinePreviewTooLargeMessage(totalFindings)
+    : null
+  const canPreview = selectedCount > 0 && !previewLoading && !isInlinePreviewTooLarge
 
   const handlePreview = useCallback(async () => {
     if (!sampleId || selectedCount === 0) return
+    if (isInlinePreviewTooLarge) {
+      setPreviewHtml(null)
+      setPreviewError(getInlinePreviewTooLargeMessage(totalFindings))
+      return
+    }
     setPreviewLoading(true)
     setPreviewError(null)
     try {
@@ -174,13 +203,18 @@ export default function ReportBuilder() {
         modules: Array.from(selectedModules),
         title: reportTitle,
       })
+      if (html.length > MAX_INLINE_PREVIEW_HTML_CHARS) {
+        setPreviewHtml(null)
+        setPreviewError(getPreviewHtmlTooLargeMessage(html.length))
+        return
+      }
       setPreviewHtml(html)
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Preview failed")
     } finally {
       setPreviewLoading(false)
     }
-  }, [sampleId, selectedModules, selectedCount, reportTitle])
+  }, [sampleId, selectedModules, selectedCount, isInlinePreviewTooLarge, totalFindings, reportTitle])
 
   const handleDownload = useCallback(() => {
     if (!sampleId || selectedCount === 0) return
@@ -427,10 +461,10 @@ export default function ReportBuilder() {
               <button
                 type="button"
                 onClick={handlePreview}
-                disabled={selectedCount === 0 || previewLoading}
+                disabled={!canPreview}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-medium transition-colors",
-                  selectedCount === 0
+                  !canPreview
                     ? "cursor-not-allowed opacity-50"
                     : "hover:bg-accent",
                 )}
@@ -443,6 +477,13 @@ export default function ReportBuilder() {
                 )}
                 Preview
               </button>
+
+              {largePreviewMessage && (
+                <div className="rounded-md border border-amber-400/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100">
+                  <AlertCircle className="mr-1 inline-block h-3 w-3" />
+                  {largePreviewMessage}
+                </div>
+              )}
 
               {/* Download button */}
               <button
