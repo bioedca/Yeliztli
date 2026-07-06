@@ -1,6 +1,7 @@
 # Reading your results
 
-Once annotation finishes, the **dashboard** is your home screen.
+The **dashboard** is your home screen after you upload or select a sample. You may arrive
+while annotation is still running; results fill in as the background annotation job completes.
 
 ![The Yeliztli dashboard with a loaded sample and its analysis modules](../assets/img/dashboard.png)
 
@@ -10,6 +11,10 @@ Once annotation finishes, the **dashboard** is your home screen.
   versions. Those versions are the reference-data **snapshot** your findings were computed
   against; updating databases later doesn't refresh existing results until you re-annotate — see
   [how updates affect your results](../install/updating.md).
+- **Annotation Pipeline panel** — live annotation progress, an ETA, and a **Cancel
+  annotation** button while a job is running. After a finished, failed, or cancelled job is
+  dismissed, the same panel shows **Run Annotation** so you can annotate or re-annotate the
+  selected sample.
 - **Module cards** — a grid linking to each analysis module, with finding counts.
 - **High-confidence findings** — the strongest findings across all modules.
 - **QC summary** — a collapsible panel of sample-quality metrics (heterozygosity, call rate,

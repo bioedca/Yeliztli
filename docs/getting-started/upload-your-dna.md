@@ -25,9 +25,11 @@ tell it which one you have. (Both are genotyping-array exports on the GRCh37 bui
 2. Drag and drop your file (or click to browse).
 3. Yeliztli parses the file and shows progress.
 4. **Annotation runs automatically** in the background, followed by the analysis modules.
-5. You're taken to the dashboard when it finishes — typically a couple of minutes for a
-   standard file (~600,000 markers), after the one-time reference-data setup has already
-   completed.
+5. You're taken to the dashboard while annotation runs. Watch the **Annotation Pipeline**
+   panel there for progress, ETA, and the **Cancel annotation** control; after a terminal status
+   is dismissed, the panel also offers **Run Annotation** for re-runs. A standard file
+   (~600,000 markers) typically finishes in a couple of minutes after the one-time
+   reference-data setup has already completed.
 
 That timing estimate is for per-sample annotation only. First-run reference-data setup is a
 separate, much longer download/build step; see [reference data](../install/reference-data.md).

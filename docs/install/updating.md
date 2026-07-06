@@ -68,8 +68,10 @@ does **not** change results you already have.
   can participate only after you manually rebuild or ingest them and their installed version stamp
   changes; they are not proactively checked for upstream releases.
 - **Re-annotate to refresh.** To bring a sample's findings up to date after *any* reference-data
-  update, re-annotate it: accept the re-annotation prompt when one appears, or re-run annotation
-  for the sample. The status bar's reference-database versions (see
+  update, re-annotate it: accept the re-annotation prompt when one appears, or open that sample's
+  dashboard and click **Run Annotation** in the **Annotation Pipeline** panel. If the panel still
+  shows a completed, failed, or cancelled status, dismiss that status first. The status bar's
+  reference-database versions (see
   [reading your results](../getting-started/reading-your-results.md)) show which snapshot a
   result currently reflects.
 
