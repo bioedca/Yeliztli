@@ -368,9 +368,7 @@ def test_untyped_star2_with_typed_star3_uses_conservative_poor_alert(
     assert all(a.conservative_alert for a in cyp2c9_alerts)
     warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
     phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
-    _assert_cyp2c9_warfarin_algorithm_recommendation(
-        warfarin.recommendation, "Poor Metabolizer"
-    )
+    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation, "Poor Metabolizer")
     assert "50%" in phenytoin.recommendation
 
 
