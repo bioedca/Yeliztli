@@ -38,13 +38,13 @@
         "rs334",
         "rs33930165",
         "rs33950507",
-        "rs35497397",
         "rs34451549",
         "rs35724775",
-        "rs5820323",
         "rs34598529",
         "rs33960103",
-        "rs33941849"
+        "rs33941849",
+        "rs33913413",
+        "rs33914668"
       ],
       "pmids": ["20301551", "20301357", "30383109", "25393378"],
       "notes": "A single HbS (rs334, Glu6Val) copy is sickle-cell trait, not sickle-cell disease. Trait is usually asymptomatic but has documented personal health associations, especially kidney findings, pulmonary embolism/VTE context, and exertional-stress risks such as rhabdomyolysis. Beta-thalassemia is caused by more than 200 known HBB mutations. Carrier frequency is highest in African, Mediterranean, and Southeast Asian populations."
@@ -61,13 +61,13 @@
         "rs76763715",
         "rs421016",
         "rs1064651",
-        "rs28940868",
         "rs80356769",
         "rs77369218",
         "rs80356771",
         "rs75822236",
         "rs104886460",
-        "rs80356775"
+        "rs364897",
+        "rs381418"
       ],
       "pmids": ["20301446", "20672374", "10464619"],
       "notes": "Most common lysosomal storage disorder. N370S (rs76763715) and L444P (rs421016) are the most prevalent pathogenic variants. Carrier frequency ~1:15 in Ashkenazi Jewish population."
@@ -84,7 +84,6 @@
         "rs387906309",
         "rs147324677",
         "rs121907954",
-        "rs28940879",
         "rs121907968",
         "rs121907970",
         "rs121907972",
@@ -93,7 +92,8 @@
         "rs121907976",
         "rs121907977",
         "rs121907978",
-        "rs121907979"
+        "rs121907979",
+        "rs76173977"
       ],
       "pmids": ["20301397", "2355960", "2220809", "2848800"],
       "notes": "Classic Tay-Sachs disease is a severe infantile-onset neurodegenerative condition. Carrier frequency ~1:30 in Ashkenazi Jewish, French-Canadian, and Cajun populations. The Ashkenazi Jewish founder alleles c.1274_1277dup (rs387906309), c.1421+1G>C (rs147324677), and G269S/c.805G>A (rs121907954) are included when present in annotated array data."
@@ -155,14 +155,14 @@
       "expected_clinvar_rsids": [
         "rs121909192",
         "rs104893941",
-        "rs104893942",
-        "rs121909193",
-        "rs121909194",
-        "rs104893940",
-        "rs104893943",
-        "rs104893944",
-        "rs397514562",
-        "rs397514563"
+        "rs75991011",
+        "rs76163360",
+        "rs77301881",
+        "rs77668214",
+        "rs77804083",
+        "rs77969175",
+        "rs79310136",
+        "rs79784540"
       ],
       "pmids": ["20301526", "28676062"],
       "notes": "Most common genetic cause of infant mortality. ~95% of cases caused by homozygous SMN1 exon 7 deletion (not detectable by SNP array — coverage may be Insufficient). Carrier frequency ~1:50 across populations. Point mutations account for ~5% of pathogenic alleles."

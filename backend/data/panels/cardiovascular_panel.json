@@ -119,7 +119,7 @@
         "rs137852991",
         "rs137852992",
         "rs137852993",
-        "rs137852994"
+        "rs371646728"
       ],
       "pmids": ["36897412", "27104173", "11452359"],
       "notes": "ABCG8 acts with ABCG5 as an obligate heterodimer for sterol excretion. Same disease as ABCG5."
@@ -134,13 +134,13 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs120074175",
-        "rs120074176",
         "rs120074177",
         "rs120074178",
         "rs120074179",
         "rs120074180",
-        "rs199472709"
+        "rs199472709",
+        "rs387906290",
+        "rs397508070"
       ],
       "pmids": ["20301308", "27041150", "38825991"],
       "notes": "Most common cause of congenital long QT syndrome (LQT1). This AD panel entry reports heterozygous KCNQ1 findings for the LQT1/Romano-Ward spectrum; Jervell and Lange-Nielsen syndrome is an autosomal recessive, biallelic KCNQ1/KCNE1 presentation with congenital deafness and should not be inferred from a single heterozygous variant."
@@ -157,12 +157,12 @@
       "expected_clinvar_rsids": [
         "rs28937318",
         "rs28937319",
-        "rs28937320",
         "rs137854604",
         "rs137854605",
         "rs137854606",
         "rs199473048",
-        "rs199473049"
+        "rs199473049",
+        "rs28937316"
       ],
       "pmids": ["20301308", "29798782"],
       "notes": "Associated with Long QT Syndrome Type 3, Brugada Syndrome, and progressive cardiac conduction disease. Diverse phenotypic spectrum."
@@ -177,13 +177,13 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs121912485",
-        "rs121912486",
-        "rs121912487",
-        "rs121912488",
-        "rs121912489",
         "rs200411226",
-        "rs397516083"
+        "rs397516083",
+        "rs111683277",
+        "rs111729952",
+        "rs112738974",
+        "rs113276889",
+        "rs113709679"
       ],
       "pmids": ["20301725", "38793126"],
       "notes": "Most common cause of hypertrophic cardiomyopathy (HCM). Truncating variants predominate. Variable expressivity and age-dependent penetrance."
@@ -237,12 +237,12 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs618285",
         "rs267607602",
         "rs267607603",
         "rs267607604",
         "rs267607605",
-        "rs267607606"
+        "rs267607606",
+        "rs57920071"
       ],
       "pmids": ["20301725", "38793126"],
       "notes": "LMNA cardiomyopathy has high risk of sudden cardiac death. Early ICD implantation may be warranted. Conduction disease often precedes cardiomyopathy."
@@ -257,11 +257,11 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs121912653",
-        "rs121912654",
-        "rs397516862",
-        "rs397516863",
-        "rs397516864"
+        "rs113726158",
+        "rs587782927",
+        "rs727502996",
+        "rs727503003",
+        "rs727504443"
       ],
       "pmids": ["20301310", "38793126"],
       "notes": "Desmoplakin variants cause arrhythmogenic cardiomyopathy (formerly ARVC). Left-dominant pattern is characteristic of DSP-related disease."
@@ -276,11 +276,11 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs200014290",
-        "rs397516095",
-        "rs397516096",
-        "rs397516097",
-        "rs397516098"
+        "rs78897684",
+        "rs111517471",
+        "rs193922674",
+        "rs397516987",
+        "rs397516994"
       ],
       "pmids": ["20301310", "38793126"],
       "notes": "Most common cause of arrhythmogenic right ventricular cardiomyopathy (ARVC). Exercise restriction is recommended for variant carriers."
@@ -295,12 +295,12 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs104893758",
-        "rs104893759",
-        "rs104893760",
-        "rs104893761",
-        "rs104893762",
-        "rs104893763"
+        "rs199472954",
+        "rs794728365",
+        "rs794728375",
+        "rs794728380",
+        "rs794728391",
+        "rs794728394"
       ],
       "pmids": ["20301308", "38793126"],
       "notes": "Second most common cause of Long QT Syndrome (LQT2). Auditory triggers for cardiac events are characteristic."
@@ -315,11 +315,7 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs121918577",
-        "rs121918578",
-        "rs121918579",
-        "rs121918580",
-        "rs121918581"
+        "rs794728712"
       ],
       "pmids": ["20301466", "38793126"],
       "notes": "CPVT presents with exercise-induced ventricular arrhythmias. Beta-blocker therapy and exercise restriction are mainstays of management."

@@ -1,9 +1,9 @@
 {
   "_provenance": {
     "source": "dbSNP refsnp v2: api.ncbi.nlm.nih.gov/variation/v0/refsnp/{id}",
-    "accessed": "2026-07-04",
+    "accessed": "2026-07-06",
     "generator": "scripts/build_panel_rsid_validity_snapshot.py",
-    "panel_rsid_count": 522,
+    "panel_rsid_count": 518,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -145,6 +145,16 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/356219"
     },
+    "rs364897": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/364897"
+    },
+    "rs381418": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/381418"
+    },
     "rs401681": {
       "status": "current",
       "merged_into": null,
@@ -174,11 +184,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/614367"
-    },
-    "rs618285": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/618285"
     },
     "rs704010": {
       "status": "current",
@@ -740,20 +745,20 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/4988235"
     },
-    "rs5030625": {
+    "rs5030814": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030625"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030814"
     },
-    "rs5030626": {
+    "rs5030816": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030626"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030816"
     },
-    "rs5030627": {
+    "rs5030817": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030627"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5030817"
     },
     "rs5742904": {
       "status": "current",
@@ -764,16 +769,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5751876"
-    },
-    "rs5790770": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5790770"
-    },
-    "rs5820323": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/5820323"
     },
     "rs6001930": {
       "status": "current",
@@ -909,6 +904,11 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/9536314"
+    },
+    "rs9848343": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/9848343"
     },
     "rs9929218": {
       "status": "current",
@@ -1049,6 +1049,11 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/11571833"
+    },
+    "rs11575997": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/11575997"
     },
     "rs11584700": {
       "status": "current",
@@ -1255,6 +1260,11 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28934578"
     },
+    "rs28937316": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28937316"
+    },
     "rs28937318": {
       "status": "current",
       "merged_into": null,
@@ -1264,21 +1274,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28937319"
-    },
-    "rs28937320": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28937320"
-    },
-    "rs28940868": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28940868"
-    },
-    "rs28940879": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28940879"
     },
     "rs28942078": {
       "status": "current",
@@ -1294,6 +1289,16 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/28942080"
+    },
+    "rs33913413": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/33913413"
+    },
+    "rs33914668": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/33914668"
     },
     "rs33930165": {
       "status": "current",
@@ -1335,11 +1340,6 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/34637584"
     },
-    "rs35497397": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/35497397"
-    },
     "rs35724775": {
       "status": "current",
       "merged_into": null,
@@ -1365,10 +1365,10 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/41525747"
     },
-    "rs55861981": {
+    "rs57920071": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/55861981"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/57920071"
     },
     "rs58542926": {
       "status": "current",
@@ -1390,50 +1390,35 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/62263923"
     },
-    "rs63749810": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63749810"
-    },
-    "rs63749868": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63749868"
-    },
     "rs63749893": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63749893"
     },
-    "rs63750073": {
+    "rs63750035": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750073"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750035"
     },
-    "rs63750264": {
+    "rs63750049": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750264"
-    },
-    "rs63750416": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750416"
-    },
-    "rs63750447": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750447"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750049"
     },
     "rs63750781": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750781"
     },
-    "rs63751445": {
+    "rs63750793": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63751445"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63750793"
+    },
+    "rs63751642": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/63751642"
     },
     "rs63751710": {
       "status": "current",
@@ -1520,10 +1505,25 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/75961395"
     },
+    "rs75991011": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/75991011"
+    },
     "rs76114856": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/76114856"
+    },
+    "rs76163360": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/76163360"
+    },
+    "rs76173977": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/76173977"
     },
     "rs76763715": {
       "status": "current",
@@ -1535,10 +1535,20 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77010898"
     },
+    "rs77301881": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77301881"
+    },
     "rs77369218": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77369218"
+    },
+    "rs77668214": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77668214"
     },
     "rs77709286": {
       "status": "current",
@@ -1550,15 +1560,35 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77724903"
     },
-    "rs77931234": {
+    "rs77804083": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77931234"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77804083"
+    },
+    "rs77969175": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/77969175"
     },
     "rs78655421": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/78655421"
+    },
+    "rs78897684": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/78897684"
+    },
+    "rs79310136": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/79310136"
+    },
+    "rs79784540": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/79784540"
     },
     "rs80282562": {
       "status": "current",
@@ -1579,11 +1609,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/80356771"
-    },
-    "rs80356775": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/80356775"
     },
     "rs80357783": {
       "status": "current",
@@ -1665,65 +1690,15 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104886460"
     },
-    "rs104893758": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893758"
-    },
-    "rs104893759": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893759"
-    },
-    "rs104893760": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893760"
-    },
-    "rs104893761": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893761"
-    },
-    "rs104893762": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893762"
-    },
-    "rs104893763": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893763"
-    },
     "rs104893829": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893829"
     },
-    "rs104893940": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893940"
-    },
     "rs104893941": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893941"
-    },
-    "rs104893942": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893942"
-    },
-    "rs104893943": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893943"
-    },
-    "rs104893944": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/104893944"
     },
     "rs104894094": {
       "status": "current",
@@ -1780,6 +1755,51 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/111033313"
     },
+    "rs111466480": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/111466480"
+    },
+    "rs111517471": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/111517471"
+    },
+    "rs111683277": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/111683277"
+    },
+    "rs111729952": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/111729952"
+    },
+    "rs112675807": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/112675807"
+    },
+    "rs112738974": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/112738974"
+    },
+    "rs113276889": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/113276889"
+    },
+    "rs113709679": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/113709679"
+    },
+    "rs113726158": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/113726158"
+    },
     "rs113993960": {
       "status": "current",
       "merged_into": null,
@@ -1799,16 +1819,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/119480071"
-    },
-    "rs120074175": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/120074175"
-    },
-    "rs120074176": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/120074176"
     },
     "rs120074177": {
       "status": "current",
@@ -1935,16 +1945,6 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121909192"
     },
-    "rs121909193": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121909193"
-    },
-    "rs121909194": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121909194"
-    },
     "rs121909219": {
       "status": "current",
       "merged_into": null,
@@ -1965,45 +1965,10 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121909224"
     },
-    "rs121912485": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912485"
-    },
-    "rs121912486": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912486"
-    },
-    "rs121912487": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912487"
-    },
-    "rs121912488": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912488"
-    },
-    "rs121912489": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912489"
-    },
     "rs121912651": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912651"
-    },
-    "rs121912653": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912653"
-    },
-    "rs121912654": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121912654"
     },
     "rs121912656": {
       "status": "current",
@@ -2050,31 +2015,6 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121913630"
     },
-    "rs121918577": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121918577"
-    },
-    "rs121918578": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121918578"
-    },
-    "rs121918579": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121918579"
-    },
-    "rs121918580": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121918580"
-    },
-    "rs121918581": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121918581"
-    },
     "rs121964855": {
       "status": "current",
       "merged_into": null,
@@ -2099,6 +2039,26 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121964860"
+    },
+    "rs121964873": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121964873"
+    },
+    "rs121964874": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121964874"
+    },
+    "rs121964875": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121964875"
+    },
+    "rs121964876": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/121964876"
     },
     "rs137852988": {
       "status": "current",
@@ -2130,35 +2090,15 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137852993"
     },
-    "rs137852994": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137852994"
-    },
     "rs137853007": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137853007"
     },
-    "rs137854553": {
+    "rs137854558": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137854553"
-    },
-    "rs137854554": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137854554"
-    },
-    "rs137854555": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137854555"
-    },
-    "rs137854556": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137854556"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/137854558"
     },
     "rs137854568": {
       "status": "current",
@@ -2205,6 +2145,11 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/144467873"
     },
+    "rs145310733": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/145310733"
+    },
     "rs147324677": {
       "status": "current",
       "merged_into": null,
@@ -2235,10 +2180,25 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/193922367"
     },
+    "rs193922372": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/193922372"
+    },
+    "rs193922674": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/193922674"
+    },
     "rs199472709": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/199472709"
+    },
+    "rs199472954": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/199472954"
     },
     "rs199473048": {
       "status": "current",
@@ -2265,30 +2225,35 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/199476118"
     },
-    "rs199919362": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/199919362"
-    },
-    "rs200014290": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/200014290"
-    },
     "rs200411226": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/200411226"
     },
-    "rs200621546": {
+    "rs200564819": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/200621546"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/200564819"
     },
     "rs200928781": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/200928781"
+    },
+    "rs267604791": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267604791"
+    },
+    "rs267606599": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606599"
+    },
+    "rs267606603": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606603"
     },
     "rs267606617": {
       "status": "current",
@@ -2304,26 +2269,6 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606619"
-    },
-    "rs267606696": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606696"
-    },
-    "rs267606718": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606718"
-    },
-    "rs267606802": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606802"
-    },
-    "rs267606815": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267606815"
     },
     "rs267607602": {
       "status": "current",
@@ -2355,10 +2300,20 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267607732"
     },
-    "rs267607798": {
+    "rs267607917": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267607798"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267607917"
+    },
+    "rs267607933": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267607933"
+    },
+    "rs267607943": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267607943"
     },
     "rs267607949": {
       "status": "current",
@@ -2375,105 +2330,130 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267608090"
     },
+    "rs267608096": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267608096"
+    },
     "rs267608120": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267608120"
+    },
+    "rs267608150": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/267608150"
     },
     "rs276174802": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/276174802"
     },
+    "rs369940136": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/369940136"
+    },
+    "rs370228071": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/370228071"
+    },
+    "rs371646728": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/371646728"
+    },
+    "rs372267274": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/372267274"
+    },
+    "rs387906290": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/387906290"
+    },
     "rs387906309": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/387906309"
     },
-    "rs397514562": {
+    "rs397508070": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397514562"
-    },
-    "rs397514563": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397514563"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397508070"
     },
     "rs397516083": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516083"
     },
-    "rs397516095": {
+    "rs397516833": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516095"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516833"
     },
-    "rs397516096": {
+    "rs397516987": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516096"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516987"
     },
-    "rs397516097": {
+    "rs397516994": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516097"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516994"
     },
-    "rs397516098": {
+    "rs398123406": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516098"
-    },
-    "rs397516862": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516862"
-    },
-    "rs397516863": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516863"
-    },
-    "rs397516864": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/397516864"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/398123406"
     },
     "rs515726123": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/515726123"
     },
+    "rs553975112": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/553975112"
+    },
     "rs555607708": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/555607708"
-    },
-    "rs587776525": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776525"
     },
     "rs587776552": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776552"
     },
-    "rs587776594": {
+    "rs587776562": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776594"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776562"
     },
-    "rs587776601": {
+    "rs587776653": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776601"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776653"
     },
     "rs587776674": {
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776674"
+    },
+    "rs587776878": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776878"
+    },
+    "rs587776879": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587776879"
     },
     "rs587779024": {
       "status": "current",
@@ -2490,125 +2470,55 @@
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780174"
     },
-    "rs587780612": {
+    "rs587780259": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780612"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780259"
     },
-    "rs587780613": {
+    "rs587780751": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780613"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780751"
     },
-    "rs587780614": {
+    "rs587781299": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780614"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587781299"
     },
-    "rs587780825": {
+    "rs587781905": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780825"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587781905"
     },
-    "rs587780826": {
+    "rs587782018": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780826"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782018"
     },
-    "rs587780827": {
+    "rs587782036": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587780827"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782036"
     },
-    "rs587781417": {
+    "rs587782927": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587781417"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782927"
     },
-    "rs587782318": {
+    "rs727502996": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782318"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/727502996"
     },
-    "rs587782399": {
+    "rs727503003": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782399"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/727503003"
     },
-    "rs587782400": {
+    "rs727504443": {
       "status": "current",
       "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782400"
-    },
-    "rs587782401": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782401"
-    },
-    "rs587782412": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782412"
-    },
-    "rs587782413": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782413"
-    },
-    "rs587782414": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782414"
-    },
-    "rs587782415": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782415"
-    },
-    "rs587782682": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782682"
-    },
-    "rs587782729": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782729"
-    },
-    "rs587782768": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782768"
-    },
-    "rs587782786": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782786"
-    },
-    "rs587782789": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782789"
-    },
-    "rs587782790": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782790"
-    },
-    "rs587782813": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587782813"
-    },
-    "rs587783520": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/587783520"
-    },
-    "rs730881849": {
-      "status": "current",
-      "merged_into": null,
-      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/730881849"
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/727504443"
     },
     "rs730881950": {
       "status": "current",
@@ -2619,6 +2529,76 @@
       "status": "current",
       "merged_into": null,
       "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/746061888"
+    },
+    "rs747939816": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/747939816"
+    },
+    "rs748440817": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/748440817"
+    },
+    "rs751904543": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/751904543"
+    },
+    "rs794728365": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728365"
+    },
+    "rs794728375": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728375"
+    },
+    "rs794728380": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728380"
+    },
+    "rs794728391": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728391"
+    },
+    "rs794728394": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728394"
+    },
+    "rs794728682": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728682"
+    },
+    "rs794728712": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/794728712"
+    },
+    "rs863225310": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/863225310"
+    },
+    "rs1060503666": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1060503666"
+    },
+    "rs1060503670": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1060503670"
+    },
+    "rs1278030644": {
+      "status": "current",
+      "merged_into": null,
+      "source": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1278030644"
     }
   }
 }

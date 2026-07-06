@@ -78,6 +78,11 @@ _COORDINATE_EXCLUDED_PANEL_FILES = {
         "(see issue #805)."
     )
 }
+_EXPECTED_CLINVAR_PANEL_FILES = {
+    "cancer_panel.json",
+    "cardiovascular_panel.json",
+    "carrier_panel.json",
+}
 
 
 def _collect_rsids(obj: object) -> list[str]:
@@ -135,6 +140,29 @@ def _coordinate_fixture() -> dict:
 
 def _validity_snapshot() -> dict:
     return json.loads(VALIDITY_SNAPSHOT.read_text(encoding="utf-8"))
+
+
+def _expected_clinvar_gene_records() -> list[tuple[str, str, str, list[str]]]:
+    """Return gene-level expected ClinVar lists with declared chromosomes."""
+    records: list[tuple[str, str, str, list[str]]] = []
+    for path in _panel_files():
+        if path.name not in _EXPECTED_CLINVAR_PANEL_FILES:
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        genes = data.get("genes")
+        assert isinstance(genes, list), f"{path.name}: expected top-level genes list"
+        for gene in genes:
+            assert isinstance(gene, dict), f"{path.name}: malformed gene record"
+            symbol = gene.get("gene_symbol")
+            chromosome = gene.get("chromosome")
+            rsids = gene.get("expected_clinvar_rsids")
+            assert isinstance(symbol, str) and symbol, f"{path.name}: missing gene_symbol"
+            assert isinstance(chromosome, str) and chromosome, f"{path.name}: {symbol}"
+            assert isinstance(rsids, list), f"{path.name}: {symbol}: missing expected rsIDs"
+            records.append(
+                (path.name, symbol, chromosome, [rsid for rsid in rsids if isinstance(rsid, str)])
+            )
+    return records
 
 
 class TestPanelRsidValidity:
@@ -212,6 +240,36 @@ class TestPanelRsidValidity:
         stale = sorted(fixture_rsids - panel_rsids, key=lambda rsid: int(rsid[2:]))
         assert not missing, "panel rsIDs missing from coordinate fixture: " + ", ".join(missing)
         assert not stale, "coordinate fixture has rsIDs absent from panels: " + ", ".join(stale)
+
+    def test_expected_clinvar_rsids_match_declared_gene_chromosome(self) -> None:
+        """Gene-level expected ClinVar rsIDs must belong to the declared gene chromosome.
+
+        The rsID validity guard catches malformed, retired, and unmapped rsIDs,
+        but #1539 showed that valid ClinVar rsIDs can still be curated under the
+        wrong gene. These expected lists are gene-level fields, so they are not
+        covered by row-level declared-gene overlap tests.
+        """
+        coords = _coordinate_fixture()["rsids"]
+        missing: list[str] = []
+        offenders: list[str] = []
+        for panel, symbol, chromosome, rsids in _expected_clinvar_gene_records():
+            for rsid in rsids:
+                rec = coords.get(rsid)
+                if rec is None:
+                    missing.append(f"{panel}: {symbol}: {rsid}")
+                    continue
+                if str(rec["chrom"]) != chromosome:
+                    offenders.append(
+                        f"{panel}: {symbol} chr{chromosome}: {rsid} -> {rec['location']}"
+                    )
+
+        assert not missing, (
+            "expected ClinVar rsIDs missing from coordinate fixture:\n" + "\n".join(missing)
+        )
+        assert not offenders, (
+            "expected ClinVar rsIDs assigned to a gene on a different chromosome:\n"
+            + "\n".join(offenders)
+        )
 
     def test_coordinate_fixture_excludes_repeat_or_structural_markers(self) -> None:
         """Panel rsIDs must resolve to array-typeable SNV/short-indel style records."""
