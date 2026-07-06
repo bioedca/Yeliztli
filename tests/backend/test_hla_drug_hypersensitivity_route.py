@@ -131,6 +131,21 @@ def test_b1511_response_model_preserves_carbamazepine_alert_fields() -> None:
     assert "PMID:38570725" in payload["citations"]
 
 
+def test_low_confidence_response_model_is_indeterminate() -> None:
+    report = assess_drug_hypersensitivity(
+        [_resolved_call("B", "57:01", "07:02", prob=0.4, low=True)]
+    )
+    b5701 = next(a for a in report.assessments if a.allele == "HLA-B*57:01")
+    payload = DrugRiskAssessmentResponse(**vars(b5701)).model_dump()
+
+    assert report.any_at_risk is False
+    assert payload["status"] == "low_confidence"
+    assert payload["carried"] is True
+    assert payload["low_confidence"] is True
+    assert "do not prescribe" not in payload["recommendation"].lower()
+    assert "positive or negative" in payload["recommendation"].lower()
+
+
 class TestDrugHypersensitivityRoute:
     def test_carrier_surfaces_at_risk(self, carrier_client: TestClient) -> None:
         resp = carrier_client.get("/api/hla/drug-hypersensitivity", params={"sample_id": 1})

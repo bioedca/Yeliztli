@@ -1,6 +1,6 @@
 /** HLA (imputed) module API types (Wave D). */
 
-export type HlaDrugRiskStatus = "at_risk" | "no_risk_allele" | "not_typed"
+export type HlaDrugRiskStatus = "at_risk" | "low_confidence" | "no_risk_allele" | "not_typed"
 
 export interface HlaDrugRiskAssessment {
   allele: string

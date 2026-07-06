@@ -111,4 +111,75 @@ test.describe('HLA drug hypersensitivity (SW-D2)', () => {
     ).toBeVisible()
     await expect(page.locator('[data-testid^="hla-drug-HLA-"]')).toHaveCount(0)
   })
+
+  test('renders low-confidence imputed calls as neither positive nor negative', async ({
+    page,
+  }) => {
+    await page.route('**/api/hla/drug-hypersensitivity**', (route) =>
+      route.fulfill(
+        jsonRoute({
+          available: true,
+          any_at_risk: false,
+          caveat: CAVEAT,
+          unavailable_note: null,
+          research_use_only: true,
+          assessments: [
+            {
+              allele: 'HLA-B*57:01',
+              drugs: ['abacavir'],
+              reaction: 'abacavir hypersensitivity reaction',
+              status: 'low_confidence',
+              carried: true,
+              zygosity: 'heterozygous',
+              copies: 1,
+              prob: 0.4,
+              low_confidence: true,
+              recommendation:
+                'HLA-B*57:01 has a low-confidence imputed call. Do not interpret this as positive or negative for abacavir hypersensitivity risk; clinical high-resolution HLA typing is required before using this result.',
+              guideline: 'CPIC',
+              citations: ['PMID:24561393'],
+              notes: [],
+            },
+            {
+              allele: 'HLA-A*31:01',
+              drugs: ['carbamazepine'],
+              reaction: 'carbamazepine hypersensitivity',
+              status: 'low_confidence',
+              carried: false,
+              zygosity: null,
+              copies: 0,
+              prob: 0.41,
+              low_confidence: true,
+              recommendation:
+                'HLA-A*31:01 has a low-confidence imputed call. Do not interpret this as positive or negative for carbamazepine hypersensitivity risk; clinical high-resolution HLA typing is required before using this result.',
+              guideline: 'CPIC',
+              citations: ['PMID:29392710'],
+              notes: [],
+            },
+          ],
+        }),
+      ),
+    )
+
+    await page.goto('/hla?sample_id=1')
+    await waitForReactHydration(page)
+
+    const carried = page.getByTestId('hla-drug-HLA-B*57:01')
+    await expect(carried).toHaveAttribute('data-status', 'low_confidence')
+    await expect(carried).toContainText('Low-confidence imputed call')
+    await expect(carried).toContainText('clinical HLA typing is required')
+    await expect(carried).not.toContainText('Risk allele carried')
+    await expect(carried).not.toContainText('Risk allele not detected')
+    await expect(carried).not.toContainText('do not prescribe abacavir')
+
+    const carriedClass = await carried.getAttribute('class')
+    expect(carriedClass ?? '').toContain('border-amber')
+    expect(carriedClass ?? '').not.toContain('border-red')
+    expect(carriedClass ?? '').not.toContain('border-emerald')
+
+    const absent = page.getByTestId('hla-drug-HLA-A*31:01')
+    await expect(absent).toHaveAttribute('data-status', 'low_confidence')
+    await expect(absent).toContainText('positive or negative')
+    await expect(absent).not.toContainText('Risk allele not detected')
+  })
 })

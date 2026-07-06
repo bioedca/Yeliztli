@@ -54,7 +54,8 @@ HLA_IMPUTED_CONFIRMATION_CAVEAT = (
 )
 
 # Per-assessment status.
-STATUS_AT_RISK = "at_risk"  # a risk allele is carried
+STATUS_AT_RISK = "at_risk"  # a risk allele is carried with usable confidence
+STATUS_LOW_CONFIDENCE = "low_confidence"  # imputed call exists but is not reliable
 STATUS_NO_RISK_ALLELE = "no_risk_allele"  # locus typed, risk allele absent
 STATUS_NOT_TYPED = "not_typed"  # no call at this locus (unknown, not a negative)
 
@@ -250,7 +251,16 @@ def _assess_one(risk: DrugHLARisk, calls: Sequence[ResolvedHLACall]) -> DrugRisk
             notes=notes,
         )
 
-    if carriage.carried:
+    if carriage.low_confidence:
+        prob = f" (posterior probability {carriage.prob:.2f})" if carriage.prob is not None else ""
+        recommendation = (
+            f"{risk.display_allele} has a low-confidence imputed call{prob}. Do not "
+            f"interpret this as positive or negative for {', '.join(risk.drugs)} "
+            f"hypersensitivity risk; clinical high-resolution HLA typing is required "
+            f"before using this result."
+        )
+        status = STATUS_LOW_CONFIDENCE
+    elif carriage.carried:
         recommendation = risk.positive_recommendation
         status = STATUS_AT_RISK
     else:
@@ -284,8 +294,10 @@ def assess_drug_hypersensitivity(
 
     With no calls (HIBAG never run for this sample) the report is ``available=
     False`` with a note — never a list of false negatives. Otherwise every
-    association is assessed as ``at_risk`` (allele carried), ``no_risk_allele``
-    (locus typed, allele absent), or ``not_typed`` (locus not called).
+    association is assessed as ``at_risk`` (allele carried with usable confidence),
+    ``low_confidence`` (imputed call exists but is not interpretable as positive or
+    negative), ``no_risk_allele`` (locus typed, allele absent), or ``not_typed``
+    (locus not called).
     """
     if not calls:
         return DrugHypersensitivityReport(

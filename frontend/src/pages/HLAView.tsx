@@ -41,8 +41,9 @@ import type {
 
 const STATUS_ORDER: Record<HlaDrugRiskStatus, number> = {
   at_risk: 0,
-  no_risk_allele: 1,
-  not_typed: 2,
+  low_confidence: 1,
+  no_risk_allele: 2,
+  not_typed: 3,
 }
 
 const HLA_DOCS_URL = "https://bioedca.github.io/Yeliztli/modules/hla/"
@@ -56,6 +57,12 @@ const STATUS_STYLE: Record<
     icon: ShieldAlert,
     box: "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30",
     badge: "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200",
+  },
+  low_confidence: {
+    label: "Low-confidence imputed call",
+    icon: AlertTriangle,
+    box: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20",
+    badge: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200",
   },
   no_risk_allele: {
     label: "Risk allele not detected",
@@ -97,7 +104,7 @@ function DrugRiskCard({ a }: { a: HlaDrugRiskAssessment }) {
         >
           <Icon className="h-3.5 w-3.5" />
           {style.label}
-          {a.carried && a.zygosity ? ` (${a.zygosity})` : ""}
+          {a.status === "at_risk" && a.carried && a.zygosity ? ` (${a.zygosity})` : ""}
         </span>
       </div>
 
@@ -105,7 +112,8 @@ function DrugRiskCard({ a }: { a: HlaDrugRiskAssessment }) {
 
       {a.low_confidence && (
         <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-          Low-confidence imputation call — interpret with extra caution.
+          Low-confidence imputation call — clinical HLA typing is required before
+          interpreting this as positive or negative.
         </p>
       )}
 

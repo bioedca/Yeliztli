@@ -42,7 +42,9 @@ Treat every result as a **screening lead**, not a clinical HLA type.
 - **Ancestry and model choice matter.** Use the model that best matches the sample ancestry, and
   interpret mismatches or admixed ancestry with extra caution.
 - **Low-confidence calls are flagged, not hidden.** They remain visible so you can see why a
-  section is uncertain, but they should not be treated as reliable positives or negatives.
+  section is uncertain. Drug-safety rows with low-confidence imputed calls are indeterminate:
+  they should not be treated as reliable positives or negatives until confirmed with clinical
+  high-resolution HLA typing.
 
 ## Why the page may be empty
 

@@ -73,6 +73,48 @@ const CARRIER_RESPONSE: HlaDrugHypersensitivityResponse = {
   ],
 }
 
+const LOW_CONFIDENCE_RESPONSE: HlaDrugHypersensitivityResponse = {
+  available: true,
+  any_at_risk: false,
+  caveat: "Confirm with clinical high-resolution HLA typing; never use for transplant matching.",
+  unavailable_note: null,
+  research_use_only: true,
+  assessments: [
+    {
+      allele: "HLA-B*57:01",
+      drugs: ["abacavir"],
+      reaction: "abacavir hypersensitivity reaction",
+      status: "low_confidence",
+      carried: true,
+      zygosity: "heterozygous",
+      copies: 1,
+      prob: 0.4,
+      low_confidence: true,
+      recommendation:
+        "HLA-B*57:01 has a low-confidence imputed call. Do not interpret this as positive or negative for abacavir hypersensitivity risk; clinical high-resolution HLA typing is required before using this result.",
+      guideline: "CPIC",
+      citations: ["PMID:24561393"],
+      notes: [],
+    },
+    {
+      allele: "HLA-A*31:01",
+      drugs: ["carbamazepine"],
+      reaction: "carbamazepine hypersensitivity",
+      status: "low_confidence",
+      carried: false,
+      zygosity: null,
+      copies: 0,
+      prob: 0.41,
+      low_confidence: true,
+      recommendation:
+        "HLA-A*31:01 has a low-confidence imputed call. Do not interpret this as positive or negative for carbamazepine hypersensitivity risk; clinical high-resolution HLA typing is required before using this result.",
+      guideline: "CPIC",
+      citations: ["PMID:29392710"],
+      notes: [],
+    },
+  ],
+}
+
 function q(over: Record<string, unknown> = {}) {
   return {
     data: undefined,
@@ -181,6 +223,24 @@ describe("HLAView drug hypersensitivity", () => {
       "No imputed HLA calls for this sample.",
     )
     expect(screen.queryByTestId(/^hla-drug-HLA-/)).not.toBeInTheDocument()
+  })
+
+  it("renders low-confidence drug calls as neither positive nor negative", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: LOW_CONFIDENCE_RESPONSE }))
+    render(<HLAView />)
+
+    const carried = screen.getByTestId("hla-drug-HLA-B*57:01")
+    expect(carried).toHaveAttribute("data-status", "low_confidence")
+    expect(carried).toHaveTextContent("Low-confidence imputed call")
+    expect(carried).toHaveTextContent("clinical HLA typing is required")
+    expect(carried).not.toHaveTextContent("Risk allele carried")
+    expect(carried).not.toHaveTextContent("Risk allele not detected")
+    expect(carried).not.toHaveTextContent("do not prescribe abacavir")
+
+    const absent = screen.getByTestId("hla-drug-HLA-A*31:01")
+    expect(absent).toHaveAttribute("data-status", "low_confidence")
+    expect(absent).toHaveTextContent("positive or negative")
+    expect(absent).not.toHaveTextContent("Risk allele not detected")
   })
 })
 

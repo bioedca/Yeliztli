@@ -11,6 +11,7 @@ from __future__ import annotations
 from backend.analysis.hla_drug_hypersensitivity import (
     HLA_IMPUTED_CONFIRMATION_CAVEAT,
     STATUS_AT_RISK,
+    STATUS_LOW_CONFIDENCE,
     STATUS_NO_RISK_ALLELE,
     STATUS_NOT_TYPED,
     assess_drug_hypersensitivity,
@@ -140,11 +141,29 @@ class TestAssessDrugHypersensitivity:
         assert "dapsone" in a.drugs
         assert any("predictive value" in n.lower() for n in a.notes)
 
-    def test_low_confidence_propagates(self) -> None:
+    def test_low_confidence_carried_is_not_at_risk(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "57:01", "07:02", prob=0.4, low=True)])
         a = _by_allele(report)["HLA-B*57:01"]
+        assert report.any_at_risk is False
+        assert a.status == STATUS_LOW_CONFIDENCE
+        assert a.carried is True
         assert a.low_confidence is True
         assert a.prob == 0.4
+        assert "do not prescribe" not in a.recommendation.lower()
+        assert "positive or negative" in a.recommendation.lower()
+        assert "clinical high-resolution hla typing is required" in a.recommendation.lower()
+
+    def test_low_confidence_absent_is_not_no_risk_allele(self) -> None:
+        report = assess_drug_hypersensitivity([_call("B", "07:02", "08:01", prob=0.4, low=True)])
+        a = _by_allele(report)["HLA-B*57:01"]
+        assert report.any_at_risk is False
+        assert a.status == STATUS_LOW_CONFIDENCE
+        assert a.carried is False
+        assert a.low_confidence is True
+        assert a.prob == 0.4
+        assert "not detected" not in a.recommendation.lower()
+        assert "no increased" not in a.recommendation.lower()
+        assert "positive or negative" in a.recommendation.lower()
 
     def test_caveat_always_present(self) -> None:
         report = assess_drug_hypersensitivity([_call("B", "57:01", "07:02")])

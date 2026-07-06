@@ -72,7 +72,7 @@ class DrugRiskAssessmentResponse(BaseModel):
     allele: str
     drugs: list[str]
     reaction: str
-    status: str  # at_risk | no_risk_allele | not_typed
+    status: str  # at_risk | low_confidence | no_risk_allele | not_typed
     carried: bool
     zygosity: str | None
     copies: int
