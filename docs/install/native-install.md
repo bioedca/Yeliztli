@@ -45,7 +45,9 @@ absolute `YELIZTLI_DATA_DIR` path; relative paths are refused for destructive re
 the custom path is a symlink, uninstall removes the link itself, not the symlink target.
 
 **macOS** uses `launchd` user agents that start at login; logs go to
-`~/Library/Logs/yeliztli-*.log`.
+`~/Library/Logs/yeliztli-*.log`. After install, run `yeliztli-setup status` and
+confirm both `com.yeliztli.api` and `com.yeliztli.huey` are running before you
+leave annotation jobs unattended.
 
 **Linux / WSL2** uses `systemd` user services. To start them automatically at boot, enable
 lingering for your user:

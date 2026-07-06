@@ -76,6 +76,21 @@ class TestEnsureDataDir:
 # ── Plist rendering ────────────────────────────────────────
 
 
+class TestFindHueyConsumer:
+    def test_prefers_entrypoint_sibling_when_not_on_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        setup_script = tmp_path / "yeliztli-setup"
+        huey_script = tmp_path / "huey_consumer"
+        setup_script.write_text("#!/bin/sh\n")
+        huey_script.write_text("#!/bin/sh\n")
+        monkeypatch.setattr(sys, "argv", [str(setup_script)])
+        monkeypatch.setattr(installer, "_find_command", lambda name: None)
+        monkeypatch.setattr(installer, "_find_python", lambda: "/opt/python/bin/python")
+
+        assert installer._find_huey_consumer() == str(huey_script)
+
+
 class TestRenderPlist:
     def test_replaces_install_dir(self, tmp_path: Path):
         plist = tmp_path / "test.plist"
@@ -110,6 +125,33 @@ class TestRenderPlist:
 
         assert "__PYTHON__" not in rendered
         assert "/opt/python/bin/python" in rendered
+
+    def test_replaces_huey_consumer_placeholder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        plist = tmp_path / "test.plist"
+        plist.write_text("<array><string>__HUEY_CONSUMER__</string></array>")
+        monkeypatch.setattr(
+            installer, "_find_huey_consumer", lambda: "/opt/python/bin/huey_consumer"
+        )
+
+        rendered = installer._render_plist(plist, Path("/opt/gi"))
+
+        assert "__HUEY_CONSUMER__" not in rendered
+        assert "/opt/python/bin/huey_consumer" in rendered
+
+    def test_huey_plist_uses_python_bin_consumer_without_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        template = installer._repo_root() / "launchd" / "com.yeliztli.huey.plist"
+        monkeypatch.setattr(installer, "_find_python", lambda: "/opt/python/bin/python")
+        monkeypatch.setattr(installer, "_find_command", lambda name: None)
+
+        rendered = installer._render_plist(template, Path("/opt/gi"))
+
+        assert "<string>/opt/python/bin/huey_consumer</string>" in rendered
+        assert "<string>huey_consumer</string>" not in rendered
+        assert "__HUEY_CONSUMER__" not in rendered
 
     def test_xml_escapes_inserted_values(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         plist = tmp_path / "test.plist"

@@ -89,6 +89,20 @@ def _find_command(name: str) -> str | None:
     return shutil.which(name)
 
 
+def _find_huey_consumer() -> str:
+    """Return an absolute path to the Huey consumer console script."""
+    if command := _find_command("huey_consumer"):
+        return command
+
+    entrypoint = Path(sys.argv[0]).expanduser()
+    if entrypoint.parent != Path("."):
+        sibling = entrypoint.resolve().with_name("huey_consumer")
+        if sibling.exists():
+            return str(sibling)
+
+    return str(Path(_find_python()).with_name("huey_consumer"))
+
+
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess:
     """Run a subprocess with stdout/stderr visible."""
     print(f"  $ {' '.join(cmd)}")
@@ -266,6 +280,7 @@ def _render_plist(template_path: Path, install_dir: Path) -> str:
     content = template_path.read_text()
     content = content.replace("__INSTALL_DIR__", xml_escape(str(install_dir)))
     content = content.replace("__PYTHON__", xml_escape(_find_python()))
+    content = content.replace("__HUEY_CONSUMER__", xml_escape(_find_huey_consumer()))
     # Expand ~ in log paths to absolute home
     content = content.replace("~/Library/Logs", xml_escape(str(LOG_DIR_MACOS)))
     return content

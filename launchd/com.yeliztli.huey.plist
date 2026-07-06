@@ -8,7 +8,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>huey_consumer</string>
+        <string>__HUEY_CONSUMER__</string>
         <string>backend.tasks.huey_tasks.huey</string>
         <string>-w</string>
         <string>1</string>
