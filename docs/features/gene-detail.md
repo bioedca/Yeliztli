@@ -34,5 +34,10 @@ are cached locally in `reference.db` for 30 days. If the request fails or networ
 blocked, Yeliztli shows stale cached protein data when available, or a message that protein data
 is unavailable.
 
+If you configured PubMed enrichment with a contact email, the **Literature** section can also
+search NCBI PubMed for the viewed gene and fetch matching article metadata by PMID. Without that
+email, Yeliztli uses cached literature only. PubMed requests send public identifiers and NCBI
+contact metadata, not your genotypes, sample ID, or findings.
+
 See [Privacy & data handling](../privacy.md#when-yeliztli-does-use-the-network) for the full
 network accounting.
