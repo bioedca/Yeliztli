@@ -1384,9 +1384,19 @@ class TestStoreHaplogroupFindings:
             f_rows = conn.execute(
                 sa.select(findings).where(findings.c.module == "ancestry")
             ).fetchall()
+            assert len(f_rows) == 2
             categories = {r.category for r in f_rows}
             assert "haplogroup_mt" in categories
             assert "haplogroup_Y" in categories
+            findings_by_category = {r.category: r for r in f_rows}
+            assert (
+                findings_by_category["haplogroup_mt"].finding_text
+                == "Mitochondrial haplogroup: H1a (17/17 defining SNPs matched, 100% confidence)"
+            )
+            assert (
+                findings_by_category["haplogroup_Y"].finding_text
+                == "Y-chromosome haplogroup: R1b (9/10 defining SNPs matched, 90% confidence)"
+            )
 
     def test_replaces_previous_assignments(self, sample_engine: sa.Engine) -> None:
         """Re-running clears old assignments."""
