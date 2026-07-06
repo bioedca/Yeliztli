@@ -92,6 +92,7 @@ def warfarin_api_response(
     make_sample(1, "EUR")
     make_sample(2, "AFR")
     make_sample(3, None)
+    make_sample(4, "CSA")
 
     ref_engine.dispose()
 
@@ -136,6 +137,17 @@ class TestWarfarinEndpoint:
         assert genes["CYP4F2"]["diplotype"] == "*1/*3"
         assert genes["CYP4F2"]["dose_effect"] == "not_established"
         assert "African" in genes["CYP4F2"]["ancestry_warning_text"]
+
+    def test_central_south_asian_ancestry_withholds_cyp4f2_higher_direction(
+        self, warfarin_api_response: Callable[[int], dict]
+    ) -> None:
+        data = warfarin_api_response(4)
+        genes = {g["gene"]: g for g in data["genes"]}
+        assert data["inferred_ancestry"] == "CSA"
+        assert genes["VKORC1"]["dose_effect"] == "lower"
+        assert genes["CYP4F2"]["diplotype"] == "*1/*3"
+        assert genes["CYP4F2"]["dose_effect"] == "not_established"
+        assert "Central/South Asian" in genes["CYP4F2"]["ancestry_warning_text"]
 
     def test_missing_ancestry_requires_context_without_direction(
         self, warfarin_api_response: Callable[[int], dict]

@@ -915,10 +915,11 @@ WARFARIN_PGX_CONTEXT_ONLY = (
     "CYP4F2*3 genotypes modulate warfarin dose requirement together with CYP2C9 — "
     "the VKORC1 A allele increases warfarin sensitivity (lower dose), while the "
     "CYP4F2*3 higher-dose association is ancestry-dependent and not established for "
-    "African ancestry (Shendre et al. 2016; PMID 26877068). This is interpretive "
-    "context, NOT a dose: CPIC dosing requires a validated pharmacogenetic algorithm "
-    "plus clinical factors and INR monitoring. It does not change any finding; discuss "
-    "warfarin dosing only with your care team."
+    "African ancestry (Shendre et al. 2016; PMID 26877068) or separately established "
+    "for Central/South Asian ancestry. This is interpretive context, NOT a dose: CPIC "
+    "dosing requires a validated pharmacogenetic algorithm plus clinical factors and "
+    "INR monitoring. It does not change any finding; discuss warfarin dosing only with "
+    "your care team."
 )
 
 

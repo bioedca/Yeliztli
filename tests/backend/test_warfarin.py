@@ -13,8 +13,10 @@ import json
 import sqlalchemy as sa
 
 from backend.analysis.warfarin import (
+    CYP4F2_INDIAN_MODEL_NULL_PMIDS,
     CYP4F2_RACE_SPECIFIC_PMID,
     CYP4F2_RSID,
+    CYP4F2_SOUTH_INDIAN_POSITIVE_PMID,
     VKORC1_RSID,
     WARFARIN_CPIC_PMID,
     assess_warfarin,
@@ -111,6 +113,14 @@ class TestCyp4f2Phenotype:
         assert "African" in p["phenotype"]
         assert p["ancestry_warning_text"] is not None
 
+    def test_star3_in_central_south_asian_ancestry_is_not_established(self) -> None:
+        p = cyp4f2_phenotype(1, inferred_ancestry="CSA")
+        assert p["diplotype"] == "*1/*3"
+        assert p["dose_effect"] == "not_established"
+        assert "Central/South Asian" in p["phenotype"]
+        assert p["ancestry_warning_text"] is not None
+        assert "not established" in p["ancestry_warning_text"]
+
     def test_none_when_uncalled(self) -> None:
         assert cyp4f2_phenotype(None) is None
 
@@ -151,6 +161,17 @@ class TestAssessWarfarin:
         assert genes["CYP4F2"]["dose_effect"] == "not_established"
         assert "African" in genes["CYP4F2"]["ancestry_warning_text"]
 
+    def test_cyp4f2_star3_in_central_south_asian_ancestry_withholds_higher_direction(
+        self,
+    ) -> None:
+        engine = _make_sample({VKORC1_RSID: "CC", CYP4F2_RSID: "CT"}, ancestry="CSA")
+        result = assess_warfarin(engine)
+        genes = self._genes(result)
+        assert result["inferred_ancestry"] == "CSA"
+        assert genes["CYP4F2"]["diplotype"] == "*1/*3"
+        assert genes["CYP4F2"]["dose_effect"] == "not_established"
+        assert "Central/South Asian" in genes["CYP4F2"]["ancestry_warning_text"]
+
     def test_cyp4f2_star3_without_ancestry_withholds_higher_direction(self) -> None:
         engine = _make_sample({VKORC1_RSID: "CC", CYP4F2_RSID: "CT"})
         result = assess_warfarin(engine)
@@ -186,5 +207,8 @@ class TestAssessWarfarin:
         assert result["note"]
         assert WARFARIN_CPIC_PMID in result["pmid_citations"]
         assert CYP4F2_RACE_SPECIFIC_PMID in result["pmid_citations"]
+        assert CYP4F2_SOUTH_INDIAN_POSITIVE_PMID in result["pmid_citations"]
+        for pmid in CYP4F2_INDIAN_MODEL_NULL_PMIDS:
+            assert pmid in result["pmid_citations"]
         # No milligram dose is ever emitted.
         assert "mg" not in result["note"].lower().split("dosing")[0]

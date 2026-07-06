@@ -10,9 +10,10 @@ acting together with *CYP2C9* (covered by the star-allele engine in
   expression → **increased warfarin sensitivity and lower dose requirement**
   (G/G typical → G/A intermediate → A/A most sensitive).
 * **CYP4F2 *3 (V433M, rs2108622).** The *3 (T) allele modestly **raises** the
-  dose requirement in individuals of European or Asian ancestry (Caldwell 2008,
-  PMID 18250228; CPIC 2017, PMID 28198005), with no established effect in
-  African ancestry (Shendre 2016, PMID 26877068).
+  dose requirement in individuals of European or East Asian ancestry
+  (Caldwell 2008, PMID 18250228; CPIC 2017, PMID 28198005). South Asian
+  evidence is mixed across Indian cohorts, so this context layer does not treat
+  Central/South Asian ancestry as separately established.
 
 **Strand.** 23andMe reports the forward (plus) strand. VKORC1 sits on the minus
 strand, so the gene's reference "G" is forward **C** and the dose-lowering "A" is
@@ -42,6 +43,8 @@ from backend.disclaimers import WARFARIN_PGX_CONTEXT_ONLY
 WARFARIN_CPIC_PMID = "28198005"
 CYP4F2_RACE_SPECIFIC_PMID = "26877068"
 CYP4F2_ORIGINAL_PMID = "18250228"
+CYP4F2_SOUTH_INDIAN_POSITIVE_PMID = "24019055"
+CYP4F2_INDIAN_MODEL_NULL_PMIDS = ("28049362", "37075481")
 
 # VKORC1 c.-1639G>A — rs9923231. Forward-strand alleles (23andMe convention).
 VKORC1_RSID = "rs9923231"
@@ -55,9 +58,11 @@ CYP4F2_ALT = "T"  # *3 (modestly higher dose requirement)
 
 # CYP4F2*3 should not be reported as a universal dose-increase marker. The
 # available evidence in this module supports the higher-dose direction for
-# European and Asian ancestry contexts; Shendre 2016 did not observe the dose
-# association in African Americans (PMID 26877068).
-CYP4F2_EFFECT_ESTABLISHED_ANCESTRIES = frozenset({"EUR", "EAS", "CSA"})
+# European and East Asian ancestry contexts. South Asian/Indian evidence is
+# mixed (one positive South Indian cohort, later Indian dose models did not
+# retain CYP4F2), and Shendre 2016 did not observe the dose association in
+# African Americans (PMID 26877068).
+CYP4F2_EFFECT_ESTABLISHED_ANCESTRIES = frozenset({"EUR", "EAS"})
 CYP4F2_ANCESTRY_LABELS = {
     "AFR": "African",
     "AMR": "Admixed American",
@@ -296,5 +301,7 @@ def assess_warfarin(sample_engine: sa.Engine) -> dict[str, Any]:
             WARFARIN_CPIC_PMID,
             CYP4F2_RACE_SPECIFIC_PMID,
             CYP4F2_ORIGINAL_PMID,
+            CYP4F2_SOUTH_INDIAN_POSITIVE_PMID,
+            *CYP4F2_INDIAN_MODEL_NULL_PMIDS,
         ],
     }
