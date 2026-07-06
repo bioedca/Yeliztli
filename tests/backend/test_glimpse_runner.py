@@ -191,6 +191,29 @@ class TestOrchestration:
         assert args["--input-region"] == "22:1-2500000"
         assert args["--output-region"] == "22:1-2000000"
         assert args["--threads"] == "2"
+        assert "--input-field-gl" not in phase_cmds[0]
+
+    def test_phase_command_can_select_format_gl_field(self, tmp_path: Path, monkeypatch) -> None:
+        runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))
+        gl, ref, gmap = _inputs(tmp_path)
+        seen: list[list[str]] = []
+        fake = self._fake_run()
+
+        def capturing(cmd, **kw):  # noqa: ANN001, ANN202
+            seen.append(cmd)
+            return fake(cmd, **kw)
+
+        monkeypatch.setattr(gr_mod.subprocess, "run", capturing)
+        runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out", input_field="GL")
+        phase_cmds = [c for c in seen if Path(c[0]).name == "GLIMPSE2_phase"]
+        assert len(phase_cmds) == 2
+        assert all("--input-field-gl" in c for c in phase_cmds)
+
+    def test_invalid_input_field_raises(self, tmp_path: Path) -> None:
+        runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))
+        gl, ref, gmap = _inputs(tmp_path)
+        with pytest.raises(ValueError, match="input_field must be 'PL' or 'GL'"):
+            runner.impute_chromosome("22", gl, ref, gmap, tmp_path / "out", input_field="GP")
 
     def test_chunk_failure_returns_not_ok(self, tmp_path: Path, monkeypatch) -> None:
         runner = GlimpseRunner(bin_dir=_stub_bin_dir(tmp_path))

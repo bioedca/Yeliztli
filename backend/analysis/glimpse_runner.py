@@ -46,6 +46,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import structlog
 
@@ -93,6 +94,7 @@ REQUIRED_BINARIES: tuple[str, ...] = (GLIMPSE_CHUNK, GLIMPSE_PHASE, GLIMPSE_LIGA
 # frequency = the reference-panel AF (RAF), NOT the single-sample AF.
 _QUALITY_KEY = "INFO"
 _AF_KEY = "RAF"
+InputLikelihoodField = Literal["PL", "GL"]
 
 
 def missing_binaries(bin_dir: Path | None = None) -> list[str]:
@@ -103,6 +105,15 @@ def missing_binaries(bin_dir: Path | None = None) -> list[str]:
 def glimpse_available(bin_dir: Path | None = None) -> bool:
     """True iff every required GLIMPSE2 binary resolves (never raises)."""
     return not missing_binaries(bin_dir)
+
+
+def _phase_input_field_args(input_field: str) -> list[str]:
+    normalized = input_field.upper()
+    if normalized == "PL":
+        return []
+    if normalized == "GL":
+        return ["--input-field-gl"]
+    raise ValueError("input_field must be 'PL' or 'GL'")
 
 
 @dataclass(frozen=True)
@@ -234,6 +245,7 @@ class GlimpseRunner:
         out_dir: Path,
         *,
         ref_sites: Path | None = None,
+        input_field: InputLikelihoodField = "PL",
         timeout: float = DEFAULT_TIMEOUT,
     ) -> GlimpseChromResult:
         """Impute one chromosome with GLIMPSE2 (chunk → phase per chunk → ligate).
@@ -249,6 +261,9 @@ class GlimpseRunner:
             out_dir: output directory (created if absent).
             ref_sites: optional sites-only VCF/BCF for chunking (defaults to
                 ``reference``).
+            input_field: genotype-likelihood FORMAT field in ``input_gl``.
+                GLIMPSE2 reads ``FORMAT/PL`` by default; select ``"GL"`` to pass
+                ``--input-field-gl`` for ``FORMAT/GL`` likelihoods.
             timeout: per-step wall-clock ceiling (seconds).
 
         Returns a :class:`GlimpseChromResult`; engine/IO runtime failures (a step
@@ -259,6 +274,7 @@ class GlimpseRunner:
         :meth:`backend.analysis.imputation_runner.ImputationRunner.impute_chromosome`).
         """
         chrom = normalize_chrom(chrom)
+        input_field_args = _phase_input_field_args(input_field)
         input_gl = Path(input_gl)
         reference = Path(reference)
         gmap = Path(gmap)
@@ -322,6 +338,7 @@ class GlimpseRunner:
                 str(self._bin[GLIMPSE_PHASE]),
                 "--input-gl",
                 str(input_gl),
+                *input_field_args,
                 "--reference",
                 str(reference),
                 "--map",

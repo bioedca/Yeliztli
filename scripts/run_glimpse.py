@@ -13,7 +13,8 @@ build is provisioned.
 For each ``--chrom``, the per-chromosome inputs are resolved from the given
 directories using filename templates (``{chrom}`` is substituted):
 
-    GL  : --input-gl-template   (default chr{chrom}.gl.vcf.gz)  — FORMAT/GL or /PL
+    GL  : --input-gl-template   (default chr{chrom}.gl.vcf.gz)  — FORMAT/PL by default;
+          pass --input-field GL for FORMAT/GL
     REF : --reference-template  (default chr{chrom}.reference.vcf.gz) — phased VCF/BCF
     MAP : --map-template        (default chr{chrom}.gmap.gz)
 
@@ -72,6 +73,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--input-gl-dir", type=Path, help="Directory of per-chrom GL VCFs.")
     parser.add_argument(
+        "--input-field",
+        choices=("PL", "GL"),
+        default="PL",
+        help=(
+            "Genotype-likelihood FORMAT field in --input-gl files. GLIMPSE2 defaults to "
+            "PL; choose GL to pass --input-field-gl."
+        ),
+    )
+    parser.add_argument(
         "--reference-dir", type=Path, help="Directory of per-chrom reference VCF/BCF."
     )
     parser.add_argument("--map-dir", type=Path, help="Directory of per-chrom genetic maps.")
@@ -121,7 +131,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"chr{c}: SKIP (missing {missing})", file=sys.stderr, flush=True)
             failures.append(c)
             continue
-        res = runner.impute_chromosome(c, input_gl, reference, gmap, out_dir, timeout=args.timeout)
+        res = runner.impute_chromosome(
+            c,
+            input_gl,
+            reference,
+            gmap,
+            out_dir,
+            input_field=args.input_field,
+            timeout=args.timeout,
+        )
         if not res.return_ok or res.output_vcf is None:
             print(f"chr{c}: FAILED ({res.stderr_tail})", file=sys.stderr, flush=True)
             failures.append(c)
