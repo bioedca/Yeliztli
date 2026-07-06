@@ -50,7 +50,7 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
         conn.execute(
             sa.insert(raw_variants),
             [
-                {"rsid": "rs6025", "chrom": "1", "pos": 169549811, "genotype": "GA"},
+                {"rsid": "rs6025", "chrom": "1", "pos": 169519049, "genotype": "GA"},
                 {"rsid": "rs1799963", "chrom": "11", "pos": 46761055, "genotype": "GA"},
             ],
         )

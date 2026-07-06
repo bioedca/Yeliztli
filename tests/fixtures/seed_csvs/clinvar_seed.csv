@@ -67,8 +67,8 @@ rs28897727,7,117540198,G,T,Pathogenic,3,VCV000007106,Cystic fibrosis,CFTR,7106
 rs75039782,7,117592897,C,A,Pathogenic,3,VCV000007107,Cystic fibrosis,CFTR,7107
 rs78655421,7,117587811,G,T,Pathogenic,3,VCV000007108,Cystic fibrosis,CFTR,7108
 rs213950,7,117530955,G,A,Benign,2,VCV000007109,not specified,CFTR,7109
-rs6025,1,169549811,G,A,Pathogenic,4,VCV000000217,Factor V Leiden thrombophilia,F5,217
-rs1799963,11,46739505,G,A,Pathogenic,3,VCV000000220,Prothrombin thrombophilia,F2,220
+rs6025,1,169519049,G,A,Pathogenic,4,VCV000000217,Factor V Leiden thrombophilia,F5,217
+rs1799963,11,46761055,G,A,Pathogenic,3,VCV000000220,Prothrombin thrombophilia,F2,220
 rs1800872,1,206773289,T,G,risk_factor,1,VCV000098836,Immune regulation,IL10,98836
 rs2476601,1,114377568,A,G,risk_factor,2,VCV000098837,Autoimmune disease,PTPN22,98837
 rs3135388,6,32681631,A,G,risk_factor,2,VCV000098838,Multiple sclerosis,HLA-DRB1,98838

@@ -170,7 +170,7 @@ SAMPLE_VARIANT_MINIMAL = {
 SAMPLE_VARIANT_SOURCE_UNCOVERED = {
     "rsid": "rs1799963",
     "chrom": "11",
-    "pos": 46739505,
+    "pos": 46761055,
     "ref": "G",
     "alt": "A",
     "genotype": "AG",

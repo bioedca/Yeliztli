@@ -614,7 +614,7 @@ class TestMergeAnnotations:
             conn.execute(
                 sa.text("CREATE TABLE t (rsid TEXT, chrom TEXT, pos INTEGER, genotype TEXT)")
             )
-            conn.execute(sa.text("INSERT INTO t VALUES ('rs1799963', '11', 46739505, 'AG')"))
+            conn.execute(sa.text("INSERT INTO t VALUES ('rs1799963', '11', 46761055, 'AG')"))
             row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
 
         vep = {"rs1799963": {"gene_symbol": "F2", "consequence": "3_prime_UTR_variant"}}

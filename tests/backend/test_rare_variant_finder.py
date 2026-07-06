@@ -996,7 +996,7 @@ class TestStoreRareVariantFindings:
                     _v(
                         rsid="rs1799963",
                         chrom="11",
-                        pos=46739505,
+                        pos=46761055,
                         genotype="AG",
                         zygosity="het",
                         gene_symbol="F2",

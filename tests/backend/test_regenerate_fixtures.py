@@ -6,6 +6,8 @@ from the seed CSVs, matching expected schemas and row counts.
 
 from __future__ import annotations
 
+import csv
+import json
 import sqlite3
 import subprocess
 import sys
@@ -16,6 +18,36 @@ import pytest
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 SEED_DIR = FIXTURES_DIR / "seed_csvs"
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "regenerate_fixtures.py"
+PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
+
+THROMBOPHILIA_COORDINATE_RSIDS = ("rs6025", "rs1799963")
+
+SEED_COORDINATE_TARGETS = {
+    "clinvar_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
+    "vep_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
+    "gnomad_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
+    "gwas_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
+    "dbnsfp_seed.csv": ("rs6025",),
+}
+
+MINI_DB_COORDINATE_TARGETS = {
+    "mini_reference.db": {
+        "clinvar_variants": THROMBOPHILIA_COORDINATE_RSIDS,
+        "gwas_associations": THROMBOPHILIA_COORDINATE_RSIDS,
+    },
+    "mini_vep_bundle.db": {"vep_annotations": THROMBOPHILIA_COORDINATE_RSIDS},
+    "mini_gnomad_af.db": {"gnomad_af": THROMBOPHILIA_COORDINATE_RSIDS},
+    "mini_dbnsfp.db": {"dbnsfp_scores": ("rs6025",)},
+}
+
+
+def _expected_grch37_coordinates() -> dict[str, tuple[str, int]]:
+    payload = json.loads(PANEL_RSID_COORDINATES.read_text())
+    variants = payload["rsids"]
+    return {
+        rsid: (str(variants[rsid]["chrom"]), int(variants[rsid]["start"]))
+        for rsid in THROMBOPHILIA_COORDINATE_RSIDS
+    }
 
 
 def _run_script(tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -84,6 +116,20 @@ class TestSeedCSVContent:
         text = (SEED_DIR / "cpic_alleles_seed.csv").read_text()
         for gene in ["CYP2D6", "CYP2C19"]:
             assert gene in text, f"cpic_alleles_seed.csv missing {gene}"
+
+    @pytest.mark.parametrize(("csv_name", "rsids"), SEED_COORDINATE_TARGETS.items())
+    def test_thrombophilia_seed_coordinates_are_grch37(
+        self, csv_name: str, rsids: tuple[str, ...]
+    ) -> None:
+        expected = _expected_grch37_coordinates()
+        with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
+            rows = {row["rsid"]: row for row in csv.DictReader(fh) if row["rsid"] in rsids}
+
+        assert set(rows) == set(rsids), f"{csv_name} missing thrombophilia rows"
+        for rsid in rsids:
+            expected_chrom, expected_pos = expected[rsid]
+            row = rows[rsid]
+            assert (row["chrom"], int(row["pos"])) == (expected_chrom, expected_pos)
 
 
 # ── Regeneration script ──────────────────────────────────────────────
@@ -253,6 +299,28 @@ class TestRegenerateFixtures:
         with sqlite3.connect(str(tmp_path / "mini_dbnsfp.db")) as conn:
             count = conn.execute("SELECT count(*) FROM dbnsfp_scores").fetchone()[0]
         assert count >= 30, f"Expected >=30 dbNSFP rows, got {count}"
+
+    @pytest.mark.parametrize(("db_name", "tables"), MINI_DB_COORDINATE_TARGETS.items())
+    def test_thrombophilia_mini_db_coordinates_are_grch37(
+        self, tmp_path: Path, db_name: str, tables: dict[str, tuple[str, ...]]
+    ) -> None:
+        expected = _expected_grch37_coordinates()
+        _run_script(tmp_path)
+
+        with sqlite3.connect(str(tmp_path / db_name)) as conn:
+            for table_name, rsids in tables.items():
+                placeholders = ", ".join("?" for _ in rsids)
+                observed = {
+                    rsid: (str(chrom), int(pos))
+                    for rsid, chrom, pos in conn.execute(
+                        f"SELECT rsid, chrom, pos FROM {table_name} "
+                        f"WHERE rsid IN ({placeholders})",
+                        tuple(rsids),
+                    )
+                }
+                assert set(observed) == set(rsids), f"{db_name}:{table_name} missing rows"
+                for rsid in rsids:
+                    assert observed[rsid] == expected[rsid]
 
     def test_wal_mode_enabled(self, tmp_path: Path) -> None:
         _run_script(tmp_path)

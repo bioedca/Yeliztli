@@ -32,7 +32,7 @@ def _seed(engine: sa.Engine, rows: list[dict]) -> None:
 
 
 def _fvl(genotype: str) -> dict:
-    return {"rsid": "rs6025", "chrom": "1", "pos": 169549811, "genotype": genotype}
+    return {"rsid": "rs6025", "chrom": "1", "pos": 169519049, "genotype": genotype}
 
 
 def _f2(genotype: str) -> dict:
