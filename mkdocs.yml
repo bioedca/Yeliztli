@@ -120,6 +120,7 @@ nav:
   - Features:
       - Variant Explorer: features/variant-explorer.md
       - Variant detail: features/variant-detail.md
+      - Gene Detail: features/gene-detail.md
       - Annotation Overlays: features/annotation-overlays.md
       - Genome Browser: features/genome-browser.md
       - Query Builder: features/query-builder.md

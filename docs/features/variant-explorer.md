@@ -48,4 +48,5 @@ or evidence ratings.
 For a **Variant of Uncertain Significance**, click **Watch**. When reference databases are
 updated, watched variants are re-checked and you're notified if any are reclassified.
 
-Click any row to open the **[variant detail](variant-detail.md)** panel.
+Click any row to open the **[variant detail](variant-detail.md)** panel. Gene symbols link to
+the full **[Gene Detail](gene-detail.md)** page for that gene.

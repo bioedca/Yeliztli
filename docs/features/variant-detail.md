@@ -11,9 +11,10 @@ summary, then **Open full detail** for the full page, organised into tabs:
 2. **Population** — gnomAD allele frequencies across subpopulations (Global, African,
    Latino/Admixed, Ashkenazi Jewish, East Asian, European, Finnish, South Asian), the gnomAD
    homozygote count, and a rarity note.
-3. **Protein** — the variant's protein change (HGVS p.) and a link to the gene's full **Gene
-   detail** page, where the Nightingale protein-domain diagram is rendered. The diagram is not
-   shown inline here, and this page does not mark the variant's position on it.
+3. **Protein** — the variant's protein change (HGVS p.) and a link to the gene's full
+   **[Gene Detail](gene-detail.md)** page, where the Nightingale protein-domain diagram is
+   rendered. The diagram is not shown inline here, and this page does not mark the variant's
+   position on it.
 4. **Clinical** — the ClinVar record (clinical significance, review stars, accession, and
    reported conditions), any evidence-conflict callout, the full in-silico prediction panel
    (CADD, SIFT, PolyPhen-2, REVEL, MutPred2, VEST4, MetaSVM, MetaLR, GERP++, phyloP, MPC,

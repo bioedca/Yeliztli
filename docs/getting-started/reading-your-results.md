@@ -59,8 +59,9 @@ and review them in the [Variant Explorer](../features/variant-explorer.md).
 Beyond the per-module pages, the **Findings Explorer** lets you filter findings across every
 module at once by module and minimum evidence rating. Each finding links back to its source
 module when that module has a dedicated page, and gene symbols or variant IDs link to their
-detail pages when available. Modules that do not have their own dashboard page still surface
-their findings here.
+detail pages when available, including **[Gene Detail](../features/gene-detail.md)** pages for
+individual genes. Modules that do not have their own dashboard page still surface their findings
+here.
 
 After a full annotation run, the total finding count may be dominated by
 [Rare Variant Finder](../modules/rare-variants.md) rows. A typical sample can have tens of
@@ -83,9 +84,11 @@ findings). You're always in control of when those are revealed.
 ## Going deeper
 
 From here you can dig into individual variants in the
-**[Variant Explorer](../features/variant-explorer.md)**, visualise them in the
-**[Genome Browser](../features/genome-browser.md)**, build **[custom queries](../features/query-builder.md)**,
-and generate **[PDF reports](../features/reports.md)**.
+**[Variant Explorer](../features/variant-explorer.md)**, inspect genes in
+**[Gene Detail](../features/gene-detail.md)**, visualise variants in the
+**[Genome Browser](../features/genome-browser.md)**, build
+**[custom queries](../features/query-builder.md)**, and generate
+**[PDF reports](../features/reports.md)**.
 
 ## References
 
