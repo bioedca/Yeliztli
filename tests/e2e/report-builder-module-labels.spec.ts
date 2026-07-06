@@ -70,6 +70,7 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
   })
 
   test('disables inline preview for large default report selections', async ({ page }) => {
+    let previewRequests = 0
     await page.route('**/api/analysis/findings/summary**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -79,6 +80,7 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
     })
 
     await page.route('**/api/reports/preview', async (route) => {
+      previewRequests += 1
       await route.fulfill({
         status: 200,
         contentType: 'text/html',
@@ -89,12 +91,13 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
     await page.goto('/reports?sample_id=1')
     await waitForReactHydration(page)
 
-    await expect(page.getByRole('button', { name: 'Rare Variant Finder: 66770 findings' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Rare Variant Finder: 66,?770 findings/ })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Carrier Status: 1 findings' })).toBeVisible()
 
     await expect(page.getByRole('button', { name: 'Preview report' })).toBeDisabled()
     await expect(page.getByText(/Inline preview is disabled for reports with more than/)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeEnabled()
     await expect(page.locator('iframe[title="Report preview"]')).toHaveCount(0)
+    expect(previewRequests).toBe(0)
   })
 })
