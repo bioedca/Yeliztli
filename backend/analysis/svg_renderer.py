@@ -639,6 +639,76 @@ def _render_carrier_card(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _render_apoe_allele_badge(
+    diplotype: str,
+    detail: dict[str, Any],
+) -> tuple[str, str]:
+    """Return the legacy APOE genotype badge derived from allele counts."""
+    diplotype_e4_count = str(diplotype).count("4")
+    try:
+        detail_e4_count = int(detail.get("e4_count", diplotype_e4_count))
+    except (TypeError, ValueError):
+        detail_e4_count = diplotype_e4_count
+    e4_count = max(detail_e4_count, diplotype_e4_count)
+    has_e4 = e4_count > 0
+
+    if e4_count >= 2:
+        return "#EF4444", "Increased Risk"  # red
+    if has_e4:
+        return "#F59E0B", "Moderately Increased Risk"  # amber
+    if "2" in str(diplotype) and "4" not in str(diplotype):
+        return TEAL_PRIMARY, "Potentially Protective"
+    return TEXT_MUTED, "Average Risk"
+
+
+def _render_apoe_category_badge(
+    category: str,
+    diplotype: str,
+    detail: dict[str, Any],
+) -> tuple[str, str]:
+    """Return an APOE badge label/color using category-specific finding data."""
+    normalized_category = str(category).strip().lower()
+
+    if normalized_category == "alzheimers_risk":
+        relative_risk = str(detail.get("relative_risk", "")).strip().lower()
+        alzheimers_badges = {
+            "substantially_reduced": (TEAL_PRIMARY, "Substantially Reduced Risk"),
+            "reduced": (TEAL_PRIMARY, "Reduced Risk"),
+            "reference": (TEXT_MUTED, "Average Risk"),
+            "elevated": ("#F59E0B", "Increased Risk"),
+            "substantially_elevated": ("#EF4444", "Substantially Increased Risk"),
+        }
+        if relative_risk in alzheimers_badges:
+            return alzheimers_badges[relative_risk]
+
+    if normalized_category == "cardiovascular_risk":
+        risk_level = str(detail.get("risk_level", "")).strip().lower()
+        cardiovascular_badges = {
+            "slightly_reduced": (TEAL_PRIMARY, "Slightly Reduced Risk"),
+            "average": (TEXT_MUTED, "Average Risk"),
+            "reference": (TEXT_MUTED, "Average Risk"),
+            "modestly_elevated": ("#F59E0B", "Modestly Elevated Risk"),
+            "elevated": ("#EF4444", "Elevated Risk"),
+        }
+        if risk_level in cardiovascular_badges:
+            return cardiovascular_badges[risk_level]
+
+    if normalized_category == "lipid_dietary":
+        dietary_response = str(detail.get("dietary_response", "")).strip().lower()
+        lipid_badges = {
+            "atypical": ("#F59E0B", "Atypical Lipid Response"),
+            "slightly_reduced": (TEAL_PRIMARY, "Slightly Reduced Response"),
+            "variable": ("#F59E0B", "Variable Lipid Response"),
+            "typical": (TEXT_MUTED, "Typical Lipid Response"),
+            "enhanced": ("#F59E0B", "Enhanced Lipid Response"),
+            "markedly_enhanced": ("#EF4444", "Markedly Enhanced Response"),
+        }
+        if dietary_response in lipid_badges:
+            return lipid_badges[dietary_response]
+
+    return _render_apoe_allele_badge(diplotype, detail)
+
+
 def _render_apoe_card(
     finding: dict[str, Any],
     detail: dict[str, Any],
@@ -650,28 +720,11 @@ def _render_apoe_card(
     phenotype = finding.get("phenotype") or detail.get("phenotype", "")
     category = finding.get("category") or ""
 
-    # Determine risk color from diplotype. Genotype rows carry ``e4_count`` in
-    # detail_json; derived APOE findings carry only the displayed diplotype.
-    diplotype_e4_count = str(diplotype).count("4")
-    try:
-        detail_e4_count = int(detail.get("e4_count", diplotype_e4_count))
-    except (TypeError, ValueError):
-        detail_e4_count = diplotype_e4_count
-    e4_count = max(detail_e4_count, diplotype_e4_count)
-    has_e4 = e4_count > 0
-
-    if e4_count >= 2:
-        risk_color = "#EF4444"  # red
-        risk_label = "Increased Risk"
-    elif has_e4:
-        risk_color = "#F59E0B"  # amber
-        risk_label = "Moderately Increased Risk"
-    elif "2" in str(diplotype) and "4" not in str(diplotype):
-        risk_color = TEAL_PRIMARY
-        risk_label = "Potentially Protective"
-    else:
-        risk_color = TEXT_MUTED
-        risk_label = "Average Risk"
+    risk_color, risk_label = _render_apoe_category_badge(
+        str(category),
+        str(diplotype),
+        detail,
+    )
 
     parts: list[str] = []
     parts.append(SVG_HEADER.format(width=width, height=height))

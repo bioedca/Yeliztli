@@ -265,6 +265,46 @@ class TestRenderFindingSvg:
         assert f">{diplotype}</text>" in svg
         assert f">{expected_label}</text>" in svg
 
+    @pytest.mark.parametrize(
+        ("category", "detail_extra", "expected_label"),
+        [
+            (
+                "cardiovascular_risk",
+                {"risk_level": "elevated"},
+                "Elevated Risk",
+            ),
+            (
+                "lipid_dietary",
+                {"dietary_response": "atypical"},
+                "Atypical Lipid Response",
+            ),
+        ],
+    )
+    def test_apoe_e2e2_category_badges_do_not_use_protective_label(
+        self,
+        apoe_finding,
+        category,
+        detail_extra,
+        expected_label,
+    ):
+        diplotype = "\u03b52/\u03b52"
+        apoe_finding["category"] = category
+        apoe_finding["diplotype"] = diplotype
+        apoe_finding["finding_text"] = f"APOE genotype: {diplotype}"
+        apoe_finding["detail_json"] = json.dumps(
+            {
+                "diplotype": diplotype,
+                **detail_extra,
+            }
+        )
+
+        svg = render_finding_svg(apoe_finding)
+
+        assert svg is not None
+        assert f">{diplotype}</text>" in svg
+        assert f">{expected_label}</text>" in svg
+        assert "Potentially Protective" not in svg
+
     def test_ancestry_admixture_generates_bar(self, ancestry_finding):
         svg = render_finding_svg(ancestry_finding)
         assert svg is not None
