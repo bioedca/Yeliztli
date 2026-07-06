@@ -269,8 +269,9 @@ class GlimpseRunner:
         Returns a :class:`GlimpseChromResult`; engine/IO runtime failures (a step
         non-zero exit, timeout, launch error, missing chunks, or an unparseable
         ligated VCF) set ``return_ok`` False rather than raising. Raises only for a
-        caller/setup error: an invalid ``chrom`` token (``ValueError``) or a
-        missing required input file (``FileNotFoundError``, mirroring
+        caller/setup error: an invalid ``chrom`` token, an invalid
+        ``input_field`` value (``ValueError``), or a missing required input file
+        (``FileNotFoundError``, mirroring
         :meth:`backend.analysis.imputation_runner.ImputationRunner.impute_chromosome`).
         """
         chrom = normalize_chrom(chrom)
