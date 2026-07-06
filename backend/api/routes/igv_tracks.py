@@ -528,7 +528,10 @@ async def clinvar_vcf_region(
         sa.select(clinvar_variants)
         .where(
             clinvar_variants.c.chrom == chrom,
-            clinvar_variants.c.pos >= start_i,
+            # clinvar_variants.pos is VCF POS (1-based); IGV requests use
+            # 0-based half-open intervals, so POS p overlaps [start, end)
+            # when p > start and p <= end.
+            clinvar_variants.c.pos > start_i,
             clinvar_variants.c.pos <= end_i,
         )
         .order_by(clinvar_variants.c.pos)
@@ -687,7 +690,10 @@ async def sample_vcf_region(
         )
         .where(
             raw_variants.c.chrom == chrom,
-            raw_variants.c.pos >= start_i,
+            # raw_variants.pos is VCF POS (1-based); IGV requests use 0-based
+            # half-open intervals, so POS p overlaps [start, end) when
+            # p > start and p <= end.
+            raw_variants.c.pos > start_i,
             raw_variants.c.pos <= end_i,
         )
         .order_by(raw_variants.c.pos)

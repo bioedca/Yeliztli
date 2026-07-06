@@ -32,55 +32,71 @@ from backend.db.tables import (
 # ── Fixtures ─────────────────────────────────────────────────────────
 
 
+IGV_CLINVAR_ROWS = [
+    {
+        "rsid": "rs123",
+        "chrom": "17",
+        "pos": 41245466,
+        "ref": "A",
+        "alt": "G",
+        "significance": "Pathogenic",
+        "review_stars": 3,
+        "accession": "VCV000012345",
+        "conditions": "Breast cancer",
+        "gene_symbol": "BRCA1",
+        "variation_id": 12345,
+    },
+    {
+        "rsid": "rs456",
+        "chrom": "17",
+        "pos": 41245500,
+        "ref": "C",
+        "alt": "T",
+        "significance": "Benign",
+        "review_stars": 2,
+        "accession": "VCV000067890",
+        "conditions": None,
+        "gene_symbol": "BRCA1",
+        "variation_id": 67890,
+    },
+    {
+        "rsid": "rs789",
+        "chrom": "1",
+        "pos": 100000,
+        "ref": "G",
+        "alt": "A",
+        "significance": "Uncertain_significance",
+        "review_stars": 1,
+        "accession": "VCV000011111",
+        "conditions": "Unknown condition",
+        "gene_symbol": "GENE1",
+        "variation_id": 11111,
+    },
+]
+
+
+def _vcf_data_lines(response) -> list[str]:
+    return [
+        line
+        for line in response.body.decode("utf-8").strip().split("\n")
+        if not line.startswith("#")
+    ]
+
+
 @pytest.fixture()
 def _seed_clinvar(test_client: TestClient) -> None:
     """Insert test ClinVar variants into reference.db via the active registry."""
     registry = get_registry()
     with registry.reference_engine.begin() as conn:
-        conn.execute(
-            clinvar_variants.insert(),
-            [
-                {
-                    "rsid": "rs123",
-                    "chrom": "17",
-                    "pos": 41245466,
-                    "ref": "A",
-                    "alt": "G",
-                    "significance": "Pathogenic",
-                    "review_stars": 3,
-                    "accession": "VCV000012345",
-                    "conditions": "Breast cancer",
-                    "gene_symbol": "BRCA1",
-                    "variation_id": 12345,
-                },
-                {
-                    "rsid": "rs456",
-                    "chrom": "17",
-                    "pos": 41245500,
-                    "ref": "C",
-                    "alt": "T",
-                    "significance": "Benign",
-                    "review_stars": 2,
-                    "accession": "VCV000067890",
-                    "conditions": None,
-                    "gene_symbol": "BRCA1",
-                    "variation_id": 67890,
-                },
-                {
-                    "rsid": "rs789",
-                    "chrom": "1",
-                    "pos": 100000,
-                    "ref": "G",
-                    "alt": "A",
-                    "significance": "Uncertain_significance",
-                    "review_stars": 1,
-                    "accession": "VCV000011111",
-                    "conditions": "Unknown condition",
-                    "gene_symbol": "GENE1",
-                    "variation_id": 11111,
-                },
-            ],
-        )
+        conn.execute(clinvar_variants.insert(), IGV_CLINVAR_ROWS)
+
+
+@pytest.fixture()
+def seeded_clinvar_registry(db_registry: DBRegistry) -> DBRegistry:
+    """Insert test ClinVar variants into the supplied registry."""
+    with db_registry.reference_engine.begin() as conn:
+        conn.execute(clinvar_variants.insert(), IGV_CLINVAR_ROWS)
+    return db_registry
 
 
 @pytest.fixture()
@@ -117,8 +133,10 @@ def _seed_gnomad(db_registry: DBRegistry) -> DBRegistry:
 @pytest.fixture()
 def sample_with_variants(test_client: TestClient) -> int:
     """Create a sample with raw variants and return its ID."""
-    registry = get_registry()
+    return _create_sample_with_variants(get_registry())
 
+
+def _create_sample_with_variants(registry: DBRegistry) -> int:
     # Register sample in reference.db
     with registry.reference_engine.begin() as conn:
         result = conn.execute(
@@ -149,6 +167,12 @@ def sample_with_variants(test_client: TestClient) -> int:
         )
 
     return sample_id
+
+
+@pytest.fixture()
+def sample_with_variants_registry(db_registry: DBRegistry) -> tuple[DBRegistry, int]:
+    """Create a sample with raw variants in the supplied registry."""
+    return db_registry, _create_sample_with_variants(db_registry)
 
 
 @pytest.fixture()
@@ -294,12 +318,26 @@ class TestClinVarTrack:
         """IGV.js can emit floating-point bounds; the API floors/ceils them."""
         resp = test_client.get(
             "/api/igv-tracks/clinvar",
-            params={"chr": "chr17", "start": 41245466.35, "end": 41245466.65},
+            params={"chr": "chr17", "start": 41245465.35, "end": 41245465.65},
         )
         assert resp.status_code == 200
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
         assert "rs123" in data_lines[0]
+
+    def test_clinvar_region_excludes_left_boundary_vcf_pos(
+        self, monkeypatch: pytest.MonkeyPatch, seeded_clinvar_registry: DBRegistry
+    ) -> None:
+        monkeypatch.setattr(igv_tracks_route, "get_registry", lambda: seeded_clinvar_registry)
+
+        resp = asyncio.run(
+            igv_tracks_route.clinvar_vcf_region(chr="chr17", start=41245466, end=41245500)
+        )
+
+        data_lines = _vcf_data_lines(resp)
+        assert len(data_lines) == 1
+        assert "rs123" not in data_lines[0]
+        assert "rs456" in data_lines[0]
 
     @pytest.mark.usefixtures("_seed_clinvar")
     def test_clinvar_region_empty_when_no_overlap(self, test_client: TestClient) -> None:
@@ -363,12 +401,31 @@ class TestSampleVariantsTrack:
         """Fractional IGV.js bounds should not 422 the sample VCF track."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41245466.35, "end": 41245466.65},
+            params={"chr": "chr17", "start": 41245465.35, "end": 41245465.65},
         )
         assert resp.status_code == 200
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
         assert "rs100" in data_lines[0]
+
+    def test_sample_region_excludes_left_boundary_vcf_pos(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_with_variants_registry: tuple[DBRegistry, int],
+    ) -> None:
+        registry, sample_id = sample_with_variants_registry
+        monkeypatch.setattr(igv_tracks_route, "get_registry", lambda: registry)
+
+        resp = asyncio.run(
+            igv_tracks_route.sample_vcf_region(
+                sample_id=sample_id, chr="chr17", start=41245466, end=41245500
+            )
+        )
+
+        data_lines = _vcf_data_lines(resp)
+        assert len(data_lines) == 1
+        assert "rs100" not in data_lines[0]
+        assert "rs101" in data_lines[0]
 
     def test_sample_region_het_unannotated_fallback(
         self, test_client: TestClient, sample_with_variants: int
@@ -376,7 +433,7 @@ class TestSampleVariantsTrack:
         """Unannotated AG -> honest fallback REF=N, ALT=A,G, GT=1/2 (no arbitrary REF)."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41245466, "end": 41245467},
+            params={"chr": "chr17", "start": 41245465, "end": 41245466},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -391,7 +448,7 @@ class TestSampleVariantsTrack:
         """Unannotated CC -> REF=N, ALT=C, GT=1/1 (never a false reference-genome 0/0)."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41245500, "end": 41245501},
+            params={"chr": "chr17", "start": 41245499, "end": 41245500},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -406,7 +463,7 @@ class TestSampleVariantsTrack:
         """Unannotated single-char call -> haploid ALT against REF=N."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_variants}/variants",
-            params={"chr": "chr17", "start": 41246000, "end": 41246001},
+            params={"chr": "chr17", "start": 41245999, "end": 41246000},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -421,7 +478,7 @@ class TestSampleVariantsTrack:
         """#471 core fix: annotated hom-ALT (CC vs ref T) -> REF=T, ALT=C, GT=1/1."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
-            params={"chr": "chr17", "start": 41245466, "end": 41245467},
+            params={"chr": "chr17", "start": 41245465, "end": 41245466},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -437,7 +494,7 @@ class TestSampleVariantsTrack:
         """Annotated het -> reference-aligned REF/ALT (biology, not string order)."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
-            params={"chr": "chr17", "start": 41245500, "end": 41245501},
+            params={"chr": "chr17", "start": 41245499, "end": 41245500},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -452,7 +509,7 @@ class TestSampleVariantsTrack:
         """Annotated true hom-ref -> correctly shown as 0/0 (reference match)."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
-            params={"chr": "chr17", "start": 41246000, "end": 41246001},
+            params={"chr": "chr17", "start": 41245999, "end": 41246000},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
@@ -467,7 +524,7 @@ class TestSampleVariantsTrack:
         """Annotated haploid hom-ALT -> single-allele GT=1 against true REF."""
         resp = test_client.get(
             f"/api/igv-tracks/sample/{sample_with_annotations}/variants",
-            params={"chr": "chrX", "start": 2700000, "end": 2700001},
+            params={"chr": "chrX", "start": 2699999, "end": 2700000},
         )
         data_lines = [line for line in resp.text.strip().split("\n") if not line.startswith("#")]
         assert len(data_lines) == 1
