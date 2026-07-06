@@ -503,6 +503,13 @@ def store_rare_variant_findings(
             finding_text = f"{gene_text} {v.rsid} — {cons_text} ({af_text})"
 
         detail = {
+            # Allele-defining locus identity — persisted with the finding so the
+            # VCF export writes each record from its own stored (chrom, pos, ref,
+            # alt) rather than re-resolving via a non-unique rsID join (#1575).
+            "chrom": v.chrom,
+            "pos": v.pos,
+            "ref": v.ref,
+            "alt": v.alt,
             "af_global": v.gnomad_af_global,
             "gnomad_source_status": v.gnomad_source_status,
             "af_populations": {

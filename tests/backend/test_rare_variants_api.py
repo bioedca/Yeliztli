@@ -812,3 +812,83 @@ class TestVCFExport:
         """Missing sample returns 404."""
         resp = empty_client.get("/api/analysis/rare-variants/export/vcf?sample_id=999")
         assert resp.status_code == 404
+
+    def test_vcf_export_uses_finding_locus_not_stale_rsid_row(
+        self, rare_client: TestClient, sample_db_path: Path
+    ) -> None:
+        """The record is written from the finding's OWN stored locus/allele, not
+        from whatever ``annotated_variants`` row its rsID currently resolves to.
+
+        ``annotated_variants.rsid`` is the primary key, so an rsID maps to one row
+        — but that row can represent a different (merged/aliased/re-annotated)
+        variant than the finding's source. The old export re-resolved via
+        ``findings.rsid == av.rsid`` and emitted that row's coordinates; the finding
+        already knew its exact locus (#1575)."""
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        with engine.begin() as conn:
+            # The av row rs_alias currently sits at 2:999 (a different variant than
+            # the finding's own 1:100) — what an rsID join would wrongly emit.
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs_alias", "chrom": "2", "pos": 999, "ref": "C", "alt": "G"}],
+            )
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "rare_variants",
+                        "category": "rare",
+                        "evidence_level": 2,
+                        "gene_symbol": "GENEX",
+                        "rsid": "rs_alias",
+                        "finding_text": "rare finding at chr1:100",
+                        "clinvar_significance": None,
+                        "detail_json": '{"chrom": "1", "pos": 100, "ref": "A", "alt": "T"}',
+                    }
+                ],
+            )
+        engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+        assert resp.status_code == 200
+        data_lines = [ln for ln in resp.text.splitlines() if ln and not ln.startswith("#")]
+        assert len(data_lines) == 1, f"expected exactly one record, got: {data_lines}"
+        cols = data_lines[0].split("\t")
+        assert cols[0] == "1" and cols[1] == "100"
+        assert cols[3] == "A" and cols[4] == "T"
+        # The stale/aliased av row's locus must never be emitted.
+        assert "\t999\t" not in resp.text
+
+    def test_vcf_export_includes_no_rsid_finding_at_its_locus(
+        self, rare_client: TestClient, sample_db_path: Path
+    ) -> None:
+        """A rare variant with no rsID is exported at its own coordinates (ID='.'),
+        not dropped by the inner rsID join (no ``annotated_variants`` row carries
+        an empty rsID to match against) (#1575)."""
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "rare_variants",
+                        "category": "clinvar_pathogenic",
+                        "evidence_level": 3,
+                        "gene_symbol": "GENEY",
+                        "rsid": "",
+                        "finding_text": "novel pathogenic at chr3:300",
+                        "clinvar_significance": "Pathogenic",
+                        "detail_json": '{"chrom": "3", "pos": 300, "ref": "G", "alt": "A"}',
+                    }
+                ],
+            )
+        engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+        assert resp.status_code == 200
+        data_lines = [ln for ln in resp.text.splitlines() if ln and not ln.startswith("#")]
+        assert len(data_lines) == 1, f"expected exactly one record, got: {data_lines}"
+        cols = data_lines[0].split("\t")
+        assert cols[0] == "3" and cols[1] == "300"
+        assert cols[2] == "."  # ID is the VCF missing value when no rsID
+        assert cols[3] == "G" and cols[4] == "A"
