@@ -157,6 +157,15 @@ describe("FHView — with a sample", () => {
     ).toBeInTheDocument()
   })
 
+  it("explains when the LDL-C polygenic score bundle is unavailable", () => {
+    setAssessment(assessment({ ldl_prs: null }))
+    render(<FHView />)
+    const section = screen.getByTestId("fh-ldl-prs")
+    expect(section).toHaveTextContent("LDL-C polygenic score")
+    expect(section).toHaveTextContent("LDL-C polygenic score unavailable.")
+    expect(section).toHaveTextContent("The PGS score bundle may not be installed.")
+  })
+
   it("highlights an APOB familial-defective-apoB pathogenic carrier", () => {
     setAssessment(
       assessment({

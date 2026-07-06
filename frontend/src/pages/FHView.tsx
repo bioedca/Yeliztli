@@ -135,9 +135,9 @@ export default function FHView() {
           )}
 
           {/* LDL-C polygenic score */}
-          {a.ldl_prs && (
-            <section aria-label="LDL-C polygenic score" data-testid="fh-ldl-prs">
-              <h2 className="text-lg font-semibold mb-3">LDL-C polygenic score</h2>
+          <section aria-label="LDL-C polygenic score" data-testid="fh-ldl-prs">
+            <h2 className="text-lg font-semibold mb-3">LDL-C polygenic score</h2>
+            {a.ldl_prs ? (
               <div className="max-w-sm">
                 <PRSGaugeCard
                   prs={toGaugePrs({
@@ -153,8 +153,14 @@ export default function FHView() {
                   })}
                 />
               </div>
-            </section>
-          )}
+            ) : (
+              <PageEmpty
+                icon={HeartPulse}
+                title="LDL-C polygenic score unavailable."
+                description="The PGS score bundle may not be installed."
+              />
+            )}
+          </section>
         </>
       )}
     </div>
