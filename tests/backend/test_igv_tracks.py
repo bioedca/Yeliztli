@@ -142,14 +142,16 @@ def _create_sample_with_variants(registry: DBRegistry) -> int:
         result = conn.execute(
             samples.insert().values(
                 name="Test Sample",
-                db_path="samples/test_igv_sample.db",
+                db_path="samples/test_igv_sample_pending.db",
                 file_format="23andme",
             )
         )
         sample_id = result.lastrowid
+        db_rel_path = f"samples/test_igv_sample_{sample_id}.db"
+        conn.execute(samples.update().where(samples.c.id == sample_id).values(db_path=db_rel_path))
 
     # Create per-sample DB
-    sample_db_path = registry.settings.data_dir / "samples" / "test_igv_sample.db"
+    sample_db_path = registry.settings.data_dir / db_rel_path
     sample_db_path.parent.mkdir(parents=True, exist_ok=True)
     sample_engine = registry.get_sample_engine(sample_db_path)
     create_sample_tables(sample_engine)
