@@ -93,6 +93,10 @@ increased-activity category, not a synonym for **ultrarapid**; for example, Yeli
 Other CPIC pharmacogenes use different status families, such as **Normal function**,
 **Decreased function**, and **Poor function** for *SLCO1B1*, or **Rapid Acetylator**,
 **Intermediate Acetylator**, and **Slow Acetylator** for *NAT2*.
+Some PGx results also include an **activity score**. Treat it as a gene-specific support value
+for the phenotype/status, not as a universal scale: activity-score thresholds are defined per
+gene and diplotype system, and the same number can map to different interpretations in
+different pharmacogenes.[^cpic-cyp2d6-as]
 Drug alerts use **CPIC** levels. Treat *Partial*/*Insufficient* calls with extra caution —
 arrays can miss copy-number and structural variation.
 
@@ -167,3 +171,4 @@ limitations.
 [^4]: [Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort](https://consensus.app/papers/details/41027bd6083a52a7adc632d041a4a299/) (Privé et al., 2022, *Am. J. Hum. Genet.*).
 [^clinvar-conflict]: [ClinVar: improving access to variant interpretations and supporting evidence](https://doi.org/10.1093/nar/gkx1153) (Landrum et al., 2018, *Nucleic Acids Research*) describes ClinVar as a public archive of submitted clinical-significance interpretations for human variants.
 [^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
+[^cpic-cyp2d6-as]: [Standardizing CYP2D6 Genotype to Phenotype Translation: Consensus Recommendations from the Clinical Pharmacogenetics Implementation Consortium and Dutch Pharmacogenetics Working Group](https://doi.org/10.1111/cts.12692) (Caudle et al., 2020, *Clinical and Translational Science*; [PMID 31647186](https://pubmed.ncbi.nlm.nih.gov/31647186/); [PMCID PMC6951851](https://pmc.ncbi.nlm.nih.gov/articles/PMC6951851/)) describes the CYP2D6 activity-score system as summed allele activity values and explains that phenotype translation depends on consensus, gene-specific thresholds.

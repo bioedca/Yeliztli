@@ -22,6 +22,13 @@ surfaces the relevant CPIC prescribing guidance.
   families, including *SLCO1B1* **Normal function**, **Decreased function**, and
   **Poor function**, and *NAT2* **Rapid Acetylator**, **Intermediate Acetylator**, and
   **Slow Acetylator**.
+- Some cards also show an **activity score**. This is a gene-specific numeric summary of
+  allele function that Yeliztli uses only with that gene's diplotype-to-phenotype table. In
+  activity-score systems, allele values are commonly summed from `0` for no-function alleles,
+  fractional values for reduced-function alleles, and `1` for normal-function alleles;
+  copy-number gains can raise the total when known. The thresholds that turn that number into
+  a phenotype are gene-specific, so compare the displayed score only within the same gene and
+  rely on the adjacent CPIC phenotype/status for interpretation.[^cpic-cyp2d6-as]
 - A **three-state call confidence** — *Complete*, *Partial*, or *Insufficient* — so you know
   how much to trust each call.
 - **Per-drug prescribing alerts** based on CPIC guidelines, with the CPIC level mapped to an
@@ -49,3 +56,4 @@ surfaces the relevant CPIC prescribing guidance.
 [^ugt1a1-irinotecan]: [Dutch Pharmacogenetics Working Group guideline for the gene-drug interaction between UGT1A1 and irinotecan](https://doi.org/10.1038/s41431-022-01243-2) (Hulshof et al., 2023, *European Journal of Human Genetics*; [PMID 36443464](https://pubmed.ncbi.nlm.nih.gov/36443464/)) describes UGT1A1 poor metabolizers and genotype-informed irinotecan starting-dose adjustment.
 [^ugt1a1-atazanavir]: [Clinical Pharmacogenetics Implementation Consortium guideline for UGT1A1 and atazanavir prescribing](https://doi.org/10.1002/cpt.269) (Gammal et al., 2016, *Clinical Pharmacology & Therapeutics*; [PMID 26417955](https://pubmed.ncbi.nlm.nih.gov/26417955/)) summarizes atazanavir prescribing recommendations when UGT1A1 genotype is known.
 [^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
+[^cpic-cyp2d6-as]: [Standardizing CYP2D6 Genotype to Phenotype Translation: Consensus Recommendations from the Clinical Pharmacogenetics Implementation Consortium and Dutch Pharmacogenetics Working Group](https://doi.org/10.1111/cts.12692) (Caudle et al., 2020, *Clinical and Translational Science*; [PMID 31647186](https://pubmed.ncbi.nlm.nih.gov/31647186/); [PMCID PMC6951851](https://pmc.ncbi.nlm.nih.gov/articles/PMC6951851/)) describes the CYP2D6 activity-score system as summed allele activity values and explains that phenotype translation depends on consensus, gene-specific thresholds.
