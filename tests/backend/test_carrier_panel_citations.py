@@ -84,8 +84,7 @@ def test_carrier_citations_are_topically_consistent() -> None:
             title = snapshot[pmid]["title"]
             if not (expected & _tokens(title)):
                 failures.append(
-                    f"{gene}: cited PMID {pmid} is off-topic for {sorted(expected)} "
-                    f"— {title!r}"
+                    f"{gene}: cited PMID {pmid} is off-topic for {sorted(expected)} — {title!r}"
                 )
     assert not failures, "carrier citation topic-consistency failures:\n" + "\n".join(failures)
     assert evaluated, "no carrier genes evaluated — registry/snapshot out of sync"
