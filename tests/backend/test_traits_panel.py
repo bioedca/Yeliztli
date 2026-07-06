@@ -330,6 +330,23 @@ class TestPRSWeightSets:
         ws = panel_data["prs_weight_sets"][1]
         assert len(ws["weights"]) >= 10, "Cognitive ability PRS needs ≥10 SNPs"
 
+    def test_cognitive_ability_rs13107325_uses_trait_increasing_allele(
+        self, panel_data: dict
+    ) -> None:
+        cognitive_sets = [
+            ws
+            for ws in panel_data["prs_weight_sets"]
+            if ws["name"] == "Cognitive ability (Savage 2018)"
+        ]
+        assert len(cognitive_sets) == 1
+
+        rs13107325_weights = [
+            weight for weight in cognitive_sets[0]["weights"] if weight["rsid"] == "rs13107325"
+        ]
+        assert rs13107325_weights == [
+            {"rsid": "rs13107325", "effect_allele": "C", "weight": 0.037}
+        ]
+
     def test_weight_sets_research_use_only(self, panel_data: dict) -> None:
         """All PRS weight sets must be flagged as research use only."""
         for ws in panel_data["prs_weight_sets"]:
