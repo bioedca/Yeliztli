@@ -180,6 +180,26 @@ class TestLiftBuild36ToGrch37:
         assert sorted(lift_build36_to_grch37("1", 2480001, "AT")[2]) == ["A", "T"]
         assert sorted(lift_build36_to_grch37("1", 2480001, "CG")[2]) == ["C", "G"]
 
+    def test_minus_strand_complements_single_char_haploid(self) -> None:
+        """A haploid single-char (X/Y) call on a strand-flipped segment is complemented,
+        matching the diploid path. Every other minus-strand test here uses a 2-char
+        genotype; ``translate(_BASE_COMPLEMENT)`` applies per-character, so a haploid
+        call must complement too. Without this the raw minus-strand allele would be
+        stored for exactly the calls (chrX-non-PAR, chrY) where single-char haploid
+        genotypes occur, corrupting the plus-strand GRCh37 base a downstream positional
+        PRS/annotation join reads. (hg18 chr1:2480001 lifts −, as the sibling tests use.)
+        """
+        assert lift_build36_to_grch37("1", 2480001, "A") == ("1", 2494417, "T")
+        assert lift_build36_to_grch37("1", 2480001, "G") == ("1", 2494417, "C")
+
+    def test_minus_strand_single_char_nonbase_pass_through(self) -> None:
+        """The single-char complement is confined to A/C/G/T: a hemizygous indel token
+        (I/D) or a single-char haploid no-call passes through unchanged on a strand flip,
+        mirroring the diploid indel/no-call contract (their set is not ⊆ {A,C,G,T})."""
+        assert lift_build36_to_grch37("1", 2480001, "I")[2] == "I"
+        assert lift_build36_to_grch37("1", 2480001, "D")[2] == "D"
+        assert lift_build36_to_grch37("1", 2480001, "-")[2] == "-"
+
     def test_mt_declined(self) -> None:
         """Mitochondrial inputs return None (hg18 chrM is not rCRS)."""
         assert lift_build36_to_grch37("MT", 100, "A") is None
