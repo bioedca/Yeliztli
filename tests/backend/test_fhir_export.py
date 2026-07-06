@@ -801,6 +801,13 @@ class TestFhirAllelicStatePloidy:
         assert coding["code"] == "LA6705-3"
         assert coding["display"] == "Homozygous"
 
+    def test_male_y_par2_homalt_stays_homozygous(self) -> None:
+        row = self._row(chrom="Y", pos=59_198_808, genotype="TT", zygosity="hom_alt")
+        _u, obs = _variant_to_observation(row, sex="XY")
+        coding = _obs_allelic_coding(obs)
+        assert coding["code"] == "LA6705-3"
+        assert coding["display"] == "Homozygous"
+
     def test_female_nonpar_x_homalt_stays_homozygous(self) -> None:
         # XX is diploid on chrX — a genuine homozygote.
         row = self._row(chrom="X", pos=_NONPAR_X_POS, genotype="TT", zygosity="hom_alt")
