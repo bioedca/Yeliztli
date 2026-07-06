@@ -81,6 +81,21 @@ highest-category contributing variant, subject to the evidence cap above. Sites 
 resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are marked
 **Indeterminate** and withheld from the level rather than guessed.
 
+When your array only partially covers a pathway's tracked SNPs — common across genotyping
+vendors — a **Standard** pathway carries a coverage-qualified badge so the call isn't read as
+fully supported:
+
+- **Tested Standard** — the pathway looks Standard, but only *some* of its tracked SNPs were
+  on-chip or callable from your array; the rest were not assessed. It is a Standard call made
+  on incomplete coverage (the card's coverage note says how many were off-chip vs. no-call).
+- **Not Assessed** — *none* of the pathway's tracked SNPs were callable, so no level could be
+  determined for that pathway.
+
+These differ from a plain **Standard** badge (all tracked SNPs covered) and from
+**Indeterminate** (individual sites that *were* typed but can't be resolved, withheld from an
+otherwise-computed level). *Elevated* and *Moderate* pathways always show their plain level,
+never a coverage-qualified badge.
+
 ### Star-allele diplotypes & CPIC status
 
 [Pharmacogenomics](pharma/pharmacogenomics.md) reports a **diplotype** (e.g. `*1/*4`) and a
