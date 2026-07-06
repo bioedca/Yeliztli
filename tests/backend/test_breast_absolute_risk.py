@@ -10,11 +10,13 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
 import sqlalchemy as sa
 from alembic.config import Config
 
 from alembic import command
 from backend.analysis.breast_absolute_risk import (
+    BREAST_MONOGENIC_GENES,
     FEATURE,
     build_breast_absolute_risk,
     get_consent,
@@ -44,6 +46,19 @@ def _insert_breast_monogenic(engine: sa.Engine, gene: str) -> None:
                 }
             ],
         )
+
+
+EXPECTED_BREAST_MONOGENIC_GENES = (
+    "BRCA1",
+    "BRCA2",
+    "PALB2",
+    "ATM",
+    "CHEK2",
+    "TP53",
+    "PTEN",
+    "CDH1",
+    "STK11",
+)
 
 
 class TestConsent:
@@ -103,6 +118,20 @@ class TestOverlayGating:
         atm = next(m for m in out["monogenic"] if m["gene"] == "ATM")
         assert atm["cumulative_risk_to_80_pct"] is None  # no fabricated figure
         assert "note" in atm
+
+    def test_configured_monogenic_gene_set_matches_expected_breast_panel(self) -> None:
+        assert BREAST_MONOGENIC_GENES == EXPECTED_BREAST_MONOGENIC_GENES
+
+    @pytest.mark.parametrize(
+        "gene", EXPECTED_BREAST_MONOGENIC_GENES, ids=EXPECTED_BREAST_MONOGENIC_GENES
+    )
+    def test_each_configured_monogenic_gene_surfaces_carrier_entry(
+        self, sample_engine: sa.Engine, gene: str
+    ) -> None:
+        _insert_breast_monogenic(sample_engine, gene)
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
+        assert out["has_monogenic"] is True
+        assert [m["gene"] for m in out["monogenic"]] == [gene]
 
 
 class TestSexGating:
