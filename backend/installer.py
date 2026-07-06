@@ -93,7 +93,7 @@ def _find_command(name: str) -> str | None:
 def _find_huey_consumer() -> str:
     """Return an absolute path to the Huey consumer console script."""
     if command := _find_command("huey_consumer"):
-        return command
+        return str(Path(command).expanduser().resolve())
 
     entrypoint_arg = sys.argv[0]
     entrypoint = Path(entrypoint_arg).expanduser()

@@ -77,6 +77,18 @@ class TestEnsureDataDir:
 
 
 class TestFindHueyConsumer:
+    def test_resolves_path_command_to_absolute_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        huey_script = bin_dir / "huey_consumer"
+        huey_script.write_text("#!/bin/sh\n")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(installer, "_find_command", lambda name: "bin/huey_consumer")
+
+        assert installer._find_huey_consumer() == str(huey_script)
+
     def test_prefers_entrypoint_sibling_when_not_on_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
