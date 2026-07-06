@@ -11,9 +11,11 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import tarfile
+import tomllib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -557,6 +559,7 @@ def _create_backup_archive(
     tmp_path: Path,
     *,
     include_config: bool = False,
+    config_content: bytes | None = None,
     include_disclaimer: bool = False,
     num_samples: int = 2,
     extra_entries: list[tuple[str, bytes]] | None = None,
@@ -576,8 +579,8 @@ def _create_backup_archive(
             info.size = len(content)
             tf.addfile(info, io.BytesIO(content))
 
-        if include_config:
-            config_content = b'[yeliztli]\ntheme = "dark"\n'
+        if include_config or config_content is not None:
+            config_content = config_content or b'[yeliztli]\ntheme = "dark"\n'
             info = tarfile.TarInfo(name="config.toml")
             info.size = len(config_content)
             tf.addfile(info, io.BytesIO(config_content))
@@ -595,6 +598,41 @@ def _create_backup_archive(
                 tf.addfile(info, io.BytesIO(content))
 
     return archive_path
+
+
+class _UploadBytes:
+    """Minimal async upload object for direct import_backup route tests."""
+
+    def __init__(self, filename: str, content: bytes) -> None:
+        self.filename = filename
+        self._file = io.BytesIO(content)
+
+    async def read(self, size: int = -1) -> bytes:
+        return self._file.read(size)
+
+
+def _import_backup_direct(tmp_data_dir: Path, archive: Path):
+    """Call the import route with patched settings, without importing the full app."""
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+    ref_path = settings.reference_db_path
+    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    reference_metadata.create_all(engine)
+    engine.dispose()
+
+    with (
+        patch("backend.api.routes.setup.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+        patch("backend.config.DEFAULT_DATA_DIR", tmp_data_dir),
+    ):
+        reset_registry()
+        from backend.api.routes.setup import import_backup
+
+        result = asyncio.run(
+            import_backup(_UploadBytes(filename=archive.name, content=archive.read_bytes()))
+        )
+        reset_registry()
+
+    return result
 
 
 def _relocated_client(home: Path, settings: Settings):
@@ -870,6 +908,81 @@ class TestImportBackup:
         data = resp.json()
         assert data["config_restored"] is True
         assert (tmp_data_dir / "config.toml").exists()
+        restored = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        assert restored["yeliztli"]["theme"] == "dark"
+
+    def test_import_config_preserves_local_auth_and_bind_settings(
+        self, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """Restore config merge must not replace local auth or bind controls."""
+        (tmp_data_dir / "config.toml").write_text(
+            "\n".join(
+                [
+                    "[yeliztli]",
+                    "auth_enabled = true",
+                    'auth_password_hash = "local-hash"',
+                    'host = "0.0.0.0"',
+                    "port = 9443",
+                    'theme = "light"',
+                    'pubmed_email = "local@example.com"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        archive = _create_backup_archive(
+            tmp_path,
+            config_content=b"""
+[yeliztli]
+auth_enabled = false
+auth_password_hash = "backup-hash"
+host = "127.0.0.1"
+port = 8000
+theme = "dark"
+pubmed_email = "backup@example.com"
+            """,
+            num_samples=1,
+        )
+
+        result = _import_backup_direct(tmp_data_dir, archive)
+
+        assert result.config_restored is True
+        restored = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        section = restored["yeliztli"]
+        assert section["auth_enabled"] is True
+        assert section["auth_password_hash"] == "local-hash"
+        assert section["host"] == "0.0.0.0"
+        assert section["port"] == 9443
+        assert section["theme"] == "dark"
+        assert section["pubmed_email"] == "backup@example.com"
+
+    def test_import_config_does_not_introduce_backup_auth_or_bind_settings(
+        self, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """Backup auth/bind keys are local runtime settings, not imported settings."""
+        archive = _create_backup_archive(
+            tmp_path,
+            config_content=b"""
+[yeliztli]
+auth_enabled = true
+auth_password_hash = "backup-hash"
+host = "0.0.0.0"
+port = 9443
+theme = "dark"
+            """,
+            num_samples=1,
+        )
+
+        result = _import_backup_direct(tmp_data_dir, archive)
+
+        assert result.config_restored is True
+        restored = tomllib.loads((tmp_data_dir / "config.toml").read_text(encoding="utf-8"))
+        section = restored["yeliztli"]
+        assert section["theme"] == "dark"
+        assert "auth_enabled" not in section
+        assert "auth_password_hash" not in section
+        assert "host" not in section
+        assert "port" not in section
 
     def test_import_with_disclaimer(
         self, setup_client: TestClient, tmp_data_dir: Path, tmp_path: Path

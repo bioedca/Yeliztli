@@ -30,9 +30,18 @@ extracts `config.toml`, your `samples/`, the disclaimer flag, the backed-up samp
 registry rows, and any optional standalone reference files included in the archive.
 It does not replace the whole registry database, so existing installations keep
 unrelated runtime/reference data. Reference-resident datasets can be downloaded
-again after restore. When an existing installation is detected, the wizard offers
-*Import Backup* (restore/merge) or *Skip — Start Fresh* (continue without
-restoring); skip simply advances the wizard and leaves your data untouched.
+again after restore.
+
+The archived `config.toml` is also merged by key instead of replacing the live
+file. Restored configuration values such as theme and external-service credentials
+can replace the target install's values, but local runtime controls are kept from
+the target install: `auth_enabled`, `auth_password_hash`, `host`, and `port` are
+not imported from the backup. After moving a backup to another machine, review
+authentication and bind settings on that target machine explicitly.
+
+When an existing installation is detected, the wizard offers *Import Backup*
+(restore/merge) or *Skip — Start Fresh* (continue without restoring); skip simply
+advances the wizard and leaves your data untouched.
 
 ### Version compatibility
 

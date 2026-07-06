@@ -236,6 +236,14 @@ def _has_any_samples() -> bool:
 # bundled DBs without a committed fixture still gate setup: the wizard must fetch
 # them before the dashboard can rely on their data.
 _GATE_BUILD_MODES = frozenset({"download", "pipeline"})
+_RESTORE_LOCAL_CONFIG_KEYS = frozenset(
+    {
+        "auth_enabled",
+        "auth_password_hash",
+        "host",
+        "port",
+    }
+)
 
 
 def _db_gates_setup_readiness(db_info: DatabaseInfo) -> bool:
@@ -247,6 +255,38 @@ def _db_gates_setup_readiness(db_info: DatabaseInfo) -> bool:
     if db_info.build_mode == "bundled":
         return not db_info.filename or not (BUNDLED_DIR / db_info.filename).exists()
     return False
+
+
+def _merge_restored_config_toml(staged_config: Path, config_dest: Path) -> bool:
+    """Merge an archived config.toml without replacing local auth/bind settings."""
+    restored_content = _read_config_toml(staged_config)
+    if not restored_content and staged_config.read_text(encoding="utf-8").strip():
+        logger.warning(
+            "backup_config_restore_skipped",
+            path=str(staged_config),
+            reason="invalid_or_unreadable",
+        )
+        return False
+
+    with config_write_lock:
+        existing_content = _read_config_toml(config_dest)
+        restored_section = read_config_section(restored_content)
+        existing_section = read_config_section(existing_content)
+
+        # Auth and bind controls are machine-local runtime settings. Importing a
+        # backup must not silently disable auth, install an unknown password, or
+        # move the service to a different host/port.
+        for key in _RESTORE_LOCAL_CONFIG_KEYS:
+            if key in existing_section:
+                restored_section[key] = existing_section[key]
+            else:
+                restored_section.pop(key, None)
+
+        write_config_section(restored_content, restored_section)
+        write_config_toml(config_dest, restored_content)
+
+    get_settings.cache_clear()
+    return True
 
 
 def _required_dbs_ready() -> tuple[bool, list[DbReadiness]]:
@@ -1091,9 +1131,10 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     # that single small file.
                     if staged_config is not None:
                         config_dest = config_toml_path()
-                        config_dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copyfile(staged_config, config_dest)
-                        config_restored = True
+                        config_restored = _merge_restored_config_toml(
+                            staged_config,
+                            config_dest,
+                        )
                     if staged_disclaimer is not None:
                         os.replace(staged_disclaimer, data_dir / ".disclaimer_accepted")
 
