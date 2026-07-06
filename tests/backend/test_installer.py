@@ -90,6 +90,20 @@ class TestFindHueyConsumer:
 
         assert installer._find_huey_consumer() == str(huey_script)
 
+    def test_prefers_explicit_relative_entrypoint_sibling_when_not_on_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        setup_script = tmp_path / "yeliztli-setup"
+        huey_script = tmp_path / "huey_consumer"
+        setup_script.write_text("#!/bin/sh\n")
+        huey_script.write_text("#!/bin/sh\n")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(sys, "argv", ["./yeliztli-setup"])
+        monkeypatch.setattr(installer, "_find_command", lambda name: None)
+        monkeypatch.setattr(installer, "_find_python", lambda: "/opt/python/bin/python")
+
+        assert installer._find_huey_consumer() == str(huey_script)
+
 
 class TestRenderPlist:
     def test_replaces_install_dir(self, tmp_path: Path):
@@ -144,6 +158,7 @@ class TestRenderPlist:
         self, monkeypatch: pytest.MonkeyPatch
     ):
         template = installer._repo_root() / "launchd" / "com.yeliztli.huey.plist"
+        monkeypatch.setattr(sys, "argv", ["yeliztli-setup"])
         monkeypatch.setattr(installer, "_find_python", lambda: "/opt/python/bin/python")
         monkeypatch.setattr(installer, "_find_command", lambda name: None)
 

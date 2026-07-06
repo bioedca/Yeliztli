@@ -13,6 +13,7 @@ Entry point: `yeliztli-setup` console script.
 from __future__ import annotations
 
 import argparse
+import os
 import platform
 import shlex
 import shutil
@@ -94,8 +95,12 @@ def _find_huey_consumer() -> str:
     if command := _find_command("huey_consumer"):
         return command
 
-    entrypoint = Path(sys.argv[0]).expanduser()
-    if entrypoint.parent != Path("."):
+    entrypoint_arg = sys.argv[0]
+    entrypoint = Path(entrypoint_arg).expanduser()
+    entrypoint_has_dir = any(
+        separator and separator in entrypoint_arg for separator in (os.sep, os.altsep)
+    )
+    if entrypoint.is_absolute() or entrypoint_has_dir:
         sibling = entrypoint.resolve().with_name("huey_consumer")
         if sibling.exists():
             return str(sibling)
