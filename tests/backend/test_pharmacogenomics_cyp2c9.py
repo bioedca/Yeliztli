@@ -100,6 +100,7 @@ _STAR3_DIPLOTYPES = {
     "*2/*3": ("Poor Metabolizer", 0.5),
     "*3/*3": ("Poor Metabolizer", 0.0),
 }
+_STALE_WARFARIN_FIXED_DOSE_FRAGMENTS = ("25-50%", "50-75%")
 
 
 def _cyp2c9_genotypes(**overrides: str) -> dict[str, str]:
@@ -144,6 +145,15 @@ def _make_sample(genotypes: dict[str, str]) -> sa.Engine:
     with engine.begin() as conn:
         conn.execute(raw_variants.insert(), rows)
     return engine
+
+
+def _assert_cyp2c9_warfarin_algorithm_recommendation(recommendation: str | None) -> None:
+    assert recommendation is not None
+    assert "validated warfarin pharmacogenetic dosing algorithm" in recommendation
+    assert "VKORC1 and clinical factors" in recommendation
+    assert "standalone percent dose rule" in recommendation
+    for fragment in _STALE_WARFARIN_FIXED_DOSE_FRAGMENTS:
+        assert fragment not in recommendation
 
 
 @pytest.mark.parametrize(("diplotype", "expected"), sorted(_NEW_DIPLOTYPES.items()))
@@ -347,7 +357,7 @@ def test_untyped_star2_with_typed_star3_uses_conservative_poor_alert(
     assert all(a.conservative_alert for a in cyp2c9_alerts)
     warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
     phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
-    assert "50-75%" in warfarin.recommendation
+    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation)
     assert "50%" in phenytoin.recommendation
 
 
@@ -403,6 +413,8 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     assert cyp2c9_alerts, f"expected CYP2C9 alerts for {diplotype} {phenotype}"
     drugs = {a.drug for a in cyp2c9_alerts}
     assert {"warfarin", "phenytoin"} <= drugs
+    warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
+    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation)
     expected_confidence = (
         CallConfidence.PARTIAL if diplotype == "*2/*5" else CallConfidence.COMPLETE
     )

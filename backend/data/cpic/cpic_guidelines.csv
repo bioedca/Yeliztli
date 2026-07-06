@@ -25,8 +25,8 @@ CYP2C19,voriconazole,Poor Metabolizer,Use alternative antifungal agent.,A,https:
 CYP2C19,voriconazole,Rapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C19,voriconazole,Ultrarapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
 CYP2C9,warfarin,Normal Metabolizer,Use label-recommended dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
-CYP2C9,warfarin,Intermediate Metabolizer,Reduce initial dose by 25-50%. Use pharmacogenetic dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
-CYP2C9,warfarin,Poor Metabolizer,Reduce initial dose by 50-75%. Use pharmacogenetic dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
+CYP2C9,warfarin,Intermediate Metabolizer,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 status is one input and not a standalone percent dose rule.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
+CYP2C9,warfarin,Poor Metabolizer,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 poor-metabolizer status is not a standalone percent dose rule and may support alternative anticoagulant review.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
 CYP2C9,phenytoin,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
 CYP2C9,phenytoin,Intermediate Metabolizer,Reduce dose by 25%. Increase monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
 CYP2C9,phenytoin,Poor Metabolizer,Reduce dose by 50%. Consider alternative anticonvulsant.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
