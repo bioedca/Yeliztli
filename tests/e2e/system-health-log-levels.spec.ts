@@ -30,13 +30,23 @@ const DISK_RESPONSE = {
   other_bytes: 500_000,
 }
 
+const EXCEPTION_TRACEBACK = [
+  'Traceback (most recent call last):',
+  '  File "/home/app/backend/api/routes/genes.py", line 264, in _fetch_uniprot_from_api',
+  '    resp.raise_for_status()',
+  "httpx.HTTPStatusError: Client error '400 Bad Request'",
+].join('\n')
+
 const EXCEPTION_LOG = {
   id: 6,
   timestamp: '2026-03-26T12:05:00',
   level: 'EXCEPTION',
   logger: 'backend.api.routes.genes',
   message: 'uniprot_fetch_failed',
-  event_data: '{"exception":"Traceback (most recent call last)"}',
+  event_data: JSON.stringify({
+    gene: 'CFTR',
+    exception: EXCEPTION_TRACEBACK,
+  }),
 }
 
 const ERROR_LOG = {
@@ -129,5 +139,33 @@ test.describe('System Health log level filtering', () => {
     const levelCell = exceptionRow.locator('td').nth(1)
     await expect(levelCell).toHaveText('EXCEPTION')
     await expect(levelCell).toHaveClass(/text-red-700/)
+  })
+
+  test('renders expanded EXCEPTION tracebacks as multiline text', async ({ page }) => {
+    await page.route('**/api/admin/logs**', (route) =>
+      route.fulfill(
+        jsonRoute({
+          entries: [EXCEPTION_LOG],
+          total: 1,
+          page: 1,
+          page_size: 50,
+          has_more: false,
+        }),
+      ),
+    )
+
+    await page.goto('/settings/health')
+    await waitForReactHydration(page)
+
+    await page.getByText('uniprot_fetch_failed').click()
+
+    const details = page.getByTestId('log-entry-details-6')
+    await expect(details).toContainText('CFTR')
+    await expect(details).toContainText('exception')
+    const detailText = await details.textContent()
+    expect(detailText).toContain(
+      'Traceback (most recent call last):\n  File "/home/app/backend/api/routes/genes.py"',
+    )
+    expect(detailText).not.toContain('\\n  File "/home/app/backend/api/routes/genes.py"')
   })
 })

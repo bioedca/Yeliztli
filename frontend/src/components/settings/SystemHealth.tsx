@@ -75,6 +75,15 @@ function diskSegmentWidth(bytes: number, totalBytes: number): string {
 }
 
 const LOG_LEVELS = ['', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'EXCEPTION', 'CRITICAL'] as const
+type LogEventObject = Record<string, unknown>
+type ParsedLogEventDetails =
+  | { kind: 'text'; text: string }
+  | { kind: 'json'; text: string }
+  | {
+      kind: 'object-with-multiline'
+      jsonText: string | null
+      multilineFields: Array<[string, string]>
+    }
 
 function levelColor(level: string): string {
   switch (level.toUpperCase()) {
@@ -90,6 +99,47 @@ function levelColor(level: string): string {
       return 'text-gray-500 dark:text-gray-400'
     default:
       return 'text-foreground'
+  }
+}
+
+function isLogEventObject(value: unknown): value is LogEventObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function objectHasFields(value: LogEventObject): boolean {
+  return Object.keys(value).length > 0
+}
+
+function parseLogEventDetails(eventData: string): ParsedLogEventDetails {
+  try {
+    const parsed = JSON.parse(eventData) as unknown
+
+    if (!isLogEventObject(parsed)) {
+      return { kind: 'json', text: JSON.stringify(parsed, null, 2) }
+    }
+
+    const multilineFields: Array<[string, string]> = []
+    const remainingFields: LogEventObject = {}
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === 'string' && value.includes('\n')) {
+        multilineFields.push([key, value])
+      } else {
+        remainingFields[key] = value
+      }
+    }
+
+    if (multilineFields.length === 0) {
+      return { kind: 'json', text: JSON.stringify(parsed, null, 2) }
+    }
+
+    return {
+      kind: 'object-with-multiline',
+      jsonText: objectHasFields(remainingFields) ? JSON.stringify(remainingFields, null, 2) : null,
+      multilineFields,
+    }
+  } catch {
+    return { kind: 'text', text: eventData }
   }
 }
 
@@ -471,20 +521,40 @@ function LogRow({ entry }: { entry: LogEntry }) {
       </tr>
       {expanded && hasExtra && (
         <tr>
-          <td colSpan={4} className="bg-muted/20 px-3 py-2">
-            <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-all">
-              {(() => {
-                try {
-                  return JSON.stringify(JSON.parse(entry.event_data!), null, 2)
-                } catch {
-                  return entry.event_data
-                }
-              })()}
-            </pre>
+          <td
+            colSpan={4}
+            className="bg-muted/20 px-3 py-2"
+            data-testid={`log-entry-details-${entry.id}`}
+          >
+            <LogEventDetails eventData={entry.event_data!} />
           </td>
         </tr>
       )}
     </>
+  )
+}
+
+function LogEventDetails({ eventData }: { eventData: string }) {
+  const parsed = parseLogEventDetails(eventData)
+
+  if (parsed.kind === 'object-with-multiline') {
+    return (
+      <div className="space-y-3 text-xs text-muted-foreground">
+        {parsed.jsonText && <pre className="whitespace-pre-wrap break-all">{parsed.jsonText}</pre>}
+        {parsed.multilineFields.map(([key, value]) => (
+          <div key={key}>
+            <p className="mb-1 font-medium text-foreground">{key}</p>
+            <pre className="whitespace-pre-wrap break-words">{value}</pre>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-all">
+      {parsed.text}
+    </pre>
   )
 }
 

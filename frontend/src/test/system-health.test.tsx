@@ -85,6 +85,22 @@ const LOGS_RESPONSE = {
       event_data: '{"batch_size": 1000}',
     },
     {
+      id: 6,
+      timestamp: "2026-03-26T12:05:00",
+      level: "EXCEPTION",
+      logger: "backend.api.routes.genes",
+      message: "uniprot_fetch_failed",
+      event_data: JSON.stringify({
+        gene: "CFTR",
+        exception: [
+          "Traceback (most recent call last):",
+          '  File "/home/app/backend/api/routes/genes.py", line 264, in _fetch_uniprot_from_api',
+          "    resp.raise_for_status()",
+          "httpx.HTTPStatusError: Client error '400 Bad Request'",
+        ].join("\n"),
+      }),
+    },
+    {
       id: 4,
       timestamp: "2026-03-26T11:55:00",
       level: "INFO",
@@ -93,7 +109,7 @@ const LOGS_RESPONSE = {
       event_data: null,
     },
   ],
-  total: 2,
+  total: 3,
   page: 1,
   page_size: 50,
   has_more: false,
@@ -242,6 +258,21 @@ describe("SystemHealth", () => {
       expect(screen.getByText("Annotation batch failed")).toBeInTheDocument()
     })
     expect(screen.getByText("Application started")).toBeInTheDocument()
+  })
+
+  it("renders exception tracebacks with real line breaks in expanded log details", async () => {
+    mockAllEndpoints()
+    render(<SystemHealth />)
+
+    fireEvent.click(await screen.findByText("uniprot_fetch_failed"))
+
+    const details = screen.getByTestId("log-entry-details-6")
+    expect(details).toHaveTextContent("CFTR")
+    expect(details).toHaveTextContent("exception")
+    expect(details.textContent).toContain(
+      'Traceback (most recent call last):\n  File "/home/app/backend/api/routes/genes.py"',
+    )
+    expect(details.textContent).not.toContain('\\n  File "/home/app/backend/api/routes/genes.py"')
   })
 
   it("shows active jobs in status section", async () => {
