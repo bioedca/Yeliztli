@@ -100,6 +100,18 @@ _STAR3_DIPLOTYPES = {
     "*2/*3": ("Poor Metabolizer", 0.5),
     "*3/*3": ("Poor Metabolizer", 0.0),
 }
+_CYP2C9_WARFARIN_RECOMMENDATIONS = {
+    "Intermediate Metabolizer": (
+        "Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and "
+        "clinical factors; CYP2C9 status is one input and not a standalone percent "
+        "dose rule."
+    ),
+    "Poor Metabolizer": (
+        "Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and "
+        "clinical factors; CYP2C9 poor-metabolizer status is not a standalone "
+        "percent dose rule and may support alternative anticoagulant review."
+    ),
+}
 _STALE_WARFARIN_FIXED_DOSE_FRAGMENTS = ("25-50%", "50-75%")
 
 
@@ -147,11 +159,10 @@ def _make_sample(genotypes: dict[str, str]) -> sa.Engine:
     return engine
 
 
-def _assert_cyp2c9_warfarin_algorithm_recommendation(recommendation: str | None) -> None:
-    assert recommendation is not None
-    assert "validated warfarin pharmacogenetic dosing algorithm" in recommendation
-    assert "VKORC1 and clinical factors" in recommendation
-    assert "standalone percent dose rule" in recommendation
+def _assert_cyp2c9_warfarin_algorithm_recommendation(
+    recommendation: str | None, phenotype: str
+) -> None:
+    assert recommendation == _CYP2C9_WARFARIN_RECOMMENDATIONS[phenotype]
     for fragment in _STALE_WARFARIN_FIXED_DOSE_FRAGMENTS:
         assert fragment not in recommendation
 
@@ -357,7 +368,9 @@ def test_untyped_star2_with_typed_star3_uses_conservative_poor_alert(
     assert all(a.conservative_alert for a in cyp2c9_alerts)
     warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
     phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
-    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation)
+    _assert_cyp2c9_warfarin_algorithm_recommendation(
+        warfarin.recommendation, "Poor Metabolizer"
+    )
     assert "50%" in phenytoin.recommendation
 
 
@@ -414,7 +427,7 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     drugs = {a.drug for a in cyp2c9_alerts}
     assert {"warfarin", "phenytoin"} <= drugs
     warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
-    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation)
+    _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation, phenotype)
     expected_confidence = (
         CallConfidence.PARTIAL if diplotype == "*2/*5" else CallConfidence.COMPLETE
     )

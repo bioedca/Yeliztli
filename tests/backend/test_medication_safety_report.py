@@ -30,6 +30,15 @@ from backend.analysis.pharmacogenomics import (
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import findings
 
+_CYP2C9_WARFARIN_ALGORITHM_RECOMMENDATIONS = (
+    "Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and "
+    "clinical factors; CYP2C9 status is one input and not a standalone percent "
+    "dose rule.",
+    "Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and "
+    "clinical factors; CYP2C9 poor-metabolizer status is not a standalone "
+    "percent dose rule and may support alternative anticoagulant review.",
+)
+
 # ═══════════════════════════════════════════════════════════════════════
 # classify_actionability
 # ═══════════════════════════════════════════════════════════════════════
@@ -95,6 +104,12 @@ class TestClassifyActionability:
             classify_actionability("Genotype-guided therapy per institutional protocol.")
             == ACTIONABILITY_ACTIONABLE
         )
+
+    def test_cyp2c9_warfarin_algorithm_texts_are_actionable(self):
+        for recommendation in _CYP2C9_WARFARIN_ALGORITHM_RECOMMENDATIONS:
+            assert classify_actionability(recommendation) == ACTIONABILITY_ACTIONABLE
+            assert "25-50%" not in recommendation
+            assert "50-75%" not in recommendation
 
     def test_none_is_indeterminate(self):
         assert classify_actionability(None) == ACTIONABILITY_INDETERMINATE
