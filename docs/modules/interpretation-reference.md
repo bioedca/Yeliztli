@@ -74,7 +74,8 @@ for `conflicting`.
 
 The wellness modules ([nutrigenomics](wellness/nutrigenomics.md),
 [methylation](wellness/methylation.md), [fitness](wellness/fitness.md),
-[sleep](wellness/sleep.md), [skin](wellness/skin.md), [allergy](wellness/allergy.md)) and
+[sleep](wellness/sleep.md), [skin](wellness/skin.md), [allergy](wellness/allergy.md),
+[traits](wellness/traits-personality.md)) and
 [gene health](health-risk/gene-health.md) report a **level** per pathway — *Elevated*,
 *Moderate*, or *Standard* — rather than a number. A pathway's level reflects its
 highest-category contributing variant, subject to the evidence cap above. Sites that can't be
