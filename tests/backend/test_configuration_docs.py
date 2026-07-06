@@ -19,7 +19,6 @@ from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
 _DOC = _REPO / "docs" / "install" / "configuration.md"
-_CONFIG_PY = _REPO / "backend" / "config.py"
 
 # External-service credential Settings (backend/config.py "External services")
 # that a config.toml/env operator sets by hand. Each must appear in the doc with
@@ -48,24 +47,26 @@ def test_external_service_settings_are_documented() -> None:
 
 
 def test_ncbi_api_key_naming_trap_is_noted() -> None:
-    """The wizard's "NCBI API Key" field is stored as config key ``pubmed_api_key``;
-    the doc must mention ``ncbi_api_key`` so config/env users are warned off the
-    inferred-but-ignored name (#1560)."""
+    """The doc must connect the wizard's "NCBI API Key" field to the real config key
+    ``pubmed_api_key`` and name ``ncbi_api_key`` as the inferred-but-ignored key, so a
+    config/env user is warned off it (#1560). Pins the mapping, not just a bare token."""
     text = _DOC.read_text(encoding="utf-8")
-    assert "ncbi_api_key" in text, (
-        "configuration.md should note the setup wizard's 'NCBI API Key' field is stored "
-        "as pubmed_api_key, so a config/env user does not set the silently-ignored "
-        "ncbi_api_key (#1560)."
-    )
+    for token in ("NCBI API Key", "pubmed_api_key", "ncbi_api_key"):
+        assert token in text, (
+            f"configuration.md should tie the wizard's 'NCBI API Key' field to config key "
+            f"pubmed_api_key and warn off ncbi_api_key (#1560); missing {token!r}."
+        )
 
 
 def test_documented_settings_are_real_config_fields() -> None:
     """Premise guard: the locked settings are still real ``Settings`` fields, so a
     rename in config.py trips this (revisit the doc + the lists above) rather than
-    leaving the doc quietly asserting a field that no longer exists."""
-    text = _CONFIG_PY.read_text(encoding="utf-8")
-    missing = [s for s in _EXTERNAL_SERVICE_SETTINGS if f"{s}:" not in text]
+    leaving the doc quietly asserting a field that no longer exists. Couples to the
+    runtime model (like ``test_reference_data_docs.py``), not the source text."""
+    from backend.config import Settings
+
+    missing = [s for s in _EXTERNAL_SERVICE_SETTINGS if s not in Settings.model_fields]
     assert not missing, (
-        f"backend/config.py no longer declares external-service field(s): {missing}. "
-        f"Revisit docs/install/configuration.md and _EXTERNAL_SERVICE_SETTINGS."
+        f"backend/config.py Settings no longer declares external-service field(s): "
+        f"{missing}. Revisit docs/install/configuration.md and _EXTERNAL_SERVICE_SETTINGS."
     )
