@@ -306,6 +306,9 @@ def install_launchd() -> None:
             print(f"  [warn] Template not found: {src}")
             continue
 
+        if dst.exists():
+            _run(["launchctl", "unload", str(dst)], check=False)
+
         rendered = _render_plist(src, install_dir)
         dst.write_text(rendered)
         print(f"  Installed: {dst}")

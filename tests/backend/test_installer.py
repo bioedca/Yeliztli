@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -395,6 +395,29 @@ class TestInstallFlow:
             assert plist.exists()
             content = plist.read_text()
             assert "__INSTALL_DIR__" not in content
+
+    def test_install_launchd_unloads_existing_plists_before_loading(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        launchd_dir = tmp_path / "LaunchAgents"
+        launchd_dir.mkdir()
+        monkeypatch.setattr(installer, "LAUNCHD_DIR", launchd_dir)
+        monkeypatch.setattr(installer, "LOG_DIR_MACOS", tmp_path / "Logs")
+
+        for label in installer.LAUNCHD_LABELS:
+            (launchd_dir / f"{label}.plist").write_text("stale plist")
+
+        with patch.object(installer, "_run") as mock_run:
+            installer.install_launchd()
+
+        calls = mock_run.call_args_list
+        for label in installer.LAUNCHD_LABELS:
+            plist = launchd_dir / f"{label}.plist"
+            unload = call(["launchctl", "unload", str(plist)], check=False)
+            load = call(["launchctl", "load", str(plist)], check=False)
+            assert unload in calls
+            assert load in calls
+            assert calls.index(unload) < calls.index(load)
 
     @patch("backend.installer._detect_platform", return_value="linux")
     @patch("backend.installer._has_systemd", return_value=False)
