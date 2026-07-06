@@ -269,6 +269,11 @@ class TestRenderFindingSvg:
         ("category", "detail_extra", "expected_label"),
         [
             (
+                "alzheimers_risk",
+                {"relative_risk": "substantially_reduced"},
+                "Substantially Reduced Risk",
+            ),
+            (
                 "cardiovascular_risk",
                 {"risk_level": "elevated"},
                 "Elevated Risk",
