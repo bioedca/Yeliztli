@@ -25,19 +25,21 @@ You can restore either:
 - during the [setup wizard](setup-wizard.md) (Step 2 — *Import from backup*), or
 - from **Settings → Backup → Import** on an existing install.
 
-A restore **merges** the archive into your current data directory — it selectively
-extracts `config.toml`, your `samples/`, the disclaimer flag, the backed-up sample
-registry rows, and any optional standalone reference files included in the archive.
-It does not replace the whole registry database, so existing installations keep
+A restore **merges** the archive into your current installation — it selectively
+extracts your `samples/`, the disclaimer flag, the backed-up sample registry
+rows, and any optional standalone reference files included in the archive. It
+does not replace the whole registry database, so existing installations keep
 unrelated runtime/reference data. Reference-resident datasets can be downloaded
 again after restore.
 
-The archived `config.toml` is also merged by key instead of replacing the live
-file. Restored configuration values such as theme and external-service credentials
-can replace the target install's values, but local runtime controls are kept from
-the target install: `auth_enabled`, `auth_password_hash`, `host`, and `port` are
-not imported from the backup. After moving a backup to another machine, review
-authentication and bind settings on that target machine explicitly.
+The archived `config.toml` is merged into this installation's live `config.toml`
+by key. On a relocated install, that live config file is the home config path,
+not the relocated data directory. Backup values such as theme and
+external-service credentials replace matching target values, while target-only
+keys stay in place. Local runtime controls are kept from the target install:
+`auth_enabled`, `auth_password_hash`, `host`, and `port` are not imported from
+the backup. After moving a backup to another machine, review authentication and
+bind settings on that target machine explicitly.
 
 When an existing installation is detected, the wizard offers *Import Backup*
 (restore/merge) or *Skip — Start Fresh* (continue without restoring); skip simply

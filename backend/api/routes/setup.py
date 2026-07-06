@@ -35,6 +35,7 @@ from backend.api.routes.backup import (
     RESTORABLE_REFERENCE_DB_FILES,
 )
 from backend.config import (
+    CONFIG_SECTION,
     config_toml_path,
     config_write_lock,
     get_settings,
@@ -260,7 +261,11 @@ def _db_gates_setup_readiness(db_info: DatabaseInfo) -> bool:
 def _merge_restored_config_toml(staged_config: Path, config_dest: Path) -> bool:
     """Merge an archived config.toml without replacing local auth/bind settings."""
     restored_content = _read_config_toml(staged_config)
-    if not restored_content and staged_config.read_text(encoding="utf-8").strip():
+    try:
+        staged_config_has_content = staged_config.stat().st_size > 0
+    except OSError:
+        staged_config_has_content = False
+    if not restored_content and staged_config_has_content:
         logger.warning(
             "backup_config_restore_skipped",
             path=str(staged_config),
@@ -272,18 +277,23 @@ def _merge_restored_config_toml(staged_config: Path, config_dest: Path) -> bool:
         existing_content = _read_config_toml(config_dest)
         restored_section = read_config_section(restored_content)
         existing_section = read_config_section(existing_content)
+        merged_content = dict(existing_content)
+        for table_name, table_content in restored_content.items():
+            if table_name != CONFIG_SECTION:
+                merged_content[table_name] = table_content
+        merged_section = {**existing_section, **restored_section}
 
         # Auth and bind controls are machine-local runtime settings. Importing a
         # backup must not silently disable auth, install an unknown password, or
         # move the service to a different host/port.
         for key in _RESTORE_LOCAL_CONFIG_KEYS:
             if key in existing_section:
-                restored_section[key] = existing_section[key]
+                merged_section[key] = existing_section[key]
             else:
-                restored_section.pop(key, None)
+                merged_section.pop(key, None)
 
-        write_config_section(restored_content, restored_section)
-        write_config_toml(config_dest, restored_content)
+        write_config_section(merged_content, merged_section)
+        write_config_toml(config_dest, merged_content)
 
     get_settings.cache_clear()
     return True
@@ -1487,7 +1497,7 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
         import tomllib
 
         return tomllib.loads(config_path.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, OSError) as exc:
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
         logger.warning(
             "config_toml_parse_failed",
             path=str(config_path),

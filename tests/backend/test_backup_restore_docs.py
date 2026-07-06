@@ -25,7 +25,9 @@ def test_backup_restore_docs_disclose_config_merge_auth_bind_policy() -> None:
     doc = BACKUP_RESTORE_DOC.read_text(encoding="utf-8")
     normalized = " ".join(doc.split())
 
-    assert "merged by key instead of replacing the live file" in normalized
+    assert "merged into this installation's live `config.toml` by key" in normalized
+    assert "not the relocated data directory" in normalized
+    assert "target-only keys stay in place" in normalized
     assert "auth_enabled" in doc
     assert "auth_password_hash" in doc
     assert "host" in doc

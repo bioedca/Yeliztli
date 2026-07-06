@@ -925,6 +925,7 @@ class TestImportBackup:
                     "port = 9443",
                     'theme = "light"',
                     'pubmed_email = "local@example.com"',
+                    'update_check_interval = "weekly"',
                     "",
                 ]
             ),
@@ -955,6 +956,7 @@ pubmed_email = "backup@example.com"
         assert section["port"] == 9443
         assert section["theme"] == "dark"
         assert section["pubmed_email"] == "backup@example.com"
+        assert section["update_check_interval"] == "weekly"
 
     def test_import_config_does_not_introduce_backup_auth_or_bind_settings(
         self, tmp_data_dir: Path, tmp_path: Path
@@ -983,6 +985,24 @@ theme = "dark"
         assert "auth_password_hash" not in section
         assert "host" not in section
         assert "port" not in section
+
+    def test_import_config_skips_non_utf8_config_without_partial_failure(
+        self, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """A malformed archived config should not fail after samples commit."""
+        archive = _create_backup_archive(
+            tmp_path,
+            config_content=b"\xff\xfe\x00not-utf8",
+            num_samples=1,
+        )
+
+        result = _import_backup_direct(tmp_data_dir, archive)
+
+        assert result.success is True
+        assert result.samples_restored == 1
+        assert result.config_restored is False
+        assert (tmp_data_dir / "samples" / "sample_000.db").exists()
+        assert not (tmp_data_dir / "config.toml").exists()
 
     def test_import_with_disclaimer(
         self, setup_client: TestClient, tmp_data_dir: Path, tmp_path: Path
