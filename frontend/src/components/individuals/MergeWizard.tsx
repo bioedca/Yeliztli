@@ -45,30 +45,63 @@ interface MergeWizardProps {
   onClose: () => void
 }
 
-const STRATEGY_OPTIONS: ReadonlyArray<{
+interface StrategyOption {
   value: MergeStrategy
   label: string
   description: string
+}
+
+const FLAG_ONLY_OPTION: StrategyOption = {
+  value: "flag_only",
+  label: "Flag discordant calls (recommended)",
+  description:
+    "Discordant loci are written as `??` and skipped by analysis modules until you resolve them manually. Clinically safest — withholds a call rather than picking one.",
+}
+
+/** The two vendor-preference strategies the backend `MergeStrategy` supports,
+ * with the `LinkedSample.vendor` token they key on and a display name. */
+const VENDOR_STRATEGIES: ReadonlyArray<{
+  value: MergeStrategy
+  token: string
+  display: string
 }> = [
-  {
-    value: "flag_only",
-    label: "Flag discordant calls (recommended)",
-    description:
-      "Discordant loci are written as `??` and skipped by analysis modules until you resolve them manually. Clinically safest — withholds a call rather than picking one.",
-  },
-  {
-    value: "prefer_23andme",
-    label: "Prefer 23andMe call",
-    description:
-      "At a discordant locus, keep the 23andMe genotype and record the AncestryDNA call in `discordant_alt_genotype`.",
-  },
-  {
-    value: "prefer_ancestrydna",
-    label: "Prefer AncestryDNA call",
-    description:
-      "Symmetric — at a discordant locus, keep the AncestryDNA genotype and record the 23andMe call in `discordant_alt_genotype`.",
-  },
+  { value: "prefer_23andme", token: "23andme", display: "23andMe" },
+  { value: "prefer_ancestrydna", token: "ancestrydna", display: "AncestryDNA" },
 ]
+
+/** Build the strategy options for the two samples actually being merged.
+ *
+ * `flag_only` is always offered. A prefer-`<vendor>` option is offered only when
+ * **exactly one** of the two samples is that vendor, so it unambiguously names
+ * the winning sample — the backend's `_resolve_winner` returns exactly that
+ * sample. When neither sample is the vendor (the option can't keep a call that
+ * isn't present) or both are (it can't disambiguate S₁ vs S₂), the strategy
+ * silently falls back to S₁, so offering it would be misleading — it is omitted
+ * (issue #1563). Labels/descriptions name the real samples, not a hardcoded
+ * 23andMe↔AncestryDNA pairing. */
+function buildStrategyOptions(
+  s1: LinkedSample | undefined,
+  s2: LinkedSample | undefined,
+): StrategyOption[] {
+  const options: StrategyOption[] = [FLAG_ONLY_OPTION]
+  for (const vendor of VENDOR_STRATEGIES) {
+    const s1Match = s1?.vendor === vendor.token
+    const s2Match = s2?.vendor === vendor.token
+    if (s1Match === s2Match) continue // neither or both → can't disambiguate
+    const winner = s1Match ? s1 : s2
+    const other = s1Match ? s2 : s1
+    if (!winner) continue
+    const otherName = other?.name ?? "the other sample"
+    options.push({
+      value: vendor.value,
+      label: `Prefer ${winner.name} (${vendor.display})`,
+      description:
+        `At a discordant locus, keep ${winner.name}'s ${vendor.display} genotype and ` +
+        `record ${otherName}'s call in \`discordant_alt_genotype\`.`,
+    })
+  }
+  return options
+}
 
 export function MergeWizard({
   individualId,
@@ -127,6 +160,11 @@ export function MergeWizard({
   const [s1Id, s2Id] = sourceSampleIds
   const s1 = linkedSamples.find((s) => s.id === s1Id)
   const s2 = linkedSamples.find((s) => s.id === s2Id)
+
+  // Derive the strategy choices from the two samples' actual vendors so a
+  // same-vendor merge never offers an inapplicable "Prefer <other vendor>"
+  // option (issue #1563). `flag_only` (the default) is always present.
+  const strategyOptions = useMemo(() => buildStrategyOptions(s1, s2), [s1, s2])
 
   const handlePreview = () => {
     previewMutation.mutate(
@@ -206,7 +244,11 @@ export function MergeWizard({
 
           {step === "strategy" && (
             <>
-              <StrategyStep strategy={strategy} onChange={setStrategy} />
+              <StrategyStep
+                strategy={strategy}
+                onChange={setStrategy}
+                options={strategyOptions}
+              />
               {previewMutation.error && (
                 <p
                   className="text-sm text-destructive"
@@ -361,14 +403,16 @@ function StepIndicator({ current }: { current: WizardStep }) {
 function StrategyStep({
   strategy,
   onChange,
+  options,
 }: {
   strategy: MergeStrategy
   onChange: (next: MergeStrategy) => void
+  options: ReadonlyArray<StrategyOption>
 }) {
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium mb-1">Merge strategy</legend>
-      {STRATEGY_OPTIONS.map((opt) => {
+      {options.map((opt) => {
         const inputId = `merge-strategy-${opt.value}`
         return (
           <label
