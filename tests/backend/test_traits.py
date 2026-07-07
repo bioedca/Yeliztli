@@ -955,12 +955,12 @@ class TestStoreFindingsIntegration:
                     sa.and_(
                         findings.c.module == MODULE_NAME,
                         findings.c.category == "prs",
-                        findings.c.prs_score.is_not(None),
                     )
                 )
             ).first()
 
         assert row is not None
+        assert row.prs_score is None
         assert row.prs_percentile is None
         assert "uncalibrated" in row.finding_text.lower()
         detail = json.loads(row.detail_json)

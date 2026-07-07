@@ -1253,6 +1253,11 @@ def store_prs_findings(
                 f" [{z_text}]{orientation_suffix} — Research Use Only"
             )
 
+        report_quantitative_score = r.is_sufficient and r.calibrated
+        reported_prs_score = r.raw_score if report_quantitative_score else None
+        reported_percentile = r.percentile if report_quantitative_score else None
+        reported_z_score = r.z_score if report_quantitative_score else None
+
         detail = {
             "trait": r.trait,
             "name": r.weight_set_name,
@@ -1273,8 +1278,8 @@ def store_prs_findings(
             "calibrated": r.calibrated,
             "higher_is": higher_is,
             "orientation_note": orientation_note,
-            "percentile": r.percentile,
-            "z_score": r.z_score,
+            "percentile": reported_percentile,
+            "z_score": reported_z_score,
             "bootstrap_ci_lower": None,
             "bootstrap_ci_upper": None,
             "bootstrap_iterations": 0,
@@ -1309,8 +1314,8 @@ def store_prs_findings(
                 "category": "prs",
                 "evidence_level": r.evidence_level,
                 "finding_text": finding_text,
-                "prs_score": r.raw_score,
-                "prs_percentile": r.percentile,
+                "prs_score": reported_prs_score,
+                "prs_percentile": reported_percentile,
                 "pmid_citations": json.dumps(pmids),
                 "detail_json": json.dumps(detail),
             }

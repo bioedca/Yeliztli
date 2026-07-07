@@ -11,12 +11,14 @@ from __future__ import annotations
 import json
 from collections.abc import Generator
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.api.routes.findings import _row_to_response
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -245,6 +247,52 @@ class TestListFindings:
         resp = findings_client.get("/api/analysis/findings?sample_id=1&module=cancer")
         data = resp.json()
         assert data[0]["detail"]["syndromes"] == ["HBOC"]
+
+    def test_withheld_prs_score_stays_null_in_generic_api_response(self):
+        response = _row_to_response(
+            SimpleNamespace(
+                id=99,
+                module="cancer",
+                category="prs",
+                evidence_level=2,
+                gene_symbol=None,
+                rsid=None,
+                finding_text=(
+                    "Breast Cancer PRS: population percentile not reported — "
+                    "score lacks a validated reference distribution"
+                ),
+                phenotype=None,
+                conditions=None,
+                zygosity=None,
+                clinvar_significance=None,
+                diplotype=None,
+                metabolizer_status=None,
+                drug=None,
+                haplogroup=None,
+                prs_score=None,
+                prs_percentile=None,
+                pathway=None,
+                pathway_level=None,
+                svg_path=None,
+                pmid_citations=None,
+                detail_json=json.dumps(
+                    {
+                        "calibrated": False,
+                        "percentile": None,
+                        "z_score": None,
+                    }
+                ),
+                provenance=None,
+                related_module=None,
+                related_finding_id=None,
+                created_at=None,
+            )
+        )
+
+        assert response.prs_score is None
+        assert response.prs_percentile is None
+        assert response.detail["percentile"] is None
+        assert response.detail["z_score"] is None
 
     def test_finding_has_parsed_provenance(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1&module=cancer")

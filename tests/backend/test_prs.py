@@ -1068,6 +1068,38 @@ class TestStorePRSFindings:
         assert row.prs_score is not None
         assert row.prs_percentile is not None
 
+    def test_uncalibrated_prs_withholds_raw_score_from_findings(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        result = PRSResult(
+            weight_set_name="Uncalibrated PRS",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Current",
+            source_pmid="12345678",
+            sample_size=100000,
+            raw_score=0.42,
+            z_score=1.2,
+            percentile=88.0,
+            snps_used=5,
+            snps_total=5,
+            coverage_fraction=1.0,
+            calibrated=False,
+        )
+
+        assert store_prs_findings([result], sample_engine, module="cancer") == 1
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+
+        assert row.prs_score is None
+        assert row.prs_percentile is None
+        detail = json.loads(row.detail_json)
+        assert detail["percentile"] is None
+        assert detail["z_score"] is None
+        assert detail["calibrated"] is False
+
     def test_insufficient_coverage_not_stored(
         self, weight_set: PRSWeightSet, sample_engine: sa.Engine
     ) -> None:
@@ -1082,6 +1114,47 @@ class TestStorePRSFindings:
         assert result.is_sufficient is False
         count = store_prs_findings([result], sample_engine, module="cancer")
         assert count == 0
+
+    def test_stored_insufficient_coverage_withholds_raw_score(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        result = PRSResult(
+            weight_set_name="Low Coverage PRS",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Current",
+            source_pmid="12345678",
+            sample_size=100000,
+            raw_score=0.42,
+            z_score=1.2,
+            percentile=88.0,
+            snps_used=1,
+            snps_total=5,
+            coverage_fraction=0.2,
+            calibrated=True,
+        )
+
+        assert (
+            store_prs_findings(
+                [result],
+                sample_engine,
+                module="cancer",
+                store_insufficient=True,
+            )
+            == 1
+        )
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+
+        assert row.prs_score is None
+        assert row.prs_percentile is None
+        assert "coverage too low" in row.finding_text.lower()
+        detail = json.loads(row.detail_json)
+        assert detail["percentile"] is None
+        assert detail["z_score"] is None
+        assert detail["is_sufficient"] is False
 
     def test_insufficient_coverage_clears_stale_prs_finding(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine

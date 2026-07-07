@@ -849,6 +849,7 @@ class TestStoreCancerPRSFindings:
             rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
         assert rows  # sufficient-coverage findings are still stored
         for row in rows:
+            assert row.prs_score is None
             assert row.prs_percentile is None
             assert "percentile" in row.finding_text.lower()
             assert "uncalibrated" in row.finding_text.lower()

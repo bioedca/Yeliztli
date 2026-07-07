@@ -132,6 +132,18 @@ def sample_with_findings(
             "prs_percentile": 72.0,
         },
         {
+            "id": 8,
+            "module": "cancer",
+            "category": "prs",
+            "evidence_level": 2,
+            "finding_text": (
+                "Breast Cancer PRS: population percentile not reported — "
+                "score lacks a validated reference distribution"
+            ),
+            "prs_score": None,
+            "prs_percentile": None,
+        },
+        {
             "id": 5,
             "module": "ancestry",
             "category": "haplogroup",
@@ -552,6 +564,29 @@ class TestVariantCardHtml:
 
         assert "72.0%" in html
         assert "0.4500" in html
+
+    def test_withheld_prs_card_hides_raw_score(
+        self, tmp_data_dir: Path, sample_with_findings: tuple
+    ) -> None:
+        ref_engine, _, _ = sample_with_findings
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        with (
+            patch("backend.reports.generator.get_registry") as mock_reg,
+            patch("backend.db.connection.get_settings", return_value=settings),
+        ):
+            registry = mock_reg.return_value
+            registry.settings = settings
+            registry.reference_engine = ref_engine
+
+            sample_db = tmp_data_dir / "samples" / "sample_1.db"
+            sample_engine = sa.create_engine(f"sqlite:///{sample_db}")
+            registry.get_sample_engine.return_value = sample_engine
+
+            html = render_variant_card_html(sample_id=1, finding_id=8)
+
+        assert "population percentile not reported" in html
+        assert "PRS Score" not in html
+        assert "PRS Percentile" not in html
 
     def test_haplogroup_card(self, tmp_data_dir: Path, sample_with_findings: tuple) -> None:
         ref_engine, _, _ = sample_with_findings

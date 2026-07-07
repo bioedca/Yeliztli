@@ -440,3 +440,9 @@ class TestStoreInsufficientFlag:
             store_prs_findings([r], sample_engine, module="metabolic", store_insufficient=True)
             == 1
         )
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        assert row.prs_score is None
+        assert row.prs_percentile is None
+        detail = json.loads(row.detail_json)
+        assert detail["is_sufficient"] is False
