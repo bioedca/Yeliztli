@@ -301,7 +301,22 @@ class TestPanelRsidValidity:
                 )
         records = snapshot.get("rsids")
         assert isinstance(records, dict)
-        assert set(records) <= set(expected_panel_genes)
+        snapshot_rsids = set(records)
+        panel_rsids = set(expected_panel_genes)
+        # No orphan snapshot records: every snapshot rsID is a real panel rsID.
+        assert not snapshot_rsids - panel_rsids, (
+            "snapshot has rsIDs absent from panels (regenerate the snapshot): "
+            + ", ".join(sorted(snapshot_rsids - panel_rsids))
+        )
+        # Complete coverage (#1674): every panel expected_clinvar_rsid is snapshotted,
+        # so a new/un-snapshotted rsID fails here until its gene is validated offline —
+        # closing the escape hatch that let the original 11 wrong-gene entries (#1613)
+        # slip past the gene-match guard while only a partial snapshot existed.
+        assert not panel_rsids - snapshot_rsids, (
+            "panel expected_clinvar_rsids missing from the offline snapshot; regenerate "
+            "via scripts/build_panel_expected_clinvar_snapshot.py --raw-evidence-dir: "
+            + ", ".join(sorted(panel_rsids - snapshot_rsids))
+        )
         assert provenance.get("panel_rsid_count") == len(records)
         assert len(records) >= 100, "expected ClinVar snapshot coverage regressed"
         assert {"rs10455872", "rs3798220", "rs33914668"} <= set(records)
