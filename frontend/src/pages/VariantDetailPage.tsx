@@ -43,6 +43,8 @@ import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
+import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers (reused from side panel)                           */
@@ -93,14 +95,22 @@ function DetailRow({
   label,
   value,
   className,
+  labelTooltip,
 }: {
   label: string
   value: React.ReactNode
   className?: string
+  /** Optional hover tooltip on the label. */
+  labelTooltip?: string
 }) {
   return (
     <div className={cn("flex justify-between items-baseline py-1 border-b border-border/50 last:border-0", className)}>
-      <span className="text-sm text-muted-foreground">{label}</span>
+      <span
+        className={cn("text-sm text-muted-foreground", labelTooltip && SCORE_TOOLTIP_AFFORDANCE)}
+        title={labelTooltip}
+      >
+        {label}
+      </span>
       <span className="text-sm font-medium text-foreground text-right max-w-[65%]">
         {value ?? "—"}
       </span>
@@ -200,8 +210,20 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       {(variant.hgvs_coding || variant.hgvs_protein) && (
         <>
           <SectionHeader icon={Dna} label="HGVS Notation" />
-          {variant.hgvs_coding && <DetailRow label="Coding" value={variant.hgvs_coding} />}
-          {variant.hgvs_protein && <DetailRow label="Protein" value={variant.hgvs_protein} />}
+          {variant.hgvs_coding && (
+            <DetailRow
+              label="Coding"
+              value={variant.hgvs_coding}
+              labelTooltip={HGVS_CODING_TOOLTIP}
+            />
+          )}
+          {variant.hgvs_protein && (
+            <DetailRow
+              label="Protein"
+              value={variant.hgvs_protein}
+              labelTooltip={HGVS_PROTEIN_TOOLTIP}
+            />
+          )}
         </>
       )}
 

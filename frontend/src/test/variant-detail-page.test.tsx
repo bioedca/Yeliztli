@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import VariantDetailPage from "@/pages/VariantDetailPage"
 import type { VariantDetail } from "@/types/variant-detail"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 
 /** IGV.js is a browser-only module — stub it out. */
 vi.mock("@/components/igv-browser", () => ({
@@ -224,6 +225,22 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("AG")).toBeInTheDocument() // genotype
     expect(screen.getByText("het")).toBeInTheDocument() // zygosity
     expect(screen.getAllByText("missense variant").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("annotates HGVS coding and protein rows with notation tooltips (#1669)", async () => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => mockVariant,
+    }))
+
+    renderPage("rs100")
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tab-overview")).toBeInTheDocument()
+    })
+
+    expect(screen.getByTitle(HGVS_CODING_TOOLTIP)).toHaveTextContent("Coding")
+    expect(screen.getByTitle(HGVS_PROTEIN_TOOLTIP)).toHaveTextContent("Protein")
   })
 
   it("shows transcript table when multiple transcripts exist", async () => {

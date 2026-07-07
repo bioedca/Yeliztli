@@ -188,6 +188,21 @@ test('Variant Explorer side panel explains HGVS coding and protein notation (#16
   await expect(page.getByTitle(hgvsProteinTooltip)).toHaveText('Protein')
 })
 
+test('Full variant detail page explains HGVS coding and protein notation (#1669)', async ({
+  page,
+}) => {
+  await page.route(/\/api\/variants\/rs1669(\?|$)/, (route) =>
+    route.fulfill(jsonRoute(variantDetail)),
+  )
+  await page.route(/\/api\/watches(\?|$)/, (route) => route.fulfill(jsonRoute([])))
+
+  await page.goto('/variants/rs1669?sample_id=1')
+  await waitForReactHydration(page)
+
+  await expect(page.getByTitle(hgvsCodingTooltip)).toHaveText('Coding')
+  await expect(page.getByTitle(hgvsProteinTooltip)).toHaveText('Protein')
+})
+
 test('Rare Variant Finder detail panel explains HGVS coding and protein notation (#1669)', async ({
   page,
 }) => {
