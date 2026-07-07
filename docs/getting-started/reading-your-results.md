@@ -18,7 +18,13 @@ while annotation is still running; results fill in as the background annotation 
 - **Module cards** — a grid linking to each analysis module, with finding counts.
 - **High-confidence findings** — the strongest findings across all modules.
 - **QC summary** — a collapsible panel of sample-quality metrics (heterozygosity, call rate,
-  per-chromosome counts). The **heterozygosity check**'s **z-score** compares this sample's
+  per-chromosome counts). The headline sample count shown in the status bar, annotation panel,
+  and **Total Variants** metric is the total number of genotyped positions in the uploaded file,
+  including positions that were not called (**no-calls**). Call rate uses that same total as its
+  denominator (`called / total`), so the count is larger than the number of actually called
+  positions. It is also larger than the [Variant Explorer](../features/variant-explorer.md)'s
+  default count, because the table initially shows annotated variants only. The
+  **heterozygosity check**'s **z-score** compares this sample's
   heterozygosity rate against **your own other uploaded samples on the same genotyping array** —
   *not* a population or array-wide baseline. Heterozygosity is strongly array-dependent (SNP
   arrays overestimate it by design, so the same person's rate isn't comparable across different

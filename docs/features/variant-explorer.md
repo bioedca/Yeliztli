@@ -8,11 +8,13 @@ The Variant Explorer is the central table for browsing every variant in your sam
 
 - **Chromosome anchors** — jump to any chromosome from the navigation bar.
 - **Infinite scroll** — variants load progressively as you scroll.
-- **Total count** — shown asynchronously, so the first page appears immediately.
+- **Total count** — shown asynchronously, so the first page appears immediately. By default this
+  is an annotated-only table count until you toggle **all variants**, so it does not match the
+  dashboard's full uploaded-position count that includes no-calls.
 
 ## Filtering
 
-- Toggle between **all variants** and **annotated only**.
+- Toggle between **all variants** and **annotated only**. The default view is **annotated only**.
 - Use the advanced filter panel for specific criteria — gene, consequence, allele frequency,
   ClinVar significance, and more.
 - Search ClinVar significance for `conflicting` to review variants ClinVar marks as
