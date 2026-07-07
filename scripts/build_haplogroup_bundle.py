@@ -78,9 +78,31 @@ _AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
     # Ensembl GRCh37 REST variation/homo_sapiens/rs2032597: Y:14847792 A/C,
     # ancestral A. Derived C defines haplogroup I (I-M170).
     "rs2032597": {"pos": 14847792, "allele": "C", "alleles": ("A", "C")},
+    # Ensembl GRCh37 REST variation/homo_sapiens/rs2032658: Y:15581983 G/A,
+    # ancestral A. Derived G defines haplogroup R (R-M207).
+    "rs2032658": {"pos": 15581983, "allele": "G", "alleles": ("G", "A")},
     # Ensembl GRCh37 REST variation/homo_sapiens/rs9341296: Y:15022707 C/T,
     # ancestral C. Stored defining alleles must be the derived T, never G.
     "rs9341296": {"pos": 15022707, "allele": "T", "alleles": ("C", "T")},
+    # Ensembl GRCh37 REST variation/homo_sapiens/rs3900: Y:21730257 G/C.
+    # The current bundle keeps this as an F/K/K2 lineage marker, but its old
+    # coordinate (Y:14413839) was stale.
+    "rs3900": {"pos": 21730257, "allele": "C", "alleles": ("G", "C")},
+}
+
+_EXCLUDED_Y_RSIDS: dict[str, str] = {
+    # Ensembl GRCh37 places rs1000546 as a synonym of rs502450 at chr18:55773440.
+    # It is not a Y marker and must never be used to satisfy the R min-evidence gate.
+    "rs1000546": "autosomal chr18 alias of rs502450, not a Y defining marker",
+    # Ensembl GRCh37 places this duplicate suspect at chr2:237800066.
+    "rs35489731": "autosomal chr2 variant, not a Y defining marker",
+    # Ensembl GRCh37 confirms rs9341278 is Y:15469724 G/A, so the historic T
+    # records on B/N_Y/N1 were impossible. Its true clade needs re-derivation.
+    "rs9341278": "invalid historic T allele and unresolved clade assignment",
+    # Ensembl GRCh37 confirms rs2032604 is a real Y SNP (Y:14969634 T/G), but
+    # this hand-curated tree placed it on unrelated A1b1 and J/J2 branches. Drop
+    # it until the Y tree is regenerated from an authoritative SNP index.
+    "rs2032604": "unresolved cross-clade duplicate assignment",
 }
 
 
@@ -1703,7 +1725,6 @@ def build_y_tree() -> dict[str, Any]:
     a1b1 = _node(
         "A1b1",
         [
-            _y_snp("rs2032604", 14974853, "G"),
             _y_snp("rs9786281", 15457249, "C"),
         ],
     )
@@ -1766,7 +1787,6 @@ def build_y_tree() -> dict[str, Any]:
         "B",
         [
             _y_snp("rs2032623", 8449042, "C"),
-            _y_snp("rs9341278", 14103632, "T"),
             _y_snp("rs13447352", 14843803, "G"),
         ],
         [b1, b2],
@@ -2048,12 +2068,6 @@ def build_y_tree() -> dict[str, Any]:
     )
 
     # ── I branch ──────────────────────────────────────────────────
-    i1a = _node(
-        "I1a",
-        [
-            _y_snp("rs35489731", 15078270, "A"),
-        ],
-    )
     # I1b was a phantom node defined only by rs9786153 (M269), which defines
     # haplogroup R1b (R-M269), not I — spuriously duplicated here from its correct
     # R1b1a1a placement (Wikipedia "Haplogroup R-M269"; Ensembl GRCh37 Y:22739367).
@@ -2065,7 +2079,7 @@ def build_y_tree() -> dict[str, Any]:
             _y_snp("rs9341296", 15022707, "T"),
             _y_snp("rs17250667", 8461752, "C"),
         ],
-        [i1a],
+        [],
     )
     i2a1 = _node(
         "I2a1",
@@ -2145,15 +2159,12 @@ def build_y_tree() -> dict[str, Any]:
     j2a1 = _node(
         "J2a1",
         [
-            _y_snp("rs2032604", 14974853, "G"),
             _y_snp("rs35491060", 21732880, "T"),
         ],
     )
     j2a = _node(
         "J2a",
-        [
-            _y_snp("rs2032604", 14974853, "G"),
-        ],
+        [],
         [j2a1],
     )
     j2b1 = _node(
@@ -2179,7 +2190,6 @@ def build_y_tree() -> dict[str, Any]:
     j2 = _node(
         "J2",
         [
-            _y_snp("rs2032604", 14974853, "G"),
             _y_snp("rs17306862", 15010427, "T"),
         ],
         [j2a, j2b],
@@ -2189,7 +2199,6 @@ def build_y_tree() -> dict[str, Any]:
         [
             _y_snp("rs13447352", 14843803, "G"),
             _y_snp("rs34997026", 14969634, "A"),
-            _y_snp("rs2032604", 14974853, "G"),
         ],
         [j1, j2],
     )
@@ -2318,15 +2327,12 @@ def build_y_tree() -> dict[str, Any]:
     )
     n1 = _node(
         "N1",
-        [
-            _y_snp("rs9341278", 14103632, "T"),
-        ],
+        [],
         [n1a, n1b, n1c],
     )
     n_branch_y = _node(
         "N_Y",
         [
-            _y_snp("rs9341278", 14103632, "T"),
             _y_snp("rs2032677", 8603028, "G"),
         ],
         [n1],
@@ -2417,7 +2423,6 @@ def build_y_tree() -> dict[str, Any]:
         "R1b1a1a",
         [
             _y_snp("rs9786153", 22028345, "C"),
-            _y_snp("rs35489731", 15078270, "A"),
         ],
     )
     r1b1a1 = _node(
@@ -2483,13 +2488,6 @@ def build_y_tree() -> dict[str, Any]:
             # Ensembl GRCh37 coordinate (matching the #1686 I-branch migration; the Y
             # classifier keys by rsID, so the coordinate is reference-only) (#1654).
             _y_snp("rs2032658", 15581983, "G"),
-            # NOTE: rs1000546 is stored here as a Y marker (pos 36452173) but is
-            # actually AUTOSOMAL — Ensembl places rs1000546 at chr18:55773440, not on
-            # Y — so it is spurious (cf. the chr11 rs1000687 mtDNA trap, #1579). Left in
-            # place only so R keeps two markers for the min-2 descent gate until the
-            # ISOGG re-derivation supplies a genuine second R-Y SNP (and re-sources the
-            # coordinate) (#1654).
-            _y_snp("rs1000546", 36452173, "T"),
         ],
         [r1, r2],
     )
@@ -2536,7 +2534,7 @@ def build_y_tree() -> dict[str, Any]:
     k2 = _node(
         "K2",
         [
-            _y_snp("rs3900", 14413839, "C"),
+            _y_snp("rs3900", 21730257, "C"),
         ],
         [no, ms, p_branch],
     )
@@ -2544,7 +2542,7 @@ def build_y_tree() -> dict[str, Any]:
     k_branch = _node(
         "K",
         [
-            _y_snp("rs3900", 14413839, "C"),
+            _y_snp("rs3900", 21730257, "C"),
             _y_snp("rs2032631", 14416951, "C"),
         ],
         [lt, k2],
@@ -2574,7 +2572,7 @@ def build_y_tree() -> dict[str, Any]:
         "F",
         [
             _y_snp("rs2032652", 21869271, "T"),
-            _y_snp("rs3900", 14413839, "C"),
+            _y_snp("rs3900", 21730257, "C"),
         ],
         [f1, f2, f3, gh, ij, k_branch],
     )
@@ -2751,6 +2749,11 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
 
     for path, snp in _iter_snps_with_path(node):
         rsid = snp.get("rsid")
+        excluded_reason = _EXCLUDED_Y_RSIDS.get(rsid)
+        if excluded_reason is not None:
+            issues.append(f"{rsid} at {path} is excluded from the Y tree: {excluded_reason}")
+            continue
+
         reference = _AUDITED_Y_RSID_REFERENCE.get(rsid)
         if reference is None:
             continue

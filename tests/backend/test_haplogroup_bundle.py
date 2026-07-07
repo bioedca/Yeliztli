@@ -467,7 +467,6 @@ class TestFixtureIntegration:
         "rs1000331": ("Y", 20085901, "T"),
         "rs1000247": ("Y", 20503721, "A"),
         "rs1000867": ("Y", 32170896, "T"),
-        "rs1000546": ("Y", 36452173, "T"),
         "rs1000154": ("Y", 39970128, "G"),
         "rs1000147": ("Y", 41031901, "A"),
         "rs1000306": ("Y", 53186638, "C"),
@@ -573,6 +572,20 @@ class TestBuildScript:
         )
         assert any(
             "rs9341296" in issue and "expected one of ('C', 'T')" in issue for issue in issues
+        )
+
+    def test_audited_y_rsid_guard_rejects_excluded_records(self) -> None:
+        """#1654: non-Y and unresolved duplicate suspects cannot re-enter the Y tree."""
+        from scripts.build_haplogroup_bundle import _validate_audited_y_rsids, build_y_tree
+
+        y_tree = build_y_tree()
+        r_node = find_node(y_tree, "R")
+        assert r_node is not None
+        r_node["defining_snps"].append({"rsid": "rs1000546", "pos": 36452173, "allele": "T"})
+
+        issues = _validate_audited_y_rsids(y_tree)
+        assert any(
+            "rs1000546" in issue and "excluded from the Y tree" in issue for issue in issues
         )
 
     def test_count_helpers_consistent(self) -> None:

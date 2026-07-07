@@ -3066,11 +3066,6 @@
                       "haplogroup": "A1b1",
                       "defining_snps": [
                         {
-                          "rsid": "rs2032604",
-                          "pos": 14974853,
-                          "allele": "G"
-                        },
-                        {
                           "rsid": "rs9786281",
                           "pos": 15457249,
                           "allele": "C"
@@ -3090,11 +3085,6 @@
               "rsid": "rs2032623",
               "pos": 8449042,
               "allele": "C"
-            },
-            {
-              "rsid": "rs9341278",
-              "pos": 14103632,
-              "allele": "T"
             },
             {
               "rsid": "rs13447352",
@@ -3476,7 +3466,7 @@
               "defining_snps": [
                 {
                   "rsid": "rs3900",
-                  "pos": 14413839,
+                  "pos": 21730257,
                   "allele": "C"
                 }
               ],
@@ -3700,18 +3690,6 @@
                               "pos": 8461752,
                               "allele": "C"
                             }
-                          ],
-                          "children": [
-                            {
-                              "haplogroup": "I1a",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs35489731",
-                                  "pos": 15078270,
-                                  "allele": "A"
-                                }
-                              ]
-                            }
                           ]
                         },
                         {
@@ -3794,11 +3772,6 @@
                           "rsid": "rs34997026",
                           "pos": 14969634,
                           "allele": "A"
-                        },
-                        {
-                          "rsid": "rs2032604",
-                          "pos": 14974853,
-                          "allele": "G"
                         }
                       ],
                       "children": [
@@ -3846,13 +3819,7 @@
                           "children": [
                             {
                               "haplogroup": "J2a",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs2032604",
-                                  "pos": 14974853,
-                                  "allele": "G"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "J2a1",
@@ -4019,7 +3986,7 @@
                       "defining_snps": [
                         {
                           "rsid": "rs3900",
-                          "pos": 14413839,
+                          "pos": 21730257,
                           "allele": "C"
                         }
                       ],
@@ -4038,21 +4005,15 @@
                               "haplogroup": "N_Y",
                               "defining_snps": [
                                 {
-                                  "rsid": "rs9341278",
-                                  "pos": 14103632,
-                                  "allele": "T"
+                                  "rsid": "rs2032677",
+                                  "pos": 8603028,
+                                  "allele": "G"
                                 }
                               ],
                               "children": [
                                 {
                                   "haplogroup": "N1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9341278",
-                                      "pos": 14103632,
-                                      "allele": "T"
-                                    }
-                                  ],
+                                  "defining_snps": [],
                                   "children": [
                                     {
                                       "haplogroup": "N1a",
@@ -4403,11 +4364,6 @@
                                   "rsid": "rs2032658",
                                   "pos": 15581983,
                                   "allele": "G"
-                                },
-                                {
-                                  "rsid": "rs1000546",
-                                  "pos": 36452173,
-                                  "allele": "T"
                                 }
                               ],
                               "children": [
@@ -4527,11 +4483,6 @@
                                                           "rsid": "rs9786153",
                                                           "pos": 22028345,
                                                           "allele": "C"
-                                                        },
-                                                        {
-                                                          "rsid": "rs35489731",
-                                                          "pos": 15078270,
-                                                          "allele": "A"
                                                         }
                                                       ]
                                                     }
@@ -4585,12 +4536,12 @@
     "mt_defining_snps": 374,
     "mt_unique_snps": 287,
     "mt_max_depth": 11,
-    "y_haplogroups": 128,
-    "y_defining_snps": 160,
-    "y_unique_snps": 99,
+    "y_haplogroups": 127,
+    "y_defining_snps": 152,
+    "y_unique_snps": 95,
     "y_max_depth": 12,
-    "total_haplogroups": 323,
-    "total_defining_snps": 534,
-    "total_unique_snps": 386
+    "total_haplogroups": 322,
+    "total_defining_snps": 526,
+    "total_unique_snps": 382
   }
 }

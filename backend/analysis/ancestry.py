@@ -1616,6 +1616,7 @@ def load_haplogroup_bundle(
 # ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
 _Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
+_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS = frozenset({"rs2032658"})
 
 # Normalized mitochondrial chromosome label. Every ingestion parser normalizes the
 # vendor mtDNA code (23andMe/AncestryDNA "25"/"26", etc.) to "MT" (see
@@ -1685,6 +1686,7 @@ def _tree_walk(
     path: list[HaplogroupTraversalStep],
     ancestral_rsids: frozenset[str] = frozenset(),
     min_internal_terminal_specific_snps: int = 1,
+    trusted_single_marker_terminal_rsids: frozenset[str] = frozenset(),
     _support_path: list[tuple[int, int]] | None = None,
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
@@ -1705,8 +1707,9 @@ def _tree_walk(
     evidence), the derived fraction clears the threshold
     (``present / total >= _HAPLOGROUP_MIN_MATCH_FRACTION``), and the node has at
     least ``min_internal_terminal_specific_snps`` clade-specific SNPs available
-    before a non-leaf child can stop the walk as terminal. A child defined *only*
-    by re-listed ancestral markers has no
+    before a non-leaf child can stop the walk as terminal unless that single
+    marker is explicitly audited as terminal-grade evidence. A child defined
+    *only* by re-listed ancestral markers has no
     clade-specific SNPs and is never a terminal match; it may only be used as a
     structural pass-through to a deeper supported clade. A child with too few
     clade-specific SNPs for non-leaf terminal support follows the same
@@ -1732,6 +1735,8 @@ def _tree_walk(
             defining SNPs needed before a non-leaf child can be reported as the
             deepest match. Higher values still allow sparse structural nodes to
             pass through to deeper supported clades.
+        trusted_single_marker_terminal_rsids: Audited rsIDs that can make a
+            one-SNP non-leaf child terminal despite the general sparse-node floor.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
@@ -1780,10 +1785,16 @@ def _tree_walk(
             continue
 
         fraction = present / total
+        has_trusted_single_marker_terminal = (
+            present == 1
+            and total == 1
+            and any(snp.rsid in trusted_single_marker_terminal_rsids for snp in specific)
+        )
         if (
             child.children
             and fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION
             and total < min_internal_terminal_specific_snps
+            and not has_trusted_single_marker_terminal
         ):
             # Sparse marker panels can type a one-SNP internal child (for example
             # Y=DE under CT) without enough evidence to make that child terminal.
@@ -1814,6 +1825,7 @@ def _tree_walk(
             direct_path,
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
+            trusted_single_marker_terminal_rsids=trusted_single_marker_terminal_rsids,
             _support_path=direct_support_path,
         )
         best_path = direct_path
@@ -1839,6 +1851,7 @@ def _tree_walk(
             [],
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
+            trusted_single_marker_terminal_rsids=trusted_single_marker_terminal_rsids,
             _support_path=sub_support_path,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
@@ -2022,6 +2035,7 @@ def assign_haplogroups(
             genotype_map,
             y_path,
             min_internal_terminal_specific_snps=_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS,
+            trusted_single_marker_terminal_rsids=_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS,
         )
 
         y_total_present = sum(step.snps_present for step in y_path)

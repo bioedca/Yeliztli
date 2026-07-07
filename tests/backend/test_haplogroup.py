@@ -227,7 +227,7 @@ _R1B1A_GENOTYPES = [
     {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "TT"},
     {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "GG"},
     # F
-    {"rsid": "rs3900", "chrom": "Y", "pos": 14413839, "genotype": "CC"},
+    {"rsid": "rs3900", "chrom": "Y", "pos": 21730257, "genotype": "CC"},
     # K
     {"rsid": "rs2032631", "chrom": "Y", "pos": 14416951, "genotype": "CC"},
     # K2 — rs3900 already included above
@@ -237,7 +237,6 @@ _R1B1A_GENOTYPES = [
     # ancestral A); the fixture previously encoded the ancestral AA to match the
     # bundle's mis-polarized allele (#1654).
     {"rsid": "rs2032658", "chrom": "Y", "pos": 15025620, "genotype": "GG"},
-    {"rsid": "rs1000546", "chrom": "Y", "pos": 36452173, "genotype": "TT"},
     # R1
     {"rsid": "rs2032624", "chrom": "Y", "pos": 15022755, "genotype": "AA"},
     {"rsid": "rs1000867", "chrom": "Y", "pos": 32170896, "genotype": "TT"},
@@ -904,6 +903,36 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "CT"
         assert [(s.haplogroup, s.snps_present, s.snps_total) for s in path] == [("CT", 1, 2)]
 
+    def test_real_bundle_single_audited_r_m207_marker_can_be_terminal(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1654: R must not depend on the removed autosomal rs1000546 placeholder.
+
+        A sparse XY sample with P support plus the audited canonical R marker M207
+        (rs2032658 derived G) should resolve to R even though R is an internal node
+        with one remaining defining SNP. The generic one-SNP internal guard still
+        applies to unaudited markers such as DE above.
+        """
+        genotypes = {
+            "rs2032652": "TT",  # CT support
+            "rs13304168": "GG",
+            "rs3900": "CC",  # F/K path support
+            "rs2032631": "CC",
+            "rs1000147": "AA",  # P support
+            "rs2032658": "GG",  # R-M207 derived allele
+        }
+
+        terminal, path = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+            trusted_single_marker_terminal_rsids=frozenset({"rs2032658"}),
+        )
+
+        assert terminal.haplogroup == "R"
+        assert [step.haplogroup for step in path][-1] == "R"
+
     def test_one_marker_leaf_can_still_be_terminal_with_internal_floor(self) -> None:
         """The #1079 guard is for under-supported internal nodes. A one-SNP leaf has
         no deeper branch to over-resolve into, so the existing conflict/fraction
@@ -1427,7 +1456,24 @@ class TestYABranchPolarity:
             by_rsid.setdefault(snp.rsid, set()).add((snp.pos, snp.allele))
 
         assert by_rsid["rs2032597"] == {(14847792, "C")}
+        assert by_rsid["rs2032658"] == {(15581983, "G")}
         assert by_rsid["rs9341296"] == {(15022707, "T")}
+        assert by_rsid["rs3900"] == {(21730257, "C")}
+
+    def test_excluded_y_rsids_are_absent(self, bundle: HaplogroupBundle) -> None:
+        """#1654: known non-Y or unresolved duplicate rsIDs must not define Y clades."""
+
+        def y_snps(node: HaplogroupNode) -> list[HaplogroupSNP]:
+            out = list(node.defining_snps)
+            for child in node.children:
+                out.extend(y_snps(child))
+            return out
+
+        by_rsid = {snp.rsid for snp in y_snps(bundle.y_tree)}
+        assert "rs1000546" not in by_rsid  # Ensembl GRCh37 chr18 via rs502450 alias
+        assert "rs35489731" not in by_rsid  # Ensembl GRCh37 chr2
+        assert "rs9341278" not in by_rsid  # invalid historic T allele; clade unresolved
+        assert "rs2032604" not in by_rsid  # unresolved cross-clade duplicate
 
     def test_r_node_defined_by_m207_rs2032658_derived_g(self, bundle: HaplogroupBundle) -> None:
         """#1654 (Class A allele polarity): rs2032658 (M207) defines haplogroup R
