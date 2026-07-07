@@ -1662,7 +1662,7 @@
                                     {
                                       "rsid": "i5001438",
                                       "pos": 1438,
-                                      "allele": "G"
+                                      "allele": "A"
                                     }
                                   ],
                                   "children": [
@@ -1672,11 +1672,6 @@
                                         {
                                           "rsid": "i5004769",
                                           "pos": 4769,
-                                          "allele": "G"
-                                        },
-                                        {
-                                          "rsid": "i5009380",
-                                          "pos": 9380,
                                           "allele": "A"
                                         }
                                       ],
@@ -1685,14 +1680,53 @@
                                           "haplogroup": "H2a1",
                                           "defining_snps": [
                                             {
-                                              "rsid": "i5004769",
-                                              "pos": 4769,
-                                              "allele": "G"
+                                              "rsid": "i5000951",
+                                              "pos": 951,
+                                              "allele": "A"
                                             },
                                             {
-                                              "rsid": "i5015354",
-                                              "pos": 15354,
-                                              "allele": "C"
+                                              "rsid": "i5016354",
+                                              "pos": 16354,
+                                              "allele": "T"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "haplogroup": "H2a2",
+                                          "defining_snps": [
+                                            {
+                                              "rsid": "i5000750",
+                                              "pos": 750,
+                                              "allele": "A"
+                                            }
+                                          ],
+                                          "children": [
+                                            {
+                                              "haplogroup": "H2a2a",
+                                              "defining_snps": [
+                                                {
+                                                  "rsid": "i5008860",
+                                                  "pos": 8860,
+                                                  "allele": "A"
+                                                },
+                                                {
+                                                  "rsid": "i5015326",
+                                                  "pos": 15326,
+                                                  "allele": "A"
+                                                }
+                                              ],
+                                              "children": [
+                                                {
+                                                  "haplogroup": "H2a2a1",
+                                                  "defining_snps": [
+                                                    {
+                                                      "rsid": "i5000263",
+                                                      "pos": 263,
+                                                      "allele": "A"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
                                             }
                                           ]
                                         }
@@ -1852,9 +1886,9 @@
                               "haplogroup": "HV0",
                               "defining_snps": [
                                 {
-                                  "rsid": "i5000073",
-                                  "pos": 73,
-                                  "allele": "G"
+                                  "rsid": "i5000072",
+                                  "pos": 72,
+                                  "allele": "C"
                                 }
                               ],
                               "children": [
@@ -4547,16 +4581,16 @@
     }
   },
   "stats": {
-    "mt_haplogroups": 192,
-    "mt_defining_snps": 371,
-    "mt_unique_snps": 283,
-    "mt_max_depth": 9,
+    "mt_haplogroups": 195,
+    "mt_defining_snps": 374,
+    "mt_unique_snps": 287,
+    "mt_max_depth": 11,
     "y_haplogroups": 128,
     "y_defining_snps": 160,
     "y_unique_snps": 99,
     "y_max_depth": 12,
-    "total_haplogroups": 320,
-    "total_defining_snps": 531,
-    "total_unique_snps": 382
+    "total_haplogroups": 323,
+    "total_defining_snps": 534,
+    "total_unique_snps": 386
   }
 }

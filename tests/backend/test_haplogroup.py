@@ -92,10 +92,9 @@ _H1A_GENOTYPES = [
     # R defining SNPs (T12705C, T16223C).
     {"rsid": "i5012705", "chrom": "MT", "pos": 12705, "genotype": "CC"},
     {"rsid": "i5016223", "chrom": "MT", "pos": 16223, "genotype": "CC"},
-    # R0: m.73 — a true H carrier carries the rCRS base 73=A (PhyloTree R0 = G73A;
-    # Ensembl MT:73=A), so AA keeps this H path out of the bundle's HV0 branch,
-    # which (mis)encodes 73G (#1579; the HV0 marker itself is corrected separately).
-    {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "AA"},
+    # HV0 sibling marker: Build 17 HV0 is T72C. A true H carrier carries the
+    # rCRS base 72=T, so TT keeps this H path out of the HV0 branch (#1648).
+    {"rsid": "i5000072", "chrom": "MT", "pos": 72, "genotype": "TT"},
     # HV defining SNP T14766C — a true HV/H carrier is C (the derived allele;
     # rCRS is H2a2a1). The prior "TT" was the ancestral, biologically-impossible
     # for an HV/H person, and masked the #1579 inversion.
@@ -129,6 +128,38 @@ _MT_K_GENOTYPES = _MT_U8_TRUNK_GENOTYPES + [
     {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
     {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
     {"rsid": "i5016224", "chrom": "MT", "pos": 16224, "genotype": "CC"},
+]
+
+_RCRS_H2A2A1_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5000072", "chrom": "MT", "pos": 72, "genotype": "TT"},
+    {"rsid": "i5014766", "chrom": "MT", "pos": 14766, "genotype": "CC"},
+    {"rsid": "i5002706", "chrom": "MT", "pos": 2706, "genotype": "AA"},
+    {"rsid": "i5001438", "chrom": "MT", "pos": 1438, "genotype": "AA"},
+    {"rsid": "i5004769", "chrom": "MT", "pos": 4769, "genotype": "AA"},
+    {"rsid": "i5009380", "chrom": "MT", "pos": 9380, "genotype": "GG"},
+    {"rsid": "i5000750", "chrom": "MT", "pos": 750, "genotype": "AA"},
+    {"rsid": "i5008860", "chrom": "MT", "pos": 8860, "genotype": "AA"},
+    {"rsid": "i5015326", "chrom": "MT", "pos": 15326, "genotype": "AA"},
+    {"rsid": "i5000263", "chrom": "MT", "pos": 263, "genotype": "AA"},
+    {"rsid": "i5000951", "chrom": "MT", "pos": 951, "genotype": "GG"},
+    {"rsid": "i5015354", "chrom": "MT", "pos": 15354, "genotype": "CC"},
+    {"rsid": "i5016354", "chrom": "MT", "pos": 16354, "genotype": "CC"},
+]
+
+_H2A1_SIBLING_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5014766", "chrom": "MT", "pos": 14766, "genotype": "CC"},
+    {"rsid": "i5002706", "chrom": "MT", "pos": 2706, "genotype": "AA"},
+    {"rsid": "i5001438", "chrom": "MT", "pos": 1438, "genotype": "AA"},
+    {"rsid": "i5004769", "chrom": "MT", "pos": 4769, "genotype": "AA"},
+    {"rsid": "i5000951", "chrom": "MT", "pos": 951, "genotype": "AA"},
+    {"rsid": "i5016354", "chrom": "MT", "pos": 16354, "genotype": "TT"},
+    {"rsid": "i5000750", "chrom": "MT", "pos": 750, "genotype": "GG"},
+    {"rsid": "i5000263", "chrom": "MT", "pos": 263, "genotype": "GG"},
+]
+
+_HV0_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
+    {"rsid": "i5014766", "chrom": "MT", "pos": 14766, "genotype": "CC"},
+    {"rsid": "i5000072", "chrom": "MT", "pos": 72, "genotype": "CC"},
 ]
 
 _MT_N1_REVERSAL_GENOTYPES = _H1A_GENOTYPES[:6] + [
@@ -461,6 +492,22 @@ class TestClassifyNodeMatch:
 # ── Tree-walk algorithm tests ───────────────────────────────────────────
 
 
+def _find_mt_node(node: HaplogroupNode, haplogroup: str) -> HaplogroupNode | None:
+    """Depth-first search for an mtDNA node by haplogroup name."""
+    if node.haplogroup == haplogroup:
+        return node
+    for child in node.children:
+        found = _find_mt_node(child, haplogroup)
+        if found is not None:
+            return found
+    return None
+
+
+def _mt_snp_map(node: HaplogroupNode) -> dict[int, str]:
+    """Map defining mtDNA positions to alleles for compact curation assertions."""
+    return {snp.pos: snp.allele for snp in node.defining_snps}
+
+
 class TestTreeWalk:
     """Test the recursive tree-walk algorithm."""
 
@@ -680,6 +727,93 @@ class TestTreeWalk:
         anc_terminal, anc_path = _tree_walk(bundle.mt_tree, ancestral, [])
         assert anc_terminal.haplogroup == "R"  # blocked below R
         assert "H" not in [s.haplogroup for s in anc_path]
+
+    def test_h2a2a1_rcrs_spine_and_hv0_markers_match_phylotree_build17(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1648: below H, rCRS-spine markers must use the rCRS base, while
+        off-spine H2a1 and HV0 must use their Build 17 defining coordinates."""
+        h2 = _find_mt_node(bundle.mt_tree, "H2")
+        h2a = _find_mt_node(bundle.mt_tree, "H2a")
+        h2a1 = _find_mt_node(bundle.mt_tree, "H2a1")
+        h2a2 = _find_mt_node(bundle.mt_tree, "H2a2")
+        h2a2a = _find_mt_node(bundle.mt_tree, "H2a2a")
+        h2a2a1 = _find_mt_node(bundle.mt_tree, "H2a2a1")
+        hv0 = _find_mt_node(bundle.mt_tree, "HV0")
+
+        assert h2 is not None
+        assert h2a is not None
+        assert h2a1 is not None
+        assert h2a2 is not None
+        assert h2a2a is not None
+        assert h2a2a1 is not None
+        assert hv0 is not None
+
+        assert _mt_snp_map(h2) == {1438: "A"}  # Build 17: G1438A
+        assert _mt_snp_map(h2a) == {4769: "A"}  # Build 17: G4769A
+        assert _mt_snp_map(h2a1) == {951: "A", 16354: "T"}  # G951A, C16354T
+        assert _mt_snp_map(h2a2) == {750: "A"}  # G750A
+        assert _mt_snp_map(h2a2a) == {8860: "A", 15326: "A"}  # G8860A, G15326A
+        assert _mt_snp_map(h2a2a1) == {263: "A"}  # G263A
+        assert _mt_snp_map(hv0) == {72: "C"}  # Build 17: T72C
+
+        assert 9380 not in _mt_snp_map(h2a)
+        assert 15354 not in _mt_snp_map(h2a1)
+        assert 73 not in _mt_snp_map(hv0)
+
+    def test_rcrs_profile_reaches_h2a2a1_not_h2a1(self, bundle: HaplogroupBundle) -> None:
+        """#1648: rCRS is H2a2a1. A synthetic rCRS callset must walk beyond H and
+        must not satisfy the H2a1 sibling via the old 15354C trap."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _RCRS_H2A2A1_GENOTYPES}
+
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "H2a2a1"
+        assert [step.haplogroup for step in path] == [
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H2",
+            "H2a",
+            "H2a2",
+            "H2a2a",
+            "H2a2a1",
+        ]
+
+    def test_h2a1_sibling_profile_does_not_follow_rcrs_spine(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1648: H2a1 is an H2a sibling branch, not the rCRS H2a2a1 spine."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _H2A1_SIBLING_GENOTYPES}
+
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "H2a1"
+        assert [step.haplogroup for step in path] == [
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H2",
+            "H2a",
+            "H2a1",
+        ]
+
+    def test_hv0_uses_position_72_not_recurrent_position_73(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """#1648: HV0 is Build 17 T72C, not a recurrent A73G marker."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _HV0_GENOTYPES}
+
+        terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
+
+        assert terminal.haplogroup == "HV0"
+        assert [step.haplogroup for step in path] == ["L3", "N", "R", "R0", "HV", "HV0"]
 
     def test_source_polarity_trunk_resolves_to_r_on_real_bundle(
         self, bundle: HaplogroupBundle

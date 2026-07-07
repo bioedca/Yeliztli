@@ -972,22 +972,50 @@ def build_mt_tree() -> dict[str, Any]:
     h2a1 = _node(
         "H2a1",
         [
-            _mt_snp("i5004769", 4769, "G"),
-            _mt_snp("i5015354", 15354, "C"),
+            # PhyloTree Build 17 H2a1 = G951A + C16354T. The prior bundle used
+            # inherited H2a m.4769 plus a mistyped 15354C entry, which let rCRS
+            # (H2a2a1) satisfy the off-spine H2a1 sibling (#1648).
+            _mt_snp("i5000951", 951, "A"),
+            _mt_snp("i5016354", 16354, "T"),
         ],
+    )
+    h2a2a1 = _node(
+        "H2a2a1",
+        [
+            _mt_snp("i5000263", 263, "A"),
+        ],
+    )
+    h2a2a = _node(
+        "H2a2a",
+        [
+            _mt_snp("i5008860", 8860, "A"),
+            _mt_snp("i5015326", 15326, "A"),
+        ],
+        [h2a2a1],
+    )
+    h2a2 = _node(
+        "H2a2",
+        [
+            _mt_snp("i5000750", 750, "A"),
+        ],
+        [h2a2a],
     )
     h2a = _node(
         "H2a",
         [
-            _mt_snp("i5004769", 4769, "G"),
-            _mt_snp("i5009380", 9380, "A"),
+            # H2a is on the rCRS spine (H2a2a1). Build 17 gives G4769A, so
+            # the derived allele for an rCRS-like H2a carrier is A. The old
+            # extra 9380A marker is not part of the H2a row and conflicts with
+            # the rCRS base 9380G (#1648).
+            _mt_snp("i5004769", 4769, "A"),
         ],
-        [h2a1],
+        [h2a1, h2a2],
     )
     h2 = _node(
         "H2",
         [
-            _mt_snp("i5001438", 1438, "G"),
+            # Build 17 H2 = G1438A; rCRS carries the derived H2 allele A.
+            _mt_snp("i5001438", 1438, "A"),
         ],
         [h2a],
     )
@@ -1108,7 +1136,9 @@ def build_mt_tree() -> dict[str, Any]:
     hv0 = _node(
         "HV0",
         [
-            _mt_snp("i5000073", 73, "G"),
+            # Build 17 HV0 is T72C. The previous 73G entry modeled a recurrent
+            # A73G marker, not the HV0-defining mutation (#1648).
+            _mt_snp("i5000072", 72, "C"),
         ],
         [v],
     )
