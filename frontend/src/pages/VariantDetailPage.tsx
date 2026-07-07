@@ -378,7 +378,10 @@ function ProteinTab({ variant, sampleId }: { variant: VariantDetail; sampleId: n
       {variant.hgvs_protein && (
         <div className="mb-4">
           <p className="text-sm text-muted-foreground">
-            Protein change: <span className="font-mono font-medium text-foreground">{variant.hgvs_protein}</span>
+            <span className={SCORE_TOOLTIP_AFFORDANCE} title={HGVS_PROTEIN_TOOLTIP}>
+              Protein change
+            </span>
+            : <span className="font-mono font-medium text-foreground">{variant.hgvs_protein}</span>
           </p>
         </div>
       )}
@@ -629,8 +632,24 @@ function TranscriptTable({ transcripts }: { transcripts: TranscriptAnnotation[] 
             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Transcript</th>
             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Gene</th>
             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Consequence</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">HGVS (c.)</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">HGVS (p.)</th>
+            <th
+              className={cn(
+                "text-left px-3 py-2 font-medium text-muted-foreground",
+                SCORE_TOOLTIP_AFFORDANCE,
+              )}
+              title={HGVS_CODING_TOOLTIP}
+            >
+              HGVS (c.)
+            </th>
+            <th
+              className={cn(
+                "text-left px-3 py-2 font-medium text-muted-foreground",
+                SCORE_TOOLTIP_AFFORDANCE,
+              )}
+              title={HGVS_PROTEIN_TOOLTIP}
+            >
+              HGVS (p.)
+            </th>
             <th className="text-center px-3 py-2 font-medium text-muted-foreground">MANE</th>
           </tr>
         </thead>

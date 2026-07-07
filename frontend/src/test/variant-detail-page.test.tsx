@@ -239,8 +239,8 @@ describe("VariantDetailPage (P2-21a)", () => {
       expect(screen.getByTestId("tab-overview")).toBeInTheDocument()
     })
 
-    expect(screen.getByTitle(HGVS_CODING_TOOLTIP)).toHaveTextContent("Coding")
-    expect(screen.getByTitle(HGVS_PROTEIN_TOOLTIP)).toHaveTextContent("Protein")
+    expect(screen.getAllByTitle(HGVS_CODING_TOOLTIP).some((node) => node.textContent === "Coding")).toBe(true)
+    expect(screen.getAllByTitle(HGVS_PROTEIN_TOOLTIP).some((node) => node.textContent === "Protein")).toBe(true)
   })
 
   it("shows transcript table when multiple transcripts exist", async () => {
@@ -254,6 +254,8 @@ describe("VariantDetailPage (P2-21a)", () => {
     await waitFor(() => {
       expect(screen.getByText("NM_007299")).toBeInTheDocument()
     })
+    expect(screen.getAllByTitle(HGVS_CODING_TOOLTIP).some((node) => node.textContent === "HGVS (c.)")).toBe(true)
+    expect(screen.getAllByTitle(HGVS_PROTEIN_TOOLTIP).some((node) => node.textContent === "HGVS (p.)")).toBe(true)
   })
 
   it("switches to Population tab", async () => {
@@ -325,6 +327,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     await user.click(screen.getByRole("tab", { name: /protein/i }))
     expect(screen.getByTestId("tab-protein")).toBeInTheDocument()
     expect(screen.getByText("p.Tyr1853Ter")).toBeInTheDocument()
+    expect(screen.getByTitle(HGVS_PROTEIN_TOOLTIP)).toHaveTextContent("Protein change")
     expect(screen.getByText(/View full gene detail/)).toBeInTheDocument()
   })
 

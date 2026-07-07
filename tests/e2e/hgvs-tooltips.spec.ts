@@ -184,8 +184,12 @@ test('Variant Explorer side panel explains HGVS coding and protein notation (#16
   await waitForReactHydration(page)
   await page.getByText('rs1669').click()
 
-  await expect(page.getByTitle(hgvsCodingTooltip)).toHaveText('Coding')
-  await expect(page.getByTitle(hgvsProteinTooltip)).toHaveText('Protein')
+  await expect(page.getByTitle(hgvsCodingTooltip).filter({ hasText: /^Coding$/ })).toHaveText(
+    'Coding',
+  )
+  await expect(page.getByTitle(hgvsProteinTooltip).filter({ hasText: /^Protein$/ })).toHaveText(
+    'Protein',
+  )
 })
 
 test('Full variant detail page explains HGVS coding and protein notation (#1669)', async ({
@@ -199,8 +203,15 @@ test('Full variant detail page explains HGVS coding and protein notation (#1669)
   await page.goto('/variants/rs1669?sample_id=1')
   await waitForReactHydration(page)
 
-  await expect(page.getByTitle(hgvsCodingTooltip)).toHaveText('Coding')
-  await expect(page.getByTitle(hgvsProteinTooltip)).toHaveText('Protein')
+  await expect(page.getByTitle(hgvsCodingTooltip).filter({ hasText: /^Coding$/ })).toHaveText(
+    'Coding',
+  )
+  await expect(page.getByTitle(hgvsProteinTooltip).filter({ hasText: /^Protein$/ })).toHaveText(
+    'Protein',
+  )
+
+  await page.getByRole('tab', { name: /protein/i }).click()
+  await expect(page.getByTitle(hgvsProteinTooltip)).toHaveText('Protein change')
 })
 
 test('Rare Variant Finder detail panel explains HGVS coding and protein notation (#1669)', async ({
