@@ -10,7 +10,7 @@ had no way to discover the right name.
 
 This locks the external-service credential settings — the ones a config/env
 operator sets by hand — into the configuration doc so none can silently fall out
-again, and pins that the naming trap stays called out.
+again, and pins that the wizard-facing NCBI alias stays called out.
 """
 
 from __future__ import annotations
@@ -46,15 +46,16 @@ def test_external_service_settings_are_documented() -> None:
     )
 
 
-def test_ncbi_api_key_naming_trap_is_noted() -> None:
+def test_ncbi_api_key_alias_is_documented() -> None:
     """The doc must connect the wizard's "NCBI API Key" field to the real config key
-    ``pubmed_api_key`` and name ``ncbi_api_key`` as the inferred-but-ignored key, so a
-    config/env user is warned off it (#1560). Pins the mapping, not just a bare token."""
+    ``pubmed_api_key`` and name ``ncbi_api_key`` as its accepted alias (#1634).
+    Pins the mapping, not just a bare token."""
     text = _DOC.read_text(encoding="utf-8")
     for token in ("NCBI API Key", "pubmed_api_key", "ncbi_api_key"):
         assert token in text, (
-            f"configuration.md should tie the wizard's 'NCBI API Key' field to config key "
-            f"pubmed_api_key and warn off ncbi_api_key (#1560); missing {token!r}."
+            f"configuration.md should tie the wizard's 'NCBI API Key' field to canonical "
+            f"config key pubmed_api_key and accepted alias ncbi_api_key (#1634); "
+            f"missing {token!r}."
         )
 
 

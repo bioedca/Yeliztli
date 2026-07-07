@@ -123,6 +123,33 @@ def test_pubmed_api_key_env_canonical_wins(monkeypatch):
     assert settings.pubmed_api_key == "canonical-key"
 
 
+def test_pubmed_api_key_dotenv_alias(tmp_path, monkeypatch):
+    """The wizard-style NCBI key is accepted from the project .env file."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "home")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("YELIZTLI_NCBI_API_KEY", raising=False)
+    monkeypatch.delenv("YELIZTLI_PUBMED_API_KEY", raising=False)
+    _write_toml(tmp_path / ".env", "YELIZTLI_NCBI_API_KEY=dotenv-ncbi-key\n")
+
+    settings = Settings()
+    assert settings.pubmed_api_key == "dotenv-ncbi-key"
+
+
+def test_pubmed_api_key_dotenv_canonical_wins(tmp_path, monkeypatch):
+    """Canonical .env naming wins when both API-key .env vars are present."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "home")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("YELIZTLI_NCBI_API_KEY", raising=False)
+    monkeypatch.delenv("YELIZTLI_PUBMED_API_KEY", raising=False)
+    _write_toml(
+        tmp_path / ".env",
+        "YELIZTLI_NCBI_API_KEY=alias-dotenv-key\nYELIZTLI_PUBMED_API_KEY=canonical-dotenv-key\n",
+    )
+
+    settings = Settings()
+    assert settings.pubmed_api_key == "canonical-dotenv-key"
+
+
 def test_download_staging_dir_defaults_under_data_dir():
     """Unset download_staging_dir keeps downloads_dir at data_dir/'downloads'.
 

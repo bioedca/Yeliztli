@@ -6,6 +6,7 @@ variables (YELIZTLI_*).
 
 import os
 import threading
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -140,12 +141,22 @@ class _DataDirPointerSource(PydanticBaseSettingsSource):
         return {"data_dir": self._data_dir} if self._data_dir is not None else {}
 
 
-class _NcbiApiKeyEnvAliasSource(PydanticBaseSettingsSource):
+def _dotenv_env_value(source: PydanticBaseSettingsSource, env_name: str) -> str | None:
+    """Return an env-style value from a pydantic dotenv source, respecting case config."""
+    env_vars = getattr(source, "env_vars", {})
+    if not isinstance(env_vars, Mapping):
+        return None
+    key = env_name if source.config.get("case_sensitive") else env_name.lower()
+    value = env_vars.get(key)
+    return value if isinstance(value, str) else None
+
+
+class _NcbiApiKeyAliasSource(PydanticBaseSettingsSource):
     """Accept ``YELIZTLI_NCBI_API_KEY`` as a fallback for ``pubmed_api_key``."""
 
-    def __init__(self, settings_cls: type[BaseSettings]) -> None:
+    def __init__(self, settings_cls: type[BaseSettings], api_key: str | None) -> None:
         super().__init__(settings_cls)
-        self._api_key = os.getenv(NCBI_API_KEY_ENV_ALIAS)
+        self._api_key = api_key
 
     def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:  # noqa: ARG002
         if field_name == "pubmed_api_key" and self._api_key is not None:
@@ -394,10 +405,13 @@ class Settings(BaseSettings):
         return (
             init_settings,
             env_settings,
-            _NcbiApiKeyEnvAliasSource(settings_cls),
+            _NcbiApiKeyAliasSource(settings_cls, os.getenv(NCBI_API_KEY_ENV_ALIAS)),
             _DataDirPointerSource(settings_cls, data_dir_pointer_path()),
             _ConfigTomlTableSource(settings_cls, config_toml_path()),
             dotenv_settings,
+            _NcbiApiKeyAliasSource(
+                settings_cls, _dotenv_env_value(dotenv_settings, NCBI_API_KEY_ENV_ALIAS)
+            ),
         )
 
 
