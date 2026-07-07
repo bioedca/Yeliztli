@@ -219,6 +219,66 @@ class TestRenderFindingSvg:
         assert "<svg" in svg
         assert "Elevated" in svg or "Folate" in svg
 
+    def test_incomplete_standard_pathway_svg_carries_coverage_caption(self):
+        """#1685: an incomplete Standard pathway's embedded SVG must carry the
+        coverage-qualified label (Tested Standard / Not Assessed), mirroring the
+        report badge (#1651) — a plain Standard highlight alone reads as a
+        fully-assessed negative. Tested Standard keeps the risk highlight; Not
+        Assessed dims the bar (nothing was determined). ``opacity="1.0"`` marks the
+        single active segment (stars/arrow never use it), so its presence/absence
+        is a robust "is a level highlighted" probe."""
+        base = {
+            "id": 9,
+            "module": "nutrigenomics",
+            "category": "pathway_summary",
+            "evidence_level": 2,
+            "finding_text": "Caffeine Metabolism",
+            "pathway": "Caffeine Metabolism",
+            "pathway_level": "Standard",
+        }
+        # Some tracked SNPs called, some missing -> Tested Standard (with the count),
+        # and the bar keeps its Standard highlight (a genuine call among tested SNPs).
+        tested = render_finding_svg(
+            {**base, "detail_json": json.dumps({"called_snps": 3, "missing_snps": ["rs1", "rs2"]})}
+        )
+        assert tested is not None
+        assert "Tested Standard (2 not assessed)" in tested
+        assert 'opacity="1.0"' in tested  # Standard segment still highlighted
+
+        # No tracked SNPs called -> Not Assessed; the bar must NOT assert a confident
+        # Standard highlight/arrow, since nothing was determined.
+        not_assessed = render_finding_svg(
+            {
+                **base,
+                "detail_json": json.dumps(
+                    {"called_snps": 0, "missing_snps": ["rs1", "rs2", "rs3"]}
+                ),
+            }
+        )
+        assert not_assessed is not None
+        assert "Not Assessed (3 not assessed)" in not_assessed
+        assert 'opacity="1.0"' not in not_assessed  # every segment dimmed
+
+        # Fully covered Standard -> plain Standard highlight, no coverage caption.
+        complete = render_finding_svg(
+            {**base, "detail_json": json.dumps({"called_snps": 4, "missing_snps": []})}
+        )
+        assert complete is not None
+        assert "Tested Standard" not in complete and "Not Assessed" not in complete
+        assert 'opacity="1.0"' in complete  # normal Standard highlight
+
+        # A non-Standard level (Elevated) is never coverage-qualified, even when the
+        # panel is incomplete — the raw level renders with no caption.
+        elevated = render_finding_svg(
+            {
+                **base,
+                "pathway_level": "Elevated",
+                "detail_json": json.dumps({"called_snps": 1, "missing_snps": ["rs1"]}),
+            }
+        )
+        assert elevated is not None
+        assert "Tested Standard" not in elevated and "Not Assessed" not in elevated
+
     def test_pharmacogenomics_generates_metabolizer_card(self, pharmacogenomics_finding):
         svg = render_finding_svg(pharmacogenomics_finding)
         assert svg is not None

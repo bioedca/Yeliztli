@@ -45,6 +45,8 @@ from typing import Any
 
 import structlog
 
+from backend.analysis.pathway_coverage import pathway_level_display_label
+
 logger = structlog.get_logger(__name__)
 
 # ── Color palette ─────────────────────────────────────────────────────────
@@ -271,6 +273,14 @@ def _render_pathway_indicator(
     width, height = 400, 120
     pathway = finding.get("pathway") or detail.get("pathway", "Pathway")
     level = finding.get("pathway_level", "Standard")
+    # Coverage-aware treatment (#1685): a Standard pathway with incomplete SNP
+    # coverage is not a clean whole-panel negative. When NOTHING was assessed
+    # ("Not Assessed" — no tracked SNP was called), the bar must not light a
+    # confident Standard highlight/arrow, or the graphic reads as a fully-assessed
+    # negative; "Tested Standard" keeps the highlight (a genuine call among the
+    # tested SNPs). Either way a caption below carries the coverage caveat.
+    display_label = pathway_level_display_label(level, detail)
+    not_assessed = display_label == "Not Assessed"
 
     parts: list[str] = []
     parts.append(SVG_HEADER.format(width=width, height=height))
@@ -297,7 +307,8 @@ def _render_pathway_indicator(
 
     for i, (seg_label, bg_color, txt_color) in enumerate(segments):
         sx = bar_x + i * seg_w
-        is_active = seg_label == level
+        # No segment is "active" when nothing was assessed — the level is unknown.
+        is_active = seg_label == level and not not_assessed
 
         # Rounded corners: first segment left-rounded, last right-rounded
         if i == 0:
@@ -333,15 +344,17 @@ def _render_pathway_indicator(
             f'fill="{label_color}">{seg_label}</text>\n'
         )
 
-    # Active indicator arrow below the bar
-    level_idx = {"Standard": 0, "Moderate": 1, "Elevated": 2}.get(level, 0)
-    arrow_x = bar_x + level_idx * seg_w + seg_w / 2
-    arrow_y = bar_y + bar_h + 8
-    parts.append(
-        f'  <polygon points="{arrow_x - 5:.1f},{arrow_y + 6:.1f} '
-        f"{arrow_x + 5:.1f},{arrow_y + 6:.1f} "
-        f'{arrow_x:.1f},{arrow_y:.1f}" fill="{TEAL_DARK}"/>\n'
-    )
+    # Active indicator arrow below the bar — suppressed when nothing was assessed,
+    # since there is no determined level to point at (#1685).
+    if not not_assessed:
+        level_idx = {"Standard": 0, "Moderate": 1, "Elevated": 2}.get(level, 0)
+        arrow_x = bar_x + level_idx * seg_w + seg_w / 2
+        arrow_y = bar_y + bar_h + 8
+        parts.append(
+            f'  <polygon points="{arrow_x - 5:.1f},{arrow_y + 6:.1f} '
+            f"{arrow_x + 5:.1f},{arrow_y + 6:.1f} "
+            f'{arrow_x:.1f},{arrow_y:.1f}" fill="{TEAL_DARK}"/>\n'
+        )
 
     # Evidence stars
     ev = finding.get("evidence_level")
@@ -353,6 +366,19 @@ def _render_pathway_indicator(
     if gene:
         parts.append(
             f'  <text x="20" y="{height - 14}" {FONT_SMALL}>Gene: {_escape(gene)}</text>\n'
+        )
+
+    # Coverage-aware caption (#1685): annotate the SVG with the coverage-qualified
+    # label (Tested Standard / Not Assessed) mirroring the report badge (#1651), so
+    # an incomplete Standard pathway can't read as a fully-assessed negative.
+    if display_label and display_label != level:
+        missing = detail.get("missing_snps") or []
+        # ASCII-only separator: the SVG is embedded into HTML/PDF reports whose
+        # encoding we don't want a caption to depend on.
+        caption = f"{display_label} ({len(missing)} not assessed)" if missing else display_label
+        parts.append(
+            f'  <text x="{width - 20}" y="{height - 14}" text-anchor="end" '
+            f"{FONT_SMALL}>{_escape(caption)}</text>\n"
         )
 
     parts.append(SVG_FOOTER)
