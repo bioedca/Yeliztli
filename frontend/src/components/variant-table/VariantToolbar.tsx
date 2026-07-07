@@ -25,6 +25,10 @@ import {
   type Tag as VariantTag,
 } from "@/types/variants"
 
+const GRCH38_TOGGLE_HELP_ID = "variant-table-grch38-toggle-help"
+const GRCH38_TOGGLE_TOOLTIP =
+  "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants."
+
 interface VariantToolbarProps {
   searchQuery: string
   onSearchChange: (query: string) => void
@@ -410,10 +414,15 @@ export default function VariantToolbar({
         }`}
         aria-pressed={showGRCh38}
         aria-label={showGRCh38 ? "Hide GRCh38 coordinates" : "Show GRCh38 coordinates"}
+        aria-describedby={GRCH38_TOGGLE_HELP_ID}
+        title={GRCH38_TOGGLE_TOOLTIP}
       >
         <ArrowRightLeft className="h-4 w-4" />
         <span>GRCh38</span>
       </button>
+      <span id={GRCH38_TOGGLE_HELP_ID} className="sr-only">
+        {GRCH38_TOGGLE_TOOLTIP}
+      </span>
 
       {/* Column preset selector (P1-15c) */}
       <ColumnPresets activePreset={activePreset} onPresetChange={onPresetChange} />

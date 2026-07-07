@@ -372,9 +372,14 @@ describe("VariantTable", () => {
     await waitFor(() => {
       expect(screen.getByText("rsID")).toBeInTheDocument()
     })
-    // "Chr" appears in both the chromosome nav label and the table header
-    expect(screen.getAllByText("Chr").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("Position")).toBeInTheDocument()
+    expect(screen.getByText("Chr (GRCh37)")).toHaveAttribute(
+      "title",
+      "Native GRCh37/hg19 coordinate stored for this sample; use these columns with GRCh37/hg19 tools.",
+    )
+    expect(screen.getByText("Position (GRCh37)")).toHaveAttribute(
+      "title",
+      "Native GRCh37/hg19 coordinate stored for this sample; use these columns with GRCh37/hg19 tools.",
+    )
     expect(screen.getByText("Genotype")).toBeInTheDocument()
     expect(screen.getByText("Gene")).toBeInTheDocument()
     expect(screen.getByText("Consequence")).toBeInTheDocument()
@@ -843,7 +848,18 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     render(<VariantTable sampleId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /show grch38 coordinates/i })).toBeInTheDocument()
+      const toggle = screen.getByRole("button", { name: /show grch38 coordinates/i })
+      expect(toggle).toBeInTheDocument()
+      expect(toggle).toHaveAttribute(
+        "title",
+        "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+      )
+      expect(toggle).toHaveAttribute("aria-describedby", "variant-table-grch38-toggle-help")
+      expect(
+        screen.getByText(
+          "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+        ),
+      ).toHaveClass("sr-only")
     })
   })
 
@@ -876,8 +892,14 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     await user.click(toggle)
 
     await waitFor(() => {
-      expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
-      expect(screen.getByText("Pos (GRCh38)")).toBeInTheDocument()
+      expect(screen.getByText("Chr (GRCh38)")).toHaveAttribute(
+        "title",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+      )
+      expect(screen.getByText("Pos (GRCh38)")).toHaveAttribute(
+        "title",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+      )
     })
     expect(toggle).toHaveAttribute("aria-pressed", "true")
   })

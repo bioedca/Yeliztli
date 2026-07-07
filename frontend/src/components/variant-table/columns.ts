@@ -19,6 +19,24 @@ interface VariantTableMeta {
   tagColors?: ReadonlyMap<string, string>
 }
 
+const GRCH37_COORDINATE_TOOLTIP =
+  "Native GRCh37/hg19 coordinate stored for this sample; use these columns with GRCh37/hg19 tools."
+const GRCH38_COORDINATE_TOOLTIP =
+  "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted."
+
+function coordinateHeader(label: string, title: string) {
+  return () =>
+    createElement(
+      "span",
+      {
+        title,
+        "aria-label": `${label}: ${title}`,
+        className: "cursor-help",
+      },
+      label,
+    )
+}
+
 /** Pinned conflict flag column — non-hideable per PRD (P2-07, P2-22).
  *  Amber indicator when ClinVar vs in-silico disagreement fires. */
 const conflictColumn = col.accessor("evidence_conflict", {
@@ -86,13 +104,13 @@ export const allColumns = [
     },
   }),
   col.accessor("chrom", {
-    header: "Chr",
-    size: 60,
+    header: coordinateHeader("Chr (GRCh37)", GRCH37_COORDINATE_TOOLTIP),
+    size: 110,
     cell: (info) => info.getValue(),
   }),
   col.accessor("pos", {
-    header: "Position",
-    size: 110,
+    header: coordinateHeader("Position (GRCh37)", GRCH37_COORDINATE_TOOLTIP),
+    size: 150,
     cell: (info) => info.getValue()?.toLocaleString() ?? "",
   }),
   col.accessor("genotype", {
@@ -212,12 +230,12 @@ export const allColumns = [
     cell: (info) => (info.getValue() === true ? "Path" : ""),
   }),
   col.accessor("chrom_grch38", {
-    header: "Chr (GRCh38)",
+    header: coordinateHeader("Chr (GRCh38)", GRCH38_COORDINATE_TOOLTIP),
     size: 100,
     cell: (info) => info.getValue() ?? "",
   }),
   col.accessor("pos_grch38", {
-    header: "Pos (GRCh38)",
+    header: coordinateHeader("Pos (GRCh38)", GRCH38_COORDINATE_TOOLTIP),
     size: 120,
     cell: (info) => info.getValue()?.toLocaleString() ?? "",
   }),
