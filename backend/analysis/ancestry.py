@@ -2058,6 +2058,9 @@ def assign_haplogroups(
 # ── Haplogroup findings storage ──────────────────────────────────────
 
 
+_HAPLOGROUP_FINDING_CATEGORIES = ("haplogroup_mt", "haplogroup_y", "haplogroup_Y")
+
+
 def store_haplogroup_findings(
     results: list[HaplogroupResult],
     sample_engine: sa.Engine,
@@ -2081,7 +2084,7 @@ def store_haplogroup_findings(
         conn.execute(
             sa.delete(findings).where(
                 findings.c.module == "ancestry",
-                findings.c.category.in_(["haplogroup_mt", "haplogroup_y"]),
+                findings.c.category.in_(_HAPLOGROUP_FINDING_CATEGORIES),
             )
         )
         if not results:

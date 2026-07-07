@@ -1505,6 +1505,53 @@ class TestStoreHaplogroupFindings:
             assert len(rows) == 1
             assert rows[0].haplogroup == "H1a"
 
+    def test_rerun_without_y_clears_stale_y_finding(self, sample_engine: sa.Engine) -> None:
+        """Re-running with no Y result clears the stored uppercase Y finding."""
+        mt_result = HaplogroupResult(
+            tree_type="mt",
+            haplogroup="H1a",
+            confidence=1.0,
+            defining_snps_present=17,
+            defining_snps_total=17,
+            traversal_path=[HaplogroupTraversalStep("H1a", 17, 17)],
+            assignment_time_ms=0.5,
+        )
+        y_result = HaplogroupResult(
+            tree_type="Y",
+            haplogroup="R1b",
+            confidence=0.9,
+            defining_snps_present=9,
+            defining_snps_total=10,
+            traversal_path=[HaplogroupTraversalStep("R1b", 9, 10)],
+            assignment_time_ms=0.3,
+        )
+
+        assert store_haplogroup_findings([mt_result, y_result], sample_engine) == 2
+        assert store_haplogroup_findings([mt_result], sample_engine) == 1
+
+        with sample_engine.connect() as conn:
+            categories = (
+                conn.execute(
+                    sa.select(findings.c.category)
+                    .where(findings.c.module == "ancestry")
+                    .order_by(findings.c.category)
+                )
+                .scalars()
+                .all()
+            )
+            assignment_types = (
+                conn.execute(
+                    sa.select(haplogroup_assignments.c.type).order_by(
+                        haplogroup_assignments.c.type
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+        assert categories == ["haplogroup_mt"]
+        assert assignment_types == ["mt"]
+
     def test_empty_results(self, sample_engine: sa.Engine) -> None:
         """Empty results list stores nothing."""
         count = store_haplogroup_findings([], sample_engine)
