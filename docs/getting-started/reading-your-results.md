@@ -18,7 +18,15 @@ while annotation is still running; results fill in as the background annotation 
 - **Module cards** — a grid linking to each analysis module, with finding counts.
 - **High-confidence findings** — the strongest findings across all modules.
 - **QC summary** — a collapsible panel of sample-quality metrics (heterozygosity, call rate,
-  per-chromosome counts).
+  per-chromosome counts). The **heterozygosity check**'s **z-score** compares this sample's
+  heterozygosity rate against **your own other uploaded samples on the same genotyping array** —
+  *not* a population or array-wide baseline. Heterozygosity is strongly array-dependent (SNP
+  arrays overestimate it by design, so the same person's rate isn't comparable across different
+  arrays), so the comparison is only valid within one array type. It needs at least **three**
+  same-array samples to compute; with fewer it is withheld (shown as *"Not enough samples"* or
+  *"No comparable array peers"*) rather than guessed. Because the reference is your own small set
+  of uploads, a z-score built from as few as three samples can swing widely and does **not** mean
+  "unusual for this chip in the general population."
 
 Use the **sample selector** in the top navigation to switch between uploaded samples; each
 has its own isolated results.
