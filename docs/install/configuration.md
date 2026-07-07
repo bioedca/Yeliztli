@@ -38,8 +38,8 @@ session_timeout_hours = 4
 pubmed_email = "your@email.com"
 pubmed_api_key = ""            # optional NCBI API key — raises the Entrez rate limit 3→10 req/s
                               # (only when pubmed_email is also set). The setup wizard labels this
-                              # "NCBI API Key"; in config/env it is pubmed_api_key /
-                              # YELIZTLI_PUBMED_API_KEY, NOT ncbi_api_key.
+                              # "NCBI API Key"; pubmed_api_key / YELIZTLI_PUBMED_API_KEY are
+                              # canonical, but ncbi_api_key / YELIZTLI_NCBI_API_KEY are accepted.
 omim_api_key = ""
 
 # Updates
@@ -73,7 +73,7 @@ log_level = "INFO"             # DEBUG, INFO, WARNING, ERROR
 | `auth_enabled` | `YELIZTLI_AUTH_ENABLED` | `false` | Require a PIN/password to use the app. This protects requests only when a password hash is also configured. |
 | `auth_password_hash` | `YELIZTLI_AUTH_PASSWORD_HASH` | `""` | bcrypt hash for the PIN/password. If this is empty, requests remain open even when `auth_enabled` is `true`. Normally set this through **Settings → Authentication**; clear it by hand only when recovering from a forgotten password. |
 | `pubmed_email` | `YELIZTLI_PUBMED_EMAIL` | `""` | Contact email for NCBI literature lookups. |
-| `pubmed_api_key` | `YELIZTLI_PUBMED_API_KEY` | `""` | Optional NCBI API key; raises the Entrez literature-lookup rate limit from 3 to 10 requests/second (effective only when `pubmed_email` is also set). The setup wizard exposes this as its **"NCBI API Key"** field, but in `config.toml`/env it is `pubmed_api_key` / `YELIZTLI_PUBMED_API_KEY` — **not** `ncbi_api_key` (an unknown key is silently ignored). |
+| `pubmed_api_key` | `YELIZTLI_PUBMED_API_KEY` | `""` | Optional NCBI API key; raises the Entrez literature-lookup rate limit from 3 to 10 requests/second (effective only when `pubmed_email` is also set). The setup wizard exposes this as its **"NCBI API Key"** field. `pubmed_api_key` / `YELIZTLI_PUBMED_API_KEY` are canonical, but `ncbi_api_key` / `YELIZTLI_NCBI_API_KEY` are accepted aliases; canonical names win if both are set in the same source. |
 | `omim_api_key` | `YELIZTLI_OMIM_API_KEY` | `""` | Optional OMIM enrichment key. |
 | `hibag_rscript` | `YELIZTLI_HIBAG_RSCRIPT` | unset | Optional path to `Rscript`, or a directory containing it, for the operator-provisioned HIBAG HLA imputation runtime. When unset, Yeliztli tries `Rscript` on `PATH`. |
 | `hibag_model_dir` | `YELIZTLI_HIBAG_MODEL_DIR` | unset | Optional directory containing BYO ancestry-specific HIBAG model files named `{ancestry}-HLA4.RData`. Required before the HLA (imputed) page can be populated. |

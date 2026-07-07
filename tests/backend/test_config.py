@@ -23,8 +23,9 @@ def _clear_settings_cache():
     get_settings.cache_clear()
 
 
-def test_default_settings():
+def test_default_settings(tmp_path, monkeypatch):
     """Settings should load with sensible defaults."""
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
     settings = get_settings()
     assert settings.host == "127.0.0.1"
     assert settings.port == 8000
@@ -105,6 +106,21 @@ def test_env_override(monkeypatch):
     settings = Settings()
     assert settings.port == 9000
     assert settings.debug is True
+
+
+def test_pubmed_api_key_env_alias(monkeypatch):
+    """The wizard-style NCBI key env var is accepted as a fallback alias."""
+    monkeypatch.setenv("YELIZTLI_NCBI_API_KEY", "ncbi-key")
+    settings = Settings()
+    assert settings.pubmed_api_key == "ncbi-key"
+
+
+def test_pubmed_api_key_env_canonical_wins(monkeypatch):
+    """Canonical env naming wins when both API-key env vars are present."""
+    monkeypatch.setenv("YELIZTLI_NCBI_API_KEY", "alias-key")
+    monkeypatch.setenv("YELIZTLI_PUBMED_API_KEY", "canonical-key")
+    settings = Settings()
+    assert settings.pubmed_api_key == "canonical-key"
 
 
 def test_download_staging_dir_defaults_under_data_dir():
@@ -195,6 +211,27 @@ def test_config_toml_data_dir_excluded(tmp_path, monkeypatch):
     settings = Settings()
     assert settings.theme == "dark"  # other keys still applied
     assert settings.data_dir != tmp_path / "stale"
+
+
+def test_config_toml_ncbi_api_key_alias(tmp_path, monkeypatch):
+    """The wizard-style NCBI key is accepted in hand-written config.toml."""
+    monkeypatch.setattr("backend.config.DEFAULT_DATA_DIR", tmp_path)
+    _write_toml(tmp_path / "config.toml", '[yeliztli]\nncbi_api_key = "ncbi-key"\n')
+
+    settings = Settings()
+    assert settings.pubmed_api_key == "ncbi-key"
+
+
+def test_config_toml_pubmed_api_key_wins_over_ncbi_alias(tmp_path, monkeypatch):
+    """Canonical TOML naming wins when both API-key config keys are present."""
+    monkeypatch.setattr("backend.config.DEFAULT_DATA_DIR", tmp_path)
+    _write_toml(
+        tmp_path / "config.toml",
+        '[yeliztli]\npubmed_api_key = "canonical-key"\nncbi_api_key = "alias-key"\n',
+    )
+
+    settings = Settings()
+    assert settings.pubmed_api_key == "canonical-key"
 
 
 # ── Shared escaped TOML writer ───────────────────────────────────────

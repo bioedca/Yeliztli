@@ -4,6 +4,7 @@ Layered: defaults -> ~/.yeliztli/config.toml ([yeliztli] table) -> environment
 variables (YELIZTLI_*).
 """
 
+import os
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -25,6 +26,11 @@ CONFIG_SECTION = "yeliztli"
 
 # Canonical env-var prefix.
 ENV_PREFIX = "YELIZTLI_"
+
+# Backward-compatible alias for the setup wizard's user-facing "NCBI API Key"
+# label. ``pubmed_api_key`` remains the canonical persisted setting.
+NCBI_API_KEY_CONFIG_ALIAS = "ncbi_api_key"
+NCBI_API_KEY_ENV_ALIAS = f"{ENV_PREFIX}NCBI_API_KEY"
 
 # Fields never sourced from config.toml: data_dir is location-defining (it says
 # *where* config.toml lives), so reading it back from config.toml is circular and
@@ -90,11 +96,14 @@ class _ConfigTomlTableSource(PydanticBaseSettingsSource):
         return value
 
     def __call__(self) -> dict[str, Any]:
-        return {
+        values = {
             name: self._table[name]
             for name in self.settings_cls.model_fields
             if name in self._table and name not in _TOML_EXCLUDED_FIELDS
         }
+        if "pubmed_api_key" not in values and NCBI_API_KEY_CONFIG_ALIAS in self._table:
+            values["pubmed_api_key"] = self._table[NCBI_API_KEY_CONFIG_ALIAS]
+        return values
 
 
 class _DataDirPointerSource(PydanticBaseSettingsSource):
@@ -129,6 +138,27 @@ class _DataDirPointerSource(PydanticBaseSettingsSource):
 
     def __call__(self) -> dict[str, Any]:
         return {"data_dir": self._data_dir} if self._data_dir is not None else {}
+
+
+class _NcbiApiKeyEnvAliasSource(PydanticBaseSettingsSource):
+    """Accept ``YELIZTLI_NCBI_API_KEY`` as a fallback for ``pubmed_api_key``."""
+
+    def __init__(self, settings_cls: type[BaseSettings]) -> None:
+        super().__init__(settings_cls)
+        self._api_key = os.getenv(NCBI_API_KEY_ENV_ALIAS)
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:  # noqa: ARG002
+        if field_name == "pubmed_api_key" and self._api_key is not None:
+            return self._api_key, "pubmed_api_key", False
+        return None, field_name, False
+
+    def prepare_field_value(
+        self, field_name: str, field: Any, value: Any, value_is_complex: bool
+    ) -> Any:  # noqa: ARG002
+        return value
+
+    def __call__(self) -> dict[str, Any]:
+        return {"pubmed_api_key": self._api_key} if self._api_key is not None else {}
 
 
 class Settings(BaseSettings):
@@ -364,6 +394,7 @@ class Settings(BaseSettings):
         return (
             init_settings,
             env_settings,
+            _NcbiApiKeyEnvAliasSource(settings_cls),
             _DataDirPointerSource(settings_cls, data_dir_pointer_path()),
             _ConfigTomlTableSource(settings_cls, config_toml_path()),
             dotenv_settings,
