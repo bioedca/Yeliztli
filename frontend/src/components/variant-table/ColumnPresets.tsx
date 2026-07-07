@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Columns3, Check, Plus, Trash2, X } from "lucide-react"
 import { useColumnPresets, useCreatePreset, useDeletePreset } from "@/api/columnPresets"
+import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
+import { cn } from "@/lib/utils"
 import type { ColumnPreset } from "@/types/variants"
 
 /** Columns always visible regardless of preset. */
@@ -41,12 +43,18 @@ const COLUMN_LABELS: Record<string, string> = {
   ensemble_pathogenic: "Ensemble",
 }
 
+/** Tooltips for compact score labels that are otherwise hard to interpret. */
+const COLUMN_TOOLTIPS: Partial<Record<string, string>> = {
+  cadd_phred: CADD_TOOLTIP,
+  revel: REVEL_TOOLTIP,
+}
+
 interface ColumnPresetsProps {
   activePreset: string | null
   onPresetChange: (presetName: string | null, columns: string[] | null) => void
 }
 
-export { ALWAYS_VISIBLE }
+export { ALWAYS_VISIBLE, COLUMN_TOOLTIPS }
 
 export default function ColumnPresets({ activePreset, onPresetChange }: ColumnPresetsProps) {
   const [open, setOpen] = useState(false)
@@ -288,20 +296,28 @@ function CreatePresetDialog({
           <div>
             <p className="text-sm font-medium mb-2">Columns</p>
             <div className="grid grid-cols-2 gap-1 max-h-48 overflow-auto">
-              {ALL_COLUMN_IDS.map((colId) => (
-                <label
-                  key={colId}
-                  className="flex items-center gap-2 px-2 py-1 text-sm rounded hover:bg-accent cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(colId)}
-                    onChange={() => toggleColumn(colId)}
-                    className="rounded"
-                  />
-                  {COLUMN_LABELS[colId] ?? colId}
-                </label>
-              ))}
+              {ALL_COLUMN_IDS.map((colId) => {
+                const tooltip = COLUMN_TOOLTIPS[colId]
+                return (
+                  <label
+                    key={colId}
+                    className="flex items-center gap-2 px-2 py-1 text-sm rounded hover:bg-accent cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(colId)}
+                      onChange={() => toggleColumn(colId)}
+                      className="rounded"
+                    />
+                    <span
+                      title={tooltip}
+                      className={cn(tooltip && SCORE_TOOLTIP_AFFORDANCE)}
+                    >
+                      {COLUMN_LABELS[colId] ?? colId}
+                    </span>
+                  </label>
+                )
+              })}
             </div>
           </div>
         </div>

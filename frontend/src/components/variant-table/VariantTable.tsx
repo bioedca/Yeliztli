@@ -18,11 +18,13 @@ import { useVariants, useVariantsCount, useTotalVariantCount, useChromosomeCount
 import { useColumnPresets } from "@/api/columnPresets"
 import { useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
+import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
+import { cn } from "@/lib/utils"
 import type { ConcordanceTag, SourceTag, VariantRow } from "@/types/variants"
 import { allColumns } from "./columns"
 import VariantToolbar from "./VariantToolbar"
 import ChromosomeNav from "./ChromosomeNav"
-import { ALWAYS_VISIBLE } from "./ColumnPresets"
+import { ALWAYS_VISIBLE, COLUMN_TOOLTIPS } from "./ColumnPresets"
 import {
   PreUploadEmpty,
   PreAnnotationEmpty,
@@ -391,17 +393,24 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap"
-                      style={{ width: header.getSize() }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
+                  {headerGroup.headers.map((header) => {
+                    const tooltip = COLUMN_TOOLTIPS[header.column.id]
+                    return (
+                      <th
+                        key={header.id}
+                        title={tooltip}
+                        className={cn(
+                          "px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap",
+                          tooltip && SCORE_TOOLTIP_AFFORDANCE,
+                        )}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    )
+                  })}
                 </tr>
               ))}
             </thead>

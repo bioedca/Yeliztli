@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import QueryBuilderView from "@/pages/QueryBuilderView"
 import SavedQueriesPanel from "@/components/query-builder/SavedQueriesPanel"
 import QueryResultsTable from "@/components/query-builder/QueryResultsTable"
+import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
 import type { QueryResultPage, RuleGroupModel } from "@/types/query-builder"
 import { MemoryRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -156,6 +157,27 @@ describe("QueryResultsTable", () => {
     expect(screen.getByTestId("query-result-row")).toBeInTheDocument()
     expect(screen.getByText("rs429358")).toBeInTheDocument()
     expect(screen.getByText("APOE")).toBeInTheDocument()
+  })
+
+  it("explains compact CADD and REVEL result headers", () => {
+    render(
+      <QueryResultsTable
+        pages={[MOCK_RESULT]}
+        totalMatching={1}
+        hasMore={false}
+        isFetchingMore={false}
+        onLoadMore={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole("columnheader", { name: "CADD" })).toHaveAttribute(
+      "title",
+      CADD_TOOLTIP,
+    )
+    expect(screen.getByRole("columnheader", { name: "REVEL" })).toHaveAttribute(
+      "title",
+      REVEL_TOOLTIP,
+    )
   })
 
   it("shows empty message when no results", () => {

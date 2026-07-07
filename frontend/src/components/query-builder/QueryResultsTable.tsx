@@ -8,6 +8,8 @@ import { Loader2 } from "lucide-react"
 import type { QueryResultPage, QueryVariantRow } from "@/types/query-builder"
 import { formatNumber } from "@/lib/format"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
+import { cn } from "@/lib/utils"
+import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import ExportButton from "@/components/query-builder/ExportButton"
 
 /** Columns displayed in the results table. */
@@ -15,6 +17,7 @@ const DISPLAY_COLUMNS: Array<{
   key: keyof QueryVariantRow
   label: string
   align?: "right" | "center"
+  tooltip?: string
   format?: (v: unknown) => string
 }> = [
   { key: "rsid", label: "rsID" },
@@ -31,8 +34,20 @@ const DISPLAY_COLUMNS: Array<{
     align: "right",
     format: (v) => (v != null ? (v as number).toExponential(2) : "—"),
   },
-  { key: "cadd_phred", label: "CADD", align: "right", format: (v) => (v != null ? String(v) : "—") },
-  { key: "revel", label: "REVEL", align: "right", format: (v) => (v != null ? String(v) : "—") },
+  {
+    key: "cadd_phred",
+    label: "CADD",
+    align: "right",
+    tooltip: CADD_TOOLTIP,
+    format: (v) => (v != null ? String(v) : "—"),
+  },
+  {
+    key: "revel",
+    label: "REVEL",
+    align: "right",
+    tooltip: REVEL_TOOLTIP,
+    format: (v) => (v != null ? String(v) : "—"),
+  },
 ]
 
 const QUERY_EXPORT_FORMATS = ["vcf", "tsv", "json", "csv"] as const
@@ -85,13 +100,16 @@ export default function QueryResultsTable({
                 {DISPLAY_COLUMNS.map((col) => (
                   <th
                     key={col.key}
-                    className={`px-3 py-2 font-medium text-xs text-muted-foreground whitespace-nowrap ${
+                    title={col.tooltip}
+                    className={cn(
+                      "px-3 py-2 font-medium text-xs text-muted-foreground whitespace-nowrap",
+                      col.tooltip && SCORE_TOOLTIP_AFFORDANCE,
                       col.align === "right"
                         ? "text-right"
                         : col.align === "center"
                           ? "text-center"
-                          : "text-left"
-                    }`}
+                          : "text-left",
+                    )}
                   >
                     {col.label}
                   </th>
