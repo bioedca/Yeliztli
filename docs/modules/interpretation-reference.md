@@ -122,7 +122,7 @@ The polygenic modules ([metabolic](health-risk/metabolic.md),
 [bone density](health-risk/bone-density-ebmd.md),
 [familial hypercholesterolemia](health-risk/familial-hypercholesterolemia.md), cancer PRS,
 cognitive traits) summarise many small-effect variants into a **population percentile**, never
-a raw score or an absolute risk. Read these carefully:
+a raw score or a PRS-derived absolute risk. Read these carefully:
 
 - **Research use only.** They are not diagnostic and not clinically validated.
 - **Percentiles can be withheld.** When a score isn't calibrated for your inferred ancestry, or
@@ -134,6 +134,10 @@ a raw score or an absolute risk. Read these carefully:
   *within* a single labelled ancestry group [^2] — and varies with non-genetic factors such as
   age, sex, and socio-economic status [^3][^4]. Yeliztli shows an ancestry-mismatch warning when
   relevant.
+
+This PRS rule is separate from the cancer module's opt-in absolute-risk context, which can show
+population baseline and monogenic *BRCA1*/*BRCA2* carrier-penetrance figures after explicit
+consent. That overlay is not a PRS-derived personal risk estimate.
 
 ### Risk-genotype findings (common variants)
 
