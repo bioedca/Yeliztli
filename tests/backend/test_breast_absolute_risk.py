@@ -153,6 +153,28 @@ class TestOverlayGating:
         assert "Male breast cancer is rare" in nf1["note"]
         assert "before age 50" not in nf1["note"]  # not the female note
 
+    def test_hom_ref_non_carrier_finding_is_not_surfaced(self, sample_engine: sa.Engine) -> None:
+        """Negative control: the overlay surfaces only het/hom_alt carriers, so a
+        hom_ref (non-carrier) NF1 monogenic-variant row must NOT produce a monogenic
+        entry — locks the zygosity gate in _breast_monogenic_carriers (#1625)."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "monogenic_variant",
+                        "gene_symbol": "NF1",
+                        "zygosity": "hom_ref",
+                        "evidence_level": 4,
+                        "finding_text": "NF1 hom_ref (non-carrier)",
+                    }
+                ],
+            )
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
+        assert out["has_monogenic"] is False
+        assert all(m["gene"] != "NF1" for m in out["monogenic"])
+
     def test_configured_monogenic_gene_set_matches_expected_breast_panel(self) -> None:
         assert BREAST_MONOGENIC_GENES == EXPECTED_BREAST_MONOGENIC_GENES
 
