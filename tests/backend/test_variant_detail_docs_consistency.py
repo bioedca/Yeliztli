@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _TABS_SOURCE = REPO_ROOT / "frontend" / "src" / "pages" / "VariantDetailPage.tsx"
 _DOC_PATH = REPO_ROOT / "docs" / "features" / "variant-detail.md"
 _REPORTS_DOC_PATH = REPO_ROOT / "docs" / "features" / "reports.md"
-_FRONTEND_SOURCE_ROOT = REPO_ROOT / "frontend" / "src"
+_VARIANT_DETAIL_COMPONENT_ROOT = REPO_ROOT / "frontend" / "src" / "components" / "variant-detail"
 
 # Tab names dropped from the docs in #1545 because they were never real tabs.
 # Named so the regression stays legible; the set-equality tests below enforce it
@@ -93,11 +93,19 @@ def test_doc_explains_hgvs_notation() -> None:
     )
 
 
-def _frontend_has_variant_card_caller() -> bool:
-    """Whether the frontend actually calls the finding-keyed variant-card endpoints."""
-    for path in _FRONTEND_SOURCE_ROOT.rglob("*"):
-        if path.suffix not in {".ts", ".tsx"}:
-            continue
+def _variant_detail_ui_sources() -> list[Path]:
+    """Frontend sources that can honestly support a Variant Detail export claim."""
+    component_sources = [
+        path
+        for path in _VARIANT_DETAIL_COMPONENT_ROOT.rglob("*")
+        if path.suffix in {".ts", ".tsx"} and ".test." not in path.name
+    ]
+    return [_TABS_SOURCE, *component_sources]
+
+
+def _variant_detail_ui_has_variant_card_caller() -> bool:
+    """Whether Variant Detail UI sources call the finding-keyed variant-card endpoints."""
+    for path in _variant_detail_ui_sources():
         text = path.read_text(encoding="utf-8")
         if "/api/reports/variant-card" in text or "reports/variant-card" in text:
             return True
@@ -105,7 +113,7 @@ def _frontend_has_variant_card_caller() -> bool:
 
 
 def test_docs_do_not_claim_variant_detail_card_export_without_ui_caller() -> None:
-    if _frontend_has_variant_card_caller():
+    if _variant_detail_ui_has_variant_card_caller():
         return
 
     docs = {
@@ -120,7 +128,7 @@ def test_docs_do_not_claim_variant_detail_card_export_without_ui_caller() -> Non
         doc for doc, tokens in forbidden.items() if all(token in docs[doc] for token in tokens)
     ]
     assert not offenders, (
-        "Docs claim variant-detail evidence-card export, but frontend/src has no caller for "
+        "Docs claim variant-detail evidence-card export, but Variant Detail UI has no caller for "
         "the finding-keyed /api/reports/variant-card endpoints (#1622): "
         f"{offenders}."
     )
