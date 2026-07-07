@@ -153,8 +153,6 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs121909192",
-        "rs104893941",
         "rs75991011",
         "rs76163360",
         "rs77301881",

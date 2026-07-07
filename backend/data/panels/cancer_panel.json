@@ -140,7 +140,6 @@
       "evidence_level": 3,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs746061888",
         "rs145310733",
         "rs587780259",
         "rs587782036"
@@ -196,7 +195,6 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs63749893",
         "rs267607949",
         "rs193922372",
         "rs267607917",
@@ -219,7 +217,8 @@
         "rs267608078",
         "rs267608090",
         "rs267608120",
-        "rs267608096"
+        "rs267608096",
+        "rs63749893"
       ],
       "pmids": ["20301390", "31337882"],
       "notes": "Lynch syndrome mismatch repair gene. Somewhat lower penetrance than MLH1/MSH2."
@@ -417,10 +416,7 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs104894251",
-        "rs104894254",
-        "rs104894256",
-        "rs104894255"
+        "rs104894256"
       ],
       "pmids": ["20301710"],
       "notes": "MEN1 classic triad: parathyroid adenoma, pituitary adenoma, pancreatic neuroendocrine tumor."
@@ -452,7 +448,6 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs74315369",
-        "rs74315373",
         "rs74315370",
         "rs397516833"
       ],
