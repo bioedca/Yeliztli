@@ -70,6 +70,25 @@ evidence." To review contested records, open the
 [Variant Explorer](../features/variant-explorer.md) and filter or search ClinVar significance
 for `conflicting`.
 
+### In-silico pathogenicity scores (CADD, REVEL)
+
+Variant surfaces — the [Variant Explorer](../features/variant-explorer.md) side panel and the
+[Rare Variant Finder](rare-variants.md) — show two computational pathogenicity predictors as raw
+numbers. Unlike SIFT and PolyPhen-2 (shown with a plain-language *Deleterious* / *Tolerated*
+label), CADD and REVEL are unlabelled, so their **direction** and **scale** are:
+
+- **CADD** (Combined Annotation-Dependent Depletion) — a **phred-scaled** measure of variant
+  **deleteriousness**: **higher = more deleterious**, on a scale of roughly **0–99**. A CADD-Phred
+  of 10, 20, or 30 corresponds to the ~top 10%, 1%, or 0.1% most deleterious of all possible
+  single-nucleotide variants.[^cadd]
+- **REVEL** (Rare Exome Variant Ensemble Learner) — a **missense-specific** ensemble score on a
+  **0–1** scale: **higher = more likely pathogenic**.[^revel]
+
+The Rare Variant Finder highlights a score in red above the thresholds it uses for display —
+**CADD ≥ 20** and **REVEL ≥ 0.5**. These are **display heuristics to draw attention, not diagnostic
+cut-offs**: in-silico predictions are *supporting* evidence only, to be weighed alongside ClinVar,
+allele frequency, and inheritance — never read as a diagnosis on their own.
+
 ### Categorical pathway levels
 
 The wellness modules ([nutrigenomics](wellness/nutrigenomics.md),
@@ -192,3 +211,5 @@ limitations.
 [^clinvar-conflict]: [ClinVar: improving access to variant interpretations and supporting evidence](https://doi.org/10.1093/nar/gkx1153) (Landrum et al., 2018, *Nucleic Acids Research*) describes ClinVar as a public archive of submitted clinical-significance interpretations for human variants.
 [^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
 [^cpic-cyp2d6-as]: [Standardizing CYP2D6 Genotype to Phenotype Translation: Consensus Recommendations from the Clinical Pharmacogenetics Implementation Consortium and Dutch Pharmacogenetics Working Group](https://doi.org/10.1111/cts.12692) (Caudle et al., 2020, *Clinical and Translational Science*; [PMID 31647186](https://pubmed.ncbi.nlm.nih.gov/31647186/); [PMCID PMC6951851](https://pmc.ncbi.nlm.nih.gov/articles/PMC6951851/)) describes the CYP2D6 activity-score system as summed allele activity values and explains that phenotype translation depends on consensus, gene-specific thresholds.
+[^cadd]: [CADD: predicting the deleteriousness of variants throughout the human genome](https://doi.org/10.1093/nar/gky1016) (Rentzsch et al., 2019, *Nucleic Acids Research*; [PMID 30371827](https://pubmed.ncbi.nlm.nih.gov/30371827/)) describes CADD as a phred-scaled, genome-wide measure of variant deleteriousness in which higher scores indicate more deleterious variants.
+[^revel]: [REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants](https://doi.org/10.1016/j.ajhg.2016.08.016) (Ioannidis et al., 2016, *American Journal of Human Genetics*; [PMID 27666373](https://pubmed.ncbi.nlm.nih.gov/27666373/)) presents REVEL as a missense-specific ensemble score from 0 to 1 in which higher scores indicate a greater probability of pathogenicity.
