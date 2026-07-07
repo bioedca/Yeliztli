@@ -60,6 +60,7 @@ EXPECTED_BREAST_MONOGENIC_GENES = (
     "PTEN",
     "CDH1",
     "STK11",
+    "NF1",
 )
 
 
@@ -124,6 +125,33 @@ class TestOverlayGating:
         assert entry["cumulative_risk_to_80_pct"] is None  # no fabricated figure
         assert "CanRisk" in entry["note"]
         assert "genetics referral" in entry["note"]
+
+    def test_nf1_surfaces_syndromic_non_numeric_note(self, sample_engine: sa.Engine) -> None:
+        """NF1 is a tumor-predisposition syndrome, not a curated moderate-penetrance
+        breast gene: an NF1 carrier surfaces (has_monogenic) with a *syndromic* note
+        and NO fabricated lifetime figure, cited to the NF1 breast-risk literature (#1625)."""
+        _insert_breast_monogenic(sample_engine, "NF1")
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
+        assert out["has_monogenic"] is True
+        nf1 = next(m for m in out["monogenic"] if m["gene"] == "NF1")
+        assert nf1["cumulative_risk_to_80_pct"] is None  # never a fabricated number
+        assert "Neurofibromatosis type 1" in nf1["note"]
+        assert "before age 50" in nf1["note"]  # female-specific syndromic framing
+        assert "CanRisk" in nf1["note"]
+        # Framed syndromically, NOT as one of the generic moderate-penetrance genes.
+        assert "Moderate-to-high-penetrance" not in nf1["note"]
+        assert nf1["pmid"] == "23165953"
+
+    def test_nf1_male_context_is_syndromic_not_female(self, sample_engine: sa.Engine) -> None:
+        """An XY NF1 carrier gets the male syndromic note (male breast cancer is rare),
+        never the female framing or a female figure (#1625)."""
+        _insert_breast_monogenic(sample_engine, "NF1")
+        out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XY")
+        nf1 = next(m for m in out["monogenic"] if m["gene"] == "NF1")
+        assert nf1["cumulative_risk_to_80_pct"] is None
+        assert "Neurofibromatosis type 1" in nf1["note"]
+        assert "Male breast cancer is rare" in nf1["note"]
+        assert "before age 50" not in nf1["note"]  # not the female note
 
     def test_configured_monogenic_gene_set_matches_expected_breast_panel(self) -> None:
         assert BREAST_MONOGENIC_GENES == EXPECTED_BREAST_MONOGENIC_GENES

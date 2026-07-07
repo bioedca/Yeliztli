@@ -45,6 +45,10 @@ BREAST_MONOGENIC_GENES = (
     "PTEN",
     "CDH1",
     "STK11",
+    # Syndromic tumor-predisposition gene with a documented breast-cancer
+    # association (see _SYNDROMIC_GENE_NOTES) — surfaced for counseling context,
+    # never a fabricated lifetime estimate (#1625).
+    "NF1",
 )
 
 # US population baseline (data source, not a journal article).
@@ -116,6 +120,32 @@ _UNRESOLVED_CARRIER_NOTE = (
     "Biological sex not resolved from array data — sex-specific penetrance is withheld. "
     "Discuss with clinical genetics / CanRisk."
 )
+
+# Syndromic tumor-predisposition genes carried on the breast panel that have a
+# documented breast-cancer association but NO clean sex-specific lifetime
+# penetrance — surfaced for counseling context, never a fabricated point estimate
+# (so ``cumulative_risk_to_80_pct`` stays None). NF1 (neurofibromatosis type 1) is
+# an autosomal-dominant syndrome with elevated breast-cancer risk, most pronounced
+# before age 50 and age/context-dependent (Madanikia et al. 2012, Am J Med Genet A,
+# PMID 23165953; Evans et al. 2019, Genet Med, PMID 31495828 — markedly increased
+# risk, poorer survival), so it is framed syndromically rather than as one of the
+# curated moderate-penetrance breast genes (#1625).
+_SYNDROMIC_GENE_NOTES = {
+    "NF1": {
+        "pmid": "23165953",
+        "female": (
+            "Neurofibromatosis type 1 (NF1) is an autosomal-dominant tumor-predisposition "
+            "syndrome with an elevated breast-cancer risk, most pronounced before age 50. "
+            "The risk is age- and syndrome-context-dependent with no single validated "
+            "lifetime estimate — individualized risk via CanRisk + a genetics referral."
+        ),
+        "male": (
+            "Neurofibromatosis type 1 (NF1) is a tumor-predisposition syndrome. Male "
+            "breast cancer is rare and NF1 male breast-cancer risk is not well quantified; "
+            "individualized risk via CanRisk + a genetics referral."
+        ),
+    },
+}
 
 # Per-sex framing surfaced to the user so the applicable context is explicit.
 # A recorded biological sex that disagrees with a confident array inference;
@@ -258,7 +288,16 @@ def _monogenic_entries(carriers: list[str], context: str) -> list[dict]:
     """
     entries: list[dict] = []
     for g in carriers:
-        if context == "female":
+        syndromic = _SYNDROMIC_GENE_NOTES.get(g)
+        if syndromic is not None and context in ("female", "male"):
+            # Syndromic gene: no numeric lifetime estimate, a sex-appropriate note.
+            data = {
+                "cumulative_risk_to_80_pct": None,
+                "ci": None,
+                "pmid": syndromic["pmid"],
+                "note": syndromic[context],
+            }
+        elif context == "female":
             data = MONOGENIC_PENETRANCE.get(g, _FEMALE_MODERATE_FALLBACK)
         elif context == "male":
             data = MALE_MONOGENIC_PENETRANCE.get(g, _MALE_MODERATE_FALLBACK)
