@@ -6,6 +6,7 @@ import VariantDetailSidePanel from "@/components/variant-detail/VariantDetailSid
 import type { VariantPage, ChromosomeSummary, ColumnPreset } from "@/types/variants"
 import type { VariantDetail } from "@/types/variant-detail"
 import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 
 const mockFetch = vi.fn()
 
@@ -440,6 +441,22 @@ describe("VariantDetailSidePanel (P2-21)", () => {
 
     expect(screen.getByTitle(CADD_TOOLTIP)).toHaveTextContent("CADD")
     expect(screen.getByTitle(REVEL_TOOLTIP)).toHaveTextContent("REVEL")
+  })
+
+  it("annotates HGVS coding and protein rows with notation tooltips (#1669)", async () => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => mockVariantDetail,
+    }))
+
+    render(<VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+
+    expect(screen.getByTitle(HGVS_CODING_TOOLTIP)).toHaveTextContent("Coding")
+    expect(screen.getByTitle(HGVS_PROTEIN_TOOLTIP)).toHaveTextContent("Protein")
   })
 
   it("shows ensemble pathogenic indicator", async () => {

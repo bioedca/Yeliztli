@@ -13,6 +13,7 @@ import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyDetail } from "@/lib/gnomad-status"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
 import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -124,13 +125,23 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
             </div>
             {variant.hgvs_coding && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">HGVS Coding</span>
+                <span
+                  className={cn("text-sm text-muted-foreground", SCORE_TOOLTIP_AFFORDANCE)}
+                  title={HGVS_CODING_TOOLTIP}
+                >
+                  HGVS Coding
+                </span>
                 <span className="text-sm font-mono text-xs break-all text-right max-w-[200px]">{variant.hgvs_coding}</span>
               </div>
             )}
             {variant.hgvs_protein && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">HGVS Protein</span>
+                <span
+                  className={cn("text-sm text-muted-foreground", SCORE_TOOLTIP_AFFORDANCE)}
+                  title={HGVS_PROTEIN_TOOLTIP}
+                >
+                  HGVS Protein
+                </span>
                 <span className="text-sm font-mono text-xs break-all text-right max-w-[200px]">{variant.hgvs_protein}</span>
               </div>
             )}

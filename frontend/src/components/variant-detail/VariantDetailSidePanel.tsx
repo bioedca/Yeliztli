@@ -27,6 +27,7 @@ import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inS
 import { formatAlleleFrequency } from "@/lib/format"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
@@ -69,7 +70,7 @@ function DetailRow({
   label: string
   value: React.ReactNode
   className?: string
-  /** Optional hover tooltip on the label (e.g. the CADD/REVEL direction/scale). */
+  /** Optional hover tooltip on the label. */
   labelTooltip?: string
 }) {
   return (
@@ -194,10 +195,18 @@ function PanelContent({
           <>
             <SectionHeader icon={Dna} label="HGVS" />
             {variant.hgvs_coding && (
-              <DetailRow label="Coding" value={variant.hgvs_coding} />
+              <DetailRow
+                label="Coding"
+                value={variant.hgvs_coding}
+                labelTooltip={HGVS_CODING_TOOLTIP}
+              />
             )}
             {variant.hgvs_protein && (
-              <DetailRow label="Protein" value={variant.hgvs_protein} />
+              <DetailRow
+                label="Protein"
+                value={variant.hgvs_protein}
+                labelTooltip={HGVS_PROTEIN_TOOLTIP}
+              />
             )}
           </>
         )}

@@ -12,6 +12,7 @@ import SearchSummary from "@/components/rare-variants/SearchSummary"
 import VariantDetailPanel from "@/components/rare-variants/VariantDetailPanel"
 import type { RareVariant } from "@/types/rare-variants"
 import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
+import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 
 const mockFetch = vi.fn()
 
@@ -579,5 +580,11 @@ describe("CADD/REVEL in-silico score tooltips (#1662)", () => {
     render(<VariantDetailPanel variant={makeMockVariant()} onClose={vi.fn()} />)
     expect(screen.getByTitle(CADD_TOOLTIP)).toHaveTextContent("CADD Phred")
     expect(screen.getByTitle(REVEL_TOOLTIP)).toHaveTextContent("REVEL")
+  })
+
+  it("VariantDetailPanel HGVS labels carry notation tooltips (#1669)", () => {
+    render(<VariantDetailPanel variant={makeMockVariant()} onClose={vi.fn()} />)
+    expect(screen.getByTitle(HGVS_CODING_TOOLTIP)).toHaveTextContent("HGVS Coding")
+    expect(screen.getByTitle(HGVS_PROTEIN_TOOLTIP)).toHaveTextContent("HGVS Protein")
   })
 })
