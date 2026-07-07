@@ -67,7 +67,10 @@ def get_pgs_scores_engine(data_dir: Path | None = None) -> sa.Engine | None:
     if not db_path.exists():
         logger.info("pgs_scores_db_absent", path=str(db_path))
         return None
-    return sa.create_engine(f"sqlite:///{db_path}", poolclass=NullPool)
+    from backend.db.sqlite_engine import make_sqlite_engine
+
+    # wal=False: read-only PGS-scores reader — busy_timeout only, no journal change.
+    return make_sqlite_engine(db_path, wal=False, poolclass=NullPool)
 
 
 @dataclass

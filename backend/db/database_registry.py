@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from backend.config import Settings
+from backend.db.sqlite_engine import make_sqlite_engine
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -109,7 +110,6 @@ def _record_lai_bundle_version(data_dir: Path, bundle_dir: Path) -> None:
     still surfaces the bundle. Best-effort — failure to reach the reference DB
     is logged but does not abort extraction.
     """
-    import sqlalchemy as sa
 
     from backend.db.manifest import get_bundle_info
 
@@ -125,7 +125,7 @@ def _record_lai_bundle_version(data_dir: Path, bundle_dir: Path) -> None:
     reference_db_path = data_dir / "reference.db"
 
     try:
-        engine = sa.create_engine(f"sqlite:///{reference_db_path}")
+        engine = make_sqlite_engine(reference_db_path, wal=False)
         try:
             _record_db_version(
                 engine,
@@ -200,11 +200,10 @@ def _build_encode_ccres_db(raw_bed_path: Path, db_path: Path) -> None:
     SQLite database at *db_path* from the raw BED at *raw_bed_path*, then
     removes the raw BED file.
     """
-    import sqlalchemy as sa
 
     from backend.annotation.encode_ccres import load_encode_ccres
 
-    engine = sa.create_engine(f"sqlite:///{db_path}", echo=False)
+    engine = make_sqlite_engine(db_path, wal=False, echo=False)
     try:
         load_encode_ccres(raw_bed_path, engine)
     except Exception:
@@ -227,8 +226,6 @@ def _record_encode_ccres_version(db_path: Path) -> None:
     """
     from datetime import UTC, datetime
 
-    import sqlalchemy as sa
-
     if not db_path.exists():
         logger.warning("encode_ccres_version_record_skipped_missing_db", path=str(db_path))
         return
@@ -238,7 +235,7 @@ def _record_encode_ccres_version(db_path: Path) -> None:
     reference_db_path = db_path.parent / "reference.db"
 
     try:
-        engine = sa.create_engine(f"sqlite:///{reference_db_path}")
+        engine = make_sqlite_engine(reference_db_path, wal=False)
         try:
             _record_db_version(
                 engine,
@@ -773,7 +770,7 @@ def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
     ref_path = settings.reference_db_path
     if dest.exists() and ref_path.exists():
         try:
-            engine = sa.create_engine(f"sqlite:///{ref_path}")
+            engine = make_sqlite_engine(ref_path, wal=False)
             try:
                 from backend.db.tables import database_versions
 
@@ -820,7 +817,7 @@ def _check_db_version_exists(db_name: str, settings: Settings) -> bool:
     if not ref_path.exists():
         return False
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     try:
         with engine.connect() as conn:
             row = conn.execute(

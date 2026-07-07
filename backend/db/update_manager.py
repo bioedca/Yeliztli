@@ -38,6 +38,7 @@ from backend.annotation.dbnsfp import check_dbnsfp_update
 from backend.annotation.dbsnp import check_dbsnp_update
 from backend.annotation.gwas import check_gwas_update
 from backend.annotation.mondo_hpo import check_mondo_hpo_update
+from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.tables import (
     annotated_variants,
     auto_update_settings,
@@ -365,7 +366,7 @@ def run_vep_bundle_update(
     ref_path = settings.reference_db_path
     if ref_path.exists():
         try:
-            reference_engine = sa.create_engine(f"sqlite:///{ref_path}")
+            reference_engine = make_sqlite_engine(ref_path, wal=False)
             previous_version = get_current_version(reference_engine, "vep_bundle")
         except Exception as exc:
             logger.warning(
@@ -488,7 +489,7 @@ def run_vep_bundle_update(
         # leaves the update result intact but unrecorded).
         if reference_engine is None and ref_path.exists():
             try:
-                reference_engine = sa.create_engine(f"sqlite:///{ref_path}")
+                reference_engine = make_sqlite_engine(ref_path, wal=False)
             except Exception as exc:
                 logger.warning(
                     "vep_bundle_reference_engine_failed",
@@ -642,7 +643,7 @@ def run_lai_bundle_update(
         logger.warning("lai_bundle_update_skipped_no_reference_db", path=str(ref_path))
         return None
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     start_time = time.monotonic()
 
     try:
@@ -748,7 +749,7 @@ def run_ancestry_pca_bundle_update(
         logger.warning("ancestry_pca_update_skipped_no_reference_db", path=str(ref_path))
         return None
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     start_time = time.monotonic()
 
     try:
@@ -851,7 +852,7 @@ def run_gnomad_bundle_update(
         logger.warning("gnomad_update_skipped_no_reference_db", path=str(ref_path))
         return None
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     start_time = time.monotonic()
 
     try:
@@ -945,7 +946,7 @@ def run_pgs_scores_bundle_update(
         logger.warning("pgs_scores_update_skipped_no_reference_db", path=str(ref_path))
         return None
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     start_time = time.monotonic()
 
     try:
@@ -1102,7 +1103,7 @@ def _build_encode_ccres_update_db(raw_bed_path: Path, db_path: Path) -> None:
     """
     from backend.annotation.encode_ccres import load_encode_ccres
 
-    target_engine = sa.create_engine(f"sqlite:///{db_path}", echo=False)
+    target_engine = make_sqlite_engine(db_path, wal=False, echo=False)
     try:
         load_encode_ccres(raw_bed_path, target_engine)
     except Exception:
@@ -1136,7 +1137,7 @@ def run_encode_ccres_update(
         logger.warning("encode_ccres_update_skipped_no_reference_db", path=str(ref_path))
         return None
 
-    engine = sa.create_engine(f"sqlite:///{ref_path}")
+    engine = make_sqlite_engine(ref_path, wal=False)
     start_time = time.monotonic()
 
     try:

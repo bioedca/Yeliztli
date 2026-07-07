@@ -18,9 +18,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import sqlalchemy as sa
-from sqlalchemy import event
 
 from backend.config import Settings, get_settings
+from backend.db.sqlite_engine import make_sqlite_engine
 
 
 class DBRegistry:
@@ -73,31 +73,15 @@ class DBRegistry:
         Returns:
             Configured SQLAlchemy Engine.
         """
-        engine = sa.create_engine(
-            f"sqlite:///{db_path}",
-            pool_pre_ping=True,
+        # Delegate to the shared factory so DBRegistry's engines and the
+        # standalone reference/build engines in update_manager /
+        # database_registry apply an identical connect-time PRAGMA block
+        # (busy_timeout in particular) and cannot drift.
+        return make_sqlite_engine(
+            db_path,
+            wal=wal,
+            read_optimized=read_optimized,
         )
-
-        # Use an event listener to ensure PRAGMAs are applied to every
-        # new DBAPI connection (not just the first one from the pool).
-        @event.listens_for(engine, "connect")
-        def _set_sqlite_pragmas(dbapi_connection, connection_record):  # noqa: ANN001
-            cursor = dbapi_connection.cursor()
-            # Always set busy_timeout so concurrent writers wait instead
-            # of raising "database is locked" immediately.
-            cursor.execute("PRAGMA busy_timeout=30000")
-            if wal:
-                cursor.execute("PRAGMA journal_mode=WAL")
-            if read_optimized:
-                # 64 MB page cache (negative = KiB)
-                cursor.execute("PRAGMA cache_size=-65536")
-                # 256 MB memory-mapped I/O for large reference DBs
-                cursor.execute("PRAGMA mmap_size=268435456")
-                # Keep temp tables/indexes in memory
-                cursor.execute("PRAGMA temp_store=MEMORY")
-            cursor.close()
-
-        return engine
 
     @staticmethod
     def _file_fingerprint(db_path: Path) -> tuple[int, int, int, int] | None:

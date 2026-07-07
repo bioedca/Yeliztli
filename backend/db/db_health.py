@@ -62,6 +62,7 @@ from backend.db.database_registry import (
     validate_lai_bundle,
 )
 from backend.db.download_manager import INCOMPLETE_DOWNLOAD_STATES
+from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.tables import database_versions, download_session_jobs, downloads, jobs
 
 if TYPE_CHECKING:
@@ -362,7 +363,10 @@ def _check_sqlite_tables(
 
 def _standalone_engine(path: Path) -> sa.Engine:
     """A throwaway, pool-less engine for probing a standalone SQLite file."""
-    return sa.create_engine(f"sqlite:///{path}", poolclass=NullPool)
+    # busy_timeout lets a probe wait out (instead of failing on) a concurrent
+    # writer; wal=False keeps this read-only probe from converting the journal
+    # mode of a possibly-foreign file on connect.
+    return make_sqlite_engine(path, wal=False, poolclass=NullPool)
 
 
 def _check_encode_ccres_content(engine: sa.Engine, *, deep: bool = False) -> IntegrityResult:

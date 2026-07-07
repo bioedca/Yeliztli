@@ -57,6 +57,7 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 
 from backend.db.sample_schema import SAMPLE_SCHEMA_VERSION, create_sample_tables
+from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.tables import (
     jobs,
     merge_provenance,
@@ -850,7 +851,7 @@ def merge_samples(
         # otherwise materialise ``raw_variants`` with the default rsid PK and
         # then collide with our ``create_sample_tables(is_merged_sample=True)``
         # call.
-        bootstrap_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        bootstrap_engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
             # Plan §10.4 (a): merged sample's raw_variants PK is (chrom, pos).
             create_sample_tables(bootstrap_engine, is_merged_sample=True)

@@ -47,6 +47,7 @@ from backend.config import (
 from backend.db.connection import get_registry
 from backend.db.database_registry import BUNDLED_DIR, DatabaseInfo, get_all_databases
 from backend.db.db_health import get_database_health
+from backend.db.sqlite_engine import make_sqlite_engine
 from backend.disclaimers import (
     GLOBAL_DISCLAIMER_ACCEPT_LABEL,
     GLOBAL_DISCLAIMER_TEXT,
@@ -210,7 +211,7 @@ def _has_any_databases() -> bool:
         ref_path = settings.reference_db_path
         if not ref_path.exists():
             return False
-        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        engine = make_sqlite_engine(ref_path, wal=False)
         try:
             with engine.connect() as conn:
                 count = conn.execute(
@@ -536,7 +537,7 @@ def _read_installed_vep_bundle_version() -> str | None:
     try:
         from backend.db.tables import database_versions
 
-        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        engine = make_sqlite_engine(ref_path, wal=False)
         try:
             with engine.connect() as conn:
                 row = conn.execute(
@@ -562,7 +563,7 @@ def _read_sample_db_bundle_version(sample_db_path: Path) -> str:
     if not sample_db_path.exists():
         return _FALLBACK_BACKUP_VERSION
     try:
-        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
             with engine.connect() as conn:
                 row = conn.execute(
@@ -660,7 +661,7 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
     from backend.db.tables import sample_metadata_obj
 
     try:
-        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
             from_version = _get_schema_version(engine)
             _add_missing_columns(engine, from_version)
@@ -745,7 +746,7 @@ def _load_legacy_registry_db(
 
     from backend.db.tables import individuals, samples
 
-    source_engine = sa.create_engine(f"sqlite:///{backup_reference_db}")
+    source_engine = make_sqlite_engine(backup_reference_db, wal=False)
     try:
         with source_engine.connect() as source_conn:
             inspector = sa.inspect(source_engine)

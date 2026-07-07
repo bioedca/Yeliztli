@@ -309,7 +309,11 @@ def get_db_stats() -> list[DatabaseStat]:
                 if db_info.target_db == "reference":
                     row_count = _count_rows(registry.reference_engine, table)
                 else:
-                    tmp_engine = sa.create_engine(f"sqlite:///{artifact_path}", poolclass=NullPool)
+                    from backend.db.sqlite_engine import make_sqlite_engine
+
+                    # wal=False: read-only row count of a standalone artifact —
+                    # never convert its journal mode. busy_timeout is still set.
+                    tmp_engine = make_sqlite_engine(artifact_path, wal=False, poolclass=NullPool)
                     try:
                         row_count = _count_rows(tmp_engine, table)
                     finally:

@@ -865,21 +865,17 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
             if db_info and db_info.target_db == "reference":
                 build_fn(engine, settings.downloads_dir)
             else:
-                import sqlalchemy as sa
-                from sqlalchemy import event
+                from backend.db.sqlite_engine import make_sqlite_engine
 
                 dest = (
                     db_info.dest_path(settings) if db_info else settings.data_dir / f"{db_name}.db"
                 )
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                standalone_engine = sa.create_engine(f"sqlite:///{dest}")
-
-                @event.listens_for(standalone_engine, "connect")
-                def _set_pragmas(dbapi_conn, _):
-                    cursor = dbapi_conn.cursor()
-                    cursor.execute("PRAGMA busy_timeout=30000")
-                    cursor.execute("PRAGMA journal_mode=WAL")
-                    cursor.close()
+                # This build OWNS the standalone DB file, so it opts into WAL
+                # (wal=True) exactly as the old hand-rolled listener did; the
+                # factory also applies busy_timeout so the build waits out
+                # (instead of failing on) a concurrent writer of the same file.
+                standalone_engine = make_sqlite_engine(dest, wal=True)
 
                 try:
                     build_fn(standalone_engine, settings.downloads_dir)
