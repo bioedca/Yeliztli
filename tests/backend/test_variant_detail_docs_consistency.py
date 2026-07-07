@@ -73,3 +73,19 @@ def test_phantom_names_really_are_absent_from_tabs() -> None:
         f"{sorted(_PHANTOM_TAB_NAMES & live)}. Revisit test_variant_detail_docs_"
         f"consistency and the doc."
     )
+
+
+# HGVS notation (c./p.) is shown verbatim on the Overview/Protein tabs
+# (hgvs_coding/hgvs_protein) but was undefined anywhere in the docs; the note added
+# in #1593 must explain the notation with worked examples so a lay user can read it.
+_HGVS_DOC_TOKENS = ("hgvs", "c.665c>t", "p.ala222val", "coding-dna", "amino-acid")
+
+
+def test_doc_explains_hgvs_notation() -> None:
+    text = _DOC_PATH.read_text(encoding="utf-8").lower()
+    missing = [t for t in _HGVS_DOC_TOKENS if t not in text]
+    assert not missing, (
+        "docs/features/variant-detail.md no longer explains HGVS c./p. notation "
+        f"(missing {missing}). The Overview/Protein tabs render hgvs_coding/hgvs_protein "
+        "verbatim — keep the 'Understanding HGVS notation' key (#1593)."
+    )

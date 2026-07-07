@@ -29,3 +29,21 @@ summary, then **Open full detail** for the full page, organised into tabs:
 
 You can generate a single-variant **evidence card** (PDF or PNG) from this page, and jump
 straight to the variant in the **[Genome Browser](genome-browser.md)**.
+
+## Understanding HGVS notation
+
+The Overview and Protein tabs name the variant in **HGVS notation** — the international standard
+for describing sequence variants.[^hgvs] It appears as two strings:
+
+- **Coding (`c.`)** — the change on the gene's **coding-DNA** reference sequence; `>` marks a
+  single-base **substitution**. So `c.665C>T` means "at coding-DNA position 665, the reference
+  base **C** is replaced by **T**."
+- **Protein (`p.`)** — the predicted **amino-acid change**, written with three-letter amino-acid
+  codes. So `p.Ala222Val` means "at protein position 222, **Ala**nine is replaced by **Val**ine."
+
+Both describe the *same* variant — one at the DNA level, one at the protein level. The numbers are
+relative to the variant's transcript (the MANE Select transcript is flagged in the Overview tab),
+so the same change can carry different `c.` / `p.` numbers on different transcripts. See the
+[HGVS nomenclature reference](https://hgvs-nomenclature.org/) for the full rules.
+
+[^hgvs]: [HGVS Recommendations for the Description of Sequence Variants: 2016 Update](https://doi.org/10.1002/humu.22981) (den Dunnen et al., 2016, *Human Mutation*; [PMID 26931183](https://pubmed.ncbi.nlm.nih.gov/26931183/)) defines the international standard nomenclature for sequence variants, including the `c.` (coding-DNA) and `p.` (protein) prefixes.
