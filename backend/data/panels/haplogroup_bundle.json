@@ -3682,13 +3682,13 @@
                       "defining_snps": [
                         {
                           "rsid": "rs2032597",
-                          "pos": 2832640,
+                          "pos": 14847792,
                           "allele": "C"
                         },
                         {
                           "rsid": "rs9341296",
-                          "pos": 15023650,
-                          "allele": "G"
+                          "pos": 15022707,
+                          "allele": "T"
                         }
                       ],
                       "children": [

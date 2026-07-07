@@ -74,6 +74,16 @@ def _y_snp(rsid: str, pos: int, allele: str) -> dict[str, Any]:
     return {"rsid": rsid, "pos": pos, "allele": allele}
 
 
+_AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
+    # Ensembl GRCh37 REST variation/homo_sapiens/rs2032597: Y:14847792 A/C,
+    # ancestral A. Derived C defines haplogroup I (I-M170).
+    "rs2032597": {"pos": 14847792, "allele": "C", "alleles": ("A", "C")},
+    # Ensembl GRCh37 REST variation/homo_sapiens/rs9341296: Y:15022707 C/T,
+    # ancestral C. Stored defining alleles must be the derived T, never G.
+    "rs9341296": {"pos": 15022707, "allele": "T", "alleles": ("C", "T")},
+}
+
+
 def _node(
     haplogroup: str,
     defining_snps: list[dict[str, Any]],
@@ -2052,7 +2062,7 @@ def build_y_tree() -> dict[str, Any]:
     i1 = _node(
         "I1",
         [
-            _y_snp("rs9341296", 15023650, "G"),
+            _y_snp("rs9341296", 15022707, "T"),
             _y_snp("rs17250667", 8461752, "C"),
         ],
         [i1a],
@@ -2104,9 +2114,9 @@ def build_y_tree() -> dict[str, Any]:
             # an A→C transversion whose derived C indicates I (Ensembl GRCh37
             # rs2032597 A/C, ancestral A; Wikipedia "Haplogroup I-M170"). Restored
             # here from its prior mis-attribution to haplogroup A (#1583).
-            _y_snp("rs2032597", 2832640, "C"),
+            _y_snp("rs2032597", 14847792, "C"),
             _y_snp("rs2032670", 8307832, "T"),
-            _y_snp("rs9341296", 15023650, "G"),
+            _y_snp("rs9341296", 15022707, "T"),
         ],
         [i1, i2],
     )
@@ -2711,6 +2721,51 @@ def _validate_tree(node: dict[str, Any], path: str = "") -> list[str]:
     return issues
 
 
+def _iter_snps_with_path(
+    node: dict[str, Any], path: str = ""
+) -> tuple[tuple[str, dict[str, Any]], ...]:
+    """Return defining SNPs with their haplogroup path for validation messages."""
+    current_path = f"{path}/{node['haplogroup']}" if path else node["haplogroup"]
+    records = [(current_path, snp) for snp in node.get("defining_snps", [])]
+    for child in node.get("children", []):
+        records.extend(_iter_snps_with_path(child, current_path))
+    return tuple(records)
+
+
+def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
+    """Validate curated Y rsID coordinates and derived alleles against GRCh37 evidence."""
+    issues: list[str] = []
+    seen: set[str] = set()
+
+    for path, snp in _iter_snps_with_path(node):
+        rsid = snp.get("rsid")
+        reference = _AUDITED_Y_RSID_REFERENCE.get(rsid)
+        if reference is None:
+            continue
+
+        seen.add(rsid)
+        if snp.get("pos") != reference["pos"]:
+            issues.append(
+                f"{rsid} at {path} has pos {snp.get('pos')}; expected GRCh37 Y:{reference['pos']}"
+            )
+        if snp.get("allele") not in reference["alleles"]:
+            issues.append(
+                f"{rsid} at {path} has allele {snp.get('allele')!r}; "
+                f"expected one of {reference['alleles']}"
+            )
+        if snp.get("allele") != reference["allele"]:
+            issues.append(
+                f"{rsid} at {path} has defining allele {snp.get('allele')!r}; "
+                f"expected derived allele {reference['allele']!r}"
+            )
+
+    missing = set(_AUDITED_Y_RSID_REFERENCE) - seen
+    for rsid in sorted(missing):
+        issues.append(f"Audited Y rsID {rsid} is missing from the Y tree")
+
+    return issues
+
+
 # ── Bundle assembly ─────────────────────────────────────────────────────
 
 
@@ -2722,8 +2777,9 @@ def build_bundle() -> dict[str, Any]:
     # Validate trees
     mt_issues = _validate_tree(mt_tree)
     y_issues = _validate_tree(y_tree)
-    if mt_issues or y_issues:
-        all_issues = mt_issues + y_issues
+    y_reference_issues = _validate_audited_y_rsids(y_tree)
+    if mt_issues or y_issues or y_reference_issues:
+        all_issues = mt_issues + y_issues + y_reference_issues
         raise ValueError(
             f"Tree validation failed with {len(all_issues)} issues:\n"
             + "\n".join(f"  - {i}" for i in all_issues)

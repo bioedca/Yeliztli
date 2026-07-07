@@ -261,7 +261,7 @@ _CT_M168_GENOTYPES = [
     # The bug trigger: ancestral allele A at the A-clade marker. (Diploid notation
     # matches the other fixtures; the tree-walk's substring match treats "AA" and
     # haploid "A" identically.)
-    {"rsid": "rs2032597", "chrom": "Y", "pos": 2832640, "genotype": "AA"},
+    {"rsid": "rs2032597", "chrom": "Y", "pos": 14847792, "genotype": "AA"},
     # CT (M168 + rs13304168)
     {"rsid": "rs2032652", "chrom": "Y", "pos": 21869271, "genotype": "TT"},
     {"rsid": "rs13304168", "chrom": "Y", "pos": 23058920, "genotype": "GG"},
@@ -1408,6 +1408,24 @@ class TestYABranchPolarity:
         assert present >= 1 and conflicting == 0  # M170+ (derived C) → evidence FOR I
         present, conflicting, _ = _classify_node_match(i_node, {"rs2032597": "A"})
         assert conflicting >= 1  # ancestral A → evidence against I
+
+    def test_audited_i_branch_y_rsids_match_ensembl_grch37(self, bundle: HaplogroupBundle) -> None:
+        """#1652: audited I-branch rsIDs keep Ensembl GRCh37 coordinates and
+        derived alleles. The Y classifier currently keys by rsID, but bundle
+        positions/alleles must still be reference-consistent for future joins."""
+
+        def y_snps(node: HaplogroupNode) -> list[HaplogroupSNP]:
+            out = list(node.defining_snps)
+            for child in node.children:
+                out.extend(y_snps(child))
+            return out
+
+        by_rsid: dict[str, set[tuple[int, str]]] = {}
+        for snp in y_snps(bundle.y_tree):
+            by_rsid.setdefault(snp.rsid, set()).add((snp.pos, snp.allele))
+
+        assert by_rsid["rs2032597"] == {(14847792, "C")}
+        assert by_rsid["rs9341296"] == {(15022707, "T")}
 
     def test_canonical_y_markers_are_filed_under_the_correct_clade(
         self, bundle: HaplogroupBundle

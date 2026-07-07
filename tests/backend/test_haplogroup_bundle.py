@@ -540,15 +540,40 @@ class TestBuildScript:
     def test_validate_tree_passes(self) -> None:
         """Internal validation should report no issues."""
         from scripts.build_haplogroup_bundle import (
+            _validate_audited_y_rsids,
             _validate_tree,
             build_mt_tree,
             build_y_tree,
         )
 
         mt_issues = _validate_tree(build_mt_tree())
-        y_issues = _validate_tree(build_y_tree())
+        y_tree = build_y_tree()
+        y_issues = _validate_tree(y_tree)
+        y_reference_issues = _validate_audited_y_rsids(y_tree)
         assert mt_issues == [], f"mtDNA validation issues: {mt_issues}"
         assert y_issues == [], f"Y-chr validation issues: {y_issues}"
+        assert y_reference_issues == [], f"Y reference validation issues: {y_reference_issues}"
+
+    def test_audited_y_rsid_guard_rejects_stale_reference_records(self) -> None:
+        """#1652: the builder rejects the stale rsID coordinates/alleles that
+        caused this issue before they can be regenerated into the bundle."""
+        from scripts.build_haplogroup_bundle import _validate_audited_y_rsids, build_y_tree
+
+        y_tree = build_y_tree()
+        i_node = find_node(y_tree, "I")
+        assert i_node is not None
+        by_rsid = {snp["rsid"]: snp for snp in i_node["defining_snps"]}
+
+        by_rsid["rs2032597"]["pos"] = 2832640
+        by_rsid["rs9341296"]["allele"] = "G"
+
+        issues = _validate_audited_y_rsids(y_tree)
+        assert any(
+            "rs2032597" in issue and "expected GRCh37 Y:14847792" in issue for issue in issues
+        )
+        assert any(
+            "rs9341296" in issue and "expected one of ('C', 'T')" in issue for issue in issues
+        )
 
     def test_count_helpers_consistent(self) -> None:
         """_count_nodes and _count_snps should match collected counts."""
