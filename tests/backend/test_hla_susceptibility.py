@@ -11,6 +11,7 @@ from __future__ import annotations
 from backend.analysis.hla_resolver import ResolvedHLACall
 from backend.analysis.hla_susceptibility import (
     STATUS_INCREASED,
+    STATUS_LIMITED_SCREEN,
     STATUS_NEUTRAL_SUBTYPE,
     STATUS_NOT_INCREASED,
     STATUS_NOT_TYPED,
@@ -106,16 +107,33 @@ class TestRaSharedEpitope:
         assert f.carried is True
         assert "DRB1*04:10" in f.detail
 
-    def test_protective_0403_is_not_screened_as_shared_epitope_risk(self) -> None:
-        f = _find(assess_susceptibility([_c("DRB1", "04:03", "15:01")]), "HLA-DRB1 shared epitope")
-        assert f.status == STATUS_NOT_INCREASED
-        assert f.carried is False
-        assert "curated" in f.detail
+    def test_drb10408_present(self) -> None:
+        f = _find(assess_susceptibility([_c("DRB1", "04:08", "15:01")]), "HLA-DRB1 shared epitope")
+        assert f.status == STATUS_INCREASED
+        assert f.carried is True
+        assert "DRB1*04:08" in f.detail
 
-    def test_absent(self) -> None:
+    def test_uncurated_drb10403_is_limited_not_false_negative(self) -> None:
+        f = _find(assess_susceptibility([_c("DRB1", "04:03", "15:01")]), "HLA-DRB1 shared epitope")
+        assert f.status == STATUS_LIMITED_SCREEN
+        assert f.carried is False
+        assert "DRB1*04:03" in f.detail
+        assert "outside the curated shared-epitope screen" in f.detail
+        assert "do not interpret this as no increased RA susceptibility" in f.interpretation
+
+    def test_uncurated_drb10102_is_limited_not_false_negative(self) -> None:
+        f = _find(assess_susceptibility([_c("DRB1", "01:02", "15:01")]), "HLA-DRB1 shared epitope")
+        assert f.status == STATUS_LIMITED_SCREEN
+        assert f.carried is False
+        assert "DRB1*01:02" in f.detail
+        assert "do not interpret this as no increased RA susceptibility" in f.interpretation
+
+    def test_non_allowlist_drb1_pair_is_limited_not_false_negative(self) -> None:
         f = _find(assess_susceptibility([_c("DRB1", "15:01", "13:01")]), "HLA-DRB1 shared epitope")
-        assert f.status == STATUS_NOT_INCREASED
-        assert "curated imputed-HLA screen" in f.interpretation
+        assert f.status == STATUS_LIMITED_SCREEN
+        assert "DRB1*13:01" in f.detail
+        assert "DRB1*15:01" in f.detail
+        assert "no increased RA susceptibility" in f.interpretation
 
     def test_not_typed(self) -> None:
         f = _find(assess_susceptibility([_c("B", "07:02", "08:01")]), "HLA-DRB1 shared epitope")

@@ -185,6 +185,18 @@ const SUSCEPTIBILITY_RESPONSE: HlaSusceptibilityResponse = {
       citations: ["PMID:29072309"],
       notes: [],
     },
+    {
+      condition: "Rheumatoid arthritis (seropositive)",
+      hla: "HLA-DRB1 shared epitope",
+      status: "limited_screen",
+      carried: false,
+      detail: "DRB1*04:03 outside the curated shared-epitope screen",
+      interpretation:
+        "This non-exhaustive screen cannot classify residue-level seropositive-RA susceptibility; do not interpret this as no increased RA susceptibility.",
+      low_confidence: false,
+      citations: ["PMID:23737967"],
+      notes: ["This curated screen is not a residue-aware DRB1 classifier."],
+    },
   ],
 }
 
@@ -284,6 +296,11 @@ describe("HLAView autoimmune susceptibility", () => {
 
     const c0602 = screen.getByTestId("hla-susc-HLA-C*06:02")
     expect(c0602).toHaveAttribute("data-status", "not_increased")
+
+    const ra = screen.getByTestId("hla-susc-HLA-DRB1 shared epitope")
+    expect(ra).toHaveAttribute("data-status", "limited_screen")
+    expect(ra).toHaveTextContent("Limited screen")
+    expect(ra).toHaveTextContent("do not interpret this as no increased RA susceptibility")
   })
 
   it("omits the susceptibility section when unavailable", () => {

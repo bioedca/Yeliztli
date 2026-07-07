@@ -24,7 +24,9 @@ Associations:
   NS for anti-CCP-negative). Bax 2011 PMID:21556860; Pedersen 2007 PMID:17469102.
   The SE is the QKRAA/QRRAA/RRRAA motif at DRβ1 70–74; this curated report covers
   common literature-supported risk alleles including DRB1*01:01, *04:01, *04:04,
-  *04:05, *04:10, and *10:01, but is not an exhaustive residue classifier.
+  *04:05, *04:08, *04:10, and *10:01, but is not an exhaustive residue classifier.
+  Typed DRB1 calls outside this curated set are reported as a limited screen rather
+  than a negative.
 - **HLA DR3-DQ2 / DR4-DQ8 → type 1 diabetes**. The highest-risk signals are
   DRB1-DQA1-DQB1 haplotypes: DR3
   (DRB1*03:01-DQA1*05:01-DQB1*02:01) and DR4
@@ -49,6 +51,7 @@ from backend.analysis.hla_resolver import ResolvedHLACall, carries_allele
 STATUS_INCREASED = "increased_risk"  # a risk allele/haplotype is carried
 STATUS_NOT_INCREASED = "not_increased"  # locus typed, risk allele absent
 STATUS_NEUTRAL_SUBTYPE = "neutral_subtype"  # carries only a disease-neutral B*27 subtype
+STATUS_LIMITED_SCREEN = "limited_screen"  # typed, but this curated screen cannot classify it
 STATUS_NOT_TYPED = "not_typed"  # required locus or haplotype phase not called
 
 # HLA-B*27 subtypes that are NOT disease-associated: a group "B*27" match would
@@ -62,6 +65,7 @@ _SE_ALLELES = (
     "DRB1*04:01",
     "DRB1*04:04",
     "DRB1*04:05",
+    "DRB1*04:08",
     "DRB1*04:10",
     "DRB1*10:01",
 )
@@ -128,6 +132,20 @@ def _two_field(allele: str) -> str:
     """First two colon fields of an allele (``27:05:01`` → ``27:05``)."""
     parts = [a for a in (allele or "").split(":") if a]
     return ":".join(parts[:2])
+
+
+def _called_locus_two_field_alleles(calls: Sequence[ResolvedHLACall], locus: str) -> list[str]:
+    """Normalize called alleles as ``LOCUS*xx:yy`` strings."""
+    normalized: list[str] = []
+    locus_upper = locus.upper()
+    for call in calls:
+        if call.locus.upper() != locus_upper:
+            continue
+        for allele in (call.allele1, call.allele2):
+            two_field = _two_field(allele)
+            if two_field:
+                normalized.append(f"{locus_upper}*{two_field}")
+    return normalized
 
 
 def _low_conf(calls: Sequence[ResolvedHLACall], loci: Sequence[str]) -> bool:
@@ -257,6 +275,8 @@ def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
         "PMID:17469102",
         "PMID:15818663",
         "PMID:16255021",
+        "PMID:23737967",
+        "PMID:9135224",
         "DOI:10.3346/jkms.2007.22.6.973",
     ]
     notes = [
@@ -265,6 +285,8 @@ def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
         "Modern fine-mapping localizes the strongest signal to DRβ1 positions 11/13, so "
         "'shared epitope at 70–74' is a partial simplification; risk-allele identity is "
         "ancestry-dependent (most robust in European ancestry).",
+        "This curated screen is not a residue-aware DRB1 classifier; typed DRB1 "
+        "alleles outside the curated set are reported as limited rather than negative.",
     ]
     if not _locus_called(calls, "DRB1"):
         return SusceptibilityFinding(
@@ -280,15 +302,23 @@ def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
         )
     se_hits = [a for a in _SE_ALLELES if _carried(calls, a)]
     if not se_hits:
+        unclassified = sorted(set(_called_locus_two_field_alleles(calls, "DRB1")))
+        detail = (
+            f"{', '.join(unclassified)} outside the curated shared-epitope screen"
+            if unclassified
+            else "HLA-DRB1 imputed but no classifiable two-field allele detected"
+        )
         return SusceptibilityFinding(
             condition,
             "HLA-DRB1 shared epitope",
-            STATUS_NOT_INCREASED,
+            STATUS_LIMITED_SCREEN,
             False,
-            "No curated shared-epitope DRB1 allele detected",
-            "No shared-epitope HLA-DRB1 allele from this curated imputed-HLA screen "
-            "was detected — no increased seropositive-RA susceptibility from the "
-            "alleles currently screened.",
+            detail,
+            "HLA-DRB1 was imputed, but no curated shared-epitope allele was detected. "
+            "This non-exhaustive screen cannot classify residue-level seropositive-RA "
+            "susceptibility for the detected DRB1 allele(s); do not interpret this as "
+            "no increased RA susceptibility. Clinical high-resolution HLA typing or a "
+            "residue-aware classifier is required for interpretation.",
             _low_conf(calls, ["DRB1"]),
             citations,
             notes,
@@ -409,8 +439,9 @@ def assess_susceptibility(calls: Sequence[ResolvedHLACall]) -> SusceptibilityRep
 
     With no calls the report is ``available=False``. Otherwise each association is
     assessed as ``increased_risk`` / ``not_increased`` / ``neutral_subtype`` (B*27
-    disease-neutral subtypes) / ``not_typed`` — always distinguishing a typed
-    negative from a locus or haplotype phase that was never called.
+    disease-neutral subtypes) / ``limited_screen`` / ``not_typed`` — always
+    distinguishing a typed negative from a locus or haplotype phase that was never
+    called.
     """
     if not calls:
         return SusceptibilityReport(available=False, unavailable_note=_UNAVAILABLE_NOTE)

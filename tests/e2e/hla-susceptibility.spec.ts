@@ -69,6 +69,45 @@ test.describe('HLA autoimmune susceptibility (SW-D4)', () => {
     await expect(b27).toContainText('susceptibility marker, not a diagnosis')
   })
 
+  test('shows limited-screen RA shared-epitope cards without no-risk wording', async ({ page }) => {
+    await page.route('**/api/hla/drug-hypersensitivity**', (route) =>
+      route.fulfill(jsonRoute(drugUnavailable)),
+    )
+    await page.route('**/api/hla/susceptibility**', (route) =>
+      route.fulfill(
+        jsonRoute({
+          available: true,
+          caveat: 'imputed — confirm with clinical HLA typing.',
+          unavailable_note: null,
+          research_use_only: true,
+          findings: [
+            {
+              condition: 'Rheumatoid arthritis (seropositive)',
+              hla: 'HLA-DRB1 shared epitope',
+              status: 'limited_screen',
+              carried: false,
+              detail: 'DRB1*04:03 outside the curated shared-epitope screen',
+              interpretation:
+                'This non-exhaustive screen cannot classify residue-level seropositive-RA susceptibility; do not interpret this as no increased RA susceptibility.',
+              low_confidence: false,
+              citations: ['PMID:23737967'],
+              notes: ['This curated screen is not a residue-aware DRB1 classifier.'],
+            },
+          ],
+        }),
+      ),
+    )
+
+    await page.goto('/hla?sample_id=1')
+    await waitForReactHydration(page)
+
+    const ra = page.getByTestId('hla-susc-HLA-DRB1 shared epitope')
+    await expect(ra).toHaveAttribute('data-status', 'limited_screen')
+    await expect(ra).toContainText('Limited screen')
+    await expect(ra).toContainText('do not interpret this as no increased RA susceptibility')
+    await expect(ra).not.toContainText('No increased risk')
+  })
+
   test('omits the susceptibility section when no HLA calls exist', async ({ page }) => {
     await page.route('**/api/hla/drug-hypersensitivity**', (route) =>
       route.fulfill(jsonRoute(drugUnavailable)),

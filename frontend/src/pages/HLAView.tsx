@@ -255,6 +255,12 @@ const SUSC_STYLE: Record<
     box: "border-border bg-muted/40",
     badge: "bg-muted text-muted-foreground",
   },
+  limited_screen: {
+    label: "Limited screen",
+    icon: HelpCircle,
+    box: "border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/20",
+    badge: "bg-sky-100 dark:bg-sky-900 text-sky-800 dark:text-sky-200",
+  },
   not_typed: {
     label: "Not typed",
     icon: HelpCircle,
