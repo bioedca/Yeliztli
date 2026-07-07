@@ -27,8 +27,8 @@ export interface HlaDrugHypersensitivityResponse {
   research_use_only: boolean
 }
 
-type CeliacRuleOutStatus = "rule_out" | "permissive_present" | "not_typed"
-type NarcolepsyRuleOutStatus = "absent_lowers" | "present" | "not_typed"
+type CeliacRuleOutStatus = "rule_out" | "permissive_present" | "indeterminate" | "not_typed"
+type NarcolepsyRuleOutStatus = "absent_lowers" | "present" | "indeterminate" | "not_typed"
 
 export interface CeliacRuleOut {
   status: CeliacRuleOutStatus

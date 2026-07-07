@@ -45,11 +45,13 @@ from backend.analysis.hla_resolver import ResolvedHLACall, carries_allele
 # Celiac status.
 CELIAC_RULE_OUT = "rule_out"  # no permissive DQ heterodimer/β-chain → very unlikely
 CELIAC_PERMISSIVE = "permissive_present"  # a permissive haplotype present → non-diagnostic
+CELIAC_INDETERMINATE = "indeterminate"  # required DQ call low confidence → cannot assess
 CELIAC_NOT_TYPED = "not_typed"  # DQA1 or DQB1 not called → cannot assess
 
 # Narcolepsy status.
 NARCO_ABSENT = "absent_lowers"  # DQB1*06:02 absent → strongly lowers NT1 (not a rule-out)
 NARCO_PRESENT = "present"  # DQB1*06:02 present → non-diagnostic (common)
+NARCO_INDETERMINATE = "indeterminate"  # DQB1 call low confidence → cannot assess
 NARCO_NOT_TYPED = "not_typed"  # DQB1 not called
 
 
@@ -142,6 +144,18 @@ def _assess_celiac(calls: Sequence[ResolvedHLACall]) -> CeliacRuleOut:
             detected.append("DQB1*03:02 half-heterodimer")
 
     low_conf = _any_low_confidence(calls, ["DQA1", "DQB1"])
+    if low_conf:
+        return CeliacRuleOut(
+            status=CELIAC_INDETERMINATE,
+            detected=detected,
+            low_confidence=True,
+            interpretation=(
+                "One or more required HLA-DQA1/DQB1 calls have low imputation "
+                "confidence. Do not interpret this as either a celiac HLA rule-out "
+                "or confirmed celiac-permissive HLA; clinical HLA-DQ typing is "
+                "required before using this result."
+            ),
+        )
     if detected:
         return CeliacRuleOut(
             status=CELIAC_PERMISSIVE,
@@ -182,6 +196,18 @@ def _assess_narcolepsy(calls: Sequence[ResolvedHLACall]) -> NarcolepsyRuleOut:
             ),
         )
     if carriage.carried:
+        if carriage.low_confidence:
+            return NarcolepsyRuleOut(
+                status=NARCO_INDETERMINATE,
+                carried=True,
+                zygosity=carriage.zygosity,
+                low_confidence=True,
+                interpretation=(
+                    "The imputed HLA-DQB1*06:02 call has low confidence. Do not "
+                    "interpret this as positive or negative evidence for narcolepsy "
+                    "type 1; clinical HLA typing is required before using this result."
+                ),
+            )
         return NarcolepsyRuleOut(
             status=NARCO_PRESENT,
             carried=True,
@@ -193,6 +219,18 @@ def _assess_narcolepsy(calls: Sequence[ResolvedHLACall]) -> NarcolepsyRuleOut:
                 "dependent) and only about 1 in 1000 carriers develops narcolepsy. "
                 "Narcolepsy is a clinical diagnosis (cataplexy, sleep studies, CSF "
                 "hypocretin)."
+            ),
+        )
+    if carriage.low_confidence:
+        return NarcolepsyRuleOut(
+            status=NARCO_INDETERMINATE,
+            carried=False,
+            zygosity=None,
+            low_confidence=True,
+            interpretation=(
+                "The imputed HLA-DQB1*06:02 absence has low confidence. Do not "
+                "interpret this as lowering narcolepsy type 1 likelihood until "
+                "confirmed with clinical HLA typing."
             ),
         )
     return NarcolepsyRuleOut(

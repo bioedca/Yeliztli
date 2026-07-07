@@ -112,14 +112,14 @@ def get_hla_drug_hypersensitivity(
 
 
 class CeliacRuleOutResponse(BaseModel):
-    status: str  # rule_out | permissive_present | not_typed
+    status: str  # rule_out | permissive_present | indeterminate | not_typed
     detected: list[str]
     low_confidence: bool
     interpretation: str
 
 
 class NarcolepsyRuleOutResponse(BaseModel):
-    status: str  # absent_lowers | present | not_typed
+    status: str  # absent_lowers | present | indeterminate | not_typed
     carried: bool
     zygosity: str | None
     low_confidence: bool

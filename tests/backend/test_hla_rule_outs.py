@@ -2,18 +2,20 @@
 
 Pins the celiac HLA-DQ heterodimer composition (DQ2.5 / DQ8 / DQ2.2 + the DQB1*02
 / DQB1*03:02 half-heterodimer that a DQ2.5/DQ8-only rule-out would miss), the
-rule_out vs permissive vs not_typed statuses, and the narcolepsy DQB1*06:02
-present / absent-lowers / not_typed framing.
+rule_out vs permissive vs indeterminate vs not_typed statuses, and the narcolepsy
+DQB1*06:02 present / absent-lowers / indeterminate / not_typed framing.
 """
 
 from __future__ import annotations
 
 from backend.analysis.hla_resolver import ResolvedHLACall
 from backend.analysis.hla_rule_outs import (
+    CELIAC_INDETERMINATE,
     CELIAC_NOT_TYPED,
     CELIAC_PERMISSIVE,
     CELIAC_RULE_OUT,
     NARCO_ABSENT,
+    NARCO_INDETERMINATE,
     NARCO_NOT_TYPED,
     NARCO_PRESENT,
     assess_rule_outs,
@@ -83,10 +85,21 @@ class TestCeliac:
         report = assess_rule_outs([_c("DQB1", "02:01", "05:01")])  # no DQA1 call
         assert report.celiac.status == CELIAC_NOT_TYPED
 
-    def test_low_confidence_propagates(self) -> None:
+    def test_low_confidence_rule_out_becomes_indeterminate(self) -> None:
         calls = [_c("DQA1", "01:01", "04:01"), _c("DQB1", "05:01", "06:03", low=True)]
         report = assess_rule_outs(calls)
+        assert report.celiac.status == CELIAC_INDETERMINATE
         assert report.celiac.low_confidence is True
+        assert report.celiac.detected == []
+        assert "Do not interpret" in report.celiac.interpretation
+        assert "very unlikely" not in report.celiac.interpretation
+
+    def test_low_confidence_permissive_becomes_indeterminate(self) -> None:
+        calls = [_c("DQA1", "05:01", "01:01"), _c("DQB1", "02:01", "05:01", low=True)]
+        report = assess_rule_outs(calls)
+        assert report.celiac.status == CELIAC_INDETERMINATE
+        assert report.celiac.low_confidence is True
+        assert any("DQ2.5" in d for d in report.celiac.detected)
 
 
 class TestNarcolepsy:
@@ -113,6 +126,20 @@ class TestNarcolepsy:
     def test_homozygous_reported(self) -> None:
         report = assess_rule_outs([_c("DQB1", "06:02", "06:02")])
         assert report.narcolepsy.zygosity == "homozygous"
+
+    def test_low_confidence_present_becomes_indeterminate(self) -> None:
+        report = assess_rule_outs([_c("DQB1", "06:02", "05:01", low=True)])
+        assert report.narcolepsy.status == NARCO_INDETERMINATE
+        assert report.narcolepsy.carried is True
+        assert report.narcolepsy.low_confidence is True
+        assert "positive or negative" in report.narcolepsy.interpretation
+
+    def test_low_confidence_absent_becomes_indeterminate(self) -> None:
+        report = assess_rule_outs([_c("DQB1", "05:01", "03:01", low=True)])
+        assert report.narcolepsy.status == NARCO_INDETERMINATE
+        assert report.narcolepsy.carried is False
+        assert report.narcolepsy.low_confidence is True
+        assert "lowering narcolepsy" in report.narcolepsy.interpretation
 
 
 def test_citations_present() -> None:

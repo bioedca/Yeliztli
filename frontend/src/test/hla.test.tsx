@@ -147,6 +147,29 @@ const RULE_OUTS_RESPONSE: HlaRuleOutsResponse = {
   },
 }
 
+const LOW_CONFIDENCE_RULE_OUTS_RESPONSE: HlaRuleOutsResponse = {
+  available: true,
+  caveat: "caveat",
+  unavailable_note: null,
+  research_use_only: true,
+  citations: ["PMID:31274511", "PMID:30321823"],
+  celiac: {
+    status: "indeterminate",
+    detected: [],
+    low_confidence: true,
+    interpretation:
+      "One or more required HLA-DQA1/DQB1 calls have low imputation confidence. Do not interpret this as either a celiac HLA rule-out or confirmed celiac-permissive HLA.",
+  },
+  narcolepsy: {
+    status: "indeterminate",
+    carried: false,
+    zygosity: null,
+    low_confidence: true,
+    interpretation:
+      "The imputed HLA-DQB1*06:02 absence has low confidence. Do not interpret this as lowering narcolepsy type 1 likelihood until confirmed with clinical HLA typing.",
+  },
+}
+
 beforeEach(() => {
   routerMock.search = "sample_id=1"
   vi.clearAllMocks()
@@ -270,6 +293,24 @@ describe("HLAView disease rule-outs", () => {
     const narco = screen.getByTestId("hla-rule-out-narcolepsy")
     expect(narco).toHaveAttribute("data-tone", "reassuring")
     expect(narco).toHaveTextContent("argues strongly against narcolepsy")
+  })
+
+  it("renders low-confidence rule-outs as indeterminate, not reassuring", () => {
+    mockUseHlaDrug.mockReturnValue(q({ data: CARRIER_RESPONSE }))
+    mockUseHlaRuleOuts.mockReturnValue(q({ data: LOW_CONFIDENCE_RULE_OUTS_RESPONSE }))
+    render(<HLAView />)
+
+    const celiac = screen.getByTestId("hla-rule-out-celiac")
+    expect(celiac).toHaveAttribute("data-tone", "indeterminate")
+    expect(celiac).toHaveTextContent("Low-confidence - indeterminate")
+    expect(celiac).toHaveTextContent("do not interpret this as positive or negative")
+    expect(celiac).not.toHaveTextContent("Very unlikely")
+
+    const narco = screen.getByTestId("hla-rule-out-narcolepsy")
+    expect(narco).toHaveAttribute("data-tone", "indeterminate")
+    expect(narco).toHaveTextContent("Low-confidence - indeterminate")
+    expect(narco).toHaveTextContent("Do not interpret this as lowering narcolepsy")
+    expect(narco).not.toHaveTextContent("absent — argues against NT1")
   })
 
   it("omits the rule-outs section when unavailable", () => {

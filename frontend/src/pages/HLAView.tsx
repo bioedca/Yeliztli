@@ -154,7 +154,7 @@ function DrugRiskCard({ a }: { a: HlaDrugRiskAssessment }) {
   )
 }
 
-type RuleOutTone = "reassuring" | "non_diagnostic" | "unknown"
+type RuleOutTone = "reassuring" | "non_diagnostic" | "indeterminate" | "unknown"
 
 const TONE_STYLE: Record<RuleOutTone, { box: string; badge: string }> = {
   reassuring: {
@@ -162,6 +162,10 @@ const TONE_STYLE: Record<RuleOutTone, { box: string; badge: string }> = {
     badge: "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200",
   },
   non_diagnostic: {
+    box: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20",
+    badge: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200",
+  },
+  indeterminate: {
     box: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20",
     badge: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200",
   },
@@ -174,12 +178,14 @@ const TONE_STYLE: Record<RuleOutTone, { box: string; badge: string }> = {
 const CELIAC_STATUS: Record<CeliacRuleOut["status"], { tone: RuleOutTone; label: string }> = {
   rule_out: { tone: "reassuring", label: "Very unlikely" },
   permissive_present: { tone: "non_diagnostic", label: "Permissive HLA — non-diagnostic" },
+  indeterminate: { tone: "indeterminate", label: "Low-confidence - indeterminate" },
   not_typed: { tone: "unknown", label: "Not typed" },
 }
 
 const NARCO_STATUS: Record<NarcolepsyRuleOut["status"], { tone: RuleOutTone; label: string }> = {
   absent_lowers: { tone: "reassuring", label: "DQB1*06:02 absent — argues against NT1" },
   present: { tone: "non_diagnostic", label: "DQB1*06:02 present — non-diagnostic" },
+  indeterminate: { tone: "indeterminate", label: "Low-confidence - indeterminate" },
   not_typed: { tone: "unknown", label: "Not typed" },
 }
 
@@ -226,7 +232,8 @@ function RuleOutCard({
       )}
       {lowConfidence && (
         <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-          Low-confidence imputation call — interpret with extra caution.
+          Low-confidence imputation call — do not interpret this as positive or negative;
+          clinical HLA typing is required.
         </p>
       )}
     </div>
