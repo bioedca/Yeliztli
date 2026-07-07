@@ -18,8 +18,19 @@ A 7-gene reproductive panel:
 
 **Heterozygous** (single-copy) Pathogenic/Likely-Pathogenic variants, grouped by inheritance
 pattern, each with ClinVar significance, review stars, an evidence rating, the associated
-condition, and reproductive context. Two-copy (homozygous) findings are excluded here because
-they represent a disease state rather than carrier status.
+condition, and reproductive context. A single recessive variant means you are typically an
+**unaffected carrier**, so these findings are framed around reproductive risk and partner testing.
+
+For **autosomal-recessive** genes, the module also surfaces **biallelic** patterns as
+**affected-status** findings — worded as a disease-state result rather than a "typically
+unaffected" carrier, with copy-number caveats and a prompt to confirm with clinical-grade
+testing:
+
+- a **homozygous** (two-copy) P/LP variant; and
+- **two distinct** heterozygous P/LP variants in the same gene — a **possible compound
+  heterozygote**, flagged as *possible* because genotyping arrays can't phase the variants
+  (i.e. tell whether they sit on opposite chromosomes); it is affected-status only if they are
+  *in trans*, which clinical testing would confirm.
 
 - *HBB* rs334 (sickle-cell **trait**) findings include personal health context (kidney, clot,
   and exertional considerations).
