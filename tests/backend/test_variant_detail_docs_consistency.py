@@ -22,6 +22,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TABS_SOURCE = REPO_ROOT / "frontend" / "src" / "pages" / "VariantDetailPage.tsx"
 _DOC_PATH = REPO_ROOT / "docs" / "features" / "variant-detail.md"
+_REPORTS_DOC_PATH = REPO_ROOT / "docs" / "features" / "reports.md"
+_FRONTEND_SOURCE_ROOT = REPO_ROOT / "frontend" / "src"
 
 # Tab names dropped from the docs in #1545 because they were never real tabs.
 # Named so the regression stays legible; the set-equality tests below enforce it
@@ -88,4 +90,37 @@ def test_doc_explains_hgvs_notation() -> None:
         "docs/features/variant-detail.md no longer explains HGVS c./p. notation "
         f"(missing {missing}). The Overview/Protein tabs render hgvs_coding/hgvs_protein "
         "verbatim — keep the 'Understanding HGVS notation' key (#1593)."
+    )
+
+
+def _frontend_has_variant_card_caller() -> bool:
+    """Whether the frontend actually calls the finding-keyed variant-card endpoints."""
+    for path in _FRONTEND_SOURCE_ROOT.rglob("*"):
+        if path.suffix not in {".ts", ".tsx"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "/api/reports/variant-card" in text or "reports/variant-card" in text:
+            return True
+    return False
+
+
+def test_docs_do_not_claim_variant_detail_card_export_without_ui_caller() -> None:
+    if _frontend_has_variant_card_caller():
+        return
+
+    docs = {
+        "docs/features/variant-detail.md": _DOC_PATH.read_text(encoding="utf-8").lower(),
+        "docs/features/reports.md": _REPORTS_DOC_PATH.read_text(encoding="utf-8").lower(),
+    }
+    forbidden = {
+        "docs/features/variant-detail.md": ("generate a single-variant", "from this page"),
+        "docs/features/reports.md": ("evidence cards", "from any", "variant detail"),
+    }
+    offenders = [
+        doc for doc, tokens in forbidden.items() if all(token in docs[doc] for token in tokens)
+    ]
+    assert not offenders, (
+        "Docs claim variant-detail evidence-card export, but frontend/src has no caller for "
+        "the finding-keyed /api/reports/variant-card endpoints (#1622): "
+        f"{offenders}."
     )

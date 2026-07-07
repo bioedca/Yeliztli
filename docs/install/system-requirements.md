@@ -8,7 +8,7 @@
 | **RAM** | ~1 GB free | More is helpful while annotating a large file. |
 | **Free disk space** | ~60 GB for full reference setup; **~80 GB recommended** | See the peak-vs-steady-state breakdown below. |
 | **Java** | 8+ *(optional)* | Only required for chromosome-level ancestry painting (the Tier-2 LAI bundle). |
-| **Chromium browser for reports** | Installed by `yeliztli-setup install` or the Docker image | Required for PDF reports and single-variant evidence-card PDF/PNG exports. Manual installs can run `python -m playwright install chromium`. |
+| **Chromium browser for reports** | Installed by `yeliztli-setup install` or the Docker image | Required for PDF reports and backend variant-card rendering endpoints. Manual installs can run `python -m playwright install chromium`. |
 
 ## Disk space, realistically
 
@@ -25,7 +25,7 @@ are not. The setup wizard **warns** when less than ~80 GB is free and **blocks**
 | ClinVar, CPIC, GWAS Catalog, dbSNP, MONDO/HPO, ENCODE cCREs | ~420 MB |
 | Optional ancestry **LAI bundle** (Tier-2 chromosome painting) | ~1.7 GB |
 | Optional AlphaMissense or GTEx context databases | ~3-3.5 GB each when installed |
-| Playwright Chromium browser for reports/cards | ~200-400 MB |
+| Playwright Chromium browser for report/card rendering | ~200-400 MB |
 | Your samples | varies (typically tens to a few hundred MB each) |
 
 After a successful dbNSFP build, Yeliztli removes the transient source ZIP. If a build is

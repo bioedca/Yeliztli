@@ -8,10 +8,11 @@ Generate a PDF report from your analysis results:
 4. Click **Generate PDF** (rendered with Playwright for high fidelity).
 5. Download the report.
 
-Reports use clinical typography with evidence stars rendered for print. You can also produce
-single-variant **evidence cards** (PDF or PNG) from any [variant detail](variant-detail.md)
-page. These exports require the Playwright Chromium browser, which the native installer and
-Docker image install automatically. Manual environments can run:
+Reports use clinical typography with evidence stars rendered for print. The Reports UI currently
+generates full analysis PDFs; it does not expose single-variant evidence-card export controls from
+[variant detail](variant-detail.md) pages. The backend variant-card rendering endpoints are keyed
+to reportable findings and also require the Playwright Chromium browser, which the native installer
+and Docker image install automatically. Manual environments can run:
 
 ```bash
 python -m playwright install chromium

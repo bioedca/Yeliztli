@@ -27,8 +27,10 @@ summary, then **Open full detail** for the full page, organised into tabs:
 6. **Genome** — an embedded IGV view of a ~10 kb window around the variant with the default
    annotation tracks, plus a link into the full **[Genome Browser](genome-browser.md)**.
 
-You can generate a single-variant **evidence card** (PDF or PNG) from this page, and jump
-straight to the variant in the **[Genome Browser](genome-browser.md)**.
+You can jump straight to the variant in the **[Genome Browser](genome-browser.md)**.
+Single-variant evidence-card exports are not currently surfaced from the variant detail page;
+the backend variant-card endpoints are keyed to reportable findings rather than arbitrary
+Variant Explorer variants.
 
 ## Understanding HGVS notation
 

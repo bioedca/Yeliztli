@@ -27,7 +27,7 @@ yeliztli-setup uninstall --remove-data   # remove services, data, and control fi
 ```
 
 `yeliztli-setup install` also installs the Playwright Chromium browser used by
-**Generate PDF** and single-variant evidence-card PDF/PNG exports. If you are doing a
+**Generate PDF** and backend variant-card rendering endpoints. If you are doing a
 manual or offline install and skip that step, run:
 
 ```bash
