@@ -154,10 +154,11 @@ describe("AbsoluteRiskOverlay", () => {
         sex_context: "female",
         sex_note: "Figures shown are female-specific (inferred biological sex XX).",
         population_baseline: {
-          lifetime_risk_pct: 12.9,
+          lifetime_risk_pct: 13.0,
+          data_years: "2021-2023",
           source: "NCI SEER",
           source_url: "https://seer.cancer.gov/statfacts/html/breast.html",
-          note: "~1 in 8",
+          note: "~1 in 8, SEER 2021-2023",
         },
         has_monogenic: true,
         monogenic: [{ gene: "BRCA1", cumulative_risk_to_80_pct: 72, ci: "65-79", pmid: "28632866" }],
@@ -168,7 +169,7 @@ describe("AbsoluteRiskOverlay", () => {
     })
     render(<AbsoluteRiskOverlay sampleId={1} />)
     const overlay = screen.getByTestId("absolute-risk-overlay")
-    expect(overlay).toHaveTextContent("12.9%")
+    expect(overlay).toHaveTextContent("13%")
     expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("female-specific")
     expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent("BRCA1")
     expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent("72%")
@@ -204,7 +205,7 @@ describe("AbsoluteRiskOverlay", () => {
     render(<AbsoluteRiskOverlay sampleId={1} />)
     const overlay = screen.getByTestId("absolute-risk-overlay")
     // The female SEER baseline must not render for a male sample.
-    expect(overlay).not.toHaveTextContent("12.9%")
+    expect(overlay).not.toHaveTextContent("13%")
     expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("male")
     const mono = screen.getByTestId("absolute-risk-monogenic")
     expect(mono).not.toHaveTextContent("72%")
@@ -235,7 +236,7 @@ describe("AbsoluteRiskOverlay", () => {
     })
     render(<AbsoluteRiskOverlay sampleId={1} />)
     const overlay = screen.getByTestId("absolute-risk-overlay")
-    expect(overlay).not.toHaveTextContent("12.9%")
+    expect(overlay).not.toHaveTextContent("13%")
     expect(screen.getByTestId("absolute-risk-sex-note")).toHaveTextContent("withheld")
     expect(screen.getByTestId("absolute-risk-monogenic")).toHaveTextContent(/withheld/i)
   })

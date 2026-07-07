@@ -9,7 +9,7 @@ Honest scope. A personalized, polygenic-derived absolute risk would require a
 calibrated breast PRS percentile, which is withheld on un-imputed array data
 (coverage-limited; see SW-B5). So this overlay does **not** fabricate a personal
 PRS number. Instead, once consented, it presents:
-  * the US population baseline (NCI SEER: ~12.9% lifetime, ~1 in 8 women);
+  * the US population baseline (NCI SEER: ~13.0% lifetime, ~1 in 8 women);
   * for carriers of a high-penetrance monogenic variant, the published
     genotype-class cumulative risk (BRCA1 ~72%, BRCA2 ~69% to age 80;
     Kuchenbaecker et al., JAMA 2017) with a genetics-referral prompt;
@@ -53,10 +53,14 @@ BREAST_MONOGENIC_GENES = (
 
 # US population baseline (data source, not a journal article).
 SEER_BASELINE = {
-    "lifetime_risk_pct": 12.9,
+    "lifetime_risk_pct": 13.0,
+    "data_years": "2021-2023",
     "source": "NCI SEER Cancer Stat Facts: Female Breast Cancer",
     "source_url": "https://seer.cancer.gov/statfacts/html/breast.html",
-    "note": "About 1 in 8 US women are diagnosed with breast cancer over their lifetime.",
+    "note": (
+        "About 1 in 8 US women are diagnosed with breast cancer over their lifetime "
+        "(SEER 2021-2023 data)."
+    ),
 }
 
 # Published *female* genotype-class cumulative breast-cancer risk to age 80

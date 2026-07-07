@@ -103,7 +103,11 @@ class TestOverlayGating:
         out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
         assert out["consented"] is True
         assert out["sex_context"] == "female"
-        assert out["population_baseline"]["lifetime_risk_pct"] == 12.9
+        assert out["population_baseline"]["lifetime_risk_pct"] == 13.0
+        assert out["population_baseline"]["data_years"] == "2021-2023"
+        assert out["population_baseline"]["source_url"] == (
+            "https://seer.cancer.gov/statfacts/html/breast.html"
+        )
         assert out["has_monogenic"] is False
         assert out["canrisk"]["url"] == "https://www.canrisk.org"
 
@@ -250,7 +254,8 @@ class TestRecordedSexPrecedence:
         assert out["sex_context"] == "female"
         assert out["sex_source"] == "recorded"
         assert out["resolved_sex"] == "XX"
-        assert out["population_baseline"]["lifetime_risk_pct"] == 12.9
+        assert out["population_baseline"]["lifetime_risk_pct"] == 13.0
+        assert out["population_baseline"]["data_years"] == "2021-2023"
         assert out["sex_conflict"] is False
 
     def test_recorded_resolves_inconclusive_inference(self, sample_engine: sa.Engine) -> None:

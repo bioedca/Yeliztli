@@ -103,6 +103,7 @@ export interface AbsoluteRiskResponse {
   /** Female SEER lifetime baseline — present only for the female context. */
   population_baseline?: {
     lifetime_risk_pct: number
+    data_years?: string
     source: string
     source_url: string
     note: string
