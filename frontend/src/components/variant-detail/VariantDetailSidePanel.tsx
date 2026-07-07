@@ -23,6 +23,7 @@ import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
+import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { formatAlleleFrequency } from "@/lib/format"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
@@ -63,14 +64,22 @@ function DetailRow({
   label,
   value,
   className,
+  labelTooltip,
 }: {
   label: string
   value: React.ReactNode
   className?: string
+  /** Optional hover tooltip on the label (e.g. the CADD/REVEL direction/scale). */
+  labelTooltip?: string
 }) {
   return (
     <div className={cn("flex justify-between items-baseline py-0.5", className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span
+        className={cn("text-xs text-muted-foreground", labelTooltip && SCORE_TOOLTIP_AFFORDANCE)}
+        title={labelTooltip}
+      >
+        {label}
+      </span>
       <span className="text-sm font-medium text-foreground text-right max-w-[60%] truncate">
         {value ?? "—"}
       </span>
@@ -234,7 +243,7 @@ function PanelContent({
 
         {/* In-silico predictions */}
         <SectionHeader icon={Activity} label="Predictions" />
-        <DetailRow label="CADD" value={variant.cadd_phred?.toFixed(1)} />
+        <DetailRow label="CADD" value={variant.cadd_phred?.toFixed(1)} labelTooltip={CADD_TOOLTIP} />
         <DetailRow
           label="SIFT"
           value={
@@ -268,7 +277,7 @@ function PanelContent({
             ) : null
           }
         />
-        <DetailRow label="REVEL" value={variant.revel?.toFixed(3)} />
+        <DetailRow label="REVEL" value={variant.revel?.toFixed(3)} labelTooltip={REVEL_TOOLTIP} />
         {variant.ensemble_pathogenic && (
           <div className="mt-1 px-2 py-1 rounded text-xs font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
             Ensemble pathogenic (≥3 independent axes deleterious)

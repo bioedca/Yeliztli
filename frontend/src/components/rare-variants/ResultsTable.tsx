@@ -11,6 +11,7 @@ import { gnomadNoFrequencyLabel } from "@/lib/gnomad-status"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
+import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 
 interface ResultsTableProps {
   items: RareVariant[]
@@ -43,8 +44,18 @@ export default function ResultsTable({ items, selectedRsid, onSelect }: ResultsT
               <th className="text-left px-3 py-2 font-medium">Consequence</th>
               <th className="text-left px-3 py-2 font-medium">ClinVar</th>
               <th className="text-right px-3 py-2 font-medium">gnomAD AF</th>
-              <th className="text-right px-3 py-2 font-medium">CADD</th>
-              <th className="text-right px-3 py-2 font-medium">REVEL</th>
+              <th
+                className={cn("text-right px-3 py-2 font-medium", SCORE_TOOLTIP_AFFORDANCE)}
+                title={CADD_TOOLTIP}
+              >
+                CADD
+              </th>
+              <th
+                className={cn("text-right px-3 py-2 font-medium", SCORE_TOOLTIP_AFFORDANCE)}
+                title={REVEL_TOOLTIP}
+              >
+                REVEL
+              </th>
               <th className="text-left px-3 py-2 font-medium">Zygosity</th>
               <th className="text-center px-3 py-2 font-medium">Evidence</th>
             </tr>

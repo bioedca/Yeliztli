@@ -12,6 +12,7 @@ import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyDetail } from "@/lib/gnomad-status"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
+import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -207,7 +208,12 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
           <h3 className="text-sm font-semibold text-foreground mb-2">Prediction Scores</h3>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">CADD Phred</span>
+              <span
+                className={cn("text-sm text-muted-foreground", SCORE_TOOLTIP_AFFORDANCE)}
+                title={CADD_TOOLTIP}
+              >
+                CADD Phred
+              </span>
               <span className={cn(
                 "text-sm font-mono",
                 variant.cadd_phred != null && variant.cadd_phred >= 20 && "text-red-700 dark:text-red-400",
@@ -216,7 +222,12 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">REVEL</span>
+              <span
+                className={cn("text-sm text-muted-foreground", SCORE_TOOLTIP_AFFORDANCE)}
+                title={REVEL_TOOLTIP}
+              >
+                REVEL
+              </span>
               <span className={cn(
                 "text-sm font-mono",
                 variant.revel != null && variant.revel >= 0.5 && "text-red-700 dark:text-red-400",

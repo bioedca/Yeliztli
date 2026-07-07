@@ -5,6 +5,7 @@ import VariantTable from "@/components/variant-table/VariantTable"
 import VariantDetailSidePanel from "@/components/variant-detail/VariantDetailSidePanel"
 import type { VariantPage, ChromosomeSummary, ColumnPreset } from "@/types/variants"
 import type { VariantDetail } from "@/types/variant-detail"
+import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
 
 const mockFetch = vi.fn()
 
@@ -420,6 +421,25 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     const overlay = screen.getByLabelText("Close panel")
     await user.click(overlay)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("annotates CADD and REVEL with a direction/scale tooltip (#1662)", async () => {
+    // CADD/REVEL render as bare numbers (unlike SIFT/PolyPhen's labels); a hover
+    // tooltip on the label carries direction + scale + the display threshold so the
+    // number's meaning travels with it.
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => mockVariantDetail,
+    }))
+
+    render(<VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+
+    expect(screen.getByTitle(CADD_TOOLTIP)).toHaveTextContent("CADD")
+    expect(screen.getByTitle(REVEL_TOOLTIP)).toHaveTextContent("REVEL")
   })
 
   it("shows ensemble pathogenic indicator", async () => {

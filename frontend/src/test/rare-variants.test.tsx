@@ -11,6 +11,7 @@ import ResultsTable from "@/components/rare-variants/ResultsTable"
 import SearchSummary from "@/components/rare-variants/SearchSummary"
 import VariantDetailPanel from "@/components/rare-variants/VariantDetailPanel"
 import type { RareVariant } from "@/types/rare-variants"
+import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
 
 const mockFetch = vi.fn()
 
@@ -561,5 +562,22 @@ describe("RareVariantsView", () => {
     })
     expect(screen.getByTestId("rare-variant-filter-panel")).toBeInTheDocument()
     expect(screen.getByTestId("search-button")).toBeInTheDocument()
+  })
+})
+
+describe("CADD/REVEL in-silico score tooltips (#1662)", () => {
+  it("ResultsTable CADD/REVEL headers carry the direction/scale tooltip", () => {
+    render(
+      <ResultsTable items={[makeMockVariant()]} selectedRsid={null} onSelect={vi.fn()} />,
+    )
+    // The bare number gains its meaning via a hover tooltip on the column header.
+    expect(screen.getByTitle(CADD_TOOLTIP)).toHaveTextContent("CADD")
+    expect(screen.getByTitle(REVEL_TOOLTIP)).toHaveTextContent("REVEL")
+  })
+
+  it("VariantDetailPanel CADD/REVEL labels carry the direction/scale tooltip", () => {
+    render(<VariantDetailPanel variant={makeMockVariant()} onClose={vi.fn()} />)
+    expect(screen.getByTitle(CADD_TOOLTIP)).toHaveTextContent("CADD Phred")
+    expect(screen.getByTitle(REVEL_TOOLTIP)).toHaveTextContent("REVEL")
   })
 })
