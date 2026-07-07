@@ -1926,7 +1926,8 @@ def build_y_tree() -> dict[str, Any]:
     g2a = _node(
         "G2a",
         [
-            _y_snp("rs2032658", 15025620, "A"),
+            # rs2032658 (M207) removed — it defines haplogroup R, not G (#1584);
+            # G2a keeps its own defining marker rs34175940.
             _y_snp("rs34175940", 15602949, "A"),
         ],
         [g2a1],
@@ -1939,9 +1940,11 @@ def build_y_tree() -> dict[str, Any]:
     )
     g2 = _node(
         "G2",
-        [
-            _y_snp("rs2032658", 15025620, "A"),
-        ],
+        # rs2032658 (M207) defines haplogroup R (R-M207), not G — it was spuriously
+        # duplicated here from its correct R placement (Wikipedia "Haplogroup R
+        # (Y-DNA)"; Ensembl GRCh37 Y:15581983). Removed; G2 is kept as a structural
+        # node (its sub-clades G2a/G2b carry their own markers) (#1584).
+        [],
         [g2a, g2b],
     )
     g_branch = _node(
@@ -2011,19 +2014,18 @@ def build_y_tree() -> dict[str, Any]:
             _y_snp("rs35489731", 15078270, "A"),
         ],
     )
-    i1b = _node(
-        "I1b",
-        [
-            _y_snp("rs9786153", 22028345, "C"),
-        ],
-    )
+    # I1b was a phantom node defined only by rs9786153 (M269), which defines
+    # haplogroup R1b (R-M269), not I — spuriously duplicated here from its correct
+    # R1b1a1a placement (Wikipedia "Haplogroup R-M269"; Ensembl GRCh37 Y:22739367).
+    # With no genuine I1b marker in the bundle, the node is removed rather than left
+    # empty (#1584). M269 stays on R1b1a1a.
     i1 = _node(
         "I1",
         [
             _y_snp("rs9341296", 15023650, "G"),
             _y_snp("rs17250667", 8461752, "C"),
         ],
-        [i1a, i1b],
+        [i1a],
     )
     i2a1 = _node(
         "I2a1",

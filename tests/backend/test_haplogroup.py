@@ -1278,37 +1278,41 @@ class TestYABranchPolarity:
     def test_canonical_y_markers_are_filed_under_the_correct_clade(
         self, bundle: HaplogroupBundle
     ) -> None:
-        """Marker→clade guard (#1583): a canonical, well-established Y-SNP must
-        define its own clade's subtree and never appear under a foreign clade —
-        the recurring class of #660/#805/#1583 (M170 filed under A instead of I).
+        """Marker→clade guard (#1583/#1584): a canonical, well-established Y-SNP
+        must define its own clade's subtree and appear NOWHERE outside it. Covers
+        the recurring mis-attribution class — #660/#805/#1583 (M170 under A instead
+        of I) and #1584 (M269 spuriously duplicated onto I1b, M207 onto G2/G2a).
         Extend ``_CANONICAL_Y_MARKER_CLADE`` as more ISOGG markers are audited."""
 
-        def subtree_rsids(node: object) -> set[str]:
-            out = {s.rsid for s in node.defining_snps}
+        def subtree_rsids(node: object) -> list[str]:
+            out = [s.rsid for s in node.defining_snps]
             for child in node.children:
-                out |= subtree_rsids(child)
+                out += subtree_rsids(child)
             return out
 
-        for rsid, (clade, foreign) in _CANONICAL_Y_MARKER_CLADE.items():
+        all_occurrences = subtree_rsids(bundle.y_tree)
+        for rsid, clade in _CANONICAL_Y_MARKER_CLADE.items():
             clade_node = _find_y_node(bundle.y_tree, clade)
             assert clade_node is not None, f"clade {clade} missing from Y tree"
-            assert rsid in subtree_rsids(clade_node), (
+            in_clade = subtree_rsids(clade_node)
+            assert rsid in in_clade, (
                 f"{rsid} must be a defining marker of its canonical clade {clade}"
             )
-            foreign_node = _find_y_node(bundle.y_tree, foreign)
-            if foreign_node is not None:
-                assert rsid not in subtree_rsids(foreign_node), (
-                    f"{rsid} is a {clade} marker but is mis-filed under {foreign}"
-                )
+            # Every occurrence in the whole Y tree must fall inside the canonical
+            # clade's subtree — a copy on any unrelated clade is a mis-attribution.
+            assert all_occurrences.count(rsid) == in_clade.count(rsid), (
+                f"{rsid} (a {clade} marker) appears on a clade outside the {clade} subtree"
+            )
 
 
-# Canonical, well-established Y-SNP marker → (defining clade, a foreign clade it
-# must NOT appear under). Guards against the marker→clade mis-attribution class
-# (#660/#805/#1583). Add entries as ISOGG/PhyloTree markers in the bundle are
-# audited.
-_CANONICAL_Y_MARKER_CLADE: dict[str, tuple[str, str]] = {
-    # M170: A→C transversion, derived C defines haplogroup I; not the basal A.
-    "rs2032597": ("I", "A"),
+# Canonical, well-established Y-SNP marker → its single defining clade (ISOGG). The
+# marker must appear only within this clade's subtree; a copy on any unrelated clade
+# is a mis-attribution (#660/#805/#1583/#1584). Add entries as bundle markers are
+# audited against an authoritative Y-SNP index.
+_CANONICAL_Y_MARKER_CLADE: dict[str, str] = {
+    "rs2032597": "I",  # M170: A→C, derived C defines haplogroup I (not the basal A).
+    "rs9786153": "R1b",  # M269: defines R1b (R-M269), not haplogroup I.
+    "rs2032658": "R",  # M207: defines haplogroup R (R-M207), not G.
 }
 
 
