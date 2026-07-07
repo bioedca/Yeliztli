@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
+from backend.annotation.bulk_load import retry_on_locked
 from backend.annotation.http_download import stream_download
 from backend.db.tables import downloads, jobs
 
@@ -392,26 +393,65 @@ class DownloadManager:
         )
 
     # ── Internal: database helpers ────────────────────────────────────
+    #
+    # A wizard install fans out up to 8 concurrent workers, all writing the
+    # shared reference.db. Under WAL a write can briefly lose the lock past
+    # ``busy_timeout`` and raise ``OperationalError: database is locked``, so
+    # every write here routes through the shared ``retry_on_locked`` budget.
+    # Progress/validator checkpoints go one step further and are *best-effort*:
+    # they are pure optimizations (resume derives its real offset from the
+    # on-disk file size, not the DB row), so a lock that outlasts the retries
+    # must never abort an otherwise-healthy multi-GB transfer.
+
+    def _write_retrying(self, stmt: sa.Executable) -> None:
+        """Execute a load-bearing write, retrying on lock; raise if still stuck."""
+
+        def _do() -> None:
+            with self._engine.begin() as conn:
+                conn.execute(stmt)
+
+        retry_on_locked(_do, sleep=self._sleep)
+
+    def _write_best_effort(self, stmt: sa.Executable, *, what: str, download_id: int) -> None:
+        """Execute an optimization-only write; retry on lock, swallow a final failure.
+
+        Used for progress/validator checkpoints, whose loss is harmless (the
+        transfer continues and resume falls back to the file size). Never
+        propagates, so a contended checkpoint cannot fail the download.
+        """
+        try:
+            self._write_retrying(stmt)
+        except sa.exc.OperationalError as exc:
+            logger.warning(
+                "download_checkpoint_write_dropped",
+                what=what,
+                download_id=download_id,
+                error=str(exc),
+            )
 
     def _create_download_record(
         self, *, url: str, dest_path: str, expected_sha256: str | None
     ) -> int:
         """Insert a new row into the downloads table and return its ID."""
         now = datetime.now(UTC)
-        with self._engine.begin() as conn:
-            result = conn.execute(
-                downloads.insert().values(
-                    url=url,
-                    dest_path=dest_path,
-                    total_bytes=None,
-                    downloaded_bytes=0,
-                    checksum_sha256=expected_sha256,
-                    status="pending",
-                    created_at=now,
-                    updated_at=now,
+
+        def _do() -> int:
+            with self._engine.begin() as conn:
+                result = conn.execute(
+                    downloads.insert().values(
+                        url=url,
+                        dest_path=dest_path,
+                        total_bytes=None,
+                        downloaded_bytes=0,
+                        checksum_sha256=expected_sha256,
+                        status="pending",
+                        created_at=now,
+                        updated_at=now,
+                    )
                 )
-            )
-            return result.lastrowid  # type: ignore[return-value]
+                return result.lastrowid  # type: ignore[return-value]
+
+        return retry_on_locked(_do, sleep=self._sleep)
 
     def _find_resumable(self, url: str, dest_path: str) -> tuple[int, int] | None:
         """Find an incomplete download for the same URL + dest_path.
@@ -454,31 +494,37 @@ class DownloadManager:
         return row._asdict()
 
     def _update_download_status(self, download_id: int, status: str) -> None:
-        """Update the status field of a download record."""
-        with self._engine.begin() as conn:
-            conn.execute(
-                downloads.update()
-                .where(downloads.c.id == download_id)
-                .values(status=status, updated_at=datetime.now(UTC))
-            )
+        """Update the status field of a download record (load-bearing; retries)."""
+        self._write_retrying(
+            downloads.update()
+            .where(downloads.c.id == download_id)
+            .values(status=status, updated_at=datetime.now(UTC))
+        )
 
     def _update_total_bytes(self, download_id: int, total_bytes: int) -> None:
-        """Set the total_bytes for a download record."""
-        with self._engine.begin() as conn:
-            conn.execute(
-                downloads.update()
-                .where(downloads.c.id == download_id)
-                .values(total_bytes=total_bytes, updated_at=datetime.now(UTC))
-            )
+        """Set total_bytes for the SSE percentage (best-effort; never aborts)."""
+        self._write_best_effort(
+            downloads.update()
+            .where(downloads.c.id == download_id)
+            .values(total_bytes=total_bytes, updated_at=datetime.now(UTC)),
+            what="total_bytes",
+            download_id=download_id,
+        )
 
     def _checkpoint_offset(self, download_id: int, offset: int) -> None:
-        """Persist the current byte offset to the downloads table."""
-        with self._engine.begin() as conn:
-            conn.execute(
-                downloads.update()
-                .where(downloads.c.id == download_id)
-                .values(downloaded_bytes=offset, updated_at=datetime.now(UTC))
-            )
+        """Persist the current byte offset for resume (best-effort; never aborts).
+
+        The real resume offset is always taken from the on-disk partial's size,
+        so a dropped checkpoint only costs a little re-download — it must not
+        fail an otherwise-successful transfer.
+        """
+        self._write_best_effort(
+            downloads.update()
+            .where(downloads.c.id == download_id)
+            .values(downloaded_bytes=offset, updated_at=datetime.now(UTC)),
+            what="checkpoint_offset",
+            download_id=download_id,
+        )
 
     def _get_validator(self, download_id: int) -> str | None:
         """Return the persisted If-Range validator for a download, if any."""
@@ -501,29 +547,32 @@ class DownloadManager:
         """
         if not self._validator_supported:
             return
-        with self._engine.begin() as conn:
-            conn.execute(
-                downloads.update()
-                .where(downloads.c.id == download_id)
-                .values(validator=validator, updated_at=datetime.now(UTC))
-            )
+        # Best-effort: the validator is an If-Range optimization for the *next*
+        # resume, so losing it to a lock must not abort this transfer (this runs
+        # via ``on_validator`` mid-stream).
+        self._write_best_effort(
+            downloads.update()
+            .where(downloads.c.id == download_id)
+            .values(validator=validator, updated_at=datetime.now(UTC)),
+            what="validator",
+            download_id=download_id,
+        )
 
     def _create_job(self, job_id: str, download_id: int) -> None:
-        """Create a job record for SSE progress tracking."""
+        """Create a job record for SSE progress tracking (load-bearing; retries)."""
         now = datetime.now(UTC)
-        with self._engine.begin() as conn:
-            conn.execute(
-                jobs.insert().values(
-                    job_id=job_id,
-                    sample_id=None,
-                    job_type="download",
-                    status="pending",
-                    progress_pct=0.0,
-                    message=f"Download #{download_id} queued",
-                    created_at=now,
-                    updated_at=now,
-                )
+        self._write_retrying(
+            jobs.insert().values(
+                job_id=job_id,
+                sample_id=None,
+                job_type="download",
+                status="pending",
+                progress_pct=0.0,
+                message=f"Download #{download_id} queued",
+                created_at=now,
+                updated_at=now,
             )
+        )
 
     def _update_job(
         self,
@@ -536,26 +585,23 @@ class DownloadManager:
         _retries: int = 5,
     ) -> None:
         """Update job progress for SSE visibility with retry on contention."""
-        for attempt in range(_retries):
-            try:
-                with self._engine.begin() as conn:
-                    conn.execute(
-                        jobs.update()
-                        .where(jobs.c.job_id == job_id)
-                        .values(
-                            status=status,
-                            progress_pct=progress_pct,
-                            message=message,
-                            error=error,
-                            updated_at=datetime.now(UTC),
-                        )
-                    )
-                return
-            except sa.exc.OperationalError:
-                if attempt < _retries - 1:
-                    time.sleep(0.1 * (2**attempt))
-                else:
-                    raise
+        stmt = (
+            jobs.update()
+            .where(jobs.c.job_id == job_id)
+            .values(
+                status=status,
+                progress_pct=progress_pct,
+                message=message,
+                error=error,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+        def _do() -> None:
+            with self._engine.begin() as conn:
+                conn.execute(stmt)
+
+        retry_on_locked(_do, max_retries=_retries, sleep=self._sleep)
 
 
 def _compute_sha256(path: Path) -> str:

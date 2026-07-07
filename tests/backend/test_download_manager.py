@@ -646,3 +646,132 @@ def test_download_succeeds_when_validator_column_absent(
         assert manager._get_validator(result.download_id) is None
     finally:
         server.shutdown()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Tests: SQLite lock resilience during concurrent installs
+# ═══════════════════════════════════════════════════════════════════════
+#
+# A wizard install fans out up to 8 concurrent workers all writing the shared
+# reference.db, so a write can lose the WAL lock past busy_timeout and raise
+# "database is locked". Progress/validator checkpoints must survive that (they
+# are pure optimizations); load-bearing status writes must still surface it.
+
+
+def _locked_error() -> sa.exc.OperationalError:
+    """An OperationalError mirroring sqlite3's 'database is locked'."""
+    return sa.exc.OperationalError("UPDATE downloads ...", {}, Exception("database is locked"))
+
+
+class _LockedEngine:
+    """Stand-in engine whose every transaction fails with 'database is locked'."""
+
+    def begin(self):
+        raise _locked_error()
+
+
+class _FlakyBeginEngine:
+    """Wraps a real engine but raises 'database is locked' on the first N begins."""
+
+    def __init__(self, real: sa.Engine, fail_times: int) -> None:
+        self._real = real
+        self._remaining = fail_times
+
+    def begin(self):
+        if self._remaining > 0:
+            self._remaining -= 1
+            raise _locked_error()
+        return self._real.begin()
+
+
+def test_checkpoint_offset_swallows_persistent_lock(manager: DownloadManager) -> None:
+    """A checkpoint that can never get the write lock is dropped, not raised."""
+    manager._engine = _LockedEngine()  # type: ignore[assignment]
+    # Must not raise — the transfer keeps going; resume falls back to file size.
+    manager._checkpoint_offset(download_id=1, offset=4096)
+
+
+def test_total_bytes_and_validator_swallow_persistent_lock(manager: DownloadManager) -> None:
+    """total_bytes (SSE %) and validator (next-resume If-Range) writes are
+    optimizations — a lock must never make them fatal."""
+    assert manager._validator_supported is True
+    manager._engine = _LockedEngine()  # type: ignore[assignment]
+    manager._update_total_bytes(download_id=1, total_bytes=1024)
+    manager._update_validator(download_id=1, validator='"etag"')
+
+
+def test_status_update_propagates_persistent_lock(manager: DownloadManager) -> None:
+    """A load-bearing status write still surfaces a genuinely stuck database
+    (after exhausting retries) rather than silently swallowing it."""
+    manager._engine = _LockedEngine()  # type: ignore[assignment]
+    with pytest.raises(sa.exc.OperationalError):
+        manager._update_download_status(download_id=1, status="complete")
+
+
+def test_checkpoint_offset_retries_transient_lock(
+    manager: DownloadManager, ref_engine: sa.Engine
+) -> None:
+    """A checkpoint that loses the lock once retries and then persists the offset."""
+    download_id = manager._create_download_record(
+        url="http://x/y", dest_path="/tmp/y", expected_sha256=None
+    )
+    manager._engine = _FlakyBeginEngine(ref_engine, fail_times=1)  # type: ignore[assignment]
+    manager._checkpoint_offset(download_id, offset=7777)
+
+    with ref_engine.connect() as conn:
+        row = conn.execute(
+            sa.select(downloads.c.downloaded_bytes).where(downloads.c.id == download_id)
+        ).fetchone()
+    assert row.downloaded_bytes == 7777
+
+
+def test_download_completes_despite_checkpoint_lock(
+    ref_engine: sa.Engine,
+    dl_dir: Path,
+) -> None:
+    """End-to-end: a persistently locked checkpoint must not abort the transfer.
+
+    This is the real-world failure — a multi-GB download aborted because one
+    1 MiB progress checkpoint couldn't get the write lock. Point every
+    checkpoint write at a locked engine; the download must still complete.
+    """
+    large_data = b"Z" * (CHECKPOINT_INTERVAL + 4096)
+
+    class LargeHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(large_data)))
+            self.send_header("Content-Type", "application/octet-stream")
+            self.end_headers()
+            self.wfile.write(large_data)
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), LargeHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        manager = DownloadManager(ref_engine, dl_dir, sleep=lambda _delay: None)
+        real_engine = manager._engine
+        locked = _LockedEngine()
+        orig_checkpoint = manager._checkpoint_offset
+
+        def failing_checkpoint(download_id: int, offset: int) -> None:
+            # Poison only the checkpoint write; every other write keeps the real
+            # engine. The real best-effort method must swallow the lock.
+            manager._engine = locked  # type: ignore[assignment]
+            try:
+                orig_checkpoint(download_id, offset)
+            finally:
+                manager._engine = real_engine
+
+        manager._checkpoint_offset = failing_checkpoint  # type: ignore[assignment]
+
+        result = manager.start(server_url(server), "despite_lock.db")
+
+        assert result.error is None
+        assert result.verified is True
+        assert result.dest_path.read_bytes() == large_data
+    finally:
+        server.shutdown()
