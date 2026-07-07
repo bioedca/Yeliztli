@@ -1045,7 +1045,7 @@ merge_provenance = sa.Table(
         "strategy",
         sa.Text,
         nullable=False,
-        comment="prefer_23andme | prefer_ancestrydna | flag_only",
+        comment="prefer_s1 | prefer_s2 | prefer_23andme | prefer_ancestrydna | flag_only",
     ),
     sa.Column(
         "source_sample_ids",

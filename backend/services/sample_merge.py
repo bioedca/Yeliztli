@@ -15,8 +15,8 @@ Public entry points:
 
 * :func:`merge_samples` (Step 65 / MRG-02) — validates the request, opens
   both source DBs read-only, streams ``raw_variants`` into a coordinate-
-  indexed in-memory map, applies the §10.2 / §10.3 semantics under one of
-  three strategies, writes the new ``samples`` row + per-sample DB + single
+  indexed in-memory map, applies the §10.2 / §10.3 semantics under the
+  requested strategy, writes the new ``samples`` row + per-sample DB + single
   ``merge_provenance`` row, and enqueues the standard annotation job. The
   caller polls existing ``GET /api/annotation/status/{job_id}``.
 * :func:`preview_merge` (Step 67 / MRG-03) — dry-run that runs the same
@@ -132,16 +132,19 @@ def _canonical_genotype(genotype: str) -> str:
 
 
 class MergeStrategy(StrEnum):
-    """The three §10.3 strategies that decide which call wins at a discordant locus.
+    """The §10.3 strategies that decide which call wins at a discordant locus.
 
     The default is ``FLAG_ONLY`` (clinically safest — emits the canonical
-    no-call sentinel instead of guessing). The ``PREFER_*`` strategies keep
-    whichever side matches the named vendor by reading each source sample's
-    ``file_format`` prefix (so source order in the request is irrelevant for
-    strategy semantics; it only matters for the rsid-collapse tiebreaker per
-    §10.2 step 2).
+    no-call sentinel instead of guessing). ``PREFER_S1`` and ``PREFER_S2``
+    keep the explicitly named source-order side. The legacy vendor strategies
+    keep whichever side matches the named vendor by reading each source
+    sample's ``file_format`` prefix (so source order in the request is
+    irrelevant for those strategy semantics; it only matters for the
+    rsid-collapse tiebreaker per §10.2 step 2).
     """
 
+    PREFER_S1 = "prefer_s1"
+    PREFER_S2 = "prefer_s2"
     PREFER_23ANDME = "prefer_23andme"
     PREFER_ANCESTRYDNA = "prefer_ancestrydna"
     FLAG_ONLY = "flag_only"
@@ -321,12 +324,17 @@ def _resolve_winner(strategy: MergeStrategy, s1_vendor: str, s2_vendor: str) -> 
     Returns ``''`` for ``FLAG_ONLY`` — the caller writes the no-call sentinel
     and the ``"S1=...;S2=..."`` paired encoding instead.
 
-    Tiebreaker when both samples share the strategy's target vendor (or
-    neither does): S1 wins by convention, matching Plan §10.2 step 2's
-    fallback for ambiguous rsid choices.
+    Sample-position strategies return their named side directly. Tiebreaker
+    for legacy vendor strategies when both samples share the strategy's
+    target vendor (or neither does): S1 wins by convention, matching Plan
+    §10.2 step 2's fallback for ambiguous rsid choices.
     """
     if strategy is MergeStrategy.FLAG_ONLY:
         return ""
+    if strategy is MergeStrategy.PREFER_S1:
+        return "S1"
+    if strategy is MergeStrategy.PREFER_S2:
+        return "S2"
     target = "23andme" if strategy is MergeStrategy.PREFER_23ANDME else "ancestrydna"
     s1_is_target = s1_vendor == target
     s2_is_target = s2_vendor == target

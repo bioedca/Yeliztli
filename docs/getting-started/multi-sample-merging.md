@@ -30,8 +30,8 @@ button remains available after a previous two-source merge. A short wizard walks
 1. **Strategy** — how to handle sites where the two sources disagree:
     - **Flag discordant calls** *(recommended)* — keep neither call at a conflicting site; mark
       it as a no-call and record both original calls so nothing is silently guessed.
-    - **Prefer 23andMe** — keep the 23andMe call at conflicts.
-    - **Prefer AncestryDNA** — keep the AncestryDNA call at conflicts.
+    - **Prefer the first source (S1)** — keep the first selected sample's call at conflicts.
+    - **Prefer the second source (S2)** — keep the second selected sample's call at conflicts.
 2. **Preview** — a dry run shows the concordance summary (below) and an estimated duration.
 3. **Confirm** — name the merged sample and start it. Annotation runs automatically, after
    which the merged sample appears like any other.

@@ -79,9 +79,8 @@ const LINKED_SAMPLES: LinkedSample[] = [
   },
 ]
 
-// Two same-vendor (23andMe) samples — the #1563 scenario where a
-// "Prefer AncestryDNA call" option is inapplicable and "Prefer 23andMe" is
-// ambiguous, so neither prefer option should be offered.
+// Two same-vendor (23andMe) samples — the #1638 scenario where vendor-based
+// preference is ambiguous, but explicit prefer_s1/prefer_s2 choices are valid.
 const TWO_23ANDME_SAMPLES: LinkedSample[] = [
   {
     id: 31,
@@ -175,54 +174,58 @@ describe("MergeWizard — strategy step", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders the three Plan §10.3 strategies for a cross-vendor merge", () => {
+  it("renders flag_only plus explicit source preferences for a cross-vendor merge", () => {
     renderWizard()
     const radios = screen.getAllByRole("radio")
     expect(radios).toHaveLength(3)
     const values = radios.map((r) => (r as HTMLInputElement).value).sort()
-    expect(values).toEqual(["flag_only", "prefer_23andme", "prefer_ancestrydna"])
+    expect(values).toEqual(["flag_only", "prefer_s1", "prefer_s2"])
   })
 
-  it("labels prefer options by the winning sample + vendor, not a hardcoded pair (#1563)", () => {
+  it("labels prefer options by the source sample, not a hardcoded vendor pair (#1638)", () => {
     renderWizard()
-    // Each prefer option names the actual sample it keeps (S1 is the 23andMe
-    // sample, S2 the AncestryDNA one), not a generic "Prefer 23andMe call".
+    // Each prefer option names the actual source sample it keeps, not a
+    // generic "Prefer 23andMe call".
     expect(
-      screen.getByRole("radio", { name: /Prefer Mom 23andMe \(23andMe\)/i }),
+      screen.getByRole("radio", { name: /Prefer Mom 23andMe \(S₁\)/i }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("radio", { name: /Prefer Mom AncestryDNA \(AncestryDNA\)/i }),
+      screen.getByRole("radio", { name: /Prefer Mom AncestryDNA \(S₂\)/i }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole("radio", { name: /^Prefer 23andMe call$/i }),
     ).not.toBeInTheDocument()
   })
 
-  it("omits inapplicable prefer options for a same-vendor merge (#1563)", () => {
-    // Two 23andMe samples: "Prefer AncestryDNA" is impossible (no AncestryDNA
-    // present) and "Prefer 23andMe" is ambiguous (both are 23andMe) — so only
-    // flag_only is offered rather than a strategy that can't do what it says.
+  it("offers explicit source preferences for a same-vendor merge (#1638)", () => {
     renderWizard({
       linkedSamples: TWO_23ANDME_SAMPLES,
       sourceSampleIds: [31, 32],
     })
     const radios = screen.getAllByRole("radio")
-    expect(radios).toHaveLength(1)
-    expect((radios[0] as HTMLInputElement).value).toBe("flag_only")
+    expect(radios).toHaveLength(3)
+    const values = radios.map((r) => (r as HTMLInputElement).value).sort()
+    expect(values).toEqual(["flag_only", "prefer_s1", "prefer_s2"])
+    expect(
+      screen.getByRole("radio", { name: /Prefer Me 23andMe v3 \(S₁\)/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("radio", { name: /Prefer Me 23andMe v5 \(S₂\)/i }),
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole("radio", { name: /AncestryDNA/i }),
     ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("radio", { name: /Prefer/i }),
-    ).not.toBeInTheDocument()
   })
 
-  it("sends the vendor-preference value to the backend when a prefer option is chosen", async () => {
+  it("sends prefer_s2 to the backend when the second same-vendor sample is chosen", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(CONCORDANCE_PAYLOAD))
-    renderWizard()
+    renderWizard({
+      linkedSamples: TWO_23ANDME_SAMPLES,
+      sourceSampleIds: [31, 32],
+    })
 
     fireEvent.click(
-      screen.getByRole("radio", { name: /Prefer Mom AncestryDNA \(AncestryDNA\)/i }),
+      screen.getByRole("radio", { name: /Prefer Me 23andMe v5 \(S₂\)/i }),
     )
     fireEvent.click(screen.getByRole("button", { name: /^Preview$/ }))
 
@@ -233,8 +236,8 @@ describe("MergeWizard — strategy step", () => {
       "/api/individuals/7/merge/preview",
       expect.objectContaining({
         body: JSON.stringify({
-          source_sample_ids: [11, 22],
-          strategy: "prefer_ancestrydna",
+          source_sample_ids: [31, 32],
+          strategy: "prefer_s2",
         }),
       }),
     )

@@ -384,20 +384,26 @@ class TestHappyPath:
         assert "collapsed_rsid" in summary
         assert summary["collapsed_rsid"] == 1
 
-    def test_all_three_strategies_return_same_summary(self, preview_client: TestClient) -> None:
+    def test_all_strategies_return_same_summary(self, preview_client: TestClient) -> None:
         """Strategy only affects discordant-locus *resolution*, not bucket counts.
 
         Plan §10.2 step 3 / §10.3: the strategy decides which call wins at
         a discordant locus; the bucket counts (``match``,
         ``filled_nocall``, ``discordant``, ``unique_S1``, ``unique_S2``,
         ``collapsed_rsid``) are derived from the data and identical across
-        all three strategies. Preview's payload must reflect that
+        all strategies. Preview's payload must reflect that
         invariant — otherwise the wizard's strategy radio would be
         load-bearing on the preview summary, breaking Plan §10.7 step 2's
         "preview computed without writing" contract.
         """
         seen: list[dict] = []
-        for strategy in ("flag_only", "prefer_23andme", "prefer_ancestrydna"):
+        for strategy in (
+            "flag_only",
+            "prefer_s1",
+            "prefer_s2",
+            "prefer_23andme",
+            "prefer_ancestrydna",
+        ):
             resp = preview_client.post(
                 f"/api/individuals/{preview_client.individual_id}/merge/preview",  # type: ignore[attr-defined]
                 json={

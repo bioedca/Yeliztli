@@ -117,11 +117,17 @@ class LinkConflictDetail(BaseModel):
     message: str
 
 
-# Plan §10.3: the three merge strategies the wizard picks between. Mirrored
-# from :class:`backend.services.sample_merge.MergeStrategy` as a string
-# Literal so FastAPI's auto-validation rejects unknown values with 422
-# before the request reaches the service.
-_MERGE_STRATEGY = Literal["prefer_23andme", "prefer_ancestrydna", "flag_only"]
+# Plan §10.3: the merge strategies the wizard picks between. Mirrored from
+# :class:`backend.services.sample_merge.MergeStrategy` as a string Literal so
+# FastAPI's auto-validation rejects unknown values with 422 before the request
+# reaches the service.
+_MERGE_STRATEGY = Literal[
+    "prefer_s1",
+    "prefer_s2",
+    "prefer_23andme",
+    "prefer_ancestrydna",
+    "flag_only",
+]
 
 
 class MergePreviewRequest(BaseModel):

@@ -57,9 +57,11 @@ export interface LinkConflictDetail {
   message: string
 }
 
-/** Plan §10.3 — the three merge strategies surfaced by the wizard. Mirrors
+/** Plan §10.3 — merge strategies surfaced by the wizard/API. Mirrors
  * the backend `MergeStrategy` Literal on `POST /api/individuals/{id}/merge`. */
 export type MergeStrategy =
+  | "prefer_s1"
+  | "prefer_s2"
   | "prefer_23andme"
   | "prefer_ancestrydna"
   | "flag_only"

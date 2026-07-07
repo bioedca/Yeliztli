@@ -7,9 +7,10 @@
  *   1. /individuals/{id} renders two source samples + a "Merge samples"
  *      action (Plan §10.7 visibility rule: exactly two source samples).
  *   2. The MergeWizard opens. Default strategy is `flag_only` (Plan §10.3
- *      "clinically safest"). Preview returns the §10.4(c) concordance
- *      summary; Confirm commits the merge and binds the returned
- *      `job_id` to the SSE annotation channel.
+ *      "clinically safest") and source-specific prefer_s1/prefer_s2 choices
+ *      can be selected. Preview returns the §10.4(c) concordance summary;
+ *      Confirm commits the merge and binds the returned `job_id` to the SSE
+ *      annotation channel.
  *   3. A single SSE `progress` event with `status='complete'` lifts the
  *      gate; the wizard auto-navigates to `/?sample_id={merged}&post_merge=1
  *      &job_id={job}` (Plan §10.7 redirect→modal hand-off).
@@ -75,6 +76,13 @@ const SAMPLE_ANCESTRYDNA = {
   extra: {},
   created_at: '2026-05-12T00:00:00Z',
   updated_at: '2026-05-12T00:00:00Z',
+}
+
+const SAMPLE_23ANDME_V5 = {
+  ...SAMPLE_ANCESTRYDNA,
+  name: '23andMe v5 Sample',
+  file_format: '23andme_v5',
+  source: '23andMe',
 }
 
 const SAMPLE_MERGED = {
@@ -176,9 +184,24 @@ function jsonRoute(payload: unknown, status = 200) {
 interface MergeState {
   /** Flips to true once `POST /api/individuals/{id}/merge` resolves. */
   committed: boolean
+  /** Captures the strategy submitted to preview/commit for e2e assertions. */
+  previewStrategy?: string
+  commitStrategy?: string
 }
 
-async function setupRoutes(page: Page, state: MergeState): Promise<void> {
+interface MergeFixtureOptions {
+  sample2?: typeof SAMPLE_ANCESTRYDNA
+  sample2Vendor?: string
+}
+
+async function setupRoutes(
+  page: Page,
+  state: MergeState,
+  options: MergeFixtureOptions = {},
+): Promise<void> {
+  const sample2 = options.sample2 ?? SAMPLE_ANCESTRYDNA
+  const sample2Vendor = options.sample2Vendor ?? 'ancestrydna'
+
   // ── App-shell mocks ────────────────────────────────────────────────
   await page.route('**/api/auth/status', async (route) => {
     await route.fulfill(
@@ -225,15 +248,15 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
   // ── Samples ────────────────────────────────────────────────────────
   await page.route('**/api/samples', async (route) => {
     const samples = state.committed
-      ? [SAMPLE_23ANDME, SAMPLE_ANCESTRYDNA, SAMPLE_MERGED]
-      : [SAMPLE_23ANDME, SAMPLE_ANCESTRYDNA]
+      ? [SAMPLE_23ANDME, sample2, SAMPLE_MERGED]
+      : [SAMPLE_23ANDME, sample2]
     await route.fulfill(jsonRoute(samples))
   })
 
   await page.route(/\/api\/samples\/\d+$/, async (route) => {
     const id = Number(route.request().url().split('/').pop())
     if (id === SAMPLE_1_ID) return route.fulfill(jsonRoute(SAMPLE_23ANDME))
-    if (id === SAMPLE_2_ID) return route.fulfill(jsonRoute(SAMPLE_ANCESTRYDNA))
+    if (id === SAMPLE_2_ID) return route.fulfill(jsonRoute(sample2))
     if (id === MERGED_SAMPLE_ID) return route.fulfill(jsonRoute(SAMPLE_MERGED))
     await route.fulfill({ status: 404, body: '{}' })
   })
@@ -340,12 +363,12 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
       },
       {
         id: SAMPLE_2_ID,
-        name: SAMPLE_ANCESTRYDNA.name,
-        file_format: SAMPLE_ANCESTRYDNA.file_format,
-        vendor: 'ancestrydna',
+        name: sample2.name,
+        file_format: sample2.file_format,
+        vendor: sample2Vendor,
         is_merged: false,
-        created_at: SAMPLE_ANCESTRYDNA.created_at,
-        updated_at: SAMPLE_ANCESTRYDNA.updated_at,
+        created_at: sample2.created_at,
+        updated_at: sample2.updated_at,
       },
     ],
     aggregated_findings_count: 0,
@@ -371,7 +394,7 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
           created_at: individualDetail.created_at,
           updated_at: individualDetail.updated_at,
           sample_count: 2,
-          vendors: ['23andme', 'ancestrydna'],
+          vendors: [...new Set(['23andme', sample2Vendor])],
           last_activity: individualDetail.updated_at,
         },
       ]),
@@ -393,6 +416,10 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
   await page.route(
     `**/api/individuals/${INDIVIDUAL_ID}/merge/preview`,
     async (route) => {
+      const body = JSON.parse(route.request().postData() ?? '{}') as {
+        strategy?: string
+      }
+      state.previewStrategy = body.strategy
       await route.fulfill(
         jsonRoute({
           concordance_summary: CONCORDANCE_SUMMARY,
@@ -405,6 +432,10 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
     `**/api/individuals/${INDIVIDUAL_ID}/merge`,
     async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
+      const body = JSON.parse(route.request().postData() ?? '{}') as {
+        strategy?: string
+      }
+      state.commitStrategy = body.strategy
       state.committed = true
       await route.fulfill(
         jsonRoute(
@@ -418,9 +449,11 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
   // ── Merge provenance + concordance report + migrate-from-sources ──
   const provenance = {
     merged_at: '2026-05-27T00:00:00Z',
-    strategy: 'flag_only',
+    get strategy() {
+      return state.commitStrategy ?? state.previewStrategy ?? 'flag_only'
+    },
     source_sample_ids: [SAMPLE_1_ID, SAMPLE_2_ID],
-    source_file_hashes: [SAMPLE_23ANDME.file_hash, SAMPLE_ANCESTRYDNA.file_hash],
+    source_file_hashes: [SAMPLE_23ANDME.file_hash, sample2.file_hash],
     concordance_summary: CONCORDANCE_SUMMARY,
   }
   await page.route(
@@ -452,8 +485,9 @@ async function setupRoutes(page: Page, state: MergeState): Promise<void> {
               rsid: DISCORDANT_RSID,
               chrom: DISCORDANT_CHROM,
               pos: DISCORDANT_POS,
-              genotype: '??',
-              discordant_alt_genotype: 'S1=CT;S2=CC',
+              genotype: state.commitStrategy === 'prefer_s2' ? 'CC' : '??',
+              discordant_alt_genotype:
+                state.commitStrategy === 'prefer_s2' ? 'S1=CT' : 'S1=CT;S2=CC',
               alt_rsid: '',
               gene_symbol: 'APOE',
               consequence: 'missense_variant',
@@ -627,5 +661,54 @@ test.describe('Step 86 — Merge samples E2E', () => {
     await expect(repeatSourcePair).toContainText(SAMPLE_23ANDME.name)
     await expect(repeatSourcePair).toContainText(SAMPLE_ANCESTRYDNA.name)
     await expect(repeatSourcePair).not.toContainText(SAMPLE_MERGED.name)
+  })
+
+  test('same-vendor merge can prefer the second source sample', async ({
+    page,
+  }) => {
+    const state: MergeState = { committed: false }
+    await setupRoutes(page, state, {
+      sample2: SAMPLE_23ANDME_V5,
+      sample2Vendor: '23andme',
+    })
+
+    await page.goto(`/individuals/${INDIVIDUAL_ID}`)
+    await page.getByTestId('merge-samples-button').click()
+
+    await expect(page.getByTestId('merge-wizard-overlay')).toBeVisible()
+    await expect(page.getByTestId('merge-source-pair')).toContainText(
+      SAMPLE_23ANDME.name,
+    )
+    await expect(page.getByTestId('merge-source-pair')).toContainText(
+      SAMPLE_23ANDME_V5.name,
+    )
+
+    const preferSecond = page.getByRole('radio', {
+      name: /Prefer 23andMe v5 Sample \(S₂\)/i,
+    })
+    await expect(preferSecond).toBeVisible()
+    await preferSecond.check()
+
+    await page.getByRole('button', { name: /^Preview$/ }).click()
+    await expect(page.getByTestId('merge-preview-summary')).toBeVisible()
+    expect(state.previewStrategy).toBe('prefer_s2')
+
+    await page.getByRole('button', { name: /^Continue$/ }).click()
+    await page.getByRole('button', { name: /^Merge$/ }).click()
+    await page.waitForURL(
+      (url) =>
+        url.pathname === '/' &&
+        url.searchParams.get('sample_id') === String(MERGED_SAMPLE_ID),
+    )
+    expect(state.commitStrategy).toBe('prefer_s2')
+
+    await page.goto(`/samples/${MERGED_SAMPLE_ID}/concordance`)
+    await expect(page.getByTestId('concordance-strategy')).toHaveText(
+      'Prefer S2',
+    )
+    const discordantRow = page.getByTestId(`concordance-locus-${DISCORDANT_RSID}`)
+    await expect(discordantRow).toContainText('CC')
+    await expect(discordantRow).toContainText('S1=CT')
+    await expect(discordantRow).not.toContainText('S2=CC')
   })
 })

@@ -246,6 +246,26 @@ describe("ConcordanceReport — happy path", () => {
       screen.getByTestId("concordance-locus-rs1801133"),
     ).toHaveTextContent("rs1801131")
   })
+
+  it("renders sample-preference strategy labels", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url === provenanceUrl()) {
+        return Promise.resolve(
+          jsonResponse({ ...PROVENANCE_PAYLOAD, strategy: "prefer_s2" }),
+        )
+      }
+      if (url === reportUrl(0)) return Promise.resolve(jsonResponse(REPORT_PAGE_1))
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    renderReport()
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concordance-strategy")).toHaveTextContent(
+        "Prefer S2",
+      )
+    })
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════

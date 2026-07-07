@@ -3,7 +3,7 @@
 These tests exercise :func:`backend.services.sample_merge.merge_samples`
 end-to-end against a real on-disk ``DBRegistry`` (the ``merge_registry``
 fixture defined below), driving the four §10.2
-concordance buckets, the three §10.3 strategies, the deterministic
+concordance buckets, the §10.3 strategies, the deterministic
 ``file_hash`` recipe from §10.5 step 5, validation failures (membership /
 status / staleness), and the §10.4 (a) ``(chrom, pos)`` PK divergence on
 the freshly-created merged sample DB.
@@ -253,13 +253,20 @@ S2_VARIANTS = [
 
 
 class TestResolveWinnerVendorVsPosition:
-    """`_resolve_winner` decides by VENDOR token, not source position (#648).
+    """`_resolve_winner` handles explicit source position and legacy vendor tokens.
 
-    The contract (docstring §10.2): "source order in the request is irrelevant
-    for strategy semantics". These cases pin that by reversing the vendor↔position
-    correlation that every other fixture bakes in — so a position-based regression
-    (e.g. ``return "S1" if PREFER_23ANDME else "S2"``) fails here.
+    Legacy vendor strategies keep their original contract (docstring §10.2):
+    source order in the request is irrelevant for vendor strategy semantics.
+    These cases pin that by reversing the vendor↔position correlation that
+    every other fixture bakes in — so a position-based regression (e.g.
+    ``return "S1" if PREFER_23ANDME else "S2"``) fails here.
     """
+
+    def test_sample_preference_strategies_pick_the_named_source_side(self) -> None:
+        assert _resolve_winner(MergeStrategy.PREFER_S1, "23andme", "23andme") == "S1"
+        assert _resolve_winner(MergeStrategy.PREFER_S1, "ancestrydna", "23andme") == "S1"
+        assert _resolve_winner(MergeStrategy.PREFER_S2, "23andme", "23andme") == "S2"
+        assert _resolve_winner(MergeStrategy.PREFER_S2, "ancestrydna", "23andme") == "S2"
 
     def test_prefer_23andme_picks_the_23andme_side_regardless_of_position(self) -> None:
         # 23andMe as S2 → must return S2 (a position stub would say S1).
@@ -450,6 +457,46 @@ class TestHappyPath:
         assert disc.genotype == "GG"  # S2 (AncestryDNA) wins
         assert disc.discordant_alt_genotype == "S1=AA"
 
+    def test_prefer_s2_keeps_second_same_vendor_call_at_discordant(
+        self,
+        merge_registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Same-vendor uploads can now prefer the second sample explicitly (#1638)."""
+        _seed_installed_vep_bundle(merge_registry, "v2.0.0")
+        _noop_annotation_enqueue(monkeypatch)
+        individual_id = _create_individual(merge_registry, "Same Vendor")
+        s1_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="same_23andme_v3.txt",
+            file_format="23andme_v3",
+            file_hash="hash_same_s1",
+            variants=S1_VARIANTS,
+        )
+        s2_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="same_23andme_v5.txt",
+            file_format="23andme_v5",
+            file_hash="hash_same_s2",
+            variants=S2_VARIANTS,
+        )
+
+        new_id = merge_samples(
+            merge_registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.PREFER_S2,
+            display_name="Same Vendor (prefer S2)",
+        )
+
+        rows = {(r.chrom, r.pos): r for r in _read_merge_rows(merge_registry, new_id)}
+        disc = rows[("1", 400)]
+        assert disc.concordance == "discordant"
+        assert disc.genotype == "GG"  # S2 wins despite both vendors being 23andMe.
+        assert disc.discordant_alt_genotype == "S1=AA"
+
     # ── Vendor resolution decoupled from source position (#648) ──────────
     #
     # Every other fixture seeds 23andMe as S1 + AncestryDNA as S2, so "prefer
@@ -602,10 +649,17 @@ class TestFileHashRecipe:
         assert forward != reverse
 
     def test_compute_file_hash_diverges_per_strategy(self) -> None:
-        flag = _compute_file_hash("a", "b", MergeStrategy.FLAG_ONLY)
-        prefer_a = _compute_file_hash("a", "b", MergeStrategy.PREFER_23ANDME)
-        prefer_b = _compute_file_hash("a", "b", MergeStrategy.PREFER_ANCESTRYDNA)
-        assert len({flag, prefer_a, prefer_b}) == 3
+        hashes = {
+            _compute_file_hash("a", "b", strategy)
+            for strategy in (
+                MergeStrategy.FLAG_ONLY,
+                MergeStrategy.PREFER_S1,
+                MergeStrategy.PREFER_S2,
+                MergeStrategy.PREFER_23ANDME,
+                MergeStrategy.PREFER_ANCESTRYDNA,
+            )
+        }
+        assert len(hashes) == 5
 
     def test_compute_file_hash_includes_schema_version(self) -> None:
         # Recreates the SHA-256 payload contract so a future bump trips the
@@ -1151,8 +1205,8 @@ class TestEmptySourcesEdgeCase:
 # in Step 75) pairs ``23andme.txt`` (S1) with ``ancestrydna.txt`` (S2) for
 # one simulated individual and ships ``expected_concordance.json`` as
 # bio-validator's hand-curated gold standard. The tests below run the full
-# parse → merge round-trip via :func:`merge_samples` for all three Plan
-# §10.3 strategies and assert:
+# parse → merge round-trip via :func:`merge_samples` for the original
+# Plan §10.3 strategies encoded in the fixture's gold outcomes and assert:
 #
 #   • ``concordance_summary`` bucket counts match the gold standard within
 #     ±1% (Plan §15.1 MRG-08 assertion; effectively exact for the small
@@ -1220,7 +1274,7 @@ def _within_one_percent(actual: int, expected: int) -> bool:
 
 
 class TestDualUploadFixtureMergeSemantics:
-    """Plan §15.1 MRG-08 — three strategies × four concordance buckets."""
+    """Plan §15.1 MRG-08 — legacy strategies × four concordance buckets."""
 
     @pytest.fixture
     def fixture_setup(
@@ -1831,8 +1885,8 @@ class TestReMergeHashInvariants:
     ) -> None:
         """Plan §10.5 step 5: ``strategy`` is part of the SHA-256 payload.
 
-        Re-merging the same sources under each of the three Plan §10.3
-        strategies must yield three distinct ``samples.file_hash``
+        Re-merging the same sources under each Plan §10.3 strategy must
+        yield distinct ``samples.file_hash``
         values so the wizard's "regenerate under a different strategy"
         flow doesn't collide with the existing merged sample's identity.
         """
@@ -1840,6 +1894,8 @@ class TestReMergeHashInvariants:
         hashes: dict[MergeStrategy, str] = {}
         for strategy in (
             MergeStrategy.FLAG_ONLY,
+            MergeStrategy.PREFER_S1,
+            MergeStrategy.PREFER_S2,
             MergeStrategy.PREFER_23ANDME,
             MergeStrategy.PREFER_ANCESTRYDNA,
         ):
@@ -1852,9 +1908,9 @@ class TestReMergeHashInvariants:
             )
             hashes[strategy] = self._read_sample_file_hash(registry, new_id)
 
-        # All three hashes distinct — the recipe's strategy field is
+        # All strategy values hash distinctly — the recipe's strategy field is
         # load-bearing.
-        assert len(set(hashes.values())) == 3, (
+        assert len(set(hashes.values())) == len(hashes), (
             f"strategy changes must produce distinct hashes; got {hashes}"
         )
 

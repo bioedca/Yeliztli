@@ -86,6 +86,8 @@ function formatTimestamp(value: string | null | undefined): string {
 
 function renderStrategyLabel(strategy: string): string {
   if (strategy === "flag_only") return "Flag discordant"
+  if (strategy === "prefer_s1") return "Prefer S1"
+  if (strategy === "prefer_s2") return "Prefer S2"
   if (strategy === "prefer_23andme") return "Prefer 23andMe"
   if (strategy === "prefer_ancestrydna") return "Prefer AncestryDNA"
   return strategy
