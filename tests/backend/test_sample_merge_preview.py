@@ -416,7 +416,8 @@ class TestHappyPath:
             )
             assert resp.status_code == 200, resp.text
             seen.append(resp.json()["concordance_summary"])
-        assert seen[0] == seen[1] == seen[2] == _EXPECTED_SUMMARY
+        assert len(seen) == 5
+        assert all(summary == _EXPECTED_SUMMARY for summary in seen)
 
 
 # ══════════════════════════════════════════════════════════════════════
