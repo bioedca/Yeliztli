@@ -23,13 +23,13 @@ interface QualityControlProps {
 
 const HET_STATUS_COPY: Record<HetOutlierStatus, { label: string; text: string; tone: string }> = {
   within_range: {
-    label: 'Within range',
-    text: 'Heterozygosity is within the expected range for this genotyping array.',
+    label: 'In line',
+    text: 'Heterozygosity is in line with your other samples on the same genotyping array.',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200',
   },
   outlier: {
     label: 'Outlier',
-    text: 'Heterozygosity is outside the expected range for this genotyping array.',
+    text: 'Heterozygosity differs from your other samples on the same genotyping array.',
     tone: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200',
   },
   insufficient_samples: {

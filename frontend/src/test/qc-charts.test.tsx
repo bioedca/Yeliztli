@@ -138,6 +138,43 @@ describe('QualityControl with QC stats', () => {
     expect(screen.getByText('Concordance check only; not an aneuploidy assessment.')).toBeInTheDocument()
   })
 
+  it.each([
+    {
+      label: 'In line',
+      status: 'within_range',
+      text: 'Heterozygosity is in line with your other samples on the same genotyping array.',
+      zScore: 0.37,
+    },
+    {
+      label: 'Outlier',
+      status: 'outlier',
+      text: 'Heterozygosity differs from your other samples on the same genotyping array.',
+      zScore: 3.28,
+    },
+  ] as const)('describes $label heterozygosity against user sample peers', ({
+    label,
+    status,
+    text,
+    zScore,
+  }) => {
+    render(
+      <QualityControl
+        variantCount={623841}
+        qcStats={MOCK_QC_STATS}
+        qcMetrics={{
+          ...MOCK_QC_METRICS,
+          het_outlier_status: status,
+          het_outlier_z: zScore,
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByText('Sample QC'))
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.getByText(text)).toBeInTheDocument()
+    expect(screen.getByText(`z-score ${zScore.toFixed(2)}`)).toBeInTheDocument()
+  })
+
   it('does not render interpretive QC section before metrics are computed', () => {
     render(
       <QualityControl

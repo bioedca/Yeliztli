@@ -9,7 +9,7 @@ const jsonRoute = (body: unknown) => ({
   body: JSON.stringify(body),
 })
 
-async function mockDashboard(page: Page) {
+async function mockDashboard(page: Page, qcMetricOverrides: Record<string, unknown> = {}) {
   await bypassSetup(page)
   await page.route('**/api/updates/app-update', (route) =>
     route.fulfill(jsonRoute({ update_available: false, latest_version: null })),
@@ -76,6 +76,7 @@ async function mockDashboard(page: Page) {
         sex_check: 'discordant',
         het_outlier_z: null,
         het_outlier_status: 'insufficient_comparable_samples',
+        ...qcMetricOverrides,
       }),
     ),
   )
@@ -113,4 +114,40 @@ test.describe('Dashboard QC metrics (#801)', () => {
       page.getByText('Concordance check only; not an aneuploidy assessment.'),
     ).toBeVisible()
   })
+
+  for (const scenario of [
+    {
+      name: 'within-range',
+      label: 'In line',
+      status: 'within_range',
+      text: 'Heterozygosity is in line with your other samples on the same genotyping array.',
+      zScore: 0.42,
+    },
+    {
+      name: 'outlier',
+      label: 'Outlier',
+      status: 'outlier',
+      text: 'Heterozygosity differs from your other samples on the same genotyping array.',
+      zScore: -3.11,
+    },
+  ] as const) {
+    test(`describes ${scenario.name} heterozygosity against user sample peers`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        het_outlier_status: scenario.status,
+        het_outlier_z: scenario.zScore,
+      })
+
+      await page.goto(`/?sample_id=${SAMPLE_ID}`)
+
+      const qcButton = page.getByRole('button', { name: /Sample QC/i })
+      await expect(qcButton).toBeVisible()
+      await qcButton.click()
+
+      await expect(page.getByText(scenario.label, { exact: true })).toBeVisible()
+      await expect(page.getByText(scenario.text)).toBeVisible()
+      await expect(page.getByText(`z-score ${scenario.zScore.toFixed(2)}`)).toBeVisible()
+    })
+  }
 })
