@@ -23,7 +23,6 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
-import { getModuleMeta } from "@/lib/modules"
 import { useAllergyPathways } from "@/api/allergy"
 import type {
   CeliacCombinedItem,
@@ -36,6 +35,7 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import CrossModuleCard from "@/components/CrossModuleCard"
 
 /** Celiac DQ2/DQ8 combined assessment card. */
 function CeliacCombinedCard({
@@ -272,48 +272,6 @@ function DrugHypersensitivityAlert({
   )
 }
 
-/** General cross-module finding card with navigation link. */
-function CrossModuleCard({
-  item,
-  sampleId,
-}: {
-  item: CrossModuleItem
-  sampleId: number
-}) {
-  // Route from the shared registry (sidebar/router source of truth); null →
-  // non-navigable for panel-only modules (#838).
-  const targetRoute = getModuleMeta(item.target_module).route
-
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-mono font-medium">{item.gene}</span>
-          {item.rsid && (
-            <span className="text-muted-foreground">({item.rsid})</span>
-          )}
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            Allergy
-            <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {getModuleMeta(item.target_module).label}
-          </span>
-        </div>
-        <EvidenceStars level={item.evidence_level} />
-      </div>
-      <p className="text-sm text-muted-foreground mb-2">{item.finding_text}</p>
-      {targetRoute && (
-        <Link
-          to={`${targetRoute}?sample_id=${sampleId}`}
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-        >
-          View in {getModuleMeta(item.target_module).label}
-          <ArrowRight className="h-3 w-3" aria-hidden="true" />
-        </Link>
-      )}
-    </div>
-  )
-}
-
 export default function AllergyView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
@@ -446,6 +404,8 @@ export default function AllergyView() {
                       <CrossModuleCard
                         key={`${item.rsid ?? item.gene}-${item.source_module}-${item.target_module}-${idx}`}
                         item={item}
+                        sourceLabel="Allergy"
+                        targetModule={item.target_module}
                         sampleId={sampleId}
                       />
                     ))}

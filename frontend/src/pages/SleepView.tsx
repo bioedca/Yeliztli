@@ -11,8 +11,8 @@
  */
 
 import { useState } from "react"
-import { useSearchParams, Link } from "react-router-dom"
-import { Moon, ArrowRight, Coffee, ExternalLink } from "lucide-react"
+import { useSearchParams } from "react-router-dom"
+import { Moon, Coffee } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
@@ -23,7 +23,7 @@ import type { CrossModuleItem, MetabolizerState } from "@/types/sleep"
 import PathwayCard from "@/components/sleep/PathwayCard"
 import PathwayDetailPanel from "@/components/sleep/PathwayDetailPanel"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { getModuleMeta } from "@/lib/modules"
+import CrossModuleCard from "@/components/CrossModuleCard"
 
 const METABOLIZER_LABELS: Record<string, { label: string; color: string; description: string }> = {
   rapid: {
@@ -159,6 +159,8 @@ export default function SleepView() {
                       <CrossModuleCard
                         key={`${item.rsid}-${item.source_module}-${item.target_module}`}
                         item={item}
+                        sourceLabel="Sleep"
+                        targetModule={item.target_module}
                         sampleId={sampleId}
                       />
                     ))}
@@ -195,43 +197,6 @@ export default function SleepView() {
             onClose={() => setSelectedPathway(null)}
           />
         </>
-      )}
-    </div>
-  )
-}
-
-function CrossModuleCard({
-  item,
-  sampleId,
-}: {
-  item: CrossModuleItem
-  sampleId: number
-}) {
-  const targetMeta = getModuleMeta(item.target_module)
-
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-mono font-medium">{item.gene}</span>
-          <span className="text-muted-foreground">({item.rsid})</span>
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            Sleep
-            <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {targetMeta.label}
-          </span>
-        </div>
-        <EvidenceStars level={item.evidence_level} />
-      </div>
-      <p className="text-sm text-muted-foreground mb-3">{item.finding_text}</p>
-      {targetMeta.route && (
-        <Link
-          to={`${targetMeta.route}?sample_id=${sampleId}`}
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          View in {targetMeta.label}
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
       )}
     </div>
   )

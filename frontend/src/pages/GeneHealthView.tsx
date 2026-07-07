@@ -10,68 +10,20 @@
  */
 
 import { useState } from "react"
-import { useSearchParams, Link } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import {
   Activity,
   AlertTriangle,
-  ArrowRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
-import { getModuleMeta } from "@/lib/modules"
 import { useGeneHealthPathways } from "@/api/gene-health"
-import type { CrossModuleItem } from "@/types/gene-health"
 import PathwayCard from "@/components/gene-health/PathwayCard"
 import PathwayDetailPanel from "@/components/gene-health/PathwayDetailPanel"
-import EvidenceStars from "@/components/ui/EvidenceStars"
+import CrossModuleCard from "@/components/CrossModuleCard"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
-
-/** Cross-module finding card with navigation link. */
-function CrossModuleCard({
-  item,
-  sampleId,
-}: {
-  item: CrossModuleItem
-  sampleId: number
-}) {
-  // Route from the shared registry (the sidebar/router source of truth), not a
-  // hand-duplicated local map — null for panel-only modules → non-navigable (#838).
-  const targetRoute = getModuleMeta(item.target_module).route
-  // Canonical display name from the shared registry (matches the sidebar /
-  // Command Palette), not an ad-hoc capitalize of the raw key (#699).
-  const moduleName = getModuleMeta(item.target_module).label
-
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-mono font-medium">{item.gene}</span>
-          {item.rsid && (
-            <span className="text-muted-foreground">({item.rsid})</span>
-          )}
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            Gene Health
-            <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            {moduleName}
-          </span>
-        </div>
-        <EvidenceStars level={item.evidence_level} />
-      </div>
-      <p className="text-sm text-muted-foreground mb-2">{item.finding_text}</p>
-      {targetRoute && (
-        <Link
-          to={`${targetRoute}?sample_id=${sampleId}`}
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-        >
-          View in {moduleName}
-          <ArrowRight className="h-3 w-3" aria-hidden="true" />
-        </Link>
-      )}
-    </div>
-  )
-}
 
 export default function GeneHealthView() {
   const [searchParams] = useSearchParams()
@@ -174,6 +126,8 @@ export default function GeneHealthView() {
                       <CrossModuleCard
                         key={`${item.rsid ?? item.gene}-${item.source_module}-${item.target_module}-${idx}`}
                         item={item}
+                        sourceLabel="Gene Health"
+                        targetModule={item.target_module}
                         sampleId={sampleId}
                       />
                     ))}
