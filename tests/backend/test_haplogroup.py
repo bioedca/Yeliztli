@@ -233,8 +233,10 @@ _R1B1A_GENOTYPES = [
     # K2 — rs3900 already included above
     # P
     {"rsid": "rs1000147", "chrom": "Y", "pos": 41031901, "genotype": "AA"},
-    # R
-    {"rsid": "rs2032658", "chrom": "Y", "pos": 15025620, "genotype": "AA"},
+    # R: a real R (M207+) man carries the DERIVED G (Ensembl rs2032658 G/A,
+    # ancestral A); the fixture previously encoded the ancestral AA to match the
+    # bundle's mis-polarized allele (#1654).
+    {"rsid": "rs2032658", "chrom": "Y", "pos": 15025620, "genotype": "GG"},
     {"rsid": "rs1000546", "chrom": "Y", "pos": 36452173, "genotype": "TT"},
     # R1
     {"rsid": "rs2032624", "chrom": "Y", "pos": 15022755, "genotype": "AA"},
@@ -1426,6 +1428,23 @@ class TestYABranchPolarity:
 
         assert by_rsid["rs2032597"] == {(14847792, "C")}
         assert by_rsid["rs9341296"] == {(15022707, "T")}
+
+    def test_r_node_defined_by_m207_rs2032658_derived_g(self, bundle: HaplogroupBundle) -> None:
+        """#1654 (Class A allele polarity): rs2032658 (M207) defines haplogroup R
+        with the DERIVED allele G (Ensembl GRCh37 rs2032658 G/A, ancestral A). The
+        node had stored the ancestral A, so a real R man (M207+, derived G) scored
+        conflicting at R — the ancestral-inversion class of #1583/#1579."""
+        r_node = _find_y_node(bundle.y_tree, "R")
+        assert r_node is not None
+        snp = next((s for s in r_node.defining_snps if s.rsid == "rs2032658"), None)
+        assert snp is not None, "R must be defined by its canonical marker M207 (rs2032658)"
+        assert snp.allele == "G", "M207's R-indicating (derived) allele is G"
+        assert snp.pos == 15581983, "rs2032658 at its Ensembl GRCh37 coordinate (Y:15581983)"
+
+        present, conflicting, _ = _classify_node_match(r_node, {"rs2032658": "G"})
+        assert present >= 1 and conflicting == 0  # M207+ (derived G) → evidence FOR R
+        present, conflicting, _ = _classify_node_match(r_node, {"rs2032658": "A"})
+        assert conflicting >= 1  # ancestral A → evidence against R
 
     def test_canonical_y_markers_are_filed_under_the_correct_clade(
         self, bundle: HaplogroupBundle

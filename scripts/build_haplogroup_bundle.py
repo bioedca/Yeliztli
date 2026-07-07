@@ -2476,7 +2476,19 @@ def build_y_tree() -> dict[str, Any]:
     r_branch = _node(
         "R",
         [
-            _y_snp("rs2032658", 15025620, "A"),
+            # M207 defines haplogroup R; its DERIVED allele is G (Ensembl GRCh37
+            # rs2032658 G/A, ancestral A, Y:15581983). The node stored the ancestral A,
+            # so a real R man (M207+, G) scored conflicting here — the ancestral-
+            # inversion class of #1583/#1579. Corrected to the derived G and to the
+            # Ensembl GRCh37 coordinate (matching the #1686 I-branch migration; the Y
+            # classifier keys by rsID, so the coordinate is reference-only) (#1654).
+            _y_snp("rs2032658", 15581983, "G"),
+            # NOTE: rs1000546 is stored here as a Y marker (pos 36452173) but is
+            # actually AUTOSOMAL — Ensembl places rs1000546 at chr18:55773440, not on
+            # Y — so it is spurious (cf. the chr11 rs1000687 mtDNA trap, #1579). Left in
+            # place only so R keeps two markers for the min-2 descent gate until the
+            # ISOGG re-derivation supplies a genuine second R-Y SNP (and re-sources the
+            # coordinate) (#1654).
             _y_snp("rs1000546", 36452173, "T"),
         ],
         [r1, r2],
