@@ -526,6 +526,30 @@ def _apply_semantics(
     return rows, summary
 
 
+def _validate_merged_rsids_annotation_safe(rows: list[_MergedRow]) -> None:
+    """Reject merged rows that cannot be keyed safely by annotated_variants.rsid."""
+    seen: dict[str, tuple[str, int]] = {}
+    collisions: dict[str, list[tuple[str, int]]] = {}
+
+    for row in rows:
+        coord = (row.chrom, row.pos)
+        first_coord = seen.setdefault(row.rsid, coord)
+        if first_coord != coord:
+            collisions.setdefault(row.rsid, [first_coord]).append(coord)
+
+    if collisions:
+        details = "; ".join(
+            f"{rsid}: {', '.join(f'{chrom}:{pos}' for chrom, pos in coords)}"
+            for rsid, coords in sorted(collisions.items())[:5]
+        )
+        suffix = "..." if len(collisions) > 5 else ""
+        raise InvalidMergeRequestError(
+            "merged sample has rsID(s) at multiple coordinates; "
+            "annotated_variants is keyed by rsid, so annotation would silently collapse "
+            f"distinct loci ({details}{suffix})"
+        )
+
+
 def _compute_file_hash(s1_hash: str, s2_hash: str, strategy: MergeStrategy) -> str:
     """SHA-256 over ``S1 ‖ S2 ‖ strategy ‖ SAMPLE_SCHEMA_VERSION`` (Plan §10.5 step 5).
 
@@ -658,6 +682,7 @@ def _compute_merge_plan(
         s1_vendor=_vendor_token(s1_row.file_format),
         s2_vendor=_vendor_token(s2_row.file_format),
     )
+    _validate_merged_rsids_annotation_safe(merged_rows)
     return _MergePlan(s1_row=s1_row, s2_row=s2_row, rows=merged_rows, summary=summary)
 
 

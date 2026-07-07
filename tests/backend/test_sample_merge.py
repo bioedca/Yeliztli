@@ -799,6 +799,55 @@ class TestValidation:
                 display_name="x",
             )
 
+    def test_duplicate_rsid_at_distinct_coordinates_raises_before_write(
+        self, merge_registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A merged sample must not feed duplicate rsIDs into rsid-keyed annotation."""
+        registry, individual_id = self._setup(merge_registry, monkeypatch)
+        s1_id = _create_source_sample(
+            registry,
+            individual_id=individual_id,
+            name="a.txt",
+            file_format="23andme_v5",
+            file_hash="h1",
+            variants=[_v("rs_shared", "1", 100, "AG")],
+        )
+        s2_id = _create_source_sample(
+            registry,
+            individual_id=individual_id,
+            name="b.txt",
+            file_format="ancestrydna_v2.0",
+            file_hash="h2",
+            variants=[_v("rs_shared", "1", 200, "CT")],
+        )
+
+        with pytest.raises(
+            InvalidMergeRequestError,
+            match=r"rsID\(s\) at multiple coordinates.*rs_shared.*1:100.*1:200",
+        ):
+            preview_merge(
+                registry,
+                source_sample_ids=[s1_id, s2_id],
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+            )
+
+        with pytest.raises(
+            InvalidMergeRequestError,
+            match=r"rsID\(s\) at multiple coordinates.*rs_shared.*1:100.*1:200",
+        ):
+            merge_samples(
+                registry,
+                source_sample_ids=[s1_id, s2_id],
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+                display_name="Unsafe Merge",
+            )
+
+        with registry.reference_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar()
+        assert count == 2
+
 
 class TestStaleSource:
     """Plan §10.5 step 1 → §7.4: stale source → HTTP 423 payload."""
