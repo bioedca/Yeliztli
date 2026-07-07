@@ -401,7 +401,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Precedence: init > YELIZTLI_ env > data_dir pointer > [yeliztli] TOML > dotenv."""
+        """Precedence: init > env > env alias > pointer > TOML > dotenv > dotenv alias."""
         return (
             init_settings,
             env_settings,
