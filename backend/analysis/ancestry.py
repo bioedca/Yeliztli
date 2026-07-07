@@ -1761,8 +1761,9 @@ def _tree_walk(
         # in *this* child rather than merely in its parent clade.
         specific = [snp for snp in child.defining_snps if snp.rsid not in seen_rsids]
         if not specific:
-            # The child re-lists only ancestral markers, so it adds no distinguishing
-            # evidence of its own (e.g. K2 = only F's rs3900; A1 = only A's rs2032597).
+            # The child adds no distinguishing evidence of its own: it either re-lists
+            # only ancestral markers (e.g. K2 = only F's rs3900) or has no defining SNP
+            # at all (a structural node, e.g. Y A/A1 after M170 moved to I, #1583).
             # It can't be a terminal match, but it may be a structural pass-through to a
             # deeper clade that does — defer it (handled only if no child has direct
             # evidence).
