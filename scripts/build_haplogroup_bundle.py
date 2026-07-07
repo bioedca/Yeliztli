@@ -105,6 +105,39 @@ _EXCLUDED_Y_RSIDS: dict[str, str] = {
     "rs2032604": "unresolved cross-clade duplicate assignment",
 }
 
+# Existing hand-curated tree debt: these rsIDs are already reused across
+# unrelated clades and need authoritative re-derivation before they can be
+# removed or assigned to a single clade. New cross-clade duplicates fail.
+_KNOWN_LEGACY_CROSS_CLADE_Y_DUPLICATES = frozenset(
+    {
+        "rs13447352",
+        "rs16981295",
+        "rs17250359",
+        "rs17250625",
+        "rs17250667",
+        "rs17307070",
+        "rs17316625",
+        "rs17316724",
+        "rs17317007",
+        "rs2032623",
+        "rs2032673",
+        "rs2032677",
+        "rs34175940",
+        "rs34282407",
+        "rs34424943",
+        "rs34602841",
+        "rs35882927",
+        "rs9341279",
+        "rs9341283",
+        "rs9341286",
+        "rs9786076",
+        "rs9786139",
+        "rs9786281",
+        "rs9786429",
+        "rs9786856",
+    }
+)
+
 
 def _node(
     haplogroup: str,
@@ -2742,6 +2775,36 @@ def _iter_snps_with_path(
     return tuple(records)
 
 
+def _is_related_y_path(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
+    """Return whether two Y-tree paths are the same or ancestor/descendant."""
+    return left == right or left[: len(right)] == right or right[: len(left)] == left
+
+
+def _validate_y_cross_clade_duplicates(node: dict[str, Any]) -> list[str]:
+    """Reject unregistered rsID reuse across unrelated Y clades."""
+    issues: list[str] = []
+    locations: dict[str, list[tuple[str, ...]]] = {}
+
+    for path, snp in _iter_snps_with_path(node):
+        locations.setdefault(snp["rsid"], []).append(tuple(path.split("/")))
+
+    for rsid, paths in sorted(locations.items()):
+        if len(paths) < 2 or rsid in _KNOWN_LEGACY_CROSS_CLADE_Y_DUPLICATES:
+            continue
+
+        unrelated_pairs: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+        for index, left in enumerate(paths):
+            for right in paths[index + 1 :]:
+                if not _is_related_y_path(left, right):
+                    unrelated_pairs.append((left, right))
+
+        if unrelated_pairs:
+            joined_paths = ", ".join("/".join(path) for path in paths)
+            issues.append(f"{rsid} is reused across unrelated Y clades: {joined_paths}")
+
+    return issues
+
+
 def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
     """Validate curated Y rsID coordinates and derived alleles against GRCh37 evidence."""
     issues: list[str] = []
@@ -2793,8 +2856,9 @@ def build_bundle() -> dict[str, Any]:
     mt_issues = _validate_tree(mt_tree)
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
-    if mt_issues or y_issues or y_reference_issues:
-        all_issues = mt_issues + y_issues + y_reference_issues
+    y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
+    if mt_issues or y_issues or y_reference_issues or y_duplicate_issues:
+        all_issues = mt_issues + y_issues + y_reference_issues + y_duplicate_issues
         raise ValueError(
             f"Tree validation failed with {len(all_issues)} issues:\n"
             + "\n".join(f"  - {i}" for i in all_issues)
