@@ -86,6 +86,18 @@ _EXPECTED_CLINVAR_PANEL_FILES = {
     "cardiovascular_panel.json",
     "carrier_panel.json",
 }
+_EXPECTED_CLINVAR_NON_PRIMARY_EXCEPTIONS = {
+    (
+        "cardiovascular_panel.json",
+        "LPA",
+        "rs10455872",
+    ): "Established LPA coronary disease risk allele; not a Mendelian ClinVar P/LP row.",
+    (
+        "cardiovascular_panel.json",
+        "LPA",
+        "rs3798220",
+    ): "Established LPA coronary disease risk allele; not a Mendelian ClinVar P/LP row.",
+}
 
 
 def _collect_rsids(obj: object) -> list[str]:
@@ -147,6 +159,25 @@ def _validity_snapshot() -> dict:
 
 def _expected_clinvar_snapshot() -> dict:
     return json.loads(EXPECTED_CLINVAR_SNAPSHOT.read_text(encoding="utf-8"))
+
+
+def _is_primary_pathogenic_significance(significance: str) -> bool:
+    lowered = significance.casefold()
+    if "low penetrance" in lowered or "risk allele" in lowered:
+        return False
+    if significance in {"Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic"}:
+        return True
+    primary_prefixes = (
+        "Pathogenic|",
+        "Pathogenic,",
+        "Pathogenic;",
+        "Likely pathogenic|",
+        "Likely pathogenic,",
+        "Likely pathogenic;",
+        "Pathogenic/Likely pathogenic,",
+        "Pathogenic/Likely pathogenic;",
+    )
+    return significance.startswith(primary_prefixes)
 
 
 def _expected_clinvar_gene_records() -> list[tuple[str, str, str, list[str]]]:
@@ -289,8 +320,14 @@ class TestPanelRsidValidity:
         assert provenance.get("generator") == "scripts/build_panel_expected_clinvar_snapshot.py"
         assert provenance.get("panel_files") == sorted(_EXPECTED_CLINVAR_PANEL_FILES)
         assert provenance.get("gene_aliases") == {"GBA": ["GBA1"]}
-        assert provenance.get("evidence_mode") == "saved_gene_search_payloads"
-        assert isinstance(provenance.get("raw_evidence_dir"), str)
+        assert provenance.get("evidence_mode") in {
+            "saved_gene_search_payloads",
+            "live_per_rsid",
+        }
+        if provenance.get("evidence_mode") == "saved_gene_search_payloads":
+            assert isinstance(provenance.get("raw_evidence_dir"), str)
+        else:
+            assert provenance.get("raw_evidence_dir") is None
         assert isinstance(provenance.get("accessed"), str) and provenance["accessed"]
 
         expected_panel_genes: dict[str, list[dict[str, str]]] = {}
@@ -372,6 +409,63 @@ class TestPanelRsidValidity:
         assert not offenders, (
             "expected ClinVar rsIDs lack a ClinVar row for their declared panel gene:\n"
             + "\n".join(offenders)
+        )
+
+    def test_expected_clinvar_rsids_are_primary_pathogenic_or_documented(self) -> None:
+        """Expected ClinVar rsIDs are P/LP unless explicitly kept as risk alleles."""
+        snapshot = _expected_clinvar_snapshot()
+        aliases = snapshot["_provenance"]["gene_aliases"]
+        records = snapshot["rsids"]
+
+        offenders: list[str] = []
+        stale_exceptions: list[str] = []
+        observed_exceptions: set[tuple[str, str, str]] = set()
+        for rsid, rec in records.items():
+            clinvar_rows = rec["clinvar_rows"]
+            for panel_gene in rec["panel_genes"]:
+                panel = panel_gene["panel"]
+                symbol = panel_gene["gene_symbol"]
+                accepted_symbols = {symbol, *aliases.get(symbol, [])}
+                matching_rows = [
+                    row for row in clinvar_rows if accepted_symbols & set(row["gene_symbols"])
+                ]
+                primary_rows = [
+                    row
+                    for row in matching_rows
+                    if _is_primary_pathogenic_significance(row["clinical_significance"])
+                ]
+                key = (panel, symbol, rsid)
+                if primary_rows:
+                    if key in _EXPECTED_CLINVAR_NON_PRIMARY_EXCEPTIONS:
+                        stale_exceptions.append(f"{panel}: {symbol}: {rsid}")
+                    continue
+                if key in _EXPECTED_CLINVAR_NON_PRIMARY_EXCEPTIONS:
+                    observed_exceptions.add(key)
+                    continue
+                observed = sorted(
+                    {
+                        f"{'/'.join(row['gene_symbols']) or '<no gene>'}: "
+                        f"{row['clinical_significance']}"
+                        for row in matching_rows
+                    }
+                )
+                offenders.append(
+                    f"{panel}: {symbol}: {rsid}; no declared-gene primary P/LP row, "
+                    f"observed {observed}"
+                )
+
+        missing_exceptions = set(_EXPECTED_CLINVAR_NON_PRIMARY_EXCEPTIONS) - observed_exceptions
+        assert not offenders, (
+            "expected_clinvar_rsids without declared-gene primary P/LP ClinVar rows "
+            "must be removed or explicitly documented:\n" + "\n".join(offenders)
+        )
+        assert not stale_exceptions, (
+            "non-primary exception now has a primary P/LP row; remove the exception: "
+            + ", ".join(sorted(stale_exceptions))
+        )
+        assert not missing_exceptions, (
+            "documented non-primary expected ClinVar exceptions are absent from the snapshot: "
+            + ", ".join(sorted(": ".join(key) for key in missing_exceptions))
         )
 
     def test_coordinate_fixture_excludes_repeat_or_structural_markers(self) -> None:

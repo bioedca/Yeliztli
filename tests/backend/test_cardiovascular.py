@@ -369,7 +369,7 @@ class TestExpectedClinVarRsids:
     def test_total_expected_rsids(self, panel: CardiovascularPanel) -> None:
         """Panel should have a substantial number of expected rsids."""
         all_rsids = panel.all_expected_rsids()
-        assert len(all_rsids) >= 80  # At least 80 across all genes
+        assert len(all_rsids) >= 60  # At least 60 across all genes after quality curation
 
     def test_ldlr_rs28942078_present(self, panel: CardiovascularPanel) -> None:
         """LDLR rs28942078 must be in expected rsids (golden fixture)."""

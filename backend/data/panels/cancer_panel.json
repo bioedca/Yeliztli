@@ -38,14 +38,11 @@
       "cross_links": ["carrier"],
       "expected_clinvar_rsids": [
         "rs80359550",
-        "rs80359065",
         "rs80359584",
         "rs80359671",
-        "rs11571833",
         "rs80359375",
         "rs80359351",
         "rs80359714",
-        "rs276174802",
         "rs80359688"
       ],
       "pmids": ["20301425", "29446198"],
@@ -157,7 +154,6 @@
       "evidence_level": 3,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs730881950",
         "rs200564819",
         "rs370228071"
       ],
@@ -177,7 +173,6 @@
         "rs63750781",
         "rs63751710",
         "rs267607732",
-        "rs193922367",
         "rs587779024",
         "rs63750035",
         "rs63751642"
@@ -288,7 +283,6 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs104893829",
         "rs5030814",
         "rs5030816",
         "rs5030817"
@@ -309,7 +303,6 @@
         "rs74799832",
         "rs77709286",
         "rs75030001",
-        "rs77724903",
         "rs1278030644"
       ],
       "pmids": ["20301434", "25651787"],
@@ -328,8 +321,7 @@
         "rs121909220",
         "rs121909221",
         "rs121909224",
-        "rs121909219",
-        "rs587776674"
+        "rs121909219"
       ],
       "pmids": ["20301661"],
       "notes": "Multi-organ cancer risk. Lifetime breast cancer risk ~85% for female carriers."
@@ -516,7 +508,6 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs104894098",
-        "rs11515",
         "rs104894099",
         "rs104894094"
       ],

@@ -37,12 +37,7 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs28362286",
-        "rs28362263",
-        "rs505151",
-        "rs11591147",
-        "rs67608943",
-        "rs28362261"
+        "rs137852912"
       ],
       "pmids": ["32479201", "12730697"],
       "notes": "Gain-of-function variants cause hypercholesterolemia. Loss-of-function variants are cardioprotective. PCSK9 inhibitors are a major therapeutic class."
@@ -58,11 +53,7 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs5742904",
-        "rs144467873",
-        "rs13306206",
-        "rs12713559",
-        "rs1801696",
-        "rs1801695"
+        "rs144467873"
       ],
       "pmids": ["32479201", "2563166"],
       "notes": "APOB p.Arg3527Gln (rs5742904) is the most common FDB mutation. Third most common cause of FH after LDLR and PCSK9."
@@ -109,7 +100,6 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs137852990",
         "rs137852991",
         "rs137852992",
         "rs137852993",
@@ -151,12 +141,8 @@
       "cross_links": [],
       "expected_clinvar_rsids": [
         "rs28937318",
-        "rs28937319",
         "rs137854604",
-        "rs137854605",
         "rs137854606",
-        "rs199473048",
-        "rs199473049",
         "rs28937316"
       ],
       "pmids": ["20301308", "29798782"],
@@ -215,7 +201,6 @@
       "expected_clinvar_rsids": [
         "rs121964855",
         "rs121964856",
-        "rs121964857",
         "rs121964858",
         "rs121964860"
       ],
@@ -232,11 +217,7 @@
       "evidence_level": 4,
       "cross_links": [],
       "expected_clinvar_rsids": [
-        "rs267607602",
         "rs267607603",
-        "rs267607604",
-        "rs267607605",
-        "rs267607606",
         "rs57920071"
       ],
       "pmids": ["20301725", "38793126"],
