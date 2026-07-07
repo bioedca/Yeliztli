@@ -10,8 +10,8 @@ comparator explanation into the user docs — it must not silently disappear.
 
 The Dashboard's prominent sample count is similarly easy to misread: it is the
 full uploaded-position denominator, including no-calls, while call rate reports
-called / total and the Variant Explorer defaults to annotated-only rows. Keep
-that reconciliation in the published docs too.
+called / total and the Variant Explorer defaults to hiding rows whose annotation
+state is still missing. Keep that reconciliation in the published docs too.
 """
 
 from __future__ import annotations
@@ -31,11 +31,13 @@ _COUNT_REQUIRED_PHRASES = (
     "no-calls",
     "call rate uses that same total",
     "variant explorer",
-    "annotated variants only",
+    "missing annotation state",
+    "show unannotated",
 )
 _VARIANT_EXPLORER_COUNT_PHRASES = (
-    "annotated-only table count",
-    "all variants",
+    "missing annotation state",
+    "show unannotated",
+    "annotation coverage",
     "includes no-calls",
 )
 
@@ -59,7 +61,7 @@ def test_dashboard_total_count_composition_is_documented() -> None:
         f"sample-count denominator (missing {missing}). It must state that the prominent "
         "dashboard count is total uploaded genotyped positions including no-calls, and "
         "reconcile that denominator with call rate and the Variant Explorer's default "
-        "annotated-only count (#1590)."
+        "missing-annotation-state filter (#1590)."
     )
 
 
@@ -68,6 +70,6 @@ def test_variant_explorer_default_count_is_documented() -> None:
     missing = [p for p in _VARIANT_EXPLORER_COUNT_PHRASES if p not in text]
     assert not missing, (
         "docs/features/variant-explorer.md no longer documents that the default Variant "
-        f"Explorer count is annotated-only, not the dashboard total (missing {missing}). "
-        "Keep the annotated-only/all-variants distinction documented (#1590)."
+        f"Explorer count hides rows with missing annotation state (missing {missing}). "
+        "Keep the default-count and Show unannotated distinction documented (#1590)."
     )
