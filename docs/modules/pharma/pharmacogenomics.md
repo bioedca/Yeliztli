@@ -31,6 +31,12 @@ surfaces the relevant CPIC prescribing guidance.
   rely on the adjacent CPIC phenotype/status for interpretation.[^cpic-cyp2d6-as]
 - A **three-state call confidence** — *Complete*, *Partial*, or *Insufficient* — so you know
   how much to trust each call.
+- A **card tint** that summarizes the metabolizer result, separate from call confidence:
+  **green** means a normal/routine result, **amber** means a non-normal phenotype or functional
+  status worth reviewing in the context of the affected drugs, and **red** means no phenotype
+  could be determined for that gene. Amber is deliberately broad: it can cover reduced,
+  increased, or otherwise non-normal statuses, so read the phenotype text and any drug alerts
+  for the direction of effect.
 - **Per-drug prescribing alerts** based on CPIC guidelines, with the CPIC level mapped to an
   evidence rating, plus context from PharmGKB, DPWG, and FDA labels.
 - A consolidated **medication-safety summary** grouping the actionable interactions.
