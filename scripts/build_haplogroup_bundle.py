@@ -1676,16 +1676,20 @@ def build_y_tree() -> dict[str, Any]:
     )
     a1 = _node(
         "A1",
-        [
-            _y_snp("rs2032597", 2832640, "C"),
-        ],
+        # rs2032597 (M170) was mis-attributed here: M170's derived C defines
+        # haplogroup I (I-M170), not the basal A lineage, which carries the
+        # ancestral A. It is moved to the I node below (#1583). A1's sub-clades
+        # (A1a, A1b, A1b1) carry their own markers; A1 is retained as a structural
+        # node rather than defined by a foreign clade's derived allele.
+        [],
         [a1a, a1b],
     )
     a_branch = _node(
         "A",
-        [
-            _y_snp("rs2032597", 2832640, "C"),
-        ],
+        # rs2032597 (M170) moved to I (#1583): M170's derived C defines haplogroup
+        # I, and basal A carries the ancestral A (Ensembl GRCh37 rs2032597 A/C).
+        # A's sub-clades (A0, A1, …) carry their own markers; A is structural here.
+        [],
         [a0, a1],
     )
 
@@ -2064,6 +2068,11 @@ def build_y_tree() -> dict[str, Any]:
     i_branch = _node(
         "I",
         [
+            # M170 (rs2032597) is haplogroup I's canonical defining SNP (I-M170):
+            # an A→C transversion whose derived C indicates I (Ensembl GRCh37
+            # rs2032597 A/C, ancestral A; Wikipedia "Haplogroup I-M170"). Restored
+            # here from its prior mis-attribution to haplogroup A (#1583).
+            _y_snp("rs2032597", 2832640, "C"),
             _y_snp("rs2032670", 8307832, "T"),
             _y_snp("rs9341296", 15023650, "G"),
         ],

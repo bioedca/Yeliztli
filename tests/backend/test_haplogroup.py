@@ -1200,15 +1200,18 @@ def _find_y_node(node: HaplogroupNode, haplogroup: str) -> HaplogroupNode | None
 
 
 class TestYABranchPolarity:
-    """Regression for #660: a CT/M168+ male must not be mis-assigned to A1b.
+    """Regression for #660 (a CT/M168+ male must not be mis-assigned to A) and its
+    correct root cause, fixed in #1583.
 
-    The proximate cause was a mis-polarized A-clade marker: ``rs2032597`` is
-    ``ref/ancestral=A``, ``alt/derived=C`` (Ensembl: ancestral_allele=A; SPDI
-    NC_000024.10:…:A:C), but the bundle encoded the A/A1 nodes' derived state as
-    the *ancestral* allele ``A``. Because ``A`` is the common state in every
-    non-A lineage, every non-A man false-matched haplogroup A, and M168
-    (``rs2032652``, a CT-defining marker) erroneously listed under A1b let the
-    walk reach the basal-African A1b. These tests pin all three fixes.
+    ``rs2032597`` is **M170** — an A→C transversion whose derived C defines
+    haplogroup **I** (I-M170), not the basal A lineage (Ensembl GRCh37 rs2032597
+    A/C, ancestral A; Wikipedia "Haplogroup I-M170"). The #660/#805 remediation
+    left M170 on the A/A1 nodes and band-aided the polarity (allele ``C``) so
+    non-A men would conflict out of A — which also made A uncallable and asserted
+    a false marker→clade fact. #1583 moves M170 to the **I** node (its canonical
+    marker) and leaves A/A1 as structural nodes (their sub-clades keep their own
+    markers). M168 (``rs2032652``) remains a CT marker, not an A1b one. These
+    tests pin the corrected placement and the CT-not-A routing.
     """
 
     def test_ct_m168_male_resolves_into_ct_not_a_branch(
@@ -1232,20 +1235,17 @@ class TestYABranchPolarity:
         )
         assert y.haplogroup not in {"A", "A0", "A1", "A1a", "A1b", "A1b1"}
 
-    def test_a_node_rs2032597_polarity_in_real_bundle(self, bundle: HaplogroupBundle) -> None:
-        """The A/A1 nodes' rs2032597 derived allele is C (alt), so the ancestral
-        A is a *conflict* (evidence against A), not a match."""
+    def test_rs2032597_m170_not_on_basal_a_nodes(self, bundle: HaplogroupBundle) -> None:
+        """#1583: rs2032597 (M170) is haplogroup I's marker, not A's. It must not
+        define the basal A/A1 nodes — a real haplogroup A man carries the ancestral
+        A (A split off before M170's A→C mutation), so defining A by M170's derived
+        C (the #805 band-aid) is doubly wrong: derived allele + foreign clade."""
         for name in ("A", "A1"):
             node = _find_y_node(bundle.y_tree, name)
             assert node is not None, f"{name} node missing from bundle"
-            snp = next(s for s in node.defining_snps if s.rsid == "rs2032597")
-            assert snp.allele == "C", f"{name} rs2032597 derived allele must be C (alt)"
-
-            # Ancestral A → conflicting; derived C → present.
-            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "A"})
-            assert (present, conflicting) == (0, 1)
-            present, conflicting, _ = _classify_node_match(node, {"rs2032597": "C"})
-            assert (present, conflicting) == (1, 0)
+            assert "rs2032597" not in {s.rsid for s in node.defining_snps}, (
+                f"rs2032597 (M170, a haplogroup-I marker) must not define {name} (#1583)"
+            )
 
     def test_m168_not_an_a1b_defining_marker(self, bundle: HaplogroupBundle) -> None:
         """M168 (rs2032652) defines CT, the sister clade of A — it must not appear
@@ -1259,18 +1259,57 @@ class TestYABranchPolarity:
         assert ct is not None
         assert "rs2032652" in {s.rsid for s in ct.defining_snps}
 
-    def test_i_node_does_not_relist_rs2032597_ancestral_state(
-        self, bundle: HaplogroupBundle
-    ) -> None:
-        """rs2032597 ancestral A is not evidence for haplogroup I (#805)."""
+    def test_i_node_defined_by_m170_rs2032597_derived_c(self, bundle: HaplogroupBundle) -> None:
+        """#1583 (corrects the inverted #805 premise): rs2032597 (M170) IS
+        haplogroup I's canonical defining SNP, with the DERIVED allele C indicating
+        I (Ensembl GRCh37 A/C; Wikipedia 'Haplogroup I-M170'). An M170+ man (derived
+        C) matches; an M170- man (ancestral A) conflicts."""
         i_node = _find_y_node(bundle.y_tree, "I")
         assert i_node is not None
-        i_rsids = {s.rsid for s in i_node.defining_snps}
-        assert i_rsids
-        assert "rs2032597" not in i_rsids
+        snp = next((s for s in i_node.defining_snps if s.rsid == "rs2032597"), None)
+        assert snp is not None, "I must be defined by its canonical marker M170 (rs2032597)"
+        assert snp.allele == "C", "M170's I-indicating (derived) allele is C"
 
-        present, conflicting, total = _classify_node_match(i_node, {"rs2032597": "AA"})
-        assert (present, conflicting, total) == (0, 0, len(i_node.defining_snps))
+        present, conflicting, _ = _classify_node_match(i_node, {"rs2032597": "C"})
+        assert present >= 1 and conflicting == 0  # M170+ (derived C) → evidence FOR I
+        present, conflicting, _ = _classify_node_match(i_node, {"rs2032597": "A"})
+        assert conflicting >= 1  # ancestral A → evidence against I
+
+    def test_canonical_y_markers_are_filed_under_the_correct_clade(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """Marker→clade guard (#1583): a canonical, well-established Y-SNP must
+        define its own clade's subtree and never appear under a foreign clade —
+        the recurring class of #660/#805/#1583 (M170 filed under A instead of I).
+        Extend ``_CANONICAL_Y_MARKER_CLADE`` as more ISOGG markers are audited."""
+
+        def subtree_rsids(node: object) -> set[str]:
+            out = {s.rsid for s in node.defining_snps}
+            for child in node.children:
+                out |= subtree_rsids(child)
+            return out
+
+        for rsid, (clade, foreign) in _CANONICAL_Y_MARKER_CLADE.items():
+            clade_node = _find_y_node(bundle.y_tree, clade)
+            assert clade_node is not None, f"clade {clade} missing from Y tree"
+            assert rsid in subtree_rsids(clade_node), (
+                f"{rsid} must be a defining marker of its canonical clade {clade}"
+            )
+            foreign_node = _find_y_node(bundle.y_tree, foreign)
+            if foreign_node is not None:
+                assert rsid not in subtree_rsids(foreign_node), (
+                    f"{rsid} is a {clade} marker but is mis-filed under {foreign}"
+                )
+
+
+# Canonical, well-established Y-SNP marker → (defining clade, a foreign clade it
+# must NOT appear under). Guards against the marker→clade mis-attribution class
+# (#660/#805/#1583). Add entries as ISOGG/PhyloTree markers in the bundle are
+# audited.
+_CANONICAL_Y_MARKER_CLADE: dict[str, tuple[str, str]] = {
+    # M170: A→C transversion, derived C defines haplogroup I; not the basal A.
+    "rs2032597": ("I", "A"),
+}
 
 
 # ── Confidence formula unit tests (#640) ─────────────────────────────────

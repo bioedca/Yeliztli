@@ -2977,13 +2977,7 @@
       "children": [
         {
           "haplogroup": "A",
-          "defining_snps": [
-            {
-              "rsid": "rs2032597",
-              "pos": 2832640,
-              "allele": "C"
-            }
-          ],
+          "defining_snps": [],
           "children": [
             {
               "haplogroup": "A0",
@@ -3007,13 +3001,7 @@
             },
             {
               "haplogroup": "A1",
-              "defining_snps": [
-                {
-                  "rsid": "rs2032597",
-                  "pos": 2832640,
-                  "allele": "C"
-                }
-              ],
+              "defining_snps": [],
               "children": [
                 {
                   "haplogroup": "A1a",
@@ -3664,6 +3652,11 @@
                     {
                       "haplogroup": "I",
                       "defining_snps": [
+                        {
+                          "rsid": "rs2032597",
+                          "pos": 2832640,
+                          "allele": "C"
+                        },
                         {
                           "rsid": "rs9341296",
                           "pos": 15023650,
@@ -4575,11 +4568,11 @@
     "mt_unique_snps": 283,
     "mt_max_depth": 9,
     "y_haplogroups": 129,
-    "y_defining_snps": 163,
+    "y_defining_snps": 162,
     "y_unique_snps": 99,
     "y_max_depth": 12,
     "total_haplogroups": 321,
-    "total_defining_snps": 534,
+    "total_defining_snps": 533,
     "total_unique_snps": 382
   }
 }
