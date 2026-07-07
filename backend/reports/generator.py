@@ -28,6 +28,7 @@ import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -156,6 +157,11 @@ def _load_findings(
                 "prs_percentile": row.prs_percentile,
                 "pathway": row.pathway,
                 "pathway_level": row.pathway_level,
+                # Coverage-aware label so an incomplete Standard pathway can't render
+                # a plain green Standard badge in exported reports (#1651).
+                "pathway_level_display": pathway_level_display_label(
+                    row.pathway_level, _parse_json_field(row.detail_json)
+                ),
                 "svg_path": row.svg_path,
                 "pmid_citations": pmids,
             }

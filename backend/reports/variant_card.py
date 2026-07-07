@@ -27,6 +27,7 @@ import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
@@ -87,6 +88,15 @@ def _load_single_finding(
         except (json.JSONDecodeError, TypeError):
             pass
 
+    detail: dict[str, Any] = {}
+    if row.detail_json:
+        try:
+            parsed_detail = json.loads(row.detail_json)
+            if isinstance(parsed_detail, dict):
+                detail = parsed_detail
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return {
         "id": row.id,
         "module": row.module,
@@ -110,6 +120,9 @@ def _load_single_finding(
         "prs_percentile": row.prs_percentile,
         "pathway": row.pathway,
         "pathway_level": row.pathway_level,
+        # Coverage-aware label so an incomplete Standard pathway can't render a plain
+        # green Standard badge in exported single-variant cards (#1651).
+        "pathway_level_display": pathway_level_display_label(row.pathway_level, detail),
         "svg_path": row.svg_path,
         "pmid_citations": pmids,
     }

@@ -36,6 +36,30 @@ def missing_rsid_groups(missing_snps: Iterable[Any]) -> tuple[list[str], list[st
     return all_missing, no_call, off_chip
 
 
+def pathway_level_display_label(level: str | None, detail: dict[str, Any] | None) -> str | None:
+    """Coverage-aware display label for a categorical pathway level.
+
+    Mirrors the frontend ``pathwayLevelDisplayLabel``
+    (``frontend/src/lib/pathwayCoverage.ts``): a **Standard** pathway with at least
+    one *missing* tracked SNP is not a clean whole-panel negative, so it is shown as
+    ``Tested Standard`` (some tracked SNPs were called) or ``Not Assessed`` (none
+    were), never a plain ``Standard`` badge — the same false-reassurance guard the
+    interactive cards use (#1091/#1582), now on the static report/export path
+    (#1651). Non-Standard levels and fully-covered Standard pathways keep their raw
+    label. ``detail`` is the finding's parsed ``detail_json`` (``called_snps`` /
+    ``missing_snps``); a missing ``called_snps`` conservatively yields ``Not
+    Assessed`` rather than a plain ``Standard``.
+    """
+    if not level:
+        return level
+    detail = detail if isinstance(detail, dict) else {}
+    missing = detail.get("missing_snps") or []
+    if level != STANDARD_LEVEL or not missing:
+        return level
+    called = detail.get("called_snps") or 0
+    return "Not Assessed" if called == 0 else "Tested Standard"
+
+
 def format_not_assessed(missing_snps: Iterable[Any]) -> str:
     """Format a compact off-chip/no-call count for user-facing summaries."""
     all_missing, no_call, off_chip = missing_rsid_groups(missing_snps)

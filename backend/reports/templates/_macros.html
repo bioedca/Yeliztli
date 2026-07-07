@@ -28,7 +28,7 @@
 {#- Pathway level badge -#}
 {% macro pathway_badge(level) %}
 {%- if level -%}
-<span class="badge badge-pathway badge-{{ level | lower }}">{{ level }}</span>
+<span class="badge badge-pathway badge-{{ level | lower | replace(' ', '-') }}">{{ level }}</span>
 {%- endif -%}
 {%- endmacro %}
 
@@ -76,7 +76,7 @@
       <span class="meta-item"><span class="meta-label">Pathway:</span> {{ finding.pathway }}</span>
     {% endif %}
     {% if finding.pathway_level %}
-      <span class="meta-item">{{ pathway_badge(finding.pathway_level) }}</span>
+      <span class="meta-item">{{ pathway_badge(finding.pathway_level_display or finding.pathway_level) }}</span>
     {% endif %}
     {% if finding.haplogroup %}
       <span class="meta-item"><span class="meta-label">Haplogroup:</span> {{ finding.haplogroup }}</span>
