@@ -54,6 +54,8 @@ EXPECTED_BREAST_MONOGENIC_GENES = (
     "PALB2",
     "ATM",
     "CHEK2",
+    "RAD51C",
+    "RAD51D",
     "TP53",
     "PTEN",
     "CDH1",
@@ -112,12 +114,16 @@ class TestOverlayGating:
         assert brca1["cumulative_risk_to_80_pct"] == 72
         assert brca1["pmid"] == "28632866"
 
-    def test_moderate_gene_has_no_fabricated_number(self, sample_engine: sa.Engine) -> None:
-        _insert_breast_monogenic(sample_engine, "ATM")
+    @pytest.mark.parametrize("gene", ["ATM", "RAD51C", "RAD51D"])
+    def test_moderate_gene_has_no_fabricated_number(
+        self, sample_engine: sa.Engine, gene: str
+    ) -> None:
+        _insert_breast_monogenic(sample_engine, gene)
         out = build_breast_absolute_risk(sample_engine, consented=True, inferred_sex="XX")
-        atm = next(m for m in out["monogenic"] if m["gene"] == "ATM")
-        assert atm["cumulative_risk_to_80_pct"] is None  # no fabricated figure
-        assert "note" in atm
+        entry = next(m for m in out["monogenic"] if m["gene"] == gene)
+        assert entry["cumulative_risk_to_80_pct"] is None  # no fabricated figure
+        assert "CanRisk" in entry["note"]
+        assert "genetics referral" in entry["note"]
 
     def test_configured_monogenic_gene_set_matches_expected_breast_panel(self) -> None:
         assert BREAST_MONOGENIC_GENES == EXPECTED_BREAST_MONOGENIC_GENES

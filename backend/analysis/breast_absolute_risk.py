@@ -39,6 +39,8 @@ BREAST_MONOGENIC_GENES = (
     "PALB2",
     "ATM",
     "CHEK2",
+    "RAD51C",
+    "RAD51D",
     "TP53",
     "PTEN",
     "CDH1",
