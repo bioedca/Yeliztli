@@ -42,6 +42,7 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.annotation.bulk_load import retry_on_locked
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -279,28 +280,41 @@ def load_rsmerge_into_db(
         stats = LoadStats(merges_loaded=len(rows))
 
     if clear_existing:
-        with engine.begin() as conn:
-            conn.execute(dbsnp_merges.delete())
+        retry_on_locked(lambda: _clear_dbsnp_merges(engine))
 
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i : i + BATCH_SIZE]
-        with engine.begin() as conn:
-            # Use INSERT OR REPLACE to handle duplicate old_rsids
-            # (some rsids may appear multiple times in the merge chain)
-            stmt = sqlite_insert(dbsnp_merges).values(batch)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["old_rsid"],
-                set_={
-                    "current_rsid": stmt.excluded.current_rsid,
-                    "build_id": stmt.excluded.build_id,
-                },
-            )
-            conn.execute(stmt)
+        retry_on_locked(lambda b=batch: _upsert_dbsnp_merges(engine, b))
 
     _wal_checkpoint(engine)
 
     logger.info("dbsnp_merges_loaded", merges=stats.merges_loaded)
     return stats
+
+
+def _clear_dbsnp_merges(engine: sa.Engine) -> None:
+    """DELETE every dbsnp_merges row in its own transaction (idempotent)."""
+    with engine.begin() as conn:
+        conn.execute(dbsnp_merges.delete())
+
+
+def _upsert_dbsnp_merges(engine: sa.Engine, batch: list[dict]) -> None:
+    """Upsert one merge batch in its own transaction.
+
+    ``INSERT ... ON CONFLICT DO UPDATE`` handles duplicate ``old_rsid`` values
+    (an rsid can appear more than once in the merge chain) and is idempotent, so
+    :func:`retry_on_locked` can safely re-run this batch after a lock retry.
+    """
+    with engine.begin() as conn:
+        stmt = sqlite_insert(dbsnp_merges).values(batch)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["old_rsid"],
+            set_={
+                "current_rsid": stmt.excluded.current_rsid,
+                "build_id": stmt.excluded.build_id,
+            },
+        )
+        conn.execute(stmt)
 
 
 def load_rsmerge_from_iter(
@@ -329,20 +343,10 @@ def load_rsmerge_from_iter(
             yield row
 
     if clear_existing:
-        with engine.begin() as conn:
-            conn.execute(dbsnp_merges.delete())
+        retry_on_locked(lambda: _clear_dbsnp_merges(engine))
 
     for batch in _batched(rows_only(), BATCH_SIZE):
-        with engine.begin() as conn:
-            stmt = sqlite_insert(dbsnp_merges).values(batch)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["old_rsid"],
-                set_={
-                    "current_rsid": stmt.excluded.current_rsid,
-                    "build_id": stmt.excluded.build_id,
-                },
-            )
-            conn.execute(stmt)
+        retry_on_locked(lambda b=batch: _upsert_dbsnp_merges(engine, b))
 
     _wal_checkpoint(engine)
 

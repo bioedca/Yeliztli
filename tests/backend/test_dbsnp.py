@@ -218,6 +218,105 @@ class TestLoadRsmergeFromIter:
         assert count >= 1
 
 
+class TestLoadRsmergeLockRetry:
+    """A transient SQLite ``database is locked`` during a load must be retried.
+
+    Under a parallel database install the shared ``reference.db`` has up to 8
+    concurrent writers (download checkpoints, job-progress updates, other
+    pipeline builds), so a merge write can briefly lose the WAL write lock past
+    ``busy_timeout`` and raise ``OperationalError``. The loader must retry that
+    batch rather than fail the whole dbSNP build.
+    """
+
+    @staticmethod
+    def _no_backoff(monkeypatch) -> None:
+        """Neutralize retry backoff so the test is instant and deterministic."""
+        import functools
+
+        from backend.annotation import bulk_load, dbsnp
+
+        monkeypatch.setattr(
+            dbsnp,
+            "retry_on_locked",
+            functools.partial(bulk_load.retry_on_locked, sleep=lambda _s: None),
+        )
+
+    def test_upsert_batch_retries_on_locked(self, reference_engine: sa.Engine, monkeypatch):
+        from backend.annotation import dbsnp
+
+        self._no_backoff(monkeypatch)
+        real_upsert = dbsnp._upsert_dbsnp_merges
+        calls = {"n": 0}
+
+        def flaky_upsert(engine: sa.Engine, batch: list[dict]) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise sa.exc.OperationalError(
+                    "INSERT INTO dbsnp_merges ...", {}, Exception("database is locked")
+                )
+            real_upsert(engine, batch)
+
+        monkeypatch.setattr(dbsnp, "_upsert_dbsnp_merges", flaky_upsert)
+
+        rows = [{"old_rsid": "rs100", "current_rsid": "rs200", "build_id": 140}]
+        stats = load_rsmerge_into_db(rows, reference_engine)
+
+        assert calls["n"] == 2  # first attempt locked, retry succeeded
+        assert stats.merges_loaded == 1
+        with reference_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(dbsnp_merges)).scalar()
+        assert count == 1
+
+    def test_clear_retries_on_locked(self, reference_engine: sa.Engine, monkeypatch):
+        from backend.annotation import dbsnp
+
+        self._no_backoff(monkeypatch)
+        real_clear = dbsnp._clear_dbsnp_merges
+        calls = {"n": 0}
+
+        def flaky_clear(engine: sa.Engine) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise sa.exc.OperationalError(
+                    "DELETE FROM dbsnp_merges", {}, Exception("database is locked")
+                )
+            real_clear(engine)
+
+        monkeypatch.setattr(dbsnp, "_clear_dbsnp_merges", flaky_clear)
+
+        # clear_existing defaults True → the DELETE path runs and must retry.
+        load_rsmerge_into_db(
+            [{"old_rsid": "rs1", "current_rsid": "rs2", "build_id": 150}], reference_engine
+        )
+        assert calls["n"] == 2
+
+    def test_from_iter_upsert_retries_on_locked(self, reference_engine: sa.Engine, monkeypatch):
+        """The streaming loader shares the same retrying batch writer."""
+        from backend.annotation import dbsnp
+
+        self._no_backoff(monkeypatch)
+        real_upsert = dbsnp._upsert_dbsnp_merges
+        calls = {"n": 0}
+
+        def flaky_upsert(engine: sa.Engine, batch: list[dict]) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise sa.exc.OperationalError(
+                    "INSERT INTO dbsnp_merges ...", {}, Exception("database is locked")
+                )
+            real_upsert(engine, batch)
+
+        monkeypatch.setattr(dbsnp, "_upsert_dbsnp_merges", flaky_upsert)
+
+        row_iter = iter_rsmerge_file(MINI_RSMERGE_GZ)
+        load_rsmerge_from_iter(row_iter, reference_engine)
+
+        assert calls["n"] >= 2
+        with reference_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(dbsnp_merges)).scalar()
+        assert count is not None and count >= 1
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # record_dbsnp_version
 # ═══════════════════════════════════════════════════════════════════════
