@@ -12,6 +12,7 @@ from backend.analysis.hla_resolver import ResolvedHLACall
 from backend.analysis.hla_susceptibility import (
     STATUS_INCREASED,
     STATUS_LIMITED_SCREEN,
+    STATUS_LOW_CONFIDENCE,
     STATUS_NEUTRAL_SUBTYPE,
     STATUS_NOT_INCREASED,
     STATUS_NOT_TYPED,
@@ -70,6 +71,25 @@ class TestB27:
         f = _find(assess_susceptibility([_c("B", "07:02", "08:01")]), "HLA-B*27")
         assert f.status == STATUS_NOT_INCREASED
 
+    def test_low_confidence_risk_subtype_is_indeterminate(self) -> None:
+        f = _find(assess_susceptibility([_c("B", "27:05", "07:02", low=True)]), "HLA-B*27")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert f.carried is True
+        assert "Do not interpret it as positive or negative" in f.interpretation
+
+    def test_low_confidence_absence_is_indeterminate(self) -> None:
+        f = _find(assess_susceptibility([_c("B", "07:02", "08:01", low=True)]), "HLA-B*27")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert f.carried is False
+        assert "No increased" not in f.interpretation
+
+    def test_low_confidence_neutral_subtype_is_indeterminate(self) -> None:
+        f = _find(assess_susceptibility([_c("B", "27:06", "07:02", low=True)]), "HLA-B*27")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+
     def test_not_typed(self) -> None:
         f = _find(assess_susceptibility([_c("C", "07:01", "07:02")]), "HLA-B*27")
         assert f.status == STATUS_NOT_TYPED
@@ -89,6 +109,20 @@ class TestC0602:
         f = _find(assess_susceptibility([_c("C", "07:01", "07:02")]), "HLA-C*06:02")
         assert f.status == STATUS_NOT_INCREASED
 
+    def test_low_confidence_present_is_indeterminate(self) -> None:
+        f = _find(assess_susceptibility([_c("C", "06:02", "07:01", low=True)]), "HLA-C*06:02")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert f.carried is True
+        assert "major psoriasis susceptibility allele" not in f.interpretation
+
+    def test_low_confidence_absent_is_indeterminate(self) -> None:
+        f = _find(assess_susceptibility([_c("C", "07:01", "07:02", low=True)]), "HLA-C*06:02")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert f.carried is False
+        assert "No increased" not in f.interpretation
+
     def test_not_typed(self) -> None:
         f = _find(assess_susceptibility([_c("B", "07:02", "08:01")]), "HLA-C*06:02")
         assert f.status == STATUS_NOT_TYPED
@@ -100,6 +134,15 @@ class TestRaSharedEpitope:
         assert f.status == STATUS_INCREASED
         assert "04:01" in f.detail
         assert "seropositive" in f.interpretation.lower()
+
+    def test_low_confidence_present_is_indeterminate(self) -> None:
+        f = _find(
+            assess_susceptibility([_c("DRB1", "04:01", "15:01", low=True)]),
+            "HLA-DRB1 shared epitope",
+        )
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert f.carried is True
 
     def test_drb10410_present(self) -> None:
         f = _find(assess_susceptibility([_c("DRB1", "04:10", "15:01")]), "HLA-DRB1 shared epitope")
@@ -213,6 +256,17 @@ class TestT1D:
         f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
         assert f.status == STATUS_NOT_INCREASED
 
+    def test_low_confidence_full_loci_is_indeterminate(self) -> None:
+        calls = [
+            _c("DRB1", "15:01", "13:01"),
+            _c("DQA1", "01:01", "04:01", low=True),
+            _c("DQB1", "05:01", "06:03"),
+        ]
+        f = _find(assess_susceptibility(calls), "HLA DR3-DQ2 / DR4-DQ8")
+        assert f.status == STATUS_LOW_CONFIDENCE
+        assert f.low_confidence is True
+        assert "lower HLA-conferred susceptibility" not in f.interpretation
+
     def test_not_typed_when_dqb1_missing(self) -> None:
         f = _find(assess_susceptibility([_c("DQA1", "05:01", "01:01")]), "HLA DR3-DQ2 / DR4-DQ8")
         assert f.status == STATUS_NOT_TYPED
@@ -235,3 +289,4 @@ class TestReport:
     def test_low_confidence_propagates(self) -> None:
         f = _find(assess_susceptibility([_c("C", "06:02", "07:01", low=True)]), "HLA-C*06:02")
         assert f.low_confidence is True
+        assert f.status == STATUS_LOW_CONFIDENCE

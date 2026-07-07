@@ -60,6 +60,7 @@ export type HlaSusceptibilityStatus =
   | "not_increased"
   | "neutral_subtype"
   | "limited_screen"
+  | "low_confidence"
   | "not_typed"
 
 export interface HlaSusceptibilityFinding {

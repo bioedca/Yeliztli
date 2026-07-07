@@ -160,7 +160,8 @@ def get_hla_rule_outs(
 class SusceptibilityFindingResponse(BaseModel):
     condition: str
     hla: str
-    status: str  # increased_risk | not_increased | neutral_subtype | limited_screen | not_typed
+    # Directional statuses plus non-directional limited/low-confidence/not-typed states.
+    status: str
     carried: bool
     detail: str
     interpretation: str

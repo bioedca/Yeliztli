@@ -52,6 +52,7 @@ STATUS_INCREASED = "increased_risk"  # a risk allele/haplotype is carried
 STATUS_NOT_INCREASED = "not_increased"  # locus typed, risk allele absent
 STATUS_NEUTRAL_SUBTYPE = "neutral_subtype"  # carries only a disease-neutral B*27 subtype
 STATUS_LIMITED_SCREEN = "limited_screen"  # typed, but this curated screen cannot classify it
+STATUS_LOW_CONFIDENCE = "low_confidence"  # imputed locus is not reliable enough to classify
 STATUS_NOT_TYPED = "not_typed"  # required locus or haplotype phase not called
 
 # HLA-B*27 subtypes that are NOT disease-associated: a group "B*27" match would
@@ -114,6 +115,12 @@ _NOT_DIAGNOSTIC = (
     "general population and most carriers never develop the condition."
 )
 
+_LOW_CONFIDENCE_INTERPRETATION = (
+    "This imputed HLA call is low confidence. Do not interpret it as positive or "
+    "negative for susceptibility; clinical high-resolution HLA typing is required "
+    "before using this result."
+)
+
 
 def _locus_called(calls: Sequence[ResolvedHLACall], locus: str) -> bool:
     return any(c.locus.upper() == locus.upper() for c in calls)
@@ -153,6 +160,28 @@ def _low_conf(calls: Sequence[ResolvedHLACall], loci: Sequence[str]) -> bool:
     return any(c.low_confidence for c in calls if c.locus.upper() in wanted)
 
 
+def _low_confidence_finding(
+    *,
+    condition: str,
+    hla: str,
+    carried: bool,
+    detail: str,
+    citations: list[str],
+    notes: list[str],
+) -> SusceptibilityFinding:
+    return SusceptibilityFinding(
+        condition,
+        hla,
+        STATUS_LOW_CONFIDENCE,
+        carried,
+        detail,
+        _LOW_CONFIDENCE_INTERPRETATION,
+        True,
+        citations,
+        notes,
+    )
+
+
 def _assess_b27(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
     condition = "Ankylosing spondylitis / axial spondyloarthritis"
     citations = ["PMID:28259985", "PMID:30301938", "PMID:37679034"]
@@ -174,6 +203,20 @@ def _assess_b27(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             notes,
         )
     b27 = [a for a in (b_call.allele1, b_call.allele2) if a.split(":")[0] == "27"]
+    if b_call.low_confidence:
+        detail = (
+            f"Low-confidence HLA-B*{'/B*'.join(b27)} imputation"
+            if b27
+            else "Low-confidence HLA-B imputation; HLA-B*27 not detected"
+        )
+        return _low_confidence_finding(
+            condition=condition,
+            hla="HLA-B*27",
+            carried=bool(b27),
+            detail=detail,
+            citations=citations,
+            notes=notes,
+        )
     if not b27:
         return SusceptibilityFinding(
             condition,
@@ -241,6 +284,20 @@ def _assess_c0602(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             citations,
             notes,
         )
+    if carriage.low_confidence:
+        detail = (
+            f"Low-confidence HLA-C*06:02 imputation ({carriage.zygosity})"
+            if carriage.carried
+            else "Low-confidence HLA-C imputation; HLA-C*06:02 not detected"
+        )
+        return _low_confidence_finding(
+            condition=condition,
+            hla="HLA-C*06:02",
+            carried=carriage.carried,
+            detail=detail,
+            citations=citations,
+            notes=notes,
+        )
     if not carriage.carried:
         return SusceptibilityFinding(
             condition,
@@ -299,6 +356,16 @@ def _assess_ra_se(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             False,
             citations,
             notes,
+        )
+    if _low_conf(calls, ["DRB1"]):
+        detail = ", ".join(sorted(set(_called_locus_two_field_alleles(calls, "DRB1"))))
+        return _low_confidence_finding(
+            condition=condition,
+            hla="HLA-DRB1 shared epitope",
+            carried=_any_carried(calls, _SE_ALLELES),
+            detail=f"Low-confidence HLA-DRB1 imputation: {detail}",
+            citations=citations,
+            notes=notes,
         )
     se_hits = [a for a in _SE_ALLELES if _carried(calls, a)]
     if not se_hits:
@@ -394,6 +461,18 @@ def _assess_t1d(calls: Sequence[ResolvedHLACall]) -> SusceptibilityFinding:
             citations,
             notes,
         )
+    if low_conf:
+        detail = ", ".join(
+            f"HLA-{locus} low confidence" for locus in required_loci if _low_conf(calls, [locus])
+        )
+        return _low_confidence_finding(
+            condition=condition,
+            hla="HLA DR3-DQ2 / DR4-DQ8",
+            carried=bool(dr3_components or dr4_components),
+            detail=detail,
+            citations=citations,
+            notes=notes,
+        )
     if dr3_components or dr4_components:
         if dr3_components and dr4_components:
             detail = (
@@ -439,7 +518,8 @@ def assess_susceptibility(calls: Sequence[ResolvedHLACall]) -> SusceptibilityRep
 
     With no calls the report is ``available=False``. Otherwise each association is
     assessed as ``increased_risk`` / ``not_increased`` / ``neutral_subtype`` (B*27
-    disease-neutral subtypes) / ``limited_screen`` / ``not_typed`` — always
+    disease-neutral subtypes) / ``limited_screen`` / ``low_confidence`` /
+    ``not_typed`` — always
     distinguishing a typed negative from a locus or haplotype phase that was never
     called.
     """

@@ -56,14 +56,14 @@ def _client(tmp_data_dir: Path, calls: list[dict]) -> Generator[TestClient, None
         reset_registry()
 
 
-def _row(locus, a1, a2) -> dict:
+def _row(locus, a1, a2, *, low_confidence: int = 0) -> dict:
     return {
         "locus": locus,
         "allele1": a1,
         "allele2": a2,
         "prob": 0.95,
         "matching": 0.9,
-        "low_confidence": 0,
+        "low_confidence": low_confidence,
         "ancestry_model": "European",
         "source": "hibag",
     }
@@ -73,6 +73,17 @@ def _row(locus, a1, a2) -> dict:
 def risk_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     # B*27 risk subtype (AS) + C*06:02 (psoriasis) carrier.
     yield from _client(tmp_data_dir, [_row("B", "27:05", "07:02"), _row("C", "06:02", "07:01")])
+
+
+@pytest.fixture
+def low_confidence_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    yield from _client(
+        tmp_data_dir,
+        [
+            _row("B", "27:05", "07:02", low_confidence=1),
+            _row("C", "07:01", "07:02", low_confidence=1),
+        ],
+    )
 
 
 @pytest.fixture
@@ -93,6 +104,17 @@ class TestSusceptibilityRoute:
         assert by["HLA-C*06:02"]["status"] == "increased_risk"
         # Loci not called are honestly reported as not_typed, not a false negative.
         assert by["HLA-DRB1 shared epitope"]["status"] == "not_typed"
+
+    def test_low_confidence_findings_are_serialized_as_indeterminate(
+        self, low_confidence_client: TestClient
+    ) -> None:
+        resp = low_confidence_client.get("/api/hla/susceptibility", params={"sample_id": 1})
+        assert resp.status_code == 200, resp.text
+        by = {f["hla"]: f for f in resp.json()["findings"]}
+        assert by["HLA-B*27"]["status"] == "low_confidence"
+        assert by["HLA-B*27"]["low_confidence"] is True
+        assert by["HLA-C*06:02"]["status"] == "low_confidence"
+        assert by["HLA-C*06:02"]["low_confidence"] is True
 
     def test_empty_sample_unavailable(self, empty_client: TestClient) -> None:
         resp = empty_client.get("/api/hla/susceptibility", params={"sample_id": 1})

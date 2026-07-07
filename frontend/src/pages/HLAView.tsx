@@ -268,6 +268,12 @@ const SUSC_STYLE: Record<
     box: "border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/20",
     badge: "bg-sky-100 dark:bg-sky-900 text-sky-800 dark:text-sky-200",
   },
+  low_confidence: {
+    label: "Low confidence",
+    icon: HelpCircle,
+    box: "border-border bg-muted/40",
+    badge: "bg-muted text-muted-foreground",
+  },
   not_typed: {
     label: "Not typed",
     icon: HelpCircle,
@@ -302,7 +308,8 @@ function SusceptibilityCard({ f }: { f: HlaSusceptibilityFinding }) {
       <p className="mt-3 text-sm">{f.interpretation}</p>
       {f.low_confidence && (
         <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-          Low-confidence imputation call — interpret with extra caution.
+          Low-confidence imputation call — do not interpret this as positive or negative;
+          clinical HLA typing is required.
         </p>
       )}
       {f.notes.length > 0 && (

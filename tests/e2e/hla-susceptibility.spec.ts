@@ -108,6 +108,46 @@ test.describe('HLA autoimmune susceptibility (SW-D4)', () => {
     await expect(ra).not.toContainText('No increased risk')
   })
 
+  test('shows low-confidence susceptibility calls without directional wording', async ({ page }) => {
+    await page.route('**/api/hla/drug-hypersensitivity**', (route) =>
+      route.fulfill(jsonRoute(drugUnavailable)),
+    )
+    await page.route('**/api/hla/susceptibility**', (route) =>
+      route.fulfill(
+        jsonRoute({
+          available: true,
+          caveat: 'imputed — confirm with clinical HLA typing.',
+          unavailable_note: null,
+          research_use_only: true,
+          findings: [
+            {
+              condition: 'Psoriasis (early-onset / guttate)',
+              hla: 'HLA-C*06:02',
+              status: 'low_confidence',
+              carried: true,
+              detail: 'Low-confidence HLA-C*06:02 imputation (heterozygous)',
+              interpretation:
+                'This imputed HLA call is low confidence. Do not interpret it as positive or negative for susceptibility; clinical high-resolution HLA typing is required before using this result.',
+              low_confidence: true,
+              citations: ['PMID:29072309'],
+              notes: ['Effect size is ancestry-dependent.'],
+            },
+          ],
+        }),
+      ),
+    )
+
+    await page.goto('/hla?sample_id=1')
+    await waitForReactHydration(page)
+
+    const c0602 = page.getByTestId('hla-susc-HLA-C*06:02')
+    await expect(c0602).toHaveAttribute('data-status', 'low_confidence')
+    await expect(c0602).toContainText('Low confidence')
+    await expect(c0602).toContainText('do not interpret this as positive or negative')
+    await expect(c0602).not.toContainText('Increased susceptibility')
+    await expect(c0602).not.toContainText('No increased risk')
+  })
+
   test('omits the susceptibility section when no HLA calls exist', async ({ page }) => {
     await page.route('**/api/hla/drug-hypersensitivity**', (route) =>
       route.fulfill(jsonRoute(drugUnavailable)),
