@@ -34,6 +34,24 @@ Switch between predefined column layouts, or build your own from **Column Settin
 | Frequency | Genotype, Gene, global gnomAD AF, rare flag |
 | Scores | Gene, Consequence, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL |
 
+## Coordinates & assembly (GRCh37 / GRCh38)
+
+The default **Chr** and **Position** columns are **GRCh37 (hg19)** — the app's native assembly,
+which every uploaded sample is normalised to. A toolbar **GRCh38** toggle adds two extra columns,
+**Chr (GRCh38)** and **Pos (GRCh38)**, so a variant's coordinate is shown in both assemblies side
+by side:
+
+- The **GRCh38 columns are a computational liftover** of the native GRCh37 coordinates, added for
+  looking a variant up in GRCh38-based external tools — not an independent source of truth
+  (a liftover can be wrong or fail).
+- A **blank GRCh38 cell** means the position **could not be lifted over**: either the region was
+  deleted or rearranged between GRCh37 and GRCh38, or the variant is **mitochondrial** (MT is
+  deliberately never lifted — the UCSC hg19 `chrM` is the old Yoruba reference sequence, not the
+  rCRS the chip data uses, so lifting it would give wrong GRCh38 coordinates).
+- **Which to use:** paste the default (GRCh37) coordinate into GRCh37/hg19-based tools and the
+  **GRCh38** coordinate into GRCh38/hg38-based tools. Two differing Position numbers for one
+  variant are expected — it is the same variant in two assemblies.
+
 ## Tagging
 
 Apply tags to variants for personal tracking — predefined ones (*Pathogenic interest*,

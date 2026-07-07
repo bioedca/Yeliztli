@@ -67,6 +67,22 @@ def _variant_explorer_preset_rows() -> dict[str, str]:
     return table_rows
 
 
+def test_variant_explorer_documents_grch38_coordinate_columns() -> None:
+    """The optional GRCh38 toggle adds liftover coordinate columns beside the
+    default GRCh37 ones, so a user sees two Position numbers per variant. The doc
+    must explain the two-assembly view — that the default columns are GRCh37, the
+    GRCh38 columns are a computational liftover, and a blank GRCh38 cell means the
+    position could not be lifted over (#1591)."""
+    docs_path = Path(__file__).resolve().parents[2] / "docs/features/variant-explorer.md"
+    text = docs_path.read_text(encoding="utf-8").lower()
+    missing = [t for t in ("grch37", "grch38", "liftover", "blank") if t not in text]
+    assert not missing, (
+        "docs/features/variant-explorer.md no longer documents the GRCh37/GRCh38 "
+        f"coordinate columns (missing {missing}) — keep the 'Coordinates & assembly' "
+        "section (#1591)."
+    )
+
+
 @pytest.fixture
 def preset_client(tmp_data_dir: Path) -> TestClient:
     """TestClient with column_presets.get_settings also patched."""
