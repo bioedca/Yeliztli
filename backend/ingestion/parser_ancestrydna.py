@@ -54,7 +54,7 @@ from backend.ingestion.chromosomes import normalize_for
 # Constants
 # ---------------------------------------------------------------------------
 
-_HEADER_TOKENS: tuple[str, ...] = (
+ANCESTRYDNA_HEADER_TOKENS: tuple[str, ...] = (
     "rsid",
     "chromosome",
     "position",
@@ -200,7 +200,7 @@ def _is_5col_header(line: str) -> bool:
     if not cleaned or cleaned.startswith("#"):
         return False
     cols = tuple(c.strip().lower() for c in cleaned.split("\t"))
-    return cols == _HEADER_TOKENS
+    return cols == ANCESTRYDNA_HEADER_TOKENS
 
 
 def _detect_format(file_or_path: str | Path | TextIO) -> str:
