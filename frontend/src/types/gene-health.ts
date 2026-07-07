@@ -36,7 +36,7 @@ export interface PathwaySummary {
 }
 
 /** Cross-module reference finding. */
-export interface CrossModuleItem {
+interface CrossModuleItem {
   rsid: string
   gene: string
   source_module: string

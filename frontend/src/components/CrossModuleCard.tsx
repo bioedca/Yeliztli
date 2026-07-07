@@ -20,14 +20,14 @@ import { getModuleMeta } from "@/lib/modules"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 
 /** The subset of every module's `CrossModuleItem` this card renders. */
-export interface CrossModuleCardItem {
+interface CrossModuleCardItem {
   gene: string
   rsid?: string
   finding_text: string
   evidence_level: number
 }
 
-export interface CrossModuleCardProps {
+interface CrossModuleCardProps {
   item: CrossModuleCardItem
   /** Label for the source side of the chip (the current module, or a trait). */
   sourceLabel: string
