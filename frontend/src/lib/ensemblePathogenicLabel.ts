@@ -7,7 +7,9 @@ function hasAxisCounts(
     Number.isFinite(deleteriousCount) &&
     typeof totalAssessed === "number" &&
     Number.isFinite(totalAssessed) &&
-    totalAssessed > 0
+    totalAssessed > 0 &&
+    deleteriousCount >= 0 &&
+    deleteriousCount <= totalAssessed
   )
 }
 
