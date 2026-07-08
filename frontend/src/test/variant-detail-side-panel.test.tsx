@@ -481,7 +481,11 @@ describe("VariantDetailSidePanel (P2-21)", () => {
         ),
       ).toBeInTheDocument()
     })
-    expect(screen.queryByText(/3 independent axes deleterious/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "Ensemble pathogenic: strict majority of assessed independent axes deleterious (4/4)",
+      ),
+    ).not.toBeInTheDocument()
   })
 })
 

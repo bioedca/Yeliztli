@@ -479,14 +479,15 @@ describe("VariantDetailPage (P2-21a)", () => {
     renderPage("rs100")
 
     const label = "Ensemble pathogenic: strict majority of assessed independent axes deleterious (2/2)"
+    const staleLabel = "Ensemble pathogenic: strict majority of assessed independent axes deleterious (4/4)"
     await waitFor(() => {
       expect(screen.getByText(label)).toBeInTheDocument()
     })
-    expect(screen.queryByText(/3 independent axes deleterious/)).not.toBeInTheDocument()
+    expect(screen.queryByText(staleLabel)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("tab", { name: /clinical/i }))
     expect(screen.getByText(label)).toBeInTheDocument()
-    expect(screen.queryByText(/3 independent axes deleterious/)).not.toBeInTheDocument()
+    expect(screen.queryByText(staleLabel)).not.toBeInTheDocument()
   })
 
   it("tabs have proper ARIA attributes", async () => {

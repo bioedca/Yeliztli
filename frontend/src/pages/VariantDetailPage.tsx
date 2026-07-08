@@ -35,6 +35,7 @@ import type {
 import { IgvBrowser } from "@/components/igv-browser"
 import { buildDefaultTracks } from "@/components/igv-browser/tracks"
 import WatchButton from "@/components/variant-detail/WatchButton"
+import EnsemblePathogenicBadge from "@/components/variant-detail/EnsemblePathogenicBadge"
 import GTExEqtlBadgeCard from "@/components/variant-detail/GTExEqtlBadge"
 import SpliceAIBadgeCard from "@/components/variant-detail/SpliceAIBadge"
 import { cn } from "@/lib/utils"
@@ -45,7 +46,6 @@ import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-s
 import { polyphen2Display } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
-import { formatEnsemblePathogenicBadgeLabel } from "@/lib/ensemblePathogenicLabel"
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers (reused from side panel)                           */
@@ -60,25 +60,6 @@ function renderStars(stars: number | null): string {
 function formatConsequence(consequence: string | null): string {
   if (!consequence) return "—"
   return consequence.replace(/_/g, " ")
-}
-
-function EnsemblePathogenicBadge({
-  deleteriousCount,
-  deleteriousTotalAssessed,
-  className,
-}: {
-  deleteriousCount: number | null
-  deleteriousTotalAssessed: number | null
-  className?: string
-}) {
-  return (
-    <div className={cn(
-      "px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30",
-      className,
-    )}>
-      {formatEnsemblePathogenicBadgeLabel(deleteriousCount, deleteriousTotalAssessed)}
-    </div>
-  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,7 +280,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
         <EnsemblePathogenicBadge
           deleteriousCount={variant.deleterious_count}
           deleteriousTotalAssessed={variant.deleterious_total_assessed}
-          className="mt-2"
+          className="mt-2 px-3 py-2 text-sm"
         />
       )}
 
@@ -517,7 +498,7 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <EnsemblePathogenicBadge
           deleteriousCount={variant.deleterious_count}
           deleteriousTotalAssessed={variant.deleterious_total_assessed}
-          className="mt-3"
+          className="mt-3 px-3 py-2 text-sm"
         />
       )}
 
