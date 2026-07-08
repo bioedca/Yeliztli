@@ -211,9 +211,6 @@ def _combined_clinvar_significance_concept(significance: str) -> dict[str, Any] 
             return None
         codings.append(coding)
 
-    if len(codings) < 2:
-        return None
-
     return {"coding": codings, "text": significance}
 
 
