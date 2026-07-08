@@ -110,6 +110,21 @@ def test_dbregistry_reference_engine_opts_into_synchronous_normal(tmp_path: Path
         registry.dispose_all()
 
 
+def test_dbregistry_reference_engine_keeps_default_synchronous_when_wal_disabled(
+    tmp_path: Path,
+) -> None:
+    from backend.config import Settings
+    from backend.db.connection import DBRegistry
+
+    registry = DBRegistry(Settings(data_dir=tmp_path, wal_mode=False))
+    try:
+        assert registry._wal_synchronous is None  # noqa: SLF001
+        assert _journal_mode(registry.reference_engine) == "delete"
+        assert _synchronous(registry.reference_engine) == 2
+    finally:
+        registry.dispose_all()
+
+
 def test_dbregistry_sample_engine_keeps_default_synchronous_full(tmp_path: Path) -> None:
     from backend.config import Settings
     from backend.db.connection import DBRegistry
