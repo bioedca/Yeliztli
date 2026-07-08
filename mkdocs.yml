@@ -13,6 +13,8 @@ strict: true
 
 theme:
   name: material
+  logo: assets/img/logo.svg
+  favicon: assets/img/favicon.svg
   palette:
     - media: "(prefers-color-scheme)"
       toggle:

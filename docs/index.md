@@ -1,3 +1,8 @@
+<p align="center" markdown>
+  ![Yeliztli](assets/img/logo-lockup.svg#only-light){ width="150" }
+  ![Yeliztli](assets/img/logo-lockup-dark.svg#only-dark){ width="150" }
+</p>
+
 # Yeliztli
 
 **Yeliztli is a privacy-first personal-genomics analysis platform that runs entirely on

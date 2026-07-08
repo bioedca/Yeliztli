@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/img/logo-lockup.svg" alt="Yeliztli" width="180">
+</p>
+
 # Yeliztli
 
 **Privacy-first personal-genomics analysis platform — it runs entirely on your own machine.**
