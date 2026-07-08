@@ -65,6 +65,15 @@ def _y_probes(n_typed: int, n_nocall: int = 0) -> list[dict]:
     return rows
 
 
+def _y_dash_nocalls(n: int) -> list[dict]:
+    rows = []
+    pos = 8_000_000
+    for i in range(n):
+        rows.append({"rsid": f"y_dash_nc{i}", "chrom": "Y", "pos": pos, "genotype": "-"})
+        pos += 137
+    return rows
+
+
 class TestScreen:
     def test_possible_xxy(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(60))
@@ -124,6 +133,18 @@ class TestScreen:
         _seed(sample_engine, _x_probes(40, 120) + _y_probes(60))
         r = screen_aneuploidy(sample_engine)
         assert r.outcome == POSSIBLE_XXY
+
+    def test_dash_y_nocalls_do_not_create_possible_xxy(self, sample_engine: sa.Engine) -> None:
+        """Diploid-X signal plus haploid 23andMe ``"-"`` chrY no-calls is not
+        a present-Y signal and must not screen as possible XXY (#1717)."""
+        _seed(sample_engine, _x_probes(60, 60) + _y_dash_nocalls(60))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == NO_SIGNAL
+        assert r.x_evaluable and r.y_evaluable
+        assert r.y_rate == 0.0
+        assert infer_biological_sex(sample_engine) == "XX"
 
     def test_diploid_x_with_intermediate_y_signal_needs_manual_review(
         self, sample_engine: sa.Engine

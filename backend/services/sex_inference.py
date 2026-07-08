@@ -64,6 +64,7 @@ from typing import Literal
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.zygosity import is_no_call
 from backend.db.tables import raw_variants
 
 logger = structlog.get_logger(__name__)
@@ -127,12 +128,6 @@ THRESHOLD_X_HET_DIPLOID: float = 0.15
 MIN_X_NONPAR_TYPED: int = 100
 MIN_Y_PROBES: int = 50
 
-# Narrow no-call set used here; backend/analysis/zygosity.is_no_call (lands
-# at Step 60) becomes the codebase-wide canonical set. These are the values
-# the current parser canonicalisation and validate_sex_thresholds.py both
-# accept.
-_NO_CALL_VALUES: frozenset[str] = frozenset({"--", "00", "0", ""})
-
 Classification = Literal["XX", "XY", "manual_review", "unknown"]
 
 
@@ -145,18 +140,12 @@ def _is_par(pos: int) -> bool:
     return is_grch37_x_par_position(pos)
 
 
-def _is_no_call(genotype: str | None) -> bool:
-    if genotype is None:
-        return True
-    return genotype.strip() in _NO_CALL_VALUES
-
-
 def _is_het(genotype: str) -> bool:
-    return len(genotype) == 2 and genotype[0] != genotype[1] and not _is_no_call(genotype)
+    return len(genotype) == 2 and genotype[0] != genotype[1] and not is_no_call(genotype)
 
 
 def _is_hom(genotype: str) -> bool:
-    return len(genotype) == 2 and genotype[0] == genotype[1] and not _is_no_call(genotype)
+    return len(genotype) == 2 and genotype[0] == genotype[1] and not is_no_call(genotype)
 
 
 def _is_hemizygous(genotype: str) -> bool:
@@ -166,9 +155,9 @@ def _is_hemizygous(genotype: str) -> bool:
     (and chrY) genotypes as a single character (``"A"``), not a padded diploid
     homozygote (``"AA"``). Such a call is typed, non-heterozygous evidence, so it
     counts toward ``x_nonpar_typed`` alongside diploid homozygotes for the §9.4
-    candidate-XY test. No-call sentinels (``"0"``, ``""``) are excluded (issue
-    #504)."""
-    return len(genotype) == 1 and not _is_no_call(genotype)
+    candidate-XY test. Canonical no-call sentinels, including the haploid
+    23andMe ``"-"`` token, are excluded (issues #504, #1717)."""
+    return len(genotype) == 1 and not is_no_call(genotype)
 
 
 def _classify(
@@ -273,7 +262,7 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
         for pos, genotype in x_rows:
             if _is_par(int(pos)):
                 continue
-            if _is_no_call(genotype):
+            if is_no_call(genotype):
                 continue
             if _is_het(genotype):
                 x_nonpar_het += 1
@@ -292,7 +281,7 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
         )
         for (genotype,) in y_rows:
             y_total += 1
-            if not _is_no_call(genotype):
+            if not is_no_call(genotype):
                 y_typed += 1
 
     y_rate = (y_typed / y_total) if y_total else 0.0

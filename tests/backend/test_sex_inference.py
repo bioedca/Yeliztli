@@ -104,6 +104,20 @@ def _y_rows(*, typed: int, nocall: int, base_pos: int = 1_000_000) -> list[dict]
     return rows
 
 
+def _dash_x_rows(n: int, *, base: int = _NONPAR_X_BASE) -> list[dict]:
+    return [
+        {"rsid": f"rs_x_dash_nc_{i}", "chrom": "X", "pos": base + i, "genotype": "-"}
+        for i in range(n)
+    ]
+
+
+def _dash_y_rows(n: int, *, base_pos: int = 1_000_000) -> list[dict]:
+    return [
+        {"rsid": f"rs_y_dash_nc_{i}", "chrom": "Y", "pos": base_pos + i, "genotype": "-"}
+        for i in range(n)
+    ]
+
+
 # ── Threshold-constant attestation ──────────────────────────────────────
 
 
@@ -549,6 +563,24 @@ class TestHemizygousMaleX:
         signals = compute_sex_signals(sample_engine)
         assert signals.x_nonpar_typed == 0
         assert signals.x_nonpar_hemizygous == 0
+
+    def test_haploid_dash_nocalls_are_not_hemizygous_or_y_typed(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """A haploid 23andMe ``"-"`` token on X/Y is a no-call, not evidence of
+        a single X copy or a called Y probe (#1717)."""
+        _seed(sample_engine, [*_dash_x_rows(_EVAL_X), *_dash_y_rows(_EVAL_Y)])
+
+        signals = compute_sex_signals(sample_engine)
+
+        assert signals.x_nonpar_typed == 0
+        assert signals.x_nonpar_hemizygous == 0
+        assert signals.x_nonpar_het == 0
+        assert signals.x_nonpar_hom == 0
+        assert signals.y_total == _EVAL_Y
+        assert signals.y_typed == 0
+        assert signals.y_rate == pytest.approx(0.0)
+        assert infer_biological_sex(sample_engine) == "unknown"
 
     def test_classify_counts_hemizygous_toward_candidate_xy(self) -> None:
         """Direct ``_classify``: hemizygous calls satisfy the candidate-XY
