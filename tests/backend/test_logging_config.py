@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 
 import pytest
 import sqlalchemy as sa
@@ -93,6 +94,62 @@ def test_configured_logging_redacts_before_db_and_console(
             "gene": "APOE",
         }
         assert event_data["rsid"] == "rs123"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_console_exception_logging_does_not_warn_and_persists_traceback(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logger = structlog.get_logger("tests.logging_exceptions")
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            try:
+                raise RuntimeError("boom")
+            except RuntimeError:
+                logger.exception(
+                    "exception_event",
+                    genotype="AG",
+                    nested={"haplotype": "H1", "gene": "APOE"},
+                    rsid="rs123",
+                )
+
+        stdout = capsys.readouterr().out
+        assert "exception_event" in stdout
+        assert "AG" not in stdout
+        assert "H1" not in stdout
+        assert _REDACTED_LOG_VALUE in stdout
+        assert not [
+            warning
+            for warning in caught
+            if issubclass(warning.category, UserWarning)
+            and "format_exc_info" in str(warning.message)
+        ]
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "exception_event"
+                )
+            ).one()
+
+        event_data = json.loads(row.event_data)
+        assert event_data["genotype"] == _REDACTED_LOG_VALUE
+        assert event_data["nested"] == {
+            "haplotype": _REDACTED_LOG_VALUE,
+            "gene": "APOE",
+        }
+        assert event_data["rsid"] == "rs123"
+        assert "exc_info" not in event_data
+        assert "RuntimeError: boom" in event_data["exception"]
     finally:
         structlog.reset_defaults()
         engine.dispose()

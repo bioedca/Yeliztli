@@ -77,6 +77,19 @@ def _redact_sensitive_log_fields(
     return event_dict
 
 
+def _event_dict_for_db_storage(
+    logger: structlog.types.WrappedLogger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Return a DB-only event copy with exception info rendered as text."""
+    if not event_dict.get("exc_info"):
+        return event_dict
+    # Runs after _redact_sensitive_log_fields. Keep ConsoleRenderer's event dict
+    # untouched so it can pretty-print exc_info without structlog's warning.
+    return structlog.processors.format_exc_info(logger, method_name, dict(event_dict))
+
+
 def _db_processor_factory(engine_getter: callable) -> callable:
     """Create a structlog processor that writes log entries to reference.db.
 
@@ -105,8 +118,9 @@ def _db_processor_factory(engine_getter: callable) -> callable:
             from backend.db.tables import log_entries
 
             level = method_name.upper()
-            logger_name = event_dict.get("logger", event_dict.get("_logger", ""))
-            message = event_dict.get("event", "")
+            db_event_dict = _event_dict_for_db_storage(logger, method_name, event_dict)
+            logger_name = db_event_dict.get("logger", db_event_dict.get("_logger", ""))
+            message = db_event_dict.get("event", "")
 
             # Collect extra structured data (exclude internal keys)
             _internal = {
@@ -118,7 +132,7 @@ def _db_processor_factory(engine_getter: callable) -> callable:
                 "_record",
                 "_from_structlog",
             }
-            extra = {k: v for k, v in event_dict.items() if k not in _internal}
+            extra = {k: v for k, v in db_event_dict.items() if k not in _internal}
             extra_json = json.dumps(extra, default=str) if extra else None
 
             with engine.begin() as conn:
@@ -154,7 +168,6 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
         _redact_sensitive_log_fields,
     ]
 
