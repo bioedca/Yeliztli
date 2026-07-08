@@ -36,7 +36,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.clinvar_significance import is_low_penetrance_or_risk_allele
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
-from backend.annotation.bulk_load import delete_table_in_batches
+from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
+    delete_table_in_batches,
+    retry_on_locked,
+)
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -375,6 +379,12 @@ def _clear_clinvar_variants(engine: sa.Engine, *, batch_size: int = BATCH_SIZE) 
     delete_table_in_batches(engine, clinvar_variants, batch_size=batch_size)
 
 
+def _insert_clinvar_batch(engine: sa.Engine, batch: list[dict]) -> None:
+    """Insert one ClinVar batch in its own transaction."""
+    with engine.begin() as conn:
+        conn.execute(clinvar_variants.insert(), batch)
+
+
 def load_clinvar_from_iter(
     row_iter: Iterator[tuple[dict, LoadStats]],
     engine: sa.Engine,
@@ -407,8 +417,10 @@ def load_clinvar_from_iter(
         _clear_clinvar_variants(engine)
 
     for batch in _batched(rows_only(), BATCH_SIZE):
-        with engine.begin() as conn:
-            conn.execute(clinvar_variants.insert(), batch)
+        retry_on_locked(
+            lambda b=batch: _insert_clinvar_batch(engine, b),
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+        )
 
     # WAL checkpoint after bulk load (outside transaction)
     _wal_checkpoint(engine)

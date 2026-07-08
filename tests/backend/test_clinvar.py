@@ -557,6 +557,48 @@ class TestLoadClinvarFromIter:
         assert stats.variants_loaded == 0
 
 
+class TestLoadClinvarLockRetry:
+    """A transient SQLite lock during ClinVar load must retry the failed batch."""
+
+    @staticmethod
+    def _no_backoff(monkeypatch) -> None:
+        """Neutralize retry backoff so the test is instant and deterministic."""
+        import functools
+
+        from backend.annotation import bulk_load, clinvar
+
+        monkeypatch.setattr(
+            clinvar,
+            "retry_on_locked",
+            functools.partial(bulk_load.retry_on_locked, sleep=lambda _s: None),
+        )
+
+    def test_from_iter_insert_retries_on_locked(self, ref_engine: sa.Engine, monkeypatch):
+        from backend.annotation import clinvar
+
+        self._no_backoff(monkeypatch)
+        real_insert = clinvar._insert_clinvar_batch
+        calls = {"n": 0}
+
+        def flaky_insert(engine: sa.Engine, batch: list[dict]) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise sa.exc.OperationalError(
+                    "INSERT INTO clinvar_variants ...", {}, Exception("database is locked")
+                )
+            real_insert(engine, batch)
+
+        monkeypatch.setattr(clinvar, "_insert_clinvar_batch", flaky_insert)
+
+        stats = load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
+
+        assert calls["n"] == 2
+        assert stats.variants_loaded == 12
+        with ref_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
+        assert count == 12
+
+
 class TestRecordClinvarVersion:
     def test_insert_new_version(self, ref_engine: sa.Engine):
         record_clinvar_version(ref_engine, version="20260301", file_path="/tmp/clinvar.vcf.gz")
