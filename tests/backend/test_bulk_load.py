@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
 from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
     bulk_write_connection,
     execute_write,
     insert_batch,
@@ -49,6 +50,23 @@ class TestRetryOnLocked:
         with pytest.raises(sa.exc.OperationalError):
             retry_on_locked(always_locked, max_retries=4, sleep=lambda _s: None)
         assert calls["n"] == 4
+
+    def test_busy_timeout_backstop_budget_caps_attempts(self) -> None:
+        calls = {"n": 0}
+        slept: list[float] = []
+
+        def always_locked() -> None:
+            calls["n"] += 1
+            raise _locked_error()
+
+        with pytest.raises(sa.exc.OperationalError):
+            retry_on_locked(
+                always_locked,
+                max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+                sleep=slept.append,
+            )
+        assert calls["n"] == BUSY_TIMEOUT_BACKSTOP_RETRIES == 2
+        assert slept == [0.1]
 
     def test_does_not_swallow_non_operational_errors(self) -> None:
         def boom() -> None:

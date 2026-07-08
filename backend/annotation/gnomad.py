@@ -35,6 +35,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
     bulk_write_connection,
     execute_write,
     insert_batch,
@@ -739,7 +740,7 @@ def _create_gnomad_indexes(engine: sa.Engine) -> None:
             for idx_sql in CREATE_INDEXES_SQL:
                 conn.execute(sa.text(idx_sql))
 
-    retry_on_locked(_do)
+    retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
 
 
 def load_gnomad_from_vcf(

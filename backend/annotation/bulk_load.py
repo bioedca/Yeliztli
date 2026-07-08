@@ -32,8 +32,13 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-# Consecutive lock retries before giving up (matches _update_job's budget).
+# General retry budget for callers that have not already waited inside SQLite.
 DEFAULT_MAX_RETRIES = 5
+
+# Engines created by ``make_sqlite_engine`` already wait up to 30 s inside each
+# write attempt via SQLite's busy_timeout. Keep only a small retry backstop for
+# truly stuck locks so failure surfaces in about a minute instead of ~150 s.
+BUSY_TIMEOUT_BACKSTOP_RETRIES = 2
 
 # Page cache for the bulk-load write connection (negative ⇒ KiB ⇒ 256 MiB).
 _BULK_CACHE_SIZE = -262_144
@@ -47,9 +52,11 @@ def retry_on_locked[T](
 ) -> T:
     """Call ``fn`` retrying on SQLite ``OperationalError`` with exponential backoff.
 
-    Mirrors the retry budget used by ``_update_job`` (0.1·2**attempt seconds,
-    re-raising on the final attempt) so a genuinely stuck database still fails
-    the build loudly instead of silently dropping a batch.  Only
+    Uses ``0.1·2**attempt`` seconds of Python-side backoff, re-raising on the
+    final attempt so a genuinely stuck database still fails the build loudly
+    instead of silently dropping a batch.  Call sites that already use SQLite's
+    30 s ``busy_timeout`` should pass ``BUSY_TIMEOUT_BACKSTOP_RETRIES`` so the
+    timeout provides the main wait and this helper stays a short backstop. Only
     :class:`sqlalchemy.exc.OperationalError` is caught — schema/data errors
     propagate immediately.
     """
@@ -132,7 +139,7 @@ def insert_batch(conn: sa.Connection, statement: sa.TextClause, batch: list[dict
         with conn.begin():
             conn.execute(statement, batch)
 
-    retry_on_locked(_do)
+    retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
 
 
 def execute_write(conn: sa.Connection, statement: sa.TextClause) -> None:
@@ -142,4 +149,4 @@ def execute_write(conn: sa.Connection, statement: sa.TextClause) -> None:
         with conn.begin():
             conn.execute(statement)
 
-    retry_on_locked(_do)
+    retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)

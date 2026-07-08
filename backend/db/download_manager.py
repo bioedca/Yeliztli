@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
-from backend.annotation.bulk_load import retry_on_locked
+from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES, retry_on_locked
 from backend.annotation.http_download import stream_download
 from backend.db.tables import downloads, jobs
 
@@ -397,7 +397,7 @@ class DownloadManager:
     # A wizard install fans out up to 8 concurrent workers, all writing the
     # shared reference.db. Under WAL a write can briefly lose the lock past
     # ``busy_timeout`` and raise ``OperationalError: database is locked``, so
-    # every write here routes through the shared ``retry_on_locked`` budget.
+    # every write here routes through the shared busy-timeout backstop budget.
     # Progress/validator checkpoints go one step further and are *best-effort*:
     # they are pure optimizations (resume derives its real offset from the
     # on-disk file size, not the DB row), so a lock that outlasts the retries
@@ -410,7 +410,11 @@ class DownloadManager:
             with self._engine.begin() as conn:
                 conn.execute(stmt)
 
-        retry_on_locked(_do, sleep=self._sleep)
+        retry_on_locked(
+            _do,
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+            sleep=self._sleep,
+        )
 
     def _write_best_effort(self, stmt: sa.Executable, *, what: str, download_id: int) -> None:
         """Execute an optimization-only write; retry on lock, swallow a final failure.
@@ -451,7 +455,11 @@ class DownloadManager:
                 )
                 return result.lastrowid  # type: ignore[return-value]
 
-        return retry_on_locked(_do, sleep=self._sleep)
+        return retry_on_locked(
+            _do,
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+            sleep=self._sleep,
+        )
 
     def _find_resumable(self, url: str, dest_path: str) -> tuple[int, int] | None:
         """Find an incomplete download for the same URL + dest_path.
@@ -582,7 +590,7 @@ class DownloadManager:
         progress_pct: float,
         message: str = "",
         error: str | None = None,
-        _retries: int = 5,
+        _retries: int = BUSY_TIMEOUT_BACKSTOP_RETRIES,
     ) -> None:
         """Update job progress for SSE visibility with retry on contention."""
         stmt = (

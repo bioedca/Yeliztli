@@ -42,7 +42,7 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.annotation.bulk_load import retry_on_locked
+from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES, retry_on_locked
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -280,11 +280,17 @@ def load_rsmerge_into_db(
         stats = LoadStats(merges_loaded=len(rows))
 
     if clear_existing:
-        retry_on_locked(lambda: _clear_dbsnp_merges(engine))
+        retry_on_locked(
+            lambda: _clear_dbsnp_merges(engine),
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+        )
 
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i : i + BATCH_SIZE]
-        retry_on_locked(lambda b=batch: _upsert_dbsnp_merges(engine, b))
+        retry_on_locked(
+            lambda b=batch: _upsert_dbsnp_merges(engine, b),
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+        )
 
     _wal_checkpoint(engine)
 
@@ -343,10 +349,16 @@ def load_rsmerge_from_iter(
             yield row
 
     if clear_existing:
-        retry_on_locked(lambda: _clear_dbsnp_merges(engine))
+        retry_on_locked(
+            lambda: _clear_dbsnp_merges(engine),
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+        )
 
     for batch in _batched(rows_only(), BATCH_SIZE):
-        retry_on_locked(lambda b=batch: _upsert_dbsnp_merges(engine, b))
+        retry_on_locked(
+            lambda b=batch: _upsert_dbsnp_merges(engine, b),
+            max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES,
+        )
 
     _wal_checkpoint(engine)
 

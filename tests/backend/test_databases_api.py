@@ -72,6 +72,22 @@ def server_url(server: HTTPServer) -> str:
     return f"http://{host}:{port}"
 
 
+def _locked_error() -> sa.exc.OperationalError:
+    """Build an OperationalError mirroring sqlite3's 'database is locked'."""
+    return sa.exc.OperationalError("UPDATE jobs ...", {}, Exception("database is locked"))
+
+
+class _CountingLockedEngine:
+    """Engine stand-in that records failed transaction attempts."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+
+    def begin(self):
+        self.attempts += 1
+        raise _locked_error()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════
@@ -118,6 +134,26 @@ def clear_sessions():
 
 class TestDatabaseRegistry:
     """Unit tests for the database registry module."""
+
+    def test_update_job_uses_busy_timeout_backstop_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES
+        from backend.api.routes import databases
+
+        locked_engine = _CountingLockedEngine()
+        slept: list[float] = []
+        monkeypatch.setattr(databases.time, "sleep", slept.append)
+
+        with pytest.raises(sa.exc.OperationalError):
+            databases._update_job(  # noqa: SLF001
+                locked_engine,  # type: ignore[arg-type]
+                "job-locked",
+                status="running",
+            )
+
+        assert locked_engine.attempts == BUSY_TIMEOUT_BACKSTOP_RETRIES == 2
+        assert slept == [0.1]
 
     def test_get_all_databases_returns_list(self):
         dbs = get_all_databases()

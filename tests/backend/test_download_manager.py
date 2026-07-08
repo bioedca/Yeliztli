@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
+from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES
 from backend.db.download_manager import (
     CHECKPOINT_INTERVAL,
     ChecksumMismatchError,
@@ -670,6 +671,17 @@ class _LockedEngine:
         raise _locked_error()
 
 
+class _CountingLockedEngine:
+    """Locked engine that records how many attempts were made."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+
+    def begin(self):
+        self.attempts += 1
+        raise _locked_error()
+
+
 class _FlakyBeginEngine:
     """Wraps a real engine but raises 'database is locked' on the first N begins."""
 
@@ -706,6 +718,20 @@ def test_status_update_propagates_persistent_lock(manager: DownloadManager) -> N
     manager._engine = _LockedEngine()  # type: ignore[assignment]
     with pytest.raises(sa.exc.OperationalError):
         manager._update_download_status(download_id=1, status="complete")
+
+
+def test_status_update_uses_busy_timeout_backstop_budget(manager: DownloadManager) -> None:
+    """A stuck lock gets the small backstop budget because busy_timeout already waited."""
+    locked_engine = _CountingLockedEngine()
+    slept: list[float] = []
+    manager._engine = locked_engine  # type: ignore[assignment]
+    manager._sleep = slept.append  # type: ignore[method-assign]
+
+    with pytest.raises(sa.exc.OperationalError):
+        manager._update_download_status(download_id=1, status="complete")
+
+    assert locked_engine.attempts == BUSY_TIMEOUT_BACKSTOP_RETRIES == 2
+    assert slept == [0.1]
 
 
 def test_checkpoint_offset_retries_transient_lock(

@@ -34,6 +34,7 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
+from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES
 from backend.api.sse import _format_sse, get_job_progress
 from backend.config import Settings, get_settings
 from backend.db.build_guard import (
@@ -1356,9 +1357,9 @@ def _update_job(
     progress_pct: float = 0.0,
     message: str = "",
     error: str | None = None,
-    _retries: int = 5,
+    _retries: int = BUSY_TIMEOUT_BACKSTOP_RETRIES,
 ) -> None:
-    """Update a job record with retry on SQLite contention."""
+    """Update a job record with a small retry backstop for SQLite contention."""
     for attempt in range(_retries):
         try:
             with engine.begin() as conn:

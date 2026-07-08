@@ -23,11 +23,11 @@ locked", which fails the whole bundle install and paints the database red on a
 fresh startover.
 
 Routing every ``sqlite:///`` file-URL engine through :func:`make_sqlite_engine`
-gives them all the same 30 s window (``retry_on_locked`` stays as a secondary
-backstop), and ``DBRegistry._create_engine`` now delegates here so the owned
-and standalone engines cannot drift. (The two read-only, per-sample SQL-console
-/ export readers that open ``file:…?mode=ro`` through a ``creator=`` callback
-keep sqlite3's 5 s default by design — they never touch the contended
+gives them all the same 30 s window (with ``retry_on_locked`` kept as a small
+secondary backstop), and ``DBRegistry._create_engine`` now delegates here so the
+owned and standalone engines cannot drift. (The two read-only, per-sample
+SQL-console / export readers that open ``file:…?mode=ro`` through a ``creator=``
+callback keep sqlite3's 5 s default by design — they never touch the contended
 reference.db, so they are intentionally exempt.)
 """
 

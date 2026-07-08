@@ -44,6 +44,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
     bulk_write_connection,
     execute_write,
     insert_batch,
@@ -694,7 +695,7 @@ def _create_dbnsfp_indexes(engine: sa.Engine) -> None:
             with engine.begin() as conn:
                 conn.execute(sa.text(sql))
 
-        retry_on_locked(_do)
+        retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
         # Fold this index's pages into the main DB before building the next, so
         # the WAL never accumulates more than a single index's worth at a time.
         _wal_checkpoint(engine)
@@ -757,7 +758,7 @@ def _record_member_loaded(conn: sa.Connection, source_token: str, member: str) -
                 {"t": source_token, "m": member, "ts": datetime.now(UTC).isoformat()},
             )
 
-    retry_on_locked(_do)
+    retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
 
 
 def _load_dbnsfp_resumable(
