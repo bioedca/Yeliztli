@@ -14,6 +14,7 @@ import { gnomadNoFrequencyDetail } from "@/lib/gnomad-status"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
 import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
+import { formatEnsemblePathogenicStatus } from "@/lib/ensemblePathogenicLabel"
 import type { RareVariant } from "@/types/rare-variants"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { X, ExternalLink } from "lucide-react"
@@ -249,10 +250,14 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Ensemble Pathogenic</span>
               <span className={cn(
-                "text-sm font-medium",
+                "inline-block max-w-[14rem] text-right text-sm font-medium leading-snug",
                 variant.ensemble_pathogenic ? "text-red-700 dark:text-red-400" : "text-muted-foreground",
               )}>
-                {variant.ensemble_pathogenic ? "Yes (≥3 axes)" : "No"}
+                {formatEnsemblePathogenicStatus(
+                  variant.ensemble_pathogenic,
+                  variant.deleterious_count,
+                  variant.deleterious_total_assessed,
+                )}
               </span>
             </div>
             <div className="flex items-center justify-between">

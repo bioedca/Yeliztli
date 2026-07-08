@@ -108,6 +108,8 @@ class RareVariantResponse(BaseModel):
     clinvar_conditions: str | None = None
     cadd_phred: float | None = None
     revel: float | None = None
+    deleterious_count: int | None = None
+    deleterious_total_assessed: int | None = None
     ensemble_pathogenic: bool = False
     evidence_conflict: bool = False
     evidence_level: int = 1
@@ -283,6 +285,8 @@ def search_rare_variants(
             clinvar_conditions=v.clinvar_conditions,
             cadd_phred=v.cadd_phred,
             revel=v.revel,
+            deleterious_count=v.deleterious_count,
+            deleterious_total_assessed=v.deleterious_total_assessed,
             ensemble_pathogenic=v.ensemble_pathogenic,
             evidence_conflict=v.evidence_conflict,
             evidence_level=v.evidence_level,

@@ -46,6 +46,8 @@ function makeMockVariant(overrides: Partial<RareVariant> = {}): RareVariant {
     clinvar_conditions: "Breast-ovarian cancer, familial 1",
     cadd_phred: 28.5,
     revel: 0.892,
+    deleterious_count: 2,
+    deleterious_total_assessed: 2,
     ensemble_pathogenic: true,
     evidence_conflict: false,
     evidence_level: 4,
@@ -383,6 +385,16 @@ describe("VariantDetailPanel", () => {
     const variant = makeMockVariant({ evidence_conflict: true })
     render(<VariantDetailPanel variant={variant} onClose={vi.fn()} />)
     expect(screen.getByText(/Evidence conflict detected/)).toBeInTheDocument()
+  })
+
+  it("labels ensemble pathogenic hits as a strict majority of assessed axes", () => {
+    render(<VariantDetailPanel variant={makeMockVariant()} onClose={vi.fn()} />)
+    expect(
+      screen.getByText(
+        "Yes - strict majority of assessed independent axes deleterious (2/2)",
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/3 axes/)).not.toBeInTheDocument()
   })
 })
 

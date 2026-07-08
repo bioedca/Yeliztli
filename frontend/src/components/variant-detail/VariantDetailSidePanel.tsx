@@ -28,6 +28,7 @@ import { formatAlleleFrequency } from "@/lib/format"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
+import { formatEnsemblePathogenicBadgeLabel } from "@/lib/ensemblePathogenicLabel"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
@@ -289,7 +290,10 @@ function PanelContent({
         <DetailRow label="REVEL" value={variant.revel?.toFixed(3)} labelTooltip={REVEL_TOOLTIP} />
         {variant.ensemble_pathogenic && (
           <div className="mt-1 px-2 py-1 rounded text-xs font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
-            Ensemble pathogenic (≥3 independent axes deleterious)
+            {formatEnsemblePathogenicBadgeLabel(
+              variant.deleterious_count,
+              variant.deleterious_total_assessed,
+            )}
           </div>
         )}
 

@@ -105,6 +105,7 @@ export interface VariantDetail {
 
   // Ensemble / conflict
   deleterious_count: number | null
+  deleterious_total_assessed: number | null
   evidence_conflict: boolean | null
   ensemble_pathogenic: boolean | null
   annotation_coverage: number | null

@@ -60,6 +60,8 @@ ANNOTATED_VARIANTS_DATA = [
         "clinvar_conditions": "Breast-ovarian cancer, familial",
         "cadd_phred": 28.5,
         "revel": 0.92,
+        "deleterious_count": 4,
+        "deleterious_total_assessed": 4,
         "ensemble_pathogenic": True,
         "evidence_conflict": False,
         "disease_name": "Hereditary breast-ovarian cancer",
@@ -91,6 +93,8 @@ ANNOTATED_VARIANTS_DATA = [
         "clinvar_conditions": "Cystic fibrosis",
         "cadd_phred": 35.0,
         "revel": None,
+        "deleterious_count": 0,
+        "deleterious_total_assessed": 2,
         "ensemble_pathogenic": False,
         "evidence_conflict": False,
         "disease_name": "Cystic fibrosis",
@@ -122,6 +126,8 @@ ANNOTATED_VARIANTS_DATA = [
         "clinvar_conditions": None,
         "cadd_phred": 22.0,
         "revel": 0.75,
+        "deleterious_count": 2,
+        "deleterious_total_assessed": 2,
         "ensemble_pathogenic": True,
         "evidence_conflict": False,
         "disease_name": None,
@@ -153,6 +159,8 @@ ANNOTATED_VARIANTS_DATA = [
         "clinvar_conditions": None,
         "cadd_phred": 1.0,
         "revel": None,
+        "deleterious_count": 0,
+        "deleterious_total_assessed": 2,
         "ensemble_pathogenic": False,
         "evidence_conflict": False,
         "disease_name": None,
@@ -189,6 +197,8 @@ ANNOTATED_VARIANTS_DATA = [
         "clinvar_conditions": "Hereditary breast and ovarian cancer",
         "cadd_phred": 33.0,
         "revel": 0.9,
+        "deleterious_count": 4,
+        "deleterious_total_assessed": 4,
         "ensemble_pathogenic": True,
         "evidence_conflict": False,
         "disease_name": "Hereditary breast-ovarian cancer",
@@ -360,6 +370,9 @@ class TestSearchEndpoint:
         by_rsid = {item["rsid"]: item for item in data["items"]}
         assert by_rsid["rs28897696"]["zygosity_label"] == "Heterozygous"
         assert by_rsid["rs_homalt_rare"]["zygosity_label"] == "Homozygous"
+        assert by_rsid["rs999999999"]["ensemble_pathogenic"] is True
+        assert by_rsid["rs999999999"]["deleterious_count"] == 2
+        assert by_rsid["rs999999999"]["deleterious_total_assessed"] == 2
 
     def test_search_excludes_hom_ref_pathogenic(
         self, rare_client: TestClient, sample_db_path: Path
@@ -645,6 +658,9 @@ class TestFindingsEndpoint:
         items = resp.json()["items"]
         for item in items:
             assert isinstance(item["detail"], dict)
+        by_rsid = {item["rsid"]: item for item in items}
+        assert by_rsid["rs999999999"]["detail"]["deleterious_count"] == 2
+        assert by_rsid["rs999999999"]["detail"]["deleterious_total_assessed"] == 2
 
     def test_findings_missing_sample_404(self, empty_client: TestClient) -> None:
         """Missing sample returns 404."""

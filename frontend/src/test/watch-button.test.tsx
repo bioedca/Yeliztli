@@ -61,6 +61,7 @@ const mockVariantDetail: VariantDetail = {
   hpo_terms: null,
   inheritance_pattern: "Autosomal dominant",
   deleterious_count: 4,
+  deleterious_total_assessed: 4,
   evidence_conflict: true,
   ensemble_pathogenic: true,
   annotation_coverage: 0b111111,

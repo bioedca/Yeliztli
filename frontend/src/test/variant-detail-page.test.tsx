@@ -73,6 +73,7 @@ const mockVariant: VariantDetail = {
   hpo_terms: null,
   inheritance_pattern: "Autosomal dominant",
   deleterious_count: 4,
+  deleterious_total_assessed: 4,
   evidence_conflict: true,
   ensemble_pathogenic: true,
   annotation_coverage: 0b111111,
@@ -460,6 +461,32 @@ describe("VariantDetailPage (P2-21a)", () => {
     await waitFor(() => {
       expect(screen.getByText(/Ensemble pathogenic/)).toBeInTheDocument()
     })
+  })
+
+  it("labels 2-of-2 ensemble pathogenic hits by assessed axes in overview and clinical", async () => {
+    const twoOfTwoVariant: VariantDetail = {
+      ...mockVariant,
+      deleterious_count: 2,
+      deleterious_total_assessed: 2,
+      ensemble_pathogenic: true,
+    }
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => twoOfTwoVariant,
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    const label = "Ensemble pathogenic: strict majority of assessed independent axes deleterious (2/2)"
+    await waitFor(() => {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/3 independent axes deleterious/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText(/3 independent axes deleterious/)).not.toBeInTheDocument()
   })
 
   it("tabs have proper ARIA attributes", async () => {

@@ -63,6 +63,8 @@ _DEFAULTS = {
     "clinvar_conditions": None,
     "cadd_phred": None,
     "revel": None,
+    "deleterious_count": None,
+    "deleterious_total_assessed": None,
     "ensemble_pathogenic": False,
     "evidence_conflict": False,
     "annotation_coverage": 0,
@@ -111,6 +113,8 @@ RARE_VARIANT_FIXTURES = [
         consequence="stop_gained",
         gnomad_af_global=0.00001,
         ensemble_pathogenic=True,
+        deleterious_count=2,
+        deleterious_total_assessed=2,
         annotation_coverage=12,
         cadd_phred=40.0,
         revel=0.98,
@@ -300,6 +304,10 @@ class TestDefaultFilter:
         #   rs100006 (0.005), rs100007 (0.002), rs100008 (0.0001)
         # Should NOT find: rs100004 (0.15), rs100005 (0.03)
         assert result.count == 6
+        by_rsid = {v.rsid: v for v in result.variants}
+        assert by_rsid["rs100002"].ensemble_pathogenic is True
+        assert by_rsid["rs100002"].deleterious_count == 2
+        assert by_rsid["rs100002"].deleterious_total_assessed == 2
 
     def test_carried_only_excludes_hom_ref_pathogenic(self, sample_engine: sa.Engine) -> None:
         """A hom_ref (non-carrier) Pathogenic variant is not surfaced.
@@ -986,6 +994,12 @@ class TestStoreRareVariantFindings:
         assert detail["af_global"] == 0.0005
         assert "af_populations" in detail
         assert detail["consequence"] == "missense_variant"
+
+        with sample_with_rare_variants.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs100002")).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["deleterious_count"] == 2
+        assert detail["deleterious_total_assessed"] == 2
 
     def test_source_uncovered_finding_text_and_detail(self, sample_engine: sa.Engine) -> None:
         """AF-null source-uncovered variants do not say plain 'Not in gnomAD'."""

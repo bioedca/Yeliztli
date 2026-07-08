@@ -129,6 +129,8 @@ class RareVariantResult:
     disease_name: str | None
     inheritance_pattern: str | None
     zygosity_label: str | None = None
+    deleterious_count: int | None = None
+    deleterious_total_assessed: int | None = None
 
     @property
     def is_catalogued(self) -> bool:
@@ -269,6 +271,8 @@ def find_rare_variants(
         av.c.clinvar_conditions,
         av.c.cadd_phred,
         av.c.revel,
+        av.c.deleterious_count,
+        av.c.deleterious_total_assessed,
         av.c.ensemble_pathogenic,
         av.c.evidence_conflict,
         av.c.disease_name,
@@ -385,6 +389,8 @@ def find_rare_variants(
             clinvar_conditions=row.clinvar_conditions,
             cadd_phred=row.cadd_phred,
             revel=row.revel,
+            deleterious_count=row.deleterious_count,
+            deleterious_total_assessed=row.deleterious_total_assessed,
             ensemble_pathogenic=bool(row.ensemble_pathogenic),
             evidence_conflict=bool(row.evidence_conflict),
             evidence_level=1,  # placeholder, assigned below
@@ -526,6 +532,8 @@ def store_rare_variant_findings(
             "hgvs_protein": v.hgvs_protein,
             "cadd_phred": v.cadd_phred,
             "revel": v.revel,
+            "deleterious_count": v.deleterious_count,
+            "deleterious_total_assessed": v.deleterious_total_assessed,
             "ensemble_pathogenic": v.ensemble_pathogenic,
             "evidence_conflict": v.evidence_conflict,
             "clinvar_accession": v.clinvar_accession,
