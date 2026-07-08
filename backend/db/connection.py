@@ -38,7 +38,7 @@ class DBRegistry:
         self.reference_engine = self._create_engine(
             settings.reference_db_path,
             wal=settings.wal_mode,
-            synchronous="NORMAL" if settings.wal_mode else None,
+            synchronous=self._wal_synchronous,
         )
 
         # Large reference DBs (opened lazily on first access)
@@ -50,6 +50,11 @@ class DBRegistry:
         self._spliceai_engine: sa.Engine | None = None
         self._encode_ccres_engine: sa.Engine | None = None
         self._encode_ccres_fingerprint: tuple[int, int, int, int] | None = None
+
+    @property
+    def _wal_synchronous(self) -> SQLiteSynchronousMode | None:
+        """Use SQLite's WAL-recommended performance mode for reference engines only."""
+        return "NORMAL" if self._settings.wal_mode else None
 
     @property
     def settings(self) -> Settings:
@@ -105,7 +110,7 @@ class DBRegistry:
             self._vep_engine = self._create_engine(
                 self._settings.vep_bundle_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._vep_engine
@@ -117,7 +122,7 @@ class DBRegistry:
             self._gnomad_engine = self._create_engine(
                 self._settings.gnomad_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._gnomad_engine
@@ -129,7 +134,7 @@ class DBRegistry:
             self._dbnsfp_engine = self._create_engine(
                 self._settings.dbnsfp_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._dbnsfp_engine
@@ -141,7 +146,7 @@ class DBRegistry:
             self._alphamissense_engine = self._create_engine(
                 self._settings.alphamissense_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._alphamissense_engine
@@ -153,7 +158,7 @@ class DBRegistry:
             self._gtex_eqtl_engine = self._create_engine(
                 self._settings.gtex_eqtl_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._gtex_eqtl_engine
@@ -165,7 +170,7 @@ class DBRegistry:
             self._spliceai_engine = self._create_engine(
                 self._settings.spliceai_db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
         return self._spliceai_engine
@@ -181,7 +186,7 @@ class DBRegistry:
             self._encode_ccres_engine = self._create_engine(
                 db_path,
                 wal=self._settings.wal_mode,
-                synchronous="NORMAL" if self._settings.wal_mode else None,
+                synchronous=self._wal_synchronous,
             )
             self._encode_ccres_fingerprint = fingerprint
         return self._encode_ccres_engine

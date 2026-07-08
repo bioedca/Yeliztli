@@ -34,7 +34,7 @@ reference.db, so they are intentionally exempt.)
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 import sqlalchemy as sa
 from sqlalchemy import event
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 DEFAULT_BUSY_TIMEOUT_MS = 30_000
 
 SQLiteSynchronousMode = Literal["OFF", "NORMAL", "FULL", "EXTRA"]
-_VALID_SYNCHRONOUS_MODES = frozenset({"OFF", "NORMAL", "FULL", "EXTRA"})
+_VALID_SYNCHRONOUS_MODES = frozenset(get_args(SQLiteSynchronousMode))
 
 
 def make_sqlite_engine(
