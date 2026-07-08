@@ -209,6 +209,12 @@ def create_app() -> FastAPI:
     """Build and return the configured FastAPI application."""
     app = FastAPI(
         title="Yeliztli",
+        description=(
+            "Privacy-first personal-genomics analysis platform. Annotates consumer "
+            "genotyping data (23andMe / AncestryDNA) against public clinical and "
+            "population databases, entirely on your own machine. For research and "
+            "educational use only — not medical advice."
+        ),
         version=VERSION,
         lifespan=lifespan,
     )

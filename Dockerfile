@@ -1,5 +1,11 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="Yeliztli" \
+      org.opencontainers.image.description="Privacy-first personal-genomics analysis platform — runs entirely on your own machine." \
+      org.opencontainers.image.source="https://github.com/bioedca/Yeliztli" \
+      org.opencontainers.image.url="https://bioedca.github.io/Yeliztli/" \
+      org.opencontainers.image.licenses="MIT"
+
 ARG YELIZTLI_PORT=8000
 
 WORKDIR /app
