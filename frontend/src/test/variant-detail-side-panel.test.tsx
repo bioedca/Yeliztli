@@ -461,16 +461,14 @@ describe("VariantDetailSidePanel (P2-21)", () => {
   })
 
   it("shows ensemble pathogenic indicator", async () => {
+    const page = makeVariantPage(1)
     const twoOfTwoDetail: VariantDetail = {
       ...mockVariantDetail,
       deleterious_count: 2,
       deleterious_total_assessed: 2,
       ensemble_pathogenic: true,
     }
-    mockFetch.mockImplementation(async () => ({
-      ok: true,
-      json: async () => twoOfTwoDetail,
-    }))
+    setupFetchMock(page, twoOfTwoDetail)
 
     render(
       <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
