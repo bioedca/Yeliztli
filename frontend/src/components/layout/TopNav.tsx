@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Dna, Sun, Moon, Monitor, Search } from 'lucide-react'
+import { Sun, Moon, Monitor, Search } from 'lucide-react'
+import Logo from './Logo'
 import IndividualSelector from './IndividualSelector'
 import CommandPalette from '@/components/CommandPalette'
 import { useThemeContext } from '@/lib/ThemeContext'
@@ -28,7 +29,7 @@ export default function TopNav() {
   return (
     <header className="h-12 border-b border-border bg-background flex items-center px-4 gap-4 shrink-0">
       <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-        <Dna className="h-5 w-5 text-primary" />
+        <Logo decorative className="h-5 w-5 text-primary" />
         <span>Yeliztli</span>
       </Link>
 
