@@ -18,7 +18,7 @@ import DatabasesStep from '@/components/setup/DatabasesStep'
 import StorageStep from '@/components/setup/StorageStep'
 import UploadStep from '@/components/setup/UploadStep'
 import WizardStepper, { type WizardStep } from '@/components/setup/WizardStepper'
-import { Dna } from 'lucide-react'
+import Logo from '@/components/layout/Logo'
 
 /** All wizard steps (P1-19a through P1-19g). */
 const WIZARD_STEPS: WizardStep[] = [
@@ -135,7 +135,7 @@ export default function SetupWizard() {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Dna className="h-5 w-5 text-primary-foreground" />
+              <Logo decorative className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-foreground">Yeliztli</h1>

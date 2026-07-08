@@ -7,7 +7,8 @@
 import { useState, useRef, useEffect, type FormEvent } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
 import { useLogin, useAuthStatus } from "@/api/auth"
-import { Shield, AlertCircle, Dna } from "lucide-react"
+import { Shield, AlertCircle } from "lucide-react"
+import Logo from "@/components/layout/Logo"
 
 export default function Login() {
   const navigate = useNavigate()
@@ -53,10 +54,12 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo / branding */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Dna className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Yeliztli</h1>
+          <Logo
+            variant="lockup"
+            decorative
+            className="mx-auto mb-4 text-primary"
+          />
+          <h1 className="sr-only">Yeliztli</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter your password to continue
           </p>

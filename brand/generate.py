@@ -72,8 +72,8 @@ def bbox(subpaths: list[str]) -> tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def emblem_svg(path_d: str, fill: str, *, pad_frac: float = 0.06) -> str:
-    """Emblem-only SVG (wordmark removed), tightly cropped, transparent bg."""
+def emblem_geometry(path_d: str, *, pad_frac: float = 0.06) -> tuple[str, str]:
+    """Return (viewBox, path-d) for the emblem-only mark (wordmark removed)."""
     subs = split_subpaths(path_d)
     emblem = [sp for sp in subs if start_xy(sp)[1] < WORDMARK_Y]
     x0, y0, x1, y1 = bbox(emblem)
@@ -84,14 +84,36 @@ def emblem_svg(path_d: str, fill: str, *, pad_frac: float = 0.06) -> str:
     vb_side = side + 2 * pad
     vb_x = x0 - (vb_side - w) / 2
     vb_y = y0 - (vb_side - h) / 2
-    d = " ".join(emblem)
+    return f"{vb_x:.2f} {vb_y:.2f} {vb_side:.2f} {vb_side:.2f}", " ".join(emblem)
+
+
+def emblem_svg(path_d: str, fill: str, *, pad_frac: float = 0.06) -> str:
+    """Emblem-only SVG (wordmark removed), tightly cropped, transparent bg."""
+    viewbox, d = emblem_geometry(path_d, pad_frac=pad_frac)
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" '
-        f'viewBox="{vb_x:.2f} {vb_y:.2f} {vb_side:.2f} {vb_side:.2f}" '
+        f'viewBox="{viewbox}" '
         'role="img" aria-label="Yeliztli">'
         "<title>Yeliztli</title>"
         f'<path fill="{fill}" fill-rule="evenodd" d="{d}"/>'
         "</svg>\n"
+    )
+
+
+def logo_paths_ts(path_d: str) -> str:
+    """Emit the emblem + full-lockup paths as a TS module for the React <Logo>."""
+    emblem_vb, emblem_d = emblem_geometry(path_d)
+    lockup_d = re.sub(r"\s+", " ", path_d).strip()
+    return (
+        "// Auto-generated from brand/logo-source.svg by brand/generate.py — do not edit.\n"
+        "// The Yeliztli emblem (chakana + DNA helix) and the full lockup (emblem over the\n"
+        "// YELIZTLI wordmark), each a single fill-rule=evenodd path. The <Logo> component\n"
+        "// renders them with fill=currentColor so the mark follows the surrounding text\n"
+        "// colour (light/dark aware).\n"
+        f"export const EMBLEM_VIEWBOX = '{emblem_vb}'\n"
+        f"export const EMBLEM_PATH =\n  '{emblem_d}'\n"
+        "export const LOCKUP_VIEWBOX = '0 0 1254 1254'\n"
+        f"export const LOCKUP_PATH =\n  '{lockup_d}'\n"
     )
 
 
@@ -181,6 +203,12 @@ def main() -> None:
     write(img / "favicon.svg", emblem_teal)               # docs browser tab
     write(img / "logo-lockup.svg", lockup_navy)           # README banner + docs hero (light)
     write(img / "logo-lockup-dark.svg", lockup_white)     # docs hero (dark backgrounds)
+
+    print("Frontend logo paths (frontend/src/components/layout/):")
+    write(
+        ROOT / "frontend" / "src" / "components" / "layout" / "logo-paths.ts",
+        logo_paths_ts(path_d),
+    )
 
     print("done.")
 

@@ -10,6 +10,7 @@
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { Settings2, RefreshCw, Activity, Info, ArrowUpCircle, CheckCircle2, AlertCircle } from 'lucide-react'
+import Logo from '@/components/layout/Logo'
 import UpdateManager from '@/components/settings/UpdateManager'
 import ExportBackup from '@/components/settings/ExportBackup'
 import NuclearDelete from '@/components/settings/NuclearDelete'
@@ -90,7 +91,10 @@ function AboutPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground mb-1">About Yeliztli</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-1 flex items-center gap-2">
+          <Logo decorative className="h-5 w-5 text-primary" />
+          About Yeliztli
+        </h2>
         <p className="text-sm text-muted-foreground">
           Version information and update notifications.
         </p>

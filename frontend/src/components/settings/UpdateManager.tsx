@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import Logo from '@/components/layout/Logo'
 import {
   DB_STATUS_KEY,
   useAppUpdate,
@@ -587,6 +588,7 @@ function AppVersionRow() {
             )}
             aria-hidden="true"
           />
+          <Logo decorative className="h-4 w-4 text-primary shrink-0" />
           <span className="font-medium text-sm">Yeliztli</span>
         </div>
       </td>
