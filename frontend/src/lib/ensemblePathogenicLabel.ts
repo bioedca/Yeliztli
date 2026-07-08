@@ -1,7 +1,7 @@
 function hasAxisCounts(
-  deleteriousCount: number | null | undefined,
-  totalAssessed: number | null | undefined,
-): deleteriousCount is number {
+  counts: readonly [number | null | undefined, number | null | undefined],
+): counts is readonly [number, number] {
+  const [deleteriousCount, totalAssessed] = counts
   return (
     typeof deleteriousCount === "number" &&
     Number.isFinite(deleteriousCount) &&
@@ -17,8 +17,9 @@ export function formatEnsemblePathogenicEvidenceLabel(
   deleteriousCount?: number | null,
   totalAssessed?: number | null,
 ): string {
-  const countText = hasAxisCounts(deleteriousCount, totalAssessed)
-    ? ` (${deleteriousCount}/${totalAssessed})`
+  const counts = [deleteriousCount, totalAssessed] as const
+  const countText = hasAxisCounts(counts)
+    ? ` (${counts[0]}/${counts[1]})`
     : ""
 
   return `strict majority of assessed independent axes deleterious${countText}`

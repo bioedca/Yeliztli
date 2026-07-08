@@ -343,6 +343,8 @@ const RARE_VARIANT: RareVariant = {
   clinvar_conditions: "Breast-ovarian cancer, familial 1",
   cadd_phred: 28.5,
   revel: 0.892,
+  deleterious_count: 2,
+  deleterious_total_assessed: 2,
   ensemble_pathogenic: true,
   evidence_conflict: false,
   evidence_level: 4,

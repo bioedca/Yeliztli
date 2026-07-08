@@ -62,6 +62,25 @@ function formatConsequence(consequence: string | null): string {
   return consequence.replace(/_/g, " ")
 }
 
+function EnsemblePathogenicBadge({
+  deleteriousCount,
+  deleteriousTotalAssessed,
+  className,
+}: {
+  deleteriousCount: number | null
+  deleteriousTotalAssessed: number | null
+  className?: string
+}) {
+  return (
+    <div className={cn(
+      "px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30",
+      className,
+    )}>
+      {formatEnsemblePathogenicBadgeLabel(deleteriousCount, deleteriousTotalAssessed)}
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  Tab definitions                                                    */
 /* ------------------------------------------------------------------ */
@@ -277,12 +296,11 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
           : null
       } />
       {variant.ensemble_pathogenic && (
-        <div className="mt-2 px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
-          {formatEnsemblePathogenicBadgeLabel(
-            variant.deleterious_count,
-            variant.deleterious_total_assessed,
-          )}
-        </div>
+        <EnsemblePathogenicBadge
+          deleteriousCount={variant.deleterious_count}
+          deleteriousTotalAssessed={variant.deleterious_total_assessed}
+          className="mt-2"
+        />
       )}
 
       {/* Evidence conflict */}
@@ -496,12 +514,11 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
         <DetailRow label="PrimateAI" value={variant.primateai?.toFixed(3)} />
       </div>
       {variant.ensemble_pathogenic && (
-        <div className="mt-3 px-3 py-2 rounded text-sm font-medium bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30">
-          {formatEnsemblePathogenicBadgeLabel(
-            variant.deleterious_count,
-            variant.deleterious_total_assessed,
-          )}
-        </div>
+        <EnsemblePathogenicBadge
+          deleteriousCount={variant.deleterious_count}
+          deleteriousTotalAssessed={variant.deleterious_total_assessed}
+          className="mt-3"
+        />
       )}
 
       {/* GTEx eQTL regulatory context (SW-F3) — context-only, never ACMG */}

@@ -43,8 +43,8 @@ export interface RareVariant {
   clinvar_conditions: string | null
   cadd_phred: number | null
   revel: number | null
-  deleterious_count?: number | null
-  deleterious_total_assessed?: number | null
+  deleterious_count: number | null
+  deleterious_total_assessed: number | null
   ensemble_pathogenic: boolean
   evidence_conflict: boolean
   evidence_level: number
