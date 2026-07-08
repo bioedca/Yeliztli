@@ -36,6 +36,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.clinvar_significance import is_low_penetrance_or_risk_allele
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
+from backend.annotation.bulk_load import delete_table_in_batches
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -369,6 +370,11 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
         conn.commit()
 
 
+def _clear_clinvar_variants(engine: sa.Engine, *, batch_size: int = BATCH_SIZE) -> None:
+    """DELETE every clinvar_variants row in bounded transactions."""
+    delete_table_in_batches(engine, clinvar_variants, batch_size=batch_size)
+
+
 def load_clinvar_from_iter(
     row_iter: Iterator[tuple[dict, LoadStats]],
     engine: sa.Engine,
@@ -398,8 +404,7 @@ def load_clinvar_from_iter(
             yield row
 
     if clear_existing:
-        with engine.begin() as conn:
-            conn.execute(clinvar_variants.delete())
+        _clear_clinvar_variants(engine)
 
     for batch in _batched(rows_only(), BATCH_SIZE):
         with engine.begin() as conn:

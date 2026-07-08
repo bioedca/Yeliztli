@@ -23,6 +23,7 @@ import sqlalchemy as sa
 from backend.annotation.dbsnp import (
     LoadStats,
     ValidationStatus,
+    _clear_dbsnp_merges,
     annotate_sample_dbsnp,
     download_and_load_rsmerge,
     download_rsmerge_arch,
@@ -174,6 +175,30 @@ class TestLoadRsmergeIntoDb:
         with reference_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(dbsnp_merges)).scalar()
         assert count == 1
+
+    def test_clear_existing_commits_in_bounded_transactions(self, reference_engine: sa.Engine):
+        rows = [
+            {"old_rsid": f"rs{i}", "current_rsid": f"rs{i + 100}", "build_id": 150}
+            for i in range(5)
+        ]
+        load_rsmerge_into_db(rows, reference_engine, clear_existing=False)
+
+        commits = 0
+
+        def count_commit(conn: sa.Connection) -> None:
+            nonlocal commits
+            commits += 1
+
+        sa.event.listen(reference_engine, "commit", count_commit)
+        try:
+            _clear_dbsnp_merges(reference_engine, batch_size=2)
+        finally:
+            sa.event.remove(reference_engine, "commit", count_commit)
+
+        with reference_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(dbsnp_merges)).scalar()
+        assert count == 0
+        assert commits == 3
 
     def test_append_mode(self, reference_engine: sa.Engine):
         rows1 = [{"old_rsid": "rs100", "current_rsid": "rs200", "build_id": 140}]

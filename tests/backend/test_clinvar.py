@@ -27,6 +27,7 @@ from backend.annotation.clinvar import (
     REVIEW_STATUS_STARS,
     LoadStats,
     SkipReason,
+    _clear_clinvar_variants,
     _extract_gene_symbol,
     _normalize_chrom,
     _parse_info_field,
@@ -501,6 +502,43 @@ class TestLoadClinvarFromIter:
         with ref_engine.connect() as conn:
             count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
         assert count == 12
+
+    def test_clear_existing_commits_in_bounded_transactions(self, ref_engine: sa.Engine):
+        rows = [
+            {
+                "rsid": f"rs{i}",
+                "chrom": "1",
+                "pos": i + 1,
+                "ref": "A",
+                "alt": "G",
+                "significance": "Benign",
+                "review_stars": 1,
+                "accession": f"RCV{i}",
+                "conditions": "Test condition",
+                "gene_symbol": "GENE",
+                "variation_id": i,
+            }
+            for i in range(5)
+        ]
+        with ref_engine.begin() as conn:
+            conn.execute(clinvar_variants.insert(), rows)
+
+        commits = 0
+
+        def count_commit(conn: sa.Connection) -> None:
+            nonlocal commits
+            commits += 1
+
+        sa.event.listen(ref_engine, "commit", count_commit)
+        try:
+            _clear_clinvar_variants(ref_engine, batch_size=2)
+        finally:
+            sa.event.remove(ref_engine, "commit", count_commit)
+
+        with ref_engine.connect() as conn:
+            count = conn.execute(sa.select(sa.func.count()).select_from(clinvar_variants)).scalar()
+        assert count == 0
+        assert commits == 3
 
     def test_append_without_clear(self, ref_engine: sa.Engine):
         """clear_existing=False appends rather than replacing."""

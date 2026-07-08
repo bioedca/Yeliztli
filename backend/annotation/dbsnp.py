@@ -42,7 +42,11 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES, retry_on_locked
+from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
+    delete_table_in_batches,
+    retry_on_locked,
+)
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -298,10 +302,9 @@ def load_rsmerge_into_db(
     return stats
 
 
-def _clear_dbsnp_merges(engine: sa.Engine) -> None:
-    """DELETE every dbsnp_merges row in its own transaction (idempotent)."""
-    with engine.begin() as conn:
-        conn.execute(dbsnp_merges.delete())
+def _clear_dbsnp_merges(engine: sa.Engine, *, batch_size: int = BATCH_SIZE) -> None:
+    """DELETE every dbsnp_merges row in bounded transactions (idempotent)."""
+    delete_table_in_batches(engine, dbsnp_merges, batch_size=batch_size)
 
 
 def _upsert_dbsnp_merges(engine: sa.Engine, batch: list[dict]) -> None:

@@ -150,3 +150,44 @@ def execute_write(conn: sa.Connection, statement: sa.TextClause) -> None:
             conn.execute(statement)
 
     retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
+
+
+def delete_table_in_batches(
+    engine: sa.Engine,
+    table: sa.Table,
+    *,
+    batch_size: int,
+) -> int:
+    """Delete every row from ``table`` in bounded transactions.
+
+    SQLite does not have a portable SQLAlchemy Core ``DELETE ... LIMIT`` form, so
+    select a bounded set of primary-key values and delete those rows per
+    transaction. The helper is intended for reference-DB tables with a single
+    primary key.
+    """
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    primary_key_columns = list(table.primary_key.columns)
+    if len(primary_key_columns) != 1:
+        raise ValueError(f"{table.name} must have exactly one primary key column")
+
+    pk_col = primary_key_columns[0]
+    delete_batch_stmt = table.delete().where(
+        pk_col.in_(sa.select(pk_col).select_from(table).limit(batch_size))
+    )
+
+    def _delete_one_batch() -> int:
+        with engine.begin() as conn:
+            result = conn.execute(delete_batch_stmt)
+            rowcount = result.rowcount
+            if rowcount is None or rowcount < 0:
+                raise RuntimeError(f"Could not determine deleted row count for {table.name}")
+            return rowcount
+
+    total_deleted = 0
+    while True:
+        deleted = retry_on_locked(_delete_one_batch, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
+        total_deleted += deleted
+        if deleted < batch_size:
+            return total_deleted
