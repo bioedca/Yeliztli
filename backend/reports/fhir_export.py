@@ -192,19 +192,42 @@ def _normalise_clinvar_significance(significance: str) -> str:
     return " ".join(significance.replace("_", " ").strip().lower().split())
 
 
-def _clinical_significance_value(significance: str) -> dict[str, Any]:
-    mapped = ACMG_CLINICAL_SIGNIFICANCE_MAP.get(_normalise_clinvar_significance(significance))
+def _clinical_significance_coding(normalised_significance: str) -> dict[str, str] | None:
+    mapped = ACMG_CLINICAL_SIGNIFICANCE_MAP.get(normalised_significance)
     if mapped is None:
-        return {"valueCodeableConcept": _text_codeable_concept(significance)}
+        return None
 
-    return {
-        "valueCodeableConcept": _codeable_concept(
-            LOINC_SYSTEM,
-            mapped["code"],
-            mapped["display"],
-            text=significance,
-        )
-    }
+    return _coding(LOINC_SYSTEM, mapped["code"], mapped["display"])
+
+
+def _combined_clinvar_significance_concept(significance: str) -> dict[str, Any] | None:
+    if "/" not in significance:
+        return None
+
+    codings: list[dict[str, str]] = []
+    for part in significance.split("/"):
+        coding = _clinical_significance_coding(_normalise_clinvar_significance(part))
+        if coding is None:
+            return None
+        codings.append(coding)
+
+    if len(codings) < 2:
+        return None
+
+    return {"coding": codings, "text": significance}
+
+
+def _clinical_significance_value(significance: str) -> dict[str, Any]:
+    coding = _clinical_significance_coding(_normalise_clinvar_significance(significance))
+    if coding is not None:
+        value: dict[str, Any] = {"coding": [coding], "text": significance}
+        return {"valueCodeableConcept": value}
+
+    combined = _combined_clinvar_significance_concept(significance)
+    if combined is not None:
+        return {"valueCodeableConcept": combined}
+
+    return {"valueCodeableConcept": _text_codeable_concept(significance)}
 
 
 def _gene_studied_value(row: dict[str, Any]) -> dict[str, Any]:

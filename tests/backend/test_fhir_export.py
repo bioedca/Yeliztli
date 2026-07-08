@@ -636,6 +636,42 @@ class TestFhirObservations:
         coding = _clinical_significance_value(significance)["valueCodeableConcept"]["coding"][0]
         assert coding == {"system": LOINC_SYSTEM, "code": code, "display": display}
 
+    @pytest.mark.parametrize(
+        ("significance", "expected_codings"),
+        [
+            (
+                "Pathogenic/Likely pathogenic",
+                [
+                    {"system": LOINC_SYSTEM, "code": "LA6668-3", "display": "Pathogenic"},
+                    {
+                        "system": LOINC_SYSTEM,
+                        "code": "LA26332-9",
+                        "display": "Likely pathogenic",
+                    },
+                ],
+            ),
+            (
+                "Benign/Likely benign",
+                [
+                    {"system": LOINC_SYSTEM, "code": "LA6675-8", "display": "Benign"},
+                    {"system": LOINC_SYSTEM, "code": "LA26334-5", "display": "Likely benign"},
+                ],
+            ),
+        ],
+    )
+    def test_combined_clinvar_significance_uses_component_loinc_codes(
+        self, significance: str, expected_codings: list[dict[str, str]]
+    ) -> None:
+        value = _clinical_significance_value(significance)["valueCodeableConcept"]
+
+        assert value["text"] == significance
+        assert value["coding"] == expected_codings
+
+    def test_partially_unmapped_combined_clinvar_significance_is_text_only(self) -> None:
+        value = _clinical_significance_value("Pathogenic/drug_response")["valueCodeableConcept"]
+
+        assert value == {"text": "Pathogenic/drug_response"}
+
     def test_observation_gnomad_af_uses_population_frequency_code(self) -> None:
         _full_url, obs = _variant_to_observation(ANNOTATED_VARIANTS[2])
         sample_af_comps = [
