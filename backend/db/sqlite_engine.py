@@ -34,7 +34,7 @@ reference.db, so they are intentionally exempt.)
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import sqlalchemy as sa
 from sqlalchemy import event
@@ -47,11 +47,15 @@ if TYPE_CHECKING:
 # 6x Python sqlite3's 5 s connection default, sized for the concurrent install.
 DEFAULT_BUSY_TIMEOUT_MS = 30_000
 
+SQLiteSynchronousMode = Literal["OFF", "NORMAL", "FULL", "EXTRA"]
+_VALID_SYNCHRONOUS_MODES = frozenset({"OFF", "NORMAL", "FULL", "EXTRA"})
+
 
 def make_sqlite_engine(
     db_path: str | Path,
     *,
     wal: bool = True,
+    synchronous: SQLiteSynchronousMode | None = None,
     read_optimized: bool = False,
     busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     poolclass: type[Pool] | None = None,
@@ -71,6 +75,10 @@ def make_sqlite_engine(
             ``False`` so they inherit the DB's existing journal mode and never
             convert it (e.g. flipping a ``wal_mode=False`` rollback reference.db
             to WAL behind the user's back); ``busy_timeout`` is applied either way.
+        synchronous: Optional SQLite ``PRAGMA synchronous`` mode to apply on each
+            connection. Leave ``None`` to preserve SQLite's default durability
+            policy. Reference/rebuildable WAL engines may opt into ``NORMAL`` for
+            fewer fsyncs; per-sample engines should keep the default ``FULL``.
         read_optimized: Apply aggressive read-performance PRAGMAs (larger page
             cache, mmap, in-memory temp store) for large read-only reference DBs.
         busy_timeout_ms: Milliseconds to wait for a contended write lock before
@@ -83,6 +91,10 @@ def make_sqlite_engine(
     Returns:
         Configured SQLAlchemy Engine.
     """
+    if synchronous is not None and synchronous not in _VALID_SYNCHRONOUS_MODES:
+        allowed = ", ".join(sorted(_VALID_SYNCHRONOUS_MODES))
+        raise ValueError(f"synchronous must be one of {allowed}; got {synchronous!r}")
+
     kwargs: dict = {"echo": echo}
     if poolclass is not None:
         kwargs["poolclass"] = poolclass
@@ -99,6 +111,8 @@ def make_sqlite_engine(
             cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
             if wal:
                 cursor.execute("PRAGMA journal_mode=WAL")
+            if synchronous is not None:
+                cursor.execute(f"PRAGMA synchronous={synchronous}")
             if read_optimized:
                 # 64 MB page cache (negative = KiB).
                 cursor.execute("PRAGMA cache_size=-65536")

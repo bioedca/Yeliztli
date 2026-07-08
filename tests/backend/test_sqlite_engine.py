@@ -33,6 +33,11 @@ def _journal_mode(engine: sa.Engine) -> str:
         return conn.execute(sa.text("PRAGMA journal_mode")).scalar()
 
 
+def _synchronous(engine: sa.Engine) -> int:
+    with engine.connect() as conn:
+        return conn.execute(sa.text("PRAGMA synchronous")).scalar()
+
+
 # ── PRAGMA application ────────────────────────────────────────────────
 
 
@@ -69,6 +74,55 @@ def test_wal_true_enables_wal(tmp_path: Path) -> None:
         assert _journal_mode(engine) == "wal"
     finally:
         engine.dispose()
+
+
+def test_wal_true_preserves_sqlite_default_synchronous_full(tmp_path: Path) -> None:
+    engine = make_sqlite_engine(tmp_path / "t.db", wal=True)
+    try:
+        assert _synchronous(engine) == 2
+    finally:
+        engine.dispose()
+
+
+def test_wal_can_opt_into_synchronous_normal(tmp_path: Path) -> None:
+    engine = make_sqlite_engine(tmp_path / "t.db", wal=True, synchronous="NORMAL")
+    try:
+        assert _journal_mode(engine) == "wal"
+        assert _synchronous(engine) == 1
+    finally:
+        engine.dispose()
+
+
+def test_invalid_synchronous_mode_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="synchronous must be one of"):
+        make_sqlite_engine(tmp_path / "t.db", synchronous="FAST")  # type: ignore[arg-type]
+
+
+def test_dbregistry_reference_engine_opts_into_synchronous_normal(tmp_path: Path) -> None:
+    from backend.config import Settings
+    from backend.db.connection import DBRegistry
+
+    registry = DBRegistry(Settings(data_dir=tmp_path, wal_mode=True))
+    try:
+        assert _journal_mode(registry.reference_engine) == "wal"
+        assert _synchronous(registry.reference_engine) == 1
+    finally:
+        registry.dispose_all()
+
+
+def test_dbregistry_sample_engine_keeps_default_synchronous_full(tmp_path: Path) -> None:
+    from backend.config import Settings
+    from backend.db.connection import DBRegistry
+
+    sample_db = tmp_path / "samples" / "sample_1.db"
+    sample_db.parent.mkdir()
+    registry = DBRegistry(Settings(data_dir=tmp_path, wal_mode=True))
+    try:
+        sample_engine = registry.get_sample_engine(sample_db)
+        assert _journal_mode(sample_engine) == "wal"
+        assert _synchronous(sample_engine) == 2
+    finally:
+        registry.dispose_all()
 
 
 def test_wal_false_does_not_convert_journal_mode(tmp_path: Path) -> None:

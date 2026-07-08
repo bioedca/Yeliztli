@@ -875,7 +875,7 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
                 # (wal=True) exactly as the old hand-rolled listener did; the
                 # factory also applies busy_timeout so the build waits out
                 # (instead of failing on) a concurrent writer of the same file.
-                standalone_engine = make_sqlite_engine(dest, wal=True)
+                standalone_engine = make_sqlite_engine(dest, wal=True, synchronous="NORMAL")
 
                 try:
                     build_fn(standalone_engine, settings.downloads_dir)

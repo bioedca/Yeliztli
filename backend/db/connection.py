@@ -20,7 +20,7 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from backend.config import Settings, get_settings
-from backend.db.sqlite_engine import make_sqlite_engine
+from backend.db.sqlite_engine import SQLiteSynchronousMode, make_sqlite_engine
 
 
 class DBRegistry:
@@ -36,7 +36,9 @@ class DBRegistry:
 
         # Reference DB (shared, long-lived)
         self.reference_engine = self._create_engine(
-            settings.reference_db_path, wal=settings.wal_mode
+            settings.reference_db_path,
+            wal=settings.wal_mode,
+            synchronous="NORMAL" if settings.wal_mode else None,
         )
 
         # Large reference DBs (opened lazily on first access)
@@ -59,6 +61,7 @@ class DBRegistry:
         db_path: Path,
         *,
         wal: bool = True,
+        synchronous: SQLiteSynchronousMode | None = None,
         read_optimized: bool = False,
     ) -> sa.Engine:
         """Create a SQLAlchemy engine for a SQLite database.
@@ -66,6 +69,9 @@ class DBRegistry:
         Args:
             db_path: Path to the SQLite file.
             wal: Whether to enable WAL journal mode.
+            synchronous: Optional SQLite synchronous mode. Reference and
+                rebuildable WAL engines opt into ``NORMAL``; per-sample engines
+                leave this unset to keep SQLite's default ``FULL`` durability.
             read_optimized: Whether to apply aggressive read-performance
                 PRAGMAs (larger cache, mmap, temp_store in memory).
                 Use for large read-only reference databases.
@@ -80,6 +86,7 @@ class DBRegistry:
         return make_sqlite_engine(
             db_path,
             wal=wal,
+            synchronous=synchronous,
             read_optimized=read_optimized,
         )
 
@@ -98,6 +105,7 @@ class DBRegistry:
             self._vep_engine = self._create_engine(
                 self._settings.vep_bundle_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._vep_engine
@@ -109,6 +117,7 @@ class DBRegistry:
             self._gnomad_engine = self._create_engine(
                 self._settings.gnomad_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._gnomad_engine
@@ -120,6 +129,7 @@ class DBRegistry:
             self._dbnsfp_engine = self._create_engine(
                 self._settings.dbnsfp_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._dbnsfp_engine
@@ -131,6 +141,7 @@ class DBRegistry:
             self._alphamissense_engine = self._create_engine(
                 self._settings.alphamissense_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._alphamissense_engine
@@ -142,6 +153,7 @@ class DBRegistry:
             self._gtex_eqtl_engine = self._create_engine(
                 self._settings.gtex_eqtl_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._gtex_eqtl_engine
@@ -153,6 +165,7 @@ class DBRegistry:
             self._spliceai_engine = self._create_engine(
                 self._settings.spliceai_db_path,
                 wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
                 read_optimized=True,
             )
         return self._spliceai_engine
@@ -165,7 +178,11 @@ class DBRegistry:
         if self._encode_ccres_engine is None or self._encode_ccres_fingerprint != fingerprint:
             if self._encode_ccres_engine is not None:
                 self._encode_ccres_engine.dispose()
-            self._encode_ccres_engine = self._create_engine(db_path, wal=self._settings.wal_mode)
+            self._encode_ccres_engine = self._create_engine(
+                db_path,
+                wal=self._settings.wal_mode,
+                synchronous="NORMAL" if self._settings.wal_mode else None,
+            )
             self._encode_ccres_fingerprint = fingerprint
         return self._encode_ccres_engine
 
