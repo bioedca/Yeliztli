@@ -48,6 +48,13 @@
     margin-bottom: 18px;
   }
 
+  .report-header .brand-logo {
+    display: block;
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 8px;
+  }
+
   .report-header h1 {
     font-size: 20pt;
     font-weight: 700;
@@ -512,6 +519,7 @@
 
 <!-- Report Header -->
 <div class="report-header">
+  {% include "_logo_mark.html" %}
   <h1>{{ title }}</h1>
   <div class="subtitle">{{ sample_name }}</div>
   <div class="meta">
