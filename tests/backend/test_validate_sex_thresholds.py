@@ -176,6 +176,44 @@ def test_twentythreeandme_male_fixture_classifies_as_xy() -> None:
     assert report.y_rate == pytest.approx(0.8)
 
 
+def test_twentythreeandme_haploid_dash_nocalls_do_not_count_as_sex_evidence(
+    tmp_path: Path,
+) -> None:
+    """issue #1729 — 23andMe haploid ``"-"`` X/Y no-calls must stay missing.
+
+    The validator parses through the dispatcher, then tabulates sex-inference
+    inputs locally. Its no-call semantics must match production so missing
+    haploid X/Y rows cannot become hemizygous chrX or typed chrY evidence.
+    """
+    source = FIXTURE_DIR / "twentythreeandme_xy_sample.txt"
+    dash_fixture = tmp_path / "twentythreeandme_dash_xy_sample.txt"
+    lines: list[str] = []
+    for line in source.read_text().splitlines():
+        if line.startswith("#") or not line:
+            lines.append(line)
+            continue
+        parts = line.split("\t")
+        if len(parts) == 4 and parts[1] in {"X", "Y"}:
+            parts[3] = "-"
+            line = "\t".join(parts)
+        lines.append(line)
+    dash_fixture.write_text("\n".join(lines) + "\n")
+
+    report = build_report(dash_fixture)
+
+    assert report.vendor == "23andme"
+    assert report.classification == "unknown"
+    assert report.x_nonpar_typed == 0
+    assert report.x_nonpar_nocall == 120
+    assert report.x_nonpar_het == 0
+    assert report.x_nonpar_hom == 0
+    assert report.x_nonpar_hemizygous == 0
+    assert report.x_nonpar_het_rate == pytest.approx(0.0)
+    assert report.y_total == 60
+    assert report.y_typed == 0
+    assert report.y_rate == pytest.approx(0.0)
+
+
 def test_manual_review_thresholds_round_trip_defaults() -> None:
     report = build_report(FIXTURE_DIR / "manual_review_sample.txt")
     assert report.xy_confirm_threshold == DEFAULT_XY_CONFIRM

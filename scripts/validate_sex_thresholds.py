@@ -55,6 +55,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from backend.analysis.zygosity import is_no_call as _shared_is_no_call  # noqa: E402
 from backend.ingestion.base import ParserError, ParseResult  # noqa: E402
 from backend.ingestion.dispatcher import parse as dispatch_parse  # noqa: E402
 
@@ -79,7 +80,6 @@ DEFAULT_X_HET_DIPLOID: float = 0.15
 # ``backend.services.sex_inference.MIN_X_NONPAR_TYPED`` / ``MIN_Y_PROBES``.
 DEFAULT_MIN_X_NONPAR_TYPED: int = 100
 DEFAULT_MIN_Y_PROBES: int = 50
-NO_CALL: str = "--"
 
 
 @dataclass
@@ -118,10 +118,10 @@ def _is_par(pos: int) -> bool:
 
 
 def _is_no_call(genotype: str) -> bool:
-    # ``--`` is the canonical no-call sentinel emitted by both vendor parsers.
-    # ``"00"`` survives only in the rare case where a downstream caller bypasses
-    # the parser; tolerate it for forensic robustness against ad-hoc inputs.
-    return genotype in {NO_CALL, "00", "", "0"}
+    # Keep the validation attestation path aligned with production sex inference:
+    # haploid 23andMe ``"-"`` X/Y rows and merge ambiguity ``"??"`` are no-calls,
+    # not typed hemizygous/Y evidence.
+    return _shared_is_no_call(genotype)
 
 
 def _is_het(genotype: str) -> bool:
