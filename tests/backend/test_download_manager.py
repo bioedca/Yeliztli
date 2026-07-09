@@ -664,8 +664,15 @@ def _locked_error() -> sa.exc.OperationalError:
     return sa.exc.OperationalError("UPDATE downloads ...", {}, Exception("database is locked"))
 
 
+# ``DownloadManager`` writes are wrapped in ``serialized_write(engine)``, which
+# reads ``engine.url.database`` to key its per-file lock. These stand-ins expose
+# an in-memory URL so that lock is a no-op and the tests stay focused on the
+# retry / best-effort behaviour (the lock itself is covered by
+# ``test_serialized_write.py``).
 class _LockedEngine:
     """Stand-in engine whose every transaction fails with 'database is locked'."""
+
+    url = sa.make_url("sqlite://")
 
     def begin(self):
         raise _locked_error()
@@ -673,6 +680,8 @@ class _LockedEngine:
 
 class _CountingLockedEngine:
     """Locked engine that records how many attempts were made."""
+
+    url = sa.make_url("sqlite://")
 
     def __init__(self) -> None:
         self.attempts = 0
@@ -688,6 +697,7 @@ class _FlakyBeginEngine:
     def __init__(self, real: sa.Engine, fail_times: int) -> None:
         self._real = real
         self._remaining = fail_times
+        self.url = real.url
 
     def begin(self):
         if self._remaining > 0:

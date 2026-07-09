@@ -37,6 +37,7 @@ import httpx
 import sqlalchemy as sa
 import structlog
 
+from backend.annotation.bulk_load import serialized_write
 from backend.annotation.http_download import stream_download
 from backend.db.tables import gene_phenotype
 
@@ -315,12 +316,12 @@ def load_mondo_hpo_from_csv(
         )
 
     if clear_existing:
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
 
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i : i + BATCH_SIZE]
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gene_phenotype.insert(), batch)
 
     _wal_checkpoint(engine)
@@ -365,7 +366,8 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     url = str(engine.url)
     if url == "sqlite://" or ":memory:" in url:
         return
-    with engine.connect() as conn:
+    # Serialize the exclusive TRUNCATE checkpoint with concurrent writers.
+    with serialized_write(engine), engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
 
@@ -474,12 +476,12 @@ def load_mondo_hpo_rows(
         )
 
     if clear_existing:
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
 
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i : i + BATCH_SIZE]
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gene_phenotype.insert(), batch)
 
     _wal_checkpoint(engine)

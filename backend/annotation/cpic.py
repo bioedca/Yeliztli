@@ -35,6 +35,7 @@ import httpx
 import sqlalchemy as sa
 import structlog
 
+from backend.annotation.bulk_load import serialized_write
 from backend.db.tables import (
     cpic_alleles,
     cpic_diplotypes,
@@ -318,7 +319,8 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     url = str(engine.url)
     if url == "sqlite://" or ":memory:" in url:
         return
-    with engine.connect() as conn:
+    # Serialize the exclusive TRUNCATE checkpoint with concurrent writers.
+    with serialized_write(engine), engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
 
@@ -365,7 +367,7 @@ def load_cpic_into_db(
     for row in guideline_rows:
         stats.genes_found.add(row["gene"])
 
-    with engine.begin() as conn:
+    with serialized_write(engine), engine.begin() as conn:
         if clear_existing:
             conn.execute(cpic_guidelines.delete())
             conn.execute(cpic_diplotypes.delete())

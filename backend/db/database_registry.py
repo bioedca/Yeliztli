@@ -618,6 +618,7 @@ def _record_db_version(
 
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+    from backend.annotation.bulk_load import serialized_write
     from backend.db.tables import database_versions
 
     if genome_build is None:
@@ -649,7 +650,7 @@ def _record_db_version(
             "genome_build": stmt.excluded.genome_build,
         },
     )
-    with engine.begin() as conn:
+    with serialized_write(engine), engine.begin() as conn:
         conn.execute(stmt)
 
 

@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy as sa
 import structlog
 
+from backend.annotation.bulk_load import serialized_write
 from backend.db.tables import clingen_gene_validity
 
 if TYPE_CHECKING:
@@ -194,7 +195,8 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     url = str(engine.url)
     if url == "sqlite://" or ":memory:" in url:
         return
-    with engine.connect() as conn:
+    # Serialize the exclusive TRUNCATE checkpoint with concurrent writers.
+    with serialized_write(engine), engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
 
@@ -223,7 +225,7 @@ def load_clingen_into_db(
             stats.classifications.get(row["classification"], 0) + 1
         )
 
-    with engine.begin() as conn:
+    with serialized_write(engine), engine.begin() as conn:
         if clear_existing:
             conn.execute(clingen_gene_validity.delete())
         for i in range(0, len(rows), BATCH_SIZE):

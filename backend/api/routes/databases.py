@@ -34,7 +34,7 @@ from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES
+from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES, serialized_write
 from backend.api.sse import _format_sse, get_job_progress
 from backend.config import Settings, get_settings
 from backend.db.build_guard import (
@@ -1362,7 +1362,7 @@ def _update_job(
     """Update a job record with a small retry backstop for SQLite contention."""
     for attempt in range(_retries):
         try:
-            with engine.begin() as conn:
+            with serialized_write(engine), engine.begin() as conn:
                 conn.execute(
                     jobs.update()
                     .where(jobs.c.job_id == job_id)

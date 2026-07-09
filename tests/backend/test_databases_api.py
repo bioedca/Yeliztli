@@ -80,6 +80,11 @@ def _locked_error() -> sa.exc.OperationalError:
 class _CountingLockedEngine:
     """Engine stand-in that records failed transaction attempts."""
 
+    # ``_update_job`` wraps its write in ``serialized_write(engine)``, which reads
+    # ``engine.url.database`` to key its per-file lock. An in-memory URL makes
+    # that lock a no-op so this test stays focused on the retry backstop budget.
+    url = sa.make_url("sqlite://")
+
     def __init__(self) -> None:
         self.attempts = 0
 

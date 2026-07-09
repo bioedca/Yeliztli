@@ -20,8 +20,10 @@ re-running the engine's connect-time PRAGMA block — on every batch.
 
 from __future__ import annotations
 
+import threading
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
@@ -42,6 +44,85 @@ BUSY_TIMEOUT_BACKSTOP_RETRIES = 2
 
 # Page cache for the bulk-load write connection (negative ⇒ KiB ⇒ 256 MiB).
 _BULK_CACHE_SIZE = -262_144
+
+
+# ── In-process write serialization ────────────────────────────────────
+#
+# A setup-wizard install fans out up to eight worker threads
+# (``ThreadPoolExecutor`` in ``backend.api.routes.databases``), and they all
+# write the *same* ``reference.db``: download progress / job checkpoints racing
+# the reference-resident bulk loads (dbSNP ``RsMergeArch``, ClinVar, the GWAS
+# catalog, ClinGen, CPIC…). SQLite permits exactly one writer per file at a
+# time, and its write-lock hand-off is not fair, so a heavy batch writer can be
+# *starved* past ``busy_timeout`` while a churn of tiny checkpoint writers keeps
+# winning the lock — surfacing as ``OperationalError: database is locked`` that
+# aborts the whole build (the checkpoints tolerate it; a build does not).
+#
+# :func:`serialized_write` converts that in-process SQLite lock-fight into an
+# orderly Python queue: every writer to a given file first acquires that file's
+# process-wide lock, so at most one thread ever holds the SQLite write lock and
+# ``SQLITE_BUSY`` cannot arise between same-process writers. The lock is keyed by
+# the *resolved file path* (not the engine object), so the many engines that all
+# point at ``reference.db`` share one lock while writers to distinct files
+# (gnomAD / dbNSFP standalone DBs) stay fully concurrent. It is held only for
+# the duration of a single write transaction — never across a network fetch or a
+# parse — so a long build still lets checkpoints interleave between its batches.
+#
+# This is an *in-process* guard. Cross-process writers (e.g. the Huey bundle
+# consumer) still rely on ``busy_timeout`` + :func:`retry_on_locked`, which stay
+# in place as the secondary, cross-process backstop.
+
+_write_locks: dict[str, threading.RLock] = {}
+_write_locks_guard = threading.Lock()
+
+
+def _db_write_key(engine: sa.Engine) -> str | None:
+    """Return a stable per-file lock key for ``engine``, or ``None`` if unlocked.
+
+    File-backed SQLite engines key on the resolved absolute path so every engine
+    pointing at the same file shares one lock. In-memory / anonymous engines
+    (tests) return ``None`` — each is its own private database with no
+    cross-thread file contention, so serialization would be pointless.
+    """
+    database = engine.url.database
+    if not database or database == ":memory:":
+        return None
+    try:
+        return str(Path(database).resolve())
+    except OSError:  # pragma: no cover - resolve() failure ⇒ fall back to raw path
+        return str(database)
+
+
+def _db_write_lock(engine: sa.Engine) -> threading.RLock | None:
+    """Get (creating once) the shared write lock for ``engine``'s file, or None."""
+    key = _db_write_key(engine)
+    if key is None:
+        return None
+    with _write_locks_guard:
+        lock = _write_locks.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _write_locks[key] = lock
+        return lock
+
+
+@contextmanager
+def serialized_write(engine: sa.Engine) -> Iterator[None]:
+    """Serialize write transactions to ``engine``'s SQLite file across threads.
+
+    Acquire this around a *single* write transaction so concurrent in-process
+    writers to the same file queue instead of racing SQLite's write lock (see
+    the module note above). Re-entrant (``RLock``) so a wrapped write nested
+    inside another on the same thread cannot self-deadlock. A no-op for
+    in-memory engines. Keep the body limited to the DB write — never wrap a
+    network fetch or parse in it, or a long build would block every checkpoint.
+    """
+    lock = _db_write_lock(engine)
+    if lock is None:
+        yield
+        return
+    with lock:
+        yield
 
 
 def retry_on_locked[T](
@@ -136,7 +217,7 @@ def insert_batch(conn: sa.Connection, statement: sa.TextClause, batch: list[dict
         return
 
     def _do() -> None:
-        with conn.begin():
+        with serialized_write(conn.engine), conn.begin():
             conn.execute(statement, batch)
 
     retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
@@ -146,7 +227,7 @@ def execute_write(conn: sa.Connection, statement: sa.TextClause) -> None:
     """Execute a single write statement in its own transaction, retrying on lock."""
 
     def _do() -> None:
-        with conn.begin():
+        with serialized_write(conn.engine), conn.begin():
             conn.execute(statement)
 
     retry_on_locked(_do, max_retries=BUSY_TIMEOUT_BACKSTOP_RETRIES)
@@ -178,7 +259,7 @@ def delete_table_in_batches(
     )
 
     def _delete_one_batch() -> int:
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             result = conn.execute(delete_batch_stmt)
             rowcount = result.rowcount
             if rowcount is None or rowcount < 0:

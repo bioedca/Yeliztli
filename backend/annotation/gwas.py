@@ -37,6 +37,7 @@ import httpx
 import sqlalchemy as sa
 import structlog
 
+from backend.annotation.bulk_load import serialized_write
 from backend.annotation.http_download import (
     clear_validator_sidecar,
     read_validator_sidecar,
@@ -620,7 +621,8 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     url = str(engine.url)
     if url == "sqlite://" or ":memory:" in url:
         return
-    with engine.connect() as conn:
+    # Serialize the exclusive TRUNCATE checkpoint with concurrent writers.
+    with serialized_write(engine), engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
 
@@ -663,14 +665,14 @@ def load_gwas_from_iter(
         )
 
     if clear_existing:
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gwas_associations.delete())
 
     if first_batch is not None:
-        with engine.begin() as conn:
+        with serialized_write(engine), engine.begin() as conn:
             conn.execute(gwas_associations.insert(), first_batch)
         for batch in batches:
-            with engine.begin() as conn:
+            with serialized_write(engine), engine.begin() as conn:
                 conn.execute(gwas_associations.insert(), batch)
 
     _wal_checkpoint(engine)

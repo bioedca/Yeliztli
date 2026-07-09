@@ -28,7 +28,11 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
-from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES, retry_on_locked
+from backend.annotation.bulk_load import (
+    BUSY_TIMEOUT_BACKSTOP_RETRIES,
+    retry_on_locked,
+    serialized_write,
+)
 from backend.annotation.http_download import stream_download
 from backend.db.tables import downloads, jobs
 
@@ -407,7 +411,7 @@ class DownloadManager:
         """Execute a load-bearing write, retrying on lock; raise if still stuck."""
 
         def _do() -> None:
-            with self._engine.begin() as conn:
+            with serialized_write(self._engine), self._engine.begin() as conn:
                 conn.execute(stmt)
 
         retry_on_locked(
@@ -440,7 +444,7 @@ class DownloadManager:
         now = datetime.now(UTC)
 
         def _do() -> int:
-            with self._engine.begin() as conn:
+            with serialized_write(self._engine), self._engine.begin() as conn:
                 result = conn.execute(
                     downloads.insert().values(
                         url=url,
@@ -606,7 +610,7 @@ class DownloadManager:
         )
 
         def _do() -> None:
-            with self._engine.begin() as conn:
+            with serialized_write(self._engine), self._engine.begin() as conn:
                 conn.execute(stmt)
 
         retry_on_locked(_do, max_retries=_retries, sleep=self._sleep)

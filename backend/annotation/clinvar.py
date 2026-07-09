@@ -40,6 +40,7 @@ from backend.annotation.bulk_load import (
     BUSY_TIMEOUT_BACKSTOP_RETRIES,
     delete_table_in_batches,
     retry_on_locked,
+    serialized_write,
 )
 from backend.annotation.http_download import (
     clear_validator_sidecar,
@@ -369,7 +370,10 @@ def _wal_checkpoint(engine: sa.Engine) -> None:
     url = str(engine.url)
     if url == "sqlite://" or ":memory:" in url:
         return
-    with engine.connect() as conn:
+    # Serialize with concurrent writers: a TRUNCATE checkpoint takes an exclusive
+    # lock, so it must not race the reference-resident batch loaders / download
+    # checkpoints (see ``serialized_write``).
+    with serialized_write(engine), engine.connect() as conn:
         conn.execute(sa.text("PRAGMA wal_checkpoint(TRUNCATE)"))
         conn.commit()
 
@@ -381,7 +385,7 @@ def _clear_clinvar_variants(engine: sa.Engine, *, batch_size: int = BATCH_SIZE) 
 
 def _insert_clinvar_batch(engine: sa.Engine, batch: list[dict]) -> None:
     """Insert one ClinVar batch in its own transaction."""
-    with engine.begin() as conn:
+    with serialized_write(engine), engine.begin() as conn:
         conn.execute(clinvar_variants.insert(), batch)
 
 
