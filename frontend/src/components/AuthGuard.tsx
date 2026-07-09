@@ -10,17 +10,46 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuthStatus } from "@/api/auth"
 import { useSetupStatus } from "@/api/setup"
+import PageError from "@/components/ui/PageError"
 
 export default function AuthGuard() {
-  const { data: authStatus, isLoading: authLoading } = useAuthStatus()
-  const { data: setupStatus, isLoading: setupLoading } = useSetupStatus()
+  const {
+    data: authStatus,
+    isLoading: authLoading,
+    isError: authError,
+    refetch: refetchAuthStatus,
+  } = useAuthStatus()
+  const {
+    data: setupStatus,
+    isLoading: setupLoading,
+    isError: setupError,
+    refetch: refetchSetupStatus,
+  } = useSetupStatus()
   const location = useLocation()
+
+  function retryFailedStatusChecks() {
+    if (authError) void refetchAuthStatus()
+    if (setupError) void refetchSetupStatus()
+  }
 
   // While loading, show nothing (avoids flash)
   if (authLoading || setupLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (authError || setupError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="w-full max-w-lg">
+          <PageError
+            message="Can't reach the Yeliztli backend. Check that the server is running, then retry."
+            onRetry={retryFailedStatusChecks}
+          />
+        </div>
       </div>
     )
   }
