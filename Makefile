@@ -1,9 +1,11 @@
-.PHONY: setup setup-backend setup-frontend test test-backend test-frontend test-e2e lint format run dev run-api run-frontend run-huey build-frontend install uninstall service-status service-start service-stop clean benchmark
+.PHONY: setup setup-backend setup-frontend test test-backend test-frontend test-e2e lint format run dev dev-wsl run-api run-frontend run-huey build-frontend install uninstall service-status service-start service-stop clean benchmark
 
 # Default Python and Node
 PYTHON ?= python3
 PIP ?= pip
 NPM ?= npm
+# Extra flags forwarded to the Vite dev server (e.g. VITE_ARGS=--host to expose on the LAN/WSL2).
+VITE_ARGS ?=
 
 # ──────────────────────────────────────────────
 # Setup
@@ -32,11 +34,16 @@ dev:  ## Start backend + frontend + Huey worker concurrently
 	@echo "Starting API server, Vite dev server (port 5173), and Huey worker..."
 	@trap 'kill 0' INT TERM; $(MAKE) run-api & $(MAKE) run-frontend & $(MAKE) run-huey & wait
 
+dev-wsl:  ## Like `dev`, but binds servers to 0.0.0.0 so a Windows-host browser can reach WSL2
+	@echo "Starting Yeliztli for WSL2 — backend on 0.0.0.0:8000, Vite on 0.0.0.0:5173."
+	@echo "Open http://localhost:5173 in your Windows browser; if localhost is blocked, use http://$$(hostname -I 2>/dev/null | awk '{print $$1}'):5173 (see docs/install/wsl2.md)."
+	@trap 'kill 0' INT TERM; YELIZTLI_HOST=0.0.0.0 $(MAKE) run-api & $(MAKE) run-frontend VITE_ARGS=--host & $(MAKE) run-huey & wait
+
 run-api:  ## Start FastAPI dev server
 	YELIZTLI_DEBUG=$${YELIZTLI_DEBUG:-true} $(PYTHON) -m backend.main
 
-run-frontend:  ## Start Vite dev server
-	cd frontend && $(NPM) run dev
+run-frontend:  ## Start Vite dev server (VITE_ARGS forwards flags, e.g. --host for LAN/WSL2)
+	cd frontend && $(NPM) run dev -- $(VITE_ARGS)
 
 run-huey:  ## Start Huey consumer
 	huey_consumer backend.tasks.huey_tasks.huey -w 1
