@@ -2157,7 +2157,25 @@ describe('DatabasesStep', () => {
 
   it('offers Resume on a failed download with a resumable partial', async () => {
     routeDatabasesFetch({
-      list: mockDatabaseList(),
+      list: mockDatabaseList({
+        databases: [
+          {
+            name: 'clinvar',
+            display_name: 'ClinVar',
+            description: 'Clinical variant interpretations from NCBI ClinVar',
+            filename: 'clinvar.db',
+            expected_size_bytes: 250_000_000,
+            required: true,
+            phase: 1,
+            downloaded: false,
+            file_size_bytes: null,
+            build_mode: 'pipeline',
+          },
+        ],
+        total_size_bytes: 250_000_000,
+        downloaded_count: 0,
+        total_count: 1,
+      }),
       download: {
         body: { session_id: 's1', downloads: [{ db_name: 'clinvar', job_id: 'j1' }] },
       },
@@ -2210,6 +2228,7 @@ describe('DatabasesStep', () => {
       'Connection reset',
     )
     expect(screen.getByTestId('db-fail-resume-clinvar')).toBeInTheDocument()
+    expect(screen.queryByText('Download required')).not.toBeInTheDocument()
     vi.unstubAllGlobals()
   })
 

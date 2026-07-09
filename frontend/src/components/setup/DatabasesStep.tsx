@@ -556,6 +556,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
               !bundledIncluded &&
               !hasIntegrityFailure &&
               !isComplete &&
+              !isFailed &&
               !isRunning &&
               !isPending
 
