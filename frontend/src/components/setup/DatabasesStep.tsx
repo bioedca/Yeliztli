@@ -813,7 +813,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                             Verified
                           </span>
                         )}
-                        {dbHealth?.integrity_ok === false && (
+                        {hasIntegrityFailure && (
                           <div className="flex flex-wrap items-center gap-2">
                             <span
                               className="inline-flex items-center gap-1 text-[11px] text-destructive"
