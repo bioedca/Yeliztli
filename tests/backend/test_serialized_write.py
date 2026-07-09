@@ -240,3 +240,30 @@ def test_dbsnp_load_routes_writes_through_serialized_write(tmp_path, monkeypatch
     with engine.connect() as conn:
         count = conn.execute(sa.select(sa.func.count()).select_from(dbsnp_merges)).scalar_one()
     assert count == 2
+
+
+def test_download_status_write_routes_through_serialized_write(tmp_path, monkeypatch):
+    """The download-manager status/checkpoint writers — the tiny writers that
+    *starved* the dbSNP build by repeatedly winning the write lock — also acquire
+    the per-file lock (would fail if a future edit dropped the wrap)."""
+    from backend.db import download_manager as dm
+    from backend.db.tables import downloads
+
+    engine = make_sqlite_engine(tmp_path / "reference.db")
+    downloads.create(engine)
+
+    entered: list[object] = []
+    real = dm.serialized_write
+
+    @contextmanager
+    def spy(engine_arg):
+        entered.append(engine_arg)
+        with real(engine_arg):
+            yield
+
+    monkeypatch.setattr(dm, "serialized_write", spy)
+
+    manager = dm.DownloadManager(engine, tmp_path / "dl", sleep=lambda _s: None)
+    manager._update_download_status(download_id=1, status="downloading")
+
+    assert entered, "download status write did not route through serialized_write"
