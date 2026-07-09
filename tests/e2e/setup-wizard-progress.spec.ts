@@ -260,10 +260,84 @@ test.describe('Setup wizard — download progress observability', () => {
 
     await expect(page.getByTestId('db-checkbox-gnomad')).toBeChecked()
     await expect(page.getByTestId('db-checkbox-gnomad')).toBeDisabled()
-    await expect(page.getByText('Download required')).toBeVisible()
+    await expect(page.getByText('Download required').first()).toBeVisible()
 
     await page.getByRole('button', { name: /Download Selected/i }).click()
     expect(requestedDatabases).toEqual(['gnomad'])
+  })
+
+  test('never-downloaded reference DBs with empty tables show download required', async ({
+    page,
+  }) => {
+    await mockWizardChrome(page)
+
+    await page.route('**/api/setup/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          needs_setup: true,
+          disclaimer_accepted: true,
+          has_databases: true,
+          required_dbs_ready: false,
+          db_readiness: [
+            { name: 'clinvar', state: 'not_installed', ready: false, build_mode: 'bundled' },
+          ],
+          has_samples: false,
+          data_dir: '/tmp/.yeliztli',
+        }),
+      }),
+    )
+
+    await page.route('**/api/databases', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          databases: [
+            {
+              name: 'clinvar',
+              display_name: 'ClinVar',
+              description: 'Clinical variant interpretations from NCBI ClinVar',
+              filename: 'clinvar.db',
+              expected_size_bytes: 250_000_000,
+              required: true,
+              phase: 1,
+              downloaded: false,
+              file_size_bytes: null,
+              build_mode: 'pipeline',
+            },
+          ],
+          total_size_bytes: 250_000_000,
+          downloaded_count: 0,
+          total_count: 1,
+        }),
+      }),
+    )
+    await page.route('**/api/databases/health', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          databases: [
+            {
+              name: 'clinvar',
+              state: 'not_installed',
+              integrity_ok: false,
+              integrity_detail: "table 'clinvar_variants' is empty",
+              can_clean: false,
+              can_verify: false,
+            },
+          ],
+        }),
+      }),
+    )
+
+    await walkWizardToDatabases(page)
+
+    await expect(page.getByText('Download required')).toBeVisible()
+    await expect(page.getByTestId('db-integrity-failed-clinvar')).toHaveCount(0)
+    await expect(page.getByText(/Integrity failed/i)).toHaveCount(0)
   })
 
   test('corrupt bundled databases expose clean recovery controls', async ({

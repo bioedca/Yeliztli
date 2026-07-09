@@ -1511,7 +1511,7 @@ describe('DatabasesStep', () => {
     const gnomadBox = screen.getByTestId('db-checkbox-gnomad') as HTMLInputElement
     expect(gnomadBox.checked).toBe(true)
     expect(gnomadBox.disabled).toBe(true)
-    expect(screen.getByText('Download required')).toBeInTheDocument()
+    expect(screen.getAllByText('Download required')).toHaveLength(2)
   })
 
   it('updates the running total when a checkbox is toggled', async () => {
@@ -1976,6 +1976,7 @@ describe('DatabasesStep', () => {
         databases: [
           {
             name: 'clinvar',
+            state: 'corrupt',
             integrity_ok: false,
             integrity_detail: 'malformed image',
             can_clean: true,
@@ -1989,6 +1990,48 @@ describe('DatabasesStep', () => {
       await screen.findByTestId('db-integrity-failed-clinvar'),
     ).toHaveTextContent('malformed image')
     expect(screen.getByTestId('db-clean-clinvar')).toBeInTheDocument()
+  })
+
+  it('renders never-downloaded reference DBs with empty tables as pending, not corrupt', async () => {
+    routeDatabasesFetch({
+      list: mockDatabaseList({
+        databases: [
+          {
+            name: 'clinvar',
+            display_name: 'ClinVar',
+            description: 'Clinical variant interpretations from NCBI ClinVar',
+            filename: 'clinvar.db',
+            expected_size_bytes: 250_000_000,
+            required: true,
+            phase: 1,
+            downloaded: false,
+            file_size_bytes: null,
+            build_mode: 'pipeline',
+          },
+        ],
+        downloaded_count: 0,
+        total_count: 1,
+      }),
+      health: {
+        databases: [
+          {
+            name: 'clinvar',
+            state: 'not_installed',
+            integrity_ok: false,
+            integrity_detail: "table 'clinvar_variants' is empty",
+            can_clean: false,
+            can_verify: false,
+          },
+        ],
+      },
+    })
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await screen.findByText('ClinVar')
+    expect(screen.getByText('Download required')).toBeInTheDocument()
+    expect(screen.queryByTestId('db-integrity-failed-clinvar')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Integrity failed/i)).not.toBeInTheDocument()
   })
 
   it('surfaces integrity failure controls for a corrupt bundled DB', async () => {
@@ -2085,6 +2128,7 @@ describe('DatabasesStep', () => {
         databases: [
           {
             name: 'clinvar',
+            state: 'corrupt',
             integrity_ok: false,
             integrity_detail: 'malformed image',
             can_clean: true,
