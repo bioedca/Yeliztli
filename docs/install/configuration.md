@@ -97,6 +97,11 @@ Native services and `make run-api` start Yeliztli through `python -m backend.mai
 `host` / `port` from `config.toml` and `YELIZTLI_HOST` / `YELIZTLI_PORT` are used when the
 API binds.
 
+The split dev stack (`make dev` / `make dev-wsl`) is the exception: the Vite dev server proxies
+`/api` to a fixed default port, so a `port` set only in `config.toml` moves the backend but not
+the proxy. To change the port for `make dev`, use `make dev API_PORT=<port>`, which sets the
+backend port **and** the Vite proxy together (see [WSL2](wsl2.md#port-8000-already-in-use)).
+
 Docker Compose is slightly different because Docker has two network layers:
 
 - inside the container, the API binds to `YELIZTLI_HOST=0.0.0.0` so Docker can publish it;

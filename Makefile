@@ -6,6 +6,11 @@ PIP ?= pip
 NPM ?= npm
 # Extra flags forwarded to the Vite dev server (e.g. VITE_ARGS=--host to expose on the LAN/WSL2).
 VITE_ARGS ?=
+# Backend API port for the dev stack. Forwarded to BOTH the API (YELIZTLI_PORT) and
+# the Vite proxy (VITE_API_PORT) so `make dev API_PORT=8010` moves the whole stack off
+# 8000 — e.g. when a foreign process holds :8000 on WSL2. Defaults to any exported
+# YELIZTLI_PORT, else 8000. Only `dev`/`dev-wsl` apply it; `make run` is untouched.
+API_PORT ?= $(or $(YELIZTLI_PORT),8000)
 
 # ──────────────────────────────────────────────
 # Setup
@@ -30,14 +35,14 @@ setup-frontend:  ## Install frontend dependencies
 
 run: run-api  ## Start the API server (default)
 
-dev:  ## Start backend + frontend + Huey worker concurrently
-	@echo "Starting API server, Vite dev server (port 5173), and Huey worker..."
-	@trap 'kill 0' INT TERM; $(MAKE) run-api & $(MAKE) run-frontend & $(MAKE) run-huey & wait
+dev:  ## Start backend + frontend + Huey worker concurrently (API_PORT overrides 8000)
+	@echo "Starting API server (port $(API_PORT)), Vite dev server (port 5173), and Huey worker..."
+	@trap 'kill 0' INT TERM; YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend & $(MAKE) run-huey & wait
 
 dev-wsl:  ## Like `dev`, but binds servers to 0.0.0.0 so a Windows-host browser can reach WSL2
-	@echo "Starting Yeliztli for WSL2 — backend on 0.0.0.0:8000, Vite on 0.0.0.0:5173."
+	@echo "Starting Yeliztli for WSL2 — backend on 0.0.0.0:$(API_PORT), Vite on 0.0.0.0:5173."
 	@echo "Open http://localhost:5173 in your Windows browser; if localhost is blocked, use http://$$(hostname -I 2>/dev/null | awk '{print $$1}'):5173 (see docs/install/wsl2.md)."
-	@trap 'kill 0' INT TERM; YELIZTLI_HOST=0.0.0.0 $(MAKE) run-api & $(MAKE) run-frontend VITE_ARGS=--host & $(MAKE) run-huey & wait
+	@trap 'kill 0' INT TERM; YELIZTLI_HOST=0.0.0.0 YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend VITE_ARGS=--host & $(MAKE) run-huey & wait
 
 run-api:  ## Start FastAPI dev server
 	YELIZTLI_DEBUG=$${YELIZTLI_DEBUG:-true} $(PYTHON) -m backend.main

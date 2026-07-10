@@ -54,6 +54,23 @@ networkingMode=mirrored
 **Reach WSL directly.** As a fallback, browse the WSL VM's IP instead of `localhost` — find it
 with `hostname -I` inside WSL (e.g. `http://172.22.98.184:5173`).
 
+## Port 8000 already in use?
+
+The backend defaults to port `8000`. On WSL2 that port is easy to lose: Windows can forward
+`localhost:8000` to a foreign Windows-side process, so the backend fails to bind (or `/api`
+requests reach the wrong process) even though `make dev` looks like it started. Move the whole
+dev stack to another port with `API_PORT` — it sets the backend port **and** points the Vite
+`/api` proxy at it, so the two stay in sync:
+
+```bash
+make dev API_PORT=8010       # or: make dev-wsl API_PORT=8010
+```
+
+You still open **[http://localhost:5173](http://localhost:5173)** — only the backend moves.
+`API_PORT` defaults to any exported `YELIZTLI_PORT`, else `8000`. (For a non-dev, single-port
+`make run`, set the port via `YELIZTLI_PORT` / `config.toml` instead — see
+[Configuration](configuration.md).)
+
 ## Enable systemd
 
 Yeliztli's background services use `systemd` on Linux/WSL2. Enable systemd in your distro by
