@@ -23,6 +23,7 @@ import json
 import os
 import py_compile
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -491,6 +492,9 @@ class TestPhase01GnomixMaps:
             "printf 'new-model\\n' > \"$STUB_MODEL_PATH\"\n"
         )
         conda_stub.chmod(0o755)
+        bcftools_stub = stub_dir / "bcftools"
+        bcftools_stub.write_text("#!/bin/sh\necho unexpected bcftools call >&2\nexit 97\n")
+        bcftools_stub.chmod(0o755)
 
         env = os.environ.copy()
         for variable in (
@@ -547,6 +551,54 @@ class TestPhase01GnomixMaps:
         assert model_path.read_text() == "new-model\n"
         assert marker_path.read_text() == f"{changed_map_sha}  chr1.map\n"
         assert not Path(f"{model_path}.stale").exists()
+
+    def test_phase05_missing_bcftools_fails_before_model_state_changes(
+        self, tmp_path: Path
+    ) -> None:
+        workdir = tmp_path / "work"
+        model_dir = workdir / "05_gnomix_training" / "output_chr1" / "models" / "model_chm_chr1"
+        model_path = model_dir / "model_chm_chr1.pkl"
+        marker_path = model_dir / "genetic_map.sha256"
+        self._write_source(model_path, "existing-model\n")
+        marker_path.write_text("sentinel-binding\n")
+
+        stub_dir = tmp_path / "preflight-bin"
+        stub_dir.mkdir()
+        for command in ("date", "dirname", "mkdir", "python3", "sha256sum"):
+            target = shutil.which(command)
+            assert target is not None
+            (stub_dir / command).symlink_to(target)
+        conda_stub = stub_dir / "conda"
+        conda_stub.write_text("#!/bin/sh\nexit 97\n")
+        conda_stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update({"WORKDIR": str(workdir), "CHROMS": "1", "PATH": str(stub_dir)})
+
+        result = subprocess.run(
+            ["/bin/bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "missing required command: bcftools" in result.stderr
+        assert model_path.read_text() == "existing-model\n"
+        assert marker_path.read_text() == "sentinel-binding\n"
 
     def test_phase07_packages_map_provenance(self) -> None:
         text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()

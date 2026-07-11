@@ -42,6 +42,7 @@ read -r -a chromosomes <<< "$CHROMS"
 require conda  # gnomix runs in its own env (GNOMIX_ENV) via `conda run`
 require python3
 require sha256sum
+require bcftools
 require_file "$ADMIX_DIR/sample_map.txt"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_launcher.py"  # pandas>=2 compat shim wrapper
