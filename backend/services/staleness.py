@@ -151,11 +151,12 @@ def find_stale_reference_versions(
 def _read_installed_major() -> int | None:
     """Read ``database_versions['vep_bundle'].version``'s semver major.
 
-    Returns ``None`` when the ``database_versions`` table is absent or the
-    reference DB is unreachable — e.g. a fresh install before any bundle has
-    been recorded. Mirrors the defensive handling in
-    ``_read_sample_bundle_version``; ``is_sample_stale`` treats ``None`` as
-    "decline to gate".
+    A readable registry with no row uses the documented ``v1.0.0`` baseline.
+    That is the expected state when first-run setup copies the committed
+    offline-fallback bundle without claiming that the manifest's downloadable
+    release is installed. Returns ``None`` when the table is unreadable or a
+    stored version is malformed, logging the reason at the point it is known;
+    ``is_sample_stale`` treats ``None`` as "decline to gate".
     """
     registry = get_registry()
     try:
@@ -172,7 +173,16 @@ def _read_installed_major() -> int | None:
             error=str(exc),
         )
         return None
-    return _coerce_major(row.version if row else None)
+    if row is None:
+        return _coerce_major(_FALLBACK_SAMPLE_VERSION)
+    major = _coerce_major(row.version)
+    if major is None:
+        logger.warning(
+            "vep_bundle_version_unreadable",
+            reason="malformed_installed_version",
+            installed_version=row.version,
+        )
+    return major
 
 
 def get_recorded_bundle_version(sample_id: int) -> str | None:
@@ -256,13 +266,8 @@ def is_sample_stale(sample_id: int) -> bool:
     """
     installed_major = _read_installed_major()
     if installed_major is None:
-        # No installed-version row to compare against — log and decline to
-        # gate. The bundle-update flow (not this service) is the user's
-        # path back to a known state.
-        logger.warning(
-            "vep_bundle_version_unreadable",
-            sample_id=sample_id,
-        )
+        # The registry reader logged the specific failure. Decline to gate;
+        # the bundle-update flow is the user's path back to a known state.
         return False
 
     sample_raw = _read_sample_bundle_version(sample_id)

@@ -26,6 +26,7 @@ from structlog.testing import capture_logs
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
+from backend.db.database_registry import get_database, get_database_status
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotation_state,
@@ -198,16 +199,68 @@ class TestIsSampleStale:
         # annotation_state table.
         is_sample_stale(staleness_env["sample_id"])
 
-    def test_missing_installed_version_returns_false(self, staleness_env):
-        """When the installed bundle version is missing, decline to gate."""
+    def test_auto_copied_fallback_uses_v1_without_warning(self, staleness_env):
+        """The versionless committed fallback is the quiet v1 baseline."""
+        db_info = get_database("vep_bundle")
+        assert db_info is not None
+        status = get_database_status(db_info, staleness_env["settings"])
+        assert status["downloaded"] is True
+
+        engine = sa.create_engine(f"sqlite:///{staleness_env['settings'].reference_db_path}")
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "vep_bundle"
+                    )
+                ).fetchone()
+        finally:
+            engine.dispose()
+        assert row is None
+
         _make_sample_db(staleness_env["settings"], seed_version="v1.0.0")
-        # No database_versions row seeded for vep_bundle.
 
         with capture_logs() as cap_logs:
             result = is_sample_stale(staleness_env["sample_id"])
 
         assert result is False
-        assert _has_event(cap_logs, "vep_bundle_version_unreadable")
+        assert not _has_event(cap_logs, "vep_bundle_version_unreadable")
+        assert not any(entry.get("log_level") == "warning" for entry in cap_logs)
+
+    def test_malformed_installed_version_warns_and_returns_false(self, staleness_env):
+        """A present but unparsable registry value remains a fail-open warning."""
+        _seed_installed_bundle(staleness_env["settings"], "not-a-version")
+        _make_sample_db(staleness_env["settings"], seed_version="v1.0.0")
+
+        with capture_logs() as cap_logs:
+            result = is_sample_stale(staleness_env["sample_id"])
+
+        assert result is False
+        events = [
+            entry for entry in cap_logs if entry.get("event") == "vep_bundle_version_unreadable"
+        ]
+        assert len(events) == 1
+        assert events[0].get("reason") == "malformed_installed_version"
+
+    def test_unreadable_version_table_warns_once_and_returns_false(self, staleness_env):
+        """A registry query failure remains observable without a second warning."""
+        _make_sample_db(staleness_env["settings"], seed_version="v1.0.0")
+        engine = sa.create_engine(f"sqlite:///{staleness_env['settings'].reference_db_path}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(sa.text("DROP TABLE database_versions"))
+        finally:
+            engine.dispose()
+
+        with capture_logs() as cap_logs:
+            result = is_sample_stale(staleness_env["sample_id"])
+
+        assert result is False
+        database_events = [
+            entry for entry in cap_logs if entry.get("event") == "database_versions_unreadable"
+        ]
+        assert len(database_events) == 1
+        assert not _has_event(cap_logs, "vep_bundle_version_unreadable")
 
     def test_missing_sample_row_treats_as_v1(self, staleness_env):
         """A sample_id with no row in ``samples`` is treated as fallback v1.0.0."""
