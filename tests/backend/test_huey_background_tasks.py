@@ -168,17 +168,27 @@ class TestRunLaiTask:
         assert "22 chromosomes analyzed" in row.message
         assert "top ancestry: AFR" in row.message  # highest fraction, NOT max(keys)=EUR
 
-    def test_empty_global_ancestry_guard(self, huey_env: dict) -> None:
-        """Empty global_ancestry → ``top_pop`` stays "" (no ``max()`` over empty)."""
-        _make_job("lai-empty", "lai", sample_id=1)
-        result = _lai_result({}, chroms=0)
+    @pytest.mark.parametrize(
+        ("global_ancestry", "chroms"),
+        [
+            ({}, 22),
+            ({"EUR": {"fraction": 1.0}}, 0),
+        ],
+    )
+    def test_invalid_lai_result_marks_job_failed(
+        self, huey_env: dict, global_ancestry: dict, chroms: int
+    ) -> None:
+        """Each producer-contract violation must prevent a completed LAI job."""
+        job_id = f"lai-invalid-{chroms}"
+        _make_job(job_id, "lai", sample_id=1)
+        result = _lai_result(global_ancestry, chroms=chroms)
 
         with patch("backend.analysis.lai.run_lai_analysis", return_value=result):
-            run_lai_task.call_local(1, "lai-empty")
+            run_lai_task.call_local(1, job_id)
 
-        row = _job_row("lai-empty")
-        assert row.status == "complete"
-        assert row.message.endswith("top ancestry: ")
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "Insufficient data for local ancestry inference" in row.error
 
     def test_failure_marks_job_failed(self, huey_env: dict) -> None:
         """A raise from run_lai_analysis → status failed with the error recorded."""

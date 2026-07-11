@@ -195,6 +195,12 @@ class LAIRunner:
             per_source=coverage_telemetry,
             file_format=file_format,
         )
+        if matched == 0:
+            raise RuntimeError(
+                "Insufficient data for local ancestry inference: no usable markers "
+                "remained after autosomal filtering, bundle mapping, and genotype "
+                f"encoding (filtered={len(filtered)}, matched=0)"
+            )
 
         # Step 3: Phase with Beagle
         phased_paths: dict[int, Path] = {}
@@ -212,6 +218,11 @@ class LAIRunner:
                 phased_paths[chr_num] = phased
 
         report(f"Phasing complete: {len(phased_paths)} chromosomes", 0.70)
+        if not phased_paths:
+            raise RuntimeError(
+                "Insufficient data for local ancestry inference: no chromosome was "
+                "successfully phased from the usable markers"
+            )
 
         # Step 4: Run Gnomix inference
         from backend.analysis.gnomix_inference import (
@@ -246,6 +257,11 @@ class LAIRunner:
         report("Aggregating results...", 0.90)
         global_ancestry = self._compute_global_ancestry(chrom_results)
         chromosome_painting = self._build_chromosome_painting(chrom_results)
+        if not global_ancestry:
+            raise RuntimeError(
+                "Insufficient data for local ancestry inference: no ancestry-assigned "
+                "windows were produced"
+            )
 
         # Step 6: Metadata
         elapsed = time.time() - start_time

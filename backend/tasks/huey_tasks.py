@@ -550,6 +550,13 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
             progress_callback=progress_callback,
         )
 
+        chromosomes_analyzed = result.metadata.get("chromosomes_analyzed", 0)
+        if chromosomes_analyzed <= 0 or not result.global_ancestry:
+            raise RuntimeError(
+                "Insufficient data for local ancestry inference: no analyzed "
+                "chromosomes or ancestry estimates were produced"
+            )
+
         top_pop = ""
         if result.global_ancestry:
             top_pop = max(
@@ -562,7 +569,7 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
             status="complete",
             progress_pct=100.0,
             message=(
-                f"LAI complete: {result.metadata.get('chromosomes_analyzed', 0)} "
+                f"LAI complete: {chromosomes_analyzed} "
                 f"chromosomes analyzed, top ancestry: {top_pop}"
             ),
         )

@@ -167,6 +167,13 @@ def _store_lai_results(
     runner_result: object,
 ) -> None:
     """Store LAI results in both lai_results and findings tables."""
+    chromosomes_analyzed = runner_result.metadata.get("chromosomes_analyzed", 0)
+    if chromosomes_analyzed <= 0 or not runner_result.global_ancestry:
+        raise RuntimeError(
+            "Refusing to store local ancestry results without analyzed chromosomes "
+            "and non-empty ancestry estimates"
+        )
+
     with engine.begin() as conn:
         # Clear any prior LAI rows FIRST so a rerun replaces rather than duplicates
         # them (#494 / #348 store-clear class). lai_results is sample-scoped (one
@@ -227,7 +234,7 @@ def _store_lai_results(
             "admixture_fractions": {
                 pop: info["fraction"] for pop, info in runner_result.global_ancestry.items()
             },
-            "chromosomes_analyzed": runner_result.metadata.get("chromosomes_analyzed", 0),
+            "chromosomes_analyzed": chromosomes_analyzed,
             "runtime_seconds": runner_result.metadata.get("runtime_seconds", 0),
         }
 
@@ -244,5 +251,5 @@ def _store_lai_results(
     logger.info(
         "lai_results_stored",
         top_population=top_pop,
-        chromosomes=runner_result.metadata.get("chromosomes_analyzed", 0),
+        chromosomes=chromosomes_analyzed,
     )

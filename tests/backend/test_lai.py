@@ -23,6 +23,7 @@ from __future__ import annotations
 import gzip
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -245,6 +246,143 @@ class TestFilterGenotypes:
         assert len(filtered) == 0
 
 
+class TestNoSignalLAIRuns:
+    """Zero-input and zero-output paths must not report completed inference."""
+
+    @staticmethod
+    def _bare_runner(tmp_path: Path) -> LAIRunner:
+        runner = LAIRunner.__new__(LAIRunner)
+        runner.bundle = tmp_path
+        runner.java_mem = "1g"
+        runner.rsid_lookup = {}
+        return runner
+
+    def test_zero_usable_markers_raises_before_phasing(self, tmp_path: Path) -> None:
+        runner = self._bare_runner(tmp_path)
+        progress: list[tuple[str, float]] = []
+
+        with pytest.raises(RuntimeError, match="no usable markers remained"):
+            runner.run(
+                genotypes=[
+                    {
+                        "rsid": "rs_not_in_bundle",
+                        "chrom": "1",
+                        "pos": 100,
+                        "genotype": "AA",
+                    }
+                ],
+                output_dir=tmp_path,
+                progress_callback=lambda message, fraction: progress.append((message, fraction)),
+                cleanup=False,
+                file_format="23andme_v5",
+            )
+
+        assert not (tmp_path / "lai_results.json").exists()
+        assert all(message != "LAI analysis complete" for message, _ in progress)
+
+    def test_no_phased_chromosomes_raises_before_inference(self, tmp_path: Path) -> None:
+        runner = self._bare_runner(tmp_path)
+        per_source = {"": {"hits": 1, "drops": 0}}
+
+        with (
+            patch.object(
+                LAIRunner,
+                "_write_per_chrom_vcfs",
+                return_value=({"chr1": tmp_path / "user_chr1.vcf.gz"}, 1, per_source),
+            ),
+            patch.object(LAIRunner, "_phase_chromosome", return_value=None),
+            pytest.raises(RuntimeError, match="no chromosome was successfully phased"),
+        ):
+            runner.run(
+                genotypes=[{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AA"}],
+                output_dir=tmp_path,
+                cleanup=False,
+                file_format="23andme_v5",
+            )
+
+        assert not (tmp_path / "lai_results.json").exists()
+
+    def test_all_inference_failures_raise_no_result(self, tmp_path: Path) -> None:
+        runner = self._bare_runner(tmp_path)
+        per_source = {"": {"hits": 1, "drops": 0}}
+
+        with (
+            patch.object(
+                LAIRunner,
+                "_write_per_chrom_vcfs",
+                return_value=({"chr1": tmp_path / "user_chr1.vcf.gz"}, 1, per_source),
+            ),
+            patch.object(
+                LAIRunner,
+                "_phase_chromosome",
+                return_value=tmp_path / "phased_chr1.vcf.gz",
+            ),
+            patch(
+                "backend.analysis.gnomix_inference.load_gnomix_model",
+                side_effect=RuntimeError("model load failed"),
+            ),
+            pytest.raises(RuntimeError, match="Too many chromosomes failed inference"),
+        ):
+            runner.run(
+                genotypes=[{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AA"}],
+                output_dir=tmp_path,
+                cleanup=False,
+                file_format="23andme_v5",
+            )
+
+        assert not (tmp_path / "lai_results.json").exists()
+
+    def test_zero_ancestry_windows_raise_before_result_storage(self, tmp_path: Path) -> None:
+        runner = self._bare_runner(tmp_path)
+        per_source = {"": {"hits": 1, "drops": 0}}
+        model = SimpleNamespace(
+            snp_pos=np.array([], dtype=np.int64),
+            snp_ref=np.array([], dtype="U1"),
+            snp_alt=np.array([], dtype="U1"),
+        )
+        zero_window_result = ChromosomeResult(
+            chrom=1,
+            n_windows=0,
+            hap0_ancestry=np.array([], dtype=np.int32),
+            hap1_ancestry=np.array([], dtype=np.int32),
+            hap0_probs=np.empty((0, len(CANONICAL_POPULATIONS))),
+            hap1_probs=np.empty((0, len(CANONICAL_POPULATIONS))),
+            window_positions=[],
+        )
+
+        with (
+            patch.object(
+                LAIRunner,
+                "_write_per_chrom_vcfs",
+                return_value=({"chr1": tmp_path / "user_chr1.vcf.gz"}, 1, per_source),
+            ),
+            patch.object(
+                LAIRunner,
+                "_phase_chromosome",
+                return_value=tmp_path / "phased_chr1.vcf.gz",
+            ),
+            patch.object(
+                LAIRunner,
+                "_parse_phased_vcf",
+                return_value=(np.array([], dtype=np.int8), np.array([], dtype=np.int8)),
+            ),
+            patch("backend.analysis.gnomix_inference.load_gnomix_model", return_value=model),
+            patch(
+                "backend.analysis.gnomix_inference.run_inference",
+                return_value=zero_window_result,
+            ),
+            pytest.raises(RuntimeError, match="no ancestry-assigned windows were produced"),
+        ):
+            runner.run(
+                genotypes=[{"rsid": "rs1", "chrom": "1", "pos": 100, "genotype": "AA"}],
+                output_dir=tmp_path,
+                cleanup=False,
+                file_format="23andme_v5",
+            )
+
+        assert not (tmp_path / "lai_results.json").exists()
+
+
 class TestGlobalAncestry:
     """T-LAI-10: Global ancestry proportions sum to 1.0."""
 
@@ -387,6 +525,120 @@ class TestLAIResultsStorage:
             assert finding is not None
             detail = json.loads(finding.detail_json)
             assert detail["top_population"] == "EUR"
+
+    def test_empty_result_is_rejected_without_persistence(self, sample_engine):
+        from backend.analysis.lai import _ensure_lai_tables, _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+
+        _ensure_lai_tables(sample_engine)
+        result = LAIRunnerResult(
+            global_ancestry={},
+            chromosome_painting={},
+            metadata={"chromosomes_phased": 0, "chromosomes_analyzed": 0},
+        )
+
+        with pytest.raises(RuntimeError, match="Refusing to store local ancestry results"):
+            _store_lai_results(sample_engine, result)
+
+        with sample_engine.connect() as conn:
+            assert conn.execute(sa.select(lai_results)).fetchone() is None
+            assert (
+                conn.execute(
+                    sa.select(findings).where(
+                        findings.c.module == "ancestry",
+                        findings.c.category == "local_ancestry",
+                    )
+                ).fetchone()
+                is None
+            )
+
+    def test_rejected_empty_rerun_preserves_prior_success(self, sample_engine):
+        from backend.analysis.lai import _ensure_lai_tables, _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+
+        _ensure_lai_tables(sample_engine)
+        successful = LAIRunnerResult(
+            global_ancestry={
+                "EUR": {
+                    "fraction": 1.0,
+                    "percentage": 100.0,
+                    "display_name": "European",
+                }
+            },
+            chromosome_painting={"chr1": []},
+            metadata={"chromosomes_analyzed": 1, "runtime_seconds": 1.0},
+        )
+        _store_lai_results(sample_engine, successful)
+
+        empty = LAIRunnerResult(
+            global_ancestry={},
+            chromosome_painting={},
+            metadata={"chromosomes_phased": 0, "chromosomes_analyzed": 0},
+        )
+        with pytest.raises(RuntimeError, match="Refusing to store local ancestry results"):
+            _store_lai_results(sample_engine, empty)
+
+        with sample_engine.connect() as conn:
+            result_rows = conn.execute(sa.select(lai_results)).fetchall()
+            finding_rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "ancestry",
+                    findings.c.category == "local_ancestry",
+                )
+            ).fetchall()
+
+        assert len(result_rows) == 1
+        assert json.loads(result_rows[0].global_ancestry_json) == successful.global_ancestry
+        assert len(finding_rows) == 1
+        assert finding_rows[0].finding_text == "Local ancestry inference: European: 100.0%"
+
+    def test_zero_marker_analysis_does_not_persist_results(
+        self, sample_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        from backend.analysis.lai import run_lai_analysis
+        from backend.db.tables import raw_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_not_in_bundle",
+                    chrom="1",
+                    pos=100,
+                    genotype="AA",
+                )
+            )
+
+        settings = SimpleNamespace(
+            resolved_lai_bundle_path=tmp_path / "bundle",
+            data_dir=tmp_path,
+            lai_java_mem="1g",
+        )
+
+        def init_runner(runner, bundle_path: str, java_mem: str) -> None:
+            runner.bundle = Path(bundle_path)
+            runner.java_mem = java_mem
+            runner.rsid_lookup = {}
+
+        with (
+            patch("backend.analysis.lai.get_settings", return_value=settings),
+            patch("backend.analysis.lai.validate_lai_bundle", return_value=True),
+            patch("backend.analysis.lai.detect_java", return_value=True),
+            patch.object(LAIRunner, "__init__", init_runner),
+            pytest.raises(RuntimeError, match="no usable markers remained"),
+        ):
+            run_lai_analysis(sample_id=1, sample_engine=sample_engine)
+
+        with sample_engine.connect() as conn:
+            assert conn.execute(sa.select(lai_results)).fetchone() is None
+            assert (
+                conn.execute(
+                    sa.select(findings).where(
+                        findings.c.module == "ancestry",
+                        findings.c.category == "local_ancestry",
+                    )
+                ).fetchone()
+                is None
+            )
 
     def test_store_lai_results_exposes_top_ancestry_fraction(self, sample_engine):
         """#899: a real LAI store must surface its top fraction to the shared
