@@ -18,20 +18,39 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PHASE_NAME=07_assemble_bundle
 # shellcheck source=env.sh
 source "$SCRIPT_DIR/env.sh"
+read -r -a chromosomes <<< "$CHROMS"
 
 require python
 require md5sum
+require sha256sum
 require tar
 require conda  # gnomix-model re-export runs in $GNOMIX_ENV (numpy/xgboost/sklearn)
 require_file "$VALIDATION_DIR/held_out_validation.tsv"
 require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
+
+phase_log "verifying Gnomix maps and trained-model provenance"
+python "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
+  --verify \
+  --output-dir "$RAW_DIR/genetic_maps_gnomix" \
+  --chromosomes "${chromosomes[@]}"
 
 cd "$BUNDLE_DIR"
 
 phase_log "assembling bundle layout"
 mkdir -p phasing_panel genetic_maps gnomix_models liftover beagle metadata
 
-for chr in $CHROMS; do
+for chr in "${chromosomes[@]}"; do
+  derived_map="$RAW_DIR/genetic_maps_gnomix/chr${chr}.map"
+  model_map_sha="$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/genetic_map.sha256"
+  require_file "$derived_map"
+  require_file "$model_map_sha"
+  current_map_sha=$(sha256sum "$derived_map" | awk '{print $1}')
+  recorded_map_sha=$(awk 'NR == 1 {print $1}' "$model_map_sha")
+  if [ "$recorded_map_sha" != "$current_map_sha" ]; then
+    phase_log "chr${chr}: trained model does not match current genetic map" >&2
+    exit 1
+  fi
+
   cp -f "$PANEL_DIR/ref_panel_chr${chr}.vcf.gz" phasing_panel/
   cp -f "$PANEL_DIR/ref_panel_chr${chr}.vcf.gz.tbi" phasing_panel/
   # Ship the chr_in_chrom_field plink map the runtime loads as
@@ -50,6 +69,7 @@ for chr in $CHROMS; do
     --model-pkl "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
     --out-dir "gnomix_models/chr${chr}" \
     --gnomix-dir "$GNOMIX_DIR_INSTALL"
+  cp -f "$model_map_sha" "metadata/gnomix_model_map_chr${chr}.sha256"
 done
 
 cp -f "$LIFTOVER_DIR/hg19ToHg38.over.chain.gz" liftover/
@@ -63,7 +83,7 @@ python "$SCRIPT_DIR/extract_heldout_fixtures.py" \
   --panel-dir "$PANEL_DIR" \
   --validation-dir "$VALIDATION_DIR" \
   --site-map "$LIFTOVER_DIR/rsid_to_grch38.tsv" \
-  --chroms $CHROMS
+  --chroms "${chromosomes[@]}"
 
 phase_log "running held-out per-superpopulation production-inference gate"
 mkdir -p "$VALIDATION_DIR/heldout_runtime_data"

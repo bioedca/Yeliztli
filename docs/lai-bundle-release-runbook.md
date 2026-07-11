@@ -180,7 +180,9 @@ Phase 01 derives Gnomix's three-column `chrN<TAB>bp<TAB>cM` maps from the
 downloaded GRCh38 PLINK maps. It validates every requested autosome and writes
 source and derived SHA-256 values to
 `00_raw_downloads/genetic_maps_gnomix/provenance.json`; Phase 07 preserves that
-record as `metadata/gnomix_genetic_maps.json` in the bundle.
+record as `metadata/gnomix_genetic_maps.json` in the bundle. Phase 05 binds each
+trained model to its chromosome map checksum, and Phase 07 verifies and ships
+those bindings as `metadata/gnomix_model_map_chrN.sha256`.
 
 Phases 02 and 03 operate on the union catalog (~2.0M sites; ~1.94M autosomal)
 instead of the 23andMe v5 catalog (~605k). The random seed remains locked at

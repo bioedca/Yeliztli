@@ -9,6 +9,7 @@
 #
 # Output:
 #   $GNOMIX_DIR/output_chr{N}/                — pickled XGBoost models + config
+#   $GNOMIX_DIR/output_chr{N}/.../genetic_map.sha256 — model-to-map provenance binding
 #   $LOG_DIR/gnomix_train_chr{N}.log          — per-chrom training log
 #
 # Plan §6.4: phase unchanged from v1.1; models retrain against the larger
@@ -40,6 +41,7 @@ read -r -a chromosomes <<< "$CHROMS"
 
 require conda  # gnomix runs in its own env (GNOMIX_ENV) via `conda run`
 require python3
+require sha256sum
 require_file "$ADMIX_DIR/sample_map.txt"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_launcher.py"  # pandas>=2 compat shim wrapper
@@ -74,16 +76,30 @@ for chr in "${chromosomes[@]}"; do
   # output_chrN/models/model_chm_chrN/model_chm_chrN.pkl (NOT output_chrN/*.pkl) —
   # check that exact path or the skip-guard / success-check below never fires and
   # the task exit-1's "MISSING" after a successful train.
-  model_pkl="$out_dir/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
+  model_dir="$out_dir/models/model_chm_chr${chr}"
+  model_pkl="$model_dir/model_chm_chr${chr}.pkl"
+  model_map_sha="$model_dir/genetic_map.sha256"
   require_file "$panel_vcf"
   require_file "$genetic_map"
+  current_map_sha=$(sha256sum "$genetic_map" | awk '{print $1}')
+  recorded_map_sha=$(awk 'NR == 1 {print $1}' "$model_map_sha" 2>/dev/null || true)
 
-  if [ -s "$model_pkl" ]; then
-    phase_log "chr${chr}: gnomix model present, skipping"
+  if [ -s "$model_pkl" ] && [ "$recorded_map_sha" = "$current_map_sha" ]; then
+    phase_log "chr${chr}: gnomix model matches current genetic map, skipping"
     continue
+  fi
+  if [ -s "$model_pkl" ]; then
+    phase_log "chr${chr}: genetic-map provenance changed or missing; retraining"
   fi
 
   phase_log "chr${chr}: training gnomix"
+  mkdir -p "$model_dir"
+  # Invalidate the binding before training and move any prior model aside. A
+  # failed retry can never pass the final completeness gate with stale output.
+  : > "$model_map_sha"
+  if [ -s "$model_pkl" ]; then
+    mv -f "$model_pkl" "${model_pkl}.stale"
+  fi
   # ── BUG F fix: minimal query so the post-train inference can't hang ────────
   # Build a tiny 2-sample query (first 2 panel samples → a strict subset, so its
   # sites are identical to the reference). gnomix only uses the query for the
@@ -145,20 +161,29 @@ for chr in "${chromosomes[@]}"; do
     phase_log "chr${chr}: gnomix rejected its arguments (see log)" >&2
     exit 1
   fi
+  require_file "$model_pkl"
+  rm -f "${model_pkl}.stale"
+  marker_tmp="${model_map_sha}.tmp.$$"
+  printf '%s  %s\n' "$current_map_sha" "chr${chr}.map" > "$marker_tmp"
+  mv -f "$marker_tmp" "$model_map_sha"
 done
 
 phase_log "phase 5 complete"
 missing=0
 for chr in "${chromosomes[@]}"; do
   chr_model="output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
-  if [ -s "$chr_model" ]; then
+  chr_marker="output_chr${chr}/models/model_chm_chr${chr}/genetic_map.sha256"
+  chr_map="$RAW_DIR/genetic_maps_gnomix/chr${chr}.map"
+  current_map_sha=$(sha256sum "$chr_map" | awk '{print $1}')
+  recorded_map_sha=$(awk 'NR == 1 {print $1}' "$chr_marker" 2>/dev/null || true)
+  if [ -s "$chr_model" ] && [ "$recorded_map_sha" = "$current_map_sha" ]; then
     phase_log "chr${chr}: OK ($(du -sh "output_chr${chr}" | awk '{print $1}'))"
   else
-    phase_log "chr${chr}: MISSING"
+    phase_log "chr${chr}: MISSING OR STALE"
     missing=1
   fi
 done
 if [ "$missing" -ne 0 ]; then
-  phase_log "phase 5 FAILED: one or more gnomix models missing (see MISSING above)" >&2
+  phase_log "phase 5 FAILED: one or more gnomix models missing or stale" >&2
   exit 1
 fi

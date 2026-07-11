@@ -450,6 +450,103 @@ class TestPhase01GnomixMaps:
         assert "01_convert_gnomix_maps.py" in text
         assert "--verify" in text
         assert 'require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"' in text
+        assert "genetic_map.sha256" in text
+        assert 'recorded_map_sha" = "$current_map_sha' in text
+
+    def test_phase05_retrains_model_when_map_generation_changes(self, tmp_path: Path) -> None:
+        workdir = tmp_path / "work"
+        raw_dir = workdir / "00_raw_downloads"
+        source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
+        source = source_dir / "plink.chrchr1.GRCh38.map"
+        self._write_source(source, "chr1 . 0 55550\n")
+        map_dir = raw_dir / "genetic_maps_gnomix"
+        conversion = self._run_converter(source_dir, map_dir, "1")
+        assert conversion.returncode == 0, conversion.stderr
+
+        admix_dir = workdir / "04_admixture_filtering"
+        panel_dir = workdir / "03_subsetted_panels"
+        gnomix_dir = workdir / "05_gnomix_training"
+        install_dir = tmp_path / "gnomix-install"
+        self._write_source(admix_dir / "sample_map.txt", "sample\tEUR\n")
+        self._write_source(panel_dir / "ref_panel_chr1.vcf.gz", "panel\n")
+        self._write_source(install_dir / "gnomix.py", "# stub\n")
+        self._write_source(install_dir / "config.yaml", "seed: 1\n")
+        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz", "query\n")
+        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz.tbi", "index\n")
+
+        model_dir = gnomix_dir / "output_chr1" / "models" / "model_chm_chr1"
+        model_path = model_dir / "model_chm_chr1.pkl"
+        marker_path = model_dir / "genetic_map.sha256"
+        self._write_source(model_path, "old-model\n")
+        first_map_sha = hashlib.sha256((map_dir / "chr1.map").read_bytes()).hexdigest()
+        marker_path.write_text(f"{first_map_sha}  chr1.map\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        conda_called = tmp_path / "conda-called"
+        conda_stub = stub_dir / "conda"
+        conda_stub.write_text(
+            "#!/bin/sh\n"
+            "printf 'called\\n' > \"$STUB_CONDA_CALLED\"\n"
+            "printf 'new-model\\n' > \"$STUB_MODEL_PATH\"\n"
+        )
+        conda_stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "CHROMS": "1",
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_CONFIG": str(install_dir / "config.yaml"),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_CONDA_CALLED": str(conda_called),
+                "STUB_MODEL_PATH": str(model_path),
+            }
+        )
+
+        matching = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert matching.returncode == 0, matching.stderr
+        assert not conda_called.exists()
+        assert model_path.read_text() == "old-model\n"
+
+        source.write_text("chr1 . 0 55550\nchr1 . 0.080572 82571\n")
+        conversion = self._run_converter(source_dir, map_dir, "1")
+        assert conversion.returncode == 0, conversion.stderr
+        changed_map_sha = hashlib.sha256((map_dir / "chr1.map").read_bytes()).hexdigest()
+        assert changed_map_sha != first_map_sha
+
+        changed = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert changed.returncode == 0, changed.stderr
+        assert "genetic-map provenance changed or missing; retraining" in changed.stdout
+        assert conda_called.is_file()
+        assert model_path.read_text() == "new-model\n"
+        assert marker_path.read_text() == f"{changed_map_sha}  chr1.map\n"
+        assert not Path(f"{model_path}.stale").exists()
 
     def test_phase07_packages_map_provenance(self) -> None:
         text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
@@ -458,6 +555,8 @@ class TestPhase01GnomixMaps:
             'cp -f "$RAW_DIR/genetic_maps_gnomix/provenance.json" '
             "metadata/gnomix_genetic_maps.json"
         ) in text
+        assert "trained model does not match current genetic map" in text
+        assert '"metadata/gnomix_model_map_chr${chr}.sha256"' in text
 
 
 class TestPhase05ModelPathCheck:
