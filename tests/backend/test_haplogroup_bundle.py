@@ -558,6 +558,7 @@ class TestBuildScript:
         b1 = build_bundle()
         b2 = build_bundle()
         assert json.dumps(b1, sort_keys=True) == json.dumps(b2, sort_keys=True)
+        assert b1 == json.loads(BUNDLE_PRODUCTION.read_text())
 
     def test_validate_tree_passes(self) -> None:
         """Internal validation should report no issues."""

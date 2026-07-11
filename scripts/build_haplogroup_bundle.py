@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the PhyloTree + ISOGG Y-tree haplogroup JSON bundle.
 
-Generates a ~200 KB JSON reference file containing defining SNP tables for
+Generates a ~150 KB JSON reference file containing defining SNP tables for
 mtDNA (PhyloTree Build 17) and Y-chromosome (ISOGG 2019-2020) haplogroup
 trees.  The bundle is designed for the tree-walk haplogroup assignment
 algorithm (P3-32).
@@ -14,7 +14,7 @@ descending as deeply as possible.
 
 SNPs are filtered to those present on the 23andMe v5 array:
   - ~500 mtDNA SNPs (positions on chrM, rCRS reference)
-  - ~1,000 Y-chromosome SNPs (positions on chrY, GRCh37)
+  - 92 Y-chromosome defining SNP records (75 unique rsIDs; GRCh37)
 
 Resolution: 2-3 levels (e.g., H → H1 → H1a for mtDNA, R1b → R1b1 → R1b1a
 for Y-chr).
@@ -1797,8 +1797,9 @@ def build_y_tree() -> dict[str, Any]:
     """Build the Y-chromosome (ISOGG) haplogroup tree.
 
     The tree represents the paternal lineage phylogeny.  Defining SNPs
-    are Y-chromosome mutations genotyped on the 23andMe v5 array
-    (~1,000 total).  Positions are on GRCh37 chrY.
+    are Y-chromosome mutations genotyped on the 23andMe v5 array. The shipped
+    tree contains 92 defining records across 75 unique rsIDs. Positions are on
+    GRCh37 chrY.
 
     SNP names (M-numbers, P-numbers, etc.) are included in rsid field
     where available; otherwise the ISOGG name is used as prefix.
