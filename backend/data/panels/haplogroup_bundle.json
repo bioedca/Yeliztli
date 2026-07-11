@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "PhyloTree mtDNA + ISOGG Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5 array coverage. Provides 2-3 levels of haplogroup resolution.",
   "build": "GRCh37",
   "sources": {
@@ -3054,23 +3054,11 @@
                 },
                 {
                   "haplogroup": "A1b",
-                  "defining_snps": [
-                    {
-                      "rsid": "rs9786139",
-                      "pos": 15024914,
-                      "allele": "G"
-                    }
-                  ],
+                  "defining_snps": [],
                   "children": [
                     {
                       "haplogroup": "A1b1",
-                      "defining_snps": [
-                        {
-                          "rsid": "rs9786281",
-                          "pos": 15457249,
-                          "allele": "C"
-                        }
-                      ]
+                      "defining_snps": []
                     }
                   ]
                 }
@@ -3080,33 +3068,11 @@
         },
         {
           "haplogroup": "B",
-          "defining_snps": [
-            {
-              "rsid": "rs2032623",
-              "pos": 8449042,
-              "allele": "C"
-            },
-            {
-              "rsid": "rs13447352",
-              "pos": 14843803,
-              "allele": "G"
-            }
-          ],
+          "defining_snps": [],
           "children": [
             {
               "haplogroup": "B1",
-              "defining_snps": [
-                {
-                  "rsid": "rs9786076",
-                  "pos": 8441604,
-                  "allele": "C"
-                },
-                {
-                  "rsid": "rs16981295",
-                  "pos": 14116557,
-                  "allele": "T"
-                }
-              ]
+              "defining_snps": []
             },
             {
               "haplogroup": "B2",
@@ -3125,18 +3091,7 @@
               "children": [
                 {
                   "haplogroup": "B2a",
-                  "defining_snps": [
-                    {
-                      "rsid": "rs9341283",
-                      "pos": 14578961,
-                      "allele": "G"
-                    },
-                    {
-                      "rsid": "rs34282407",
-                      "pos": 18386780,
-                      "allele": "C"
-                    }
-                  ]
+                  "defining_snps": []
                 },
                 {
                   "haplogroup": "B2b",
@@ -3174,11 +3129,6 @@
                   "rsid": "rs2032666",
                   "pos": 7701164,
                   "allele": "C"
-                },
-                {
-                  "rsid": "rs17250625",
-                  "pos": 8459804,
-                  "allele": "A"
                 }
               ],
               "children": [
@@ -3186,9 +3136,9 @@
                   "haplogroup": "C1",
                   "defining_snps": [
                     {
-                      "rsid": "rs17316724",
-                      "pos": 17284498,
-                      "allele": "G"
+                      "rsid": "rs35284970",
+                      "pos": 2723523,
+                      "allele": "C"
                     }
                   ]
                 },
@@ -3219,11 +3169,6 @@
                           "rsid": "rs33979247",
                           "pos": 8389948,
                           "allele": "C"
-                        },
-                        {
-                          "rsid": "rs9786856",
-                          "pos": 15451282,
-                          "allele": "A"
                         }
                       ]
                     }
@@ -3255,9 +3200,9 @@
                       "haplogroup": "D1",
                       "defining_snps": [
                         {
-                          "rsid": "rs17307070",
-                          "pos": 15039766,
-                          "allele": "C"
+                          "rsid": "rs2032602",
+                          "pos": 14895148,
+                          "allele": "T"
                         }
                       ],
                       "children": [
@@ -3369,11 +3314,6 @@
                                       "haplogroup": "E1b1a1",
                                       "defining_snps": [
                                         {
-                                          "rsid": "rs9786429",
-                                          "pos": 21721037,
-                                          "allele": "T"
-                                        },
-                                        {
                                           "rsid": "rs4017670",
                                           "pos": 14498044,
                                           "allele": "C"
@@ -3394,6 +3334,11 @@
                                       "rsid": "rs17316834",
                                       "pos": 7751175,
                                       "allele": "G"
+                                    },
+                                    {
+                                      "rsid": "rs9341286",
+                                      "pos": 15019092,
+                                      "allele": "C"
                                     }
                                   ],
                                   "children": [
@@ -3419,13 +3364,7 @@
                                         },
                                         {
                                           "haplogroup": "E1b1b1b",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs34602841",
-                                              "pos": 21389283,
-                                              "allele": "G"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         }
                                       ]
                                     }
@@ -3439,18 +3378,7 @@
                     },
                     {
                       "haplogroup": "E2",
-                      "defining_snps": [
-                        {
-                          "rsid": "rs9341279",
-                          "pos": 14105127,
-                          "allele": "G"
-                        },
-                        {
-                          "rsid": "rs9341286",
-                          "pos": 14568073,
-                          "allele": "A"
-                        }
-                      ]
+                      "defining_snps": []
                     }
                   ]
                 }
@@ -3468,33 +3396,15 @@
               "children": [
                 {
                   "haplogroup": "F1",
-                  "defining_snps": [
-                    {
-                      "rsid": "rs17316625",
-                      "pos": 14506308,
-                      "allele": "G"
-                    }
-                  ]
+                  "defining_snps": []
                 },
                 {
                   "haplogroup": "F2",
-                  "defining_snps": [
-                    {
-                      "rsid": "rs17250359",
-                      "pos": 8437543,
-                      "allele": "T"
-                    }
-                  ]
+                  "defining_snps": []
                 },
                 {
                   "haplogroup": "F3",
-                  "defining_snps": [
-                    {
-                      "rsid": "rs9341279",
-                      "pos": 14105127,
-                      "allele": "G"
-                    }
-                  ]
+                  "defining_snps": []
                 },
                 {
                   "haplogroup": "GH",
@@ -3525,11 +3435,6 @@
                           "haplogroup": "G1",
                           "defining_snps": [
                             {
-                              "rsid": "rs34424943",
-                              "pos": 14574729,
-                              "allele": "T"
-                            },
-                            {
                               "rsid": "rs9786724",
                               "pos": 22504871,
                               "allele": "G"
@@ -3542,23 +3447,11 @@
                           "children": [
                             {
                               "haplogroup": "G2a",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs34175940",
-                                  "pos": 15602949,
-                                  "allele": "A"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "G2a1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs34175940",
-                                      "pos": 15602949,
-                                      "allele": "A"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             },
@@ -3588,6 +3481,11 @@
                           "rsid": "rs13447451",
                           "pos": 14876988,
                           "allele": "T"
+                        },
+                        {
+                          "rsid": "rs2032673",
+                          "pos": 21894058,
+                          "allele": "C"
                         }
                       ],
                       "children": [
@@ -3613,25 +3511,13 @@
                             },
                             {
                               "haplogroup": "H1b",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs17316625",
-                                  "pos": 14506308,
-                                  "allele": "G"
-                                }
-                              ]
+                              "defining_snps": []
                             }
                           ]
                         },
                         {
                           "haplogroup": "H2",
-                          "defining_snps": [
-                            {
-                              "rsid": "rs17250359",
-                              "pos": 8437543,
-                              "allele": "T"
-                            }
-                          ]
+                          "defining_snps": []
                         },
                         {
                           "haplogroup": "H3",
@@ -3654,11 +3540,6 @@
                       "rsid": "rs2032670",
                       "pos": 8307832,
                       "allele": "T"
-                    },
-                    {
-                      "rsid": "rs13447352",
-                      "pos": 14843803,
-                      "allele": "G"
                     }
                   ],
                   "children": [
@@ -3681,9 +3562,9 @@
                           "haplogroup": "I1",
                           "defining_snps": [
                             {
-                              "rsid": "rs17250667",
-                              "pos": 8461752,
-                              "allele": "C"
+                              "rsid": "rs9341296",
+                              "pos": 15022707,
+                              "allele": "T"
                             }
                           ]
                         },
@@ -3736,23 +3617,11 @@
                             },
                             {
                               "haplogroup": "I2b",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs2032673",
-                                  "pos": 8324803,
-                                  "allele": "A"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "I2b1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17317007",
-                                      "pos": 17429753,
-                                      "allele": "G"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -3763,6 +3632,11 @@
                     {
                       "haplogroup": "J",
                       "defining_snps": [
+                        {
+                          "rsid": "rs13447352",
+                          "pos": 22749853,
+                          "allele": "C"
+                        },
                         {
                           "rsid": "rs34997026",
                           "pos": 14969634,
@@ -3832,31 +3706,19 @@
                               "haplogroup": "J2b",
                               "defining_snps": [
                                 {
-                                  "rsid": "rs2032673",
-                                  "pos": 8324803,
-                                  "allele": "A"
+                                  "rsid": "rs17306862",
+                                  "pos": 15010427,
+                                  "allele": "T"
                                 }
                               ],
                               "children": [
                                 {
                                   "haplogroup": "J2b1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17317007",
-                                      "pos": 17429753,
-                                      "allele": "G"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 },
                                 {
                                   "haplogroup": "J2b2",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs34282407",
-                                      "pos": 18386780,
-                                      "allele": "C"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -3890,9 +3752,9 @@
                           "haplogroup": "L",
                           "defining_snps": [
                             {
-                              "rsid": "rs9786139",
-                              "pos": 15024914,
-                              "allele": "G"
+                              "rsid": "rs2032668",
+                              "pos": 7597853,
+                              "allele": "T"
                             }
                           ],
                           "children": [
@@ -3900,31 +3762,19 @@
                               "haplogroup": "L1",
                               "defining_snps": [
                                 {
-                                  "rsid": "rs17316625",
-                                  "pos": 14506308,
-                                  "allele": "G"
+                                  "rsid": "rs2032668",
+                                  "pos": 7597853,
+                                  "allele": "T"
                                 }
                               ],
                               "children": [
                                 {
                                   "haplogroup": "L1a",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17316625",
-                                      "pos": 14506308,
-                                      "allele": "G"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 },
                                 {
                                   "haplogroup": "L1b",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs34424943",
-                                      "pos": 14574729,
-                                      "allele": "T"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -3947,28 +3797,11 @@
                           "children": [
                             {
                               "haplogroup": "T1",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs9341279",
-                                  "pos": 14105127,
-                                  "allele": "G"
-                                },
-                                {
-                                  "rsid": "rs17316625",
-                                  "pos": 14506308,
-                                  "allele": "G"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "T1a",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9341279",
-                                      "pos": 14105127,
-                                      "allele": "G"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -3982,21 +3815,15 @@
                       "children": [
                         {
                           "haplogroup": "NO",
-                          "defining_snps": [
-                            {
-                              "rsid": "rs2032677",
-                              "pos": 8603028,
-                              "allele": "G"
-                            }
-                          ],
+                          "defining_snps": [],
                           "children": [
                             {
                               "haplogroup": "N_Y",
                               "defining_snps": [
                                 {
-                                  "rsid": "rs2032677",
-                                  "pos": 8603028,
-                                  "allele": "G"
+                                  "rsid": "rs9341279",
+                                  "pos": 15437152,
+                                  "allele": "T"
                                 }
                               ],
                               "children": [
@@ -4006,48 +3833,19 @@
                                   "children": [
                                     {
                                       "haplogroup": "N1a",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs9786139",
-                                          "pos": 15024914,
-                                          "allele": "G"
-                                        }
-                                      ]
+                                      "defining_snps": []
                                     },
                                     {
                                       "haplogroup": "N1b",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs34175940",
-                                          "pos": 15602949,
-                                          "allele": "A"
-                                        }
-                                      ]
+                                      "defining_snps": []
                                     },
                                     {
                                       "haplogroup": "N1c",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs2032623",
-                                          "pos": 8449042,
-                                          "allele": "C"
-                                        },
-                                        {
-                                          "rsid": "rs34424943",
-                                          "pos": 14574729,
-                                          "allele": "T"
-                                        }
-                                      ],
+                                      "defining_snps": [],
                                       "children": [
                                         {
                                           "haplogroup": "N1c1",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs17317007",
-                                              "pos": 17429753,
-                                              "allele": "G"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         }
                                       ]
                                     }
@@ -4057,75 +3855,33 @@
                             },
                             {
                               "haplogroup": "O",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs9786429",
-                                  "pos": 21721037,
-                                  "allele": "T"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "O1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17250667",
-                                      "pos": 8461752,
-                                      "allele": "C"
-                                    }
-                                  ],
+                                  "defining_snps": [],
                                   "children": [
                                     {
                                       "haplogroup": "O1a",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs9786856",
-                                          "pos": 15451282,
-                                          "allele": "A"
-                                        }
-                                      ],
+                                      "defining_snps": [],
                                       "children": [
                                         {
                                           "haplogroup": "O1a1",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs9786856",
-                                              "pos": 15451282,
-                                              "allele": "A"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         }
                                       ]
                                     },
                                     {
                                       "haplogroup": "O1b",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs9341283",
-                                          "pos": 14578961,
-                                          "allele": "G"
-                                        }
-                                      ],
+                                      "defining_snps": [],
                                       "children": [
                                         {
                                           "haplogroup": "O1b1",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs9341283",
-                                              "pos": 14578961,
-                                              "allele": "G"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         },
                                         {
                                           "haplogroup": "O1b2",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs16981295",
-                                              "pos": 14116557,
-                                              "allele": "T"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         }
                                       ]
                                     }
@@ -4133,45 +3889,21 @@
                                 },
                                 {
                                   "haplogroup": "O2",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9786429",
-                                      "pos": 21721037,
-                                      "allele": "T"
-                                    }
-                                  ],
+                                  "defining_snps": [],
                                   "children": [
                                     {
                                       "haplogroup": "O2a",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs9786429",
-                                          "pos": 21721037,
-                                          "allele": "T"
-                                        }
-                                      ],
+                                      "defining_snps": [],
                                       "children": [
                                         {
                                           "haplogroup": "O2a1",
-                                          "defining_snps": [
-                                            {
-                                              "rsid": "rs35882927",
-                                              "pos": 14930756,
-                                              "allele": "A"
-                                            }
-                                          ]
+                                          "defining_snps": []
                                         }
                                       ]
                                     },
                                     {
                                       "haplogroup": "O2b",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs34602841",
-                                          "pos": 21389283,
-                                          "allele": "G"
-                                        }
-                                      ]
+                                      "defining_snps": []
                                     }
                                   ]
                                 }
@@ -4181,75 +3913,33 @@
                         },
                         {
                           "haplogroup": "MS",
-                          "defining_snps": [
-                            {
-                              "rsid": "rs9786076",
-                              "pos": 8441604,
-                              "allele": "C"
-                            }
-                          ],
+                          "defining_snps": [],
                           "children": [
                             {
                               "haplogroup": "M_Y",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs2032677",
-                                  "pos": 8603028,
-                                  "allele": "G"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "M1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9786076",
-                                      "pos": 8441604,
-                                      "allele": "C"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 },
                                 {
                                   "haplogroup": "M2",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17250359",
-                                      "pos": 8437543,
-                                      "allele": "T"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             },
                             {
                               "haplogroup": "S",
-                              "defining_snps": [
-                                {
-                                  "rsid": "rs2032677",
-                                  "pos": 8603028,
-                                  "allele": "G"
-                                }
-                              ],
+                              "defining_snps": [],
                               "children": [
                                 {
                                   "haplogroup": "S1",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9786076",
-                                      "pos": 8441604,
-                                      "allele": "C"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 },
                                 {
                                   "haplogroup": "S2",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs17250359",
-                                      "pos": 8437543,
-                                      "allele": "T"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -4277,11 +3967,6 @@
                                   "rsid": "rs8179021",
                                   "pos": 2714816,
                                   "allele": "A"
-                                },
-                                {
-                                  "rsid": "rs9786281",
-                                  "pos": 15457249,
-                                  "allele": "C"
                                 }
                               ],
                               "children": [
@@ -4329,13 +4014,7 @@
                                     },
                                     {
                                       "haplogroup": "Q1b",
-                                      "defining_snps": [
-                                        {
-                                          "rsid": "rs35882927",
-                                          "pos": 14930756,
-                                          "allele": "A"
-                                        }
-                                      ]
+                                      "defining_snps": []
                                     }
                                   ]
                                 },
@@ -4373,6 +4052,11 @@
                                       "rsid": "rs1000867",
                                       "pos": 32170896,
                                       "allele": "T"
+                                    },
+                                    {
+                                      "rsid": "rs17307070",
+                                      "pos": 15590342,
+                                      "allele": "T"
                                     }
                                   ],
                                   "children": [
@@ -4383,11 +4067,6 @@
                                           "rsid": "rs113624642",
                                           "pos": 15026561,
                                           "allele": "G"
-                                        },
-                                        {
-                                          "rsid": "rs17307070",
-                                          "pos": 15039766,
-                                          "allele": "C"
                                         }
                                       ],
                                       "children": [
@@ -4403,18 +4082,7 @@
                                           "children": [
                                             {
                                               "haplogroup": "R1a1a",
-                                              "defining_snps": [
-                                                {
-                                                  "rsid": "rs17250625",
-                                                  "pos": 8459804,
-                                                  "allele": "A"
-                                                },
-                                                {
-                                                  "rsid": "rs17316724",
-                                                  "pos": 17284498,
-                                                  "allele": "G"
-                                                }
-                                              ]
+                                              "defining_snps": []
                                             }
                                           ]
                                         }
@@ -4486,13 +4154,7 @@
                                             },
                                             {
                                               "haplogroup": "R1b1b",
-                                              "defining_snps": [
-                                                {
-                                                  "rsid": "rs34282407",
-                                                  "pos": 18386780,
-                                                  "allele": "C"
-                                                }
-                                              ]
+                                              "defining_snps": []
                                             }
                                           ]
                                         }
@@ -4502,13 +4164,7 @@
                                 },
                                 {
                                   "haplogroup": "R2",
-                                  "defining_snps": [
-                                    {
-                                      "rsid": "rs9341286",
-                                      "pos": 14568073,
-                                      "allele": "A"
-                                    }
-                                  ]
+                                  "defining_snps": []
                                 }
                               ]
                             }
@@ -4531,11 +4187,11 @@
     "mt_unique_snps": 287,
     "mt_max_depth": 11,
     "y_haplogroups": 127,
-    "y_defining_snps": 151,
-    "y_unique_snps": 95,
+    "y_defining_snps": 92,
+    "y_unique_snps": 75,
     "y_max_depth": 12,
     "total_haplogroups": 322,
-    "total_defining_snps": 525,
-    "total_unique_snps": 382
+    "total_defining_snps": 466,
+    "total_unique_snps": 362
   }
 }

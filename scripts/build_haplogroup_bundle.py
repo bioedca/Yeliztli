@@ -44,7 +44,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.0.2"
+BUNDLE_VERSION = "1.0.3"
 BUILD = "GRCh37"
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
@@ -75,6 +75,20 @@ def _y_snp(rsid: str, pos: int, allele: str) -> dict[str, Any]:
 
 
 _AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M304/Page16/PF4609, A->C, defines J.
+    "rs13447352": {
+        "pos": 22749853,
+        "allele": "C",
+        "alleles": ("A", "C"),
+        "clade": "J",
+    },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: P225, G->T, defines R1.
+    "rs17307070": {
+        "pos": 15590342,
+        "allele": "T",
+        "alleles": ("G", "T"),
+        "clade": "R1",
+    },
     # YBrowse hg19 + Ensembl/NCBI RefSNP: M168/PF1416, C->T, defines CT.
     "rs2032595": {
         "pos": 14813991,
@@ -114,6 +128,27 @@ _AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
         "alleles": ("G", "A"),
         "clade": "R",
     },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M69/Page45, T->C, defines H.
+    "rs2032673": {
+        "pos": 21894058,
+        "allele": "C",
+        "alleles": ("C", "T"),
+        "clade": "H",
+    },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M232/M2188, C->T, defines N.
+    "rs9341279": {
+        "pos": 15437152,
+        "allele": "T",
+        "alleles": ("C", "T"),
+        "clade": "N_Y",
+    },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M243/PF1943, T->C, defines E1b1b.
+    "rs9341286": {
+        "pos": 15019092,
+        "allele": "C",
+        "alleles": ("C", "T"),
+        "clade": "E1b1b",
+    },
     # Ensembl GRCh37 REST variation/homo_sapiens/rs9341296: Y:15022707 C/T,
     # ancestral C. Stored defining alleles must be the derived T, never G.
     "rs9341296": {"pos": 15022707, "allele": "T", "alleles": ("C", "T")},
@@ -142,40 +177,30 @@ _EXCLUDED_Y_RSIDS: dict[str, str] = {
     # Ensembl and NCBI report only C/T at this Y locus. The hand-curated tree
     # stored impossible G records on CT/DE/D without an authoritative marker name.
     "rs13304168": "invalid historic G allele and unresolved clade assignment",
+    # Current RefSNP records place these aliases/identifiers off chromosome Y.
+    "rs16981295": "current RefSNP maps to chromosome 20, not Y",
+    "rs17250359": "merged into chromosome-X rs5945587, not a Y marker",
+    "rs17250625": "merged into chromosome-X rs11555927, not a Y marker",
+    "rs17250667": "merged into chromosome-X rs4826364, not a Y marker",
+    "rs17316625": "current RefSNP maps to chromosome X, not Y",
+    "rs17316724": "merged into chromosome-X rs6633675, not a Y marker",
+    "rs17317007": "merged into chromosome-10 rs7907710, not a Y marker",
+    "rs34282407": "current RefSNP maps to chromosome 7, not Y",
+    "rs34424943": "current RefSNP is a chromosome-5 delins, not a Y SNP",
+    "rs34602841": "current RefSNP is a chromosome-1 insertion, not a Y SNP",
+    "rs35882927": "current RefSNP is a chromosome-18 delins, not a Y SNP",
+    "rs34175940": "withdrawn RefSNP with no current placement",
+    # These remain on Y, but the available source cannot support a precise node in
+    # this simplified tree. Withhold them rather than broadening a deeper marker.
+    "rs2032623": "Y insertion with no co-located YBrowse marker assignment",
+    "rs2032677": "M194 defines a deeper Q subclade absent from this tree",
+    "rs9341283": "only approximate or unresolved YBrowse clade assignments",
+    "rs9786076": "L11 defines a deeper R1b subclade absent from this tree",
+    "rs9786139": "L15 defines the absent IJK node and has a conflicting co-located row",
+    "rs9786281": "only unknown or approximate YBrowse clade assignments",
+    "rs9786429": "merged Y record has only an approximate KR assignment",
+    "rs9786856": "only unknown or unresolved YBrowse clade assignments",
 }
-
-# Existing hand-curated tree debt: these rsIDs are already reused across
-# unrelated clades and need authoritative re-derivation before they can be
-# removed or assigned to a single clade. New cross-clade duplicates fail.
-_KNOWN_LEGACY_CROSS_CLADE_Y_DUPLICATES = frozenset(
-    {
-        "rs13447352",
-        "rs16981295",
-        "rs17250359",
-        "rs17250625",
-        "rs17250667",
-        "rs17307070",
-        "rs17316625",
-        "rs17316724",
-        "rs17317007",
-        "rs2032623",
-        "rs2032673",
-        "rs2032677",
-        "rs34175940",
-        "rs34282407",
-        "rs34424943",
-        "rs34602841",
-        "rs35882927",
-        "rs9341279",
-        "rs9341283",
-        "rs9341286",
-        "rs9786076",
-        "rs9786139",
-        "rs9786281",
-        "rs9786429",
-        "rs9786856",
-    }
-)
 
 
 def _node(
@@ -1796,15 +1821,11 @@ def build_y_tree() -> dict[str, Any]:
     )
     a1b1 = _node(
         "A1b1",
-        [
-            _y_snp("rs9786281", 15457249, "C"),
-        ],
+        [],
     )
     a1b = _node(
         "A1b",
-        [
-            _y_snp("rs9786139", 15024914, "G"),
-        ],
+        [],
         [a1b1],
     )
     a1 = _node(
@@ -1829,17 +1850,11 @@ def build_y_tree() -> dict[str, Any]:
     # ── B branch ──────────────────────────────────────────────────
     b1 = _node(
         "B1",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-            _y_snp("rs16981295", 14116557, "T"),
-        ],
+        [],
     )
     b2a = _node(
         "B2a",
-        [
-            _y_snp("rs9341283", 14578961, "G"),
-            _y_snp("rs34282407", 18386780, "C"),
-        ],
+        [],
     )
     b2b = _node(
         "B2b",
@@ -1857,10 +1872,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     b_branch = _node(
         "B",
-        [
-            _y_snp("rs2032623", 8449042, "C"),
-            _y_snp("rs13447352", 14843803, "G"),
-        ],
+        [],
         [b1, b2],
     )
 
@@ -1870,8 +1882,6 @@ def build_y_tree() -> dict[str, Any]:
         "C1",
         [
             _y_snp("rs35284970", 2723523, "C"),
-            _y_snp("rs17250625", 8459804, "A"),
-            _y_snp("rs17316724", 17284498, "G"),
         ],
     )
     c2a = _node(
@@ -1884,7 +1894,6 @@ def build_y_tree() -> dict[str, Any]:
         "C2b",
         [
             _y_snp("rs33979247", 8389948, "C"),
-            _y_snp("rs9786856", 15451282, "A"),
         ],
     )
     c2 = _node(
@@ -1900,7 +1909,6 @@ def build_y_tree() -> dict[str, Any]:
         [
             _y_snp("rs35284970", 2723523, "C"),
             _y_snp("rs2032666", 7701164, "C"),
-            _y_snp("rs17250625", 8459804, "A"),
         ],
         [c1, c2],
     )
@@ -1915,14 +1923,12 @@ def build_y_tree() -> dict[str, Any]:
     d1b = _node(
         "D1b",
         [
-            _y_snp("rs17307070", 15039766, "C"),
             _y_snp("rs17316928", 17367192, "A"),
         ],
     )
     d1 = _node(
         "D1",
         [
-            _y_snp("rs17307070", 15039766, "C"),
             _y_snp("rs2032602", 14895148, "T"),
         ],
         [d1a, d1b],
@@ -1953,7 +1959,6 @@ def build_y_tree() -> dict[str, Any]:
     e1b1a1 = _node(
         "E1b1a1",
         [
-            _y_snp("rs9786429", 21721037, "T"),
             _y_snp("rs4017670", 14498044, "C"),
         ],
     )
@@ -1973,9 +1978,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     e1b1b1b = _node(
         "E1b1b1b",
-        [
-            _y_snp("rs34602841", 21389283, "G"),
-        ],
+        [],
     )
     e1b1b1 = _node(
         "E1b1b1",
@@ -1989,6 +1992,7 @@ def build_y_tree() -> dict[str, Any]:
         [
             _y_snp("rs13447437", 21415662, "T"),
             _y_snp("rs17316834", 7751175, "G"),
+            _y_snp("rs9341286", 15019092, "C"),
         ],
         [e1b1b1],
     )
@@ -2015,10 +2019,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     e2 = _node(
         "E2",
-        [
-            _y_snp("rs9341279", 14105127, "G"),
-            _y_snp("rs9341286", 14568073, "A"),
-        ],
+        [],
     )
     e_branch = _node(
         "E",
@@ -2043,23 +2044,16 @@ def build_y_tree() -> dict[str, Any]:
     g1 = _node(
         "G1",
         [
-            _y_snp("rs34424943", 14574729, "T"),
             _y_snp("rs9786724", 22504871, "G"),
         ],
     )
     g2a1 = _node(
         "G2a1",
-        [
-            _y_snp("rs34175940", 15602949, "A"),
-        ],
+        [],
     )
     g2a = _node(
         "G2a",
-        [
-            # rs2032658 (M207) removed — it defines haplogroup R, not G (#1584);
-            # G2a keeps its own defining marker rs34175940.
-            _y_snp("rs34175940", 15602949, "A"),
-        ],
+        [],
         [g2a1],
     )
     g2b = _node(
@@ -2096,9 +2090,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     h1b = _node(
         "H1b",
-        [
-            _y_snp("rs17316625", 14506308, "G"),
-        ],
+        [],
     )
     h1 = _node(
         "H1",
@@ -2109,9 +2101,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     h2 = _node(
         "H2",
-        [
-            _y_snp("rs17250359", 8437543, "T"),
-        ],
+        [],
     )
     h3 = _node(
         "H3",
@@ -2125,6 +2115,7 @@ def build_y_tree() -> dict[str, Any]:
             _y_snp("rs2032638", 14505024, "C"),
             _y_snp("rs2032640", 14518993, "G"),
             _y_snp("rs13447451", 14876988, "T"),
+            _y_snp("rs2032673", 21894058, "C"),
         ],
         [h1, h2, h3],
     )
@@ -2147,7 +2138,6 @@ def build_y_tree() -> dict[str, Any]:
         "I1",
         [
             _y_snp("rs9341296", 15022707, "T"),
-            _y_snp("rs17250667", 8461752, "C"),
         ],
         [],
     )
@@ -2172,15 +2162,11 @@ def build_y_tree() -> dict[str, Any]:
     )
     i2b1 = _node(
         "I2b1",
-        [
-            _y_snp("rs17317007", 17429753, "G"),
-        ],
+        [],
     )
     i2b = _node(
         "I2b",
-        [
-            _y_snp("rs2032673", 8324803, "A"),
-        ],
+        [],
         [i2b1],
     )
     i2 = _node(
@@ -2239,20 +2225,15 @@ def build_y_tree() -> dict[str, Any]:
     )
     j2b1 = _node(
         "J2b1",
-        [
-            _y_snp("rs17317007", 17429753, "G"),
-        ],
+        [],
     )
     j2b2 = _node(
         "J2b2",
-        [
-            _y_snp("rs34282407", 18386780, "C"),
-        ],
+        [],
     )
     j2b = _node(
         "J2b",
         [
-            _y_snp("rs2032673", 8324803, "A"),
             _y_snp("rs17306862", 15010427, "T"),
         ],
         [j2b1, j2b2],
@@ -2267,7 +2248,7 @@ def build_y_tree() -> dict[str, Any]:
     j_branch = _node(
         "J",
         [
-            _y_snp("rs13447352", 14843803, "G"),
+            _y_snp("rs13447352", 22749853, "C"),
             _y_snp("rs34997026", 14969634, "A"),
         ],
         [j1, j2],
@@ -2277,7 +2258,6 @@ def build_y_tree() -> dict[str, Any]:
         "IJ",
         [
             _y_snp("rs2032670", 8307832, "T"),
-            _y_snp("rs13447352", 14843803, "G"),
         ],
         [i_branch, j_branch],
     )
@@ -2286,21 +2266,16 @@ def build_y_tree() -> dict[str, Any]:
     # ── L branch ──────────────────────────────────────────────────
     l1a = _node(
         "L1a",
-        [
-            _y_snp("rs17316625", 14506308, "G"),
-        ],
+        [],
     )
     l1b = _node(
         "L1b",
-        [
-            _y_snp("rs34424943", 14574729, "T"),
-        ],
+        [],
     )
     l1 = _node(
         "L1",
         [
             _y_snp("rs2032668", 7597853, "T"),
-            _y_snp("rs17316625", 14506308, "G"),
         ],
         [l1a, l1b],
     )
@@ -2308,7 +2283,6 @@ def build_y_tree() -> dict[str, Any]:
         "L",
         [
             _y_snp("rs2032668", 7597853, "T"),
-            _y_snp("rs9786139", 15024914, "G"),
         ],
         [l1],
     )
@@ -2316,16 +2290,11 @@ def build_y_tree() -> dict[str, Any]:
     # ── T branch (Y-chr) ─────────────────────────────────────────
     t1a = _node(
         "T1a",
-        [
-            _y_snp("rs9341279", 14105127, "G"),
-        ],
+        [],
     )
     t1 = _node(
         "T1",
-        [
-            _y_snp("rs9341279", 14105127, "G"),
-            _y_snp("rs17316625", 14506308, "G"),
-        ],
+        [],
         [t1a],
     )
     t_branch = _node(
@@ -2348,51 +2317,34 @@ def build_y_tree() -> dict[str, Any]:
     # ── M branch (Y-chr) ─────────────────────────────────────────
     m1 = _node(
         "M1",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-        ],
+        [],
     )
     m2 = _node(
         "M2",
-        [
-            _y_snp("rs17250359", 8437543, "T"),
-        ],
+        [],
     )
     m_branch = _node(
         "M_Y",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-            _y_snp("rs2032677", 8603028, "G"),
-        ],
+        [],
         [m1, m2],
     )
 
     # ── N branch (Y-chr) ─────────────────────────────────────────
     n1a = _node(
         "N1a",
-        [
-            _y_snp("rs9786139", 15024914, "G"),
-        ],
+        [],
     )
     n1b = _node(
         "N1b",
-        [
-            _y_snp("rs34175940", 15602949, "A"),
-        ],
+        [],
     )
     n1c1 = _node(
         "N1c1",
-        [
-            _y_snp("rs34424943", 14574729, "T"),
-            _y_snp("rs17317007", 17429753, "G"),
-        ],
+        [],
     )
     n1c = _node(
         "N1c",
-        [
-            _y_snp("rs2032623", 8449042, "C"),
-            _y_snp("rs34424943", 14574729, "T"),
-        ],
+        [],
         [n1c1],
     )
     n1 = _node(
@@ -2403,16 +2355,14 @@ def build_y_tree() -> dict[str, Any]:
     n_branch_y = _node(
         "N_Y",
         [
-            _y_snp("rs2032677", 8603028, "G"),
+            _y_snp("rs9341279", 15437152, "T"),
         ],
         [n1],
     )
 
     no = _node(
         "NO",
-        [
-            _y_snp("rs2032677", 8603028, "G"),
-        ],
+        [],
         [n_branch_y, _build_y_o_branch()],
     )
 
@@ -2439,9 +2389,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     q1b = _node(
         "Q1b",
-        [
-            _y_snp("rs35882927", 14930756, "A"),
-        ],
+        [],
     )
     q1 = _node(
         "Q1",
@@ -2460,7 +2408,6 @@ def build_y_tree() -> dict[str, Any]:
         "Q",
         [
             _y_snp("rs8179021", 2714816, "A"),
-            _y_snp("rs9786281", 15457249, "C"),
         ],
         [q1, q2],
     )
@@ -2468,10 +2415,7 @@ def build_y_tree() -> dict[str, Any]:
     # ── R branch ──────────────────────────────────────────────────
     r1a1a = _node(
         "R1a1a",
-        [
-            _y_snp("rs17250625", 8459804, "A"),
-            _y_snp("rs17316724", 17284498, "G"),
-        ],
+        [],
     )
     r1a1 = _node(
         "R1a1",
@@ -2484,7 +2428,6 @@ def build_y_tree() -> dict[str, Any]:
         "R1a",
         [
             _y_snp("rs113624642", 15026561, "G"),
-            _y_snp("rs17307070", 15039766, "C"),
         ],
         [r1a1],
     )
@@ -2513,9 +2456,7 @@ def build_y_tree() -> dict[str, Any]:
     )
     r1b1b = _node(
         "R1b1b",
-        [
-            _y_snp("rs34282407", 18386780, "C"),
-        ],
+        [],
     )
     r1b1 = _node(
         "R1b1",
@@ -2538,14 +2479,13 @@ def build_y_tree() -> dict[str, Any]:
         [
             _y_snp("rs2032624", 15022755, "A"),
             _y_snp("rs1000867", 32170896, "T"),
+            _y_snp("rs17307070", 15590342, "T"),
         ],
         [r1a, r1b],
     )
     r2 = _node(
         "R2",
-        [
-            _y_snp("rs9341286", 14568073, "A"),
-        ],
+        [],
     )
     r_branch = _node(
         "R",
@@ -2573,30 +2513,21 @@ def build_y_tree() -> dict[str, Any]:
     # ── S branch ──────────────────────────────────────────────────
     s1 = _node(
         "S1",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-        ],
+        [],
     )
     s2 = _node(
         "S2",
-        [
-            _y_snp("rs17250359", 8437543, "T"),
-        ],
+        [],
     )
     s_branch = _node(
         "S",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-            _y_snp("rs2032677", 8603028, "G"),
-        ],
+        [],
         [s1, s2],
     )
 
     ms = _node(
         "MS",
-        [
-            _y_snp("rs9786076", 8441604, "C"),
-        ],
+        [],
         [m_branch, s_branch],
     )
 
@@ -2613,21 +2544,15 @@ def build_y_tree() -> dict[str, Any]:
     # ── F branch (ancestor of G through T) ────────────────────────
     f1 = _node(
         "F1",
-        [
-            _y_snp("rs17316625", 14506308, "G"),
-        ],
+        [],
     )
     f2 = _node(
         "F2",
-        [
-            _y_snp("rs17250359", 8437543, "T"),
-        ],
+        [],
     )
     f3 = _node(
         "F3",
-        [
-            _y_snp("rs9341279", 14105127, "G"),
-        ],
+        [],
     )
 
     f_branch = _node(
@@ -2659,76 +2584,52 @@ def _build_y_o_branch() -> dict[str, Any]:
     """
     o1a1 = _node(
         "O1a1",
-        [
-            _y_snp("rs9786856", 15451282, "A"),
-        ],
+        [],
     )
     o1a = _node(
         "O1a",
-        [
-            _y_snp("rs17250667", 8461752, "C"),
-            _y_snp("rs9786856", 15451282, "A"),
-        ],
+        [],
         [o1a1],
     )
     o1b1 = _node(
         "O1b1",
-        [
-            _y_snp("rs9341283", 14578961, "G"),
-        ],
+        [],
     )
     o1b2 = _node(
         "O1b2",
-        [
-            _y_snp("rs16981295", 14116557, "T"),
-        ],
+        [],
     )
     o1b = _node(
         "O1b",
-        [
-            _y_snp("rs9341283", 14578961, "G"),
-        ],
+        [],
         [o1b1, o1b2],
     )
     o1 = _node(
         "O1",
-        [
-            _y_snp("rs17250667", 8461752, "C"),
-        ],
+        [],
         [o1a, o1b],
     )
     o2a1 = _node(
         "O2a1",
-        [
-            _y_snp("rs35882927", 14930756, "A"),
-        ],
+        [],
     )
     o2a = _node(
         "O2a",
-        [
-            _y_snp("rs9786429", 21721037, "T"),
-        ],
+        [],
         [o2a1],
     )
     o2b = _node(
         "O2b",
-        [
-            _y_snp("rs34602841", 21389283, "G"),
-        ],
+        [],
     )
     o2 = _node(
         "O2",
-        [
-            _y_snp("rs9786429", 21721037, "T"),
-        ],
+        [],
         [o2a, o2b],
     )
     return _node(
         "O",
-        [
-            _y_snp("rs2032677", 8603028, "G"),
-            _y_snp("rs9786429", 21721037, "T"),
-        ],
+        [],
         [o1, o2],
     )
 
@@ -2816,7 +2717,7 @@ def _validate_y_cross_clade_duplicates(node: dict[str, Any]) -> list[str]:
         locations.setdefault(snp["rsid"], []).append(tuple(path.split("/")))
 
     for rsid, paths in sorted(locations.items()):
-        if len(paths) < 2 or rsid in _KNOWN_LEGACY_CROSS_CLADE_Y_DUPLICATES:
+        if len(paths) < 2:
             continue
 
         unrelated_pairs: list[tuple[tuple[str, ...], tuple[str, ...]]] = []

@@ -266,7 +266,6 @@ _CT_M168_GENOTYPES = [
     # C
     {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "CC"},
     {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "CC"},
-    {"rsid": "rs17250625", "chrom": "Y", "pos": 8459804, "genotype": "AA"},
     # C2
     {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "TT"},
 ]
@@ -294,7 +293,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.0.2"
+        assert bundle.version == "1.0.3"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -956,6 +955,55 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "P"
         assert [step.haplogroup for step in path] == ["CT", "F", "K", "K2", "P"]
 
+    def test_withheld_l_markers_do_not_divert_to_f1(self, bundle: HaplogroupBundle) -> None:
+        """Non-Y or misassigned L-lineage records cannot support F1."""
+        genotypes = {
+            "rs2032595": "TT",
+            "rs2032652": "TT",
+            "rs3900": "GG",
+            "rs2032668": "TT",
+            "rs9786139": "GG",
+            "rs17316625": "GG",
+            "rs34424943": "TT",
+        }
+
+        terminal, path = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+            trusted_single_marker_terminal_rsids=frozenset(
+                {"rs2032595", "rs2032652", "rs3900", "rs2032631", "rs2032658"}
+            ),
+        )
+
+        assert terminal.haplogroup == "K"
+        assert [step.haplogroup for step in path] == ["CT", "F", "K"]
+
+    def test_withheld_s_markers_do_not_divert_to_f2_or_m2(self, bundle: HaplogroupBundle) -> None:
+        """The unsupported S2 motif cannot route through F2 or M2 duplicates."""
+        genotypes = {
+            "rs2032595": "TT",
+            "rs2032652": "TT",
+            "rs3900": "GG",
+            "rs9786076": "CC",
+            "rs2032677": "GG",
+            "rs17250359": "TT",
+        }
+
+        terminal, path = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=2,
+            trusted_single_marker_terminal_rsids=frozenset(
+                {"rs2032595", "rs2032652", "rs3900", "rs2032631", "rs2032658"}
+            ),
+        )
+
+        assert terminal.haplogroup == "K"
+        assert [step.haplogroup for step in path] == ["CT", "F", "K"]
+
     def test_one_marker_leaf_can_still_be_terminal_with_internal_floor(self) -> None:
         """The #1079 guard is for under-supported internal nodes. A one-SNP leaf has
         no deeper branch to over-resolve into, so the existing conflict/fraction
@@ -1509,11 +1557,16 @@ class TestYABranchPolarity:
         for snp in y_snps(bundle.y_tree):
             by_rsid.setdefault(snp.rsid, set()).add((snp.pos, snp.allele))
 
+        assert by_rsid["rs13447352"] == {(22749853, "C")}
+        assert by_rsid["rs17307070"] == {(15590342, "T")}
         assert by_rsid["rs2032595"] == {(14813991, "T")}
         assert by_rsid["rs2032597"] == {(14847792, "C")}
         assert by_rsid["rs2032631"] == {(21867787, "A")}
         assert by_rsid["rs2032652"] == {(21917313, "T")}
         assert by_rsid["rs2032658"] == {(15581983, "G")}
+        assert by_rsid["rs2032673"] == {(21894058, "C")}
+        assert by_rsid["rs9341279"] == {(15437152, "T")}
+        assert by_rsid["rs9341286"] == {(15019092, "C")}
         assert by_rsid["rs9341296"] == {(15022707, "T")}
         assert by_rsid["rs3900"] == {(21730257, "G")}
 
@@ -1532,6 +1585,7 @@ class TestYABranchPolarity:
         assert "rs9341278" not in by_rsid  # invalid historic T allele; clade unresolved
         assert "rs2032604" not in by_rsid  # unresolved cross-clade duplicate
         assert "rs13304168" not in by_rsid  # impossible historic G allele; clade unresolved
+        assert not (_CROSS_CLADE_WITHHELD_Y_RSIDS & by_rsid)
 
     def test_r_node_defined_by_m207_rs2032658_derived_g(self, bundle: HaplogroupBundle) -> None:
         """#1654 (Class A allele polarity): rs2032658 (M207) defines haplogroup R
@@ -1585,13 +1639,41 @@ class TestYABranchPolarity:
 # is a mis-attribution (#660/#805/#1583/#1584). Add entries as bundle markers are
 # audited against an authoritative Y-SNP index.
 _CANONICAL_Y_MARKER_CLADE: dict[str, str] = {
+    "rs13447352": "J",  # M304 / Page16 / PF4609: A->C defines J.
+    "rs17307070": "R1",  # P225: G->T defines R1.
     "rs2032595": "CT",  # M168: C->T defines CT.
     "rs2032597": "I",  # M170: A→C, derived C defines haplogroup I (not the basal A).
     "rs2032652": "F",  # M89: C->T defines F.
+    "rs2032673": "H",  # M69 / Page45: T->C defines H.
     "rs3900": "K",  # M9: C->G defines K.
     "rs2032631": "P",  # M45: canonical G->A defines P/P1.
+    "rs9341279": "N_Y",  # M232 / M2188: C->T defines Y haplogroup N.
+    "rs9341286": "E1b1b",  # M243 / PF1943: T->C defines E1b1b.
     "rs9786153": "R1b",  # M269: defines R1b (R-M269), not haplogroup I.
     "rs2032658": "R",  # M207: defines haplogroup R (R-M207), not G.
+}
+
+_CROSS_CLADE_WITHHELD_Y_RSIDS = {
+    "rs16981295",
+    "rs17250359",
+    "rs17250625",
+    "rs17250667",
+    "rs17316625",
+    "rs17316724",
+    "rs17317007",
+    "rs2032623",
+    "rs2032677",
+    "rs34175940",
+    "rs34282407",
+    "rs34424943",
+    "rs34602841",
+    "rs35882927",
+    "rs9341283",
+    "rs9786076",
+    "rs9786139",
+    "rs9786281",
+    "rs9786429",
+    "rs9786856",
 }
 
 

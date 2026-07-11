@@ -137,7 +137,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.0.2"
+        assert bundle["version"] == "1.0.3"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -444,6 +444,28 @@ class TestYChromTree:
         walk(y_tree, set(), [])
         assert not failures
 
+    def test_y_rsids_are_not_reused_across_unrelated_clades(self, y_tree: dict) -> None:
+        """Every repeated Y rsID must stay on one ancestor-descendant lineage."""
+        locations: dict[str, list[tuple[str, ...]]] = {}
+
+        def walk(node: dict, path: tuple[str, ...]) -> None:
+            current_path = (*path, node["haplogroup"])
+            for snp in node.get("defining_snps", []):
+                locations.setdefault(snp["rsid"], []).append(current_path)
+            for child in node.get("children", []):
+                walk(child, current_path)
+
+        walk(y_tree, ())
+        failures: list[str] = []
+        for rsid, paths in locations.items():
+            for index, left in enumerate(paths):
+                for right in paths[index + 1 :]:
+                    related = left[: len(right)] == right or right[: len(left)] == left
+                    if not related:
+                        failures.append(f"{rsid}: {'/'.join(left)} vs {'/'.join(right)}")
+
+        assert not failures
+
 
 # ── Test fixture integration tests ──────────────────────────────────────
 
@@ -597,8 +619,8 @@ class TestBuildScript:
             "rs1000546" in issue and "excluded from the Y tree" in issue for issue in issues
         )
 
-    def test_y_duplicate_guard_rejects_unregistered_cross_clade_reuse(self) -> None:
-        """#1654: a new rsID copy on an unrelated Y clade must fail validation."""
+    def test_y_duplicate_guard_rejects_all_cross_clade_reuse(self) -> None:
+        """The guard rejects both new and formerly grandfathered duplicate rsIDs."""
         from scripts.build_haplogroup_bundle import (
             _validate_y_cross_clade_duplicates,
             build_y_tree,
@@ -606,11 +628,15 @@ class TestBuildScript:
 
         y_tree = build_y_tree()
         b_node = find_node(y_tree, "B")
-        assert b_node is not None
+        r_node = find_node(y_tree, "R")
+        assert b_node is not None and r_node is not None
         b_node["defining_snps"].append({"rsid": "rs2032658", "pos": 15581983, "allele": "G"})
+        b_node["defining_snps"].append({"rsid": "rs17250359", "pos": 1, "allele": "T"})
+        r_node["defining_snps"].append({"rsid": "rs17250359", "pos": 1, "allele": "T"})
 
         issues = _validate_y_cross_clade_duplicates(y_tree)
         assert any("rs2032658" in issue and "unrelated Y clades" in issue for issue in issues)
+        assert any("rs17250359" in issue and "unrelated Y clades" in issue for issue in issues)
 
     def test_count_helpers_consistent(self) -> None:
         """_count_nodes and _count_snps should match collected counts."""
