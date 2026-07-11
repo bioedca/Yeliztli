@@ -1616,7 +1616,15 @@ def load_haplogroup_bundle(
 # ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
 _Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
-_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS = frozenset({"rs2032658"})
+_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS = frozenset(
+    {
+        "rs2032595",  # M168 / CT
+        "rs2032652",  # M89 / F
+        "rs3900",  # M9 / K
+        "rs2032631",  # M45 / P
+        "rs2032658",  # M207 / R
+    }
+)
 
 # Normalized mitochondrial chromosome label. Every ingestion parser normalizes the
 # vendor mtDNA code (23andMe/AncestryDNA "25"/"26", etc.) to "MT" (see
@@ -1693,13 +1701,11 @@ def _tree_walk(
 
     Descent into a child is scored on that child's **clade-specific** defining
     SNPs — the ones that actually distinguish it from the lineage already walked
-    — *not* its full defining set. The bundle re-lists ancestral/shared markers
-    on descendant nodes (CT's M168 ``rs2032652`` is re-listed on F and R2;
-    ``rs13304168`` on DE and D), so a greedy per-node ``present / total`` let a
-    child match purely on a marker inherited from its parent clade: a sample with
-    only the two CT markers typed scored DE and F at 0.5 each and over-resolved
-    past CT (#804). Excluding inherited markers means a single shared/duplicated
-    marker can no longer divert or over-extend the walk.
+    — *not* its full defining set. The hand-curated bundle has historically
+    re-listed ancestral markers on descendants, so a greedy per-node
+    ``present / total`` let a child match purely on evidence inherited from its
+    parent clade (#804). Excluding inherited markers means a shared or duplicated
+    marker cannot divert or over-extend the walk.
 
     A child is eligible as a direct call only when, over its clade-specific SNPs:
     **no** observed one contradicts it (``conflicting == 0``), at least one is
@@ -1767,8 +1773,8 @@ def _tree_walk(
         specific = [snp for snp in child.defining_snps if snp.rsid not in seen_rsids]
         if not specific:
             # The child adds no distinguishing evidence of its own: it either re-lists
-            # only ancestral markers (e.g. K2 = only F's rs3900) or has no defining SNP
-            # at all (a structural node, e.g. Y A/A1 after M170 moved to I, #1583).
+            # only ancestral markers or has no defining SNP at all (a structural node,
+            # e.g. Y A/A1 after M170 moved to I, #1583).
             # It can't be a terminal match, but it may be a structural pass-through to a
             # deeper clade that does — defer it (handled only if no child has direct
             # evidence).

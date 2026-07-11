@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "PhyloTree mtDNA + ISOGG Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5 array coverage. Provides 2-3 levels of haplogroup resolution.",
   "build": "GRCh37",
   "sources": {
@@ -3156,14 +3156,9 @@
           "haplogroup": "CT",
           "defining_snps": [
             {
-              "rsid": "rs2032652",
-              "pos": 21869271,
+              "rsid": "rs2032595",
+              "pos": 14813991,
               "allele": "T"
-            },
-            {
-              "rsid": "rs13304168",
-              "pos": 23058920,
-              "allele": "G"
             }
           ],
           "children": [
@@ -3465,9 +3460,9 @@
               "haplogroup": "F",
               "defining_snps": [
                 {
-                  "rsid": "rs3900",
-                  "pos": 21730257,
-                  "allele": "C"
+                  "rsid": "rs2032652",
+                  "pos": 21917313,
+                  "allele": "T"
                 }
               ],
               "children": [
@@ -3875,9 +3870,9 @@
                   "haplogroup": "K",
                   "defining_snps": [
                     {
-                      "rsid": "rs2032631",
-                      "pos": 14416951,
-                      "allele": "C"
+                      "rsid": "rs3900",
+                      "pos": 21730257,
+                      "allele": "G"
                     }
                   ],
                   "children": [
@@ -3983,13 +3978,7 @@
                     },
                     {
                       "haplogroup": "K2",
-                      "defining_snps": [
-                        {
-                          "rsid": "rs3900",
-                          "pos": 21730257,
-                          "allele": "C"
-                        }
-                      ],
+                      "defining_snps": [],
                       "children": [
                         {
                           "haplogroup": "NO",
@@ -4270,6 +4259,11 @@
                           "haplogroup": "P",
                           "defining_snps": [
                             {
+                              "rsid": "rs2032631",
+                              "pos": 21867787,
+                              "allele": "A"
+                            },
+                            {
                               "rsid": "rs1000147",
                               "pos": 41031901,
                               "allele": "A"
@@ -4537,11 +4531,11 @@
     "mt_unique_snps": 287,
     "mt_max_depth": 11,
     "y_haplogroups": 127,
-    "y_defining_snps": 152,
+    "y_defining_snps": 151,
     "y_unique_snps": 95,
     "y_max_depth": 12,
     "total_haplogroups": 322,
-    "total_defining_snps": 526,
+    "total_defining_snps": 525,
     "total_unique_snps": 382
   }
 }

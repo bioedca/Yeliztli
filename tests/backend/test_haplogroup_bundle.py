@@ -137,7 +137,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.0.1"
+        assert bundle["version"] == "1.0.2"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -558,25 +558,30 @@ class TestBuildScript:
         assert y_duplicate_issues == [], f"Y duplicate validation issues: {y_duplicate_issues}"
 
     def test_audited_y_rsid_guard_rejects_stale_reference_records(self) -> None:
-        """#1652: the builder rejects the stale rsID coordinates/alleles that
-        caused this issue before they can be regenerated into the bundle."""
+        """The builder rejects stale coordinates, alleles, and clade placement
+        before they can be regenerated into the bundle."""
         from scripts.build_haplogroup_bundle import _validate_audited_y_rsids, build_y_tree
 
         y_tree = build_y_tree()
-        i_node = find_node(y_tree, "I")
-        assert i_node is not None
-        by_rsid = {snp["rsid"]: snp for snp in i_node["defining_snps"]}
+        ct_node = find_node(y_tree, "CT")
+        k_node = find_node(y_tree, "K")
+        b_node = find_node(y_tree, "B")
+        assert ct_node is not None and k_node is not None and b_node is not None
 
-        by_rsid["rs2032597"]["pos"] = 2832640
-        by_rsid["rs9341296"]["allele"] = "G"
+        next(snp for snp in ct_node["defining_snps"] if snp["rsid"] == "rs2032595")["pos"] = (
+            14813990
+        )
+        next(snp for snp in k_node["defining_snps"] if snp["rsid"] == "rs3900")["allele"] = "C"
+        b_node["defining_snps"].append({"rsid": "rs2032631", "pos": 21867787, "allele": "A"})
 
         issues = _validate_audited_y_rsids(y_tree)
         assert any(
-            "rs2032597" in issue and "expected GRCh37 Y:14847792" in issue for issue in issues
+            "rs2032595" in issue and "expected GRCh37 Y:14813991" in issue for issue in issues
         )
         assert any(
-            "rs9341296" in issue and "expected one of ('C', 'T')" in issue for issue in issues
+            "rs3900" in issue and "expected derived allele 'G'" in issue for issue in issues
         )
+        assert any("rs2032631" in issue and "expected P" in issue for issue in issues)
 
     def test_audited_y_rsid_guard_rejects_excluded_records(self) -> None:
         """#1654: non-Y and unresolved duplicate suspects cannot re-enter the Y tree."""

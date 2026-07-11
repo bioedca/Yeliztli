@@ -44,7 +44,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.0.1"
+BUNDLE_VERSION = "1.0.2"
 BUILD = "GRCh37"
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
@@ -75,19 +75,55 @@ def _y_snp(rsid: str, pos: int, allele: str) -> dict[str, Any]:
 
 
 _AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M168/PF1416, C->T, defines CT.
+    "rs2032595": {
+        "pos": 14813991,
+        "allele": "T",
+        "alleles": ("C", "T"),
+        "clade": "CT",
+    },
     # Ensembl GRCh37 REST variation/homo_sapiens/rs2032597: Y:14847792 A/C,
     # ancestral A. Derived C defines haplogroup I (I-M170).
-    "rs2032597": {"pos": 14847792, "allele": "C", "alleles": ("A", "C")},
+    "rs2032597": {
+        "pos": 14847792,
+        "allele": "C",
+        "alleles": ("A", "C"),
+        "clade": "I",
+    },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M45/PF5962, canonical G->A,
+    # defines P (called P1 in some later nomenclatures). The locus is triallelic,
+    # but T is not the canonical M45-derived state.
+    "rs2032631": {
+        "pos": 21867787,
+        "allele": "A",
+        "alleles": ("A", "G", "T"),
+        "clade": "P",
+    },
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M89/PF2746, C->T, defines F.
+    "rs2032652": {
+        "pos": 21917313,
+        "allele": "T",
+        "alleles": ("C", "T"),
+        "clade": "F",
+    },
     # Ensembl GRCh37 REST variation/homo_sapiens/rs2032658: Y:15581983 G/A,
     # ancestral A. Derived G defines haplogroup R (R-M207).
-    "rs2032658": {"pos": 15581983, "allele": "G", "alleles": ("G", "A")},
+    "rs2032658": {
+        "pos": 15581983,
+        "allele": "G",
+        "alleles": ("G", "A"),
+        "clade": "R",
+    },
     # Ensembl GRCh37 REST variation/homo_sapiens/rs9341296: Y:15022707 C/T,
     # ancestral C. Stored defining alleles must be the derived T, never G.
     "rs9341296": {"pos": 15022707, "allele": "T", "alleles": ("C", "T")},
-    # Ensembl GRCh37 REST variation/homo_sapiens/rs3900: Y:21730257 G/C.
-    # The current bundle keeps this as an F/K/K2 lineage marker, but its old
-    # coordinate (Y:14413839) was stale.
-    "rs3900": {"pos": 21730257, "allele": "C", "alleles": ("G", "C")},
+    # YBrowse hg19 + Ensembl/NCBI RefSNP: M9, C->G, defines K.
+    "rs3900": {
+        "pos": 21730257,
+        "allele": "G",
+        "alleles": ("C", "G"),
+        "clade": "K",
+    },
 }
 
 _EXCLUDED_Y_RSIDS: dict[str, str] = {
@@ -103,6 +139,9 @@ _EXCLUDED_Y_RSIDS: dict[str, str] = {
     # this hand-curated tree placed it on unrelated A1b1 and J/J2 branches. Drop
     # it until the Y tree is regenerated from an authoritative SNP index.
     "rs2032604": "unresolved cross-clade duplicate assignment",
+    # Ensembl and NCBI report only C/T at this Y locus. The hand-curated tree
+    # stored impossible G records on CT/DE/D without an authoritative marker name.
+    "rs13304168": "invalid historic G allele and unresolved clade assignment",
 }
 
 # Existing hand-curated tree debt: these rsIDs are already reused across
@@ -1899,7 +1938,6 @@ def build_y_tree() -> dict[str, Any]:
         [
             _y_snp("rs2032602", 14895148, "T"),
             _y_snp("rs2032606", 14962400, "C"),
-            _y_snp("rs13304168", 23058920, "G"),
         ],
         [d1, d2],
     )
@@ -1996,7 +2034,6 @@ def build_y_tree() -> dict[str, Any]:
         "DE",
         [
             _y_snp("rs2032602", 14895148, "T"),
-            _y_snp("rs13304168", 23058920, "G"),
         ],
         [d_branch, e_branch],
     )
@@ -2507,7 +2544,6 @@ def build_y_tree() -> dict[str, Any]:
     r2 = _node(
         "R2",
         [
-            _y_snp("rs2032652", 21869271, "T"),
             _y_snp("rs9341286", 14568073, "A"),
         ],
     )
@@ -2528,7 +2564,7 @@ def build_y_tree() -> dict[str, Any]:
     p_branch = _node(
         "P",
         [
-            _y_snp("rs2032631", 14416951, "C"),
+            _y_snp("rs2032631", 21867787, "A"),
             _y_snp("rs1000147", 41031901, "A"),
         ],
         [q_branch, r_branch],
@@ -2564,19 +2600,12 @@ def build_y_tree() -> dict[str, Any]:
         [m_branch, s_branch],
     )
 
-    k2 = _node(
-        "K2",
-        [
-            _y_snp("rs3900", 21730257, "C"),
-        ],
-        [no, ms, p_branch],
-    )
+    k2 = _node("K2", [], [no, ms, p_branch])
 
     k_branch = _node(
         "K",
         [
-            _y_snp("rs3900", 21730257, "C"),
-            _y_snp("rs2032631", 14416951, "C"),
+            _y_snp("rs3900", 21730257, "G"),
         ],
         [lt, k2],
     )
@@ -2604,8 +2633,7 @@ def build_y_tree() -> dict[str, Any]:
     f_branch = _node(
         "F",
         [
-            _y_snp("rs2032652", 21869271, "T"),
-            _y_snp("rs3900", 21730257, "C"),
+            _y_snp("rs2032652", 21917313, "T"),
         ],
         [f1, f2, f3, gh, ij, k_branch],
     )
@@ -2613,8 +2641,7 @@ def build_y_tree() -> dict[str, Any]:
     ct = _node(
         "CT",
         [
-            _y_snp("rs2032652", 21869271, "T"),
-            _y_snp("rs13304168", 23058920, "G"),
+            _y_snp("rs2032595", 14813991, "T"),
         ],
         [c_branch, de, f_branch],
     )
@@ -2836,6 +2863,9 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
                 f"{rsid} at {path} has defining allele {snp.get('allele')!r}; "
                 f"expected derived allele {reference['allele']!r}"
             )
+        expected_clade = reference.get("clade")
+        if expected_clade is not None and path.rsplit("/", 1)[-1] != expected_clade:
+            issues.append(f"{rsid} at {path} defines the wrong clade; expected {expected_clade}")
 
     missing = set(_AUDITED_Y_RSID_REFERENCE) - seen
     for rsid in sorted(missing):
