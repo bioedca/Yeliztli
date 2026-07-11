@@ -17,8 +17,10 @@ the cluster (Plan §6.3 step 1, runbook §4).
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import os
 import py_compile
 import re
 import stat
@@ -55,6 +57,7 @@ EXPECTED_PHASE_SCRIPTS = [
 EXPECTED_HELPERS = [
     "env.sh",
     "run_rebuild.sh",
+    "01_convert_gnomix_maps.py",
     "04c_filter_single_ancestry.py",
     "06a_identify_trios.py",
     "06b_mendelian_phasing.py",
@@ -202,6 +205,7 @@ class TestPythonHelpersCompile:
     @pytest.mark.parametrize(
         "name",
         [
+            "01_convert_gnomix_maps.py",
             "04c_filter_single_ancestry.py",
             "06a_identify_trios.py",
             "06b_mendelian_phasing.py",
@@ -217,6 +221,243 @@ class TestPythonHelpersCompile:
     )
     def test_py_compile(self, name: str) -> None:
         py_compile.compile(str(SCRIPTS_DIR / name), doraise=True)
+
+
+class TestPhase01GnomixMaps:
+    @staticmethod
+    def _write_source(path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    @staticmethod
+    def _run_converter(
+        source_dir: Path,
+        output_dir: Path,
+        *chromosomes: str,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "01_convert_gnomix_maps.py"),
+                "--source-dir",
+                str(source_dir),
+                "--output-dir",
+                str(output_dir),
+                "--chromosomes",
+                *chromosomes,
+                "--source-url",
+                "https://example.test/plink.GRCh38.map.zip",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    @staticmethod
+    def _run_verifier(
+        output_dir: Path,
+        *chromosomes: str,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "01_convert_gnomix_maps.py"),
+                "--verify",
+                "--output-dir",
+                str(output_dir),
+                "--chromosomes",
+                *chromosomes,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_phase01_derives_exact_gnomix_map_and_provenance(self, tmp_path: Path) -> None:
+        workdir = tmp_path / "work"
+        raw_dir = workdir / "00_raw_downloads"
+        source = (
+            raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field" / "plink.chrchr1.GRCh38.map"
+        )
+        self._write_source(source, "chr1 . 0 55550\nchr1 . 0.080572 82571\n")
+        (raw_dir / "hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf").write_bytes(b"bcf")
+        (raw_dir / "hgdp1kgp_chr1.filtered.SNV_INDEL.phased.shapeit5.bcf.csi").write_bytes(b"csi")
+        (raw_dir / "gnomad_meta_updated.tsv").write_text("sample\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        for command in ("gsutil", "wget", "unzip"):
+            stub = stub_dir / command
+            stub.write_text("#!/bin/sh\necho unexpected download command >&2\nexit 97\n")
+            stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "CHROMS": "1",
+                "GENETIC_MAPS_URL": "https://example.test/plink.GRCh38.map.zip",
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+            }
+        )
+
+        first = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "01_download_panel.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert first.returncode == 0, first.stderr
+
+        output = raw_dir / "genetic_maps_gnomix" / "chr1.map"
+        provenance = raw_dir / "genetic_maps_gnomix" / "provenance.json"
+        assert output.read_bytes() == b"chr1\t55550\t0\nchr1\t82571\t0.080572\n"
+        manifest = json.loads(provenance.read_text())
+        assert manifest["transformation"] == "PLINK columns 1,4,3 with chrN labels retained"
+        assert manifest["source"]["url"] == env["GENETIC_MAPS_URL"]
+        assert manifest["maps"] == [
+            {
+                "chromosome": "chr1",
+                "derived_file": "chr1.map",
+                "derived_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+                "row_count": 2,
+                "source_file": "chr_in_chrom_field/plink.chrchr1.GRCh38.map",
+                "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            }
+        ]
+        verification = self._run_verifier(output.parent, "1")
+        assert verification.returncode == 0, verification.stderr
+
+        original_output = output.read_bytes()
+        original_provenance = provenance.read_bytes()
+        second = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "01_download_panel.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert second.returncode == 0, second.stderr
+        assert output.read_bytes() == original_output
+        assert provenance.read_bytes() == original_provenance
+
+    @pytest.mark.parametrize(
+        "source_text,error_text",
+        [
+            ("chr1 . 0\n", "expected 4 PLINK columns"),
+            ("1 . 0 55550\n", "expected chr1"),
+            ("chr2 . 0 55550\n", "expected chr1"),
+            ("chr1 . 0 55550\nchr1 . 0.1 55550\n", "strictly increasing"),
+            ("chr1 . 1.0 55550\nchr1 . 0.9 82571\n", "non-decreasing"),
+        ],
+    )
+    def test_converter_rejects_invalid_source_without_publishing_output(
+        self,
+        tmp_path: Path,
+        source_text: str,
+        error_text: str,
+    ) -> None:
+        source_dir = tmp_path / "source"
+        self._write_source(source_dir / "plink.chrchr1.GRCh38.map", source_text)
+        output_dir = tmp_path / "output"
+
+        result = self._run_converter(source_dir, output_dir, "1")
+
+        assert result.returncode == 1
+        assert error_text in result.stderr
+        assert not (output_dir / "chr1.map").exists()
+        assert not (output_dir / "provenance.json").exists()
+
+    def test_all_maps_validate_before_any_are_published(self, tmp_path: Path) -> None:
+        source_dir = tmp_path / "source"
+        self._write_source(source_dir / "plink.chrchr1.GRCh38.map", "chr1 . 0 55550\n")
+        self._write_source(source_dir / "plink.chrchr2.GRCh38.map", "chr3 . 0 10001\n")
+        output_dir = tmp_path / "output"
+
+        result = self._run_converter(source_dir, output_dir, "1", "2")
+
+        assert result.returncode == 1
+        assert not (output_dir / "chr1.map").exists()
+        assert not (output_dir / "chr2.map").exists()
+        assert not (output_dir / "provenance.json").exists()
+
+    def test_verifier_rejects_map_changed_after_publication(self, tmp_path: Path) -> None:
+        source_dir = tmp_path / "source"
+        self._write_source(source_dir / "plink.chrchr1.GRCh38.map", "chr1 . 0 55550\n")
+        output_dir = tmp_path / "output"
+        conversion = self._run_converter(source_dir, output_dir, "1")
+        assert conversion.returncode == 0, conversion.stderr
+
+        with (output_dir / "chr1.map").open("a") as handle:
+            handle.write("chr1\t82571\t0.080572\n")
+
+        verification = self._run_verifier(output_dir, "1")
+        assert verification.returncode == 1
+        assert "checksum does not match provenance marker" in verification.stderr
+
+    def test_interrupted_publication_invalidates_prior_manifest(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        converter = _load_module("01_convert_gnomix_maps.py", "gnomix_map_converter")
+        source_dir = tmp_path / "source"
+        self._write_source(source_dir / "plink.chrchr1.GRCh38.map", "chr1 . 0 55550\n")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        old_map = b"chr1\t100\t0\n"
+        (output_dir / "chr1.map").write_bytes(old_map)
+        (output_dir / "provenance.json").write_text('{"old_generation": true}\n')
+
+        original_replace = Path.replace
+
+        def interrupt_map_replace(path: Path, target: Path) -> Path:
+            if path.name == "chr1.map" and path.parent.name.startswith(".gnomix-maps."):
+                raise OSError("simulated publication interruption")
+            return original_replace(path, target)
+
+        monkeypatch.setattr(Path, "replace", interrupt_map_replace)
+
+        with pytest.raises(OSError, match="simulated publication interruption"):
+            converter.derive_maps(
+                source_dir,
+                output_dir,
+                ["1"],
+                "https://example.test/plink.GRCh38.map.zip",
+            )
+
+        assert (output_dir / "chr1.map").read_bytes() == old_map
+        assert not (output_dir / "provenance.json").exists()
+
+    def test_phase05_verifies_provenance_before_training(self) -> None:
+        text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
+        verify_index = text.index("verifying Gnomix genetic maps")
+        training_index = text.index("for chr in")
+        assert verify_index < training_index
+        assert "01_convert_gnomix_maps.py" in text
+        assert "--verify" in text
+        assert 'require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"' in text
+
+    def test_phase07_packages_map_provenance(self) -> None:
+        text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
+        assert 'require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"' in text
+        assert (
+            'cp -f "$RAW_DIR/genetic_maps_gnomix/provenance.json" '
+            "metadata/gnomix_genetic_maps.json"
+        ) in text
 
 
 class TestPhase05ModelPathCheck:

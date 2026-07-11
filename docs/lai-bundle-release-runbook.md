@@ -176,11 +176,16 @@ Phases (Plan §6.4):
 | 06    | `06_validate.sh`                | 8–24 h                       |
 | 07    | `07_assemble_bundle.sh`         | ~30 min                      |
 
-Phases 02 and 03 are the only steps that differ from the v1.1 build — they
-now operate on the union catalog (~2.0M sites; ~1.94M autosomal) instead of the
-23andMe v5 catalog (~605k). Phases 04–07 are byte-identical to v1.1
-provided the random seed (`ADMIXTURE_SEED=42`) is unchanged (Plan §6.3
-step 4 — the runbook asserts this before publication).
+Phase 01 derives Gnomix's three-column `chrN<TAB>bp<TAB>cM` maps from the
+downloaded GRCh38 PLINK maps. It validates every requested autosome and writes
+source and derived SHA-256 values to
+`00_raw_downloads/genetic_maps_gnomix/provenance.json`; Phase 07 preserves that
+record as `metadata/gnomix_genetic_maps.json` in the bundle.
+
+Phases 02 and 03 operate on the union catalog (~2.0M sites; ~1.94M autosomal)
+instead of the 23andMe v5 catalog (~605k). The random seed remains locked at
+`ADMIXTURE_SEED=42` (Plan §6.3 step 4), and Phase 07 adds the derived-map
+provenance record described above to the bundle.
 
 **Phase 05 runs gnomix in its own conda env.** gnomix needs `sklearn_crfsuite`/
 `xgboost`, which the `lai_bundle` env lacks; `05_train_gnomix.sh` invokes it via

@@ -36,12 +36,21 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PHASE_NAME=05_train_gnomix
 # shellcheck source=env.sh
 source "$SCRIPT_DIR/env.sh"
+read -r -a chromosomes <<< "$CHROMS"
 
 require conda  # gnomix runs in its own env (GNOMIX_ENV) via `conda run`
+require python3
 require_file "$ADMIX_DIR/sample_map.txt"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_launcher.py"  # pandas>=2 compat shim wrapper
 require_file "$GNOMIX_CONFIG"
+require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
+
+phase_log "verifying Gnomix genetic maps against Phase 1 provenance"
+python3 "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
+  --verify \
+  --output-dir "$RAW_DIR/genetic_maps_gnomix" \
+  --chromosomes "${chromosomes[@]}"
 
 # Do NOT stage the sample_map into a single shared $GNOMIX_DIR path. Under the
 # phase-05 SLURM array all 22 tasks share $GNOMIX_DIR, so `cp` to one shared
@@ -55,7 +64,7 @@ require_file "$GNOMIX_CONFIG"
 
 cd "$GNOMIX_DIR"
 
-for chr in $CHROMS; do
+for chr in "${chromosomes[@]}"; do
   panel_vcf="$PANEL_DIR/ref_panel_chr${chr}.vcf.gz"
   # gnomix wants a 3-col TAB map (chrom, pos, cM); that is genetic_maps_gnomix/chrN.map,
   # NOT the 4-col space-delimited genetic_maps_grch38/.../plink.*.GRCh38.map (Beagle's format).
@@ -140,7 +149,7 @@ done
 
 phase_log "phase 5 complete"
 missing=0
-for chr in $CHROMS; do
+for chr in "${chromosomes[@]}"; do
   chr_model="output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
   if [ -s "$chr_model" ]; then
     phase_log "chr${chr}: OK ($(du -sh "output_chr${chr}" | awk '{print $1}'))"

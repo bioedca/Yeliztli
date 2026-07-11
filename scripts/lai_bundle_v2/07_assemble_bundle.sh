@@ -24,6 +24,7 @@ require md5sum
 require tar
 require conda  # gnomix-model re-export runs in $GNOMIX_ENV (numpy/xgboost/sklearn)
 require_file "$VALIDATION_DIR/held_out_validation.tsv"
+require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
 
 cd "$BUNDLE_DIR"
 
@@ -55,6 +56,7 @@ cp -f "$LIFTOVER_DIR/hg19ToHg38.over.chain.gz" liftover/
 cp -f "$LIFTOVER_DIR/rsid_to_grch38.tsv" liftover/array_site_mapping.tsv
 
 cp -f "$BEAGLE_JAR" beagle/beagle.jar
+cp -f "$RAW_DIR/genetic_maps_gnomix/provenance.json" metadata/gnomix_genetic_maps.json
 
 phase_log "extracting held-out per-superpopulation fixtures"
 python "$SCRIPT_DIR/extract_heldout_fixtures.py" \
