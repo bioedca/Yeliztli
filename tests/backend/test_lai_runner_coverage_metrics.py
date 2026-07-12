@@ -100,6 +100,22 @@ class TestPhasedVCFCoverageTelemetry:
         assert parsed.model_marker_counts["total"] == 21
         assert parsed.model_marker_counts["match_rate"] == round(1 / 21, 6)
 
+    def test_diagnostic_switch_does_not_suppress_malformed_vcf_failure(
+        self, tmp_path: Path
+    ) -> None:
+        vcf_path = tmp_path / "malformed.vcf"
+        vcf_path.write_text("this is not a VCF\n", encoding="utf-8")
+        runner = _bare_runner(tmp_path)
+
+        with pytest.raises(ValueError):
+            runner._parse_phased_vcf(
+                vcf_path,
+                np.array([100], dtype=np.int64),
+                np.array(["A"]),
+                np.array(["G"]),
+                allow_below_minimum_for_diagnostics=True,
+            )
+
 
 class TestLAICoverageMetricSchema:
     def test_reads_expected_denominators_for_all_bundle_autosomes(self, tmp_path: Path) -> None:
@@ -113,25 +129,46 @@ class TestLAICoverageMetricSchema:
                 W=np.array(chrom),
             )
 
-        marker_totals, expected_windows = runner._read_model_coverage_denominators()
+        marker_totals, expected_windows, unreadable = runner._read_model_coverage_denominators()
 
         assert set(marker_totals) == set(range(1, 23))
         assert marker_totals[1] == 3
         assert marker_totals[22] == 24
         assert expected_windows[1] == 2
         assert expected_windows[22] == 44
+        assert unreadable == []
 
-    def test_unreadable_placeholder_metadata_uses_zero_denominators(self, tmp_path: Path) -> None:
+    def test_nonpositive_denominator_is_reported_as_unreadable(self, tmp_path: Path) -> None:
+        runner = _bare_runner(tmp_path)
+        for chrom in range(1, 23):
+            model_dir = tmp_path / "gnomix_models" / f"chr{chrom}"
+            model_dir.mkdir(parents=True)
+            np.savez(
+                model_dir / "metadata.npz",
+                snp_pos=(
+                    np.array([], dtype=np.int64) if chrom == 7 else np.array([100], dtype=np.int64)
+                ),
+                W=np.array(1),
+            )
+
+        marker_totals, expected_windows, unreadable = runner._read_model_coverage_denominators()
+
+        assert marker_totals[7] == 0
+        assert expected_windows[7] == 0
+        assert unreadable == [7]
+
+    def test_unreadable_metadata_is_machine_readable(self, tmp_path: Path) -> None:
         """Legacy test/stub bundles may carry empty metadata placeholders."""
         runner = _bare_runner(tmp_path)
         model_dir = tmp_path / "gnomix_models" / "chr1"
         model_dir.mkdir(parents=True)
         (model_dir / "metadata.npz").touch()
 
-        marker_totals, expected_windows = runner._read_model_coverage_denominators()
+        marker_totals, expected_windows, unreadable = runner._read_model_coverage_denominators()
 
         assert marker_totals == {chrom: 0 for chrom in range(1, 23)}
         assert expected_windows == {chrom: 0 for chrom in range(1, 23)}
+        assert unreadable == list(range(1, 23))
 
     def test_schema_counts_missing_chromosomes_in_window_denominator(self) -> None:
         result = ChromosomeResult(
@@ -160,6 +197,7 @@ class TestLAICoverageMetricSchema:
             phased_autosomes=[1, 2],
             chrom_results={1: result},
             expected_haplotype_windows_by_autosome={chrom: 10 for chrom in range(1, 23)},
+            unreadable_model_metadata_autosomes=[],
             per_source={"ancestrydna": {"hits": 12, "drops": 4}},
         )
 
@@ -172,6 +210,10 @@ class TestLAICoverageMetricSchema:
             "total": 30,
             "allele_mismatch": 4,
             "match_rate": round(7 / 30, 6),
+        }
+        assert metrics["model_denominators"] == {
+            "complete": True,
+            "unreadable_autosomes": [],
         }
         assert metrics["phased_autosomes"] == {"count": 2, "identities": [1, 2]}
         assert metrics["analyzed_autosomes"] == {"count": 1, "identities": [1]}
@@ -197,6 +239,7 @@ class TestLAICoverageMetricSchema:
                 return_value=(
                     {chrom: 10 for chrom in range(1, 23)},
                     {chrom: 4 for chrom in range(1, 23)},
+                    [22],
                 ),
             ),
             patch.object(
@@ -218,6 +261,10 @@ class TestLAICoverageMetricSchema:
         assert snapshots[0]["schema_version"] == LAI_COVERAGE_METRICS_SCHEMA_VERSION
         assert snapshots[0]["emitted_markers"]["total"] == 0
         assert snapshots[0]["haplotype_windows"]["expected"] == 88
+        assert snapshots[0]["model_denominators"] == {
+            "complete": False,
+            "unreadable_autosomes": [22],
+        }
         assert snapshots[0]["per_source"] == {"23andme": {"hits": 0, "drops": 1}}
 
     def test_progressive_callback_retains_parse_metrics_when_inference_fails(
@@ -248,6 +295,7 @@ class TestLAICoverageMetricSchema:
                 return_value=(
                     {chrom: 2 for chrom in range(1, 23)},
                     {chrom: 4 for chrom in range(1, 23)},
+                    [],
                 ),
             ),
             patch.object(
@@ -285,6 +333,59 @@ class TestLAICoverageMetricSchema:
         assert final_snapshot["phased_autosomes"] == {"count": 1, "identities": [1]}
         assert final_snapshot["analyzed_autosomes"] == {"count": 0, "identities": []}
         assert final_snapshot["haplotype_windows"]["valid_assigned"] == 0
+
+    def test_run_propagates_parse_failure_with_diagnostic_bypass(self, tmp_path: Path) -> None:
+        runner = _bare_runner(tmp_path)
+        model = SimpleNamespace(
+            snp_pos=np.array([100], dtype=np.int64),
+            snp_ref=np.array(["A"]),
+            snp_alt=np.array(["G"]),
+        )
+        snapshots: list[dict] = []
+
+        with (
+            patch.object(
+                LAIRunner,
+                "_read_model_coverage_denominators",
+                return_value=(
+                    {chrom: 1 for chrom in range(1, 23)},
+                    {chrom: 2 for chrom in range(1, 23)},
+                    [],
+                ),
+            ),
+            patch.object(
+                LAIRunner,
+                "_write_per_chrom_vcfs",
+                return_value=(
+                    {"chr1": tmp_path / "user_chr1.vcf.gz"},
+                    1,
+                    {"": {"hits": 1, "drops": 0}},
+                ),
+            ),
+            patch.object(
+                LAIRunner,
+                "_phase_chromosome",
+                return_value=tmp_path / "malformed_chr1.vcf.gz",
+            ),
+            patch.object(
+                LAIRunner,
+                "_parse_phased_vcf",
+                side_effect=ValueError("malformed phased VCF"),
+            ),
+            patch("backend.analysis.gnomix_inference.load_gnomix_model", return_value=model),
+            pytest.raises(ValueError, match="malformed phased VCF"),
+        ):
+            runner.run(
+                genotypes=[{"rsid": "rs1", "chrom": "1", "genotype": "AA"}],
+                output_dir=tmp_path,
+                cleanup=False,
+                file_format="23andme_v5",
+                diagnostic_metrics_callback=snapshots.append,
+                allow_below_minimum_for_diagnostics=True,
+            )
+
+        assert snapshots[-1]["phased_autosomes"] == {"count": 1, "identities": [1]}
+        assert snapshots[-1]["analyzed_autosomes"] == {"count": 0, "identities": []}
 
     def test_successful_run_persists_final_metrics_in_metadata_and_json(
         self, tmp_path: Path
@@ -330,6 +431,7 @@ class TestLAICoverageMetricSchema:
                 return_value=(
                     {chrom: 2 for chrom in range(1, 23)},
                     {chrom: 4 for chrom in range(1, 23)},
+                    [],
                 ),
             ),
             patch.object(LAIRunner, "_write_per_chrom_vcfs", side_effect=fake_write),

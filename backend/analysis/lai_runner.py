@@ -94,6 +94,13 @@ class ModelMarkerMetrics(TypedDict):
     by_autosome: dict[str, ModelMarkerCounts]
 
 
+class ModelDenominatorStatus(TypedDict):
+    """Whether all model-marker and window denominators were readable."""
+
+    complete: bool
+    unreadable_autosomes: list[int]
+
+
 class AutosomeSetMetrics(TypedDict):
     """Count and stable numeric identities for an autosome set."""
 
@@ -117,6 +124,7 @@ class LAICoverageMetrics(TypedDict):
     schema_version: int
     emitted_markers: EmittedMarkerMetrics
     model_markers: ModelMarkerMetrics
+    model_denominators: ModelDenominatorStatus
     phased_autosomes: AutosomeSetMetrics
     analyzed_autosomes: AutosomeSetMetrics
     haplotype_windows: HaplotypeWindowMetrics
@@ -247,7 +255,11 @@ class LAIRunner:
         out = Path(output_dir)
         out.mkdir(parents=True, exist_ok=True)
 
-        model_marker_totals, expected_haplotype_windows = self._read_model_coverage_denominators()
+        (
+            model_marker_totals,
+            expected_haplotype_windows,
+            unreadable_model_metadata_autosomes,
+        ) = self._read_model_coverage_denominators()
         emitted_markers_by_autosome: dict[int, int] = {}
         model_marker_counts_by_autosome: dict[int, ModelMarkerCounts] = {
             chrom: {
@@ -271,6 +283,7 @@ class LAIRunner:
                 phased_autosomes=phased_paths.keys(),
                 chrom_results=chrom_results,
                 expected_haplotype_windows_by_autosome=expected_haplotype_windows,
+                unreadable_model_metadata_autosomes=unreadable_model_metadata_autosomes,
                 per_source=coverage_telemetry,
             )
 
@@ -348,9 +361,16 @@ class LAIRunner:
             frac = 0.70 + (i / 22) * 0.20
             report(f"Inferring ancestry chr{chr_num}... ({i}/22)", frac)
 
+            model_dir = self.bundle / "gnomix_models" / f"chr{chr_num}"
             try:
-                model_dir = self.bundle / "gnomix_models" / f"chr{chr_num}"
                 model = load_gnomix_model(model_dir)
+            except Exception:
+                logger.exception("gnomix_inference_failed", chrom=chr_num)
+                failed_chroms.append(chr_num)
+                emit_diagnostic_metrics()
+                continue
+
+            try:
                 parsed = self._parse_phased_vcf(
                     phased_paths[chr_num],
                     model.snp_pos,
@@ -360,10 +380,8 @@ class LAIRunner:
                 )
                 hap0, hap1 = parsed
             except Exception:
-                logger.exception("gnomix_inference_failed", chrom=chr_num)
-                failed_chroms.append(chr_num)
                 emit_diagnostic_metrics()
-                continue
+                raise
 
             if isinstance(parsed, PhasedVCFParseResult):
                 counts = parsed.model_marker_counts
@@ -536,23 +554,32 @@ class LAIRunner:
             per_source=per_source,
         )
 
-    def _read_model_coverage_denominators(self) -> tuple[dict[int, int], dict[int, int]]:
+    def _read_model_coverage_denominators(
+        self,
+    ) -> tuple[dict[int, int], dict[int, int], list[int]]:
         """Read marker and haplotype-window denominators for all 22 models.
 
         Coverage diagnostics must not silently drop a chromosome merely because
         no input VCF was emitted or inference failed. Reading the tiny model
         metadata files up front gives every autosome an explicit denominator.
-        A malformed metadata file is logged and represented as zero here; model
-        loading retains responsibility for failing the production inference path.
+        A malformed metadata file is logged and represented as zero while its
+        autosome is returned in a machine-readable error list. Consumers must
+        not treat coverage metrics as calibration evidence unless that list is
+        empty.
         """
         marker_totals: dict[int, int] = {}
         haplotype_windows: dict[int, int] = {}
+        unreadable_autosomes: list[int] = []
         for chrom in range(1, 23):
             metadata_path = self.bundle / "gnomix_models" / f"chr{chrom}" / "metadata.npz"
             try:
                 with np.load(metadata_path, allow_pickle=False) as metadata:
-                    marker_totals[chrom] = int(np.asarray(metadata["snp_pos"]).size)
-                    haplotype_windows[chrom] = 2 * int(np.asarray(metadata["W"]).item())
+                    marker_total = int(np.asarray(metadata["snp_pos"]).size)
+                    haplotype_window_total = 2 * int(np.asarray(metadata["W"]).item())
+                    if marker_total <= 0 or haplotype_window_total <= 0:
+                        raise ValueError("model coverage denominators must be positive")
+                    marker_totals[chrom] = marker_total
+                    haplotype_windows[chrom] = haplotype_window_total
             except (OSError, EOFError, KeyError, TypeError, ValueError):
                 logger.warning(
                     "lai_model_coverage_metadata_unreadable",
@@ -561,7 +588,8 @@ class LAIRunner:
                 )
                 marker_totals[chrom] = 0
                 haplotype_windows[chrom] = 0
-        return marker_totals, haplotype_windows
+                unreadable_autosomes.append(chrom)
+        return marker_totals, haplotype_windows, unreadable_autosomes
 
     @staticmethod
     def _build_lai_coverage_metrics(
@@ -572,6 +600,7 @@ class LAIRunner:
         phased_autosomes: Iterable[int],
         chrom_results: dict[int, ChromosomeResult],
         expected_haplotype_windows_by_autosome: dict[int, int],
+        unreadable_model_metadata_autosomes: Iterable[int],
         per_source: dict[str, SourceCoverageCounts],
     ) -> LAICoverageMetrics:
         """Build a fresh, JSON-safe schema-v1 LAI coverage snapshot."""
@@ -612,6 +641,9 @@ class LAIRunner:
         valid_windows = sum(valid_by_autosome.values())
         phased_ids = sorted(chrom for chrom in phased_autosomes if 1 <= chrom <= 22)
         analyzed_ids = sorted(chrom for chrom in chrom_results if 1 <= chrom <= 22)
+        unreadable_ids = sorted(
+            {chrom for chrom in unreadable_model_metadata_autosomes if 1 <= chrom <= 22}
+        )
 
         return {
             "schema_version": LAI_COVERAGE_METRICS_SCHEMA_VERSION,
@@ -631,6 +663,10 @@ class LAIRunner:
                     ),
                 },
                 "by_autosome": marker_by_autosome,
+            },
+            "model_denominators": {
+                "complete": not unreadable_ids,
+                "unreadable_autosomes": unreadable_ids,
             },
             "phased_autosomes": {"count": len(phased_ids), "identities": phased_ids},
             "analyzed_autosomes": {"count": len(analyzed_ids), "identities": analyzed_ids},
@@ -908,6 +944,7 @@ class LAIRunner:
                     matched += 1
         except Exception:
             logger.exception("phased_vcf_parse_failed", path=str(vcf_path))
+            raise
 
         match_rate = matched / n_snps if n_snps else 0.0
         log = logger.warning if match_rate < 0.5 else logger.info
