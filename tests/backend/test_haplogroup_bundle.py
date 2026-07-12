@@ -487,6 +487,7 @@ class TestYChromTree:
 
     def test_y_defining_identifiers_and_loci_are_globally_unique(self, y_tree: dict) -> None:
         snps = collect_all_snps(y_tree)
+        assert snps
         assert len({snp["rsid"] for snp in snps}) == len(snps)
         assert len({snp["pos"] for snp in snps}) == len(snps)
 
