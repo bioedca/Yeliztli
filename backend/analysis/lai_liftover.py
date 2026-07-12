@@ -95,20 +95,22 @@ def load_lai_rsid_lookup(path: str | Path) -> dict[str, tuple[str, int]]:
     return lookup
 
 
-def _has_effective_autosomal_mapping(path: Path) -> bool:
+def _has_effective_autosomal_mapping(path: Path, chunk_size: int = 64 * 1024) -> bool:
     """Check last-write-wins rows from the end without retaining the whole table."""
     # This intentionally mirrors load_lai_rsid_lookup's last-write-wins check;
     # scanning backward validates large tables without materializing the lookup.
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
     seen_rsids: set[bytes] = set()
     remainder = b""
     with path.open("rb") as handle:
         handle.seek(0, 2)
         position = handle.tell()
         while position:
-            chunk_size = min(position, 64 * 1024)
-            position -= chunk_size
+            read_size = min(position, chunk_size)
+            position -= read_size
             handle.seek(position)
-            chunk = handle.read(chunk_size) + remainder
+            chunk = handle.read(read_size) + remainder
             lines = chunk.split(b"\n")
             remainder = lines[0]
 
