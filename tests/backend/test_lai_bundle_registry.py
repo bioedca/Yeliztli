@@ -385,6 +385,44 @@ class TestLAIBundleValidation:
         assert mapping.stat().st_ino != original.st_ino
         assert validate_lai_bundle(tmp_path) is False
 
+    def test_validate_liftover_larger_than_reverse_scan_chunk(self, tmp_path: Path):
+        """Large lookup tables validate across multiple 64 KiB read chunks."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text(
+            "".join(f"rs{index}\tchr1\t{index + 1}\n" for index in range(5_000)),
+            encoding="utf-8",
+        )
+
+        assert mapping.stat().st_size > 64 * 1024
+        assert validate_lai_bundle(tmp_path) is True
+
+    def test_validate_duplicate_rsid_across_reverse_scan_chunk(self, tmp_path: Path):
+        """A later off-autosome duplicate wins even across a 64 KiB boundary."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        filler = "".join(
+            f"rs_alt_{index}\tchrUn_KI{index}\t{index + 1}\n" for index in range(3_000)
+        )
+        mapping.write_text(
+            f"rs_duplicate\tchr1\t100\n{filler}rs_duplicate\tchrX\t200\n",
+            encoding="utf-8",
+        )
+
+        assert mapping.stat().st_size > 64 * 1024
+        assert validate_lai_bundle(tmp_path) is False
+
+    def test_validate_liftover_without_trailing_newline(self, tmp_path: Path):
+        """The final mapping row need not end with a newline."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text("rs1\t1\t100", encoding="utf-8")
+
+        assert validate_lai_bundle(tmp_path) is True
+
     def test_validate_incomplete_bundle(self, tmp_path: Path):
         """A bundle missing chr22 should fail validation."""
         for chrom in range(1, 22):  # Only 1-21
