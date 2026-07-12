@@ -39,6 +39,10 @@ def _f2(genotype: str) -> dict:
     return {"rsid": "rs1799963", "chrom": "11", "pos": 46761055, "genotype": genotype}
 
 
+def _f2_23andme_v5(genotype: str) -> dict:
+    return {"rsid": "i3002432", "chrom": "11", "pos": 46761055, "genotype": genotype}
+
+
 class TestFactorVLeiden:
     def test_fvl_heterozygous_relative_and_absolute(self, panel, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, [_fvl("GA"), _f2("GG")])
@@ -70,6 +74,21 @@ class TestProthrombin:
         _seed(sample_engine, [_fvl("GG"), _f2("GA")])
         a = assess_thrombophilia(panel, sample_engine)
         assert a.calls[0].risk_classification == "Prothrombin G20210A heterozygous"
+
+    def test_f2_23andme_v5_iid_alias_is_not_reported_off_chip(
+        self, panel, sample_engine: sa.Engine
+    ) -> None:
+        _seed(sample_engine, [_fvl("GG"), _f2_23andme_v5("AG")])
+
+        assessment = assess_thrombophilia(panel, sample_engine)
+
+        assert len(assessment.calls) == 1
+        call = assessment.calls[0]
+        assert call.model_id == "f2_heterozygous"
+        assert call.risk_classification == "Prothrombin G20210A heterozygous"
+        assert call.detail["genotype_calls"]["rs1799963"] == "AG"
+        assert call.detail["dosages"]["rs1799963"] == 1
+        assert "rs1799963" not in assessment.indeterminate_loci
 
 
 class TestDoubleCarrier:
