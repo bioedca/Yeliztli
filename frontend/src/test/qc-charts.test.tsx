@@ -139,6 +139,28 @@ describe('QualityControl with QC stats', () => {
   })
 
   it.each([
+    { geneticSex: 'manual_review', label: 'Needs manual review' },
+    { geneticSex: 'unknown', label: 'Undetermined' },
+  ] as const)('humanizes the $geneticSex inferred-sex verdict', ({ geneticSex, label }) => {
+    render(
+      <QualityControl
+        variantCount={623841}
+        qcStats={MOCK_QC_STATS}
+        qcMetrics={{
+          ...MOCK_QC_METRICS,
+          genetic_sex: geneticSex,
+          recorded_sex: 'XX',
+          sex_check: 'indeterminate',
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByText('Sample QC'))
+
+    expect(screen.getByText(new RegExp(`Inferred: ${label}`))).toBeInTheDocument()
+    expect(screen.queryByText(new RegExp(geneticSex))).not.toBeInTheDocument()
+  })
+
+  it.each([
     {
       label: 'In line',
       status: 'within_range',

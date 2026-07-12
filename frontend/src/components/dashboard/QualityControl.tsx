@@ -62,6 +62,11 @@ const SEX_CHECK_COPY: Record<SexCheckStatus, { label: string; text: string; tone
   },
 }
 
+const SEX_VALUE_LABELS: Record<string, string> = {
+  manual_review: 'Needs manual review',
+  unknown: 'Undetermined',
+}
+
 function StatusBadge({ children, tone }: { children: string; tone: string }) {
   return (
     <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-xs font-medium', tone)}>
@@ -71,7 +76,10 @@ function StatusBadge({ children, tone }: { children: string; tone: string }) {
 }
 
 function formatSexValue(value: string | null): string {
-  return value?.trim() || 'unavailable'
+  const normalizedValue = value?.trim()
+  if (!normalizedValue) return 'unavailable'
+
+  return SEX_VALUE_LABELS[normalizedValue] ?? normalizedValue
 }
 
 export default function QualityControl({ variantCount, qcStats, qcMetrics }: QualityControlProps) {

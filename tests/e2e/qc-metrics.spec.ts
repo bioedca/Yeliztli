@@ -116,6 +116,30 @@ test.describe('Dashboard QC metrics (#801)', () => {
   })
 
   for (const scenario of [
+    { raw: 'manual_review', label: 'Needs manual review' },
+    { raw: 'unknown', label: 'Undetermined' },
+  ] as const) {
+    test(`humanizes the ${scenario.raw} inferred-sex verdict`, async ({ page }) => {
+      await mockDashboard(page, {
+        genetic_sex: scenario.raw,
+        recorded_sex: 'XX',
+        sex_check: 'indeterminate',
+      })
+
+      await page.goto(`/?sample_id=${SAMPLE_ID}`)
+
+      const qcButton = page.getByRole('button', { name: /Sample QC/i })
+      await expect(qcButton).toBeVisible()
+      await qcButton.click()
+
+      const interpretiveMetrics = page.getByTestId('qc-interpretive-metrics')
+      await expect(interpretiveMetrics.getByText(`Inferred: ${scenario.label}`, { exact: false }))
+        .toBeVisible()
+      await expect(interpretiveMetrics).not.toContainText(scenario.raw)
+    })
+  }
+
+  for (const scenario of [
     {
       name: 'within-range',
       label: 'In line',
