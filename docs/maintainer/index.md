@@ -8,6 +8,9 @@ maintaining the project's bundles, local artifacts, or releases, you don't need 
   VEP consequence bundle.
 - **[LAI bundle](lai-bundle.md)** — the local-ancestry bundle's multi-phase, cluster-based
   build.
+- **[LAI coverage calibration](lai-coverage-calibration.md)** — run the deterministic,
+  privacy-safe coverage sweep against simulated local truth and donor-excluded phasing
+  references before deriving a production minimum.
 - **[Genome Browser local reference](genome-browser-reference-bundle.md)** — build the
   optional BYO/local GRCh37/hg19 FASTA + RefSeq track used to avoid hosted IGV reference
   fetches; this is not a release-pinned Yeliztli asset.

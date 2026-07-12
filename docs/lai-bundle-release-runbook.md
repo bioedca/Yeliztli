@@ -252,7 +252,7 @@ Before publication, bio-validator confirms:
   written by `06e_lai_accuracy.py` to `$VALIDATION_DIR/lai_accuracy_report.json`.
   `06e` also fails the build if any target superpopulation is under-represented
   in the training panel (the per-region composition gate, `--min-per-region`).
-- **Held-out per-superpopulation inference accuracy (gold-standard — REQUIRED):**
+- **Gnomix-training-held-out per-superpopulation inference accuracy (REQUIRED):**
   The mean per-window accuracy above is *blind to per-population balance*. The
   first v2.0.0 LAI bundle reported **0.97** yet misclassified *every* European —
   the old `04c` `max_q >= 0.95` single-ancestry filter left **EUR = 3** samples
@@ -260,7 +260,7 @@ Before publication, bio-validator confirms:
   component), so a held-out Iberian classified as 94% CSA / 0.3% EUR through the
   production pipeline. Therefore, before publishing, run a held-out
   per-superpopulation **inference** check: hold a few samples per superpopulation
-  OUT of the gnomix training panel, build AncestryDNA-density fixtures from the
+  OUT of the Gnomix training panel, build AncestryDNA-density fixtures from the
   phasing panel, run each through the production `run_lai_analysis` against the
   *assembled* bundle, and confirm each classifies to its own superpopulation
   (EUR must classify as EUR). Scripts:
@@ -271,19 +271,165 @@ Before publication, bio-validator confirms:
   if MID accuracy matters, rebuild with `--per-region-cap` to balance the large
   classes down and/or add MID training samples). The build-time composition gate
   (`--min-per-region`, default 20) is the *floor* that prevents the EUR=3
-  regression; this inference check is the *runtime proof*.
+  regression; this inference check is the runtime classifier-regression proof.
+  The targets remain in the Beagle panel, so this is not independent phasing or
+  local-window truth and must not be reused to calibrate sparse coverage. Follow
+  the [LAI coverage calibration](maintainer/lai-coverage-calibration.md) contract
+  for that purpose.
 - **Phasing accuracy**: mean switch error rate ≤ 0.0566 vs. trio-truth
   haplotypes (Plan §6.4). Written by `06d_phasing_accuracy.py` to
   `$VALIDATION_DIR/phasing_accuracy_report.json`.
 - **23andMe parity**: the LAI runner produces byte-identical output on
   legacy 23andMe v5 sample DBs against the new bundle (locked by
   `tests/backend/test_lai_runner_telemetry_parity.py` — see Plan §6.6).
+- **Sparse-coverage calibration (required before setting a positive minimum):**
+  Complete the leak-resistant simulation and confirmation workflow in
+  [LAI coverage calibration](maintainer/lai-coverage-calibration.md). A dated
+  2026-07-12 exploratory audit found one AMR and no OCE founder after strict
+  exclusions, but not every audit-input hash was preserved; rerun and save the
+  complete candidate audit before treating those counts as a release fact. The
+  executable gate independently requires all seven classes in both founder-disjoint
+  splits. It remains fail-closed until that contract passes; the successful `06f`
+  classifier-regression check above does not waive it.
 - **Re-runnability**: re-running with `ADMIXTURE_SEED=42` reproduces the
   Phase 4 sample map bit-for-bit on the same input (Plan §6.3 step 4).
 
 Drift below targets → blocker ticket, do not publish (Plan §12.2 Validation
 gates). Sign-off attaches to the PR as a comment along with both report
 JSONs.
+
+### 8a. Coverage-calibration harness workflow
+
+This workflow applies once an eligible all-class founder panel exists. Before generating
+fixtures, make the calibration and final-confirmation founder sets disjoint. Put every
+founder and every declared close relative into `--validation-isolation-samples`, then
+exclude that complete protected set from both the Gnomix training sample map and every
+chromosome of the calibration Beagle reference.
+
+The simulation generator must emit a schema-v2 pinned manifest, gap-free founder-tract
+truth, and one authoritative marker-truth TSV per simulated IID with this exact
+nine-column header and literal tab separators:
+
+```text
+sim_iid    chrom    marker_index    position_grch38    rsid    hap0_donor_iid    hap0_source_hap    hap1_donor_iid    hap1_source_hap
+```
+
+The manifest pins the founder-mosaic generator, its environment lock and code revision,
+genetic-map hashes, recombination model, allowed generations, ancestry-fraction tolerance,
+and per-autosome breakpoint envelope. It declares minimum founder, simulation, and truth
+haplotype-window counts per class and split; the declared founder and simulation minima
+must each be at least two. The harness enforces the declared values, including at least
+that many distinct same-class founders actually supplying modal window truth. Every
+validation stratum must contain all seven classes. Founder classes come from the pinned
+gnomAD HGDP+1KG metadata. Treat each global class as an explicit simulation assumption,
+not an observed local tract. The harness verifies that tracts
+cover each haplotype's full model-marker interval without gaps or overlaps and that
+marker donor/source-haplotype identities agree with those tracts. It then independently
+projects the marker contributions with the production model's `W = C // M` windows:
+regular windows `w = 0, ..., W-2` consume `[w*M, (w+1)*M)`, and the final window consumes
+`[(W-1)*M, C)` including the complete remainder. It chooses the modal model code per
+haplotype and resolves ties to the lowest numeric production code. A five-column cached
+window-truth file is accepted only if recomputation from marker truth matches exactly.
+
+Execute the repository-owned separate verifier that replays the declared source
+haplotypes from the pinned donor VCFs, checks marker rsIDs, and confirms every paired
+allele against the simulated fixture while reconciling marker contributions with the
+authenticated tract truth. Supply the actual generator source and its environment lock.
+The verifier requires that source to be a tracked, clean, reviewed file under
+`scripts/lai_bundle_v2`, matches its source, environment, and revision to the manifest,
+and proves that the verifier has distinct source bytes. If that repository-owned reviewed
+generator is not available, fixture generation and threshold selection are not ready:
+retain fail-closed behavior rather than substituting an external or self-attesting script.
+
+Verification is split-scoped. Write one schema-v2 stamp for `calibration` and, only after
+the policy is frozen, a different stamp for `final_confirmation`. Each stamp binds its
+exact split commitment, the generator source and environment lock, the verifier and
+committed `uv.lock`, source VCFs and indexes, tract files, and exact verified counts. A
+stamp for one split cannot authenticate the other.
+
+Keep mode-specific arrays instead of reusing one broad argument list. Put the complete
+calibration inputs, `--dataset-split calibration`, and the calibration stamp destination
+in `CALIBRATION_VERIFY_ARGS`; add the generator source and environment lock plus every
+autosomal donor VCF/index only to the verification command. Put the inputs needed for
+full reference hashing, without `--job-plan` or `--max-jobs`, in
+`CALIBRATION_REFERENCE_ARGS`. Put the complete calibration inputs and stamp path, the
+masks/matrix axes, and `--max-jobs` in `CALIBRATION_PLAN_ARGS`. Use
+`CALIBRATION_RUN_ARGS` only for the bundle/code/dataset
+identity, labels, selected fixture and window/marker/tract truth, reference manifest and
+stamp, masks/VEP snapshot, private work root, and plan path. Create parallel
+`FINAL_VERIFY_ARGS`, `FINAL_REFERENCE_ARGS`, `FINAL_PLAN_ARGS`, and `FINAL_RUN_ARGS`
+lists for `final_confirmation`; every final-split list also carries the frozen policy and
+its independently recorded digest so no final truth is opened before policy freeze. Then
+run the calibration stages in order:
+
+```bash
+# Independently replay calibration donor alleles and write its split-scoped stamp.
+# Repeat both donor options for every autosome 1--22.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_VERIFY_ARGS[@]}" \
+  --verify-simulation \
+  --simulation-generator-script "$SIMULATION_GENERATOR_SCRIPT" \
+  --simulation-generator-environment-lock "$SIMULATION_GENERATOR_ENVIRONMENT_LOCK" \
+  --donor-vcf 1="$DONOR_VCF_CHR1" \
+  --donor-vcf-index 1="$DONOR_VCF_CHR1_INDEX"
+
+# Full-hash the live calibration reference once and write an atomic stamp.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_REFERENCE_ARGS[@]}" \
+  --verify-reference
+
+# Validate all inputs, freeze the matrix, and write the required authenticated plan.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_PLAN_ARGS[@]}" \
+  --list-jobs \
+  --job-plan "$VALIDATION_DIR/coverage/job-plan.json" \
+  > "$VALIDATION_DIR/coverage/jobs.jsonl"
+
+# One SLURM array task; CONFIG_SHA is the configuration_sha256 printed in each job row.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_RUN_ARGS[@]}" \
+  --job-plan "$VALIDATION_DIR/coverage/job-plan.json" \
+  --expected-configuration-sha256 "$CONFIG_SHA" \
+  --job-index "$SLURM_ARRAY_TASK_ID" \
+  --output "$VALIDATION_DIR/coverage/records/${SLURM_ARRAY_TASK_ID}.jsonl"
+```
+
+After freezing the policy, repeat the simulation-verification, planning, and array
+commands with the corresponding `FINAL_*_ARGS` arrays. That final verification command
+must write a separate path and use `--dataset-split final_confirmation`; do not copy,
+rename, or reuse the calibration stamp.
+
+The simulation-verification pass independently checks exact alleles. The reference pass
+full-hashes the calibration bundle and validates VCF sample headers. Planning authenticates
+the selected split's simulation stamp and the reference stamp and uses descriptor-pinned
+stat fingerprints to detect drift. The schema-v3 planner stores Cartesian axes once,
+streams domain-separated Merkle levels and immutable shards through bounded memory, and
+checks the plan's peak disk estimate. Each array task reconstructs and authenticates only
+its selected row, fixture, and required mask files. An attempt-unique subdirectory under
+an operator-owned `0700` work root prevents cross-task cleanup collisions. Cooperative
+bundle and per-output locks prevent concurrent mutation or last-writer-wins results;
+paths that alias inputs, the bundle, or plan shards are rejected. Array tasks do not
+reread a live simulation stamp:
+the frozen plan pins its hash and split commitment, and each selected Merkle proof
+authenticates that commitment transitively. The reference stamp is checked again after
+inference and before atomic output commit. If a stamp, the plan, configuration hash,
+Merkle proof, runtime lock, or a fingerprint disagrees with the input state applicable to
+its phase, rebuild the appropriate artifact rather than bypassing the check.
+
+Choose a policy using only the calibration split. Freeze its calibration-plan and
+observation hashes, selection code/report hashes, accuracy endpoints, telemetry
+predicates, fail-closed aggregation, and exact confirmation matrix in a
+`--confirmation-policy` artifact committed to the still-sealed final-split identity. The
+aggregation dimensions are exactly `simulation_iid`, `input_mask`,
+`validation_stratum`, `chromosome_drop_scenario`, `fraction`, and `seed`; retaining
+`simulation_iid` prevents simulated biological replicates from being averaged together.
+Record the artifact digest independently and pass it as
+`--expected-confirmation-policy-sha256` during both planning and array execution.
+Final-confirmation planning derives its three supported masks, fractions, seeds, and
+chromosome-drop scenarios only from that policy and rejects all CLI matrix overrides.
+Evaluate it once on the founder-disjoint `final_confirmation` split. Any missing required
+ancestry class, unresolved operational error, incomplete matrix, policy-identity drift,
+or confirmation failure is a release blocker and preserves fail-closed behavior.
 
 ---
 
