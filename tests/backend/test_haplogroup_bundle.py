@@ -1,4 +1,4 @@
-"""Tests for the PhyloTree + source-audited Y-tree haplogroup bundle (P3-31).
+"""Tests for the source-audited PhyloTree mtDNA + YBrowse haplogroup bundle (P3-31).
 
 Validates:
 - Bundle JSON structure and required fields
@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.1"
+        assert bundle["version"] == "1.1.2"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -160,7 +160,37 @@ class TestBundleStructure:
             "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
         )
         assert mt_source["reference_sequence"]["accession"] == "NC_012920.1"
-        assert mt_source["audit"]["audited_nodes"] == ["U3b", "U5b2", "W1"]
+        assert set(mt_source["audit"]["audited_nodes"]) == {
+            "G",
+            "G1",
+            "G2",
+            "H13",
+            "H13a",
+            "H6",
+            "H6a",
+            "J1d",
+            "K",
+            "K1",
+            "K1a",
+            "K2",
+            "K2a",
+            "K2b",
+            "T2a",
+            "U2",
+            "U2e",
+            "U3b",
+            "U5b2",
+            "W1",
+            "X2",
+            "X2a",
+            "X2b",
+            "Y1",
+            "Y2",
+            "Y_mt",
+            "Z",
+            "Z1",
+        }
+        assert "K1c" in mt_source["audit"]["omitted_nodes"]
         assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
     def test_sources_y(self, bundle: dict) -> None:
@@ -413,6 +443,33 @@ class TestMtDNATree:
                 continue
             assert len(node["defining_snps"]) > 0, f"{node['haplogroup']} has no defining SNPs"
 
+    def test_every_reportable_node_has_ancestor_distinguishing_evidence(
+        self, mt_tree: dict
+    ) -> None:
+        """No emitted mtDNA label may rely only on inherited identifiers or loci."""
+        failures: list[str] = []
+
+        def walk(node: dict, ancestor_rsids: set[str], ancestor_positions: set[int]) -> None:
+            snps = node.get("defining_snps", [])
+            if node["haplogroup"] not in {"mt-MRCA", "R0"} and not any(
+                snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions
+                for snp in snps
+            ):
+                failures.append(node["haplogroup"])
+            next_rsids = ancestor_rsids | {snp["rsid"] for snp in snps}
+            next_positions = ancestor_positions | {snp["pos"] for snp in snps}
+            for child in node.get("children", []):
+                walk(child, next_rsids, next_positions)
+
+        walk(mt_tree, set(), set())
+        assert not failures
+
+    def test_unreportable_source_nodes_are_not_emitted(self, bundle: dict, mt_tree: dict) -> None:
+        omitted = set(bundle["sources"]["mt"]["audit"]["omitted_nodes"])
+        assert omitted
+        assert set(collect_haplogroup_names(mt_tree)).isdisjoint(omitted)
+        assert "K1c" in omitted
+
 
 # ── Y-chromosome tree-specific tests ────────────────────────────────────
 
@@ -657,6 +714,7 @@ class TestBuildScript:
             _Y_SOURCE,
             _validate_audited_mt_markers,
             _validate_audited_y_rsids,
+            _validate_mt_reportability,
             _validate_mt_source,
             _validate_tree,
             _validate_y_cross_clade_duplicates,
@@ -669,6 +727,7 @@ class TestBuildScript:
         mt_issues = _validate_tree(build_mt_tree())
         mt_source_issues = _validate_mt_source(_MT_SOURCE)
         mt_reference_issues = _validate_audited_mt_markers(build_mt_tree())
+        mt_reportability_issues = _validate_mt_reportability(build_mt_tree())
         y_tree = build_y_tree()
         y_issues = _validate_tree(y_tree)
         y_reference_issues = _validate_audited_y_rsids(y_tree)
@@ -680,6 +739,9 @@ class TestBuildScript:
         assert mt_source_issues == [], f"mtDNA source validation issues: {mt_source_issues}"
         assert mt_reference_issues == [], (
             f"mtDNA reference validation issues: {mt_reference_issues}"
+        )
+        assert mt_reportability_issues == [], (
+            f"mtDNA reportability validation issues: {mt_reportability_issues}"
         )
         assert y_issues == [], f"Y-chr validation issues: {y_issues}"
         assert y_reference_issues == [], f"Y reference validation issues: {y_reference_issues}"
@@ -711,12 +773,34 @@ class TestBuildScript:
         assert any("W1" in issue and "expected" in issue for issue in issues)
         assert any("U3b" in issue and "expected" in issue for issue in issues)
 
+    def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
+        """A fresh rsID at an old locus or an old rsID at a fresh locus is insufficient."""
+        from scripts.build_haplogroup_bundle import _validate_mt_reportability, build_mt_tree
+
+        mt_tree = build_mt_tree()
+        t2 = find_node(mt_tree, "T2")
+        t2a = find_node(mt_tree, "T2a")
+        assert t2 is not None and t2a is not None
+        inherited = t2["defining_snps"][0]
+        t2a["defining_snps"] = [
+            {"rsid": inherited["rsid"], "pos": 15000, "allele": "A"},
+            {"rsid": "fresh-id", "pos": inherited["pos"], "allele": "A"},
+        ]
+
+        issues = _validate_mt_reportability(mt_tree)
+        assert issues.count("mtDNA node T2a has no ancestor-distinguishing marker") == 1
+
+        t2a["defining_snps"] = [{"allele": "A"}]
+        issues = _validate_mt_reportability(mt_tree)
+        assert issues.count("mtDNA node T2a has no ancestor-distinguishing marker") == 1
+
     def test_mt_source_guard_rejects_unreportable_or_reversed_markers(self) -> None:
         """Provenance records must retain direction and observed array coverage."""
         from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
 
         source = copy.deepcopy(_MT_SOURCE)
         source["audit_scope"] = ""
+        source.pop("omitted_nodes")
         marker = source["audited_nodes"]["U5b2"]["emitted_snps"][0]
         marker["allele"] = marker["ancestral_allele"]
         marker["array_coverage"]["modern_exports_with_position"] = 0
@@ -724,6 +808,7 @@ class TestBuildScript:
 
         issues = _validate_mt_source(source)
         assert any("no valid audit scope" in issue for issue in issues)
+        assert any("missing the omitted-node mapping" in issue for issue in issues)
         assert any("source mutation direction" in issue for issue in issues)
         assert any("no array coverage" in issue for issue in issues)
         assert any(
