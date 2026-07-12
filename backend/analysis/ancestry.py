@@ -1476,6 +1476,18 @@ class HaplogroupNode:
     children: list[HaplogroupNode]
 
 
+_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
+_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS = frozenset(
+    {
+        "rs2032595",  # M168 / CT
+        "rs2032652",  # M89 / F
+        "rs3900",  # M9 / K
+        "rs2032631",  # M45 / P
+        "rs2032658",  # M207 / R
+    }
+)
+
+
 @dataclass
 class HaplogroupBundle:
     """Parsed haplogroup bundle with mtDNA and Y-chromosome trees.
@@ -1487,6 +1499,12 @@ class HaplogroupBundle:
         y_tree: Root node of the Y-chromosome haplogroup tree.
         mt_snp_rsids: Set of all mtDNA defining SNP rsids.
         y_snp_rsids: Set of all Y-chromosome defining SNP rsids.
+        y_min_internal_terminal_specific_snps: Minimum number of independent
+            markers required to report an internal Y node as terminal.
+        y_trusted_missing_internal_passthrough_rsids: Audited platform-specific
+            Y markers that may be untyped when a deeper child has support.
+        y_trusted_single_marker_terminal_rsids: Audited Y markers that may
+            support a one-marker internal terminal call.
     """
 
     version: str
@@ -1495,6 +1513,11 @@ class HaplogroupBundle:
     y_tree: HaplogroupNode
     mt_snp_rsids: set[str]
     y_snp_rsids: set[str]
+    y_min_internal_terminal_specific_snps: int = _Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS
+    y_trusted_missing_internal_passthrough_rsids: frozenset[str] = frozenset()
+    y_trusted_single_marker_terminal_rsids: frozenset[str] = (
+        _Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS
+    )
 
 
 @dataclass
@@ -1587,6 +1610,22 @@ def load_haplogroup_bundle(
 
     mt_tree = _parse_tree_node(data["trees"]["mt"])
     y_tree = _parse_tree_node(data["trees"]["Y"])
+    y_assignment = data.get("assignment", {}).get("Y", {})
+    min_y_internal_terminal_snps = int(
+        y_assignment.get(
+            "min_internal_terminal_specific_snps",
+            _Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS,
+        )
+    )
+    trusted_y_missing_passthrough_markers = frozenset(
+        y_assignment.get("trusted_missing_internal_passthrough_rsids", ())
+    )
+    trusted_y_markers = frozenset(
+        y_assignment.get(
+            "trusted_single_marker_terminal_rsids",
+            _Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS,
+        )
+    )
 
     bundle = HaplogroupBundle(
         version=data.get("version", "1.0.0"),
@@ -1595,6 +1634,9 @@ def load_haplogroup_bundle(
         y_tree=y_tree,
         mt_snp_rsids=_collect_rsids(mt_tree),
         y_snp_rsids=_collect_rsids(y_tree),
+        y_min_internal_terminal_specific_snps=min_y_internal_terminal_snps,
+        y_trusted_missing_internal_passthrough_rsids=(trusted_y_missing_passthrough_markers),
+        y_trusted_single_marker_terminal_rsids=trusted_y_markers,
     )
 
     logger.info(
@@ -1615,16 +1657,6 @@ def load_haplogroup_bundle(
 # (``snps_conflicting == 0``) — a missing/untyped marker is lack of evidence, an
 # ancestral marker is positive evidence *against* the clade. See ``_tree_walk``.
 _HAPLOGROUP_MIN_MATCH_FRACTION = 0.5
-_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
-_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS = frozenset(
-    {
-        "rs2032595",  # M168 / CT
-        "rs2032652",  # M89 / F
-        "rs3900",  # M9 / K
-        "rs2032631",  # M45 / P
-        "rs2032658",  # M207 / R
-    }
-)
 
 # Normalized mitochondrial chromosome label. Every ingestion parser normalizes the
 # vendor mtDNA code (23andMe/AncestryDNA "25"/"26", etc.) to "MT" (see
@@ -1695,6 +1727,7 @@ def _tree_walk(
     ancestral_rsids: frozenset[str] = frozenset(),
     min_internal_terminal_specific_snps: int = 1,
     trusted_single_marker_terminal_rsids: frozenset[str] = frozenset(),
+    trusted_missing_internal_passthrough_rsids: frozenset[str] = frozenset(),
     _support_path: list[tuple[int, int]] | None = None,
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
@@ -1717,17 +1750,19 @@ def _tree_walk(
     marker is explicitly audited as terminal-grade evidence. A child defined
     *only* by re-listed ancestral markers has no
     clade-specific SNPs and is never a terminal match; it may only be used as a
-    structural pass-through to a deeper supported clade. A child with too few
-    clade-specific SNPs for non-leaf terminal support follows the same
-    pass-through rule: it can route the walk to a deeper supported clade, but it
-    is not reported as terminal on its own. Leaf children keep the existing
-    conflict/fraction behavior, because there is no deeper branch to over-resolve
-    into. Among eligible direct children the highest clade-specific fraction is
-    the direct candidate. If sparse pass-through descendants are also supported,
-    candidates are ranked by clade-specific support: total derived markers,
-    confidence, then supported path depth. The recorded path step keeps the
-    **full** node match (including inherited markers) so the confidence
-    present/total semantics are unchanged.
+    structural pass-through to a deeper supported clade. An explicitly audited,
+    non-conflicting internal child whose own platform-specific marker is untyped
+    follows the same rule, which lets independently supported descendants remain
+    reachable on the affected array revision. A child with too few clade-specific
+    SNPs for non-leaf terminal support also can route the walk to a deeper
+    supported clade, but it is not reported as terminal on its own. Leaf children
+    keep the existing conflict/fraction behavior, because there is no deeper
+    branch to over-resolve into. Among eligible direct children the highest
+    clade-specific fraction is the direct candidate. If sparse pass-through
+    descendants are also supported, candidates are ranked by clade-specific
+    support: total derived markers, confidence, then supported path depth. The
+    recorded path step keeps the **full** node match (including inherited
+    markers) so the confidence present/total semantics are unchanged.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
@@ -1743,6 +1778,8 @@ def _tree_walk(
             pass through to deeper supported clades.
         trusted_single_marker_terminal_rsids: Audited rsIDs that can make a
             one-SNP non-leaf child terminal despite the general sparse-node floor.
+        trusted_missing_internal_passthrough_rsids: Audited rsIDs whose absence
+            may be bypassed only when an independently supported descendant exists.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
@@ -1785,9 +1822,16 @@ def _tree_walk(
 
         # A clade is defined by all its mutations being derived: any observed
         # ancestral (conflicting) clade-specific marker is evidence *against*. A
-        # missing (untyped) marker is not a conflict. Require ≥1 clade-specific
-        # derived marker actually observed — never descend on zero evidence.
-        if conflicting > 0 or present == 0:
+        # missing (untyped) marker is not a conflict. A fully untyped internal
+        # child cannot be terminal; only an audited platform-specific gap may
+        # route to a descendant with independent support.
+        if conflicting > 0:
+            continue
+        if present == 0:
+            if child.children and any(
+                snp.rsid in trusted_missing_internal_passthrough_rsids for snp in specific
+            ):
+                passthrough_children.append((child, 0, total))
             continue
 
         fraction = present / total
@@ -1832,6 +1876,9 @@ def _tree_walk(
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
             trusted_single_marker_terminal_rsids=trusted_single_marker_terminal_rsids,
+            trusted_missing_internal_passthrough_rsids=(
+                trusted_missing_internal_passthrough_rsids
+            ),
             _support_path=direct_support_path,
         )
         best_path = direct_path
@@ -1858,6 +1905,9 @@ def _tree_walk(
             seen_rsids,
             min_internal_terminal_specific_snps=min_internal_terminal_specific_snps,
             trusted_single_marker_terminal_rsids=trusted_single_marker_terminal_rsids,
+            trusted_missing_internal_passthrough_rsids=(
+                trusted_missing_internal_passthrough_rsids
+            ),
             _support_path=sub_support_path,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
@@ -2040,8 +2090,11 @@ def assign_haplogroups(
             bundle.y_tree,
             genotype_map,
             y_path,
-            min_internal_terminal_specific_snps=_Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS,
-            trusted_single_marker_terminal_rsids=_Y_HAPLOGROUP_TRUSTED_SINGLE_MARKER_TERMINALS,
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+            trusted_missing_internal_passthrough_rsids=(
+                bundle.y_trusted_missing_internal_passthrough_rsids
+            ),
         )
 
         y_total_present = sum(step.snps_present for step in y_path)

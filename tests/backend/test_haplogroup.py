@@ -220,33 +220,36 @@ _Y_NOCALL_PADDING = [
     for i in range(60)
 ]
 
-# Known genotype fixture for R1b1a path in Y-chromosome:
-# Y-Adam → CT → F → K → K2 → P → R → R1 → R1b → R1b1 → R1b1a
-_R1B1A_GENOTYPES = [
-    # CT / M168
-    {"rsid": "rs2032595", "chrom": "Y", "pos": 14813991, "genotype": "TT"},
-    # F / M89
-    {"rsid": "rs2032652", "chrom": "Y", "pos": 21917313, "genotype": "TT"},
-    # K / M9
-    {"rsid": "rs3900", "chrom": "Y", "pos": 21730257, "genotype": "GG"},
-    # K2 is structural on this array
-    # P
-    {"rsid": "rs2032631", "chrom": "Y", "pos": 21867787, "genotype": "AA"},
-    {"rsid": "rs1000147", "chrom": "Y", "pos": 41031901, "genotype": "AA"},
-    # R / M207
-    {"rsid": "rs2032658", "chrom": "Y", "pos": 15581983, "genotype": "GG"},
-    # R1
-    {"rsid": "rs2032624", "chrom": "Y", "pos": 15022755, "genotype": "AA"},
-    {"rsid": "rs1000867", "chrom": "Y", "pos": 32170896, "genotype": "TT"},
-    # R1b
-    {"rsid": "rs9786184", "chrom": "Y", "pos": 2887824, "genotype": "AA"},
-    {"rsid": "rs1000331", "chrom": "Y", "pos": 20085901, "genotype": "TT"},
-    # R1b1
-    {"rsid": "rs1000247", "chrom": "Y", "pos": 20503721, "genotype": "AA"},
-    # R1b1a
-    {"rsid": "rs9461019", "chrom": "Y", "pos": 22741842, "genotype": "TT"},
-    {"rsid": "rs1000154", "chrom": "Y", "pos": 39970128, "genotype": "GG"},
-]
+
+def _derived_y_path_genotypes(target: str) -> list[dict[str, object]]:
+    """Build derived calls for one emitted Y path from the generated bundle."""
+    tree = json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["Y"]
+
+    def find_path(node: dict) -> list[dict] | None:
+        if node["haplogroup"] == target:
+            return [node]
+        for child in node.get("children", []):
+            path = find_path(child)
+            if path is not None:
+                return [node, *path]
+        return None
+
+    path = find_path(tree)
+    assert path is not None, f"Y test target {target} is absent from the generated bundle"
+    return [
+        {
+            "rsid": snp["rsid"],
+            "chrom": "Y",
+            "pos": snp["pos"],
+            "genotype": snp["allele"] * 2,
+        }
+        for node in path
+        for snp in node["defining_snps"]
+    ]
+
+
+# Reportable R-M269 path after unsupported R1b1a1 is pruned and its child promoted.
+_R1B1A_GENOTYPES = _derived_y_path_genotypes("R1b1a1a")
 
 # Issue #660: a CT/M168+ male whose rs2032597 *is typed* — as the ancestral
 # allele A that every non-A man carries. Pre-fix, the A node encoded its derived
@@ -261,13 +264,7 @@ _CT_M168_GENOTYPES = [
     # matches the other fixtures; the tree-walk's substring match treats "AA" and
     # haploid "A" identically.)
     {"rsid": "rs2032597", "chrom": "Y", "pos": 14847792, "genotype": "AA"},
-    # CT / M168
-    {"rsid": "rs2032595", "chrom": "Y", "pos": 14813991, "genotype": "TT"},
-    # C
-    {"rsid": "rs35284970", "chrom": "Y", "pos": 2723523, "genotype": "CC"},
-    {"rsid": "rs2032666", "chrom": "Y", "pos": 7701164, "genotype": "CC"},
-    # C2
-    {"rsid": "rs3916762", "chrom": "Y", "pos": 2720073, "genotype": "TT"},
+    *_derived_y_path_genotypes("C2"),
 ]
 
 
@@ -293,7 +290,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.0.3"
+        assert bundle.version == "1.1.0"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -311,6 +308,26 @@ class TestLoadHaplogroupBundle:
 
     def test_y_snp_rsids_populated(self, bundle: HaplogroupBundle) -> None:
         assert len(bundle.y_snp_rsids) > 50
+
+    def test_y_trusted_single_markers_loaded_from_bundle(self, bundle: HaplogroupBundle) -> None:
+        assert bundle.y_min_internal_terminal_specific_snps == 2
+        assert bundle.y_trusted_missing_internal_passthrough_rsids == frozenset({"rs2032599"})
+        assert bundle.y_trusted_single_marker_terminal_rsids
+        assert bundle.y_trusted_single_marker_terminal_rsids <= bundle.y_snp_rsids
+
+    def test_direct_construction_retains_legacy_y_policy(self, bundle: HaplogroupBundle) -> None:
+        legacy = HaplogroupBundle(
+            version=bundle.version,
+            build=bundle.build,
+            mt_tree=bundle.mt_tree,
+            y_tree=bundle.y_tree,
+            mt_snp_rsids=bundle.mt_snp_rsids,
+            y_snp_rsids=bundle.y_snp_rsids,
+        )
+        assert legacy.y_min_internal_terminal_specific_snps == 2
+        assert {"rs2032595", "rs2032652", "rs3900", "rs2032631", "rs2032658"} <= (
+            legacy.y_trusted_single_marker_terminal_rsids
+        )
 
     def test_file_not_found(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -886,13 +903,13 @@ class TestTreeWalkSharedAncestralMarkers:
         assert terminal.haplogroup == "CT"
         assert [s.haplogroup for s in path] == ["CT"]
 
-    def test_real_bundle_single_de_marker_is_not_terminal(self, bundle: HaplogroupBundle) -> None:
-        """#1079: one DE-specific SNP on sparse Y-array data is not enough to make
-        DE the terminal call. It can only support descent if a deeper child also has
-        independent support."""
+    def test_real_bundle_partial_two_marker_de_evidence_reaches_de(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """One typed locus from each two-locus CT and DE definition reaches DE."""
         genotypes = {
             "rs2032595": "TT",  # CT / M168
-            "rs2032602": "TT",  # DE-specific marker
+            "rs9786479": "GG",  # DE / P153
         }
 
         terminal, path = _tree_walk(
@@ -900,29 +917,31 @@ class TestTreeWalkSharedAncestralMarkers:
             genotypes,
             [],
             min_internal_terminal_specific_snps=2,
-            trusted_single_marker_terminal_rsids=frozenset({"rs2032595"}),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
         )
 
-        assert terminal.haplogroup == "CT"
-        assert [(s.haplogroup, s.snps_present, s.snps_total) for s in path] == [("CT", 1, 1)]
+        assert terminal.haplogroup == "DE"
+        assert [(s.haplogroup, s.snps_present, s.snps_total) for s in path] == [
+            ("CT", 1, 2),
+            ("DE", 1, 2),
+        ]
 
     def test_real_bundle_single_audited_r_m207_marker_can_be_terminal(
         self, bundle: HaplogroupBundle
     ) -> None:
         """#1654: R must not depend on the removed autosomal rs1000546 placeholder.
 
-        A sparse XY sample with P support plus the audited canonical R marker M207
-        (rs2032658 derived G) should resolve to R even though R is an internal node
-        with one remaining defining SNP. The generic one-SNP internal guard still
-        applies to unaudited markers such as DE above.
+        A sparse XY sample with its audited ancestral path plus the canonical R
+        marker M207 (rs2032658 derived G) should resolve to R when the second
+        independent R locus is untyped.
         """
         genotypes = {
-            "rs2032595": "TT",  # CT / M168
-            "rs2032652": "TT",  # F / M89
-            "rs3900": "GG",  # K / M9
-            "rs2032631": "AA",  # P / M45
-            "rs1000147": "AA",
-            "rs2032658": "GG",  # R-M207 derived allele
+            "rs2032595": "TT",  # CT / M168, C->T
+            "rs2032652": "TT",  # F / M89, C->T
+            "rs3900": "GG",  # K / M9, C->G
+            "rs2033003": "CC",  # K2 / M526, A->C
+            "rs2032631": "AA",  # P / M45, G->A
+            "rs2032658": "GG",  # R / M207, A->G
         }
 
         terminal, path = _tree_walk(
@@ -930,7 +949,7 @@ class TestTreeWalkSharedAncestralMarkers:
             genotypes,
             [],
             min_internal_terminal_specific_snps=2,
-            trusted_single_marker_terminal_rsids=frozenset({"rs2032658"}),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
         )
 
         assert terminal.haplogroup == "R"
@@ -938,12 +957,7 @@ class TestTreeWalkSharedAncestralMarkers:
 
     def test_real_bundle_m45_derived_a_resolves_to_p(self, bundle: HaplogroupBundle) -> None:
         """M45's canonical derived A routes a supported CT/F/K lineage to P."""
-        genotypes = {
-            "rs2032595": "TT",
-            "rs2032652": "TT",
-            "rs3900": "GG",
-            "rs2032631": "AA",
-        }
+        genotypes = {row["rsid"]: row["genotype"] for row in _derived_y_path_genotypes("P")}
 
         terminal, path = _tree_walk(
             bundle.y_tree,
@@ -1237,6 +1251,122 @@ class TestTreeWalkSharedAncestralMarkers:
         assert [s.haplogroup for s in path] == ["A"]
 
 
+class TestYTreeSelfConsistency:
+    """Run every emitted Y clade through the exact production tree-walk policy."""
+
+    def test_every_emitted_y_node_resolves_to_itself(self, bundle: HaplogroupBundle) -> None:
+        failures: list[str] = []
+
+        def walk(node: HaplogroupNode, ancestors: list[HaplogroupNode]) -> None:
+            current_path = [*ancestors, node]
+            if node.haplogroup != "Y-Adam":
+                genotypes = {
+                    snp.rsid: snp.allele * 2
+                    for path_node in current_path
+                    for snp in path_node.defining_snps
+                }
+                terminal, traversal = _tree_walk(
+                    bundle.y_tree,
+                    genotypes,
+                    [],
+                    min_internal_terminal_specific_snps=2,
+                    trusted_single_marker_terminal_rsids=(
+                        bundle.y_trusted_single_marker_terminal_rsids
+                    ),
+                )
+                expected_path = [path_node.haplogroup for path_node in current_path[1:]]
+                actual_path = [step.haplogroup for step in traversal]
+                if terminal.haplogroup != node.haplogroup or actual_path != expected_path:
+                    failures.append(
+                        f"{node.haplogroup}: terminal={terminal.haplogroup}, "
+                        f"path={actual_path}, expected={expected_path}"
+                    )
+            for child in node.children:
+                walk(child, current_path)
+
+        walk(bundle.y_tree, [])
+        assert not failures
+
+    def test_missing_internal_marker_can_route_to_supported_descendant(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """A platform-specific gap at B must not make all-four-array B2 unreachable."""
+        genotypes = {
+            row["rsid"]: row["genotype"]
+            for row in _derived_y_path_genotypes("B2")
+            if row["rsid"] != "rs2032599"
+        }
+
+        terminal, traversal = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+            trusted_missing_internal_passthrough_rsids=(
+                bundle.y_trusted_missing_internal_passthrough_rsids
+            ),
+        )
+
+        assert terminal.haplogroup == "B2"
+        assert [(step.haplogroup, step.snps_present, step.snps_total) for step in traversal] == [
+            ("B", 0, 1),
+            ("B2", 2, 2),
+        ]
+
+    def test_isolated_m269_cannot_jump_untyped_y_ancestors(self, bundle: HaplogroupBundle) -> None:
+        terminal, traversal = _tree_walk(
+            bundle.y_tree,
+            {"rs9786153": "CC"},
+            [],
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+            trusted_missing_internal_passthrough_rsids=(
+                bundle.y_trusted_missing_internal_passthrough_rsids
+            ),
+        )
+
+        assert terminal.haplogroup == "Y-Adam"
+        assert traversal == []
+
+    def test_h1a_leaf_markers_cannot_jump_untyped_mt_ancestors(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        terminal, traversal = _tree_walk(
+            bundle.mt_tree,
+            {"rs1000390": "TT", "i5013404": "CC"},
+            [],
+        )
+
+        assert terminal.haplogroup == "mt-MRCA"
+        assert traversal == []
+
+    def test_legacy_basal_a_markers_do_not_divert_ct_lineage(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """P305/V168 and P108/V221 are basal to BT, not competing CT siblings."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _derived_y_path_genotypes("R")}
+        genotypes.update(
+            {
+                "rs72625368": "GG",  # P305
+                "rs191505182": "AA",  # V168
+                "rs761539052": "TT",  # P108
+                "rs188292317": "TT",  # V221
+            }
+        )
+
+        terminal, traversal = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+        )
+
+        assert terminal.haplogroup == "R"
+        assert traversal[0].haplogroup == "CT"
+
+
 # ── Full haplogroup assignment tests ────────────────────────────────────
 
 
@@ -1339,16 +1469,11 @@ class TestAssignHaplogroups:
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
     ) -> None:
         """An XY sample with the canonical M168/M89/M9/M45 states reaches P."""
-        rows = (
-            [
-                {"rsid": "rs2032595", "chrom": "Y", "pos": 14813991, "genotype": "TT"},
-                {"rsid": "rs2032652", "chrom": "Y", "pos": 21917313, "genotype": "TT"},
-                {"rsid": "rs3900", "chrom": "Y", "pos": 21730257, "genotype": "GG"},
-                {"rsid": "rs2032631", "chrom": "Y", "pos": 21867787, "genotype": "AA"},
-            ]
-            + _Y_TYPED_PADDING
-            + _NONPAR_X_HOM_GENOTYPES
-        )
+        path_rows = _derived_y_path_genotypes("P")
+        assert {"rs2032595", "rs2032652", "rs3900", "rs2032631"} <= {
+            row["rsid"] for row in path_rows
+        }
+        rows = path_rows + _Y_TYPED_PADDING + _NONPAR_X_HOM_GENOTYPES
         with sample_engine.begin() as conn:
             conn.execute(sa.insert(raw_variants), rows)
 
@@ -1358,15 +1483,28 @@ class TestAssignHaplogroups:
         assert y.haplogroup == "P"
         assert [step.haplogroup for step in y.traversal_path] == ["CT", "F", "K", "K2", "P"]
 
-    def test_y_single_de_marker_stops_at_ct(
+    def test_y_bundle_policy_allows_audited_k2_terminal(
         self, bundle: HaplogroupBundle, sample_engine: sa.Engine
     ) -> None:
-        """#1079: production Y assignment applies the terminal-support guard, so a
-        sparse XY sample with one CT marker plus one DE marker reports CT, not DE."""
+        """The bundle-only M526 exception is consumed by production assignment."""
+        rows = _derived_y_path_genotypes("K2") + _Y_TYPED_PADDING + _NONPAR_X_HOM_GENOTYPES
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(raw_variants), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        y = next(result for result in results if result.tree_type == "Y")
+        assert y.haplogroup == "K2"
+        assert y.traversal_path[-1].haplogroup == "K2"
+
+    def test_y_partial_two_marker_de_evidence_reaches_de(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """A two-locus DE definition can meet the 0.5 fraction with one typed locus."""
         rows = (
             [
                 {"rsid": "rs2032595", "chrom": "Y", "pos": 14813991, "genotype": "TT"},
-                {"rsid": "rs2032602", "chrom": "Y", "pos": 14895148, "genotype": "TT"},
+                {"rsid": "rs9786479", "chrom": "Y", "pos": 18561042, "genotype": "GG"},
             ]
             + _Y_TYPED_PADDING
             + _NONPAR_X_HOM_GENOTYPES
@@ -1378,9 +1516,10 @@ class TestAssignHaplogroups:
 
         assert len(results) == 2
         y = next(r for r in results if r.tree_type == "Y")
-        assert y.haplogroup == "CT"
+        assert y.haplogroup == "DE"
         assert [(s.haplogroup, s.snps_present, s.snps_total) for s in y.traversal_path] == [
-            ("CT", 1, 1)
+            ("CT", 1, 2),
+            ("DE", 1, 2),
         ]
 
     def test_confidence_calculation(
@@ -1472,12 +1611,11 @@ class TestYABranchPolarity:
     ``rs2032597`` is **M170** — an A→C transversion whose derived C defines
     haplogroup **I** (I-M170), not the basal A lineage (Ensembl GRCh37 rs2032597
     A/C, ancestral A; Wikipedia "Haplogroup I-M170"). The #660/#805 remediation
-    left M170 on the A/A1 nodes and band-aided the polarity (allele ``C``) so
-    non-A men would conflict out of A — which also made A uncallable and asserted
-    a false marker→clade fact. #1583 moves M170 to the **I** node (its canonical
-    marker) and leaves A/A1 as structural nodes (their sub-clades keep their own
-    markers). M168 (``rs2032595``) remains a CT marker, not an A1b one. These
-    tests pin the corrected placement and the CT-not-A routing.
+    left M170 on the A/A1 nodes and band-aided the polarity (allele ``C``), which
+    asserted a false marker→clade fact. #1583 moved M170 to the **I** node. The
+    source-audited tree now omits generic or paraphyletic basal A placeholders and
+    emits only independently distinguishable A0/A1a/A1b1 descendants. M168
+    (``rs2032595``) remains a CT marker, not an A-lineage competitor.
     """
 
     def test_ct_m168_male_resolves_into_ct_not_a_branch(
@@ -1506,7 +1644,7 @@ class TestYABranchPolarity:
         define the basal A/A1 nodes — a real haplogroup A man carries the ancestral
         A (A split off before M170's A→C mutation), so defining A by M170's derived
         C (the #805 band-aid) is doubly wrong: derived allele + foreign clade."""
-        for name in ("A", "A1"):
+        for name in ("A0", "A1a", "A1b1"):
             node = _find_y_node(bundle.y_tree, name)
             assert node is not None, f"{name} node missing from bundle"
             assert "rs2032597" not in {s.rsid for s in node.defining_snps}, (
@@ -1514,16 +1652,12 @@ class TestYABranchPolarity:
             )
 
     def test_m168_not_an_a1b_defining_marker(self, bundle: HaplogroupBundle) -> None:
-        """M168 (rs2032595) defines CT, the sister clade of A — it must not appear
-        under A1b (where it forced a conflict for real A1b men and let mis-routed
-        non-A men reach A1b). It remains a defining marker of CT."""
-        a1b = _find_y_node(bundle.y_tree, "A1b")
-        assert a1b is not None
-        assert "rs2032595" not in {s.rsid for s in a1b.defining_snps}
+        """M168 defines CT; the paraphyletic flattened A1b placeholder is omitted."""
+        assert _find_y_node(bundle.y_tree, "A1b") is None
 
         ct = _find_y_node(bundle.y_tree, "CT")
         assert ct is not None
-        assert {s.rsid for s in ct.defining_snps} == {"rs2032595"}
+        assert "rs2032595" in {s.rsid for s in ct.defining_snps}
 
     def test_i_node_defined_by_m170_rs2032597_derived_c(self, bundle: HaplogroupBundle) -> None:
         """#1583 (corrects the inverted #805 premise): rs2032597 (M170) IS
@@ -1558,12 +1692,12 @@ class TestYABranchPolarity:
             by_rsid.setdefault(snp.rsid, set()).add((snp.pos, snp.allele))
 
         assert by_rsid["rs13447352"] == {(22749853, "C")}
-        assert by_rsid["rs17307070"] == {(15590342, "T")}
         assert by_rsid["rs2032595"] == {(14813991, "T")}
         assert by_rsid["rs2032597"] == {(14847792, "C")}
         assert by_rsid["rs2032631"] == {(21867787, "A")}
         assert by_rsid["rs2032652"] == {(21917313, "T")}
         assert by_rsid["rs2032658"] == {(15581983, "G")}
+        assert by_rsid["rs9786153"] == {(22739367, "C")}
         assert by_rsid["rs2032673"] == {(21894058, "C")}
         assert by_rsid["rs9341279"] == {(15437152, "T")}
         assert by_rsid["rs9341286"] == {(15019092, "C")}
@@ -1582,8 +1716,9 @@ class TestYABranchPolarity:
         by_rsid = {snp.rsid for snp in y_snps(bundle.y_tree)}
         assert "rs1000546" not in by_rsid  # Ensembl GRCh37 chr18 via rs502450 alias
         assert "rs35489731" not in by_rsid  # Ensembl GRCh37 chr2
-        assert "rs9341278" not in by_rsid  # invalid historic T allele; clade unresolved
-        assert "rs2032604" not in by_rsid  # unresolved cross-clade duplicate
+        assert {"rs9341278", "rs2032604"} <= by_rsid
+        assert next(s for s in y_snps(bundle.y_tree) if s.rsid == "rs9341278").allele == "A"
+        assert next(s for s in y_snps(bundle.y_tree) if s.rsid == "rs2032604").allele == "G"
         assert "rs13304168" not in by_rsid  # impossible historic G allele; clade unresolved
         assert not (_CROSS_CLADE_WITHHELD_Y_RSIDS & by_rsid)
 
@@ -1640,17 +1775,18 @@ class TestYABranchPolarity:
 # audited against an authoritative Y-SNP index.
 _CANONICAL_Y_MARKER_CLADE: dict[str, str] = {
     "rs13447352": "J",  # M304 / Page16 / PF4609: A->C defines J.
-    "rs17307070": "R1",  # P225: G->T defines R1.
     "rs2032595": "CT",  # M168: C->T defines CT.
     "rs2032597": "I",  # M170: A→C, derived C defines haplogroup I (not the basal A).
     "rs2032652": "F",  # M89: C->T defines F.
-    "rs2032673": "H",  # M69 / Page45: T->C defines H.
+    "rs2032673": "H1a",  # M69 / Page45: T->C defines H1a in the source snapshot.
     "rs3900": "K",  # M9: C->G defines K.
     "rs2032631": "P",  # M45: canonical G->A defines P/P1.
     "rs9341279": "N_Y",  # M232 / M2188: C->T defines Y haplogroup N.
+    "rs9341278": "N_Y",  # M231: G->A defines Y haplogroup N.
     "rs9341286": "E1b1b",  # M243 / PF1943: T->C defines E1b1b.
-    "rs9786153": "R1b",  # M269: defines R1b (R-M269), not haplogroup I.
+    "rs9786153": "R1b1a1a",  # M269 at the closest emitted simplified descendant.
     "rs2032658": "R",  # M207: defines haplogroup R (R-M207), not G.
+    "rs2032604": "J2",  # M172: T->G defines J2.
 }
 
 _CROSS_CLADE_WITHHELD_Y_RSIDS = {

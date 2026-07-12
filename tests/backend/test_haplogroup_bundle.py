@@ -1,4 +1,4 @@
-"""Tests for the PhyloTree + ISOGG Y-tree haplogroup bundle (P3-31).
+"""Tests for the PhyloTree + source-audited Y-tree haplogroup bundle (P3-31).
 
 Validates:
 - Bundle JSON structure and required fields
@@ -12,6 +12,7 @@ Validates:
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -127,7 +128,16 @@ class TestBundleStructure:
         assert fixture_content == production_content
 
     def test_required_top_level_keys(self, bundle: dict) -> None:
-        required = {"module", "version", "description", "build", "sources", "trees", "stats"}
+        required = {
+            "module",
+            "version",
+            "description",
+            "build",
+            "assignment",
+            "sources",
+            "trees",
+            "stats",
+        }
         assert required.issubset(bundle.keys())
 
     def test_module_name(self, bundle: dict) -> None:
@@ -137,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.0.3"
+        assert bundle["version"] == "1.1.0"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -150,8 +160,23 @@ class TestBundleStructure:
 
     def test_sources_y(self, bundle: dict) -> None:
         y_source = bundle["sources"]["Y"]
-        assert y_source["name"] == "ISOGG Y-DNA Haplogroup Tree"
-        assert "url" in y_source
+        assert y_source["name"] == "YBrowse hg19 SNP export"
+        assert y_source["sha256"] == (
+            "9ebc0b217d906f39a0aa6c0df572e44daed17d415993896dff7dd4274ff111fa"
+        )
+        assert len(y_source["omitted_nodes"]) == 20
+        assert "BT" in y_source["omitted_nodes"]["A1"]
+        assert "BT" in y_source["omitted_nodes"]["A1b"]
+        assert "[6]" in y_source["omitted_nodes"]["A1"]
+        assert "[6]" in y_source["omitted_nodes"]["A1b"]
+        assert y_source["current_validation"]["current_rsids"] == 135
+        assert y_source["current_validation"]["failed_marker_records"] == 0
+
+    def test_y_assignment_policy_is_bundled(self, bundle: dict) -> None:
+        policy = bundle["assignment"]["Y"]
+        assert policy["min_internal_terminal_specific_snps"] == 2
+        assert policy["trusted_missing_internal_passthrough_rsids"] == ["rs2032599"]
+        assert set(policy["trusted_single_marker_terminal_rsids"])
 
     def test_trees_has_mt_and_y(self, bundle: dict) -> None:
         assert "mt" in bundle["trees"]
@@ -168,6 +193,8 @@ class TestBundleStructure:
             "y_defining_snps",
             "y_unique_snps",
             "y_max_depth",
+            "y_source_haplogroups",
+            "y_omitted_haplogroups",
             "total_haplogroups",
             "total_defining_snps",
             "total_unique_snps",
@@ -372,7 +399,7 @@ class TestMtDNATree:
 
 
 class TestYChromTree:
-    """Validate Y-chromosome (ISOGG) tree content."""
+    """Validate the source-audited Y-chromosome tree content."""
 
     def test_root_is_y_adam(self, y_tree: dict) -> None:
         assert y_tree["haplogroup"] == "Y-Adam"
@@ -383,7 +410,22 @@ class TestYChromTree:
     def test_major_haplogroups_present(self, y_tree: dict) -> None:
         """Major Y-chr haplogroups should exist."""
         names = set(collect_haplogroup_names(y_tree))
-        expected = {"A", "B", "C", "D", "E", "G", "I", "J", "K", "N_Y", "O", "R"}
+        expected = {
+            "A0",
+            "A1a",
+            "A1b1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "G",
+            "I",
+            "J",
+            "K",
+            "N_Y",
+            "O",
+            "R",
+        }
         assert expected.issubset(names), f"Missing: {expected - names}"
 
     def test_common_european_haplogroups(self, y_tree: dict) -> None:
@@ -421,6 +463,39 @@ class TestYChromTree:
         assert bundle["stats"]["y_haplogroups"] == len(nodes)
         assert bundle["stats"]["y_defining_snps"] == len(snps)
         assert bundle["stats"]["y_unique_snps"] == len(unique_rsids)
+        assert bundle["stats"]["y_source_haplogroups"] == 127
+        assert bundle["stats"]["y_omitted_haplogroups"] == 20
+
+    def test_every_y_node_has_ancestor_distinguishing_evidence(self, y_tree: dict) -> None:
+        """Every emitted non-root node must add a new identifier and locus."""
+        failures: list[str] = []
+
+        def walk(node: dict, ancestor_rsids: set[str], ancestor_positions: set[int]) -> None:
+            snps = node.get("defining_snps", [])
+            if node["haplogroup"] != "Y-Adam" and not any(
+                snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions
+                for snp in snps
+            ):
+                failures.append(node["haplogroup"])
+            next_rsids = ancestor_rsids | {snp["rsid"] for snp in snps}
+            next_positions = ancestor_positions | {snp["pos"] for snp in snps}
+            for child in node.get("children", []):
+                walk(child, next_rsids, next_positions)
+
+        walk(y_tree, set(), set())
+        assert not failures
+
+    def test_y_defining_identifiers_and_loci_are_globally_unique(self, y_tree: dict) -> None:
+        snps = collect_all_snps(y_tree)
+        assert len({snp["rsid"] for snp in snps}) == len(snps)
+        assert len({snp["pos"] for snp in snps}) == len(snps)
+
+    def test_unreportable_source_placeholders_are_not_emitted(self, bundle: dict) -> None:
+        names = set(collect_haplogroup_names(bundle["trees"]["Y"]))
+        omitted = set(bundle["sources"]["Y"]["omitted_nodes"])
+        assert omitted
+        assert names.isdisjoint(omitted)
+        assert {"A1", "A1b", "GH", "MS", "R1b1a1"}.issubset(omitted)
 
     def test_no_prunable_y_ancestor_snp_relistings(self, y_tree: dict) -> None:
         """Y nodes should not repeat an ancestor SNP when independent SNPs remain."""
@@ -504,11 +579,11 @@ class TestFixtureIntegration:
         assert len(overlap) >= 3, f"Only {len(overlap)} fixture MT SNPs found in bundle: {overlap}"
 
     def test_fixture_y_snps_in_bundle(self, y_tree: dict) -> None:
-        """Test fixture's Y SNP rsids should appear in the bundle tree."""
+        """The compact fixture retains its canonical R-M207 probe in the tree."""
         bundle_rsids = {s["rsid"] for s in collect_all_snps(y_tree)}
         fixture_rsids = set(self.FIXTURE_Y_SNPS.keys())
         overlap = fixture_rsids & bundle_rsids
-        assert len(overlap) >= 3, f"Only {len(overlap)} fixture Y SNPs found in bundle: {overlap}"
+        assert "rs2032658" in overlap
 
     def test_fixture_sample_resolves_to_h_lineage(self, mt_tree: dict) -> None:
         """H is defined by G2706A (derived allele A; rCRS is H2a2a1 so carries it).
@@ -523,16 +598,11 @@ class TestFixtureIntegration:
         assert h_snps["i5002706"]["pos"] == 2706
         assert h_snps["i5002706"]["allele"] == "A"  # derived (was ancestral "G")
 
-    def test_fixture_sample_resolves_to_r1b_lineage(self, y_tree: dict) -> None:
-        """Fixture Y SNPs should enable resolution to R1b branch.
-
-        The fixture sample has rs1000331 (pos 20085901, T) which is a
-        defining SNP for R1b in our tree.
-        """
-        r1b_node = find_node(y_tree, "R1b")
-        assert r1b_node is not None
-        r1b_rsids = {s["rsid"] for s in r1b_node["defining_snps"]}
-        assert "rs1000331" in r1b_rsids
+    def test_fixture_sample_carries_canonical_r_marker(self, y_tree: dict) -> None:
+        """The compact fixture still exercises canonical M207/R evidence."""
+        r_node = find_node(y_tree, "R")
+        assert r_node is not None
+        assert "rs2032658" in {s["rsid"] for s in r_node["defining_snps"]}
 
 
 # ── Build script tests ──────────────────────────────────────────────────
@@ -563,9 +633,12 @@ class TestBuildScript:
     def test_validate_tree_passes(self) -> None:
         """Internal validation should report no issues."""
         from scripts.build_haplogroup_bundle import (
+            _Y_SOURCE,
             _validate_audited_y_rsids,
             _validate_tree,
             _validate_y_cross_clade_duplicates,
+            _validate_y_reportability,
+            _validate_y_source,
             build_mt_tree,
             build_y_tree,
         )
@@ -575,10 +648,45 @@ class TestBuildScript:
         y_issues = _validate_tree(y_tree)
         y_reference_issues = _validate_audited_y_rsids(y_tree)
         y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
+        y_source_issues = _validate_y_source(_Y_SOURCE)
+        trusted = frozenset(_Y_SOURCE["assignment"]["trusted_single_marker_terminal_rsids"])
+        y_reportability_issues = _validate_y_reportability(y_tree, trusted)
         assert mt_issues == [], f"mtDNA validation issues: {mt_issues}"
         assert y_issues == [], f"Y-chr validation issues: {y_issues}"
         assert y_reference_issues == [], f"Y reference validation issues: {y_reference_issues}"
         assert y_duplicate_issues == [], f"Y duplicate validation issues: {y_duplicate_issues}"
+        assert y_source_issues == [], f"Y source validation issues: {y_source_issues}"
+        assert y_reportability_issues == [], (
+            f"Y reportability validation issues: {y_reportability_issues}"
+        )
+
+    def test_y_source_guard_rejects_stale_current_record_alleles(self) -> None:
+        """Selected alleles must remain supported by the current RefSNP record."""
+        from scripts.build_haplogroup_bundle import _Y_SOURCE, _validate_y_source
+
+        source = copy.deepcopy(_Y_SOURCE)
+        marker = next(
+            marker
+            for node in source["nodes"].values()
+            for marker in node["markers"]
+            if marker["identifier_source"] == "ncbi_refsnp"
+        )
+        marker["ncbi_grch37_y_alleles"] = [marker["ancestral_allele"]]
+
+        issues = _validate_y_source(source)
+        assert any(
+            marker["rsid"] in issue and "alleles absent from NCBI" in issue for issue in issues
+        )
+
+    def test_y_source_guard_rejects_ineligible_missing_marker_passthrough(self) -> None:
+        """Only audited partial-array internal gates may bypass missing evidence."""
+        from scripts.build_haplogroup_bundle import _Y_SOURCE, _validate_y_source
+
+        source = copy.deepcopy(_Y_SOURCE)
+        source["assignment"]["trusted_missing_internal_passthrough_rsids"].append("rs2032595")
+
+        issues = _validate_y_source(source)
+        assert any("rs2032595" in issue and "ineligible" in issue for issue in issues)
 
     def test_audited_y_rsid_guard_rejects_stale_reference_records(self) -> None:
         """The builder rejects stale coordinates, alleles, and clade placement
@@ -619,6 +727,18 @@ class TestBuildScript:
         assert any(
             "rs1000546" in issue and "excluded from the Y tree" in issue for issue in issues
         )
+
+    def test_y_marker_guard_rejects_unregistered_records(self) -> None:
+        """No Y marker can bypass the complete source registry whitelist."""
+        from scripts.build_haplogroup_bundle import _validate_audited_y_rsids, build_y_tree
+
+        y_tree = build_y_tree()
+        r_node = find_node(y_tree, "R")
+        assert r_node is not None
+        r_node["defining_snps"].append({"rsid": "rs999999999", "pos": 1, "allele": "A"})
+
+        issues = _validate_audited_y_rsids(y_tree)
+        assert any("rs999999999" in issue and "absent from" in issue for issue in issues)
 
     def test_y_duplicate_guard_rejects_all_cross_clade_reuse(self) -> None:
         """The guard rejects both new and formerly grandfathered duplicate rsIDs."""

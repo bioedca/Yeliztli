@@ -1,0 +1,6057 @@
+{
+  "nodes": {
+    "A0": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 5,
+          "count_tested": 209,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 6843151,
+          "quality_tier": "A",
+          "reference": "Cruciani et al 2011",
+          "rsid": "rs185975114",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "A0"
+          ],
+          "source_isogg_clade": "A0",
+          "ybrowse_marker": "V149",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Y-Adam",
+      "trusted_single_marker": false
+    },
+    "A1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 7,
+          "count_tested": 1265,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21739754,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs369315948",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "A1a"
+          ],
+          "source_isogg_clade": "A1a",
+          "ybrowse_marker": "M31",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Y-Adam",
+      "trusted_single_marker": false
+    },
+    "A1b1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 5,
+          "count_tested": 315,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15204887,
+          "quality_tier": "F",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i702462",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "A1b1"
+          ],
+          "source_isogg_clade": "A1b1",
+          "ybrowse_marker": "L419",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020"
+          ]
+        }
+      ],
+      "parent": "Y-Adam",
+      "trusted_single_marker": false
+    },
+    "B": {
+      "children": [
+        "B2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 33,
+          "count_tested": 640,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14851554,
+          "quality_tier": "E",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032599",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "B"
+          ],
+          "source_isogg_clade": "B",
+          "ybrowse_marker": "M181",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Y-Adam",
+      "trusted_single_marker": true
+    },
+    "B2": {
+      "children": [
+        "B2a",
+        "B2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 15,
+          "count_tested": 687,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14869076,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032601",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "B2"
+          ],
+          "source_isogg_clade": "B2",
+          "ybrowse_marker": "M182",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 36,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 15020578,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (Univ. of Arizona)",
+          "rsid": "rs9341290",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "B2"
+          ],
+          "source_isogg_clade": "B2",
+          "ybrowse_marker": "P85",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "B",
+      "trusted_single_marker": false
+    },
+    "B2a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 16,
+          "count_tested": 633,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21869519,
+          "quality_tier": "B",
+          "reference": "Underhill et al. 2001",
+          "rsid": "i3000026",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "B2a"
+          ],
+          "source_isogg_clade": "B2a",
+          "ybrowse_marker": "M150",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "B2",
+      "trusted_single_marker": false
+    },
+    "B2b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 4,
+          "count_tested": 680,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21767959,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs111725135",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "B2b"
+          ],
+          "source_isogg_clade": "B2b",
+          "ybrowse_marker": "M112",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "B2",
+      "trusted_single_marker": false
+    },
+    "C": {
+      "children": [
+        "C1",
+        "C2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 23,
+          "count_tested": 548,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15437564,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032666",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "C"
+          ],
+          "source_isogg_clade": "C",
+          "ybrowse_marker": "M216",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 19,
+          "count_tested": 52,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2734854,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs35284970",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "C"
+          ],
+          "source_isogg_clade": "C",
+          "ybrowse_marker": "M130",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "CT",
+      "trusted_single_marker": false
+    },
+    "C1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 23023974,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs372944764",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "C1"
+          ],
+          "source_isogg_clade": "C1",
+          "ybrowse_marker": "F3393",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "C",
+      "trusted_single_marker": false
+    },
+    "C2": {
+      "children": [
+        "C2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 98,
+          "count_tested": 705,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15437333,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032668",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "C2"
+          ],
+          "source_isogg_clade": "C2",
+          "ybrowse_marker": "M217",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 14,
+          "count_tested": 169,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 19020366,
+          "quality_tier": "A",
+          "reference": "Ray Banks (2011)",
+          "rsid": "rs764770930",
+          "source_alias_class": "nomenclature",
+          "source_clade_aliases": [
+            "C2"
+          ],
+          "source_isogg_clade": "C2",
+          "ybrowse_marker": "Z1453",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "C",
+      "trusted_single_marker": false
+    },
+    "C2b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 17,
+          "count_tested": 129,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22711592,
+          "quality_tier": "B",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i701926",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "C2b"
+          ],
+          "source_isogg_clade": "C2b",
+          "ybrowse_marker": "L1373",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "C2",
+      "trusted_single_marker": false
+    },
+    "CT": {
+      "children": [
+        "C",
+        "DE",
+        "F"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 790,
+          "count_tested": 808,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22744945,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341317",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "CT"
+          ],
+          "source_isogg_clade": "CT",
+          "ybrowse_marker": "M294",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 377,
+          "count_tested": 404,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14813991,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032595",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "CT"
+          ],
+          "source_isogg_clade": "CT",
+          "ybrowse_marker": "M168",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Y-Adam",
+      "trusted_single_marker": false
+    },
+    "D": {
+      "children": [
+        "D1",
+        "D2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 5,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 17595451,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs199839797",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D"
+          ],
+          "source_isogg_clade": "D",
+          "ybrowse_marker": "CTS7660",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 2726402,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs199881488",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D"
+          ],
+          "source_isogg_clade": "D",
+          "ybrowse_marker": "CTS94",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "DE",
+      "trusted_single_marker": false
+    },
+    "D1": {
+      "children": [
+        "D1a",
+        "D1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 8,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 23165423,
+          "quality_tier": "D",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "i704203",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D1"
+          ],
+          "source_isogg_clade": "D1",
+          "ybrowse_marker": "CTS11577",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "D",
+      "trusted_single_marker": true
+    },
+    "D1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 7,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 7681275,
+          "quality_tier": "D",
+          "reference": "Fudan University (2016)",
+          "rsid": "i704116",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D1a"
+          ],
+          "source_isogg_clade": "D1a",
+          "ybrowse_marker": "F6251",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "D1",
+      "trusted_single_marker": false
+    },
+    "D1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 6,
+          "count_tested": 38,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21872738,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032621",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D1b"
+          ],
+          "source_isogg_clade": "D1b",
+          "ybrowse_marker": "M55",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "D1",
+      "trusted_single_marker": false
+    },
+    "D2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 2,
+          "count_tested": 21,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2828140,
+          "quality_tier": "B",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i706678",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "D2"
+          ],
+          "source_isogg_clade": "D2",
+          "ybrowse_marker": "L1378",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "D",
+      "trusted_single_marker": false
+    },
+    "DE": {
+      "children": [
+        "D",
+        "E"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 2,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 18561042,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs9786479",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "DE"
+          ],
+          "source_isogg_clade": "DE",
+          "ybrowse_marker": "P153",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 14842223,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs9786130",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "DE"
+          ],
+          "source_isogg_clade": "DE",
+          "ybrowse_marker": "CTS3334",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "CT",
+      "trusted_single_marker": false
+    },
+    "E": {
+      "children": [
+        "E1",
+        "E2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "C",
+          "count_derived": 118,
+          "count_tested": 2410,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21778998,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs9306841",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E"
+          ],
+          "source_isogg_clade": "E",
+          "ybrowse_marker": "M96",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 19,
+          "count_tested": 305,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 6861075,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs9786374",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E"
+          ],
+          "source_isogg_clade": "E",
+          "ybrowse_marker": "L537",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "DE",
+      "trusted_single_marker": false
+    },
+    "E1": {
+      "children": [
+        "E1a",
+        "E1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "T",
+          "count_derived": 38,
+          "count_tested": 473,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21083420,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs16980577",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1"
+          ],
+          "source_isogg_clade": "E1",
+          "ybrowse_marker": "P147",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 1,
+          "count_tested": 1,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7104553,
+          "quality_tier": "A",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs73614808",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1"
+          ],
+          "source_isogg_clade": "E1",
+          "ybrowse_marker": "CTS955",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E",
+      "trusted_single_marker": false
+    },
+    "E1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 68,
+          "count_tested": 1170,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21896261,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032617",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1a"
+          ],
+          "source_isogg_clade": "E1a",
+          "ybrowse_marker": "M132",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1",
+      "trusted_single_marker": false
+    },
+    "E1b": {
+      "children": [
+        "E1b1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 32,
+          "count_tested": 618,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14159846,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs16980473",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b"
+          ],
+          "source_isogg_clade": "E1b",
+          "ybrowse_marker": "P177",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1",
+      "trusted_single_marker": true
+    },
+    "E1b1": {
+      "children": [
+        "E1b1a",
+        "E1b1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 142,
+          "count_tested": 668,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21610831,
+          "quality_tier": "A",
+          "reference": "Hammer et al. 1998",
+          "rsid": "rs9785756",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1"
+          ],
+          "source_isogg_clade": "E1b1",
+          "ybrowse_marker": "P2",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 14060308,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs16980621",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1"
+          ],
+          "source_isogg_clade": "E1b1",
+          "ybrowse_marker": "P179",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b",
+      "trusted_single_marker": false
+    },
+    "E1b1a": {
+      "children": [
+        "E1b1a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 4,
+          "count_tested": 350,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 6818291,
+          "quality_tier": "A",
+          "reference": "Trombetta 2011",
+          "rsid": "rs768983",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "E",
+            "E1b1a"
+          ],
+          "source_isogg_clade": "E1b1a",
+          "ybrowse_marker": "V38",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": false,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 1,
+          "count_tested": 246,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 5335763,
+          "quality_tier": "F",
+          "reference": "Trombetta 2011",
+          "rsid": "i701114",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1a"
+          ],
+          "source_isogg_clade": "E1b1a",
+          "ybrowse_marker": "V100",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020"
+          ]
+        }
+      ],
+      "parent": "E1b1",
+      "trusted_single_marker": false
+    },
+    "E1b1a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 592,
+          "count_tested": 1230,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14096577,
+          "quality_tier": "A",
+          "reference": "Seielstad et al. 1994",
+          "rsid": "rs9785941",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1a1"
+          ],
+          "source_isogg_clade": "E1b1a1",
+          "ybrowse_marker": "M2",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b1a",
+      "trusted_single_marker": false
+    },
+    "E1b1b": {
+      "children": [
+        "E1b1b1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 53,
+          "count_tested": 789,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15467824,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032654",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "E",
+            "E1b1b"
+          ],
+          "source_isogg_clade": "E1b1b",
+          "ybrowse_marker": "M215",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 36,
+          "count_tested": 649,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15019092,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341286",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1b"
+          ],
+          "source_isogg_clade": "E1b1b",
+          "ybrowse_marker": "M243",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b1",
+      "trusted_single_marker": false
+    },
+    "E1b1b1": {
+      "children": [
+        "E1b1b1a",
+        "E1b1b1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 32,
+          "count_tested": 323,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15026633,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs34812786",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "E",
+            "E1b1b1"
+          ],
+          "source_isogg_clade": "E1b1b1",
+          "ybrowse_marker": "L117",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 5,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 7678694,
+          "quality_tier": "C",
+          "reference": "Paolo Francalacci (2011)",
+          "rsid": "rs374920063",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1b1"
+          ],
+          "source_isogg_clade": "E1b1b1",
+          "ybrowse_marker": "PF1532",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b1b",
+      "trusted_single_marker": false
+    },
+    "E1b1b1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 27,
+          "count_tested": 438,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 23973415,
+          "quality_tier": "E",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs759888730",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1b1a"
+          ],
+          "source_isogg_clade": "E1b1b1a",
+          "ybrowse_marker": "L539",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b1b1",
+      "trusted_single_marker": false
+    },
+    "E1b1b1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 17,
+          "count_tested": 59,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7290454,
+          "quality_tier": "E",
+          "reference": "Y DNA community",
+          "rsid": "rs367988033",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E1b1b1b"
+          ],
+          "source_isogg_clade": "E1b1b1b",
+          "ybrowse_marker": "Z827",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E1b1b1",
+      "trusted_single_marker": false
+    },
+    "E2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 9,
+          "count_tested": 408,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21890177,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032639",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "E2"
+          ],
+          "source_isogg_clade": "E2",
+          "ybrowse_marker": "M75",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "E",
+      "trusted_single_marker": false
+    },
+    "F": {
+      "children": [
+        "F2",
+        "F3",
+        "G",
+        "H",
+        "IJ",
+        "K"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 664,
+          "count_tested": 752,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21917313,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032652",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "F"
+          ],
+          "source_isogg_clade": "F",
+          "ybrowse_marker": "M89",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 250,
+          "count_tested": 261,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 17493513,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs9785913",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "F"
+          ],
+          "source_isogg_clade": "F",
+          "ybrowse_marker": "P158",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "CT",
+      "trusted_single_marker": false
+    },
+    "F2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 580,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 19092597,
+          "quality_tier": "D",
+          "reference": "Underhill et al.",
+          "rsid": "i4000126",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "F2"
+          ],
+          "source_isogg_clade": "F2",
+          "ybrowse_marker": "M427",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "F3": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 713,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 14496387,
+          "quality_tier": "D",
+          "reference": "Fornarino et al. 2009",
+          "rsid": "i4000181",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "F3"
+          ],
+          "source_isogg_clade": "F3",
+          "ybrowse_marker": "M481",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "G": {
+      "children": [
+        "G1",
+        "G2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 27,
+          "count_tested": 476,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8614138,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35178723",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G"
+          ],
+          "source_isogg_clade": "G",
+          "ybrowse_marker": "L154",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 23,
+          "count_tested": 359,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15204710,
+          "quality_tier": "A",
+          "reference": "Sims et al. (Univ. Central Florida)",
+          "rsid": "rs9786910",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G"
+          ],
+          "source_isogg_clade": "G",
+          "ybrowse_marker": "U21",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "G1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 71,
+          "count_tested": 1530,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22741740,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs13447378",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G1"
+          ],
+          "source_isogg_clade": "G1",
+          "ybrowse_marker": "M285",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "G",
+      "trusted_single_marker": false
+    },
+    "G2": {
+      "children": [
+        "G2a",
+        "G2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "A",
+          "count_derived": 25,
+          "count_tested": 455,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 17174741,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35190095",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2"
+          ],
+          "source_isogg_clade": "G2",
+          "ybrowse_marker": "L156",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "A",
+          "count_derived": 9,
+          "count_tested": 201,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 16903051,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35445843",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2"
+          ],
+          "source_isogg_clade": "G2",
+          "ybrowse_marker": "L496",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "G",
+      "trusted_single_marker": false
+    },
+    "G2a": {
+      "children": [
+        "G2a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 69,
+          "count_tested": 685,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14028148,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35617575",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2a"
+          ],
+          "source_isogg_clade": "G2a",
+          "ybrowse_marker": "L31",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 31,
+          "count_tested": 386,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 23973594,
+          "quality_tier": "A",
+          "reference": "Sims et al (2009)",
+          "rsid": "rs2178500",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2a"
+          ],
+          "source_isogg_clade": "G2a",
+          "ybrowse_marker": "U5",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "G2",
+      "trusted_single_marker": false
+    },
+    "G2a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 7,
+          "count_tested": 10,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8611379,
+          "quality_tier": "A",
+          "reference": "Full Genomes Corp (2013)",
+          "rsid": "rs750938499",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2a1"
+          ],
+          "source_isogg_clade": "G2a1",
+          "ybrowse_marker": "FGC7535",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "G2a",
+      "trusted_single_marker": false
+    },
+    "G2b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 7322981,
+          "quality_tier": "C",
+          "reference": "Underhill et al.",
+          "rsid": "rs562812527",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "G2b"
+          ],
+          "source_isogg_clade": "G2b",
+          "ybrowse_marker": "M3115",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "G2",
+      "trusted_single_marker": false
+    },
+    "H": {
+      "children": [
+        "H1a",
+        "H1b",
+        "H2",
+        "H3"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 4,
+          "count_tested": 59,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 17844304,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA 2011)",
+          "rsid": "rs567848586",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "H"
+          ],
+          "source_isogg_clade": "H",
+          "ybrowse_marker": "L901",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 1,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 6938119,
+          "quality_tier": "C",
+          "reference": "ISOGG index (2017)",
+          "rsid": "rs34559651",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "H"
+          ],
+          "source_isogg_clade": "H",
+          "ybrowse_marker": "Page75",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "H1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 61,
+          "count_tested": 940,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21894058,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032673",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "H",
+            "H1a"
+          ],
+          "source_isogg_clade": "H1a",
+          "ybrowse_marker": "M69",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "H",
+      "trusted_single_marker": false
+    },
+    "H1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 7,
+          "count_tested": 571,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 3436405,
+          "quality_tier": "F",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i706454",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "H1b"
+          ],
+          "source_isogg_clade": "H1b",
+          "ybrowse_marker": "L588",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020"
+          ]
+        }
+      ],
+      "parent": "H",
+      "trusted_single_marker": false
+    },
+    "H2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 7,
+          "count_tested": 1064,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21764431,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs13447371",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "H2"
+          ],
+          "source_isogg_clade": "H2",
+          "ybrowse_marker": "M282",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "H",
+      "trusted_single_marker": false
+    },
+    "H3": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 2873167,
+          "quality_tier": "C",
+          "reference": "Ray Banks (2015)",
+          "rsid": "rs554650914",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "H3"
+          ],
+          "source_isogg_clade": "H3",
+          "ybrowse_marker": "Z13450",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "H",
+      "trusted_single_marker": false
+    },
+    "I": {
+      "children": [
+        "I1",
+        "I2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 398,
+          "count_tested": 805,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14847792,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032597",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I"
+          ],
+          "source_isogg_clade": "I",
+          "ybrowse_marker": "M170",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 80,
+          "count_tested": 94,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15023364,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341301",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I"
+          ],
+          "source_isogg_clade": "I",
+          "ybrowse_marker": "M258",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "IJ",
+      "trusted_single_marker": false
+    },
+    "I1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 1372,
+          "count_tested": 2240,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15022707,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341296",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I1"
+          ],
+          "source_isogg_clade": "I1",
+          "ybrowse_marker": "M253",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "I",
+      "trusted_single_marker": false
+    },
+    "I2": {
+      "children": [
+        "I2a",
+        "I2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 249,
+          "count_tested": 887,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 16638804,
+          "quality_tier": "A",
+          "reference": "Underhill et al.2007",
+          "rsid": "rs17307294",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I2"
+          ],
+          "source_isogg_clade": "I2",
+          "ybrowse_marker": "P215",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 26,
+          "count_tested": 223,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 18700150,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35547782",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "I",
+            "I2"
+          ],
+          "source_isogg_clade": "I2",
+          "ybrowse_marker": "L68",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "I",
+      "trusted_single_marker": false
+    },
+    "I2a": {
+      "children": [
+        "I2a2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 33,
+          "count_tested": 363,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7879415,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs7892855",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I2a"
+          ],
+          "source_isogg_clade": "I2a",
+          "ybrowse_marker": "L460",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "I2",
+      "trusted_single_marker": true
+    },
+    "I2a2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 32,
+          "count_tested": 422,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 18747493,
+          "quality_tier": "A",
+          "reference": "Underhill et al.2007",
+          "rsid": "rs17315680",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I2a2"
+          ],
+          "source_isogg_clade": "I2a2",
+          "ybrowse_marker": "P214",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "I2a",
+      "trusted_single_marker": false
+    },
+    "I2b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 4,
+          "count_tested": 347,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8426321,
+          "quality_tier": "B",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i702568",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "I2b"
+          ],
+          "source_isogg_clade": "I2b",
+          "ybrowse_marker": "L417",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "I2",
+      "trusted_single_marker": false
+    },
+    "IJ": {
+      "children": [
+        "I",
+        "J"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 196,
+          "count_tested": 649,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 19166861,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs17315821",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "IJ"
+          ],
+          "source_isogg_clade": "IJ",
+          "ybrowse_marker": "P123",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 4,
+          "count_tested": 7,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8590752,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs7892893",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "IJ"
+          ],
+          "source_isogg_clade": "IJ",
+          "ybrowse_marker": "P127",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "J": {
+      "children": [
+        "J1",
+        "J2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 221,
+          "count_tested": 814,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22749853,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs13447352",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J"
+          ],
+          "source_isogg_clade": "J",
+          "ybrowse_marker": "M304",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 1,
+          "count_tested": 7,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15277466,
+          "quality_tier": "A",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs17306965",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J"
+          ],
+          "source_isogg_clade": "J",
+          "ybrowse_marker": "CTS3936",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "IJ",
+      "trusted_single_marker": false
+    },
+    "J1": {
+      "children": [
+        "J1a"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 591,
+          "count_tested": 1432,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22741818,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341313",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J1"
+          ],
+          "source_isogg_clade": "J1",
+          "ybrowse_marker": "M267",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": false,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 51,
+          "count_tested": 414,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7171834,
+          "quality_tier": "E",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs370799651",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J1"
+          ],
+          "source_isogg_clade": "J1",
+          "ybrowse_marker": "L321",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J",
+      "trusted_single_marker": false
+    },
+    "J1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 16,
+          "count_tested": 37,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 16227302,
+          "quality_tier": "A",
+          "reference": "Bonnie Schrack (2012)",
+          "rsid": "rs376267849",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J1a"
+          ],
+          "source_isogg_clade": "J1a",
+          "ybrowse_marker": "Z2215",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J1",
+      "trusted_single_marker": false
+    },
+    "J2": {
+      "children": [
+        "J2a",
+        "J2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 403,
+          "count_tested": 1198,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14969634,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032604",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "J",
+            "J2"
+          ],
+          "source_isogg_clade": "J2",
+          "ybrowse_marker": "M172",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 38,
+          "count_tested": 459,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7771358,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs371968167",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2"
+          ],
+          "source_isogg_clade": "J2",
+          "ybrowse_marker": "L228",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J",
+      "trusted_single_marker": false
+    },
+    "J2a": {
+      "children": [
+        "J2a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 15,
+          "count_tested": 380,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21674327,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs373707621",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2a"
+          ],
+          "source_isogg_clade": "J2a",
+          "ybrowse_marker": "L559",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 410,
+          "count_tested": 801,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2751678,
+          "quality_tier": "B",
+          "reference": "Sengupta et al. 2006",
+          "rsid": "i4000123",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2a"
+          ],
+          "source_isogg_clade": "J2a",
+          "ybrowse_marker": "M410",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "J2",
+      "trusted_single_marker": false
+    },
+    "J2a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 482,
+          "count_tested": 1207,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22942897,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs34459399",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "J",
+            "J2a1"
+          ],
+          "source_isogg_clade": "J2a1",
+          "ybrowse_marker": "L26",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J2a",
+      "trusted_single_marker": false
+    },
+    "J2b": {
+      "children": [
+        "J2b1",
+        "J2b2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 0,
+          "count_tested": 6,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 22753079,
+          "quality_tier": "C",
+          "reference": "Underhill et al.",
+          "rsid": "rs13447442",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2b"
+          ],
+          "source_isogg_clade": "J2b",
+          "ybrowse_marker": "M314",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 2,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 15436316,
+          "quality_tier": "C",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032667",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2b"
+          ],
+          "source_isogg_clade": "J2b",
+          "ybrowse_marker": "M221",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J2",
+      "trusted_single_marker": false
+    },
+    "J2b1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "T",
+          "count_derived": 25,
+          "count_tested": 745,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15587509,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032657",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "J2b1"
+          ],
+          "source_isogg_clade": "J2b1",
+          "ybrowse_marker": "M205",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J2b",
+      "trusted_single_marker": false
+    },
+    "J2b2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 233,
+          "count_tested": 1008,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15018459,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs8179022",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "J",
+            "J2b2"
+          ],
+          "source_isogg_clade": "J2b2",
+          "ybrowse_marker": "M241",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "J2b",
+      "trusted_single_marker": false
+    },
+    "K": {
+      "children": [
+        "LT",
+        "K2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "C",
+          "count_derived": 373,
+          "count_tested": 847,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21730257,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 1997",
+          "rsid": "rs3900",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "K"
+          ],
+          "source_isogg_clade": "K",
+          "ybrowse_marker": "M9",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 2,
+          "count_tested": 16,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 20837553,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs17250121",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "K"
+          ],
+          "source_isogg_clade": "K",
+          "ybrowse_marker": "P128",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "F",
+      "trusted_single_marker": false
+    },
+    "K2": {
+      "children": [
+        "NO",
+        "M_Y",
+        "S",
+        "P"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 83,
+          "count_tested": 209,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 23550924,
+          "quality_tier": "A",
+          "reference": "Chiaronia et al. 10.1073/pnas.0910803106",
+          "rsid": "rs2033003",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "K2"
+          ],
+          "source_isogg_clade": "K2",
+          "ybrowse_marker": "M526",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "K",
+      "trusted_single_marker": true
+    },
+    "L": {
+      "children": [
+        "L1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 11,
+          "count_tested": 44,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21733454,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 1997",
+          "rsid": "rs3911",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L"
+          ],
+          "source_isogg_clade": "L",
+          "ybrowse_marker": "M20",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 36,
+          "count_tested": 1860,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21751449,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs34289137",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L"
+          ],
+          "source_isogg_clade": "L",
+          "ybrowse_marker": "M61",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "LT",
+      "trusted_single_marker": false
+    },
+    "L1": {
+      "children": [
+        "L1a",
+        "L1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 13,
+          "count_tested": 282,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 6931538,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs371743815",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L1"
+          ],
+          "source_isogg_clade": "L1",
+          "ybrowse_marker": "L656",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 9,
+          "count_tested": 26,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 18076957,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs377684953",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L1"
+          ],
+          "source_isogg_clade": "L1",
+          "ybrowse_marker": "L1304",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "L",
+      "trusted_single_marker": false
+    },
+    "L1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 1,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 19542995,
+          "quality_tier": "C",
+          "reference": "Underhill et al.",
+          "rsid": "rs563671295",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L1a"
+          ],
+          "source_isogg_clade": "L1a",
+          "ybrowse_marker": "M2605",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "L1",
+      "trusted_single_marker": false
+    },
+    "L1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 4,
+          "count_tested": 226,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 4874269,
+          "quality_tier": "F",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "i701954",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "L1b"
+          ],
+          "source_isogg_clade": "L1b",
+          "ybrowse_marker": "L655",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024"
+          ]
+        }
+      ],
+      "parent": "L1",
+      "trusted_single_marker": false
+    },
+    "LT": {
+      "children": [
+        "L",
+        "T"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 20,
+          "count_tested": 185,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21364708,
+          "quality_tier": "A",
+          "reference": "Paolo Francalacci (2011) TK",
+          "rsid": "rs367809486",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "LT"
+          ],
+          "source_isogg_clade": "LT",
+          "ybrowse_marker": "L811",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 18,
+          "count_tested": 452,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8467290,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs372687543",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "LT"
+          ],
+          "source_isogg_clade": "LT",
+          "ybrowse_marker": "L298",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "K",
+      "trusted_single_marker": false
+    },
+    "M1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 104,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 21609946,
+          "quality_tier": "C",
+          "reference": "Underhill et al. 1997",
+          "rsid": "rs3896",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "M1"
+          ],
+          "source_isogg_clade": "M1",
+          "ybrowse_marker": "M5",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "M_Y",
+      "trusted_single_marker": false
+    },
+    "M2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 2740274,
+          "quality_tier": "G",
+          "reference": "Kayser et al. 2006",
+          "rsid": "i4000052",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "M2"
+          ],
+          "source_isogg_clade": "M2",
+          "ybrowse_marker": "M387",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020"
+          ]
+        }
+      ],
+      "parent": "M_Y",
+      "trusted_single_marker": false
+    },
+    "M_Y": {
+      "children": [
+        "M1",
+        "M2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 441,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 8685230,
+          "quality_tier": "D",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "i4000290",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "M"
+          ],
+          "source_isogg_clade": "M",
+          "ybrowse_marker": "P256",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        },
+        {
+          "all_four_arrays": false,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 326,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 15481435,
+          "quality_tier": "G",
+          "reference": "Rozen 2009",
+          "rsid": "i701395",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "M"
+          ],
+          "source_isogg_clade": "M",
+          "ybrowse_marker": "PAGES00093",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "K2",
+      "trusted_single_marker": false
+    },
+    "N1": {
+      "children": [
+        "N1b",
+        "N1c1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 16,
+          "count_tested": 206,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 23139617,
+          "quality_tier": "B",
+          "reference": "CTS and TK",
+          "rsid": "i702668",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "N1"
+          ],
+          "source_isogg_clade": "N1",
+          "ybrowse_marker": "L735",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "N_Y",
+      "trusted_single_marker": true
+    },
+    "N1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 1,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 19080602,
+          "quality_tier": "C",
+          "reference": "Underhill et al.",
+          "rsid": "rs528311746",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "N1b"
+          ],
+          "source_isogg_clade": "N1b",
+          "ybrowse_marker": "M1881",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "N1",
+      "trusted_single_marker": false
+    },
+    "N1c1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 178,
+          "count_tested": 636,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14922583,
+          "quality_tier": "A",
+          "reference": "Zerjal et al. 1997",
+          "rsid": "rs34442126",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "N",
+            "N1c1"
+          ],
+          "source_isogg_clade": "N1c1",
+          "ybrowse_marker": "Tat",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "N1",
+      "trusted_single_marker": false
+    },
+    "NO": {
+      "children": [
+        "N_Y",
+        "O"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 4,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 23617006,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs72615053",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "NO"
+          ],
+          "source_isogg_clade": "NO",
+          "ybrowse_marker": "F650",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 19513070,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs72611690",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "NO"
+          ],
+          "source_isogg_clade": "NO",
+          "ybrowse_marker": "F549",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "K2",
+      "trusted_single_marker": false
+    },
+    "N_Y": {
+      "children": [
+        "N1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 146,
+          "count_tested": 795,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15469724,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341278",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "N"
+          ],
+          "source_isogg_clade": "N",
+          "ybrowse_marker": "M231",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 17,
+          "count_tested": 657,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15437152,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9341279",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "N"
+          ],
+          "source_isogg_clade": "N",
+          "ybrowse_marker": "M232",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "NO",
+      "trusted_single_marker": false
+    },
+    "O": {
+      "children": [
+        "O1",
+        "O2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 0,
+          "count_tested": 8,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 15415115,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs16980601",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O"
+          ],
+          "source_isogg_clade": "O",
+          "ybrowse_marker": "P191",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 23634362,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs16980610",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O"
+          ],
+          "source_isogg_clade": "O",
+          "ybrowse_marker": "P188",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "NO",
+      "trusted_single_marker": false
+    },
+    "O1": {
+      "children": [
+        "O1a",
+        "O1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 0,
+          "count_tested": 2,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 14727776,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs72609641",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1"
+          ],
+          "source_isogg_clade": "O1",
+          "ybrowse_marker": "F265",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 2,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 7410009,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs72618710",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1"
+          ],
+          "source_isogg_clade": "O1",
+          "ybrowse_marker": "F75",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O",
+      "trusted_single_marker": false
+    },
+    "O1a": {
+      "children": [
+        "O1a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "T",
+          "count_derived": 20,
+          "count_tested": 500,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21762685,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs72613040",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1a"
+          ],
+          "source_isogg_clade": "O1a",
+          "ybrowse_marker": "M119",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 3,
+          "count_tested": 379,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21674068,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs11096433",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "O",
+            "O1a"
+          ],
+          "source_isogg_clade": "O1a",
+          "ybrowse_marker": "L466",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O1",
+      "trusted_single_marker": false
+    },
+    "O1a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": false,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 1,
+          "count_tested": 1,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22713673,
+          "quality_tier": "E",
+          "reference": "Karmin et al (2015)",
+          "rsid": "rs72615022",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "O1a",
+            "O1a1"
+          ],
+          "source_isogg_clade": "O1a1",
+          "ybrowse_marker": "B384",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O1a",
+      "trusted_single_marker": false
+    },
+    "O1b": {
+      "children": [
+        "O1b1",
+        "O1b2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 1,
+          "count_tested": 1379,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22739301,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs13447443",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1b"
+          ],
+          "source_isogg_clade": "O1b",
+          "ybrowse_marker": "M268",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 220,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 16301305,
+          "quality_tier": "C",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs891234",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1b"
+          ],
+          "source_isogg_clade": "O1b",
+          "ybrowse_marker": "L463",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O1",
+      "trusted_single_marker": false
+    },
+    "O1b1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 1,
+          "count_tested": 200,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 16903082,
+          "quality_tier": "A",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs372897985",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1b1"
+          ],
+          "source_isogg_clade": "O1b1",
+          "ybrowse_marker": "F2320",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O1b",
+      "trusted_single_marker": false
+    },
+    "O1b2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 16,
+          "count_tested": 82,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2655180,
+          "quality_tier": "A",
+          "reference": "Hammer et al. 1998",
+          "rsid": "rs11575897",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "O",
+            "O1b2"
+          ],
+          "source_isogg_clade": "O1b2",
+          "ybrowse_marker": "SRY465",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O1b",
+      "trusted_single_marker": false
+    },
+    "O2": {
+      "children": [
+        "O2a",
+        "O2b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 0,
+          "count_tested": 199,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 22735710,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs80262406",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O2"
+          ],
+          "source_isogg_clade": "O2",
+          "ybrowse_marker": "CTS10736",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 0,
+          "count_tested": 23,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 22758116,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs78633231",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O2"
+          ],
+          "source_isogg_clade": "O2",
+          "ybrowse_marker": "CTS10753",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O",
+      "trusted_single_marker": false
+    },
+    "O2a": {
+      "children": [
+        "O2a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 16,
+          "count_tested": 238,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2821786,
+          "quality_tier": "A",
+          "reference": "Shi et al. 2005",
+          "rsid": "rs13447361",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O2a"
+          ],
+          "source_isogg_clade": "O2a",
+          "ybrowse_marker": "M324",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 23,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 19179463,
+          "quality_tier": "C",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs17276358",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O2a"
+          ],
+          "source_isogg_clade": "O2a",
+          "ybrowse_marker": "P197",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O2",
+      "trusted_single_marker": false
+    },
+    "O2a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 333,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 18842841,
+          "quality_tier": "C",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs17276338",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O2a1"
+          ],
+          "source_isogg_clade": "O2a1",
+          "ybrowse_marker": "L465",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O2a",
+      "trusted_single_marker": false
+    },
+    "O2b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 14105697,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs765063258",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "O1b2"
+          ],
+          "source_isogg_clade": "O2b",
+          "ybrowse_marker": "F4161",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "O2",
+      "trusted_single_marker": false
+    },
+    "P": {
+      "children": [
+        "Q",
+        "R"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 494,
+          "count_tested": 566,
+          "match_kind": "canonical_legacy",
+          "observed_derived": true,
+          "pos": 21867787,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032631",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "P1"
+          ],
+          "source_isogg_clade": "P1",
+          "ybrowse_marker": "M45",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 61,
+          "count_tested": 215,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7628900,
+          "quality_tier": "A",
+          "reference": "Cruciani et al 2011",
+          "rsid": "rs7892927",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "P"
+          ],
+          "source_isogg_clade": "P",
+          "ybrowse_marker": "V231",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "K2",
+      "trusted_single_marker": false
+    },
+    "Q": {
+      "children": [
+        "Q1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 267,
+          "count_tested": 1041,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15018582,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs8179021",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q"
+          ],
+          "source_isogg_clade": "Q",
+          "ybrowse_marker": "M242",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 17814673,
+          "quality_tier": "C",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs527629900",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q"
+          ],
+          "source_isogg_clade": "Q",
+          "ybrowse_marker": "F2603",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "P",
+      "trusted_single_marker": false
+    },
+    "Q1": {
+      "children": [
+        "Q1a",
+        "Q1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 42,
+          "count_tested": 496,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 17516095,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs539378256",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1"
+          ],
+          "source_isogg_clade": "Q1",
+          "ybrowse_marker": "L232",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Q",
+      "trusted_single_marker": true
+    },
+    "Q1a": {
+      "children": [
+        "Q1a1",
+        "Q1a2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 11,
+          "count_tested": 199,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7014317,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs35724598",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1a"
+          ],
+          "source_isogg_clade": "Q1a",
+          "ybrowse_marker": "L472",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "T",
+          "count_derived": 0,
+          "count_tested": 3,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 2727311,
+          "quality_tier": "C",
+          "reference": "Chris Tyler-Smith (2011)",
+          "rsid": "rs532668665",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1a"
+          ],
+          "source_isogg_clade": "Q1a",
+          "ybrowse_marker": "CTS97",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Q1",
+      "trusted_single_marker": false
+    },
+    "Q1a1": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "A",
+          "count_derived": 2,
+          "count_tested": 19,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8087573,
+          "quality_tier": "A",
+          "reference": "Yan Shi (2011)",
+          "rsid": "rs764563363",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1a1"
+          ],
+          "source_isogg_clade": "Q1a1",
+          "ybrowse_marker": "F1096",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Q1a",
+      "trusted_single_marker": false
+    },
+    "Q1a2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "C",
+          "count_derived": 194,
+          "count_tested": 879,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2887156,
+          "quality_tier": "A",
+          "reference": "Sengupta et al. 2006",
+          "rsid": "rs568022901",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1a2"
+          ],
+          "source_isogg_clade": "Q1a2",
+          "ybrowse_marker": "M346",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Q1a",
+      "trusted_single_marker": false
+    },
+    "Q1b": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 30,
+          "count_tested": 633,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 19136888,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs777076210",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "Q1b"
+          ],
+          "source_isogg_clade": "Q1b",
+          "ybrowse_marker": "L275",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "Q1",
+      "trusted_single_marker": false
+    },
+    "R": {
+      "children": [
+        "R1",
+        "R2"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 332,
+          "count_tested": 714,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15581983,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032658",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R"
+          ],
+          "source_isogg_clade": "R",
+          "ybrowse_marker": "M207",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "G",
+          "count_derived": 273,
+          "count_tested": 646,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 8050994,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs9786915",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R"
+          ],
+          "source_isogg_clade": "R",
+          "ybrowse_marker": "P229",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "P",
+      "trusted_single_marker": false
+    },
+    "R1": {
+      "children": [
+        "R1a",
+        "R1b"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 337,
+          "count_tested": 695,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15026424,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032624",
+          "source_alias_class": "lineal",
+          "source_clade_aliases": [
+            "R",
+            "R1"
+          ],
+          "source_isogg_clade": "R1",
+          "ybrowse_marker": "M173",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 268,
+          "count_tested": 601,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7647357,
+          "quality_tier": "A",
+          "reference": "Karafet et al. (2007)",
+          "rsid": "rs7067478",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1"
+          ],
+          "source_isogg_clade": "R1",
+          "ybrowse_marker": "P242",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R",
+      "trusted_single_marker": false
+    },
+    "R1a": {
+      "children": [
+        "R1a1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "T",
+          "count_derived": 17,
+          "count_tested": 59,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 23473201,
+          "quality_tier": "A",
+          "reference": "Hinds DA et al. (2005)",
+          "rsid": "rs17250535",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1a"
+          ],
+          "source_isogg_clade": "R1a",
+          "ybrowse_marker": "M420",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 48,
+          "count_tested": 607,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 18162834,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs17307677",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1a"
+          ],
+          "source_isogg_clade": "R1a",
+          "ybrowse_marker": "L63",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1",
+      "trusted_single_marker": false
+    },
+    "R1a1": {
+      "children": [
+        "R1a1a"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 3,
+          "count_tested": 30,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 6906074,
+          "quality_tier": "A",
+          "reference": "Hinds DA et al. (2005)",
+          "rsid": "rs17316227",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1a1"
+          ],
+          "source_isogg_clade": "R1a1",
+          "ybrowse_marker": "M459",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1a",
+      "trusted_single_marker": true
+    },
+    "R1a1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 949,
+          "count_tested": 1844,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 15030752,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2020857",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1a1a"
+          ],
+          "source_isogg_clade": "R1a1a",
+          "ybrowse_marker": "M198",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1a1",
+      "trusted_single_marker": false
+    },
+    "R1b": {
+      "children": [
+        "R1b1"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "C",
+          "count_derived": 811,
+          "count_tested": 1247,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 2887824,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2009",
+          "rsid": "rs9786184",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b"
+          ],
+          "source_isogg_clade": "R1b",
+          "ybrowse_marker": "M343",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 1,
+          "count_tested": 2,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7137632,
+          "quality_tier": "A",
+          "reference": "Jim Wilson (2014)",
+          "rsid": "rs3097069",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b"
+          ],
+          "source_isogg_clade": "R1b",
+          "ybrowse_marker": "S27575",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1",
+      "trusted_single_marker": false
+    },
+    "R1b1": {
+      "children": [
+        "R1b1a"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 29,
+          "count_tested": 169,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21183643,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs7067384",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b1"
+          ],
+          "source_isogg_clade": "R1b1",
+          "ybrowse_marker": "L780",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 1,
+          "count_tested": 12,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 7960019,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs9786148",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b1"
+          ],
+          "source_isogg_clade": "R1b1",
+          "ybrowse_marker": "L822",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1b",
+      "trusted_single_marker": false
+    },
+    "R1b1a": {
+      "children": [
+        "R1b1a1a"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 33,
+          "count_tested": 186,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 22889018,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs7893073",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b1a"
+          ],
+          "source_isogg_clade": "R1b1a",
+          "ybrowse_marker": "L754",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "G",
+          "ancestral_allele": "A",
+          "count_derived": 32,
+          "count_tested": 177,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 16773870,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs9786824",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R1b1a"
+          ],
+          "source_isogg_clade": "R1b1a",
+          "ybrowse_marker": "L761",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1b1",
+      "trusted_single_marker": false
+    },
+    "R1b1a1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "T",
+          "count_derived": 2416,
+          "count_tested": 2971,
+          "match_kind": "canonical_legacy",
+          "observed_derived": true,
+          "pos": 22739367,
+          "quality_tier": "A",
+          "reference": "Underhill et al.",
+          "rsid": "rs9786153",
+          "source_alias_class": "nomenclature",
+          "source_clade_aliases": [
+            "R1b1a1a2"
+          ],
+          "source_isogg_clade": "R1b1a1a2",
+          "ybrowse_marker": "M269",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "C",
+            "G",
+            "T"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "R1b1a",
+      "trusted_single_marker": false
+    },
+    "R2": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "T",
+          "ancestral_allele": "C",
+          "count_derived": 5,
+          "count_tested": 202,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 20834667,
+          "quality_tier": "B",
+          "reference": "Myres et al. 2010",
+          "rsid": "i5053616",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "R2"
+          ],
+          "source_isogg_clade": "R2",
+          "ybrowse_marker": "M479",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "R",
+      "trusted_single_marker": false
+    },
+    "S": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 0,
+          "count_tested": 0,
+          "match_kind": "exact",
+          "observed_derived": false,
+          "pos": 9004921,
+          "quality_tier": "D",
+          "reference": "ISOGG index (2017)",
+          "rsid": "i704441",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "S"
+          ],
+          "source_isogg_clade": "S",
+          "ybrowse_marker": "P336",
+          "identifier_source": "ybrowse_vendor_coordinate",
+          "current_record_status": "vendor_internal",
+          "current_validation_pass": true,
+          "vendor_ybrowse_coordinate_match": true,
+          "array_coverage": [
+            "2017",
+            "2020",
+            "2024",
+            "verified_v5"
+          ]
+        }
+      ],
+      "parent": "K2",
+      "trusted_single_marker": false
+    },
+    "T": {
+      "children": [
+        "T1a"
+      ],
+      "final_node_type": "internal",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 17,
+          "count_tested": 289,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14423799,
+          "quality_tier": "A",
+          "reference": "Thomas Krahn (FTDNA)",
+          "rsid": "rs775471717",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "T"
+          ],
+          "source_isogg_clade": "T",
+          "ybrowse_marker": "L452",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        },
+        {
+          "all_four_arrays": true,
+          "allele": "A",
+          "ancestral_allele": "G",
+          "count_derived": 16,
+          "count_tested": 370,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 14898163,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs20320",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "T"
+          ],
+          "source_isogg_clade": "T",
+          "ybrowse_marker": "M184",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "G"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "LT",
+      "trusted_single_marker": false
+    },
+    "T1a": {
+      "children": [],
+      "final_node_type": "leaf",
+      "markers": [
+        {
+          "all_four_arrays": true,
+          "allele": "C",
+          "ancestral_allele": "A",
+          "count_derived": 121,
+          "count_tested": 1028,
+          "match_kind": "exact",
+          "observed_derived": true,
+          "pos": 21893881,
+          "quality_tier": "A",
+          "reference": "Underhill et al. 2001",
+          "rsid": "rs2032672",
+          "source_alias_class": "single",
+          "source_clade_aliases": [
+            "T1a"
+          ],
+          "source_isogg_clade": "T1a",
+          "ybrowse_marker": "M70",
+          "identifier_source": "ncbi_refsnp",
+          "current_record_status": "current",
+          "current_validation_pass": true,
+          "ncbi_grch37_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ensembl_grch38_y_alleles": [
+            "A",
+            "C"
+          ],
+          "ncbi_coordinate_match": true,
+          "ensembl_grch38_y_placement": true
+        }
+      ],
+      "parent": "T",
+      "trusted_single_marker": false
+    }
+  },
+  "root": "Y-Adam",
+  "schema_version": 1,
+  "selection_policy": {
+    "explicit_unsafe_positions": [
+      2657176,
+      14496441,
+      17595874,
+      17595875
+    ],
+    "explicit_unsafe_probe_ids": [
+      "i702665",
+      "rs2534636"
+    ],
+    "global_unique_grch37_positions": true,
+    "global_unique_probe_ids": true,
+    "lineal_alias_assignment": "deepest exact current node",
+    "max_internal_loci": 2,
+    "max_leaf_loci": 1,
+    "source": "sanitized four-array probe join plus YBrowse hg19 annotations",
+    "unrelated_source_clade_aliases_rejected": true
+  },
+  "description": "Array-reportable Y haplogroup source tree derived from source-backed YBrowse hg19 clade and ancestral/derived allele records with documented nomenclature mappings and basal topology reconciled to primary phylogenetic evidence.",
+  "source_topology_non_root_nodes": 126,
+  "source": {
+    "name": "YBrowse hg19 SNP export",
+    "url": "https://ybrowse.org/gbrowse2/gff/snps_hg19.csv",
+    "last_modified": "2017-12-17T16:25:48Z",
+    "retrieved": "2026-07-11",
+    "sha256": "9ebc0b217d906f39a0aa6c0df572e44daed17d415993896dff7dd4274ff111fa",
+    "array_coverage": "Probe identifiers and GRCh37 positions observed across privacy-safe 23andMe v5-era coverage exemplars; genotype values were not retained."
+  },
+  "current_validation": {
+    "accessed": "2026-07-12",
+    "audited_candidate_registry_sha256": "76906f8aab13297b9fd7fa7a26c7deda9bcd6f91e16ab39b2657dcea7c86e0dc",
+    "ncbi_endpoint": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/<id>",
+    "ensembl_endpoint": "https://rest.ensembl.org/variation/homo_sapiens",
+    "current_rsids": 135,
+    "vendor_internal_probes": 19,
+    "failed_marker_records": 0
+  },
+  "references": [
+    {
+      "id": 1,
+      "title": "A nomenclature system for the tree of human Y-chromosomal binary haplogroups",
+      "doi": "10.1101/gr.217602",
+      "pmid": "11827954",
+      "pmcid": "PMC155271"
+    },
+    {
+      "id": 2,
+      "title": "New binary polymorphisms reshape and increase resolution of the human Y chromosomal haplogroup tree",
+      "doi": "10.1101/gr.7172008",
+      "pmid": "18385274",
+      "pmcid": "PMC2336805"
+    },
+    {
+      "id": 3,
+      "title": "Multiplex single-nucleotide polymorphism typing of the human Y chromosome using TaqMan probes",
+      "doi": "10.1186/2041-2223-2-13",
+      "pmid": "21627798",
+      "pmcid": "PMC3130649"
+    },
+    {
+      "id": 4,
+      "title": "A calibrated human Y-chromosomal phylogeny based on resequencing",
+      "doi": "10.1101/gr.143198.112",
+      "pmid": "23038768",
+      "pmcid": "PMC3561879"
+    },
+    {
+      "id": 5,
+      "title": "The Y-chromosome tree bursts into leaf: 13,000 high-confidence SNPs covering the majority of known clades",
+      "doi": "10.1093/molbev/msu327",
+      "pmid": "25468874",
+      "pmcid": "PMC4327154"
+    },
+    {
+      "id": 6,
+      "title": "A revised root for the human Y chromosomal phylogenetic tree: the origin of patrilineal diversity in Africa",
+      "doi": "10.1016/j.ajhg.2011.05.002",
+      "pmid": "21601174",
+      "pmcid": "PMC3113241"
+    }
+  ],
+  "omitted_nodes": {
+    "A": "No safe exact-clade array marker survived the provenance and ambiguity gates; independently reportable descendants were promoted to Y-Adam.",
+    "A1": "P305/V168 mark a basal lineage that also contains BT; they cannot distinguish a terminal A1 call from B/CT in this pruned topology, so A1a and A1b1 were promoted [6].",
+    "A1b": "P108/V221 are ancestral to BT and cannot distinguish a terminal A1b call from B/CT in this pruned topology; A1b1 was promoted [6].",
+    "B1": "No safe exact-clade array marker survived the provenance and ambiguity gates; reportable descendants were promoted.",
+    "C2a": "No safe exact-clade array marker survived the provenance and ambiguity gates; reportable descendants were promoted.",
+    "F1": "No safe exact-clade array marker survived the provenance and ambiguity gates; reportable descendants were promoted.",
+    "GH": "This composite topology node had no independent exact-clade array marker; G and H were promoted to F.",
+    "H1": "No independent exact-clade array marker survived after lineal aliases were assigned to their deepest supported node; H1a and H1b were promoted to H.",
+    "I2a1": "No safe exact-clade array marker survived the provenance and ambiguity gates; I2a2 was promoted to I2a.",
+    "I2b1": "No safe exact-clade array marker survived the provenance and ambiguity gates.",
+    "J1b": "No exact-label candidate was present in the verified-v5 discovery join.",
+    "T1": "No independent exact-clade array marker survived after lineal aliases were assigned to their deepest supported node; T1a was promoted to T.",
+    "N1a": "No safe exact-clade array marker survived the provenance and ambiguity gates; reportable descendants were promoted.",
+    "N1c": "The source labels reflect incompatible N1 nomenclature versions and no independent exact-clade locus survived; N1c1 was promoted to N1.",
+    "MS": "This composite topology node had no independent exact-clade array marker; M and S were promoted to K2.",
+    "S1": "No exact-label candidate was present in the verified-v5 discovery join.",
+    "S2": "No exact-label candidate was present in the verified-v5 discovery join.",
+    "Q2": "No exact-label candidate was present in the verified-v5 discovery join.",
+    "R1b1a1": "M269 maps to the downstream R1b1a1a source label and no safe exact-clade marker survived; R1b1a1a was promoted to R1b1a.",
+    "R1b1b": "The only exact-label discovery candidate lacked sufficient identifier provenance for the audited registry."
+  },
+  "root_children": [
+    "A0",
+    "A1a",
+    "A1b1",
+    "B",
+    "CT"
+  ],
+  "assignment": {
+    "min_internal_terminal_specific_snps": 2,
+    "trusted_missing_internal_passthrough_rsids": [
+      "rs2032599"
+    ],
+    "trusted_single_marker_terminal_rsids": [
+      "i702668",
+      "i704203",
+      "rs16980473",
+      "rs17316227",
+      "rs2032599",
+      "rs2033003",
+      "rs539378256",
+      "rs7892855"
+    ]
+  }
+}

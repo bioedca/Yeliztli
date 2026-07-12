@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build the PhyloTree + ISOGG Y-tree haplogroup JSON bundle.
+"""Build the PhyloTree + array-reportable Y-tree haplogroup JSON bundle.
 
 Generates a ~150 KB JSON reference file containing defining SNP tables for
-mtDNA (PhyloTree Build 17) and Y-chromosome (ISOGG 2019-2020) haplogroup
+mtDNA (PhyloTree Build 17) and Y-chromosome (YBrowse hg19) haplogroup
 trees.  The bundle is designed for the tree-walk haplogroup assignment
 algorithm (P3-32).
 
@@ -12,12 +12,11 @@ that distinguish it from its parent).  The tree-walk algorithm checks
 whether a sample's genotype matches the defining SNPs of each child node,
 descending as deeply as possible.
 
-SNPs are filtered to those present on the 23andMe v5 array:
+SNPs are filtered to those present on 23andMe v5-era arrays:
   - ~500 mtDNA SNPs (positions on chrM, rCRS reference)
-  - 92 Y-chromosome defining SNP records (75 unique rsIDs; GRCh37)
+  - a source-audited Y-chromosome marker registry (GRCh37)
 
-Resolution: 2-3 levels (e.g., H → H1 → H1a for mtDNA, R1b → R1b1 → R1b1a
-for Y-chr).
+Resolution varies with array coverage; retained Y paths reach up to 11 levels.
 
 Output files:
   - tests/fixtures/haplogroup_bundle.json  (for testing)
@@ -44,8 +43,9 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.0.3"
+BUNDLE_VERSION = "1.1.0"
 BUILD = "GRCh37"
+Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
 #
@@ -74,106 +74,12 @@ def _y_snp(rsid: str, pos: int, allele: str) -> dict[str, Any]:
     return {"rsid": rsid, "pos": pos, "allele": allele}
 
 
-_AUDITED_Y_RSID_REFERENCE: dict[str, dict[str, Any]] = {
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M304/Page16/PF4609, A->C, defines J.
-    "rs13447352": {
-        "pos": 22749853,
-        "allele": "C",
-        "alleles": ("A", "C"),
-        "clade": "J",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: P225, G->T, defines R1.
-    "rs17307070": {
-        "pos": 15590342,
-        "allele": "T",
-        "alleles": ("G", "T"),
-        "clade": "R1",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M168/PF1416, C->T, defines CT.
-    "rs2032595": {
-        "pos": 14813991,
-        "allele": "T",
-        "alleles": ("C", "T"),
-        "clade": "CT",
-    },
-    # Ensembl GRCh37 REST variation/homo_sapiens/rs2032597: Y:14847792 A/C,
-    # ancestral A. Derived C defines haplogroup I (I-M170).
-    "rs2032597": {
-        "pos": 14847792,
-        "allele": "C",
-        "alleles": ("A", "C"),
-        "clade": "I",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M45/PF5962, canonical G->A,
-    # defines P (called P1 in some later nomenclatures). The locus is triallelic,
-    # but T is not the canonical M45-derived state.
-    "rs2032631": {
-        "pos": 21867787,
-        "allele": "A",
-        "alleles": ("A", "G", "T"),
-        "clade": "P",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M89/PF2746, C->T, defines F.
-    "rs2032652": {
-        "pos": 21917313,
-        "allele": "T",
-        "alleles": ("C", "T"),
-        "clade": "F",
-    },
-    # Ensembl GRCh37 REST variation/homo_sapiens/rs2032658: Y:15581983 G/A,
-    # ancestral A. Derived G defines haplogroup R (R-M207).
-    "rs2032658": {
-        "pos": 15581983,
-        "allele": "G",
-        "alleles": ("G", "A"),
-        "clade": "R",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M69/Page45, T->C, defines H.
-    "rs2032673": {
-        "pos": 21894058,
-        "allele": "C",
-        "alleles": ("C", "T"),
-        "clade": "H",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M232/M2188, C->T, defines N.
-    "rs9341279": {
-        "pos": 15437152,
-        "allele": "T",
-        "alleles": ("C", "T"),
-        "clade": "N_Y",
-    },
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M243/PF1943, T->C, defines E1b1b.
-    "rs9341286": {
-        "pos": 15019092,
-        "allele": "C",
-        "alleles": ("C", "T"),
-        "clade": "E1b1b",
-    },
-    # Ensembl GRCh37 REST variation/homo_sapiens/rs9341296: Y:15022707 C/T,
-    # ancestral C. Stored defining alleles must be the derived T, never G.
-    "rs9341296": {"pos": 15022707, "allele": "T", "alleles": ("C", "T")},
-    # YBrowse hg19 + Ensembl/NCBI RefSNP: M9, C->G, defines K.
-    "rs3900": {
-        "pos": 21730257,
-        "allele": "G",
-        "alleles": ("C", "G"),
-        "clade": "K",
-    },
-}
-
 _EXCLUDED_Y_RSIDS: dict[str, str] = {
     # Ensembl GRCh37 places rs1000546 as a synonym of rs502450 at chr18:55773440.
     # It is not a Y marker and must never be used to satisfy the R min-evidence gate.
     "rs1000546": "autosomal chr18 alias of rs502450, not a Y defining marker",
     # Ensembl GRCh37 places this duplicate suspect at chr2:237800066.
     "rs35489731": "autosomal chr2 variant, not a Y defining marker",
-    # Ensembl GRCh37 confirms rs9341278 is Y:15469724 G/A, so the historic T
-    # records on B/N_Y/N1 were impossible. Its true clade needs re-derivation.
-    "rs9341278": "invalid historic T allele and unresolved clade assignment",
-    # Ensembl GRCh37 confirms rs2032604 is a real Y SNP (Y:14969634 T/G), but
-    # this hand-curated tree placed it on unrelated A1b1 and J/J2 branches. Drop
-    # it until the Y tree is regenerated from an authoritative SNP index.
-    "rs2032604": "unresolved cross-clade duplicate assignment",
     # Ensembl and NCBI report only C/T at this Y locus. The hand-curated tree
     # stored impossible G records on CT/DE/D without an authoritative marker name.
     "rs13304168": "invalid historic G allele and unresolved clade assignment",
@@ -218,36 +124,238 @@ def _node(
     return node
 
 
-def _snp_key(snp: dict[str, Any]) -> tuple[str, int, str]:
-    """Return the identity tuple for a defining SNP record."""
-    return (snp["rsid"], snp["pos"], snp["allele"])
+def _load_y_source(path: Path = Y_SOURCE_PATH) -> dict[str, Any]:
+    """Load the curated, array-reportable Y marker registry."""
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _prune_redundant_y_snps(
-    node: dict[str, Any],
-    ancestor_snps: set[tuple[str, int, str]] | None = None,
-) -> None:
-    """Remove exact ancestor-path Y SNP re-listings that do not define a node.
+def _build_y_marker_reference(source: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Flatten the source registry into the builder's marker validation table."""
+    references: dict[str, dict[str, Any]] = {}
+    for clade, node in source["nodes"].items():
+        for marker in node["markers"]:
+            references[marker["rsid"]] = {
+                "pos": marker["pos"],
+                "allele": marker["allele"],
+                "alleles": tuple(
+                    marker.get(
+                        "ncbi_grch37_y_alleles",
+                        (marker["ancestral_allele"], marker["allele"]),
+                    )
+                ),
+                "clade": clade,
+                "marker": marker["ybrowse_marker"],
+                "source_clades": tuple(marker["source_clade_aliases"]),
+            }
+    return references
 
-    Some Y nodes historically repeated a parent's defining SNP alongside their
-    own independent markers. Those repeats inflate match counts and confidence,
-    so drop them when the node still has at least one non-redundant SNP. If every
-    SNP on a node is an ancestor re-listing, keep it for now: the current
-    tree-walk cannot descend through non-root nodes with zero defining SNPs, so
-    those nodes need replacement markers rather than blind deletion.
-    """
-    if ancestor_snps is None:
-        ancestor_snps = set()
 
-    snps = node.get("defining_snps", [])
-    non_redundant = [snp for snp in snps if _snp_key(snp) not in ancestor_snps]
-    if snps and non_redundant and len(non_redundant) < len(snps):
-        node["defining_snps"] = non_redundant
-        snps = non_redundant
+def _build_y_tree_from_source(source: dict[str, Any]) -> dict[str, Any]:
+    """Build the emitted Y tree from the validated reportable-node registry."""
+    nodes = source["nodes"]
 
-    current_path_snps = ancestor_snps | {_snp_key(snp) for snp in snps}
-    for child in node.get("children", []):
-        _prune_redundant_y_snps(child, current_path_snps)
+    def build_node(name: str) -> dict[str, Any]:
+        node = nodes[name]
+        return _node(
+            name,
+            [
+                _y_snp(marker["rsid"], marker["pos"], marker["allele"])
+                for marker in node["markers"]
+            ],
+            [build_node(child) for child in node["children"]],
+        )
+
+    return _node(
+        source["root"],
+        [],
+        [build_node(child) for child in source["root_children"]],
+    )
+
+
+def _validate_y_source(source: dict[str, Any]) -> list[str]:
+    """Validate topology, evidence provenance, and reportability before emission."""
+    issues: list[str] = []
+    root = source.get("root")
+    nodes = source.get("nodes", {})
+    omitted = source.get("omitted_nodes", {})
+    assignment = source.get("assignment", {})
+    current_validation = source.get("current_validation", {})
+
+    if root != "Y-Adam":
+        issues.append(f"Y source root is {root!r}; expected 'Y-Adam'")
+    if root in nodes:
+        issues.append("Y source root must not also appear in the non-root node registry")
+    if not isinstance(nodes, dict) or not nodes:
+        return [*issues, "Y source has no node registry"]
+    if set(nodes) & set(omitted):
+        issues.append("Y source retained and omitted node sets overlap")
+    expected_source_nodes = source.get("source_topology_non_root_nodes")
+    if expected_source_nodes != len(nodes) + len(omitted):
+        issues.append(
+            "Y source retained + omitted node count does not match "
+            f"source_topology_non_root_nodes={expected_source_nodes}"
+        )
+    if current_validation.get("failed_marker_records") != 0:
+        issues.append("Y source current-record audit contains failed markers")
+    for name, reason in omitted.items():
+        if not isinstance(reason, str) or not reason.strip():
+            issues.append(f"Omitted Y node {name} has no reason")
+
+    root_children = source.get("root_children", [])
+    derived_root_children = [name for name, node in nodes.items() if node.get("parent") == root]
+    if root_children != derived_root_children:
+        issues.append("Y source root_children does not match node parent declarations")
+
+    seen_ids: dict[str, str] = {}
+    seen_positions: dict[int, str] = {}
+    trusted_from_nodes: set[str] = set()
+    eligible_missing_passthrough: set[str] = set()
+    allowed_alias_classes = {"single", "lineal", "nomenclature"}
+    allowed_match_kinds = {"exact", "canonical_legacy"}
+
+    for name, node in nodes.items():
+        children = node.get("children", [])
+        markers = node.get("markers", [])
+        if not markers:
+            issues.append(f"Reportable Y node {name} has no defining marker")
+        if len(children) != len(set(children)):
+            issues.append(f"Y node {name} repeats a child")
+        for child in children:
+            child_node = nodes.get(child)
+            if child_node is None:
+                issues.append(f"Y node {name} references missing child {child}")
+            elif child_node.get("parent") != name:
+                issues.append(f"Y child {child} does not declare {name} as its parent")
+
+        trusted_single = node.get("trusted_single_marker") is True
+        if children and len(markers) < assignment.get("min_internal_terminal_specific_snps", 2):
+            if not trusted_single or len(markers) != 1:
+                issues.append(
+                    f"Internal Y node {name} has {len(markers)} marker(s) without "
+                    "a trusted-single declaration"
+                )
+        elif trusted_single:
+            issues.append(f"Y node {name} is trusted-single but does not need the exception")
+
+        for marker in markers:
+            rsid = marker.get("rsid")
+            pos = marker.get("pos")
+            ancestral = marker.get("ancestral_allele")
+            derived = marker.get("allele")
+            if not isinstance(rsid, str) or not rsid:
+                issues.append(f"Y node {name} has a marker without an identifier")
+                continue
+            previous_clade = seen_ids.get(rsid)
+            if previous_clade is not None:
+                issues.append(f"Y marker {rsid} is reused by {previous_clade} and {name}")
+            else:
+                seen_ids[rsid] = name
+            if not isinstance(pos, int) or pos <= 0:
+                issues.append(f"Y marker {rsid} at {name} has invalid GRCh37 position {pos!r}")
+            else:
+                previous_position_clade = seen_positions.get(pos)
+                if previous_position_clade is not None:
+                    issues.append(
+                        f"Y position {pos} is reused by {previous_position_clade} and {name}"
+                    )
+                else:
+                    seen_positions[pos] = name
+            if ancestral not in {"A", "C", "G", "T"}:
+                issues.append(
+                    f"Y marker {rsid} at {name} has invalid ancestral allele {ancestral!r}"
+                )
+            if derived not in {"A", "C", "G", "T"} or derived == ancestral:
+                issues.append(f"Y marker {rsid} at {name} has invalid derived allele {derived!r}")
+            if marker.get("source_alias_class") not in allowed_alias_classes:
+                issues.append(f"Y marker {rsid} at {name} has an unsafe source-clade alias class")
+            if marker.get("match_kind") not in allowed_match_kinds:
+                issues.append(f"Y marker {rsid} at {name} has an unsupported clade match kind")
+            if not marker.get("source_clade_aliases"):
+                issues.append(f"Y marker {rsid} at {name} has no source-clade provenance")
+            if marker.get("current_validation_pass") is not True:
+                issues.append(f"Y marker {rsid} at {name} failed current-record validation")
+            identifier_source = marker.get("identifier_source")
+            selected_alleles = {ancestral, derived}
+            if identifier_source == "ncbi_refsnp":
+                if marker.get("current_record_status") != "current":
+                    issues.append(f"Y marker {rsid} at {name} is not a current RefSNP")
+                if marker.get("ncbi_coordinate_match") is not True:
+                    issues.append(f"Y marker {rsid} at {name} lacks its NCBI GRCh37 coordinate")
+                if marker.get("ensembl_grch38_y_placement") is not True:
+                    issues.append(f"Y marker {rsid} at {name} lacks an Ensembl Y placement")
+                if not selected_alleles <= set(marker.get("ncbi_grch37_y_alleles", [])):
+                    issues.append(f"Y marker {rsid} at {name} has alleles absent from NCBI")
+                if not selected_alleles <= set(marker.get("ensembl_grch38_y_alleles", [])):
+                    issues.append(f"Y marker {rsid} at {name} has alleles absent from Ensembl")
+            elif identifier_source == "ybrowse_vendor_coordinate":
+                if marker.get("current_record_status") != "vendor_internal":
+                    issues.append(f"Y vendor marker {rsid} at {name} has an invalid status")
+                if marker.get("vendor_ybrowse_coordinate_match") is not True:
+                    issues.append(
+                        f"Y vendor marker {rsid} at {name} lacks a YBrowse coordinate match"
+                    )
+                if not marker.get("array_coverage"):
+                    issues.append(f"Y vendor marker {rsid} at {name} has no array coverage")
+            else:
+                issues.append(f"Y marker {rsid} at {name} has unknown identifier provenance")
+            if trusted_single:
+                trusted_from_nodes.add(rsid)
+            if children and marker.get("all_four_arrays") is False:
+                eligible_missing_passthrough.add(rsid)
+
+    visited: set[str] = set()
+    visiting: set[str] = set()
+
+    def walk(name: str) -> None:
+        if name in visiting:
+            issues.append(f"Y source topology contains a cycle at {name}")
+            return
+        if name in visited or name not in nodes:
+            return
+        visiting.add(name)
+        for child in nodes[name].get("children", []):
+            walk(child)
+        visiting.remove(name)
+        visited.add(name)
+
+    for child in root_children:
+        walk(child)
+    unreachable = set(nodes) - visited
+    if unreachable:
+        issues.append(f"Y source has unreachable nodes: {', '.join(sorted(unreachable))}")
+
+    declared_trusted = set(assignment.get("trusted_single_marker_terminal_rsids", []))
+    if declared_trusted != trusted_from_nodes:
+        issues.append("Y trusted-single marker list does not match node declarations")
+    declared_missing_passthrough = set(
+        assignment.get("trusted_missing_internal_passthrough_rsids", [])
+    )
+    invalid_missing_passthrough = declared_missing_passthrough - eligible_missing_passthrough
+    if invalid_missing_passthrough:
+        issues.append(
+            "Y missing-marker pass-through list contains ineligible markers: "
+            + ", ".join(sorted(invalid_missing_passthrough))
+        )
+    refsnps = sum(
+        marker.get("identifier_source") == "ncbi_refsnp"
+        for node in nodes.values()
+        for marker in node["markers"]
+    )
+    vendor_probes = sum(
+        marker.get("identifier_source") == "ybrowse_vendor_coordinate"
+        for node in nodes.values()
+        for marker in node["markers"]
+    )
+    if refsnps != current_validation.get("current_rsids"):
+        issues.append("Y source current RefSNP count does not match its audit summary")
+    if vendor_probes != current_validation.get("vendor_internal_probes"):
+        issues.append("Y source vendor-probe count does not match its audit summary")
+    return issues
+
+
+# The full output whitelist supersedes the former small hand-maintained table.
+_Y_SOURCE = _load_y_source()
+_AUDITED_Y_RSID_REFERENCE = _build_y_marker_reference(_Y_SOURCE)
 
 
 def build_mt_tree() -> dict[str, Any]:
@@ -1794,845 +1902,14 @@ def build_mt_tree() -> dict[str, Any]:
 
 
 def build_y_tree() -> dict[str, Any]:
-    """Build the Y-chromosome (ISOGG) haplogroup tree.
-
-    The tree represents the paternal lineage phylogeny.  Defining SNPs
-    are Y-chromosome mutations genotyped on the 23andMe v5 array. The shipped
-    tree contains 92 defining records across 75 unique rsIDs. Positions are on
-    GRCh37 chrY.
-
-    SNP names (M-numbers, P-numbers, etc.) are included in rsid field
-    where available; otherwise the ISOGG name is used as prefix.
-    """
-    # ── A branch (basal) ──────────────────────────────────────────
-    a0 = _node(
-        "A0",
-        [
-            _y_snp("rs369315876", 2655043, "T"),
-            _y_snp("rs371257940", 2760783, "C"),
-            _y_snp("rs189428812", 7173431, "G"),
-        ],
-    )
-    a1a = _node(
-        "A1a",
-        [
-            _y_snp("rs373000685", 2790542, "G"),
-            _y_snp("rs372665038", 8554831, "T"),
-        ],
-    )
-    a1b1 = _node(
-        "A1b1",
-        [],
-    )
-    a1b = _node(
-        "A1b",
-        [],
-        [a1b1],
-    )
-    a1 = _node(
-        "A1",
-        # rs2032597 (M170) was mis-attributed here: M170's derived C defines
-        # haplogroup I (I-M170), not the basal A lineage, which carries the
-        # ancestral A. It is moved to the I node below (#1583). A1's sub-clades
-        # (A1a, A1b, A1b1) carry their own markers; A1 is retained as a structural
-        # node rather than defined by a foreign clade's derived allele.
-        [],
-        [a1a, a1b],
-    )
-    a_branch = _node(
-        "A",
-        # rs2032597 (M170) moved to I (#1583): M170's derived C defines haplogroup
-        # I, and basal A carries the ancestral A (Ensembl GRCh37 rs2032597 A/C).
-        # A's sub-clades (A0, A1, …) carry their own markers; A is structural here.
-        [],
-        [a0, a1],
-    )
-
-    # ── B branch ──────────────────────────────────────────────────
-    b1 = _node(
-        "B1",
-        [],
-    )
-    b2a = _node(
-        "B2a",
-        [],
-    )
-    b2b = _node(
-        "B2b",
-        [
-            _y_snp("rs9786193", 22003547, "T"),
-        ],
-    )
-    b2 = _node(
-        "B2",
-        [
-            _y_snp("rs13447458", 7786889, "A"),
-            _y_snp("rs13447444", 14873290, "C"),
-        ],
-        [b2a, b2b],
-    )
-    b_branch = _node(
-        "B",
-        [],
-        [b1, b2],
-    )
-
-    # ── CT branch (ancestor of C through T) ────────────────────────
-    # ── C branch ──────────────────────────────────────────────────
-    c1 = _node(
-        "C1",
-        [
-            _y_snp("rs35284970", 2723523, "C"),
-        ],
-    )
-    c2a = _node(
-        "C2a",
-        [
-            _y_snp("rs3916762", 2720073, "T"),
-        ],
-    )
-    c2b = _node(
-        "C2b",
-        [
-            _y_snp("rs33979247", 8389948, "C"),
-        ],
-    )
-    c2 = _node(
-        "C2",
-        [
-            _y_snp("rs2032666", 7701164, "C"),
-            _y_snp("rs3916762", 2720073, "T"),
-        ],
-        [c2a, c2b],
-    )
-    c_branch = _node(
-        "C",
-        [
-            _y_snp("rs35284970", 2723523, "C"),
-            _y_snp("rs2032666", 7701164, "C"),
-        ],
-        [c1, c2],
-    )
-
-    # ── D branch ──────────────────────────────────────────────────
-    d1a = _node(
-        "D1a",
-        [
-            _y_snp("rs369664989", 8458714, "T"),
-        ],
-    )
-    d1b = _node(
-        "D1b",
-        [
-            _y_snp("rs17316928", 17367192, "A"),
-        ],
-    )
-    d1 = _node(
-        "D1",
-        [
-            _y_snp("rs2032602", 14895148, "T"),
-        ],
-        [d1a, d1b],
-    )
-    d2 = _node(
-        "D2",
-        [
-            _y_snp("rs35091720", 23030230, "A"),
-        ],
-    )
-    d_branch = _node(
-        "D",
-        [
-            _y_snp("rs2032602", 14895148, "T"),
-            _y_snp("rs2032606", 14962400, "C"),
-        ],
-        [d1, d2],
-    )
-
-    # ── E branch ──────────────────────────────────────────────────
-    e1a = _node(
-        "E1a",
-        [
-            _y_snp("rs17222926", 15587819, "G"),
-            _y_snp("rs9341288", 8444133, "C"),
-        ],
-    )
-    e1b1a1 = _node(
-        "E1b1a1",
-        [
-            _y_snp("rs4017670", 14498044, "C"),
-        ],
-    )
-    e1b1a = _node(
-        "E1b1a",
-        [
-            _y_snp("rs9306841", 21614155, "A"),
-            _y_snp("rs34259916", 15072795, "G"),
-        ],
-        [e1b1a1],
-    )
-    e1b1b1a = _node(
-        "E1b1b1a",
-        [
-            _y_snp("rs35070074", 21380736, "C"),
-        ],
-    )
-    e1b1b1b = _node(
-        "E1b1b1b",
-        [],
-    )
-    e1b1b1 = _node(
-        "E1b1b1",
-        [
-            _y_snp("rs35070074", 21380736, "C"),
-        ],
-        [e1b1b1a, e1b1b1b],
-    )
-    e1b1b = _node(
-        "E1b1b",
-        [
-            _y_snp("rs13447437", 21415662, "T"),
-            _y_snp("rs17316834", 7751175, "G"),
-            _y_snp("rs9341286", 15019092, "C"),
-        ],
-        [e1b1b1],
-    )
-    e1b1 = _node(
-        "E1b1",
-        [
-            _y_snp("rs9306841", 21614155, "A"),
-        ],
-        [e1b1a, e1b1b],
-    )
-    e1b = _node(
-        "E1b",
-        [
-            _y_snp("rs9306841", 21614155, "A"),
-        ],
-        [e1b1],
-    )
-    e1 = _node(
-        "E1",
-        [
-            _y_snp("rs17222926", 15587819, "G"),
-        ],
-        [e1a, e1b],
-    )
-    e2 = _node(
-        "E2",
-        [],
-    )
-    e_branch = _node(
-        "E",
-        [
-            _y_snp("rs9306841", 21614155, "A"),
-            _y_snp("rs13447460", 7787915, "T"),
-            _y_snp("rs2032608", 14965386, "A"),
-        ],
-        [e1, e2],
-    )
-
-    de = _node(
-        "DE",
-        [
-            _y_snp("rs2032602", 14895148, "T"),
-        ],
-        [d_branch, e_branch],
-    )
-
-    # ── F branch (ancestor of G through T) ────────────────────────
-    # ── G branch ──────────────────────────────────────────────────
-    g1 = _node(
-        "G1",
-        [
-            _y_snp("rs9786724", 22504871, "G"),
-        ],
-    )
-    g2a1 = _node(
-        "G2a1",
-        [],
-    )
-    g2a = _node(
-        "G2a",
-        [],
-        [g2a1],
-    )
-    g2b = _node(
-        "G2b",
-        [
-            _y_snp("rs17317125", 17457766, "C"),
-        ],
-    )
-    g2 = _node(
-        "G2",
-        # rs2032658 (M207) defines haplogroup R (R-M207), not G — it was spuriously
-        # duplicated here from its correct R placement (Wikipedia "Haplogroup R
-        # (Y-DNA)"; Ensembl GRCh37 Y:15581983). Removed; G2 is kept as a structural
-        # node (its sub-clades G2a/G2b carry their own markers) (#1584).
-        [],
-        [g2a, g2b],
-    )
-    g_branch = _node(
-        "G",
-        [
-            _y_snp("rs2032636", 14488803, "T"),
-            _y_snp("rs2032657", 15024427, "G"),
-            _y_snp("rs2032638", 14505024, "C"),
-        ],
-        [g1, g2],
-    )
-
-    # ── H branch ──────────────────────────────────────────────────
-    h1a = _node(
-        "H1a",
-        [
-            _y_snp("rs2032643", 14581723, "A"),
-        ],
-    )
-    h1b = _node(
-        "H1b",
-        [],
-    )
-    h1 = _node(
-        "H1",
-        [
-            _y_snp("rs2032643", 14581723, "A"),
-        ],
-        [h1a, h1b],
-    )
-    h2 = _node(
-        "H2",
-        [],
-    )
-    h3 = _node(
-        "H3",
-        [
-            _y_snp("rs13447364", 14851204, "C"),
-        ],
-    )
-    h_branch = _node(
-        "H",
-        [
-            _y_snp("rs2032638", 14505024, "C"),
-            _y_snp("rs2032640", 14518993, "G"),
-            _y_snp("rs13447451", 14876988, "T"),
-            _y_snp("rs2032673", 21894058, "C"),
-        ],
-        [h1, h2, h3],
-    )
-
-    gh = _node(
-        "GH",
-        [
-            _y_snp("rs2032638", 14505024, "C"),
-        ],
-        [g_branch, h_branch],
-    )
-
-    # ── I branch ──────────────────────────────────────────────────
-    # I1b was a phantom node defined only by rs9786153 (M269), which defines
-    # haplogroup R1b (R-M269), not I — spuriously duplicated here from its correct
-    # R1b1a1a placement (Wikipedia "Haplogroup R-M269"; Ensembl GRCh37 Y:22739367).
-    # With no genuine I1b marker in the bundle, the node is removed rather than left
-    # empty (#1584). M269 stays on R1b1a1a.
-    i1 = _node(
-        "I1",
-        [
-            _y_snp("rs9341296", 15022707, "T"),
-        ],
-        [],
-    )
-    i2a1 = _node(
-        "I2a1",
-        [
-            _y_snp("rs34126399", 21890039, "A"),
-        ],
-    )
-    i2a2 = _node(
-        "I2a2",
-        [
-            _y_snp("rs17250424", 8439968, "T"),
-        ],
-    )
-    i2a = _node(
-        "I2a",
-        [
-            _y_snp("rs34126399", 21890039, "A"),
-        ],
-        [i2a1, i2a2],
-    )
-    i2b1 = _node(
-        "I2b1",
-        [],
-    )
-    i2b = _node(
-        "I2b",
-        [],
-        [i2b1],
-    )
-    i2 = _node(
-        "I2",
-        [
-            _y_snp("rs34126399", 21890039, "A"),
-            _y_snp("rs2032671", 8313413, "G"),
-        ],
-        [i2a, i2b],
-    )
-    i_branch = _node(
-        "I",
-        [
-            # M170 (rs2032597) is haplogroup I's canonical defining SNP (I-M170):
-            # an A→C transversion whose derived C indicates I (Ensembl GRCh37
-            # rs2032597 A/C, ancestral A; Wikipedia "Haplogroup I-M170"). Restored
-            # here from its prior mis-attribution to haplogroup A (#1583).
-            _y_snp("rs2032597", 14847792, "C"),
-            _y_snp("rs2032670", 8307832, "T"),
-            _y_snp("rs9341296", 15022707, "T"),
-        ],
-        [i1, i2],
-    )
-
-    # ── J branch ──────────────────────────────────────────────────
-    j1a = _node(
-        "J1a",
-        [
-            _y_snp("rs34891652", 15028858, "C"),
-        ],
-    )
-    j1b = _node(
-        "J1b",
-        [
-            _y_snp("rs17307456", 15100281, "G"),
-        ],
-    )
-    j1 = _node(
-        "J1",
-        [
-            _y_snp("rs34997026", 14969634, "A"),
-            _y_snp("rs34891652", 15028858, "C"),
-        ],
-        [j1a, j1b],
-    )
-    j2a1 = _node(
-        "J2a1",
-        [
-            _y_snp("rs35491060", 21732880, "T"),
-        ],
-    )
-    j2a = _node(
-        "J2a",
-        [],
-        [j2a1],
-    )
-    j2b1 = _node(
-        "J2b1",
-        [],
-    )
-    j2b2 = _node(
-        "J2b2",
-        [],
-    )
-    j2b = _node(
-        "J2b",
-        [
-            _y_snp("rs17306862", 15010427, "T"),
-        ],
-        [j2b1, j2b2],
-    )
-    j2 = _node(
-        "J2",
-        [
-            _y_snp("rs17306862", 15010427, "T"),
-        ],
-        [j2a, j2b],
-    )
-    j_branch = _node(
-        "J",
-        [
-            _y_snp("rs13447352", 22749853, "C"),
-            _y_snp("rs34997026", 14969634, "A"),
-        ],
-        [j1, j2],
-    )
-
-    ij = _node(
-        "IJ",
-        [
-            _y_snp("rs2032670", 8307832, "T"),
-        ],
-        [i_branch, j_branch],
-    )
-
-    # ── K branch (ancestor of LT through R) ───────────────────────
-    # ── L branch ──────────────────────────────────────────────────
-    l1a = _node(
-        "L1a",
-        [],
-    )
-    l1b = _node(
-        "L1b",
-        [],
-    )
-    l1 = _node(
-        "L1",
-        [
-            _y_snp("rs2032668", 7597853, "T"),
-        ],
-        [l1a, l1b],
-    )
-    l_branch = _node(
-        "L",
-        [
-            _y_snp("rs2032668", 7597853, "T"),
-        ],
-        [l1],
-    )
-
-    # ── T branch (Y-chr) ─────────────────────────────────────────
-    t1a = _node(
-        "T1a",
-        [],
-    )
-    t1 = _node(
-        "T1",
-        [],
-        [t1a],
-    )
-    t_branch = _node(
-        "T",
-        [
-            _y_snp("rs13447467", 7805203, "T"),
-            _y_snp("rs2032665", 7699680, "G"),
-        ],
-        [t1],
-    )
-
-    lt = _node(
-        "LT",
-        [
-            _y_snp("rs2032668", 7597853, "T"),
-        ],
-        [l_branch, t_branch],
-    )
-
-    # ── M branch (Y-chr) ─────────────────────────────────────────
-    m1 = _node(
-        "M1",
-        [],
-    )
-    m2 = _node(
-        "M2",
-        [],
-    )
-    m_branch = _node(
-        "M_Y",
-        [],
-        [m1, m2],
-    )
-
-    # ── N branch (Y-chr) ─────────────────────────────────────────
-    n1a = _node(
-        "N1a",
-        [],
-    )
-    n1b = _node(
-        "N1b",
-        [],
-    )
-    n1c1 = _node(
-        "N1c1",
-        [],
-    )
-    n1c = _node(
-        "N1c",
-        [],
-        [n1c1],
-    )
-    n1 = _node(
-        "N1",
-        [],
-        [n1a, n1b, n1c],
-    )
-    n_branch_y = _node(
-        "N_Y",
-        [
-            _y_snp("rs9341279", 15437152, "T"),
-        ],
-        [n1],
-    )
-
-    no = _node(
-        "NO",
-        [],
-        [n_branch_y, _build_y_o_branch()],
-    )
-
-    # ── P branch (ancestor of Q and R) ─────────────────────────────
-    # ── Q branch ──────────────────────────────────────────────────
-    q1a1 = _node(
-        "Q1a1",
-        [
-            _y_snp("rs3894", 2713240, "C"),
-        ],
-    )
-    q1a2 = _node(
-        "Q1a2",
-        [
-            _y_snp("rs13447441", 14873207, "G"),
-        ],
-    )
-    q1a = _node(
-        "Q1a",
-        [
-            _y_snp("rs3894", 2713240, "C"),
-        ],
-        [q1a1, q1a2],
-    )
-    q1b = _node(
-        "Q1b",
-        [],
-    )
-    q1 = _node(
-        "Q1",
-        [
-            _y_snp("rs8179021", 2714816, "A"),
-        ],
-        [q1a, q1b],
-    )
-    q2 = _node(
-        "Q2",
-        [
-            _y_snp("rs17307382", 15095115, "C"),
-        ],
-    )
-    q_branch = _node(
-        "Q",
-        [
-            _y_snp("rs8179021", 2714816, "A"),
-        ],
-        [q1, q2],
-    )
-
-    # ── R branch ──────────────────────────────────────────────────
-    r1a1a = _node(
-        "R1a1a",
-        [],
-    )
-    r1a1 = _node(
-        "R1a1",
-        [
-            _y_snp("rs113624642", 15026561, "G"),
-        ],
-        [r1a1a],
-    )
-    r1a = _node(
-        "R1a",
-        [
-            _y_snp("rs113624642", 15026561, "G"),
-        ],
-        [r1a1],
-    )
-
-    r1b1a1a = _node(
-        "R1b1a1a",
-        [
-            _y_snp("rs9786153", 22028345, "C"),
-        ],
-    )
-    r1b1a1 = _node(
-        "R1b1a1",
-        [
-            _y_snp("rs9461019", 22741842, "T"),
-            _y_snp("rs1000306", 53186638, "C"),
-        ],
-        [r1b1a1a],
-    )
-    r1b1a = _node(
-        "R1b1a",
-        [
-            _y_snp("rs9461019", 22741842, "T"),
-            _y_snp("rs1000154", 39970128, "G"),
-        ],
-        [r1b1a1],
-    )
-    r1b1b = _node(
-        "R1b1b",
-        [],
-    )
-    r1b1 = _node(
-        "R1b1",
-        [
-            _y_snp("rs9786184", 2887824, "A"),
-            _y_snp("rs1000247", 20503721, "A"),
-        ],
-        [r1b1a, r1b1b],
-    )
-    r1b = _node(
-        "R1b",
-        [
-            _y_snp("rs9786184", 2887824, "A"),
-            _y_snp("rs1000331", 20085901, "T"),
-        ],
-        [r1b1],
-    )
-    r1 = _node(
-        "R1",
-        [
-            _y_snp("rs2032624", 15022755, "A"),
-            _y_snp("rs1000867", 32170896, "T"),
-            _y_snp("rs17307070", 15590342, "T"),
-        ],
-        [r1a, r1b],
-    )
-    r2 = _node(
-        "R2",
-        [],
-    )
-    r_branch = _node(
-        "R",
-        [
-            # M207 defines haplogroup R; its DERIVED allele is G (Ensembl GRCh37
-            # rs2032658 G/A, ancestral A, Y:15581983). The node stored the ancestral A,
-            # so a real R man (M207+, G) scored conflicting here — the ancestral-
-            # inversion class of #1583/#1579. Corrected to the derived G and to the
-            # Ensembl GRCh37 coordinate (matching the #1686 I-branch migration; the Y
-            # classifier keys by rsID, so the coordinate is reference-only) (#1654).
-            _y_snp("rs2032658", 15581983, "G"),
-        ],
-        [r1, r2],
-    )
-
-    p_branch = _node(
-        "P",
-        [
-            _y_snp("rs2032631", 21867787, "A"),
-            _y_snp("rs1000147", 41031901, "A"),
-        ],
-        [q_branch, r_branch],
-    )
-
-    # ── S branch ──────────────────────────────────────────────────
-    s1 = _node(
-        "S1",
-        [],
-    )
-    s2 = _node(
-        "S2",
-        [],
-    )
-    s_branch = _node(
-        "S",
-        [],
-        [s1, s2],
-    )
-
-    ms = _node(
-        "MS",
-        [],
-        [m_branch, s_branch],
-    )
-
-    k2 = _node("K2", [], [no, ms, p_branch])
-
-    k_branch = _node(
-        "K",
-        [
-            _y_snp("rs3900", 21730257, "G"),
-        ],
-        [lt, k2],
-    )
-
-    # ── F branch (ancestor of G through T) ────────────────────────
-    f1 = _node(
-        "F1",
-        [],
-    )
-    f2 = _node(
-        "F2",
-        [],
-    )
-    f3 = _node(
-        "F3",
-        [],
-    )
-
-    f_branch = _node(
-        "F",
-        [
-            _y_snp("rs2032652", 21917313, "T"),
-        ],
-        [f1, f2, f3, gh, ij, k_branch],
-    )
-
-    ct = _node(
-        "CT",
-        [
-            _y_snp("rs2032595", 14813991, "T"),
-        ],
-        [c_branch, de, f_branch],
-    )
-
-    # ── Root ──────────────────────────────────────────────────────
-    root = _node("Y-Adam", [], [a_branch, b_branch, ct])
-    _prune_redundant_y_snps(root)
-    return root
-
-
-def _build_y_o_branch() -> dict[str, Any]:
-    """Build the O branch of the Y-chromosome tree (East Asian).
-
-    Separated into its own function for readability.
-    """
-    o1a1 = _node(
-        "O1a1",
-        [],
-    )
-    o1a = _node(
-        "O1a",
-        [],
-        [o1a1],
-    )
-    o1b1 = _node(
-        "O1b1",
-        [],
-    )
-    o1b2 = _node(
-        "O1b2",
-        [],
-    )
-    o1b = _node(
-        "O1b",
-        [],
-        [o1b1, o1b2],
-    )
-    o1 = _node(
-        "O1",
-        [],
-        [o1a, o1b],
-    )
-    o2a1 = _node(
-        "O2a1",
-        [],
-    )
-    o2a = _node(
-        "O2a",
-        [],
-        [o2a1],
-    )
-    o2b = _node(
-        "O2b",
-        [],
-    )
-    o2 = _node(
-        "O2",
-        [],
-        [o2a, o2b],
-    )
-    return _node(
-        "O",
-        [],
-        [o1, o2],
-    )
+    """Build the source-audited, array-reportable Y-chromosome tree."""
+    source_issues = _validate_y_source(_Y_SOURCE)
+    if source_issues:
+        raise ValueError(
+            f"Y source validation failed with {len(source_issues)} issues:\n"
+            + "\n".join(f"  - {issue}" for issue in source_issues)
+        )
+    return _build_y_tree_from_source(_Y_SOURCE)
 
 
 # ── Tree statistics helpers ─────────────────────────────────────────────
@@ -2710,32 +1987,42 @@ def _is_related_y_path(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
 
 
 def _validate_y_cross_clade_duplicates(node: dict[str, Any]) -> list[str]:
-    """Reject unregistered rsID reuse across unrelated Y clades."""
+    """Reject identifier or locus reuse that can inflate or divert Y evidence."""
     issues: list[str] = []
     locations: dict[str, list[tuple[str, ...]]] = {}
+    position_locations: dict[int, list[tuple[str, ...]]] = {}
 
     for path, snp in _iter_snps_with_path(node):
-        locations.setdefault(snp["rsid"], []).append(tuple(path.split("/")))
+        parsed_path = tuple(path.split("/"))
+        locations.setdefault(snp["rsid"], []).append(parsed_path)
+        position_locations.setdefault(snp["pos"], []).append(parsed_path)
 
     for rsid, paths in sorted(locations.items()):
         if len(paths) < 2:
             continue
+        joined_paths = ", ".join("/".join(path) for path in paths)
+        qualifier = (
+            "unrelated Y clades"
+            if any(
+                not _is_related_y_path(left, right)
+                for index, left in enumerate(paths)
+                for right in paths[index + 1 :]
+            )
+            else "the same Y lineage"
+        )
+        issues.append(f"{rsid} is reused across {qualifier}: {joined_paths}")
 
-        unrelated_pairs: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-        for index, left in enumerate(paths):
-            for right in paths[index + 1 :]:
-                if not _is_related_y_path(left, right):
-                    unrelated_pairs.append((left, right))
-
-        if unrelated_pairs:
-            joined_paths = ", ".join("/".join(path) for path in paths)
-            issues.append(f"{rsid} is reused across unrelated Y clades: {joined_paths}")
+    for pos, paths in sorted(position_locations.items()):
+        if len(paths) < 2:
+            continue
+        joined_paths = ", ".join("/".join(path) for path in paths)
+        issues.append(f"GRCh37 Y:{pos} is reused by multiple defining records: {joined_paths}")
 
     return issues
 
 
 def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
-    """Validate curated Y rsID coordinates and derived alleles against GRCh37 evidence."""
+    """Require every Y marker to match the complete source-backed whitelist."""
     issues: list[str] = []
     seen: set[str] = set()
 
@@ -2748,6 +2035,7 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
 
         reference = _AUDITED_Y_RSID_REFERENCE.get(rsid)
         if reference is None:
+            issues.append(f"{rsid} at {path} is absent from the audited Y marker registry")
             continue
 
         seen.add(rsid)
@@ -2776,6 +2064,46 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
     return issues
 
 
+def _validate_y_reportability(
+    node: dict[str, Any],
+    trusted_single_marker_rsids: frozenset[str],
+    ancestor_rsids: frozenset[str] = frozenset(),
+    ancestor_positions: frozenset[int] = frozenset(),
+) -> list[str]:
+    """Require every emitted non-root Y node to carry terminal-grade evidence."""
+    issues: list[str] = []
+    current_rsids = frozenset(snp["rsid"] for snp in node.get("defining_snps", []))
+    current_positions = frozenset(snp["pos"] for snp in node.get("defining_snps", []))
+    if node["haplogroup"] != "Y-Adam":
+        specific = [
+            snp
+            for snp in node.get("defining_snps", [])
+            if snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions
+        ]
+        if not specific:
+            issues.append(f"Y node {node['haplogroup']} has no ancestor-distinguishing marker")
+        elif node.get("children") and len(specific) < 2:
+            trusted = len(specific) == 1 and specific[0]["rsid"] in trusted_single_marker_rsids
+            if not trusted:
+                issues.append(
+                    f"Internal Y node {node['haplogroup']} has only {len(specific)} "
+                    "specific marker(s) without a trusted-single marker"
+                )
+
+    next_rsids = ancestor_rsids | current_rsids
+    next_positions = ancestor_positions | current_positions
+    for child in node.get("children", []):
+        issues.extend(
+            _validate_y_reportability(
+                child,
+                trusted_single_marker_rsids,
+                next_rsids,
+                next_positions,
+            )
+        )
+    return issues
+
+
 # ── Bundle assembly ─────────────────────────────────────────────────────
 
 
@@ -2789,8 +2117,12 @@ def build_bundle() -> dict[str, Any]:
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
     y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
-    if mt_issues or y_issues or y_reference_issues or y_duplicate_issues:
-        all_issues = mt_issues + y_issues + y_reference_issues + y_duplicate_issues
+    trusted_y_markers = frozenset(_Y_SOURCE["assignment"]["trusted_single_marker_terminal_rsids"])
+    y_reportability_issues = _validate_y_reportability(y_tree, trusted_y_markers)
+    if mt_issues or y_issues or y_reference_issues or y_duplicate_issues or y_reportability_issues:
+        all_issues = (
+            mt_issues + y_issues + y_reference_issues + y_duplicate_issues + y_reportability_issues
+        )
         raise ValueError(
             f"Tree validation failed with {len(all_issues)} issues:\n"
             + "\n".join(f"  - {i}" for i in all_issues)
@@ -2803,12 +2135,15 @@ def build_bundle() -> dict[str, Any]:
         "module": "haplogroup",
         "version": BUNDLE_VERSION,
         "description": (
-            "PhyloTree mtDNA + ISOGG Y-chromosome haplogroup defining SNP "
+            "PhyloTree mtDNA + source-audited Y-chromosome haplogroup defining SNP "
             "trees for haplogroup assignment via tree-walk algorithm. "
-            "SNPs filtered to 23andMe v5 array coverage. Provides 2-3 "
-            "levels of haplogroup resolution."
+            "SNPs filtered to 23andMe v5-era array coverage. Resolution varies "
+            "with the markers typed by each array revision."
         ),
         "build": BUILD,
+        "assignment": {
+            "Y": _Y_SOURCE["assignment"],
+        },
         "sources": {
             "mt": {
                 "name": "PhyloTree",
@@ -2819,10 +2154,11 @@ def build_bundle() -> dict[str, Any]:
                 "url": "https://www.phylotree.org",
             },
             "Y": {
-                "name": "ISOGG Y-DNA Haplogroup Tree",
-                "version": "2019-2020",
-                "reference": "International Society of Genetic Genealogy. Y-DNA Haplogroup Tree.",
-                "url": "https://isogg.org/tree/",
+                **_Y_SOURCE["source"],
+                "references": _Y_SOURCE["references"],
+                "current_validation": _Y_SOURCE["current_validation"],
+                "source_topology_non_root_nodes": _Y_SOURCE["source_topology_non_root_nodes"],
+                "omitted_nodes": _Y_SOURCE["omitted_nodes"],
             },
         },
         "trees": {
@@ -2838,6 +2174,8 @@ def build_bundle() -> dict[str, Any]:
             "y_defining_snps": _count_snps(y_tree),
             "y_unique_snps": len(y_snp_rsids),
             "y_max_depth": _max_depth(y_tree),
+            "y_source_haplogroups": _Y_SOURCE["source_topology_non_root_nodes"] + 1,
+            "y_omitted_haplogroups": len(_Y_SOURCE["omitted_nodes"]),
             "total_haplogroups": _count_nodes(mt_tree) + _count_nodes(y_tree),
             "total_defining_snps": _count_snps(mt_tree) + _count_snps(y_tree),
             "total_unique_snps": len(mt_snp_rsids | y_snp_rsids),
@@ -2861,7 +2199,7 @@ def print_stats(bundle: dict[str, Any]) -> None:
     print(f"    Unique SNPs:      {stats['mt_unique_snps']}")
     print(f"    Max depth:        {stats['mt_max_depth']}")
     print()
-    print("  Y-chromosome (ISOGG):")
+    print("  Y-chromosome (YBrowse):")
     print(f"    Haplogroups:      {stats['y_haplogroups']}")
     print(f"    Defining SNPs:    {stats['y_defining_snps']}")
     print(f"    Unique SNPs:      {stats['y_unique_snps']}")
@@ -2886,7 +2224,7 @@ def write_bundle(bundle: dict[str, Any], output_path: Path) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Build PhyloTree + ISOGG Y-tree haplogroup JSON bundle.",
+        description="Build PhyloTree + source-audited Y-tree haplogroup JSON bundle.",
     )
     parser.add_argument(
         "--output",
