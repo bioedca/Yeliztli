@@ -56,6 +56,18 @@ def test_v1_1_liftover_name_still_works(tmp_path: Path) -> None:
     assert runner.rsid_lookup == {"rs1": ("chr1", 100), "rs2": ("chr2", 200)}
 
 
+def test_v2_liftover_name_wins_when_both_exist(tmp_path: Path) -> None:
+    """The newest supported table has deterministic priority over the legacy name."""
+    bundle = _make_stub_bundle(tmp_path / "both", "array_site_mapping.tsv")
+    (bundle / "liftover" / "rsid_to_grch38.tsv").write_text(
+        "rs_legacy\tchr3\t300\n", encoding="utf-8"
+    )
+
+    runner = LAIRunner(bundle)
+
+    assert runner.rsid_lookup == {"rs1": ("chr1", 100), "rs2": ("chr2", 200)}
+
+
 def test_numeric_liftover_chromosome_reaches_phasing(tmp_path: Path) -> None:
     """Legacy bare autosomes are canonicalized before VCF/phasing dispatch."""
     bundle = _make_stub_bundle(tmp_path / "numeric", "array_site_mapping.tsv")
