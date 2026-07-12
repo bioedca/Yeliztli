@@ -20,10 +20,10 @@ import shutil
 import subprocess
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 import structlog
@@ -47,6 +47,9 @@ MID_LOW_PRECISION_THRESHOLD = 0.15
 # Drop-rate threshold above which the LAI coverage banner is shown (Plan §6.6)
 LAI_DROP_RATE_WARNING_THRESHOLD = 0.15
 
+# Version of the machine-readable LAI coverage payload stored in result metadata.
+LAI_COVERAGE_METRICS_SCHEMA_VERSION = 1
+
 # Source labels for merged samples (Plan §6.6, §10.2)
 _MERGED_SOURCE_KEYS = ("S1", "S2", "both")
 
@@ -61,6 +64,83 @@ POPULATIONS: dict[str, dict[str, str]] = {
 }
 
 
+class SourceCoverageCounts(TypedDict):
+    """Input-marker counts for one source/vendor."""
+
+    hits: int
+    drops: int
+
+
+class ModelMarkerCounts(TypedDict):
+    """Model-marker alignment counts for one scope."""
+
+    matched: int
+    total: int
+    allele_mismatch: int
+    match_rate: float
+
+
+class EmittedMarkerMetrics(TypedDict):
+    """Markers emitted to Beagle input VCFs."""
+
+    total: int
+    by_autosome: dict[str, int]
+
+
+class ModelMarkerMetrics(TypedDict):
+    """Model-marker alignment counts across and within autosomes."""
+
+    aggregate: ModelMarkerCounts
+    by_autosome: dict[str, ModelMarkerCounts]
+
+
+class AutosomeSetMetrics(TypedDict):
+    """Count and stable numeric identities for an autosome set."""
+
+    count: int
+    identities: list[int]
+
+
+class HaplotypeWindowMetrics(TypedDict):
+    """Expected and ancestry-assigned haplotype-window counts."""
+
+    expected: int
+    valid_assigned: int
+    assignment_rate: float
+    expected_by_autosome: dict[str, int]
+    valid_assigned_by_autosome: dict[str, int]
+
+
+class LAICoverageMetrics(TypedDict):
+    """Versioned coverage metrics for calibration and later policy gates."""
+
+    schema_version: int
+    emitted_markers: EmittedMarkerMetrics
+    model_markers: ModelMarkerMetrics
+    phased_autosomes: AutosomeSetMetrics
+    analyzed_autosomes: AutosomeSetMetrics
+    haplotype_windows: HaplotypeWindowMetrics
+    per_source: dict[str, SourceCoverageCounts]
+
+
+@dataclass(frozen=True)
+class PhasedVCFParseResult:
+    """Haplotypes plus the model-marker alignment telemetry that produced them.
+
+    Iteration intentionally yields only the two haplotypes so legacy private
+    callers that unpacked ``hap0, hap1 = _parse_phased_vcf(...)`` keep working.
+    New diagnostic callers should read :attr:`model_marker_counts` directly.
+    """
+
+    hap0: np.ndarray
+    hap1: np.ndarray
+    model_marker_counts: ModelMarkerCounts
+
+    def __iter__(self) -> Iterator[np.ndarray]:
+        yield self.hap0
+        yield self.hap1
+
+
 @dataclass
 class LAIRunnerResult:
     """Result from a full LAI pipeline run."""
@@ -68,7 +148,7 @@ class LAIRunnerResult:
     global_ancestry: dict[str, dict]
     chromosome_painting: dict[str, list[dict]]
     metadata: dict
-    coverage_telemetry: dict[str, dict[str, int]] = field(default_factory=dict)
+    coverage_telemetry: dict[str, SourceCoverageCounts] = field(default_factory=dict)
 
 
 class LAIRunner:
@@ -135,6 +215,9 @@ class LAIRunner:
         progress_callback: Callable[[str, float], None] | None = None,
         cleanup: bool = True,
         file_format: str = "",
+        *,
+        diagnostic_metrics_callback: Callable[[LAICoverageMetrics], None] | None = None,
+        allow_below_minimum_for_diagnostics: bool = False,
     ) -> LAIRunnerResult:
         """Run the full LAI pipeline.
 
@@ -149,6 +232,12 @@ class LAIRunner:
                 ``"23andme_v5"``, ``"ancestrydna_v2.0"``, ``"merged_v1"``).
                 Drives single-key vs. three-key dispatch when every genotype
                 has ``source=""`` (Plan §6.6).
+            diagnostic_metrics_callback: Optional calibration-only callback.
+                Receives fresh coverage snapshots after each pipeline stage so
+                diagnostics retain partial metrics even when a later stage fails.
+            allow_below_minimum_for_diagnostics: Calibration-only escape hatch
+                for observing model-marker match rates below the production 5%
+                hard failure. The default preserves production behavior.
 
         Returns:
             LAIRunnerResult with global_ancestry, chromosome_painting, metadata,
@@ -157,6 +246,37 @@ class LAIRunner:
         start_time = time.time()
         out = Path(output_dir)
         out.mkdir(parents=True, exist_ok=True)
+
+        model_marker_totals, expected_haplotype_windows = self._read_model_coverage_denominators()
+        emitted_markers_by_autosome: dict[int, int] = {}
+        model_marker_counts_by_autosome: dict[int, ModelMarkerCounts] = {
+            chrom: {
+                "matched": 0,
+                "total": model_marker_totals.get(chrom, 0),
+                "allele_mismatch": 0,
+                "match_rate": 0.0,
+            }
+            for chrom in range(1, 23)
+        }
+        coverage_telemetry: dict[str, SourceCoverageCounts] = {}
+        phased_paths: dict[int, Path] = {}
+        chrom_results: dict[int, ChromosomeResult] = {}
+        matched = 0
+
+        def coverage_metrics() -> LAICoverageMetrics:
+            return self._build_lai_coverage_metrics(
+                emitted_total=matched,
+                emitted_by_autosome=emitted_markers_by_autosome,
+                model_markers_by_autosome=model_marker_counts_by_autosome,
+                phased_autosomes=phased_paths.keys(),
+                chrom_results=chrom_results,
+                expected_haplotype_windows_by_autosome=expected_haplotype_windows,
+                per_source=coverage_telemetry,
+            )
+
+        def emit_diagnostic_metrics() -> None:
+            if diagnostic_metrics_callback is not None:
+                diagnostic_metrics_callback(coverage_metrics())
 
         def report(msg: str, frac: float) -> None:
             logger.info("lai_progress", message=msg, fraction=frac)
@@ -170,7 +290,11 @@ class LAIRunner:
 
         # Step 2: Translate to GRCh38 and write per-chromosome VCFs
         report("Writing per-chromosome VCFs...", 0.05)
-        vcf_paths, matched, per_source_counts = self._write_per_chrom_vcfs(filtered, out)
+        vcf_paths, matched, per_source_counts = self._write_per_chrom_vcfs(
+            filtered,
+            out,
+            emitted_markers_by_autosome=emitted_markers_by_autosome,
+        )
         report(
             f"Wrote {matched} variants to VCF across {len(vcf_paths)} chromosomes",
             0.10,
@@ -183,6 +307,7 @@ class LAIRunner:
             per_source=coverage_telemetry,
             file_format=file_format,
         )
+        emit_diagnostic_metrics()
         if matched == 0:
             raise RuntimeError(
                 "Insufficient data for local ancestry inference: no usable markers "
@@ -191,7 +316,6 @@ class LAIRunner:
             )
 
         # Step 3: Phase with Beagle
-        phased_paths: dict[int, Path] = {}
         for i, chr_num in enumerate(range(1, 23), 1):
             chrom = f"chr{chr_num}"
             frac = 0.10 + (i / 22) * 0.60
@@ -206,6 +330,7 @@ class LAIRunner:
                 phased_paths[chr_num] = phased
 
         report(f"Phasing complete: {len(phased_paths)} chromosomes", 0.70)
+        emit_diagnostic_metrics()
         if not phased_paths:
             raise RuntimeError(
                 "Insufficient data for local ancestry inference: no chromosome was "
@@ -218,7 +343,6 @@ class LAIRunner:
             run_inference,
         )
 
-        chrom_results: dict[int, ChromosomeResult] = {}
         failed_chroms: list[int] = []
         for i, chr_num in enumerate(sorted(phased_paths.keys()), 1):
             frac = 0.70 + (i / 22) * 0.20
@@ -227,14 +351,40 @@ class LAIRunner:
             try:
                 model_dir = self.bundle / "gnomix_models" / f"chr{chr_num}"
                 model = load_gnomix_model(model_dir)
-                hap0, hap1 = self._parse_phased_vcf(
-                    phased_paths[chr_num], model.snp_pos, model.snp_ref, model.snp_alt
+                parsed = self._parse_phased_vcf(
+                    phased_paths[chr_num],
+                    model.snp_pos,
+                    model.snp_ref,
+                    model.snp_alt,
+                    allow_below_minimum_for_diagnostics=(allow_below_minimum_for_diagnostics),
                 )
-                result = run_inference(model, hap0, hap1)
-                chrom_results[chr_num] = result
+                hap0, hap1 = parsed
             except Exception:
                 logger.exception("gnomix_inference_failed", chrom=chr_num)
                 failed_chroms.append(chr_num)
+                emit_diagnostic_metrics()
+                continue
+
+            if isinstance(parsed, PhasedVCFParseResult):
+                counts = parsed.model_marker_counts
+                model_marker_counts_by_autosome[chr_num] = {
+                    "matched": counts["matched"],
+                    "total": counts["total"],
+                    "allele_mismatch": counts["allele_mismatch"],
+                    "match_rate": counts["match_rate"],
+                }
+            emit_diagnostic_metrics()
+
+            try:
+                result = run_inference(model, hap0, hap1)
+            except Exception:
+                logger.exception("gnomix_inference_failed", chrom=chr_num)
+                failed_chroms.append(chr_num)
+                emit_diagnostic_metrics()
+                continue
+
+            chrom_results[chr_num] = result
+            emit_diagnostic_metrics()
 
         if failed_chroms and len(failed_chroms) > len(phased_paths) // 2:
             raise RuntimeError(f"Too many chromosomes failed inference: {failed_chroms}")
@@ -254,6 +404,7 @@ class LAIRunner:
         # Step 6: Metadata
         elapsed = time.time() - start_time
         drop_rate = ((len(filtered) - matched) / len(filtered)) if filtered else 0.0
+        lai_coverage_metrics = coverage_metrics()
         metadata = {
             "total_genotypes": len(genotypes),
             "filtered_genotypes": len(filtered),
@@ -264,6 +415,7 @@ class LAIRunner:
             "runtime_seconds": round(elapsed, 1),
             "populations": list(POPULATIONS.keys()),
             "coverage_telemetry": coverage_telemetry,
+            "lai_coverage_metrics": lai_coverage_metrics,
             "drop_rate": round(drop_rate, 4),
             "drop_rate_warning": drop_rate > LAI_DROP_RATE_WARNING_THRESHOLD,
         }
@@ -331,7 +483,7 @@ class LAIRunner:
     def _build_coverage_telemetry(
         per_source: dict[str, dict[str, int]],
         file_format: str,
-    ) -> dict[str, dict[str, int]]:
+    ) -> dict[str, SourceCoverageCounts]:
         """Shape raw per-source counts into the Plan §6.6 telemetry payload.
 
         Dispatch is ``source``-driven: any non-empty ``source`` key (or a
@@ -342,7 +494,10 @@ class LAIRunner:
         has_nonempty_source = any(key for key in per_source)
         if has_nonempty_source or file_format == "merged_v1":
             return {
-                key: dict(per_source.get(key, {"hits": 0, "drops": 0}))
+                key: {
+                    "hits": int(per_source.get(key, {}).get("hits", 0)),
+                    "drops": int(per_source.get(key, {}).get("drops", 0)),
+                }
                 for key in _MERGED_SOURCE_KEYS
             }
 
@@ -350,7 +505,12 @@ class LAIRunner:
         if not vendor:
             vendor = "unknown"
         counts = per_source.get("", {"hits": 0, "drops": 0})
-        return {vendor: dict(counts)}
+        return {
+            vendor: {
+                "hits": int(counts.get("hits", 0)),
+                "drops": int(counts.get("drops", 0)),
+            }
+        }
 
     @staticmethod
     def _emit_coverage_telemetry(
@@ -358,7 +518,7 @@ class LAIRunner:
         total_genotypes: int,
         filtered: int,
         matched: int,
-        per_source: dict[str, dict[str, int]],
+        per_source: dict[str, SourceCoverageCounts],
         file_format: str,
     ) -> None:
         """Log the per-source LAI dropout telemetry line (Plan §6.6)."""
@@ -376,8 +536,125 @@ class LAIRunner:
             per_source=per_source,
         )
 
+    def _read_model_coverage_denominators(self) -> tuple[dict[int, int], dict[int, int]]:
+        """Read marker and haplotype-window denominators for all 22 models.
+
+        Coverage diagnostics must not silently drop a chromosome merely because
+        no input VCF was emitted or inference failed. Reading the tiny model
+        metadata files up front gives every autosome an explicit denominator.
+        A malformed metadata file is logged and represented as zero here; model
+        loading retains responsibility for failing the production inference path.
+        """
+        marker_totals: dict[int, int] = {}
+        haplotype_windows: dict[int, int] = {}
+        for chrom in range(1, 23):
+            metadata_path = self.bundle / "gnomix_models" / f"chr{chrom}" / "metadata.npz"
+            try:
+                with np.load(metadata_path, allow_pickle=False) as metadata:
+                    marker_totals[chrom] = int(np.asarray(metadata["snp_pos"]).size)
+                    haplotype_windows[chrom] = 2 * int(np.asarray(metadata["W"]).item())
+            except (OSError, EOFError, KeyError, TypeError, ValueError):
+                logger.warning(
+                    "lai_model_coverage_metadata_unreadable",
+                    chrom=chrom,
+                    path=str(metadata_path),
+                )
+                marker_totals[chrom] = 0
+                haplotype_windows[chrom] = 0
+        return marker_totals, haplotype_windows
+
+    @staticmethod
+    def _build_lai_coverage_metrics(
+        *,
+        emitted_total: int,
+        emitted_by_autosome: dict[int, int],
+        model_markers_by_autosome: dict[int, ModelMarkerCounts],
+        phased_autosomes: Iterable[int],
+        chrom_results: dict[int, ChromosomeResult],
+        expected_haplotype_windows_by_autosome: dict[int, int],
+        per_source: dict[str, SourceCoverageCounts],
+    ) -> LAICoverageMetrics:
+        """Build a fresh, JSON-safe schema-v1 LAI coverage snapshot."""
+        marker_by_autosome: dict[str, ModelMarkerCounts] = {}
+        for chrom in range(1, 23):
+            raw = model_markers_by_autosome.get(chrom)
+            total = int(raw["total"]) if raw is not None else 0
+            matched = int(raw["matched"]) if raw is not None else 0
+            allele_mismatch = int(raw["allele_mismatch"]) if raw is not None else 0
+            marker_by_autosome[str(chrom)] = {
+                "matched": matched,
+                "total": total,
+                "allele_mismatch": allele_mismatch,
+                "match_rate": round(matched / total, 6) if total else 0.0,
+            }
+
+        aggregate_total = sum(counts["total"] for counts in marker_by_autosome.values())
+        aggregate_matched = sum(counts["matched"] for counts in marker_by_autosome.values())
+        aggregate_mismatch = sum(
+            counts["allele_mismatch"] for counts in marker_by_autosome.values()
+        )
+
+        expected_by_autosome = {
+            str(chrom): int(expected_haplotype_windows_by_autosome.get(chrom, 0))
+            for chrom in range(1, 23)
+        }
+        valid_by_autosome = {str(chrom): 0 for chrom in range(1, 23)}
+        n_populations = len(POPULATIONS)
+        for chrom, result in chrom_results.items():
+            valid = 0
+            for assignments in (result.hap0_ancestry, result.hap1_ancestry):
+                values = np.asarray(assignments).reshape(-1)[: result.n_windows]
+                valid += int(np.count_nonzero((values >= 0) & (values < n_populations)))
+            if 1 <= chrom <= 22:
+                valid_by_autosome[str(chrom)] = valid
+
+        expected_windows = sum(expected_by_autosome.values())
+        valid_windows = sum(valid_by_autosome.values())
+        phased_ids = sorted(chrom for chrom in phased_autosomes if 1 <= chrom <= 22)
+        analyzed_ids = sorted(chrom for chrom in chrom_results if 1 <= chrom <= 22)
+
+        return {
+            "schema_version": LAI_COVERAGE_METRICS_SCHEMA_VERSION,
+            "emitted_markers": {
+                "total": int(emitted_total),
+                "by_autosome": {
+                    str(chrom): int(emitted_by_autosome.get(chrom, 0)) for chrom in range(1, 23)
+                },
+            },
+            "model_markers": {
+                "aggregate": {
+                    "matched": aggregate_matched,
+                    "total": aggregate_total,
+                    "allele_mismatch": aggregate_mismatch,
+                    "match_rate": (
+                        round(aggregate_matched / aggregate_total, 6) if aggregate_total else 0.0
+                    ),
+                },
+                "by_autosome": marker_by_autosome,
+            },
+            "phased_autosomes": {"count": len(phased_ids), "identities": phased_ids},
+            "analyzed_autosomes": {"count": len(analyzed_ids), "identities": analyzed_ids},
+            "haplotype_windows": {
+                "expected": expected_windows,
+                "valid_assigned": valid_windows,
+                "assignment_rate": (
+                    round(valid_windows / expected_windows, 6) if expected_windows else 0.0
+                ),
+                "expected_by_autosome": expected_by_autosome,
+                "valid_assigned_by_autosome": valid_by_autosome,
+            },
+            "per_source": {
+                source: {"hits": int(counts["hits"]), "drops": int(counts["drops"])}
+                for source, counts in per_source.items()
+            },
+        }
+
     def _write_per_chrom_vcfs(
-        self, genotypes: list[dict], out: Path
+        self,
+        genotypes: list[dict],
+        out: Path,
+        *,
+        emitted_markers_by_autosome: dict[int, int] | None = None,
     ) -> tuple[dict[str, Path], int, dict[str, dict[str, int]]]:
         """Translate rsIDs to GRCh38 and write per-chromosome VCFs using pysam.
 
@@ -431,6 +708,9 @@ class LAIRunner:
             if emitted_sites:
                 vcf_paths[chrom] = vcf_path
                 total_sites += emitted_sites
+            if emitted_markers_by_autosome is not None:
+                chrom_num = int(chrom.removeprefix("chr"))
+                emitted_markers_by_autosome[chrom_num] = emitted_sites
 
         return vcf_paths, total_sites, per_source
 
@@ -581,11 +861,18 @@ class LAIRunner:
         snp_pos: np.ndarray,
         snp_ref: np.ndarray,
         snp_alt: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        *,
+        allow_below_minimum_for_diagnostics: bool = False,
+    ) -> PhasedVCFParseResult:
         """Parse a phased VCF and extract haplotype vectors aligned to model SNPs.
 
-        Returns two haplotype arrays (hap0, hap1) of shape (n_snps,).
-        Missing sites are encoded as 0 (reference).
+        Returns two haplotype arrays (hap0, hap1) of shape (n_snps,) plus
+        model-marker alignment telemetry. Missing sites are encoded as 0
+        (reference).
+
+        ``allow_below_minimum_for_diagnostics`` exists only so calibration can
+        measure the failure region. Its default preserves the production hard
+        failure below 5% model-marker matching.
         """
         import pysam
 
@@ -632,14 +919,24 @@ class LAIRunner:
             match_rate=round(match_rate, 4),
             allele_mismatch=allele_mismatch,
         )
-        if match_rate < 0.05:
+        model_marker_counts: ModelMarkerCounts = {
+            "matched": matched,
+            "total": n_snps,
+            "allele_mismatch": allele_mismatch,
+            "match_rate": round(match_rate, 6),
+        }
+        if match_rate < 0.05 and not allow_below_minimum_for_diagnostics:
             raise RuntimeError(
                 f"Phased VCF {vcf_path.name} matched only {matched}/{n_snps} "
                 f"({match_rate:.1%}) model markers — inference would be meaningless. "
                 "Check that Beagle imputation against the reference panel is enabled."
             )
 
-        return hap0, hap1
+        return PhasedVCFParseResult(
+            hap0=hap0,
+            hap1=hap1,
+            model_marker_counts=model_marker_counts,
+        )
 
     def _compute_global_ancestry(
         self, chrom_results: dict[int, ChromosomeResult]
