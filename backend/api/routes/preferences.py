@@ -96,7 +96,10 @@ async def set_theme(body: ThemeRequest) -> ThemeResponse:
     # Clear cached settings so next read picks up the new value
     get_settings.cache_clear()
 
-    logger.info("theme_updated", extra={"theme": body.theme})
+    # Keep log records single-line even if an internal caller bypasses the
+    # request model's Literal validation (CodeQL py/log-injection).
+    safe_theme = body.theme.replace("\r", "").replace("\n", "")
+    logger.info("theme_updated", extra={"theme": safe_theme})
     return ThemeResponse(theme=body.theme)
 
 
@@ -133,8 +136,11 @@ async def set_update_check_interval(
     # Clear cached settings so next read picks up the new value
     get_settings.cache_clear()
 
+    # Keep log records single-line even if an internal caller bypasses the
+    # request model's Literal validation (CodeQL py/log-injection).
+    safe_interval = body.update_check_interval.replace("\r", "").replace("\n", "")
     logger.info(
         "update_check_interval_updated",
-        extra={"update_check_interval": body.update_check_interval},
+        extra={"update_check_interval": safe_interval},
     )
     return UpdateCheckIntervalResponse(update_check_interval=body.update_check_interval)

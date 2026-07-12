@@ -103,10 +103,11 @@ class TestSetTheme:
         resp = prefs_client.get("/api/preferences/theme")
         assert resp.json()["theme"] == "dark"
 
-    def test_invalid_theme_rejected(self, prefs_client: TestClient) -> None:
+    @pytest.mark.parametrize("theme", ["rainbow", "dark\nforged-entry"])
+    def test_invalid_theme_rejected(self, prefs_client: TestClient, theme: str) -> None:
         resp = prefs_client.put(
             "/api/preferences/theme",
-            json={"theme": "rainbow"},
+            json={"theme": theme},
         )
         assert resp.status_code == 422
 
@@ -166,10 +167,11 @@ class TestSetUpdateCheckInterval:
         resp = prefs_client.get("/api/preferences/update-check-interval")
         assert resp.json()["update_check_interval"] == "off"
 
-    def test_invalid_interval_rejected(self, prefs_client: TestClient) -> None:
+    @pytest.mark.parametrize("interval", ["hourly", "daily\r\nforged-entry"])
+    def test_invalid_interval_rejected(self, prefs_client: TestClient, interval: str) -> None:
         resp = prefs_client.put(
             "/api/preferences/update-check-interval",
-            json={"update_check_interval": "hourly"},
+            json={"update_check_interval": interval},
         )
         assert resp.status_code == 422
 

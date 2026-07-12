@@ -338,10 +338,15 @@ def delete_overlay_config(overlay_id: int) -> dict[str, str]:
         try:
             delete_overlay_results(overlay_id, registry.get_sample_engine(sample_db_path))
         except (OSError, sa.exc.SQLAlchemyError):
+            # Database identifiers are numeric in normal operation, but strip
+            # CR/LF at the log sink as defense in depth against forged records
+            # if corrupted or unexpected data reaches this recovery path.
+            safe_overlay_id = str(overlay_id).replace("\r", "").replace("\n", "")
+            safe_sample_id = str(sample_row.id).replace("\r", "").replace("\n", "")
             logger.warning(
                 "Failed to clear overlay %s results from sample %s",
-                overlay_id,
-                sample_row.id,
+                safe_overlay_id,
+                safe_sample_id,
             )
 
     # Clean up stored file
