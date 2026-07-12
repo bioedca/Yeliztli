@@ -2068,7 +2068,11 @@ def _validate_mt_source(source: dict[str, Any]) -> list[str]:
             "mtDNA audited node set does not match the required targeted audit scope: "
             + ", ".join(sorted(_REQUIRED_AUDITED_MT_NODES))
         )
-    omitted_nodes = source.get("omitted_nodes", {})
+    if "omitted_nodes" not in source:
+        issues.append("mtDNA source registry is missing the omitted-node mapping")
+        omitted_nodes: Any = {}
+    else:
+        omitted_nodes = source["omitted_nodes"]
     if not isinstance(omitted_nodes, dict):
         issues.append("mtDNA source registry has no valid omitted-node mapping")
     elif set(omitted_nodes) & set(audited_nodes):
@@ -2325,11 +2329,17 @@ def _validate_mt_reportability(
 ) -> list[str]:
     """Require every reportable mtDNA node to add branch-specific evidence."""
     issues: list[str] = []
-    current_rsids = frozenset(snp["rsid"] for snp in node.get("defining_snps", []))
-    current_positions = frozenset(snp["pos"] for snp in node.get("defining_snps", []))
-    if node["haplogroup"] not in {"mt-MRCA", "R0"} and not any(
-        snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions
+    snps = [
+        snp
         for snp in node.get("defining_snps", [])
+        if isinstance(snp, dict)
+        and isinstance(snp.get("rsid"), str)
+        and isinstance(snp.get("pos"), int)
+    ]
+    current_rsids = frozenset(snp["rsid"] for snp in snps)
+    current_positions = frozenset(snp["pos"] for snp in snps)
+    if node["haplogroup"] not in {"mt-MRCA", "R0"} and not any(
+        snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions for snp in snps
     ):
         issues.append(f"mtDNA node {node['haplogroup']} has no ancestor-distinguishing marker")
 

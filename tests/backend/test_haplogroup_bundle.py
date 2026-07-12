@@ -790,12 +790,17 @@ class TestBuildScript:
         issues = _validate_mt_reportability(mt_tree)
         assert issues.count("mtDNA node T2a has no ancestor-distinguishing marker") == 1
 
+        t2a["defining_snps"] = [{"allele": "A"}]
+        issues = _validate_mt_reportability(mt_tree)
+        assert issues.count("mtDNA node T2a has no ancestor-distinguishing marker") == 1
+
     def test_mt_source_guard_rejects_unreportable_or_reversed_markers(self) -> None:
         """Provenance records must retain direction and observed array coverage."""
         from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
 
         source = copy.deepcopy(_MT_SOURCE)
         source["audit_scope"] = ""
+        source.pop("omitted_nodes")
         marker = source["audited_nodes"]["U5b2"]["emitted_snps"][0]
         marker["allele"] = marker["ancestral_allele"]
         marker["array_coverage"]["modern_exports_with_position"] = 0
@@ -803,6 +808,7 @@ class TestBuildScript:
 
         issues = _validate_mt_source(source)
         assert any("no valid audit scope" in issue for issue in issues)
+        assert any("missing the omitted-node mapping" in issue for issue in issues)
         assert any("source mutation direction" in issue for issue in issues)
         assert any("no array coverage" in issue for issue in issues)
         assert any(
