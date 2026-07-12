@@ -242,6 +242,8 @@ def _validate_y_source(source: dict[str, Any]) -> list[str]:
             pos = marker.get("pos")
             ancestral = marker.get("ancestral_allele")
             derived = marker.get("allele")
+            source_aliases = marker.get("source_clade_aliases")
+            expected_source_clade = {"M_Y": "M", "N_Y": "N"}.get(name, name)
             if not isinstance(rsid, str) or not rsid:
                 issues.append(f"Y node {name} has a marker without an identifier")
                 continue
@@ -270,8 +272,23 @@ def _validate_y_source(source: dict[str, Any]) -> list[str]:
                 issues.append(f"Y marker {rsid} at {name} has an unsafe source-clade alias class")
             if marker.get("match_kind") not in allowed_match_kinds:
                 issues.append(f"Y marker {rsid} at {name} has an unsupported clade match kind")
-            if not marker.get("source_clade_aliases"):
+            if not isinstance(source_aliases, list) or not source_aliases:
                 issues.append(f"Y marker {rsid} at {name} has no source-clade provenance")
+            elif (
+                marker.get("match_kind") == "exact" and expected_source_clade not in source_aliases
+            ):
+                issues.append(
+                    f"Y marker {rsid} at {name} exact-match aliases do not include "
+                    f"{expected_source_clade}"
+                )
+            if (
+                marker.get("match_kind") == "exact"
+                and marker.get("source_isogg_clade") != expected_source_clade
+            ):
+                issues.append(
+                    f"Y marker {rsid} at {name} has exact source clade "
+                    f"{marker.get('source_isogg_clade')!r}; expected {expected_source_clade!r}"
+                )
             if marker.get("current_validation_pass") is not True:
                 issues.append(f"Y marker {rsid} at {name} failed current-record validation")
             identifier_source = marker.get("identifier_source")

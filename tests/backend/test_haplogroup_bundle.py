@@ -679,6 +679,20 @@ class TestBuildScript:
             marker["rsid"] in issue and "alleles absent from NCBI" in issue for issue in issues
         )
 
+    def test_y_source_guard_rejects_wrong_exact_clade_alias(self) -> None:
+        """Exact markers must retain provenance for their emitted clade."""
+        from scripts.build_haplogroup_bundle import _Y_SOURCE, _validate_y_source
+
+        source = copy.deepcopy(_Y_SOURCE)
+        marker = source["nodes"]["O2b"]["markers"][0]
+        marker["source_clade_aliases"] = ["O1b2"]
+
+        issues = _validate_y_source(source)
+        assert any(
+            marker["rsid"] in issue and "exact-match aliases do not include O2b" in issue
+            for issue in issues
+        )
+
     def test_y_source_guard_rejects_ineligible_missing_marker_passthrough(self) -> None:
         """Only audited partial-array internal gates may bypass missing evidence."""
         from scripts.build_haplogroup_bundle import _Y_SOURCE, _validate_y_source
