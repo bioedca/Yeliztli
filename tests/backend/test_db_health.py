@@ -707,14 +707,14 @@ class TestValidateLAIBundle:
         (bundle / "gnomix_models" / "chr5" / "smoother.json").unlink()
         result = validate_database("lai_bundle", settings)
         assert result.ok is False
-        assert "incomplete" in result.detail.lower()
+        assert "model" in result.detail.lower()
 
     def test_missing_liftover_not_ok(self, settings: Settings) -> None:
         bundle = _make_valid_lai_bundle(settings)
         (bundle / "liftover" / "array_site_mapping.tsv").unlink()
         result = validate_database("lai_bundle", settings)
         assert result.ok is False
-        assert "incomplete" in result.detail.lower()
+        assert "liftover" in result.detail.lower()
 
     def test_absent_bundle(self, settings: Settings) -> None:
         result = validate_database("lai_bundle", settings)

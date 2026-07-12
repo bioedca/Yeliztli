@@ -12,7 +12,11 @@ from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
+import structlog
+
 LIFTOVER_FILENAMES = ("array_site_mapping.tsv", "rsid_to_grch38.tsv")
+
+logger = structlog.get_logger(__name__)
 
 _AUTOSOMAL_CHROM_ALIASES = {
     alias: f"chr{chrom}" for chrom in range(1, 23) for alias in (str(chrom), f"chr{chrom}")
@@ -93,6 +97,8 @@ def load_lai_rsid_lookup(path: str | Path) -> dict[str, tuple[str, int]]:
 
 def _has_effective_autosomal_mapping(path: Path) -> bool:
     """Check last-write-wins rows from the end without retaining the whole table."""
+    # This intentionally mirrors load_lai_rsid_lookup's last-write-wins check;
+    # scanning backward validates large tables without materializing the lookup.
     seen_rsids: set[bytes] = set()
     remainder = b""
     with path.open("rb") as handle:
@@ -128,13 +134,38 @@ def _has_effective_autosomal_mapping(path: Path) -> bool:
 def _validate_lai_liftover_file(path: Path, signature: tuple[int, int, int, int]) -> bool:
     """Validate one table; file metadata keys the bounded process cache."""
     if signature[0] <= 0:
+        logger.warning(
+            "lai_liftover_validation_failed",
+            path=str(path),
+            reason="invalid_file_metadata",
+        )
         return False
     try:
         has_mapping = False
         for _rsid, _chrom, _pos, _is_autosomal in _iter_lai_liftover_rows(path):
             has_mapping = True
-        return has_mapping and _has_effective_autosomal_mapping(path)
-    except (OSError, UnicodeError, ValueError):
+        if not has_mapping:
+            logger.warning(
+                "lai_liftover_validation_failed",
+                path=str(path),
+                reason="no_mapping_rows",
+            )
+            return False
+        if not _has_effective_autosomal_mapping(path):
+            logger.warning(
+                "lai_liftover_validation_failed",
+                path=str(path),
+                reason="no_effective_autosomal_mapping",
+            )
+            return False
+        return True
+    except (OSError, UnicodeError, ValueError) as exc:
+        logger.warning(
+            "lai_liftover_validation_failed",
+            path=str(path),
+            reason="malformed_or_unreadable",
+            error=str(exc),
+        )
         return False
 
 
@@ -142,10 +173,21 @@ def validate_lai_liftover_bundle(bundle_path: str | Path) -> bool:
     """Return whether a bundle contains a supported, parseable liftover table."""
     path = resolve_lai_liftover_path(bundle_path)
     if path is None:
+        logger.warning(
+            "lai_liftover_validation_failed",
+            path=str(Path(bundle_path) / "liftover"),
+            reason="missing_table",
+        )
         return False
     try:
         stat = path.stat()
-    except OSError:
+    except OSError as exc:
+        logger.warning(
+            "lai_liftover_validation_failed",
+            path=str(path),
+            reason="stat_failed",
+            error=str(exc),
+        )
         return False
     signature = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
     return _validate_lai_liftover_file(path, signature)
