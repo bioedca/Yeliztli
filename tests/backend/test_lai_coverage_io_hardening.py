@@ -48,7 +48,9 @@ def test_stable_read_rejects_pathname_replacement_during_parse(tmp_path):
         os.replace(replacement, source)
         return parsed
 
-    with pytest.raises(ValueError, match="pathname changed"):
+    # Depending on filesystem ctime behavior, the descriptor signature or the
+    # pathname identity can be the first fail-closed check to observe the swap.
+    with pytest.raises(ValueError, match="(?:file|pathname) changed"):
         cal.stable_read(source, replace_path)
 
 
