@@ -50,16 +50,6 @@ _WEIGHTS_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "panels" / "cancer_prs_weights.json"
 )
 
-# The four cancer traits covered by P3-15
-CANCER_PRS_TRAITS = frozenset(
-    {
-        "breast_cancer",
-        "prostate_cancer",
-        "colorectal_cancer",
-        "melanoma",
-    }
-)
-
 BREAST_CANCER_TRAIT = "breast_cancer"
 PROSTATE_CANCER_TRAIT = "prostate_cancer"
 

@@ -24,7 +24,6 @@ import sqlalchemy as sa
 from backend.analysis import cancer_prs as cancer_prs_module
 from backend.analysis.allele_match import match_effect_allele_dosage
 from backend.analysis.cancer_prs import (
-    CANCER_PRS_TRAITS,
     CancerPRSResult,
     load_cancer_prs_weights,
     resolve_cancer_prs_sex_context,
@@ -44,6 +43,14 @@ WEIGHTS_PATH = (
     / "data"
     / "panels"
     / "cancer_prs_weights.json"
+)
+CANCER_PRS_TRAITS = frozenset(
+    {
+        "breast_cancer",
+        "prostate_cancer",
+        "colorectal_cancer",
+        "melanoma",
+    }
 )
 XX_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"prostate_cancer"}
 XY_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"breast_cancer"}
