@@ -442,6 +442,38 @@ def test_text_parser_closes_raw_gzip_stream(tmp_path, monkeypatch):
     assert opened[0].closed
 
 
+def test_vcf_reader_closes_stream_when_header_validation_fails(tmp_path, monkeypatch):
+    source = tmp_path / "invalid.vcf"
+    source.write_text("not-a-vcf-header\n", encoding="utf-8")
+    snapshot = verifier._snapshot_file(source, label="source VCF chr1")
+    opened = []
+    original_open = verifier._open_binary_nofollow
+
+    def capture_raw_stream(*args, **kwargs):
+        raw = original_open(*args, **kwargs)
+        opened.append(raw)
+        return raw
+
+    monkeypatch.setattr(verifier, "_open_binary_nofollow", capture_raw_stream)
+    reader = verifier.VcfReader(
+        path=source,
+        chrom="1",
+        donor_iids=frozenset({"DONOR_A"}),
+        expected_snapshot=snapshot,
+        expected_sample_ids_sha256=None,
+        expected_sample_count=None,
+    )
+
+    with pytest.raises(ValueError, match="invalid VCF header"):
+        with reader:
+            pass
+
+    assert len(opened) == 1
+    assert opened[0].closed
+    assert reader._handle is None
+    assert reader._context is None
+
+
 def test_manifest_reader_enforces_json_size_limit(tmp_path, capsys, monkeypatch):
     case = _write_verification_case(tmp_path)
     monkeypatch.setattr(verifier, "MAX_MANIFEST_BYTES", 1)

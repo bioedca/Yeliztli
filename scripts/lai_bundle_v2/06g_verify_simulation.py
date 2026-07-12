@@ -873,13 +873,26 @@ class VcfReader:
             label=f"source VCF chr{self.chrom}",
             expected_snapshot=self.expected_snapshot,
         )
-        self._handle = self._context.__enter__()
-        self._read_header()
+        try:
+            self._handle = self._context.__enter__()
+            self._read_header()
+        except BaseException:
+            try:
+                if self._handle is not None:
+                    self._context.__exit__(*sys.exc_info())
+            finally:
+                self._handle = None
+                self._context = None
+            raise
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        if self._context is not None:
-            self._context.__exit__(exc_type, exc, traceback)
+        try:
+            if self._context is not None:
+                self._context.__exit__(exc_type, exc, traceback)
+        finally:
+            self._handle = None
+            self._context = None
 
     def _read_header(self) -> None:
         assert self._handle is not None
