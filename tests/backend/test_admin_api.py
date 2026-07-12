@@ -258,11 +258,15 @@ class TestDbStats:
 
 def _make_lai_bundle(data_dir: Path) -> None:
     """Create a structurally-valid extracted LAI bundle directory."""
+    bundle = data_dir / "lai_bundle"
     for chrom in range(1, 23):
-        model_dir = data_dir / "lai_bundle" / "gnomix_models" / f"chr{chrom}"
+        model_dir = bundle / "gnomix_models" / f"chr{chrom}"
         model_dir.mkdir(parents=True, exist_ok=True)
         for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
             (model_dir / fname).write_bytes(b"")
+    mapping = bundle / "liftover" / "array_site_mapping.tsv"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("rs1\tchr1\t100\n", encoding="utf-8")
 
 
 class TestDbStatsPresence:

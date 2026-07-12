@@ -229,8 +229,11 @@ def _build_minimal_vep_bundle(build_date: str = "2026-05-01") -> bytes:
         path.unlink(missing_ok=True)
 
 
+_MINIMAL_LAI_LIFTOVER = b"rs1\tchr1\t100\n"
+
+
 def _build_minimal_lai_tarball() -> bytes:
-    """In-memory tarball with the 22-chromosome gnomix_models layout."""
+    """In-memory tarball with the runtime-valid minimal LAI bundle layout."""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         for chrom in range(1, 23):
@@ -239,6 +242,9 @@ def _build_minimal_lai_tarball() -> bytes:
                 data = b"test"
                 info.size = len(data)
                 tf.addfile(info, fileobj=io.BytesIO(data))
+        info = tarfile.TarInfo(name="liftover/array_site_mapping.tsv")
+        info.size = len(_MINIMAL_LAI_LIFTOVER)
+        tf.addfile(info, fileobj=io.BytesIO(_MINIMAL_LAI_LIFTOVER))
     return buf.getvalue()
 
 
@@ -625,8 +631,8 @@ class TestRunLaiBundleUpdate:
         assert version_row is not None
         assert version_row.version == "v1.1"
         assert version_row.checksum_sha256 == sha
-        # Extracted size = 22 chroms × 3 files × 4 bytes
-        assert version_row.file_size_bytes == 22 * 3 * 4
+        # Extracted size = model stubs plus the minimal liftover mapping.
+        assert version_row.file_size_bytes == 22 * 3 * 4 + len(_MINIMAL_LAI_LIFTOVER)
 
         history = _query_all(ref_path, update_history, "lai_bundle")
         assert len(history) == 1

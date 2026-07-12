@@ -29,6 +29,7 @@ from backend.db.tables import database_versions, reference_metadata
 # documents the value the v1.1 manifest fixtures below carry — it is NOT the
 # registry SHA.
 LAI_V1_1_SHA256 = "959ed0fd9ebe2ad8fa542776a59ce73072d928c7ce59839ea81d0f1e78a5c18e"
+_MINIMAL_LIFTOVER = b"rs1\tchr1\t100\n"
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
@@ -36,7 +37,7 @@ LAI_V1_1_SHA256 = "959ed0fd9ebe2ad8fa542776a59ce73072d928c7ce59839ea81d0f1e78a5c
 
 
 def _build_minimal_lai_tarball(tarball: Path) -> None:
-    """Create a tarball with the chromosome-model layout the validator expects."""
+    """Create a tarball with the model and liftover layout the validator expects."""
     with tarfile.open(tarball, "w:gz") as tf:
         for chrom in range(1, 23):
             for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
@@ -45,6 +46,9 @@ def _build_minimal_lai_tarball(tarball: Path) -> None:
                 payload = b"test"
                 info.size = len(payload)
                 tf.addfile(info, fileobj=io.BytesIO(payload))
+        info = tarfile.TarInfo(name="liftover/array_site_mapping.tsv")
+        info.size = len(_MINIMAL_LIFTOVER)
+        tf.addfile(info, fileobj=io.BytesIO(_MINIMAL_LIFTOVER))
 
 
 def _make_data_dir_with_reference(tmp_path: Path) -> Path:
@@ -128,8 +132,8 @@ def test_extract_records_version_from_manifest(
     assert row is not None
     assert row.version == "v1.1"
     assert row.checksum_sha256 == LAI_V1_1_SHA256
-    # 22 chroms × 3 files × 4 bytes each
-    assert row.file_size_bytes == 22 * 3 * 4
+    # 22 chroms × 3 files × 4 bytes each, plus the minimal liftover mapping.
+    assert row.file_size_bytes == 22 * 3 * 4 + len(_MINIMAL_LIFTOVER)
     assert row.downloaded_at is not None
 
 
@@ -171,7 +175,7 @@ def test_extract_records_unknown_when_manifest_unreachable(
     assert row is not None
     assert row.version == "unknown-pre-manifest"
     assert row.checksum_sha256 is None
-    assert row.file_size_bytes == 22 * 3 * 4
+    assert row.file_size_bytes == 22 * 3 * 4 + len(_MINIMAL_LIFTOVER)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -227,7 +231,7 @@ def test_extract_upserts_existing_row(
     row = rows[0]
     assert row.version == "v1.1"
     assert row.checksum_sha256 == LAI_V1_1_SHA256
-    assert row.file_size_bytes == 22 * 3 * 4
+    assert row.file_size_bytes == 22 * 3 * 4 + len(_MINIMAL_LIFTOVER)
 
 
 # ──────────────────────────────────────────────────────────────────────
