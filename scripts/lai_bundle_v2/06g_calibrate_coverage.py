@@ -2462,12 +2462,6 @@ def _stat_signature(stat_result: os.stat_result) -> tuple[int, int, int, int, in
     )
 
 
-def _snapshot_signature(snapshot: Mapping[str, object]) -> tuple[int, int, int, int, int]:
-    return tuple(
-        int(snapshot[field]) for field in ("device", "inode", "size_bytes", "mtime_ns", "ctime_ns")
-    )
-
-
 def stable_read(path: Path, reader: Callable[[Path], Any]) -> tuple[Any, dict[str, object]]:
     """Parse and hash one descriptor-pinned regular file inode."""
     try:
