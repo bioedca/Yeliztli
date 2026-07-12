@@ -43,11 +43,42 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.1"
+BUNDLE_VERSION = "1.1.2"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
-_REQUIRED_AUDITED_MT_NODES = frozenset({"U3b", "U5b2", "W1"})
+_REQUIRED_AUDITED_MT_NODES = frozenset(
+    {
+        "G",
+        "G1",
+        "G2",
+        "H13",
+        "H13a",
+        "H6",
+        "H6a",
+        "J1d",
+        "K",
+        "K1",
+        "K1a",
+        "K2",
+        "K2a",
+        "K2b",
+        "T2a",
+        "U2",
+        "U2e",
+        "U3b",
+        "U5b2",
+        "W1",
+        "X2",
+        "X2a",
+        "X2b",
+        "Y1",
+        "Y2",
+        "Y_mt",
+        "Z",
+        "Z1",
+    }
+)
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
 #
@@ -790,7 +821,9 @@ def build_mt_tree() -> dict[str, Any]:
     g1 = _node(
         "G1",
         [
-            _mt_snp("i5004833", 4833, "G"),
+            _mt_snp("i5008200", 8200, "C"),
+            _mt_snp("i5015323", 15323, "A"),
+            _mt_snp("i5015497", 15497, "A"),
         ],
     )
     g2a = _node(
@@ -802,7 +835,8 @@ def build_mt_tree() -> dict[str, Any]:
     g2 = _node(
         "G2",
         [
-            _mt_snp("i5007598", 7598, "A"),
+            _mt_snp("i5005601", 5601, "T"),
+            _mt_snp("i5013563", 13563, "G"),
         ],
         [g2a],
     )
@@ -810,7 +844,7 @@ def build_mt_tree() -> dict[str, Any]:
         "G",
         [
             _mt_snp("i5004833", 4833, "G"),
-            _mt_snp("i5007598", 7598, "A"),
+            _mt_snp("i5005108", 5108, "C"),
         ],
         [g1, g2],
     )
@@ -818,14 +852,15 @@ def build_mt_tree() -> dict[str, Any]:
     z1 = _node(
         "Z1",
         [
-            _mt_snp("i5015487", 15487, "T"),
+            _mt_snp("i5015261", 15261, "A"),
         ],
     )
     z = _node(
         "Z",
         [
             _mt_snp("i5006752", 6752, "G"),
-            _mt_snp("i5015487", 15487, "T"),
+            _mt_snp("i5009090", 9090, "C"),
+            _mt_snp("i5015784", 15784, "C"),
         ],
         [z1],
     )
@@ -1046,20 +1081,20 @@ def build_mt_tree() -> dict[str, Any]:
     x2a = _node(
         "X2a",
         [
-            _mt_snp("i5012397", 12397, "G"),
+            _mt_snp("i5008913", 8913, "G"),
+            _mt_snp("i5014502", 14502, "C"),
         ],
     )
     x2b = _node(
         "X2b",
         [
-            _mt_snp("i5001719", 1719, "A"),
+            _mt_snp("i5008393", 8393, "T"),
         ],
     )
     x2 = _node(
         "X2",
         [
             _mt_snp("i5001719", 1719, "A"),
-            _mt_snp("i5008913", 8913, "A"),
         ],
         [x2a, x2b],
     )
@@ -1076,20 +1111,26 @@ def build_mt_tree() -> dict[str, Any]:
     y1 = _node(
         "Y1",
         [
-            _mt_snp("i5007933", 7933, "G"),
+            _mt_snp("i5003834", 3834, "A"),
         ],
     )
     y2 = _node(
         "Y2",
         [
-            _mt_snp("i5003834", 3834, "A"),
+            _mt_snp("i5000482", 482, "C"),
+            _mt_snp("i5005147", 5147, "A"),
+            _mt_snp("i5006941", 6941, "C"),
+            _mt_snp("i5007859", 7859, "A"),
+            _mt_snp("i5014914", 14914, "G"),
+            _mt_snp("i5015244", 15244, "G"),
         ],
     )
     y_mt = _node(
         "Y_mt",
         [
-            _mt_snp("i5007933", 7933, "G"),
+            _mt_snp("i5008392", 8392, "A"),
             _mt_snp("i5010398", 10398, "G"),
+            _mt_snp("i5014178", 14178, "C"),
         ],
         [y1, y2],
     )
@@ -1319,8 +1360,9 @@ def build_mt_tree() -> dict[str, Any]:
     h6 = _node(
         "H6",
         [
-            _mt_snp("i5003915", 3915, "A"),
-            _mt_snp("i5007337", 7337, "A"),
+            _mt_snp("i5000239", 239, "C"),
+            _mt_snp("i5016362", 16362, "C"),
+            _mt_snp("i5016482", 16482, "G"),
         ],
         [h6a],
     )
@@ -1352,7 +1394,6 @@ def build_mt_tree() -> dict[str, Any]:
     h13 = _node(
         "H13",
         [
-            _mt_snp("i5002259", 2259, "T"),
             _mt_snp("i5014872", 14872, "T"),
         ],
         [h13a],
@@ -1440,7 +1481,7 @@ def build_mt_tree() -> dict[str, Any]:
     j1d = _node(
         "J1d",
         [
-            _mt_snp("i5011251", 11251, "G"),
+            _mt_snp("i5007963", 7963, "G"),
         ],
     )
     j1 = _node(
@@ -1503,7 +1544,7 @@ def build_mt_tree() -> dict[str, Any]:
     t2a = _node(
         "T2a",
         [
-            _mt_snp("i5011812", 11812, "G"),
+            _mt_snp("i5013965", 13965, "C"),
         ],
     )
     t2b = _node(
@@ -1577,13 +1618,13 @@ def build_mt_tree() -> dict[str, Any]:
     u2e = _node(
         "U2e",
         [
-            _mt_snp("i5003720", 3720, "G"),
+            _mt_snp("i5000508", 508, "G"),
+            _mt_snp("i5013020", 13020, "C"),
         ],
     )
     u2 = _node(
         "U2",
         [
-            _mt_snp("i5003720", 3720, "G"),
             _mt_snp("i5016051", 16051, "G"),
         ],
         [u2e],
@@ -1751,8 +1792,7 @@ def build_mt_tree() -> dict[str, Any]:
     k1a = _node(
         "K1a",
         [
-            _mt_snp("i5001189", 1189, "C"),
-            _mt_snp("i5008311", 8311, "C"),
+            _mt_snp("i5000497", 497, "T"),
         ],
     )
     k1b = _node(
@@ -1761,36 +1801,34 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5014167", 14167, "T"),
         ],
     )
-    k1c = _node(
-        "K1c",
-        [
-            _mt_snp("i5009716", 9716, "C"),
-        ],
-    )
+    # K1c is not emitted: its direct Build-17 motif is limited to recurrent
+    # control-region substitutions (m.146/m.152) plus the unsupported m.498d.
+    # The former m.9716 record belongs to K2 and made K1c a false sibling match.
     k1 = _node(
         "K1",
         [
+            _mt_snp("i5001189", 1189, "C"),
             _mt_snp("i5010398", 10398, "G"),
-            _mt_snp("i5010550", 10550, "G"),
         ],
-        [k1a, k1b, k1c],
+        [k1a, k1b],
     )
     k2a = _node(
         "K2a",
         [
-            _mt_snp("i5009716", 9716, "C"),
+            _mt_snp("i5004561", 4561, "C"),
         ],
     )
     k2b = _node(
         "K2b",
         [
-            _mt_snp("i5006152", 6152, "C"),
+            _mt_snp("i5005231", 5231, "A"),
+            _mt_snp("i5014037", 14037, "G"),
         ],
     )
     k2 = _node(
         "K2",
         [
-            _mt_snp("i5001189", 1189, "C"),
+            _mt_snp("i5009716", 9716, "C"),
         ],
         [k2a, k2b],
     )
@@ -1798,11 +1836,9 @@ def build_mt_tree() -> dict[str, Any]:
     k = _node(
         "K",
         [
-            _mt_snp("i5001189", 1189, "C"),
             _mt_snp("i5010550", 10550, "G"),
             _mt_snp("i5011299", 11299, "C"),
             _mt_snp("i5014798", 14798, "C"),
-            _mt_snp("i5016224", 16224, "C"),
         ],
         [k1, k2],
     )
@@ -2029,9 +2065,14 @@ def _validate_mt_source(source: dict[str, Any]) -> list[str]:
         return [*issues, "mtDNA source registry has no audited node mapping"]
     if set(audited_nodes) != _REQUIRED_AUDITED_MT_NODES:
         issues.append(
-            "mtDNA audited node set does not match the required issue-1742 scope: "
+            "mtDNA audited node set does not match the required targeted audit scope: "
             + ", ".join(sorted(_REQUIRED_AUDITED_MT_NODES))
         )
+    omitted_nodes = source.get("omitted_nodes", {})
+    if not isinstance(omitted_nodes, dict):
+        issues.append("mtDNA source registry has no valid omitted-node mapping")
+    elif set(omitted_nodes) & set(audited_nodes):
+        issues.append("mtDNA source registry both emits and omits the same node")
 
     for node_name, node in audited_nodes.items():
         source_motif = node.get("source_motif")
@@ -2277,6 +2318,28 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
     return issues
 
 
+def _validate_mt_reportability(
+    node: dict[str, Any],
+    ancestor_rsids: frozenset[str] = frozenset(),
+    ancestor_positions: frozenset[int] = frozenset(),
+) -> list[str]:
+    """Require every reportable mtDNA node to add branch-specific evidence."""
+    issues: list[str] = []
+    current_rsids = frozenset(snp["rsid"] for snp in node.get("defining_snps", []))
+    current_positions = frozenset(snp["pos"] for snp in node.get("defining_snps", []))
+    if node["haplogroup"] not in {"mt-MRCA", "R0"} and not any(
+        snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions
+        for snp in node.get("defining_snps", [])
+    ):
+        issues.append(f"mtDNA node {node['haplogroup']} has no ancestor-distinguishing marker")
+
+    next_rsids = ancestor_rsids | current_rsids
+    next_positions = ancestor_positions | current_positions
+    for child in node.get("children", []):
+        issues.extend(_validate_mt_reportability(child, next_rsids, next_positions))
+    return issues
+
+
 def _validate_y_reportability(
     node: dict[str, Any],
     trusted_single_marker_rsids: frozenset[str],
@@ -2329,6 +2392,7 @@ def build_bundle() -> dict[str, Any]:
     mt_issues = _validate_tree(mt_tree)
     mt_source_issues = _validate_mt_source(_MT_SOURCE)
     mt_reference_issues = _validate_audited_mt_markers(mt_tree)
+    mt_reportability_issues = _validate_mt_reportability(mt_tree)
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
     y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
@@ -2338,6 +2402,7 @@ def build_bundle() -> dict[str, Any]:
         mt_issues
         or mt_source_issues
         or mt_reference_issues
+        or mt_reportability_issues
         or y_issues
         or y_reference_issues
         or y_duplicate_issues
@@ -2347,6 +2412,7 @@ def build_bundle() -> dict[str, Any]:
             mt_issues
             + mt_source_issues
             + mt_reference_issues
+            + mt_reportability_issues
             + y_issues
             + y_reference_issues
             + y_duplicate_issues
@@ -2364,8 +2430,8 @@ def build_bundle() -> dict[str, Any]:
         "module": "haplogroup",
         "version": BUNDLE_VERSION,
         "description": (
-            "PhyloTree mtDNA + source-audited Y-chromosome haplogroup defining SNP "
-            "trees for haplogroup assignment via tree-walk algorithm. "
+            "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup "
+            "defining SNP trees for haplogroup assignment via tree-walk algorithm. "
             "SNPs filtered to 23andMe v5-era array coverage. Resolution varies "
             "with the markers typed by each array revision."
         ),
@@ -2381,6 +2447,7 @@ def build_bundle() -> dict[str, Any]:
                     "schema_version": _MT_SOURCE["schema_version"],
                     "scope": _MT_SOURCE["audit_scope"],
                     "audited_nodes": sorted(_MT_SOURCE["audited_nodes"]),
+                    "omitted_nodes": _MT_SOURCE.get("omitted_nodes", {}),
                 },
             },
             "Y": {
@@ -2454,7 +2521,7 @@ def write_bundle(bundle: dict[str, Any], output_path: Path) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Build PhyloTree + source-audited Y-tree haplogroup JSON bundle.",
+        description="Build source-audited PhyloTree mtDNA + YBrowse haplogroup JSON bundle.",
     )
     parser.add_argument(
         "--output",

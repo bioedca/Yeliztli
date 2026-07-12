@@ -143,11 +143,9 @@ _MT_U8_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
 ]
 
 _MT_K_GENOTYPES = _MT_U8_TRUNK_GENOTYPES + [
-    {"rsid": "i5001189", "chrom": "MT", "pos": 1189, "genotype": "CC"},
     {"rsid": "i5010550", "chrom": "MT", "pos": 10550, "genotype": "GG"},
     {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
     {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
-    {"rsid": "i5016224", "chrom": "MT", "pos": 16224, "genotype": "CC"},
 ]
 
 _RCRS_H2A2A1_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
@@ -203,6 +201,7 @@ _MT_J_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
 ]
 
 _MT_K1_REVERSAL_GENOTYPES = _MT_K_GENOTYPES + [
+    {"rsid": "i5001189", "chrom": "MT", "pos": 1189, "genotype": "CC"},
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
 ]
 
@@ -268,6 +267,33 @@ def _derived_y_path_genotypes(target: str) -> list[dict[str, object]]:
     ]
 
 
+def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
+    """Build derived calls for one emitted mtDNA path from the generated bundle."""
+    tree = json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["mt"]
+
+    def find_path(node: dict) -> list[dict] | None:
+        if node["haplogroup"] == target:
+            return [node]
+        for child in node.get("children", []):
+            path = find_path(child)
+            if path is not None:
+                return [node, *path]
+        return None
+
+    path = find_path(tree)
+    assert path is not None, f"mtDNA test target {target} is absent from the generated bundle"
+    return [
+        {
+            "rsid": snp["rsid"],
+            "chrom": "MT",
+            "pos": snp["pos"],
+            "genotype": snp["allele"] * 2,
+        }
+        for node in path
+        for snp in node["defining_snps"]
+    ]
+
+
 # Reportable R-M269 path after unsupported R1b1a1 is pruned and its child promoted.
 _R1B1A_GENOTYPES = _derived_y_path_genotypes("R1b1a1a")
 
@@ -310,7 +336,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.1"
+        assert bundle.version == "1.1.2"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1271,6 +1297,49 @@ class TestTreeWalkSharedAncestralMarkers:
         assert [s.haplogroup for s in path] == ["A"]
 
 
+class TestMtTreeSelfConsistency:
+    """Run every reportable mtDNA clade through production-equivalent evidence."""
+
+    def test_every_reportable_mt_node_resolves_to_itself(self, bundle: HaplogroupBundle) -> None:
+        all_snps: list[HaplogroupSNP] = []
+        failures: list[str] = []
+
+        def collect(node: HaplogroupNode) -> None:
+            all_snps.extend(node.defining_snps)
+            for child in node.children:
+                collect(child)
+
+        def walk(node: HaplogroupNode, ancestors: list[HaplogroupNode]) -> None:
+            current_path = [*ancestors, node]
+            if node.haplogroup not in {"mt-MRCA", "R0"}:
+                alleles_by_pos = {
+                    snp.pos: snp.allele
+                    for path_node in current_path
+                    for snp in path_node.defining_snps
+                }
+                # assign_haplogroups joins observed MT calls to every bundle marker
+                # at the same rCRS position, even when vendor identifiers differ.
+                genotypes = {
+                    snp.rsid: alleles_by_pos[snp.pos] * 2
+                    for snp in all_snps
+                    if snp.pos in alleles_by_pos
+                }
+                terminal, traversal = _tree_walk(bundle.mt_tree, genotypes, [])
+                expected_path = [path_node.haplogroup for path_node in current_path[1:]]
+                actual_path = [step.haplogroup for step in traversal]
+                if terminal.haplogroup != node.haplogroup or actual_path != expected_path:
+                    failures.append(
+                        f"{node.haplogroup}: terminal={terminal.haplogroup}, "
+                        f"path={actual_path}, expected={expected_path}"
+                    )
+            for child in node.children:
+                walk(child, current_path)
+
+        collect(bundle.mt_tree)
+        walk(bundle.mt_tree, [])
+        assert not failures
+
+
 class TestYTreeSelfConsistency:
     """Run every emitted Y clade through the exact production tree-walk policy."""
 
@@ -1494,6 +1563,66 @@ class TestAssignHaplogroups:
 
         mt = next(result for result in results if result.tree_type == "mt")
         assert mt.haplogroup == expected
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("trunk", "node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                _derived_mt_path_genotypes("T2"),
+                [{"rsid": "placeholder", "chrom": "MT", "pos": 13965, "genotype": "CC"}],
+                "T2a",
+                ["L3", "N", "R", "JT", "T", "T2", "T2a"],
+                id="T2a-T13965C",
+            ),
+            pytest.param(
+                _derived_mt_path_genotypes("U2"),
+                [
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 508, "genotype": "GG"},
+                    {
+                        "rsid": "placeholder",
+                        "chrom": "MT",
+                        "pos": 10876,
+                        "genotype": "GG",
+                    },
+                    {
+                        "rsid": "placeholder",
+                        "chrom": "MT",
+                        "pos": 13020,
+                        "genotype": "CC",
+                    },
+                ],
+                "U2e",
+                ["L3", "N", "R", "U", "U2", "U2e"],
+                id="U2e-A508G-A10876G-T13020C",
+            ),
+        ],
+    )
+    def test_issue_1743_mt_subclades_resolve_by_direct_motif_and_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """T2a/U2e witnesses resolve through both production tables using vendor ids."""
+        rows = [
+            {**row, "rsid": f"vendor_issue_1743_{index}"}
+            for index, row in enumerate([*trunk, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
