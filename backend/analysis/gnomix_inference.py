@@ -173,14 +173,7 @@ def run_inference(
     hap0_ancestry = np.argmax(canonical_probs[0], axis=1)
     hap1_ancestry = np.argmax(canonical_probs[1], axis=1)
 
-    # Compute window positions from SNP positions
-    window_positions = []
-    for w in range(model.n_windows):
-        start_snp = w * model.window_size
-        end_snp = min((w + 1) * model.window_size - 1, model.n_snps - 1)
-        start_pos = int(model.snp_pos[start_snp])
-        end_pos = int(model.snp_pos[end_snp])
-        window_positions.append((start_pos, end_pos))
+    window_positions = _model_window_positions(model)
 
     return ChromosomeResult(
         chrom=model.chrom,
@@ -191,6 +184,28 @@ def run_inference(
         hap1_probs=canonical_probs[1],
         window_positions=window_positions,
     )
+
+
+def _model_window_positions(model: GnomixModel) -> list[tuple[int, int]]:
+    """Return Gnomix's inclusive marker-span coordinates for every window.
+
+    Gnomix defines ``W = C // M``. Regular windows contain ``M`` markers, while
+    the final window consumes every marker from ``(W - 1) * M`` through
+    ``C - 1``. The latter therefore contains ``M + (C % M)`` markers when the
+    chromosome has a remainder.
+    """
+    positions: list[tuple[int, int]] = []
+    for window in range(model.n_windows):
+        start_snp = window * model.window_size
+        end_snp = (
+            model.n_snps - 1
+            if window == model.n_windows - 1
+            else (window + 1) * model.window_size - 1
+        )
+        start_pos = int(model.snp_pos.item(start_snp))
+        end_pos = int(model.snp_pos.item(end_snp))
+        positions.append((start_pos, end_pos))
+    return positions
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:
