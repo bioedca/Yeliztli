@@ -46,6 +46,7 @@ import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-s
 import { polyphen2Display } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
+import { formatZygosityLabel } from "@/lib/zygosity-label"
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers (reused from side panel)                           */
@@ -201,7 +202,10 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <DetailRow label="Position" value={variant.pos.toLocaleString()} />
       <DetailRow label="Genotype" value={variant.genotype} />
       <DetailRow label="Ref / Alt" value={`${variant.ref ?? "—"} / ${variant.alt ?? "—"}`} />
-      <DetailRow label="Zygosity" value={variant.zygosity} />
+      <DetailRow
+        label="Zygosity"
+        value={formatZygosityLabel(variant.zygosity, variant.zygosity_label)}
+      />
       <DetailRow label="Consequence" value={formatConsequence(variant.consequence)} />
       {variant.dbsnp_build != null && (
         <DetailRow label="dbSNP Build" value={variant.dbsnp_build} />

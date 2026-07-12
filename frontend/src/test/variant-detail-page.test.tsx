@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render as rtlRender, screen, waitFor } from "@testing-library/react"
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
@@ -26,6 +26,7 @@ const mockVariant: VariantDetail = {
   alt: "G",
   genotype: "AG",
   zygosity: "het",
+  zygosity_label: "Heterozygous",
   gene_symbol: "BRCA1",
   transcript_id: "NM_007294",
   consequence: "missense_variant",
@@ -224,8 +225,30 @@ describe("VariantDetailPage (P2-21a)", () => {
       expect(screen.getByTestId("tab-overview")).toBeInTheDocument()
     })
     expect(screen.getByText("AG")).toBeInTheDocument() // genotype
-    expect(screen.getByText("het")).toBeInTheDocument() // zygosity
+    const overview = screen.getByTestId("tab-overview")
+    expect(within(overview).getByText("Heterozygous")).toBeInTheDocument()
+    expect(within(overview).queryByText("het", { exact: true })).not.toBeInTheDocument()
     expect(screen.getAllByText("missense variant").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("uses the API's ploidy-aware zygosity label", async () => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariant,
+        chrom: "X",
+        pos: 10_000_000,
+        genotype: "G",
+        zygosity: "hom_alt",
+        zygosity_label: "Hemizygous",
+      }),
+    }))
+
+    renderPage("rs100")
+
+    const overview = await screen.findByTestId("tab-overview")
+    expect(within(overview).getByText("Hemizygous")).toBeInTheDocument()
+    expect(within(overview).queryByText("hom_alt", { exact: true })).not.toBeInTheDocument()
   })
 
   it("annotates HGVS coding and protein rows with notation tooltips (#1669)", async () => {
