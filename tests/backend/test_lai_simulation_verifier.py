@@ -421,6 +421,27 @@ def test_text_parser_rejects_inode_swap_after_snapshot(tmp_path):
             pass
 
 
+def test_text_parser_closes_raw_gzip_stream(tmp_path, monkeypatch):
+    source = tmp_path / "source.tsv.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write("value\n")
+    opened = []
+    original_open = verifier._open_binary_nofollow
+
+    def capture_raw_stream(*args, **kwargs):
+        raw = original_open(*args, **kwargs)
+        opened.append(raw)
+        return raw
+
+    monkeypatch.setattr(verifier, "_open_binary_nofollow", capture_raw_stream)
+
+    with verifier._open_text_auto(source, label="test source") as handle:
+        assert handle.read() == "value\n"
+
+    assert len(opened) == 1
+    assert opened[0].closed
+
+
 def test_manifest_reader_enforces_json_size_limit(tmp_path, capsys, monkeypatch):
     case = _write_verification_case(tmp_path)
     monkeypatch.setattr(verifier, "MAX_MANIFEST_BYTES", 1)

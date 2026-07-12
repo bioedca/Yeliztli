@@ -4702,7 +4702,7 @@ def run_from_job_plan(args: argparse.Namespace) -> int:
             raise ValueError(
                 "final_confirmation inference requires --expected-confirmation-policy-sha256"
             )
-        confirmation_policy_path = Path(os.path.abspath(args.confirmation_policy.expanduser()))
+        confirmation_policy_path = lexical_absolute_path(args.confirmation_policy)
         planned_policy = _required_mapping(
             inputs.get("confirmation_policy"),
             "confirmation-policy provenance",
@@ -5581,6 +5581,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     ):
         parser.error("--list-jobs requires at least one --fraction and --seed")
 
+    try:
+        confirmation_policy_path = (
+            lexical_absolute_path(args.confirmation_policy)
+            if args.confirmation_policy is not None
+            else None
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
     bundle_dir = lexical_absolute_path(args.bundle_dir)
     eager_bundle_lock = acquire_bundle_lock(
         bundle_dir,
@@ -5604,11 +5612,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     training_samples_path = lexical_absolute_path(args.gnomix_training_samples)
     reference_manifest_path = lexical_absolute_path(args.calibration_reference_manifest)
     reference_verification_path = lexical_absolute_path(args.reference_verification_stamp)
-    confirmation_policy_path = (
-        Path(os.path.abspath(args.confirmation_policy.expanduser()))
-        if args.confirmation_policy is not None
-        else None
-    )
     required_paths = [
         bundle_metadata_path,
         labels_path,

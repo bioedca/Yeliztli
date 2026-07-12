@@ -365,9 +365,10 @@ def _open_text_auto(
     except (OSError, UnicodeDecodeError) as exc:
         raise ValueError(f"{label}: could not decode {path}: {exc}") from exc
     finally:
-        if text is not None:
-            text.close()
-        else:
+        try:
+            if text is not None:
+                text.close()
+        finally:
             raw.close()
     if expected_snapshot is not None:
         _assert_snapshot_unchanged(expected_snapshot, label=label)

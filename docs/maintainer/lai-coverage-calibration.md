@@ -4,7 +4,7 @@ Yeliztli does not treat any positive marker count as scientifically adequate for
 ancestry inference. It also does not borrow a universal minimum from the literature:
 marker density, genomic distribution, phasing, reference-panel composition, ancestry,
 and model windowing interact, and the available studies do not establish a portable
-consumer-array cutoff.[1][2][3][4]
+consumer-array cutoff.[1][][2][][3][][4][]
 
 The production threshold must therefore be calibrated against the exact production
 Gnomix models and privacy-safe, site-only masks for every supported input shape:
@@ -134,7 +134,7 @@ time, recompute it from the authoritative marker truth and the pinned model meta
 reject the dataset if even one cached window differs. The validation-stratum label is for
 stratified reporting only; it is not a substitute for the two-haplotype truth.
 Simulation-based evaluation with separate truth and reference samples follows the
-validation pattern used in local-ancestry benchmarking.[2]
+validation pattern used in local-ancestry benchmarking.[2][]
 
 Do not use installed user samples, raw uploads, or a union-site fixture mislabeled as a
 vendor-specific array. Repeated marker-removal seeds measure sensitivity to site loss;
@@ -244,7 +244,7 @@ fraction, structured chromosome-loss scenario, and seed. For each matrix cell:
 Marker count alone cannot represent genomic distribution: losing chromosome 1 and losing
 chromosome 21 are not equivalent. Keep chromosome-loss scenarios separate from the
 retained-marker fractions rather than allowing a random inter-chromosome imbalance to
-stand in for distribution.[1][2]
+stand in for distribution.[1][][2][]
 
 The harness must validate the complete coverage telemetry schema before it accepts a
 successful result. Aggregate and per-autosome emitted markers, model-marker denominators,
@@ -273,7 +273,7 @@ The unordered diplotype measure does not penalize a harmless whole-window haplot
 The single best orientation per chromosome permits an arbitrary chromosome-wide phase
 orientation while still penalizing within-chromosome switch errors. Report all metrics by
 validation stratum and input shape, including the worst stratum; a pooled mean can hide
-stratum-specific degradation.[2][3]
+stratum-specific degradation.[2][][3][]
 
 ## Failure semantics
 
@@ -294,7 +294,7 @@ windows remain in the audit output but are ineligible for threshold selection.
 
 Predeclare the product accuracy, completeness, and global-error targets and the selection
 rule before reading the sweep results. A mean-minus-variability rule has precedent as a
-calibration form,[4] but neither that study's target nor its Affymetrix/G-nomix threshold
+calibration form,[4][] but neither that study's target nor its Affymetrix/G-nomix threshold
 transfers directly to Yeliztli.
 
 Do not select any threshold until the observed report is a complete, duplicate-free match
@@ -336,3 +336,8 @@ validation instead of choosing an attractive-looking marker count.
 2. [Honorato-Mauer J et al. (2025). “Characterizing the impact of genetic diversity on local ancestry inference.” *American Journal of Human Genetics*.](https://doi.org/10.1016/j.ajhg.2024.12.005) DOI: 10.1016/j.ajhg.2024.12.005; PMID: 39753130.
 3. [Avadhanam S, Williams AL (2025). “Phase-free local ancestry inference.” *G3*.](https://doi.org/10.1093/g3journal/jkaf122) DOI: 10.1093/g3journal/jkaf122; PMID: 40471844.
 4. [Motegi S et al. (2026). “G-nomix: An array-based pipeline for rapid local ancestry inference.” bioRxiv preprint.](https://doi.org/10.64898/2026.05.18.726085) DOI: 10.64898/2026.05.18.726085; PMID: 42239055.
+
+[1]: https://doi.org/10.1016/j.ajhg.2013.06.020
+[2]: https://doi.org/10.1016/j.ajhg.2024.12.005
+[3]: https://doi.org/10.1093/g3journal/jkaf122
+[4]: https://doi.org/10.64898/2026.05.18.726085

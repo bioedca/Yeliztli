@@ -3028,6 +3028,32 @@ def test_final_confirmation_planning_rejects_wrong_expected_policy_hash(
     assert "policy SHA-256 does not match expected identity" in capsys.readouterr().err
 
 
+def test_final_confirmation_planning_rejects_policy_symlink_parent(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    case = _prepare_planner_case(
+        tmp_path,
+        monkeypatch,
+        dataset_split="final_confirmation",
+    )
+    policy_path = case["confirmation_policy_path"]
+    alias = tmp_path / "policy-parent-alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    arguments = _replace_option_value(
+        case["planner_args"],
+        "--confirmation-policy",
+        str(alias / policy_path.name),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main([*arguments, "--list-jobs"])
+
+    assert exc_info.value.code == 2
+    assert "input/output path contains a symlink component" in capsys.readouterr().err
+
+
 def test_final_confirmation_planning_rejects_wrong_sealed_split_commitment(
     tmp_path,
     capsys,
@@ -3498,6 +3524,53 @@ def test_final_planned_job_rejects_policy_tamper_before_inference(
 
     assert exc_info.value.code == 2
     assert "planned input changed after validation" in capsys.readouterr().err
+    assert inference_called is False
+
+
+def test_final_planned_job_rejects_policy_symlink_parent(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    case = _prepare_planner_case(
+        tmp_path,
+        monkeypatch,
+        dataset_split="final_confirmation",
+    )
+    assert cal.main([*case["planner_args"], "--list-jobs"]) == 0
+    selected = json.loads(capsys.readouterr().out.splitlines()[0])
+    policy_path = case["confirmation_policy_path"]
+    alias = tmp_path / "policy-run-parent-alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    arguments = _replace_option_value(
+        _selected_run_args(case, "SIMFINAL1"),
+        "--confirmation-policy",
+        str(alias / policy_path.name),
+    )
+    inference_called = False
+
+    def unexpected_run_job(*_args, **_kwargs):
+        nonlocal inference_called
+        inference_called = True
+        return {"status": "ok"}
+
+    monkeypatch.setattr(cal, "run_job", unexpected_run_job)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main(
+            [
+                *arguments,
+                "--job-index",
+                str(selected["job_index"]),
+                "--expected-configuration-sha256",
+                selected["configuration_sha256"],
+                "--output",
+                str(tmp_path / "must-not-exist.jsonl"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "input/output path contains a symlink component" in capsys.readouterr().err
     assert inference_called is False
 
 
