@@ -29,6 +29,7 @@ import { formatAlleleFrequency } from "@/lib/format"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
 import { polyphen2Display } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
+import { formatZygosityLabel } from "@/lib/zygosity-label"
 
 interface VariantDetailSidePanelProps {
   rsid: string | null
@@ -188,7 +189,10 @@ function PanelContent({
         <DetailRow label="Position" value={variant.pos.toLocaleString()} />
         <DetailRow label="Genotype" value={variant.genotype} />
         <DetailRow label="Ref / Alt" value={`${variant.ref ?? "—"} / ${variant.alt ?? "—"}`} />
-        <DetailRow label="Zygosity" value={variant.zygosity} />
+        <DetailRow
+          label="Zygosity"
+          value={formatZygosityLabel(variant.zygosity, variant.zygosity_label)}
+        />
         <DetailRow label="Consequence" value={formatConsequence(variant.consequence)} />
 
         {/* HGVS */}

@@ -15,6 +15,7 @@ const mockVariantDetail: VariantDetail = {
   alt: "G",
   genotype: "AG",
   zygosity: "het",
+  zygosity_label: "Heterozygous",
   gene_symbol: "BRCA1",
   transcript_id: "NM_007294",
   consequence: "missense_variant",

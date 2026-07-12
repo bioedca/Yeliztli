@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor } from "./test-utils"
+import { render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import VariantTable from "@/components/variant-table/VariantTable"
 import VariantDetailSidePanel from "@/components/variant-detail/VariantDetailSidePanel"
@@ -61,6 +61,7 @@ const mockVariantDetail: VariantDetail = {
   alt: "G",
   genotype: "AG",
   zygosity: "het",
+  zygosity_label: "Heterozygous",
   gene_symbol: "BRCA1",
   transcript_id: "NM_007294",
   consequence: "missense_variant",
@@ -216,6 +217,34 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     expect(screen.getByText("Pathogenic")).toBeInTheDocument()
     expect(screen.getByText("missense variant")).toBeInTheDocument()
     expect(screen.getByText("MANE Select")).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText("Heterozygous")).toBeInTheDocument()
+    expect(within(dialog).queryByText("het", { exact: true })).not.toBeInTheDocument()
+  })
+
+  it("uses the API's ploidy-aware zygosity label", async () => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariantDetail,
+        chrom: "X",
+        pos: 10_000_000,
+        genotype: "G",
+        zygosity: "hom_alt",
+        zygosity_label: "Hemizygous",
+      }),
+    }))
+
+    render(
+      <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("Hemizygous")).toBeInTheDocument()
+    })
+
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).queryByText("hom_alt", { exact: true })).not.toBeInTheDocument()
   })
 
   it("labels source-uncovered gnomAD frequency as not assessed", async () => {

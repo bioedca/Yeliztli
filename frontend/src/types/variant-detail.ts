@@ -43,6 +43,7 @@ export interface VariantDetail {
   alt: string | null
   genotype: string | null
   zygosity: string | null
+  zygosity_label: string | null
 
   // VEP (best transcript)
   gene_symbol: string | null
