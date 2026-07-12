@@ -2003,6 +2003,9 @@ def _validate_mt_source(source: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     if source.get("schema_version") != 1:
         issues.append("mtDNA source registry has an unsupported schema version")
+    audit_scope = source.get("audit_scope")
+    if not isinstance(audit_scope, str) or not audit_scope.strip():
+        issues.append("mtDNA source registry has no valid audit scope")
 
     source_metadata = source.get("source", {})
     if source_metadata.get("version") != "Build 17":

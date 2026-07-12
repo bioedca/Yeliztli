@@ -716,12 +716,14 @@ class TestBuildScript:
         from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
 
         source = copy.deepcopy(_MT_SOURCE)
+        source["audit_scope"] = ""
         marker = source["audited_nodes"]["U5b2"]["emitted_snps"][0]
         marker["allele"] = marker["ancestral_allele"]
         marker["array_coverage"]["modern_exports_with_position"] = 0
         source["audited_nodes"]["U5b2"]["source_motif"][1]["emitted"] = False
 
         issues = _validate_mt_source(source)
+        assert any("no valid audit scope" in issue for issue in issues)
         assert any("source mutation direction" in issue for issue in issues)
         assert any("no array coverage" in issue for issue in issues)
         assert any(

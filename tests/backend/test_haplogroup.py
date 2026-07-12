@@ -1438,9 +1438,9 @@ class TestAssignHaplogroups:
             pytest.param(
                 _MT_U5B_TRUNK_GENOTYPES,
                 [
-                    {"rsid": "vendor_1721", "chrom": "MT", "pos": 1721, "genotype": "TT"},
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 1721, "genotype": "TT"},
                     {
-                        "rsid": "vendor_13637",
+                        "rsid": "placeholder",
                         "chrom": "MT",
                         "pos": 13637,
                         "genotype": "GG",
@@ -1451,17 +1451,17 @@ class TestAssignHaplogroups:
             ),
             pytest.param(
                 _MT_W_TRUNK_GENOTYPES,
-                [{"rsid": "vendor_7864", "chrom": "MT", "pos": 7864, "genotype": "TT"}],
+                [{"rsid": "placeholder", "chrom": "MT", "pos": 7864, "genotype": "TT"}],
                 "W1",
                 id="W1",
             ),
             pytest.param(
                 _MT_U3_TRUNK_GENOTYPES,
                 [
-                    {"rsid": "vendor_4188", "chrom": "MT", "pos": 4188, "genotype": "GG"},
-                    {"rsid": "vendor_9656", "chrom": "MT", "pos": 9656, "genotype": "CC"},
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 4188, "genotype": "GG"},
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 9656, "genotype": "CC"},
                     {
-                        "rsid": "vendor_13743",
+                        "rsid": "placeholder",
                         "chrom": "MT",
                         "pos": 13743,
                         "genotype": "CC",
@@ -1501,19 +1501,19 @@ class TestAssignHaplogroups:
         [
             pytest.param(
                 _MT_U5B_TRUNK_GENOTYPES,
-                {"rsid": "old_1721", "chrom": "MT", "pos": 1721, "genotype": "CC"},
+                {"rsid": "placeholder", "chrom": "MT", "pos": 1721, "genotype": "CC"},
                 "U5b",
                 id="ancestral-1721-does-not-call-U5b2",
             ),
             pytest.param(
                 _MT_W_TRUNK_GENOTYPES,
-                {"rsid": "old_12669", "chrom": "MT", "pos": 12669, "genotype": "CC"},
+                {"rsid": "placeholder", "chrom": "MT", "pos": 12669, "genotype": "CC"},
                 "W",
                 id="ancestral-12669-does-not-call-W1",
             ),
             pytest.param(
                 _MT_U3_TRUNK_GENOTYPES,
-                {"rsid": "old_9266", "chrom": "MT", "pos": 9266, "genotype": "GG"},
+                {"rsid": "placeholder", "chrom": "MT", "pos": 9266, "genotype": "GG"},
                 "U3",
                 id="ancestral-9266-does-not-call-U3b",
             ),
@@ -1548,15 +1548,15 @@ class TestAssignHaplogroups:
         [
             pytest.param(
                 _MT_U5B_TRUNK_GENOTYPES,
-                [{"rsid": "vendor_1721", "chrom": "MT", "pos": 1721, "genotype": "TT"}],
+                [{"rsid": "placeholder", "chrom": "MT", "pos": 1721, "genotype": "TT"}],
                 "U5b2",
                 id="U5b2-missing-13637",
             ),
             pytest.param(
                 _MT_U3_TRUNK_GENOTYPES,
                 [
-                    {"rsid": "vendor_4188", "chrom": "MT", "pos": 4188, "genotype": "GG"},
-                    {"rsid": "vendor_9656", "chrom": "MT", "pos": 9656, "genotype": "CC"},
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 4188, "genotype": "GG"},
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 9656, "genotype": "CC"},
                 ],
                 "U3b",
                 id="U3b-missing-13743",
