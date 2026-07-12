@@ -15,6 +15,7 @@ import os
 import shutil
 import stat
 import tempfile
+import threading
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -39,6 +40,51 @@ _DIGEST_BYTES = 32
 _DIGEST_HEX_LENGTH = 64
 _DIRECTORY_METADATA_BYTES_PER_SHARD = 512
 _MINIMUM_METADATA_ALLOWANCE = 1024 * 1024
+
+DESCRIPTOR_FILE_DIRECTORIES = (Path("/proc/self/fd"), Path("/dev/fd"))
+_WORKING_DIRECTORY_LOCK = threading.RLock()
+
+
+def _descriptor_signature(observed: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        observed.st_dev,
+        observed.st_ino,
+        observed.st_size,
+        observed.st_mtime_ns,
+        observed.st_ctime_ns,
+    )
+
+
+def descriptor_file_path(descriptor: int) -> Path:
+    """Return a portable kernel-backed path for one already-open descriptor."""
+    if not isinstance(descriptor, int) or isinstance(descriptor, bool) or descriptor < 0:
+        raise ValueError("descriptor must be a non-negative integer")
+    opened = os.fstat(descriptor)
+    for directory in DESCRIPTOR_FILE_DIRECTORIES:
+        candidate = directory / str(descriptor)
+        try:
+            metadata = candidate.stat()
+        except OSError:
+            continue
+        if _descriptor_signature(metadata) == _descriptor_signature(opened):
+            return candidate
+    raise OSError("platform exposes no descriptor path bound to the open inode")
+
+
+@contextmanager
+def _pinned_working_directory(directory_fd: int) -> Iterator[None]:
+    """Run pathname operations relative to a held directory inode."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
+    with _WORKING_DIRECTORY_LOCK:
+        previous_fd = os.open(".", flags)
+        try:
+            os.fchdir(directory_fd)
+            yield
+        finally:
+            try:
+                os.fchdir(previous_fd)
+            finally:
+                os.close(previous_fd)
 
 
 def canonical_json_bytes(value: object) -> bytes:
@@ -916,10 +962,6 @@ class _PlanDestinationAuthority:
     inode: int
     plan_name: str
 
-    @property
-    def pinned_parent(self) -> Path:
-        return Path(f"/proc/self/fd/{self.directory_fd}")
-
 
 def _assert_plan_parent(authority: _PlanDestinationAuthority) -> None:
     """Require the public parent pathname to retain the locked directory inode."""
@@ -1003,23 +1045,24 @@ def build_job_plan(
     disk_reserve_bytes: object = DEFAULT_DISK_RESERVE_BYTES,
 ) -> PlanBuildResult:
     """Build an idempotent schema-v3 plan while holding its destination lock."""
-    plan_path = Path(path)
+    plan_path = Path(os.path.abspath(os.fspath(path)))
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     _require_safe_directory(plan_path.parent, "job-plan parent")
     with _locked_plan_destination(plan_path) as authority:
-        return _build_job_plan_locked(
-            plan_path,
-            authority=authority,
-            configuration=configuration,
-            input_verification=input_verification,
-            dataset_split=dataset_split,
-            fixture_masks=fixture_masks,
-            drop_scenarios=drop_scenarios,
-            fractions=fractions,
-            seeds=seeds,
-            max_jobs=max_jobs,
-            disk_reserve_bytes=disk_reserve_bytes,
-        )
+        with _pinned_working_directory(authority.directory_fd):
+            return _build_job_plan_locked(
+                plan_path,
+                authority=authority,
+                configuration=configuration,
+                input_verification=input_verification,
+                dataset_split=dataset_split,
+                fixture_masks=fixture_masks,
+                drop_scenarios=drop_scenarios,
+                fractions=fractions,
+                seeds=seeds,
+                max_jobs=max_jobs,
+                disk_reserve_bytes=disk_reserve_bytes,
+            )
 
 
 def _build_job_plan_locked(
@@ -1041,8 +1084,8 @@ def _build_job_plan_locked(
     if public_plan_path.name != authority.plan_name or public_plan_path.parent != authority.parent:
         raise ValueError("job-plan publication authority does not match destination")
     _assert_plan_parent(authority)
-    parent = authority.pinned_parent
-    plan_path = parent / authority.plan_name
+    parent = Path(".")
+    plan_path = Path(authority.plan_name)
     _reject_unsafe_existing_plan(plan_path)
     if (
         not isinstance(disk_reserve_bytes, int)
@@ -1092,7 +1135,8 @@ def _build_job_plan_locked(
             f"including reserve, have {available}"
         )
 
-    temporary_root = Path(tempfile.mkdtemp(prefix=f".{plan_path.name}.v3.", dir=parent))
+    temporary_name = Path(tempfile.mkdtemp(prefix=f".{plan_path.name}.v3.", dir=parent)).name
+    temporary_root = Path(temporary_name)
     published_shards: Path | None = None
     published_plan: Path | None = None
     plan_published = False

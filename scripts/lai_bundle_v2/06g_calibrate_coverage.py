@@ -2481,7 +2481,10 @@ def stable_read(path: Path, reader: Callable[[Path], Any]) -> tuple[Any, dict[st
             path_before
         ):
             raise ValueError(f"{path}: input file changed while it was opened")
-        pinned_path = Path(f"/proc/self/fd/{fd}")
+        try:
+            pinned_path = lai_coverage_plan.descriptor_file_path(fd)
+        except OSError as exc:
+            raise ValueError(f"{path}: no portable descriptor path is available") from exc
         value = reader(pinned_path)
         if dataclasses.is_dataclass(value) and hasattr(value, "path"):
             value = replace(value, path=path)
