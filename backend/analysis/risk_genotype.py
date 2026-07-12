@@ -48,7 +48,6 @@ from backend.db.tables import findings, raw_variants, sample_metadata_table
 
 logger = structlog.get_logger(__name__)
 
-_PANELS_DIR = Path(__file__).resolve().parent.parent / "data" / "panels"
 
 # Probe-readout status.
 PROBE_TYPED = "typed"
