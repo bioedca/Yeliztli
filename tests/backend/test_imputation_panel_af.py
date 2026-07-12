@@ -8,7 +8,6 @@ from pathlib import Path
 from backend.annotation.imputation_panel_af import (
     PanelAfLookup,
     build_panel_af_index,
-    infer_panel_af_chrom,
     panel_af_path,
     panel_vcf_path,
 )
@@ -94,9 +93,7 @@ class TestPanelAfLookup:
         lookup = PanelAfLookup(tmp_path)
         assert lookup.lookup("22", 100, "G", "A") is None
 
-    def test_canonical_paths_and_chrom_inference(self, tmp_path: Path) -> None:
+    def test_canonical_paths(self, tmp_path: Path) -> None:
         assert panel_vcf_path(tmp_path, "chrX").name == "chrX.1kg.phase3.v5a.vcf.gz"
         path = panel_af_path(tmp_path, "chrX")
         assert path.name == "chrX.1kg.phase3.v5a.b37.af.tsv.gz"
-        assert infer_panel_af_chrom(path) == "X"
-        assert infer_panel_af_chrom(tmp_path / "not-panel.tsv") is None

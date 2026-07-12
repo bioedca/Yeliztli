@@ -30,8 +30,6 @@ from backend.analysis.imputation_vcf import normalize_chrom
 
 logger = structlog.get_logger(__name__)
 
-_AF_FILENAME_RE = re.compile(r"^chr(.+)\.1kg\.phase3\.v5a\.b37\.af\.tsv(?:\.gz)?$")
-
 
 @dataclass(frozen=True, order=True)
 class PanelAfKey:
@@ -289,14 +287,3 @@ def _gt_alleles(gt: str, *, n_alts: int) -> Iterator[int | None]:
             yield None
             continue
         yield idx if 0 <= idx <= n_alts else None
-
-
-def infer_panel_af_chrom(path: Path) -> str | None:
-    """Return the chromosome encoded in a canonical AF TSV filename, if present."""
-    m = _AF_FILENAME_RE.match(Path(path).name)
-    if not m:
-        return None
-    try:
-        return normalize_chrom(m.group(1))
-    except ValueError:
-        return None
