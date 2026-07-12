@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import structlog
@@ -24,6 +25,9 @@ import structlog
 from backend.config import get_settings
 from backend.db.database_registry import detect_java, validate_lai_bundle
 from backend.db.tables import findings, lai_results
+
+if TYPE_CHECKING:
+    from backend.analysis.lai_runner import LAICoverageMetrics
 
 logger = structlog.get_logger(__name__)
 
@@ -41,6 +45,9 @@ def run_lai_analysis(
     sample_id: int,
     sample_engine: sa.Engine,
     progress_callback: Callable[[str, float], None] | None = None,
+    *,
+    diagnostic_metrics_callback: Callable[[LAICoverageMetrics], None] | None = None,
+    allow_below_minimum_for_diagnostics: bool = False,
 ) -> LAIResult:
     """Run LAI analysis on a sample.
 
@@ -51,6 +58,10 @@ def run_lai_analysis(
         sample_id: Sample ID for progress tracking.
         sample_engine: SQLAlchemy engine for the sample database.
         progress_callback: Optional function(message, fraction) for updates.
+        diagnostic_metrics_callback: Optional calibration-only callback for
+            progressive versioned coverage snapshots.
+        allow_below_minimum_for_diagnostics: Forward the calibration-only model
+            match-rate bypass to the runner. Defaults to the production hard gate.
 
     Returns:
         LAIResult with global ancestry and chromosome painting.
@@ -95,6 +106,8 @@ def run_lai_analysis(
         progress_callback=progress_callback,
         cleanup=True,
         file_format=file_format,
+        diagnostic_metrics_callback=diagnostic_metrics_callback,
+        allow_below_minimum_for_diagnostics=allow_below_minimum_for_diagnostics,
     )
 
     # Store results
