@@ -1,11 +1,17 @@
-"""Held-out per-superpopulation LAI inference accuracy gate (incl. EUR).
+"""Gnomix-training-held-out superpopulation regression gate (including EUR).
 
-THE gold-standard gate the 0.97 mean per-window accuracy missed: it measured the
-native gnomix .pkl on an EUR-poor validation split, so it never noticed that the
-shipped bundle classified every European as CSA. This runs REAL held-out
+This required gate catches the regression the 0.97 mean per-window accuracy missed. The
+original check measured the native Gnomix .pkl on an EUR-poor validation split, so it
+never noticed that the shipped bundle classified every European as CSA. This runs REAL held-out
 1000G/HGDP samples (NOT in gnomix training) through the production inference path
 (run_lai_analysis -> gnomix_inference) against the assembled bundle and checks
 that each sample's top global-ancestry equals its true superpopulation.
+
+The target samples remain in Beagle's phasing panel. This gate therefore isolates
+Gnomix training and protects per-superpopulation classification, but it is not an
+independent end-to-end phasing or sparse-coverage benchmark and does not provide
+window-level ancestry truth. Coverage calibration uses donor-excluded phasing
+references and simulated exact local-window truth instead.
 
 Usage:
   YELIZTLI_LAI_BUNDLE_PATH=<assembled bundle dir>

@@ -3,9 +3,12 @@
 
 For each held-out 1000G/HGDP sample, write its true genotypes at the SAME 666k
 site set as the bundle liftover map, pulled from the phasing panel
-(03_subsetted_panels/ref_panel_chrN.vcf.gz). The sample is held OUT of gnomix
-training (sample_map.txt) but is in the panel, so this is a genuine held-out
-inference test. Output mirrors the HG01502 fixture format
+(03_subsetted_panels/ref_panel_chrN.vcf.gz). The sample is held OUT of Gnomix
+training (sample_map.txt) but remains in the Beagle panel. These fixtures are a
+classifier-training holdout for the per-superpopulation regression gate, not
+independent end-to-end phasing or local-window truth. Sparse-coverage calibration
+must remove every donor from its phasing reference and use simulated exact
+window-level truth. Output mirrors the HG01502 fixture format
 (rsid, chromosome, GRCh38 position, allele1, allele2).
 """
 

@@ -3,16 +3,20 @@
 
 The mean per-window accuracy (06e) is BLIND to per-population correctness — it is
 how v2.0.0 first shipped with EUR=3 and misclassified every European while still
-reporting ~0.97. The gold-standard gate is a held-out per-superpopulation
+reporting ~0.97. The required model-training holdout gate is a per-superpopulation
 INFERENCE check (06f_heldout_superpop_accuracy.py): hold a few samples per
-superpopulation OUT of training, run them through the assembled bundle, and
-confirm each classifies to its own superpopulation (EUR must classify as EUR).
+superpopulation OUT of Gnomix training, run them through the assembled bundle,
+and confirm each classifies to its own superpopulation (EUR must classify as EUR).
 
 This step picks that held-out set (seeded, reproducible), writes it to
 ``held_out_validation.tsv``, backs up the full panel to ``sample_map.full.txt``,
 and rewrites ``sample_map.txt`` to the training (reduced) panel. The held-out
 samples stay in the phasing panel (so extract_heldout_fixtures.py can pull their
-genotypes) but are removed from the gnomix founder list — a genuine held-out test.
+genotypes) but are removed from the Gnomix founder list. This isolates classifier
+training and catches representation regressions; it is not an independent
+end-to-end phasing or sparse-coverage test because Beagle can still use each
+target donor. Coverage calibration must also remove its donors from the phasing
+reference and score simulated, exact local-window truth.
 """
 
 from __future__ import annotations
