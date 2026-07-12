@@ -15,7 +15,8 @@ Covers:
   T-GNX-03: Mirror-reflect padding produces correct edge values
   T-GNX-04: Softmax sums to 1.0 per window
   T-GNX-05: Window feature slicing respects window_n_features
-  T-GNX-06: LAI results table schema and storage
+  T-GNX-06: Final window coordinates include the chromosome remainder
+  T-GNX-07: LAI results table schema and storage
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from backend.analysis.gnomix_inference import (
     ChromosomeResult,
     GnomixModel,
     _build_smoother_features,
+    _model_window_positions,
     _pad_mirror,
     _softmax,
 )
@@ -147,6 +149,44 @@ class TestSmootherFeatures:
         features = _build_smoother_features(padded, S, n_windows)
         # Each row should be S*A = 9 values
         assert features.shape == (2, 9)
+
+
+class TestModelWindowPositions:
+    """T-GNX-06: coordinates mirror Gnomix's enlarged final window."""
+
+    def test_final_window_includes_remainder_markers(self):
+        model = SimpleNamespace(
+            n_snps=11,
+            n_windows=3,
+            window_size=3,
+            snp_pos=np.arange(100, 111, dtype=np.int64),
+        )
+
+        assert _model_window_positions(model) == [
+            (100, 102),
+            (103, 105),
+            (106, 110),
+        ]
+
+    def test_single_window_reaches_last_model_marker(self):
+        model = SimpleNamespace(
+            n_snps=5,
+            n_windows=1,
+            window_size=3,
+            snp_pos=np.array([10, 20, 30, 40, 50], dtype=np.int64),
+        )
+
+        assert _model_window_positions(model) == [(10, 50)]
+
+    def test_divisible_marker_count_keeps_regular_final_window(self):
+        model = SimpleNamespace(
+            n_snps=9,
+            n_windows=3,
+            window_size=3,
+            snp_pos=np.arange(200, 209, dtype=np.int64),
+        )
+
+        assert _model_window_positions(model)[-1] == (206, 208)
 
 
 class TestPopulationRemap:
