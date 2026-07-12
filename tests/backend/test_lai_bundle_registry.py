@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -171,6 +172,10 @@ class TestLAIBundleExtraction:
                 info = tarfile.TarInfo(name=f"{dirname}/")
                 info.type = tarfile.DIRTYPE
                 tf.addfile(info)
+            mapping = b"rs1\tchr1\t100\n"
+            info = tarfile.TarInfo(name="liftover/array_site_mapping.tsv")
+            info.size = len(mapping)
+            tf.addfile(info, fileobj=io.BytesIO(mapping))
 
         # Copy tarball to dest_path location (simulating download)
         import shutil
@@ -179,6 +184,7 @@ class TestLAIBundleExtraction:
 
         # Run extraction (uses dest_path to derive dest_dir)
         _extract_lai_bundle(dest_path, dest_path)
+        assert not dest_path.exists()
 
         # Verify structure
         lai_dir = dest_path.parent / "lai_bundle"
@@ -213,6 +219,36 @@ class TestLAIBundleExtraction:
 
         with pytest.raises(ValueError, match="LAI bundle extraction incomplete"):
             _extract_lai_bundle(dest_path, dest_path)
+
+    def test_extract_rejects_invalid_liftover_before_deleting_archive(self, tmp_path: Path):
+        """A model-complete archive still needs a usable autosomal mapping."""
+        import shutil
+        import tarfile
+
+        from backend.db.database_registry import _extract_lai_bundle
+
+        tarball = tmp_path / "invalid-liftover.tar.gz"
+        dest_path = tmp_path / "data" / "lai_bundle.tar.gz"
+        dest_path.parent.mkdir(parents=True)
+
+        with tarfile.open(tarball, "w:gz") as tf:
+            for chrom in range(1, 23):
+                for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
+                    payload = b"test"
+                    info = tarfile.TarInfo(name=f"gnomix_models/chr{chrom}/{fname}")
+                    info.size = len(payload)
+                    tf.addfile(info, fileobj=io.BytesIO(payload))
+            mapping = b"rs1\tchrX\t100\n"
+            info = tarfile.TarInfo(name="liftover/array_site_mapping.tsv")
+            info.size = len(mapping)
+            tf.addfile(info, fileobj=io.BytesIO(mapping))
+
+        shutil.copy2(tarball, dest_path)
+
+        with pytest.raises(ValueError, match="liftover table is missing or invalid"):
+            _extract_lai_bundle(dest_path, dest_path)
+
+        assert dest_path.exists()
 
 
 # ── T-DL-04: Java detection returns True/False correctly ─────────────
@@ -272,14 +308,82 @@ class TestJavaDetection:
 class TestLAIBundleValidation:
     """Test LAI bundle directory validation."""
 
-    def test_validate_complete_bundle(self, tmp_path: Path):
-        """A complete bundle should pass validation."""
+    @staticmethod
+    def _write_complete_models(root: Path) -> None:
         for chrom in range(1, 23):
-            model_dir = tmp_path / "gnomix_models" / f"chr{chrom}"
+            model_dir = root / "gnomix_models" / f"chr{chrom}"
             model_dir.mkdir(parents=True)
             for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
                 (model_dir / fname).write_text("test")
+
+    def test_validate_complete_bundle(self, tmp_path: Path):
+        """A complete bundle should pass validation."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text("rs1\tchr1\t100\n", encoding="utf-8")
         assert validate_lai_bundle(tmp_path) is True
+
+    def test_validate_numeric_legacy_liftover_table(self, tmp_path: Path):
+        """The v1 filename and bare autosomal labels remain supported."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "rsid_to_grch38.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text("rs1\t1\t100\n", encoding="utf-8")
+        assert validate_lai_bundle(tmp_path) is True
+
+    def test_validate_missing_liftover_table(self, tmp_path: Path):
+        """Model files alone are not a runnable LAI bundle."""
+        self._write_complete_models(tmp_path)
+        assert validate_lai_bundle(tmp_path) is False
+
+    def test_validate_liftover_without_autosome(self, tmp_path: Path):
+        """A table without any supported autosomal row is not runnable."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text("rs1\tchrX\t100\n", encoding="utf-8")
+        assert validate_lai_bundle(tmp_path) is False
+
+    def test_validate_allows_supplemental_alt_contigs(self, tmp_path: Path):
+        """A usable primary map may include published-v2 alternate contigs."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text(
+            "rs1\tchr1\t100\nrs_alt\tchr1_KI270766v1_alt\t200\n",
+            encoding="utf-8",
+        )
+        assert validate_lai_bundle(tmp_path) is True
+
+    def test_validate_duplicate_rsid_uses_final_scope(self, tmp_path: Path):
+        """Validation mirrors the runtime lookup's last-write-wins semantics."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text(
+            "rs1\tchr1\t100\nrs1\tchrX\t200\n",
+            encoding="utf-8",
+        )
+        assert validate_lai_bundle(tmp_path) is False
+
+    def test_validate_cache_refreshes_after_same_size_repair(self, tmp_path: Path):
+        """Content replacement cannot reuse a stale metadata-keyed result."""
+        self._write_complete_models(tmp_path)
+        mapping = tmp_path / "liftover" / "array_site_mapping.tsv"
+        mapping.parent.mkdir()
+        mapping.write_text("rs1\tchr1\t100\n", encoding="utf-8")
+        original = mapping.stat()
+        assert validate_lai_bundle(tmp_path) is True
+
+        replacement = mapping.with_suffix(".replacement")
+        replacement.write_text("rs1\tchrX\t100\n", encoding="utf-8")
+        os.utime(replacement, ns=(original.st_atime_ns, original.st_mtime_ns))
+        replacement.replace(mapping)
+
+        assert mapping.stat().st_size == original.st_size
+        assert mapping.stat().st_ino != original.st_ino
+        assert validate_lai_bundle(tmp_path) is False
 
     def test_validate_incomplete_bundle(self, tmp_path: Path):
         """A bundle missing chr22 should fail validation."""

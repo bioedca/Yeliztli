@@ -350,6 +350,9 @@ def _make_valid_lai_bundle(settings: Settings) -> Path:
         (model_dir / "base_coefs.npz").write_bytes(b"\x00")
         (model_dir / "metadata.npz").write_bytes(b"\x00")
         (model_dir / "smoother.json").write_text("{}")
+    mapping = bundle / "liftover" / "array_site_mapping.tsv"
+    mapping.parent.mkdir(parents=True, exist_ok=True)
+    mapping.write_text("rs1\tchr1\t100\n", encoding="utf-8")
     return bundle
 
 
@@ -702,6 +705,13 @@ class TestValidateLAIBundle:
         bundle = _make_valid_lai_bundle(settings)
         # Remove one required model file -> incomplete.
         (bundle / "gnomix_models" / "chr5" / "smoother.json").unlink()
+        result = validate_database("lai_bundle", settings)
+        assert result.ok is False
+        assert "incomplete" in result.detail.lower()
+
+    def test_missing_liftover_not_ok(self, settings: Settings) -> None:
+        bundle = _make_valid_lai_bundle(settings)
+        (bundle / "liftover" / "array_site_mapping.tsv").unlink()
         result = validate_database("lai_bundle", settings)
         assert result.ok is False
         assert "incomplete" in result.detail.lower()
