@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "PhyloTree mtDNA + source-audited Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -26,7 +26,59 @@
       "name": "PhyloTree",
       "version": "Build 17",
       "reference": "van Oven M, Kayser M. Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation. Hum Mutat. 2009;30(2):E386-E394.",
-      "url": "https://www.phylotree.org"
+      "url": "https://www.phylotree.org",
+      "tree_url": "https://www.phylotree.org/tree/index.htm",
+      "archive_url": "https://www.phylotree.org/resources/mtDNA_tree_Build_17.zip",
+      "archive_sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+      "accessed": "2026-07-12",
+      "reference_sequence": {
+        "accession": "NC_012920.1",
+        "name": "revised Cambridge Reference Sequence",
+        "sha256": "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92"
+      },
+      "current_cross_check": {
+        "name": "YFull MTree",
+        "version": "1.02.23997",
+        "accessed": "2026-07-12",
+        "url": "https://www.yfull.com/mtree/"
+      },
+      "references": [
+        {
+          "id": 1,
+          "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation",
+          "doi": "10.1002/humu.20921",
+          "pmid": "18853457"
+        },
+        {
+          "id": 2,
+          "title": "The peopling of Europe from the mitochondrial haplogroup U5 perspective",
+          "doi": "10.1371/journal.pone.0010285",
+          "pmid": "20422015",
+          "pmcid": "PMC2858207"
+        },
+        {
+          "id": 3,
+          "title": "Complete mitochondrial DNA diversity in Iranians",
+          "doi": "10.1371/journal.pone.0080673",
+          "pmid": "24244704",
+          "pmcid": "PMC3828245"
+        },
+        {
+          "id": 4,
+          "title": "Reanalysis and revision of the Cambridge reference sequence for human mitochondrial DNA",
+          "doi": "10.1038/13779",
+          "pmid": "10508508"
+        }
+      ],
+      "audit": {
+        "schema_version": 1,
+        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b nodes corrected in issue 1742; this is not a full-tree audit.",
+        "audited_nodes": [
+          "U3b",
+          "U5b2",
+          "W1"
+        ]
+      }
     },
     "Y": {
       "name": "YBrowse hg19 SNP export",
@@ -1510,9 +1562,9 @@
                       "haplogroup": "W1",
                       "defining_snps": [
                         {
-                          "rsid": "i5012669",
-                          "pos": 12669,
-                          "allele": "C"
+                          "rsid": "i5007864",
+                          "pos": 7864,
+                          "allele": "T"
                         }
                       ]
                     },
@@ -2641,9 +2693,19 @@
                               "haplogroup": "U3b",
                               "defining_snps": [
                                 {
-                                  "rsid": "i5009266",
-                                  "pos": 9266,
+                                  "rsid": "i5004188",
+                                  "pos": 4188,
                                   "allele": "G"
+                                },
+                                {
+                                  "rsid": "i5009656",
+                                  "pos": 9656,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5013743",
+                                  "pos": 13743,
+                                  "allele": "C"
                                 }
                               ]
                             }
@@ -2779,7 +2841,12 @@
                                     {
                                       "rsid": "i5001721",
                                       "pos": 1721,
-                                      "allele": "C"
+                                      "allele": "T"
+                                    },
+                                    {
+                                      "rsid": "i5013637",
+                                      "pos": 13637,
+                                      "allele": "G"
                                     }
                                   ]
                                 }
@@ -4522,8 +4589,8 @@
   },
   "stats": {
     "mt_haplogroups": 195,
-    "mt_defining_snps": 374,
-    "mt_unique_snps": 287,
+    "mt_defining_snps": 377,
+    "mt_unique_snps": 290,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
     "y_defining_snps": 154,
@@ -4532,7 +4599,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 302,
-    "total_defining_snps": 528,
-    "total_unique_snps": 441
+    "total_defining_snps": 531,
+    "total_unique_snps": 444
   }
 }

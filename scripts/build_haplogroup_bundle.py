@@ -43,9 +43,11 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.0"
+BUNDLE_VERSION = "1.1.1"
 BUILD = "GRCh37"
+MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
+_REQUIRED_AUDITED_MT_NODES = frozenset({"U3b", "U5b2", "W1"})
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
 #
@@ -126,6 +128,11 @@ def _node(
 
 def _load_y_source(path: Path = Y_SOURCE_PATH) -> dict[str, Any]:
     """Load the curated, array-reportable Y marker registry."""
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_mt_source(path: Path = MT_SOURCE_PATH) -> dict[str, Any]:
+    """Load the source-backed registry for explicitly audited mtDNA nodes."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -371,6 +378,7 @@ def _validate_y_source(source: dict[str, Any]) -> list[str]:
 
 
 # The full output whitelist supersedes the former small hand-maintained table.
+_MT_SOURCE = _load_mt_source()
 _Y_SOURCE = _load_y_source()
 _AUDITED_Y_RSID_REFERENCE = _build_y_marker_reference(_Y_SOURCE)
 
@@ -1009,7 +1017,7 @@ def build_mt_tree() -> dict[str, Any]:
     w1 = _node(
         "W1",
         [
-            _mt_snp("i5012669", 12669, "C"),
+            _mt_snp("i5007864", 7864, "T"),
         ],
     )
     w3 = _node(
@@ -1590,7 +1598,9 @@ def build_mt_tree() -> dict[str, Any]:
     u3b = _node(
         "U3b",
         [
-            _mt_snp("i5009266", 9266, "G"),
+            _mt_snp("i5004188", 4188, "G"),
+            _mt_snp("i5009656", 9656, "C"),
+            _mt_snp("i5013743", 13743, "C"),
         ],
     )
     u3 = _node(
@@ -1659,7 +1669,8 @@ def build_mt_tree() -> dict[str, Any]:
     u5b2 = _node(
         "U5b2",
         [
-            _mt_snp("i5001721", 1721, "C"),
+            _mt_snp("i5001721", 1721, "T"),
+            _mt_snp("i5013637", 13637, "G"),
         ],
     )
     u5b = _node(
@@ -1987,6 +1998,191 @@ def _validate_tree(node: dict[str, Any], path: str = "") -> list[str]:
     return issues
 
 
+def _validate_mt_source(source: dict[str, Any]) -> list[str]:
+    """Validate the provenance and array reportability of audited mtDNA motifs."""
+    issues: list[str] = []
+    if source.get("schema_version") != 1:
+        issues.append("mtDNA source registry has an unsupported schema version")
+    audit_scope = source.get("audit_scope")
+    if not isinstance(audit_scope, str) or not audit_scope.strip():
+        issues.append("mtDNA source registry has no valid audit scope")
+
+    source_metadata = source.get("source", {})
+    if source_metadata.get("version") != "Build 17":
+        issues.append("mtDNA source registry is not pinned to PhyloTree Build 17")
+    reference_sequence = source_metadata.get("reference_sequence", {})
+    if reference_sequence.get("accession") != "NC_012920.1":
+        issues.append("mtDNA source registry is not pinned to rCRS NC_012920.1")
+    for label, digest in (
+        ("PhyloTree archive", source_metadata.get("archive_sha256")),
+        ("rCRS FASTA", reference_sequence.get("sha256")),
+    ):
+        if not isinstance(digest, str) or len(digest) != 64:
+            issues.append(f"mtDNA source registry has no valid {label} SHA-256")
+
+    references = source.get("references")
+    if not isinstance(references, list) or not references:
+        issues.append("mtDNA source registry has no paper references")
+
+    audited_nodes = source.get("audited_nodes", {})
+    if not isinstance(audited_nodes, dict):
+        return [*issues, "mtDNA source registry has no audited node mapping"]
+    if set(audited_nodes) != _REQUIRED_AUDITED_MT_NODES:
+        issues.append(
+            "mtDNA audited node set does not match the required issue-1742 scope: "
+            + ", ".join(sorted(_REQUIRED_AUDITED_MT_NODES))
+        )
+
+    for node_name, node in audited_nodes.items():
+        source_motif = node.get("source_motif")
+        emitted_snps = node.get("emitted_snps")
+        if not isinstance(source_motif, list) or not source_motif:
+            issues.append(f"Audited mtDNA node {node_name} has no source motif")
+            continue
+        if not isinstance(emitted_snps, list) or not emitted_snps:
+            issues.append(f"Audited mtDNA node {node_name} has no emitted SNPs")
+            continue
+
+        emitted_source: dict[int, tuple[str, str]] = {}
+        seen_source_positions: set[int] = set()
+        for mutation in source_motif:
+            pos = mutation.get("pos")
+            mutation_type = mutation.get("mutation_type")
+            emitted = mutation.get("emitted")
+            if not isinstance(pos, int) or not 1 <= pos <= 16569:
+                issues.append(
+                    f"Audited mtDNA node {node_name} has invalid source position {pos!r}"
+                )
+                continue
+            if pos in seen_source_positions:
+                issues.append(f"Audited mtDNA node {node_name} repeats source position {pos}")
+            seen_source_positions.add(pos)
+            if mutation_type == "substitution":
+                ancestral = mutation.get("ancestral_allele")
+                derived = mutation.get("derived_allele")
+                if not isinstance(emitted, bool):
+                    issues.append(
+                        f"Audited mtDNA substitution {node_name}:{pos} has no emission decision"
+                    )
+                elif not emitted and not mutation.get("omission_reason"):
+                    issues.append(
+                        f"Audited mtDNA substitution {node_name}:{pos} must have "
+                        "an omission reason"
+                    )
+                if ancestral not in {"A", "C", "G", "T"}:
+                    issues.append(
+                        f"Audited mtDNA node {node_name} position {pos} has invalid "
+                        f"ancestral allele {ancestral!r}"
+                    )
+                if derived not in {"A", "C", "G", "T"} or derived == ancestral:
+                    issues.append(
+                        f"Audited mtDNA node {node_name} position {pos} has invalid "
+                        f"derived allele {derived!r}"
+                    )
+                if (
+                    emitted is True
+                    and ancestral in {"A", "C", "G", "T"}
+                    and derived
+                    in {
+                        "A",
+                        "C",
+                        "G",
+                        "T",
+                    }
+                ):
+                    emitted_source[pos] = (ancestral, derived)
+            elif mutation_type == "insertion":
+                if emitted is not False or not mutation.get("omission_reason"):
+                    issues.append(
+                        f"Audited mtDNA insertion {node_name}:{pos} must have an omission reason"
+                    )
+            else:
+                issues.append(
+                    f"Audited mtDNA node {node_name} position {pos} has unsupported "
+                    f"mutation type {mutation_type!r}"
+                )
+
+        seen_emitted_positions: set[int] = set()
+        for marker in emitted_snps:
+            rsid = marker.get("rsid")
+            pos = marker.get("pos")
+            ancestral = marker.get("ancestral_allele")
+            derived = marker.get("allele")
+            if not isinstance(rsid, str) or not rsid:
+                issues.append(f"Audited mtDNA node {node_name} has a marker without an identifier")
+            if not isinstance(pos, int):
+                issues.append(
+                    f"Audited mtDNA node {node_name} has invalid emitted position {pos!r}"
+                )
+                continue
+            if pos in seen_emitted_positions:
+                issues.append(f"Audited mtDNA node {node_name} repeats emitted position {pos}")
+            seen_emitted_positions.add(pos)
+            if emitted_source.get(pos) != (ancestral, derived):
+                issues.append(
+                    f"Audited mtDNA marker {rsid} at {node_name} does not match its "
+                    "source mutation direction"
+                )
+            coverage = marker.get("array_coverage", {})
+            tested = coverage.get("modern_exports_tested")
+            covered = coverage.get("modern_exports_with_position")
+            if (
+                not isinstance(tested, int)
+                or not isinstance(covered, int)
+                or tested <= 0
+                or not 0 < covered <= tested
+            ):
+                issues.append(f"Audited mtDNA marker {rsid} at {node_name} has no array coverage")
+
+        if seen_emitted_positions != set(emitted_source):
+            issues.append(
+                f"Audited mtDNA node {node_name} emitted positions do not match its "
+                "reportable source substitutions"
+            )
+
+    return issues
+
+
+def _validate_audited_mt_markers(
+    node: dict[str, Any], source: dict[str, Any] = _MT_SOURCE
+) -> list[str]:
+    """Require each audited mtDNA node to match its exact source-backed SNP set."""
+    issues: list[str] = []
+    audited_nodes = source.get("audited_nodes", {})
+    found: dict[str, list[dict[str, Any]]] = {name: [] for name in audited_nodes}
+
+    def collect(current: dict[str, Any]) -> None:
+        name = current.get("haplogroup")
+        if name in found:
+            found[name].append(current)
+        for child in current.get("children", []):
+            collect(child)
+
+    collect(node)
+    for node_name, audit in audited_nodes.items():
+        matches = found[node_name]
+        if len(matches) != 1:
+            issues.append(
+                f"Audited mtDNA node {node_name} occurs {len(matches)} times; "
+                "expected exactly once"
+            )
+            continue
+        actual = sorted(
+            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
+            for snp in matches[0].get("defining_snps", [])
+        )
+        expected = sorted(
+            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
+            for snp in audit.get("emitted_snps", [])
+        )
+        if actual != expected:
+            issues.append(
+                f"Audited mtDNA node {node_name} has markers {actual!r}; expected {expected!r}"
+            )
+
+    return issues
+
+
 def _iter_snps_with_path(
     node: dict[str, Any], path: str = ""
 ) -> tuple[tuple[str, dict[str, Any]], ...]:
@@ -2131,14 +2327,30 @@ def build_bundle() -> dict[str, Any]:
 
     # Validate trees
     mt_issues = _validate_tree(mt_tree)
+    mt_source_issues = _validate_mt_source(_MT_SOURCE)
+    mt_reference_issues = _validate_audited_mt_markers(mt_tree)
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
     y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
     trusted_y_markers = frozenset(_Y_SOURCE["assignment"]["trusted_single_marker_terminal_rsids"])
     y_reportability_issues = _validate_y_reportability(y_tree, trusted_y_markers)
-    if mt_issues or y_issues or y_reference_issues or y_duplicate_issues or y_reportability_issues:
+    if (
+        mt_issues
+        or mt_source_issues
+        or mt_reference_issues
+        or y_issues
+        or y_reference_issues
+        or y_duplicate_issues
+        or y_reportability_issues
+    ):
         all_issues = (
-            mt_issues + y_issues + y_reference_issues + y_duplicate_issues + y_reportability_issues
+            mt_issues
+            + mt_source_issues
+            + mt_reference_issues
+            + y_issues
+            + y_reference_issues
+            + y_duplicate_issues
+            + y_reportability_issues
         )
         raise ValueError(
             f"Tree validation failed with {len(all_issues)} issues:\n"
@@ -2163,12 +2375,13 @@ def build_bundle() -> dict[str, Any]:
         },
         "sources": {
             "mt": {
-                "name": "PhyloTree",
-                "version": "Build 17",
-                "reference": "van Oven M, Kayser M. Updated comprehensive "
-                "phylogenetic tree of global human mitochondrial DNA "
-                "variation. Hum Mutat. 2009;30(2):E386-E394.",
-                "url": "https://www.phylotree.org",
+                **_MT_SOURCE["source"],
+                "references": _MT_SOURCE["references"],
+                "audit": {
+                    "schema_version": _MT_SOURCE["schema_version"],
+                    "scope": _MT_SOURCE["audit_scope"],
+                    "audited_nodes": sorted(_MT_SOURCE["audited_nodes"]),
+                },
             },
             "Y": {
                 **_Y_SOURCE["source"],

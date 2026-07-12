@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.0"
+        assert bundle["version"] == "1.1.1"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -156,7 +156,12 @@ class TestBundleStructure:
         mt_source = bundle["sources"]["mt"]
         assert mt_source["name"] == "PhyloTree"
         assert "Build 17" in mt_source["version"]
-        assert "url" in mt_source
+        assert mt_source["archive_sha256"] == (
+            "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
+        )
+        assert mt_source["reference_sequence"]["accession"] == "NC_012920.1"
+        assert mt_source["audit"]["audited_nodes"] == ["U3b", "U5b2", "W1"]
+        assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
     def test_sources_y(self, bundle: dict) -> None:
         y_source = bundle["sources"]["Y"]
@@ -355,6 +360,20 @@ class TestMtDNATree:
             10873: "T",
         }
         assert allele_map("R") == {12705: "C", 16223: "C"}
+
+    def test_issue_1742_nodes_use_exact_reportable_build17_motifs(self, mt_tree: dict) -> None:
+        """U5b2, W1, and U3b must not regress to ancestral or sibling markers."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        assert allele_map("U5b2") == {1721: "T", 13637: "G"}
+        assert allele_map("W1") == {7864: "T"}
+        assert allele_map("U3b") == {4188: "G", 9656: "C", 13743: "C"}
+        assert 12669 not in allele_map("W1")
+        assert 9266 not in allele_map("U3b")
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
@@ -634,8 +653,11 @@ class TestBuildScript:
     def test_validate_tree_passes(self) -> None:
         """Internal validation should report no issues."""
         from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
             _Y_SOURCE,
+            _validate_audited_mt_markers,
             _validate_audited_y_rsids,
+            _validate_mt_source,
             _validate_tree,
             _validate_y_cross_clade_duplicates,
             _validate_y_reportability,
@@ -645,6 +667,8 @@ class TestBuildScript:
         )
 
         mt_issues = _validate_tree(build_mt_tree())
+        mt_source_issues = _validate_mt_source(_MT_SOURCE)
+        mt_reference_issues = _validate_audited_mt_markers(build_mt_tree())
         y_tree = build_y_tree()
         y_issues = _validate_tree(y_tree)
         y_reference_issues = _validate_audited_y_rsids(y_tree)
@@ -653,12 +677,57 @@ class TestBuildScript:
         trusted = frozenset(_Y_SOURCE["assignment"]["trusted_single_marker_terminal_rsids"])
         y_reportability_issues = _validate_y_reportability(y_tree, trusted)
         assert mt_issues == [], f"mtDNA validation issues: {mt_issues}"
+        assert mt_source_issues == [], f"mtDNA source validation issues: {mt_source_issues}"
+        assert mt_reference_issues == [], (
+            f"mtDNA reference validation issues: {mt_reference_issues}"
+        )
         assert y_issues == [], f"Y-chr validation issues: {y_issues}"
         assert y_reference_issues == [], f"Y reference validation issues: {y_reference_issues}"
         assert y_duplicate_issues == [], f"Y duplicate validation issues: {y_duplicate_issues}"
         assert y_source_issues == [], f"Y source validation issues: {y_source_issues}"
         assert y_reportability_issues == [], (
             f"Y reportability validation issues: {y_reportability_issues}"
+        )
+
+    def test_audited_mt_guard_rejects_wrong_exact_marker_sets(self) -> None:
+        """Audited nodes reject polarity, position, and unregistered-marker drift."""
+        from scripts.build_haplogroup_bundle import (
+            _validate_audited_mt_markers,
+            build_mt_tree,
+        )
+
+        mt_tree = build_mt_tree()
+        u5b2 = find_node(mt_tree, "U5b2")
+        w1 = find_node(mt_tree, "W1")
+        u3b = find_node(mt_tree, "U3b")
+        assert u5b2 is not None and w1 is not None and u3b is not None
+
+        u5b2["defining_snps"][0]["allele"] = "C"
+        w1["defining_snps"][0]["pos"] = 12669
+        u3b["defining_snps"].append({"rsid": "i5009266", "pos": 9266, "allele": "G"})
+
+        issues = _validate_audited_mt_markers(mt_tree)
+        assert any("U5b2" in issue and "expected" in issue for issue in issues)
+        assert any("W1" in issue and "expected" in issue for issue in issues)
+        assert any("U3b" in issue and "expected" in issue for issue in issues)
+
+    def test_mt_source_guard_rejects_unreportable_or_reversed_markers(self) -> None:
+        """Provenance records must retain direction and observed array coverage."""
+        from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
+
+        source = copy.deepcopy(_MT_SOURCE)
+        source["audit_scope"] = ""
+        marker = source["audited_nodes"]["U5b2"]["emitted_snps"][0]
+        marker["allele"] = marker["ancestral_allele"]
+        marker["array_coverage"]["modern_exports_with_position"] = 0
+        source["audited_nodes"]["U5b2"]["source_motif"][1]["emitted"] = False
+
+        issues = _validate_mt_source(source)
+        assert any("no valid audit scope" in issue for issue in issues)
+        assert any("source mutation direction" in issue for issue in issues)
+        assert any("no array coverage" in issue for issue in issues)
+        assert any(
+            "substitution U5b2:13637 must have an omission reason" in issue for issue in issues
         )
 
     def test_y_source_guard_rejects_stale_current_record_alleles(self) -> None:
