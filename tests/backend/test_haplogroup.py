@@ -118,6 +118,26 @@ _MT_U_TRUNK_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5012372", "chrom": "MT", "pos": 12372, "genotype": "AA"},
 ]
 
+_MT_N_TRUNK_GENOTYPES = _H1A_GENOTYPES[:6]
+
+_MT_W_TRUNK_GENOTYPES = _MT_N_TRUNK_GENOTYPES + [
+    {"rsid": "i5000189", "chrom": "MT", "pos": 189, "genotype": "GG"},
+    {"rsid": "i5000204", "chrom": "MT", "pos": 204, "genotype": "CC"},
+    {"rsid": "i5000207", "chrom": "MT", "pos": 207, "genotype": "AA"},
+    {"rsid": "i5001243", "chrom": "MT", "pos": 1243, "genotype": "CC"},
+]
+
+_MT_U3_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
+    {"rsid": "i5001811", "chrom": "MT", "pos": 1811, "genotype": "GG"},
+    {"rsid": "i5015454", "chrom": "MT", "pos": 15454, "genotype": "CC"},
+]
+
+_MT_U5B_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
+    {"rsid": "i5003197", "chrom": "MT", "pos": 3197, "genotype": "CC"},
+    {"rsid": "i5009477", "chrom": "MT", "pos": 9477, "genotype": "AA"},
+    {"rsid": "i5007768", "chrom": "MT", "pos": 7768, "genotype": "GG"},
+]
+
 _MT_U8_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
     {"rsid": "i5009698", "chrom": "MT", "pos": 9698, "genotype": "CC"},
 ]
@@ -290,7 +310,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.0"
+        assert bundle.version == "1.1.1"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1410,6 +1430,160 @@ class TestAssignHaplogroups:
         # Assigned by rCRS position despite zero rsid matches (pre-#498 this was mt-MRCA).
         assert results[0].haplogroup == "H1a"
         assert results[0].defining_snps_present > 0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("trunk", "node_rows", "expected"),
+        [
+            pytest.param(
+                _MT_U5B_TRUNK_GENOTYPES,
+                [
+                    {"rsid": "vendor_1721", "chrom": "MT", "pos": 1721, "genotype": "TT"},
+                    {
+                        "rsid": "vendor_13637",
+                        "chrom": "MT",
+                        "pos": 13637,
+                        "genotype": "GG",
+                    },
+                ],
+                "U5b2",
+                id="U5b2",
+            ),
+            pytest.param(
+                _MT_W_TRUNK_GENOTYPES,
+                [{"rsid": "vendor_7864", "chrom": "MT", "pos": 7864, "genotype": "TT"}],
+                "W1",
+                id="W1",
+            ),
+            pytest.param(
+                _MT_U3_TRUNK_GENOTYPES,
+                [
+                    {"rsid": "vendor_4188", "chrom": "MT", "pos": 4188, "genotype": "GG"},
+                    {"rsid": "vendor_9656", "chrom": "MT", "pos": 9656, "genotype": "CC"},
+                    {
+                        "rsid": "vendor_13743",
+                        "chrom": "MT",
+                        "pos": 13743,
+                        "genotype": "CC",
+                    },
+                ],
+                "U3b",
+                id="U3b",
+            ),
+        ],
+    )
+    def test_corrected_mt_nodes_match_direct_derived_motifs_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected: str,
+    ) -> None:
+        """#1742: direct derived motifs resolve through both production MT tables."""
+        rows = [
+            {**row, "rsid": f"vendor_mt_{index}"} for index, row in enumerate([*trunk, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == expected
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("trunk", "obsolete_row", "expected"),
+        [
+            pytest.param(
+                _MT_U5B_TRUNK_GENOTYPES,
+                {"rsid": "old_1721", "chrom": "MT", "pos": 1721, "genotype": "CC"},
+                "U5b",
+                id="ancestral-1721-does-not-call-U5b2",
+            ),
+            pytest.param(
+                _MT_W_TRUNK_GENOTYPES,
+                {"rsid": "old_12669", "chrom": "MT", "pos": 12669, "genotype": "CC"},
+                "W",
+                id="ancestral-12669-does-not-call-W1",
+            ),
+            pytest.param(
+                _MT_U3_TRUNK_GENOTYPES,
+                {"rsid": "old_9266", "chrom": "MT", "pos": 9266, "genotype": "GG"},
+                "U3",
+                id="ancestral-9266-does-not-call-U3b",
+            ),
+        ],
+    )
+    def test_obsolete_ancestral_mt_markers_stop_at_the_parent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        trunk: list[dict[str, object]],
+        obsolete_row: dict[str, object],
+        expected: str,
+    ) -> None:
+        """#1742: ancestral and wrong-node records cannot trigger child calls."""
+        rows = [
+            {**row, "rsid": f"vendor_mt_{index}"}
+            for index, row in enumerate([*trunk, obsolete_row])
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == expected
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("trunk", "node_rows", "expected"),
+        [
+            pytest.param(
+                _MT_U5B_TRUNK_GENOTYPES,
+                [{"rsid": "vendor_1721", "chrom": "MT", "pos": 1721, "genotype": "TT"}],
+                "U5b2",
+                id="U5b2-missing-13637",
+            ),
+            pytest.param(
+                _MT_U3_TRUNK_GENOTYPES,
+                [
+                    {"rsid": "vendor_4188", "chrom": "MT", "pos": 4188, "genotype": "GG"},
+                    {"rsid": "vendor_9656", "chrom": "MT", "pos": 9656, "genotype": "CC"},
+                ],
+                "U3b",
+                id="U3b-missing-13743",
+            ),
+        ],
+    )
+    def test_corrected_mt_nodes_allow_missing_array_co_markers(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected: str,
+    ) -> None:
+        """Typed direct evidence still resolves when an array omits one co-marker."""
+        rows = [
+            {**row, "rsid": f"vendor_mt_{index}"} for index, row in enumerate([*trunk, *node_rows])
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == expected
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize("conflict_first", [False, True])

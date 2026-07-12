@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b nodes corrected in issue 1742; this is not a full-tree audit.",
+  "source": {
+    "name": "PhyloTree",
+    "version": "Build 17",
+    "reference": "van Oven M, Kayser M. Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation. Hum Mutat. 2009;30(2):E386-E394.",
+    "url": "https://www.phylotree.org",
+    "tree_url": "https://www.phylotree.org/tree/index.htm",
+    "archive_url": "https://www.phylotree.org/resources/mtDNA_tree_Build_17.zip",
+    "archive_sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+    "accessed": "2026-07-12",
+    "reference_sequence": {
+      "accession": "NC_012920.1",
+      "name": "revised Cambridge Reference Sequence",
+      "sha256": "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92"
+    },
+    "current_cross_check": {
+      "name": "YFull MTree",
+      "version": "1.02.23997",
+      "accessed": "2026-07-12",
+      "url": "https://www.yfull.com/mtree/"
+    }
+  },
+  "references": [
+    {
+      "id": 1,
+      "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation",
+      "doi": "10.1002/humu.20921",
+      "pmid": "18853457"
+    },
+    {
+      "id": 2,
+      "title": "The peopling of Europe from the mitochondrial haplogroup U5 perspective",
+      "doi": "10.1371/journal.pone.0010285",
+      "pmid": "20422015",
+      "pmcid": "PMC2858207"
+    },
+    {
+      "id": 3,
+      "title": "Complete mitochondrial DNA diversity in Iranians",
+      "doi": "10.1371/journal.pone.0080673",
+      "pmid": "24244704",
+      "pmcid": "PMC3828245"
+    },
+    {
+      "id": 4,
+      "title": "Reanalysis and revision of the Cambridge reference sequence for human mitochondrial DNA",
+      "doi": "10.1038/13779",
+      "pmid": "10508508"
+    }
+  ],
+  "audited_nodes": {
+    "U5b2": {
+      "source_motif": [
+        {
+          "notation": "C1721T",
+          "mutation_type": "substitution",
+          "pos": 1721,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "A13637G",
+          "mutation_type": "substitution",
+          "pos": 13637,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5001721",
+          "pos": 1721,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 5
+          }
+        },
+        {
+          "rsid": "i5013637",
+          "pos": 13637,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    },
+    "W1": {
+      "source_motif": [
+        {
+          "notation": "C7864T",
+          "mutation_type": "substitution",
+          "pos": 7864,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5007864",
+          "pos": 7864,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 5
+          }
+        }
+      ]
+    },
+    "U3b": {
+      "source_motif": [
+        {
+          "notation": "A4188G",
+          "mutation_type": "substitution",
+          "pos": 4188,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "C4640a",
+          "mutation_type": "insertion",
+          "pos": 4640,
+          "emitted": false,
+          "omission_reason": "The array classifier models single-nucleotide substitutions, not insertions."
+        },
+        {
+          "notation": "T9656C",
+          "mutation_type": "substitution",
+          "pos": 9656,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "T13743C",
+          "mutation_type": "substitution",
+          "pos": 13743,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5004188",
+          "pos": 4188,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 5
+          }
+        },
+        {
+          "rsid": "i5009656",
+          "pos": 9656,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 5
+          }
+        },
+        {
+          "rsid": "i5013743",
+          "pos": 13743,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "array_coverage": {
+            "modern_exports_tested": 5,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    }
+  }
+}
