@@ -77,6 +77,34 @@ def _emit_all_sites(_runner, _chrom, sites, _vcf_path):
 class TestPerSourceAccumulator:
     """`_write_per_chrom_vcfs` accumulates per-source hits/drops."""
 
+    def test_lookup_chromosome_aliases_coalesce_to_canonical_vcf(self, runner, tmp_path):
+        """Defensive grouping keeps direct/stub lookups on the ``chrN`` invariant."""
+        runner.rsid_lookup = {
+            "rs1": ("1", 1001),
+            "rs2": ("chr1", 1002),
+        }
+        rows = [
+            {"rsid": "rs1", "chrom": "1", "pos": 1001, "genotype": "AG"},
+            {"rsid": "rs2", "chrom": "1", "pos": 1002, "genotype": "AA"},
+        ]
+        writes: list[tuple[str, list[dict], Path]] = []
+
+        def capture_write(_runner, chrom, sites, vcf_path):
+            writes.append((chrom, sites, vcf_path))
+            return _emit_all_sites(_runner, chrom, sites, vcf_path)
+
+        with patch.object(LAIRunner, "_write_single_vcf", capture_write):
+            vcf_paths, total, per_source = runner._write_per_chrom_vcfs(
+                runner._filter_genotypes(rows), tmp_path
+            )
+
+        assert vcf_paths == {"chr1": tmp_path / "unphased_vcfs" / "user_chr1.vcf.gz"}
+        assert total == 2
+        assert per_source == {"": {"hits": 2, "drops": 0}}
+        assert len(writes) == 1
+        assert writes[0][0] == "chr1"
+        assert {site["chrom"] for site in writes[0][1]} == {"chr1"}
+
     def test_unmerged_23andme_counts(self, runner, tmp_path):
         filtered = runner._filter_genotypes(_with_source(_BASE_23ANDME_GENOTYPES, ""))
         with patch.object(LAIRunner, "_write_single_vcf", _emit_all_sites):

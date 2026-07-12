@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from backend.analysis.lai_liftover import validate_lai_liftover_bundle
 from backend.config import Settings
 from backend.db.sqlite_engine import make_sqlite_engine
 
@@ -93,6 +94,9 @@ def _extract_lai_bundle(tarball_path: Path, dest_path: Path) -> None:
             f"LAI bundle extraction incomplete — missing {len(missing)} file(s): "
             + ", ".join(missing[:5])
         )
+    if not validate_lai_liftover_bundle(dest_dir):
+        logger.error("lai_bundle_invalid_liftover", path=str(dest_dir / "liftover"))
+        raise ValueError("LAI bundle extraction incomplete — liftover table is missing or invalid")
 
     # Remove tarball after successful extraction
     tarball_path.unlink(missing_ok=True)
@@ -190,7 +194,7 @@ def validate_lai_bundle(bundle_dir: Path) -> bool:
         for fname in ("base_coefs.npz", "metadata.npz", "smoother.json"):
             if not (model_dir / fname).exists():
                 return False
-    return True
+    return validate_lai_liftover_bundle(bundle_dir)
 
 
 def _build_encode_ccres_db(raw_bed_path: Path, db_path: Path) -> None:

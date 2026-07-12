@@ -55,6 +55,7 @@ import sqlalchemy as sa
 import structlog
 from sqlalchemy.pool import NullPool
 
+from backend.analysis.lai_liftover import validate_lai_liftover_bundle
 from backend.db.database_registry import (
     DatabaseInfo,
     get_all_databases,
@@ -506,10 +507,18 @@ def validate_database(
 
     # LAI bundle: directory of model files.
     if db_name == "lai_bundle":
+        if not validate_lai_liftover_bundle(path):
+            return IntegrityResult(
+                ok=False,
+                detail="incomplete LAI bundle (missing or invalid liftover table)",
+                depth="structural",
+            )
         if validate_lai_bundle(path):
             return IntegrityResult(ok=True, detail="ok", depth="structural")
         return IntegrityResult(
-            ok=False, detail="incomplete LAI bundle (missing chr/model files)", depth="structural"
+            ok=False,
+            detail="incomplete LAI bundle (missing chr/model files)",
+            depth="structural",
         )
 
     # ancestry_pca: numpy archive.

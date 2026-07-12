@@ -28,6 +28,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import structlog
 
+from backend.analysis.lai_liftover import (
+    LIFTOVER_FILENAMES,
+    canonical_lai_autosome,
+    load_lai_rsid_lookup,
+    resolve_lai_liftover_path,
+)
 from backend.analysis.zygosity import is_no_call
 
 if TYPE_CHECKING:
@@ -43,12 +49,6 @@ LAI_DROP_RATE_WARNING_THRESHOLD = 0.15
 
 # Source labels for merged samples (Plan §6.6, §10.2)
 _MERGED_SOURCE_KEYS = ("S1", "S2", "both")
-
-# Accepted filenames for the rsID->GRCh38 liftover lookup, newest first. The
-# v2.0.0 bundle renamed this table ``rsid_to_grch38.tsv`` -> ``array_site_mapping.tsv``
-# (07_assemble_bundle.sh; identical 3-col rsid<TAB>chrom<TAB>grch38_pos format).
-# The runtime accepts either so it works against both v2.0.0 and v1.1 bundles.
-_LIFTOVER_FILENAMES = ("array_site_mapping.tsv", "rsid_to_grch38.tsv")
 
 POPULATIONS: dict[str, dict[str, str]] = {
     "AFR": {"display": "African", "color": "#E8A838"},
@@ -99,9 +99,9 @@ class LAIRunner:
 
         missing = [str(p) for p in required if not p.exists()]
         # The rsID->GRCh38 liftover lookup may be named either way (see
-        # _LIFTOVER_FILENAMES); require that at least one exists.
+        # LIFTOVER_FILENAMES); require that at least one exists.
         if self._liftover_path() is None:
-            missing.append(str(self.bundle / "liftover" / _LIFTOVER_FILENAMES[0]))
+            missing.append(str(self.bundle / "liftover" / LIFTOVER_FILENAMES[0]))
         if missing:
             raise FileNotFoundError(
                 "LAI bundle incomplete. Missing:\n"
@@ -113,32 +113,20 @@ class LAIRunner:
     def _liftover_path(self) -> Path | None:
         """Resolve the rsID->GRCh38 liftover table, tolerating the v2.0.0 rename.
 
-        Returns the first existing candidate from :data:`_LIFTOVER_FILENAMES`
+        Returns the first existing candidate from :data:`LIFTOVER_FILENAMES`
         (``array_site_mapping.tsv`` for v2.0.0, ``rsid_to_grch38.tsv`` for
         v1.1), or ``None`` if neither is present.
         """
-        liftover_dir = self.bundle / "liftover"
-        for name in _LIFTOVER_FILENAMES:
-            candidate = liftover_dir / name
-            if candidate.exists():
-                return candidate
-        return None
+        return resolve_lai_liftover_path(self.bundle)
 
     def _load_rsid_lookup(self) -> dict[str, tuple[str, int]]:
         """Load rsID -> (chrom, pos_grch38) lookup table."""
-        lookup: dict[str, tuple[str, int]] = {}
         path = self._liftover_path()
         if path is None:
             raise FileNotFoundError(
                 f"LAI bundle liftover table not found in {self.bundle / 'liftover'}"
             )
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split("\t")
-                if len(parts) == 3:
-                    rsid, chrom, pos = parts
-                    lookup[rsid] = (chrom, int(pos))
-        return lookup
+        return load_lai_rsid_lookup(path)
 
     def run(
         self,
@@ -402,7 +390,6 @@ class LAIRunner:
         vcf_dir = out / "unphased_vcfs"
         vcf_dir.mkdir(exist_ok=True)
 
-        autosomal_chroms = {f"chr{i}" for i in range(1, 23)} | {str(i) for i in range(1, 23)}
         chrom_genotypes: dict[str, list[dict]] = defaultdict(list)
         per_source: dict[str, dict[str, int]] = {}
         for gt in genotypes:
@@ -412,8 +399,9 @@ class LAIRunner:
             if rsid not in self.rsid_lookup:
                 counts["drops"] += 1
                 continue
-            chrom, pos38 = self.rsid_lookup[rsid]
-            if chrom not in autosomal_chroms:
+            raw_chrom, pos38 = self.rsid_lookup[rsid]
+            chrom = canonical_lai_autosome(raw_chrom)
+            if chrom is None:
                 counts["drops"] += 1
                 continue
             chrom_genotypes[chrom].append(
