@@ -265,6 +265,13 @@ class TestOverlayCRUD:
         resp = overlay_client.delete("/api/overlays/999")
         assert resp.status_code == 404
 
+    @pytest.mark.parametrize("overlay_id", ["not-an-id", "1%0Aforged-entry"])
+    def test_delete_rejects_noninteger_id(
+        self, overlay_client: TestClient, overlay_id: str
+    ) -> None:
+        resp = overlay_client.delete(f"/api/overlays/{overlay_id}")
+        assert resp.status_code == 422
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # POST /api/overlays/{id}/apply + GET results
