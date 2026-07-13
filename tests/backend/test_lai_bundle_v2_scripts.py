@@ -234,8 +234,13 @@ class TestPhase01GnomixMaps:
 
     @staticmethod
     def _init_git_checkout(path: Path) -> str:
-        subprocess.run(["git", "init", "-q", str(path)], check=True)
-        subprocess.run(["git", "-C", str(path), "add", "."], check=True)
+        git_env = {
+            **os.environ,
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+        }
+        subprocess.run(["git", "init", "-q", str(path)], check=True, env=git_env)
+        subprocess.run(["git", "-C", str(path), "add", "."], check=True, env=git_env)
         subprocess.run(
             [
                 "git",
@@ -245,18 +250,22 @@ class TestPhase01GnomixMaps:
                 "user.name=Yeliztli Tests",
                 "-c",
                 "user.email=tests@yeliztli.invalid",
+                "-c",
+                "commit.gpgsign=false",
                 "commit",
                 "-q",
                 "-m",
                 "fixture",
             ],
             check=True,
+            env=git_env,
         )
         commit = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         ).stdout.strip()
         subprocess.run(
             [
@@ -269,6 +278,7 @@ class TestPhase01GnomixMaps:
                 "https://github.com/AI-sandbox/gnomix.git",
             ],
             check=True,
+            env=git_env,
         )
         subprocess.run(
             [
@@ -280,6 +290,7 @@ class TestPhase01GnomixMaps:
                 commit,
             ],
             check=True,
+            env=git_env,
         )
         return commit
 
