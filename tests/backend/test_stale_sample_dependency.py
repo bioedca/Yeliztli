@@ -214,6 +214,23 @@ def _seed_installed_bundle(settings: Settings, version: str) -> None:
         engine.dispose()
 
 
+def _seed_embedded_bundle_version(settings: Settings, version: str) -> None:
+    engine = sa.create_engine(f"sqlite:///{settings.vep_bundle_db_path}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', :version)"
+                ),
+                {"version": version},
+            )
+    finally:
+        engine.dispose()
+
+
 def _make_sample_db(
     settings: Settings,
     *,
@@ -330,6 +347,31 @@ class TestRequireFreshSample:
         with pytest.raises(HTTPException) as exc:
             require_fresh_sample(gate_env["sample_id"])
         assert exc.value.detail["required_version"] == "v2.0.0"
+
+    def test_required_version_falls_back_to_embedded_metadata(self, monkeypatch, gate_env):
+        """The 423 payload reports the same unstamped version used by the gate."""
+        monkeypatch.setattr(
+            "backend.api.dependencies.get_bundle_info",
+            lambda name: None,
+        )
+        _seed_embedded_bundle_version(gate_env["settings"], "v2.0.0")
+        _make_sample_db(gate_env["settings"], seed_version="v1.0.0")
+
+        with pytest.raises(HTTPException) as exc:
+            require_fresh_sample(gate_env["sample_id"])
+        assert exc.value.detail["required_version"] == "v2.0.0"
+
+        engine = sa.create_engine(f"sqlite:///{gate_env['settings'].reference_db_path}")
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "vep_bundle"
+                    )
+                ).fetchone()
+        finally:
+            engine.dispose()
+        assert row is None
 
     def test_missing_sample_raises_404(self, manifest_env, gate_env):
         # #453 — a *missing* samples row is answered 404, not 423. Existence is

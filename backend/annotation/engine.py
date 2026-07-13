@@ -50,10 +50,10 @@ from backend.annotation.gnomad import (
 )
 from backend.db.tables import (
     annotated_variants,
-    database_versions,
     raw_variants,
     sample_metadata_table,
 )
+from backend.db.vep_version import resolve_effective_vep_bundle_version
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -1162,27 +1162,23 @@ def _timed_lookup(
 
 
 def _read_bundle_version(registry: DBRegistry) -> str | None:
-    """Read `vep_bundle.version` from the reference DB's `database_versions`.
+    """Read the effective installed VEP bundle version for telemetry.
 
-    Returns ``None`` when the row is missing or the reference DB is
-    unavailable — telemetry collection must never abort the engine run.
+    Explicit install/update stamps take precedence over an embedded
+    ``bundle_metadata.bundle_version``. The versionless committed fixture uses
+    the documented ``v1.0.0`` baseline. Telemetry collection must never abort
+    the engine run; an unreadable reference version source remains unknown so
+    telemetry does not claim a baseline without proving that no explicit stamp
+    exists.
     """
     try:
-        reference_engine = registry.reference_engine
-    except Exception:
-        logger.debug("coverage_stats_reference_engine_unavailable", exc_info=True)
-        return None
-    try:
-        with reference_engine.connect() as conn:
-            row = conn.execute(
-                sa.select(database_versions.c.version).where(
-                    database_versions.c.db_name == "vep_bundle"
-                )
-            ).fetchone()
+        return resolve_effective_vep_bundle_version(
+            registry.reference_engine,
+            registry.vep_engine,
+        )
     except Exception:
         logger.debug("coverage_stats_bundle_version_query_failed", exc_info=True)
         return None
-    return row.version if row is not None else None
 
 
 def _read_sample_file_format(sample_engine: sa.Engine) -> str | None:

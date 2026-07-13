@@ -21,8 +21,8 @@ The 423 ``detail`` payload carries the four keys mandated by Plan §7.5:
   absent or malformed).
 * ``required_version`` — the installed bundle's semver. Sourced from the
   manifest's ``version`` field (the authoritative value per Plan §5.5)
-  with the ``database_versions['vep_bundle']`` row as fallback when no
-  manifest is reachable.
+  with the effective installed version as fallback when no manifest is
+  reachable.
 * ``update_url`` — bundle download URL (manifest, registry fallback).
 * ``reannotate_url`` — re-annotation escape hatch
   (``POST /api/annotation/{sample_id}``). Plan §7.5 pins this to the
@@ -39,7 +39,8 @@ from fastapi import HTTPException
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
-from backend.db.tables import annotation_state, database_versions, samples
+from backend.db.tables import annotation_state, samples
+from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.services.staleness import get_recorded_bundle_version, is_sample_stale
 
 _BUNDLE_KEY = "vep_bundle"
@@ -112,17 +113,15 @@ def _sample_existence(sample_id: int) -> bool | None:
 
 def _read_installed_version() -> str:
     registry = get_registry()
-    with registry.reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(database_versions.c.version).where(
-                database_versions.c.db_name == _BUNDLE_KEY
-            )
-        ).fetchone()
-    return row.version if row else ""
+    vep_engine = registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
+    return resolve_effective_vep_bundle_version(
+        registry.reference_engine,
+        vep_engine,
+    )
 
 
 def _resolve_required_version() -> str:
-    """Manifest version, falling back to the ``database_versions`` row."""
+    """Manifest version, falling back to the effective installed version."""
     manifest_entry = get_bundle_info(_BUNDLE_KEY)
     if manifest_entry is not None and manifest_entry.version:
         return manifest_entry.version

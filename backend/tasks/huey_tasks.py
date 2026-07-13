@@ -314,12 +314,21 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             # findings are fresh. A raise from run_all_analyses bypasses this
             # block via the except clause below, leaving annotation_state
             # untouched so the gate stays up.
+            from backend.db.vep_version import resolve_effective_vep_bundle_version
             from backend.services.staleness import (
                 REFERENCE_VERSION_SNAPSHOT_KEY,
                 read_current_reference_versions,
             )
 
-            bundle_version = result.coverage_stats.get("bundle_version") or "v1.0.0"
+            bundle_version = result.coverage_stats.get("bundle_version")
+            if bundle_version is None:
+                vep_engine = (
+                    registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
+                )
+                bundle_version = resolve_effective_vep_bundle_version(
+                    registry.reference_engine,
+                    vep_engine,
+                )
             reference_versions = read_current_reference_versions(registry.reference_engine)
             with sample_engine.begin() as conn:
                 _upsert_annotation_state(conn, "vep_bundle_version", bundle_version)

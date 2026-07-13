@@ -80,6 +80,23 @@ def _seed_installed_bundle(settings: Settings, version: str) -> None:
         engine.dispose()
 
 
+def _seed_embedded_bundle_version(settings: Settings, version: str) -> None:
+    engine = sa.create_engine(f"sqlite:///{settings.vep_bundle_db_path}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', :version)"
+                ),
+                {"version": version},
+            )
+    finally:
+        engine.dispose()
+
+
 def _make_sample_db(
     settings: Settings,
     *,
@@ -226,6 +243,13 @@ class TestIsSampleStale:
         assert result is False
         assert not _has_event(cap_logs, "vep_bundle_version_unreadable")
         assert not any(entry.get("log_level") == "warning" for entry in cap_logs)
+
+    def test_self_described_unstamped_bundle_drives_staleness(self, staleness_env):
+        """Embedded metadata is authoritative when the status copy has no row."""
+        _seed_embedded_bundle_version(staleness_env["settings"], "v2.0.0")
+        _make_sample_db(staleness_env["settings"], seed_version="v1.0.0")
+
+        assert is_sample_stale(staleness_env["sample_id"]) is True
 
     def test_malformed_installed_version_warns_and_returns_false(self, staleness_env):
         """A present but unparsable registry value remains a fail-open warning."""
