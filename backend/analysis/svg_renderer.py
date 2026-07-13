@@ -849,17 +849,18 @@ def generate_svgs_for_sample(
             conn.execute(
                 findings.update().where(findings.c.id.in_(quarantined_ids)).values(svg_path=None)
             )
-            for finding_id in quarantined_ids:
-                stale_svg = sample_dir / "svgs" / f"{finding_id}.svg"
-                try:
-                    stale_svg.unlink(missing_ok=True)
-                except OSError as exc:
-                    logger.warning(
-                        "quarantined_finding_svg_delete_failed",
-                        finding_id=finding_id,
-                        svg_path=str(stale_svg),
-                        error=str(exc),
-                    )
+
+    for finding_id in quarantined_ids:
+        stale_svg = sample_dir / "svgs" / f"{finding_id}.svg"
+        try:
+            stale_svg.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "quarantined_finding_svg_delete_failed",
+                finding_id=finding_id,
+                svg_path=str(stale_svg),
+                error=str(exc),
+            )
 
     # 2. Read all qualified findings from the sample DB
     with sample_engine.connect() as conn:

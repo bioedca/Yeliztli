@@ -577,7 +577,9 @@ no-call, not as an operational failure and not as permission to reuse the runner
 5% per-chromosome guard. `GET /api/analysis/ancestry/lai/status` reports
 `lai_available=false`, `coverage_policy_available=false`, and the stable reason code
 `lai_coverage_policy_unavailable` when the bundle and Java prerequisites are present.
-Direct trigger requests return the same reason with HTTP 503 before a job is queued.
+Direct trigger requests that pass route-level sample validation return the same reason
+with HTTP 503 before a job is queued; an invalid or missing sample may return HTTP 404
+from that validation dependency first.
 Defense-in-depth at the analysis entry point prevents runner output, JSON files, database
 results, and ancestry findings from being produced by application jobs.
 
