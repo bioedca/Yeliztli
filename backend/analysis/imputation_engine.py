@@ -36,8 +36,3 @@ def resolve_binary(name: str, bin_dir: Path | None = None) -> Path | None:
 def missing_binaries(required: Iterable[str], bin_dir: Path | None = None) -> list[str]:
     """Names of the ``required`` engine binaries that cannot be resolved."""
     return [n for n in required if resolve_binary(n, bin_dir) is None]
-
-
-def engine_available(required: Iterable[str], bin_dir: Path | None = None) -> bool:
-    """True iff every ``required`` engine binary resolves (never raises)."""
-    return not missing_binaries(required, bin_dir)
