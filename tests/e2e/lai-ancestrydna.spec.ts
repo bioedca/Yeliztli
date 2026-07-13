@@ -300,7 +300,7 @@ async function setupLAIResultsRoutes(
           ? 'Insufficient data for chromosome painting'
           : 'Chromosome painting complete',
         error: belowMinimum
-          ? 'This sample does not meet the final-confirmed minimum coverage policy.'
+          ? 'lai_insufficient_data:{"message":"Encoded scheduler value must remain hidden."}'
           : null,
         insufficient_data_reason: belowMinimum
           ? {
@@ -434,6 +434,7 @@ test.describe('Step 25 — AncestryDNA LAI surfaces', () => {
     await expect(
       page.getByText('This sample does not meet the final-confirmed minimum coverage policy.'),
     ).toBeVisible()
+    await expect(page.getByText(/lai_insufficient_data:/)).toHaveCount(0)
     await expect(page.getByText('Analysis failed')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Run Chromosome Painting Analysis/i })).toHaveCount(0)
     await expect(page.getByText('Chromosome painting complete')).toHaveCount(0)

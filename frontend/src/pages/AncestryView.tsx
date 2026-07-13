@@ -411,7 +411,11 @@ export default function AncestryView() {
                             ? "Insufficient data for chromosome painting"
                             : "Analysis failed"}
                         </p>
-                        <p className="text-muted-foreground">{laiProgressQuery.data.error ?? "Unknown error"}</p>
+                        <p className="text-muted-foreground">
+                          {laiProgressQuery.data.insufficient_data_reason?.message
+                            ?? laiProgressQuery.data.error
+                            ?? "Unknown error"}
+                        </p>
                       </div>
                     </div>
                   )}
