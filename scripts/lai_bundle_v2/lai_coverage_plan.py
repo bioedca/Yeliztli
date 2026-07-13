@@ -1251,12 +1251,42 @@ def _read_matrix(raw: object, plan_path: Path) -> tuple[JobMatrix, str, str]:
     return matrix, root, directory
 
 
-def read_job_plan(
+@dataclass(frozen=True, slots=True)
+class JobPlanSummary:
+    """Immutable authenticated metadata for repeated job-shard reads."""
+
+    path: Path
+    plan_sha256: str
+    configuration_sha256: str
+    matrix: JobMatrix
+    merkle_root_sha256: str
+    shards_directory: Path
+    _configuration_json: bytes
+    _input_verification_json: bytes
+    _plan_snapshot: _FileSnapshot
+
+    @property
+    def configuration(self) -> dict[str, object]:
+        """Return a defensive copy of the authenticated configuration."""
+        value = json.loads(self._configuration_json)
+        if not isinstance(value, dict):
+            raise AssertionError("authenticated configuration stopped being a JSON object")
+        return value
+
+    @property
+    def input_verification(self) -> dict[str, object]:
+        """Return a defensive copy of the authenticated input verification."""
+        value = json.loads(self._input_verification_json)
+        if not isinstance(value, dict):
+            raise AssertionError("authenticated input verification stopped being a JSON object")
+        return value
+
+
+def read_job_plan_summary(
     path: Path,
     expected_configuration_sha256: object,
-    job_index: object,
-) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-    """Authenticate one schema-v3 shard and reconstruct its expected Cartesian row."""
+) -> JobPlanSummary:
+    """Authenticate schema-v3 plan metadata for one or more shard reads."""
     plan_path = Path(path)
     if not _is_sha256(expected_configuration_sha256):
         raise ValueError("expected configuration SHA-256 is invalid")
@@ -1271,7 +1301,8 @@ def read_job_plan(
     raw_verification = raw_plan["input_verification"]
     if not isinstance(raw_configuration, Mapping):
         raise ValueError("job-plan configuration must be an object")
-    if sha256_json(raw_configuration) != expected_configuration_sha256:
+    configuration_sha256 = sha256_json(raw_configuration)
+    if configuration_sha256 != expected_configuration_sha256:
         raise ValueError("configuration SHA-256 does not match expected value")
     if not isinstance(raw_verification, Mapping):
         raise ValueError("job-plan input verification must be an object")
@@ -1282,10 +1313,30 @@ def read_job_plan(
         raw_configuration.get("job_matrix"),
         plan_path,
     )
-    expected_row = matrix.row_at(job_index)
-    shard_directory = plan_path.parent / directory_name
-    _require_safe_directory(shard_directory, "job-shard directory")
-    shard_path = shard_directory / f"{job_index:08d}.json"
+    _assert_unchanged(plan_path, plan_snapshot, "job plan")
+    return JobPlanSummary(
+        path=plan_path,
+        plan_sha256=sha256_json(raw_plan),
+        configuration_sha256=configuration_sha256,
+        matrix=matrix,
+        merkle_root_sha256=root,
+        shards_directory=plan_path.parent / directory_name,
+        _configuration_json=canonical_json_bytes(raw_configuration),
+        _input_verification_json=canonical_json_bytes(raw_verification),
+        _plan_snapshot=plan_snapshot,
+    )
+
+
+def read_job_plan_row(
+    summary: JobPlanSummary,
+    job_index: object,
+) -> dict[str, object]:
+    """Authenticate one shard against an already-authenticated plan summary."""
+    if not isinstance(summary, JobPlanSummary):
+        raise TypeError("summary must be an authenticated JobPlanSummary")
+    expected_row = summary.matrix.row_at(job_index)
+    _require_safe_directory(summary.shards_directory, "job-shard directory")
+    shard_path = summary.shards_directory / f"{job_index:08d}.json"
     raw_shard, shard_snapshot = _read_canonical_json(shard_path, "job shard")
     raw_leaf_index = raw_shard.get("leaf_index") if isinstance(raw_shard, Mapping) else None
     raw_leaf_count = raw_shard.get("leaf_count") if isinstance(raw_shard, Mapping) else None
@@ -1298,7 +1349,7 @@ def read_job_plan(
         or raw_leaf_index != job_index
         or not isinstance(raw_leaf_count, int)
         or isinstance(raw_leaf_count, bool)
-        or raw_leaf_count != matrix.row_count
+        or raw_leaf_count != summary.matrix.row_count
     ):
         raise ValueError("job shard has an invalid schema or leaf index/count")
     raw_row = raw_shard["job"]
@@ -1309,12 +1360,23 @@ def read_job_plan(
     if not verify_merkle_proof(
         expected_row,
         leaf_index=job_index,
-        leaf_count=matrix.row_count,
+        leaf_count=summary.matrix.row_count,
         proof=raw_shard["merkle_proof"],
-        expected_root_sha256=root,
+        expected_root_sha256=summary.merkle_root_sha256,
     ):
         raise ValueError("job shard has an invalid Merkle proof")
 
     _assert_unchanged(shard_path, shard_snapshot, "job shard")
-    _assert_unchanged(plan_path, plan_snapshot, "job plan")
-    return dict(raw_configuration), expected_row, dict(raw_verification)
+    _assert_unchanged(summary.path, summary._plan_snapshot, "job plan")
+    return expected_row
+
+
+def read_job_plan(
+    path: Path,
+    expected_configuration_sha256: object,
+    job_index: object,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Authenticate one schema-v3 shard and reconstruct its expected Cartesian row."""
+    summary = read_job_plan_summary(path, expected_configuration_sha256)
+    expected_row = read_job_plan_row(summary, job_index)
+    return summary.configuration, expected_row, summary.input_verification

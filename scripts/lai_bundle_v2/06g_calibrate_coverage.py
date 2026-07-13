@@ -101,6 +101,9 @@ from backend.analysis.lai_liftover import resolve_lai_liftover_path  # noqa: E40
 from backend.db.sample_schema import create_sample_tables  # noqa: E402
 from backend.db.tables import raw_variants, sample_metadata_table  # noqa: E402
 from scripts.lai_bundle_v2 import lai_coverage_plan  # noqa: E402
+from scripts.lai_bundle_v2.lai_coverage_metrics import (  # noqa: E402
+    coverage_metrics_calibration_exclusion as _shared_coverage_metrics_calibration_exclusion,
+)
 from scripts.lai_bundle_v2.lai_coverage_policy import (  # noqa: E402
     ConfirmationPolicy,
     confirmation_policy_provenance,
@@ -228,6 +231,15 @@ class SimulationVerificationReport:
     sha256: str
     verifier: Mapping[str, object]
     marker_rows_verified: int
+
+
+@dataclass(frozen=True, slots=True)
+class SelectionDesignArtifact:
+    """Opaque, independently authenticated threshold-selection preregistration."""
+
+    path: Path
+    sha256: str
+    fingerprint: Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -3345,252 +3357,21 @@ def coverage_metrics_calibration_exclusion(
     expected_input_markers_by_source: Mapping[str, int] | None = None,
     expected_model_markers_by_autosome: Mapping[str, int] | None = None,
 ) -> dict[str, object] | None:
-    """Validate the complete coverage schema and its calibration invariants."""
-
-    def exclusion(kind: str, message: str, **details: object) -> dict[str, object]:
-        return {"type": kind, "message": message, **details}
-
-    def nonnegative_int(value: object) -> bool:
-        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
-    def finite_number(value: object) -> bool:
-        return (
-            isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(float(value))
-        )
-
-    def autosome_counts(value: object) -> dict[str, int] | None:
-        if not isinstance(value, Mapping) or set(value) != AUTOSOME_SET:
-            return None
-        if not all(nonnegative_int(value[chrom]) for chrom in AUTOSOMES):
-            return None
-        return {chrom: int(value[chrom]) for chrom in AUTOSOMES}
-
-    if not isinstance(metrics, Mapping):
-        return exclusion(
-            "missing_lai_coverage_metrics",
-            "Production result did not include LAI coverage metrics.",
-        )
-    if metrics.get("schema_version") != 1:
-        return exclusion(
-            "unsupported_lai_coverage_schema",
-            "LAI coverage metrics must use schema version 1.",
-        )
-
-    status = metrics.get("model_denominators")
-    if not isinstance(status, Mapping):
-        return exclusion(
-            "missing_model_denominator_status",
-            "LAI coverage metrics did not declare denominator completeness.",
-        )
-
-    unreadable = status.get("unreadable_autosomes")
-    if status.get("complete") is not True or unreadable != []:
-        return exclusion(
-            "incomplete_model_denominators",
-            (
-                "At least one model-marker/window denominator was unreadable; "
-                "exclude this observation from threshold selection."
-            ),
-            unreadable_autosomes=_jsonable(unreadable),
-        )
-
-    emitted = metrics.get("emitted_markers")
-    if not isinstance(emitted, Mapping) or not nonnegative_int(emitted.get("total")):
-        return exclusion("invalid_emitted_markers", "Emitted-marker totals are invalid.")
-    emitted_by = autosome_counts(emitted.get("by_autosome"))
-    if emitted_by is None or sum(emitted_by.values()) != emitted["total"]:
-        return exclusion(
-            "invalid_emitted_markers",
-            "Emitted-marker per-autosome counts do not match the aggregate.",
-        )
-    if expected_input_markers_by_autosome is not None and emitted_by != dict(
-        expected_input_markers_by_autosome
-    ):
-        return exclusion(
-            "emitted_input_mismatch",
-            "Emitted-marker per-autosome counts do not match the selected input.",
-            expected_by_autosome=dict(expected_input_markers_by_autosome),
-            observed_by_autosome=emitted_by,
-        )
-
-    model_markers = metrics.get("model_markers")
-    if not isinstance(model_markers, Mapping):
-        return exclusion("invalid_model_markers", "Model-marker metrics are missing.")
-    marker_by = model_markers.get("by_autosome")
-    aggregate = model_markers.get("aggregate")
-    if not isinstance(marker_by, Mapping) or set(marker_by) != AUTOSOME_SET:
-        return exclusion(
-            "invalid_model_markers",
-            "Model-marker metrics must cover autosomes 1..22 exactly.",
-        )
-    marker_sums = {"matched": 0, "total": 0, "allele_mismatch": 0}
-    for chrom in AUTOSOMES:
-        counts = marker_by[chrom]
-        if not isinstance(counts, Mapping) or not all(
-            nonnegative_int(counts.get(field)) for field in marker_sums
-        ):
-            return exclusion(
-                "invalid_model_markers",
-                f"Model-marker counts are invalid for chr{chrom}.",
-            )
-        if counts["total"] <= 0 or counts["matched"] + counts["allele_mismatch"] > counts["total"]:
-            return exclusion(
-                "invalid_model_markers",
-                f"Model-marker counts violate the denominator for chr{chrom}.",
-            )
-        if expected_model_markers_by_autosome is not None and counts[
-            "total"
-        ] != expected_model_markers_by_autosome.get(chrom):
-            return exclusion(
-                "model_marker_denominator_mismatch",
-                f"Model-marker denominator does not match pinned C for chr{chrom}.",
-                expected_total=expected_model_markers_by_autosome.get(chrom),
-                observed_total=counts["total"],
-            )
-        match_rate = counts.get("match_rate")
-        expected_rate = round(counts["matched"] / counts["total"], 6)
-        if not finite_number(match_rate) or not math.isclose(
-            float(match_rate), expected_rate, abs_tol=1e-9
-        ):
-            return exclusion(
-                "invalid_model_markers",
-                f"Model-marker match rate is inconsistent for chr{chrom}.",
-            )
-        for field in marker_sums:
-            marker_sums[field] += int(counts[field])
-    if not isinstance(aggregate, Mapping) or any(
-        aggregate.get(field) != total for field, total in marker_sums.items()
-    ):
-        return exclusion(
-            "invalid_model_markers",
-            "Model-marker aggregate counts do not match per-autosome counts.",
-        )
-    aggregate_rate = aggregate.get("match_rate")
-    expected_aggregate_rate = round(marker_sums["matched"] / marker_sums["total"], 6)
-    if not finite_number(aggregate_rate) or not math.isclose(
-        float(aggregate_rate), expected_aggregate_rate, abs_tol=1e-9
-    ):
-        return exclusion(
-            "invalid_model_markers",
-            "Model-marker aggregate match rate is inconsistent.",
-        )
-
-    for field in ("phased_autosomes", "analyzed_autosomes"):
-        autosomes = metrics.get(field)
-        if not isinstance(autosomes, Mapping):
-            return exclusion("invalid_autosome_set", f"{field} metrics are missing.")
-        identities = autosomes.get("identities")
-        if (
-            not isinstance(identities, list)
-            or any(not isinstance(chrom, int) or not 1 <= chrom <= 22 for chrom in identities)
-            or len(identities) != len(set(identities))
-            or identities != sorted(identities)
-            or autosomes.get("count") != len(identities)
-        ):
-            return exclusion("invalid_autosome_set", f"{field} metrics are inconsistent.")
-    phased_ids = set(metrics["phased_autosomes"]["identities"])
-    analyzed_ids = set(metrics["analyzed_autosomes"]["identities"])
-    if not analyzed_ids <= phased_ids:
-        return exclusion(
-            "invalid_autosome_set",
-            "Analyzed autosomes are not a subset of phased autosomes.",
-        )
-    emitted_ids = {int(chrom) for chrom, count in emitted_by.items() if count > 0}
-    if not phased_ids <= emitted_ids:
-        return exclusion(
-            "invalid_autosome_set",
-            "Phased autosomes are not a subset of autosomes with emitted markers.",
-        )
-
-    windows = metrics.get("haplotype_windows")
-    if not isinstance(windows, Mapping):
-        return exclusion("invalid_haplotype_windows", "Haplotype-window metrics are missing.")
-    expected_by = autosome_counts(windows.get("expected_by_autosome"))
-    valid_by = autosome_counts(windows.get("valid_assigned_by_autosome"))
-    expected = windows.get("expected")
-    valid = windows.get("valid_assigned")
-    if (
-        expected_by is None
-        or valid_by is None
-        or not nonnegative_int(expected)
-        or not nonnegative_int(valid)
-        or sum(expected_by.values()) != expected
-        or sum(valid_by.values()) != valid
-        or valid > expected
-        or any(valid_by[chrom] > expected_by[chrom] for chrom in AUTOSOMES)
-    ):
-        return exclusion(
-            "invalid_haplotype_windows",
-            "Haplotype-window aggregate/per-autosome counts are inconsistent.",
-        )
-    truth_by = Counter(window.chrom for window in truth_windows)
-    truth_expected_by = {chrom: 2 * truth_by[chrom] for chrom in AUTOSOMES}
-    if expected_by != truth_expected_by:
-        return exclusion(
-            "truth_model_window_mismatch",
-            "Local truth does not cover every expected model haplotype window exactly.",
-            truth_expected_by_autosome=truth_expected_by,
-            model_expected_by_autosome=expected_by,
-        )
-    if any(valid_by[chrom] > 0 and int(chrom) not in analyzed_ids for chrom in AUTOSOMES):
-        return exclusion(
-            "invalid_haplotype_windows",
-            "Assigned windows were reported for an unanalyzed autosome.",
-        )
-    assignment_rate = windows.get("assignment_rate")
-    calculated_rate = valid / expected if expected else 0.0
-    if not finite_number(assignment_rate) or abs(float(assignment_rate) - calculated_rate) > 1e-6:
-        return exclusion(
-            "invalid_haplotype_windows",
-            "Haplotype-window assignment rate does not match its counts.",
-        )
-    per_source = metrics.get("per_source")
-    if not isinstance(per_source, Mapping) or not per_source:
-        return exclusion("invalid_per_source_metrics", "Per-source coverage metrics are missing.")
-    source_hits = 0
-    source_total = 0
-    for source, counts in per_source.items():
-        if (
-            not isinstance(source, str)
-            or not source
-            or not isinstance(counts, Mapping)
-            or set(counts) != {"hits", "drops"}
-            or not nonnegative_int(counts.get("hits"))
-            or not nonnegative_int(counts.get("drops"))
-        ):
-            return exclusion(
-                "invalid_per_source_metrics",
-                "Per-source coverage counts do not match schema version 1.",
-            )
-        source_hits += int(counts["hits"])
-        source_total += int(counts["hits"]) + int(counts["drops"])
-    if source_hits != emitted["total"]:
-        return exclusion(
-            "invalid_per_source_metrics",
-            "Per-source hits do not match emitted-marker totals.",
-        )
-    if expected_input_markers is not None and source_total != expected_input_markers:
-        return exclusion(
-            "invalid_per_source_metrics",
-            "Per-source hits and drops do not account for every selected marker.",
-            expected_input_markers=expected_input_markers,
-            observed_input_markers=source_total,
-        )
-    if expected_input_markers_by_source is not None:
-        observed_by_source = {
-            str(source): int(counts["hits"]) + int(counts["drops"])
-            for source, counts in per_source.items()
-        }
-        if observed_by_source != dict(expected_input_markers_by_source):
-            return exclusion(
-                "invalid_per_source_metrics",
-                "Per-source totals do not match the selected input markers.",
-                expected_by_source=dict(expected_input_markers_by_source),
-                observed_by_source=observed_by_source,
-            )
-    return None
+    """Validate coverage telemetry using this fixture's local-truth geometry."""
+    truth_by_autosome = Counter(window.chrom for window in truth_windows)
+    expected_truth_haplotype_windows_by_autosome = {
+        chrom: 2 * truth_by_autosome[chrom] for chrom in AUTOSOMES
+    }
+    return _shared_coverage_metrics_calibration_exclusion(
+        metrics,
+        expected_truth_haplotype_windows_by_autosome=(
+            expected_truth_haplotype_windows_by_autosome
+        ),
+        expected_input_markers=expected_input_markers,
+        expected_input_markers_by_autosome=expected_input_markers_by_autosome,
+        expected_input_markers_by_source=expected_input_markers_by_source,
+        expected_model_markers_by_autosome=expected_model_markers_by_autosome,
+    )
 
 
 def classify_production_failure(exc: Exception) -> str:
@@ -3896,6 +3677,7 @@ def build_input_verification(
     manifests: Mapping[str, SiteManifest],
     identifier_manifests: Mapping[str, IdentifierManifest] | None = None,
     confirmation_policy: ConfirmationPolicy | None = None,
+    selection_design: SelectionDesignArtifact | None = None,
 ) -> dict[str, object]:
     """Bind planner-validated fixture/truth/mask bytes to live stat fingerprints."""
     fixture_entries: dict[str, dict[str, object]] = {}
@@ -3933,6 +3715,8 @@ def build_input_verification(
             confirmation_policy.path,
             confirmation_policy.sha256,
         )
+    if selection_design is not None:
+        verification["selection_design"] = dict(selection_design.fingerprint)
     return verification
 
 
@@ -4316,6 +4100,8 @@ def verify_runtime_code_revision(expected_revision: str) -> None:
         "uv.lock",
         "scripts/lai_bundle_v2/06g_calibrate_coverage.py",
         "scripts/lai_bundle_v2/06g_verify_simulation.py",
+        "scripts/lai_bundle_v2/06h_select_coverage.py",
+        "scripts/lai_bundle_v2/lai_coverage_metrics.py",
         "scripts/lai_bundle_v2/lai_coverage_plan.py",
         "scripts/lai_bundle_v2/lai_coverage_policy.py",
     )
@@ -4420,6 +4206,7 @@ def build_configuration(
     fractions: Sequence[Decimal],
     seeds: Sequence[int],
     confirmation_policy: ConfirmationPolicy | None = None,
+    selection_design: SelectionDesignArtifact | None = None,
 ) -> dict[str, object]:
     """Build the canonical configuration authenticated by each lightweight row."""
     realized_overlap: dict[str, dict[str, int]] = {}
@@ -4525,6 +4312,10 @@ def build_configuration(
                     "local_truth_filename": fixture.truth_path.name,
                     "local_truth_sha256": fixture.truth_sha256,
                     "local_truth_windows": len(fixture.truth_windows),
+                    "local_truth_windows_by_autosome": {
+                        chrom: sum(window.chrom == chrom for window in fixture.truth_windows)
+                        for chrom in AUTOSOMES
+                    },
                     "marker_truth_filename": (
                         fixture.marker_truth_path.name
                         if fixture.marker_truth_path is not None
@@ -4609,6 +4400,13 @@ def build_configuration(
         assert isinstance(inputs, dict)
         inputs["confirmation_policy"] = confirmation_policy_provenance(confirmation_policy)
         configuration["threshold_selected"] = confirmation_policy.policy_id
+    if selection_design is not None:
+        inputs = configuration["inputs"]
+        assert isinstance(inputs, dict)
+        inputs["selection_design"] = {
+            "filename": selection_design.path.name,
+            "sha256": selection_design.sha256,
+        }
     return configuration
 
 
@@ -4890,6 +4688,25 @@ def run_from_job_plan(args: argparse.Namespace) -> int:
         fixture_path,
         local_truth_path,
     )
+    raw_truth_window_counts = fixture_config.get("local_truth_windows_by_autosome")
+    observed_truth_window_counts = Counter(window.chrom for window in fixture.truth_windows)
+    if (
+        not isinstance(raw_truth_window_counts, Mapping)
+        or set(raw_truth_window_counts) != AUTOSOME_SET
+        or not all(
+            isinstance(raw_truth_window_counts[chrom], int)
+            and not isinstance(raw_truth_window_counts[chrom], bool)
+            and raw_truth_window_counts[chrom] >= 0
+            for chrom in AUTOSOMES
+        )
+        or sum(int(raw_truth_window_counts[chrom]) for chrom in AUTOSOMES)
+        != fixture_config.get("local_truth_windows")
+        or any(
+            raw_truth_window_counts[chrom] != observed_truth_window_counts[chrom]
+            for chrom in AUTOSOMES
+        )
+    ):
+        raise ValueError(f"job plan has invalid local-truth window counts for {iid}")
     if (
         fixture.sha256 != fixture_config.get("sha256")
         or fixture.truth_sha256 != fixture_config.get("local_truth_sha256")
@@ -5269,6 +5086,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="independent trusted SHA-256 of the frozen final-confirmation policy bytes",
     )
     parser.add_argument(
+        "--selection-design",
+        type=Path,
+        help=(
+            "opaque preregistered threshold-selection design; required only when "
+            "planning the calibration matrix"
+        ),
+    )
+    parser.add_argument(
+        "--expected-selection-design-sha256",
+        type=parse_sha256,
+        help="independent trusted SHA-256 of the calibration selection-design bytes",
+    )
+    parser.add_argument(
         "--verify-simulation",
         action="store_true",
         help="execute the repository-owned allele replay verifier and write the stamp",
@@ -5532,6 +5362,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--job-plan is required with --list-jobs")
     if not args.list_jobs and args.max_jobs is not None:
         parser.error("--max-jobs is only valid with --list-jobs")
+    selection_design_options = (
+        args.selection_design is not None,
+        args.expected_selection_design_sha256 is not None,
+    )
+    if args.list_jobs and args.dataset_split == "calibration":
+        if not all(selection_design_options):
+            parser.error(
+                "calibration --list-jobs requires both --selection-design and "
+                "--expected-selection-design-sha256"
+            )
+    elif any(selection_design_options):
+        parser.error(
+            "--selection-design and --expected-selection-design-sha256 are only valid "
+            "together for calibration --list-jobs"
+        )
     if args.dataset_split == "calibration" and (
         args.confirmation_policy is not None
         or args.expected_confirmation_policy_sha256 is not None
@@ -5613,6 +5458,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.confirmation_policy is not None
             else None
         )
+        selection_design_path = (
+            lexical_absolute_path(args.selection_design)
+            if args.selection_design is not None
+            else None
+        )
     except ValueError as exc:
         parser.error(str(exc))
     bundle_dir = lexical_absolute_path(args.bundle_dir)
@@ -5660,6 +5510,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_paths.append(reference_verification_path)
     if confirmation_policy_path is not None:
         required_paths.append(confirmation_policy_path)
+    if selection_design_path is not None:
+        required_paths.append(selection_design_path)
     if args.twentythreeandme_sites is not None:
         required_paths.append(lexical_absolute_path(args.twentythreeandme_sites))
     if args.ancestrydna_sites is not None:
@@ -5774,6 +5626,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     confirmation_policy: ConfirmationPolicy | None = None
+    selection_design: SelectionDesignArtifact | None = None
     try:
         verify_runtime_code_revision(args.code_revision)
         runtime_environment = runtime_environment_fingerprint()
@@ -6088,6 +5941,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 scenarios_by_name["none"],
                 *(scenarios_by_name[name] for name in sorted(scenarios_by_name) if name != "none"),
             )
+        if selection_design_path is not None:
+            assert args.expected_selection_design_sha256 is not None
+            selection_design_snapshot = _stable_file_snapshot(selection_design_path)
+            if selection_design_snapshot["sha256"] != args.expected_selection_design_sha256:
+                raise ValueError(
+                    f"{selection_design_path}: selection-design SHA-256 does not match "
+                    "expected identity"
+                )
+            selection_design = SelectionDesignArtifact(
+                path=selection_design_path,
+                sha256=args.expected_selection_design_sha256,
+                fingerprint=selection_design_snapshot,
+            )
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
 
@@ -6137,6 +6003,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         fractions=fractions,
         seeds=seeds,
         confirmation_policy=confirmation_policy,
+        selection_design=selection_design,
     )
     assert args.job_plan is not None
     plan_path = lexical_absolute_path(args.job_plan)
@@ -6145,6 +6012,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifests,
         {vep_membership.name: vep_membership},
         confirmation_policy,
+        selection_design,
     )
     fixture_mask_axes = tuple(
         (

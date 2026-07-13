@@ -254,6 +254,57 @@ Planning and inference are separate phases. Keep separate mode-specific argument
 autosomal donor VCF/index. Prefix every harness invocation with `uv run --locked python`
 and then the `scripts/lai_bundle_v2/06g_calibrate_coverage.py` path.
 
+Before calibration planning, freeze a schema-v1 `selection-design.json` and record its
+SHA-256 in an independently controlled release record. The file must be the exact
+canonical JSON bytes produced with sorted keys, ASCII escaping, no insignificant
+whitespace or trailing newline, no non-finite numbers, and compact `,`/`:` separators. Decimal thresholds and
+fractions are canonical plain-decimal **strings**, not JSON numbers. Its top-level object
+has exactly these fields:
+
+- `schema_version` (`1`), `policy_id`, `frozen` (`true`), `dataset_id`,
+  `bundle_artifact_sha256`, `simulation_manifest_sha256`, and the full 40-hex
+  `code_revision`;
+- `endpoints`, in this exact order: `assignment_completeness >=`,
+  `local_diplotype_accuracy >=`,
+  `local_haplotype_accuracy_best_orientation >=`,
+  `global_ancestry_total_variation <=`,
+  `per_truth_class.assignment_completeness >=`, and
+  `per_truth_diplotype.local_diplotype_accuracy >=`. Each entry has exactly `name`, `op`,
+  and a non-vacuous `value` chosen before the sweep;
+- `aggregation`, with the exact dimensions `simulation_iid`, `input_mask`,
+  `validation_stratum`, `chromosome_drop_scenario`, `fraction`, and `seed`, plus
+  `all_cells_pass: true` and `average_biological_replicates: false`;
+- `stable_region_rule`, with
+  `algorithm: "predeclared_complete_region_componentwise_minimum_v1"`, an integer
+  `minimum_fraction_levels` of at least two, `require_zero_false_accepts: true`, and
+  `require_full_density_no_drop_acceptance: true`;
+- `confirmation_matrix`, with the three input masks in the fixed order
+  `twentythreeandme_derived_mask`, `ancestrydna_empirical_mask`, and
+  `synthetic_merged_derived_masks`; at least two unique increasing `fractions` whose last
+  value is `"1"`; a nonempty, duplicate-free signed-64-bit `seeds` list; and a nonempty
+  `drop_scenarios` list whose entries have exactly `name` and sorted
+  `dropped_autosomes`, including `none` with an empty list; and
+- `final_confirmation_split_commitment_sha256`, recorded while that split is still
+  sealed.
+
+The confirmation fractions must be a contiguous high-density suffix of the calibration
+fractions, not a favorable subset chosen after inspection. Every declared seed and drop
+scenario must occur in the calibration plan. Calibration planning is the commitment
+point: pass both the design and its independently recorded digest so the plan binds the
+exact bytes before any observations exist:
+
+```bash
+: "${SELECTION_DESIGN_SHA256:?load the independently recorded design digest}"
+
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_PLAN_ARGS[@]}" \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
+  --list-jobs \
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  > "$VALIDATION_DIR/coverage/calibration-jobs.jsonl"
+```
+
 Every `FINAL_*_ARGS` array must include the frozen `--confirmation-policy` and its
 independently recorded `--expected-confirmation-policy-sha256`. Both the wrapper and the
 direct verifier authenticate that binding before opening any final fixture or truth file.
@@ -271,9 +322,26 @@ carries the configuration SHA-256 that must be supplied later as
 `--expected-configuration-sha256`.
 
 SLURM array tasks must run from that frozen plan with `--job-index`, `--job-plan`, the
-expected configuration hash, and a task-specific `--output`. A task reparses only the
-selected fixture and cached window truth, fingerprint-checks its already validated marker
-truth, and reads only the site-mask file or files needed for that selected scenario. It
+expected configuration hash, and a task-specific `--output`. The result archive has a
+strict canonical naming contract: job `N` is exactly `N.jsonl`, with no zero padding, and
+the harness creates its sibling `.N.jsonl.lock`. The selector rejects missing, duplicate,
+padded, extra, symlinked, linked, foreign-owned, or still-locked entries. Normalize a
+scheduler-provided index before using it as the filename, for example:
+
+```bash
+JOB_INDEX=$((10#$SLURM_ARRAY_TASK_ID))
+
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${CALIBRATION_RUN_ARGS[@]}" \
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --job-index "$JOB_INDEX" \
+  --output "$VALIDATION_DIR/coverage/calibration-records/${JOB_INDEX}.jsonl"
+```
+
+A task reparses only the selected fixture and cached window truth,
+fingerprint-checks its already validated marker truth, and reads only the site-mask file
+or files needed for that selected scenario. It
 must not reparse every fixture or every unrelated mask in the matrix. The plan's
 fingerprints reject drift between planning and execution, while the selected Merkle proof
 authenticates one job without loading the full Cartesian matrix. Planning authenticates
@@ -314,9 +382,11 @@ stand in for distribution.[1][][2][]
 The harness must validate the complete coverage telemetry schema before it accepts a
 successful result. Aggregate and per-autosome emitted markers, model-marker denominators,
 phased/analyzed chromosome sets, and expected/assigned window counts must agree with one
-another and with the explicit truth-window denominator. Unreadable or inconsistent
-telemetry makes the row ineligible; a silently reduced denominator must never make sparse
-coverage look better.
+another and with the explicit truth-window denominator. The authenticated plan freezes
+both the aggregate local-truth window count and the exact autosome 1–22 count map; the
+selector requires accuracy and diploid telemetry denominators to match that geometry.
+Unreadable or inconsistent telemetry makes the row ineligible; a silently reduced
+denominator must never make sparse coverage look better.
 
 ## Truth-based metrics
 
@@ -363,14 +433,48 @@ calibration form,[4][] but neither that study's target nor its Affymetrix/G-nomi
 transfers directly to Yeliztli.
 
 Do not select any threshold until the observed report is a complete, duplicate-free match
-to the predeclared matrix. Every operational-error cell must be resolved and rerun; every
-expected known coverage failure must remain present as a negative observation. Select a
-policy only inside a stable pass region that satisfies all predeclared targets across every
-supported input shape, validation stratum, and required chromosome-distribution scenario.
+to the authenticated plan. Every operational-error or invalid cell must be resolved and
+rerun; every expected known coverage failure must remain present as a negative
+observation. `06h_select_coverage.py select` applies the preregistered algorithm without a
+manual choice:
+
+1. The stable region is the full Cartesian product of every simulation fixture (thereby
+   covering every predeclared validation stratum), all three production masks, the exact
+   confirmation seeds and drop scenarios, and the predeclared contiguous high-density fraction suffix. It
+   contains at least two fraction levels, including full density `1`, and includes the
+   no-drop scenario.
+2. Every stable-region cell must be `status="ok"`,
+   `calibration_eligible=true`, have complete and internally consistent telemetry, and
+   pass all six predeclared truth endpoints. The six aggregation dimensions remain
+   separate; no biological replicate, mask, stratum, seed, fraction, or loss scenario is
+   averaged away.
+3. Across those cells, the selector takes the componentwise minimum of exactly seven
+   telemetry fields: `emitted_markers.total`, `model_markers.aggregate.matched`,
+   `model_markers.aggregate.match_rate`, `phased_autosomes.count`,
+   `analyzed_autosomes.count`, `haplotype_windows.valid_assigned`, and
+   `haplotype_windows.assignment_rate`. All seven minima must be present and strictly
+   positive. Those minima become the seven `>=` production predicates; they are not fit,
+   rounded, or relaxed by an operator.
+4. The selector then scans every production-mask calibration row. An unsafe row is a
+   false accept if it fails a truth endpoint yet satisfies all seven candidate predicates.
+   The required false-accept count is exactly zero. The native-unmasked scenario remains a
+   diagnostic and is never promoted into the policy or final matrix.
+
+Any incomplete stable region, unsafe stable cell, nonpositive or incomplete telemetry
+minimum, unresolved operational/invalid row, or false accept produces a deterministic
+refusal rather than a positive policy.
+The selection report records the raw false-accept count/rate and, as a secondary
+descriptive measure, safe-row acceptance overall and by mask, validation stratum, and
+chromosome-loss scenario. These are all-cell sensitivity summaries, not independent-unit
+confidence estimates and not objectives that may be tuned after observation.
 
 The donor cohort is small within each stratum, and simulated genomes derived from the same
 donor pool are not fully independent biological samples. Report uncertainty explicitly;
 repeated site-removal seeds do not narrow the biological-sample confidence interval.
+The deterministic reports therefore set `uncertainty.status` to
+`not_estimable_from_dependent_simulation_sweep`, publish raw simulation-IID and stratum
+counts, and emit no confidence interval rather than treating fractions, masks, windows,
+or seeds as independent observations.
 Write the selected rule as a frozen confirmation-policy artifact bound to the calibration
 plan and complete observation hashes, selector code/report hashes, bundle, simulation
 manifest, code revision, and a commitment over the still-sealed final split. The policy
@@ -386,6 +490,33 @@ CLI overrides or the native unmasked diagnostic scenario. Final array tasks must
 both policy arguments, so replacing a policy cannot self-consistently replace its own
 purported calibration and selection history.
 
+Run selection only after every canonical result and lock is present. Load the design,
+plan, and configuration hashes from independent release records rather than recomputing
+the expected values from the same live inputs during this command:
+
+```bash
+: "${SELECTION_DESIGN_SHA256:?independent digest required}"
+: "${CALIBRATION_JOB_PLAN_SHA256:?independent digest required}"
+: "${CALIBRATION_CONFIG_SHA256:?independent digest required}"
+
+uv run --locked python scripts/lai_bundle_v2/06h_select_coverage.py select \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-job-plan-sha256 "$CALIBRATION_JOB_PLAN_SHA256" \
+  --expected-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --observations-dir "$VALIDATION_DIR/coverage/calibration-records" \
+  --output-dir "$VALIDATION_DIR/coverage/selection"
+```
+
+On success, exit status `0` publishes a new directory containing
+`selection-report.json` and `confirmation-policy.json`, and prints the policy SHA-256 for
+independent recording. A scientifically unsafe complete sweep exits `2`, publishes only
+the deterministic refusal `selection-report.json`, and creates no policy. Malformed,
+noncanonical, unauthenticated, incomplete, or drifting inputs also exit `2`, but abort
+without publishing a scientific refusal artifact. Do not turn either class of exit into a
+positive threshold.
+
 Evaluate that policy once against the founder-disjoint final-confirmation split before
 describing it as supported for the pinned models, donors, masks, and simulation protocol.
 It is not evidence for other cohorts, marker layouts, models, or biological ancestry
@@ -394,6 +525,50 @@ to calibration with a newly generated, still-sealed confirmation set. If the evi
 does not identify a stable pass region, or if any required class lacks eligible founders
 (as in the dated exploratory audit above), retain fail-closed behavior and expand
 validation instead of choosing an attractive-looking marker count.
+
+After a policy is selected, independently record its digest, use it to plan and execute
+the final matrix, and retain the calibration archive because confirmation replays the
+selection lineage. Then run the evaluator exactly once:
+
+```bash
+: "${CONFIRMATION_POLICY_SHA256:?independent digest required}"
+: "${FINAL_JOB_PLAN_SHA256:?independent digest required}"
+: "${FINAL_CONFIG_SHA256:?independent digest required}"
+
+uv run --locked python scripts/lai_bundle_v2/06h_select_coverage.py confirm \
+  --confirmation-policy "$VALIDATION_DIR/coverage/selection/confirmation-policy.json" \
+  --expected-confirmation-policy-sha256 "$CONFIRMATION_POLICY_SHA256" \
+  --dataset-id "$DATASET_ID" \
+  --bundle-artifact-sha256 "$BUNDLE_ARTIFACT_SHA256" \
+  --simulation-manifest-sha256 "$SIMULATION_MANIFEST_SHA256" \
+  --code-revision "$SIMULATION_CODE_REVISION" \
+  --final-confirmation-split-commitment-sha256 "$FINAL_SPLIT_COMMITMENT_SHA256" \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
+  --calibration-job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-calibration-job-plan-sha256 "$CALIBRATION_JOB_PLAN_SHA256" \
+  --expected-calibration-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --calibration-observations-dir "$VALIDATION_DIR/coverage/calibration-records" \
+  --selection-report "$VALIDATION_DIR/coverage/selection/selection-report.json" \
+  --final-job-plan "$VALIDATION_DIR/coverage/final-job-plan.json" \
+  --expected-final-job-plan-sha256 "$FINAL_JOB_PLAN_SHA256" \
+  --expected-final-configuration-sha256 "$FINAL_CONFIG_SHA256" \
+  --final-observations-dir "$VALIDATION_DIR/coverage/final-records" \
+  --output "$VALIDATION_DIR/coverage/final-confirmation-report.json"
+```
+
+Exit `0` means every authenticated final cell passed every frozen endpoint and coverage
+predicate. Exit `2` with a published report means final confirmation failed; input or
+lineage authentication errors exit `2` before publication. A failure never authorizes
+retuning on the opened final split: return to calibration with a newly generated, sealed
+confirmation split and a new preregistered design.
+
+At present there is no evidence basis for running this workflow to a positive policy: the
+2026-07-12 exploratory candidate audit retained only one eligible AMR founder and zero OCE
+founders. The all-seven-class planner gate therefore refuses the current panel, which
+means no positive confirmation policy may exist for it. Preserve fail-closed behavior
+until a fully hashed audit and eligible founder-disjoint panel satisfy the complete
+contract.
 
 ## References
 

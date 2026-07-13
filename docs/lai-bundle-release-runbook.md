@@ -362,6 +362,31 @@ lists for `final_confirmation`; every final-split list also carries the frozen p
 its independently recorded digest so no final truth is opened before policy freeze. Then
 run the calibration stages in order:
 
+Before the calibration plan is created, freeze canonical schema-v1
+`selection-design.json` bytes and record their digest independently. The exact fields are
+`schema_version`, `policy_id`, `frozen`, `dataset_id`, `bundle_artifact_sha256`,
+`simulation_manifest_sha256`, `code_revision`, `endpoints`, `aggregation`,
+`stable_region_rule`, `confirmation_matrix`, and
+`final_confirmation_split_commitment_sha256`. The six endpoint entries, in canonical
+order, are assignment completeness, local diplotype accuracy, best-orientation local
+haplotype accuracy, global-ancestry total-variation distance, per-truth-class assignment
+completeness, and per-truth-diplotype local diplotype accuracy, with their fixed `>=` or
+`<=` operators and non-vacuous preregistered values. Aggregation requires every cell to
+pass across the exact six dimensions documented in the calibration contract, without
+averaging biological replicates.
+
+The stable-region algorithm is exactly
+`predeclared_complete_region_componentwise_minimum_v1`. Its confirmation matrix contains
+all three production masks, exact seeds and drop scenarios including `none`, and a
+contiguous high-density suffix of at least two calibration fractions ending in `1`. All
+stable cells must pass all six endpoints. The policy predicates are the componentwise
+minima of the seven telemetry fields documented in the calibration contract, and every
+unsafe production-mask row in the complete sweep must be rejected by at least one of
+them: the allowed false-accept count is zero. See
+[LAI coverage calibration](maintainer/lai-coverage-calibration.md) for the canonical
+field order, decimal encoding, authenticated per-autosome truth-window geometry, and full
+refusal contract.
+
 Freeze and review `simulation-design.json` before submission. Donor inputs must be
 textual VCF or VCF.gz plus their pinned indexes; BCF is not accepted. Run the real
 public-donor generation job through SLURM from a clean, full checkout because the
@@ -511,26 +536,105 @@ uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
   "${CALIBRATION_REFERENCE_ARGS[@]}" \
   --verify-reference
 
-# Validate all inputs, freeze the matrix, and write the required authenticated plan.
+# Validate all inputs, bind the preregistered selector, freeze the matrix, and write the
+# authenticated calibration plan. Load the expected design digest from a separately
+# reviewed release record; do not calculate the expected value inline from the live file.
+: "${SELECTION_DESIGN_SHA256:?independently recorded selection-design digest required}"
 uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
   "${CALIBRATION_PLAN_ARGS[@]}" \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
   --list-jobs \
-  --job-plan "$VALIDATION_DIR/coverage/job-plan.json" \
-  > "$VALIDATION_DIR/coverage/jobs.jsonl"
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  > "$VALIDATION_DIR/coverage/calibration-jobs.jsonl"
 
-# One SLURM array task; CONFIG_SHA is the configuration_sha256 printed in each job row.
+# Independently record the plan digest and the configuration_sha256 printed in every row,
+# then load that record into CALIBRATION_JOB_PLAN_SHA256 and CALIBRATION_CONFIG_SHA256.
+# Results and locks must be named by the canonical unpadded decimal index: N.jsonl and
+# .N.jsonl.lock. Normalize a scheduler value before using it as a filename.
+install -d -m 0700 "$VALIDATION_DIR/coverage/calibration-records"
+JOB_INDEX=$((10#$SLURM_ARRAY_TASK_ID))
 uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
   "${CALIBRATION_RUN_ARGS[@]}" \
-  --job-plan "$VALIDATION_DIR/coverage/job-plan.json" \
-  --expected-configuration-sha256 "$CONFIG_SHA" \
-  --job-index "$SLURM_ARRAY_TASK_ID" \
-  --output "$VALIDATION_DIR/coverage/records/${SLURM_ARRAY_TASK_ID}.jsonl"
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --job-index "$JOB_INDEX" \
+  --output "$VALIDATION_DIR/coverage/calibration-records/${JOB_INDEX}.jsonl"
+
+# Run only after every planned result and its harness-created lock exists. The selector
+# output directory must not exist. A selected policy's digest is printed on stdout.
+: "${CALIBRATION_JOB_PLAN_SHA256:?independently recorded plan digest required}"
+test ! -e "$VALIDATION_DIR/coverage/selection"
+uv run --locked python scripts/lai_bundle_v2/06h_select_coverage.py select \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
+  --job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-job-plan-sha256 "$CALIBRATION_JOB_PLAN_SHA256" \
+  --expected-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --observations-dir "$VALIDATION_DIR/coverage/calibration-records" \
+  --output-dir "$VALIDATION_DIR/coverage/selection"
+
+# Stop here and independently record the printed policy digest. Resume only after select
+# exits 0 and both selection-report.json and confirmation-policy.json exist.
+: "${CONFIRMATION_POLICY_SHA256:?independently recorded policy digest required}"
+
+# Now, and only now, open and independently replay the sealed final split. FINAL_*_ARGS
+# all include the frozen policy path and expected policy digest. Repeat donor inputs for
+# autosomes 1--22 exactly as in calibration verification.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${FINAL_VERIFY_ARGS[@]}" \
+  --verify-simulation \
+  --simulation-generator-script "$SIMULATION_GENERATOR_SCRIPT" \
+  --simulation-generator-environment-lock "$SIMULATION_GENERATOR_ENVIRONMENT_LOCK" \
+  --donor-vcf 1="$DONOR_VCF_CHR1" \
+  --donor-vcf-index 1="$DONOR_VCF_CHR1_INDEX"
+
+# Final planning derives every matrix axis from the policy; do not pass fraction, seed,
+# or drop-scenario overrides.
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${FINAL_PLAN_ARGS[@]}" \
+  --list-jobs \
+  --job-plan "$VALIDATION_DIR/coverage/final-job-plan.json" \
+  > "$VALIDATION_DIR/coverage/final-jobs.jsonl"
+
+# Independently record the final plan and configuration digests before array execution.
+install -d -m 0700 "$VALIDATION_DIR/coverage/final-records"
+JOB_INDEX=$((10#$SLURM_ARRAY_TASK_ID))
+uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
+  "${FINAL_RUN_ARGS[@]}" \
+  --job-plan "$VALIDATION_DIR/coverage/final-job-plan.json" \
+  --expected-configuration-sha256 "$FINAL_CONFIG_SHA256" \
+  --job-index "$JOB_INDEX" \
+  --output "$VALIDATION_DIR/coverage/final-records/${JOB_INDEX}.jsonl"
+
+# One-shot final evaluator. It replays the calibration selection lineage before reading
+# the exact final matrix. The report path must not exist.
+: "${FINAL_JOB_PLAN_SHA256:?independently recorded final-plan digest required}"
+test ! -e "$VALIDATION_DIR/coverage/final-confirmation-report.json"
+uv run --locked python scripts/lai_bundle_v2/06h_select_coverage.py confirm \
+  --confirmation-policy "$VALIDATION_DIR/coverage/selection/confirmation-policy.json" \
+  --expected-confirmation-policy-sha256 "$CONFIRMATION_POLICY_SHA256" \
+  --dataset-id "$DATASET_ID" \
+  --bundle-artifact-sha256 "$BUNDLE_ARTIFACT_SHA256" \
+  --simulation-manifest-sha256 "$SIMULATION_MANIFEST_SHA256" \
+  --code-revision "$SIMULATION_CODE_REVISION" \
+  --final-confirmation-split-commitment-sha256 "$FINAL_SPLIT_COMMITMENT_SHA256" \
+  --selection-design "$VALIDATION_DIR/coverage/selection-design.json" \
+  --expected-selection-design-sha256 "$SELECTION_DESIGN_SHA256" \
+  --calibration-job-plan "$VALIDATION_DIR/coverage/calibration-job-plan.json" \
+  --expected-calibration-job-plan-sha256 "$CALIBRATION_JOB_PLAN_SHA256" \
+  --expected-calibration-configuration-sha256 "$CALIBRATION_CONFIG_SHA256" \
+  --calibration-observations-dir "$VALIDATION_DIR/coverage/calibration-records" \
+  --selection-report "$VALIDATION_DIR/coverage/selection/selection-report.json" \
+  --final-job-plan "$VALIDATION_DIR/coverage/final-job-plan.json" \
+  --expected-final-job-plan-sha256 "$FINAL_JOB_PLAN_SHA256" \
+  --expected-final-configuration-sha256 "$FINAL_CONFIG_SHA256" \
+  --final-observations-dir "$VALIDATION_DIR/coverage/final-records" \
+  --output "$VALIDATION_DIR/coverage/final-confirmation-report.json"
 ```
 
-After freezing the policy, repeat the simulation-verification, planning, and array
-commands with the corresponding `FINAL_*_ARGS` arrays. That final verification command
-must write a separate path and use `--dataset-split final_confirmation`; do not copy,
-rename, or reuse the calibration stamp.
+The final verification command must write a separate path and use
+`--dataset-split final_confirmation`; do not copy, rename, or reuse the calibration stamp.
 
 The simulation-verification pass independently checks exact alleles. The reference pass
 full-hashes the calibration bundle and validates VCF sample headers. Planning authenticates
@@ -549,20 +653,45 @@ inference and before atomic output commit. If a stamp, the plan, configuration h
 Merkle proof, runtime lock, or a fingerprint disagrees with the input state applicable to
 its phase, rebuild the appropriate artifact rather than bypassing the check.
 
-Choose a policy using only the calibration split. Freeze its calibration-plan and
-observation hashes, selection code/report hashes, accuracy endpoints, telemetry
-predicates, fail-closed aggregation, and exact confirmation matrix in a
-`--confirmation-policy` artifact committed to the still-sealed final-split identity. The
-aggregation dimensions are exactly `simulation_iid`, `input_mask`,
-`validation_stratum`, `chromosome_drop_scenario`, `fraction`, and `seed`; retaining
-`simulation_iid` prevents simulated biological replicates from being averaged together.
-Record the artifact digest independently and pass it as
-`--expected-confirmation-policy-sha256` during both planning and array execution.
+Choose a policy using only the calibration split. `select` requires exactly one canonical
+result and sibling lock for every plan index, authenticates the design, plan, shards,
+configuration, rows, and provenance, and performs two deterministic passes over the
+archive. Every stable cell must be eligible and pass all six endpoints. The selector takes
+componentwise minima over `emitted_markers.total`,
+`model_markers.aggregate.matched`, `model_markers.aggregate.match_rate`,
+`phased_autosomes.count`, `analyzed_autosomes.count`,
+`haplotype_windows.valid_assigned`, and `haplotype_windows.assignment_rate`, then requires
+zero false accepts among all unsafe production-mask calibration rows. It freezes the
+calibration-plan and observation hashes, selection code/report hashes, accuracy endpoints,
+telemetry predicates, fail-closed aggregation, and exact confirmation matrix in the
+policy committed to the still-sealed final-split identity.
+The report also records raw simulation-IID and validation-stratum counts and explicitly
+marks a biological confidence interval as not estimable from the dependent simulation
+sweep; never reinterpret seeds, fractions, masks, windows, or loss scenarios as
+independent biological replicates.
+
+`select` exits `0` only when it atomically publishes both `selection-report.json` and
+`confirmation-policy.json`. A complete but scientifically unsafe sweep exits `2`, writes
+only a deterministic refusal report, and creates no policy. Authentication, canonicality,
+completeness, or input-drift errors also exit `2`, but do not publish a scientific refusal
+artifact. Never bypass or reinterpret either result. Record a selected artifact's digest
+independently and pass it as `--expected-confirmation-policy-sha256` during final
+verification, planning, and array execution.
+
 Final-confirmation planning derives its three supported masks, fractions, seeds, and
 chromosome-drop scenarios only from that policy and rejects all CLI matrix overrides.
-Evaluate it once on the founder-disjoint `final_confirmation` split. Any missing required
-ancestry class, unresolved operational error, incomplete matrix, policy-identity drift,
-or confirmation failure is a release blocker and preserves fail-closed behavior.
+`confirm` independently authenticates and recomputes the complete calibration lineage,
+then evaluates the frozen policy once on every founder-disjoint `final_confirmation` cell.
+Exit `0` is the only pass. Exit `2` with a report is a scientific confirmation failure;
+exit `2` without one is an input or lineage failure. Do not retune after opening the final
+split. Any failure requires a new calibration cycle, new preregistered design, and newly
+generated sealed confirmation set.
+
+The current candidate panel cannot reach policy selection: the dated 2026-07-12 audit
+retained one eligible AMR founder and zero OCE founders, while the executable plan requires
+every one of the seven classes. Until a fully hashed audit and eligible founder-disjoint
+panel replace that state, the planner must refuse and no positive policy may be issued;
+production remains fail-closed.
 
 ---
 
