@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal, get_args
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,6 +30,34 @@ router = APIRouter(
     tags=["skin"],
     dependencies=[Depends(require_fresh_sample)],
 )
+
+MC1RRiskState = Literal[
+    "0_R_alleles",
+    "mild_r_allele",
+    "1_R_allele",
+    "2_R_alleles",
+]
+
+_MC1R_RISK_STATES: dict[str, MC1RRiskState] = {state: state for state in get_args(MC1RRiskState)}
+
+_MC1R_LEGACY_STATE_BY_LABEL: dict[str, MC1RRiskState] = {
+    "Low UV Sensitivity": "0_R_alleles",
+    "Mild MC1R Variant": "mild_r_allele",
+    "Moderate UV Sensitivity": "1_R_allele",
+    "High UV Sensitivity": "2_R_alleles",
+}
+
+
+def _resolve_mc1r_risk_state(detail: dict[str, Any]) -> MC1RRiskState | None:
+    """Read the stable state key, with a label fallback for pre-key findings."""
+    if "risk_state" in detail:
+        raw_state = detail["risk_state"]
+        return _MC1R_RISK_STATES.get(raw_state) if isinstance(raw_state, str) else None
+
+    risk_label = detail.get("risk_label")
+    if isinstance(risk_label, str):
+        return _MC1R_LEGACY_STATE_BY_LABEL.get(risk_label)
+    return None
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -72,6 +100,7 @@ class MC1RAggregateItem(BaseModel):
     r_allele_count: int
     r_allele_rsids: list[str]
     total_mc1r_called: int
+    risk_state: MC1RRiskState | None = None
     risk_label: str
     risk_description: str
     evidence_level: int
@@ -246,6 +275,7 @@ def list_pathways(
             r_allele_count=detail.get("r_allele_count", 0),
             r_allele_rsids=detail.get("r_allele_rsids", []),
             total_mc1r_called=detail.get("total_mc1r_called", 0),
+            risk_state=_resolve_mc1r_risk_state(detail),
             risk_label=detail.get("risk_label", ""),
             risk_description=detail.get("risk_description", ""),
             evidence_level=mc["evidence_level"] if mc["evidence_level"] is not None else 2,

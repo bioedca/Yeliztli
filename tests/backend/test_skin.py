@@ -436,6 +436,7 @@ class TestMC1RMultiAllele:
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 0
+        assert result.mc1r_aggregate.risk_state == "0_R_alleles"
         assert result.mc1r_aggregate.risk_label == "Low UV Sensitivity"
         assert "Baseline melanoma risk" in result.mc1r_aggregate.risk_description
 
@@ -458,6 +459,7 @@ class TestMC1RMultiAllele:
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 1
+        assert result.mc1r_aggregate.risk_state == "1_R_allele"
         assert result.mc1r_aggregate.risk_label == "Moderate UV Sensitivity"
 
     def test_mc1r_aggregate_2_r_alleles_compound_het(
@@ -479,6 +481,7 @@ class TestMC1RMultiAllele:
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 2
+        assert result.mc1r_aggregate.risk_state == "2_R_alleles"
         assert result.mc1r_aggregate.risk_label == "High UV Sensitivity"
 
     def test_mc1r_aggregate_2_r_alleles_homozygous(
@@ -611,6 +614,7 @@ class TestMC1RMultiAllele:
         assert result.mc1r_aggregate is not None
         assert result.mc1r_aggregate.r_allele_count == 0
         assert result.mc1r_aggregate.r_allele_rsids == []
+        assert result.mc1r_aggregate.risk_state == "mild_r_allele"
         assert result.mc1r_aggregate.risk_label == "Mild MC1R Variant"
         assert "Baseline melanoma risk" not in result.mc1r_aggregate.risk_description
 
@@ -1139,6 +1143,7 @@ class TestStoreFindingsIntegration:
         assert "multi-allele" in row.finding_text.lower()
         detail = json.loads(row.detail_json)
         assert "r_allele_count" in detail
+        assert detail["risk_state"] == "1_R_allele"
         assert "risk_label" in detail
 
     def test_mc1r_aggregate_finding_r163q_only_not_baseline(
@@ -1173,6 +1178,7 @@ class TestStoreFindingsIntegration:
         assert row is not None
         detail = json.loads(row.detail_json)
         assert detail["r_allele_count"] == 0
+        assert detail["risk_state"] == "mild_r_allele"
         assert detail["risk_label"] == "Mild MC1R Variant"
         assert "Baseline melanoma risk" not in row.finding_text
 

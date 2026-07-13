@@ -178,6 +178,7 @@ class MC1RAggregateResult:
     r_allele_count: int
     r_allele_rsids: list[str]
     total_mc1r_called: int
+    risk_state: str
     risk_label: str
     risk_description: str
     evidence_level: int
@@ -595,6 +596,7 @@ def _compute_mc1r_aggregate(
         r_allele_count=r_allele_count,
         r_allele_rsids=r_allele_rsids,
         total_mc1r_called=len(mc1r_results),
+        risk_state=state_key,
         risk_label=state.get("label", "Unknown"),
         risk_description=state.get("description", ""),
         evidence_level=max_evidence,
@@ -961,6 +963,7 @@ def store_skin_findings(
                         "r_allele_count": agg.r_allele_count,
                         "r_allele_rsids": agg.r_allele_rsids,
                         "total_mc1r_called": agg.total_mc1r_called,
+                        "risk_state": agg.risk_state,
                         "risk_label": agg.risk_label,
                         "risk_description": agg.risk_description,
                     }
