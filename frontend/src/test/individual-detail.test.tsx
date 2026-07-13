@@ -542,6 +542,9 @@ describe("IndividualDetail page", () => {
     })
 
     const apoeRow = await screen.findByTestId("aggregated-finding-rsid:rs429358")
+    expect(
+      within(apoeRow).getByTestId("aggregated-finding-module-rsid:rs429358"),
+    ).toHaveTextContent(/^APOE$/)
     // APOE row carries provenance chips for both source samples.
     expect(
       within(apoeRow).getByTestId("provenance-chip-rsid:rs429358-21"),
@@ -551,12 +554,18 @@ describe("IndividualDetail page", () => {
     ).toHaveTextContent("bob_ancestry.txt")
 
     const cypRow = screen.getByTestId("aggregated-finding-rsid:rs1057910")
+    expect(
+      within(cypRow).getByTestId("aggregated-finding-module-rsid:rs1057910"),
+    ).toHaveTextContent(/^Pharmacogenomics$/)
     expect(within(cypRow).getByText("bob_23andme.txt")).toBeInTheDocument()
     expect(
       within(cypRow).queryByText("bob_ancestry.txt"),
     ).not.toBeInTheDocument()
 
     const cftrRow = screen.getByTestId("aggregated-finding-rsid:rs113993960")
+    expect(
+      within(cftrRow).getByTestId("aggregated-finding-module-rsid:rs113993960"),
+    ).toHaveTextContent(/^Carrier Status$/)
     expect(within(cftrRow).getByText("bob_ancestry.txt")).toBeInTheDocument()
     expect(
       within(cftrRow).queryByText("bob_23andme.txt"),

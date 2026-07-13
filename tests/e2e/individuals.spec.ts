@@ -494,6 +494,9 @@ test.describe('Step 57 — Individuals linking E2E', () => {
     const sharedRow = page.getByTestId(`aggregated-finding-rsid:${SHARED_RSID}`)
     await expect(sharedRow).toBeVisible()
     await expect(sharedRow).toContainText('APOE')
+    await expect(
+      sharedRow.getByTestId(`aggregated-finding-module-rsid:${SHARED_RSID}`),
+    ).toHaveText('APOE')
     await expect(sharedRow).toContainText(SHARED_RSID)
     await expect(
       page.getByTestId(
@@ -527,6 +530,11 @@ test.describe('Step 57 — Individuals linking E2E', () => {
     )
     await expect(sample2UniqueRow).toBeVisible()
     await expect(sample2UniqueRow).toContainText('CFTR')
+    await expect(
+      sample2UniqueRow.getByTestId(
+        `aggregated-finding-module-rsid:${SAMPLE_2_UNIQUE_RSID}`,
+      ),
+    ).toHaveText('Carrier Status')
     await expect(
       page.getByTestId(
         `provenance-chip-rsid:${SAMPLE_2_UNIQUE_RSID}-${SAMPLE_2_ID}`,
