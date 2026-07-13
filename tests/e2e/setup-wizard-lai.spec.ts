@@ -367,9 +367,11 @@ test.describe('Step 32 — Setup wizard with LAI bundle', () => {
     await page.getByLabel(/PubMed email address/i).fill('e2e@example.com')
     await page.getByRole('button', { name: 'Continue' }).click()
 
-    // Step 4 — Databases. LAI is default-selected. Verify and download.
+    // Step 4 — Databases. LAI is opt-in. Select it and download.
     await expect(page.getByRole('heading', { name: /Reference Databases/i })).toBeVisible()
     const laiCheckbox = page.getByTestId('db-checkbox-lai_bundle')
+    await expect(laiCheckbox).not.toBeChecked()
+    await laiCheckbox.check()
     await expect(laiCheckbox).toBeChecked()
     await page.getByRole('button', { name: /Download Selected/i }).click()
 
