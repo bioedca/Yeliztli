@@ -61,6 +61,70 @@ policy. Keep the final-confirmation split sealed until the threshold, coverage p
 accuracy endpoints, aggregation rule, and exact confirmation matrix are frozen; a founder
 used in one split must never contribute a haplotype to the other.
 
+## Deterministic founder-mosaic generation
+
+Freeze the generator design before creating either split. The schema-v1 design records
+the dataset and source-bundle identity, one integer seed, a bounded attempt count, the
+allowed generations and per-autosome breakpoint envelopes, every minimum, and every
+simulation's split, stratum, contributing founders, seven-class target fractions, and
+tolerance. All biological choices are required inputs; the generator does not supply a
+default generation, ancestry mixture, tolerance, donor minimum, or breakpoint limit.
+The design may be rejected for violating its predeclared constraints, but it must not be
+edited in response to model accuracy or final-confirmation results.
+
+`scripts/lai_bundle_v2/06g_generate_simulation.py` generates phased donor-haplotype
+mosaics under the pinned `single_pulse_v1` model. For each simulated chromosome and
+haplotype, it draws crossovers from the declared homogeneous Poisson process measured in
+genetic-map distance. It converts them to production-model marker boundaries and copies
+complete phased donor-haplotype segments between those boundaries. This produces linked tracts,
+not independent donor draws per marker. The approach follows the recombination-mosaic
+structure used by local-ancestry methods and benchmarks, while keeping truth directly
+replayable from the source haplotypes.[1][][2][]
+
+`generation` is the direct Poisson multiplier `g`, not `g-1`: the event rate is
+`g * (cM at the last production-model marker - cM at the first production-model marker) /
+100`. The span is therefore marker-truncated, not the genetic map's full chromosome span.
+Events are right-searched onto model-marker boundaries, clamped to `[1, C-1]`, and
+deduplicated. Founder/source-haplotype identities are drawn independently at each resulting
+segment from the predeclared target mixture; adjacent identical identities are merged.
+The per-autosome breakpoint envelope applies to those final tract transitions, not the raw
+Poisson event count. These exact semantics are recorded in the schema-v2 manifest.
+
+Randomness is deterministic and domain-separated by simulation, bounded attempt,
+autosome, and haplotype using the manifest-pinned NumPy `SeedSequence`/`PCG64` identity.
+An attempt number identifies one whole-dataset candidate: every simulation advances to
+that same attempt index, and the candidate is accepted only if both splits meet their
+aggregate minima. The generator does not search ad hoc combinations of attempt indices.
+Rejection is allowed only for predeclared structural conditions—ancestry-fraction
+tolerance, contributor coverage, or the breakpoint envelope—and the reviewed verifier's
+fixed 20,000-tract safety ceiling. It is bounded by `max_attempts_per_simulation` and
+never uses inference performance; an unsafe deterministic crossover-rate configuration
+fails before the retry loop. Identical frozen inputs must produce byte-identical output
+trees. The generator snapshots and hashes the design, relationship graph, donor metadata,
+environment lock, model metadata, genetic maps, textual donor VCFs and indexes, its own
+source, and the repository revision, and refuses input drift while publishing atomically.
+The generator preflight and the later independent verification step both require those
+generator bytes to be tracked and clean at that revision; the verifier still authenticates
+this independently rather than trusting generator self-attestation.
+
+The output tree contains the schema-v2 `simulation-manifest.json`, one fixture plus
+marker-, tract-, and cached window-truth file per simulated IID, and split-scoped
+`labels/calibration.tsv` and `labels/final_confirmation.tsv` files. Each label file must
+contain exactly the fixture IIDs in that split. Do not hand-edit a generated artifact;
+correct the frozen inputs or design and regenerate the complete dataset. Keep every
+final-confirmation fixture, truth file, and label sealed after generation until the
+calibration policy and confirmation matrix are frozen.
+
+This model is deliberately narrower than human demographic history. It does not model
+recombination interference, sex-specific maps, continuous or repeated admixture, drift,
+pedigrees, gene conversion, structural variants, genotype error, source phasing error,
+or local ancestry already present within a globally labelled founder. Finite founders
+also create pseudoreplication, and generation occurs only at markers retained by the
+production models. These limits matter because ancestry composition, reference diversity,
+and phase behavior can materially change local-ancestry accuracy.[2][][3][] The resulting
+calibration supports only the pinned donors, models, masks, and declared simulation
+protocol; it does not establish a universal biological or array-density threshold.
+
 ## Marker-level truth and Gnomix projection
 
 Generate validation genomes from isolated donor haplotypes and preserve the exact donor
@@ -98,9 +162,10 @@ source with `--simulation-generator-script` and its lock with
 `--simulation-generator-environment-lock`. The verifier requires a tracked, clean,
 reviewed generator under `scripts/lai_bundle_v2`, authenticates the manifest's source,
 environment, and repository revision, and proves that its own script hash is distinct.
-If that repository-owned reviewed generator is not yet available, do not substitute an
-external generator or accept self-attestation: fixture generation and positive-threshold
-selection remain fail-closed.
+Only that reviewed repository generator is accepted. Do not substitute an external
+generator, bypass source authentication, or accept generator self-attestation; any
+authentication or independent-replay failure leaves positive-threshold selection
+fail-closed.
 
 Run verification separately for `--dataset-split calibration` and, after policy freeze,
 `--dataset-split final_confirmation`. Each invocation writes a distinct atomic schema-v2

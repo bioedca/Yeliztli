@@ -337,9 +337,9 @@ allele against the simulated fixture while reconciling marker contributions with
 authenticated tract truth. Supply the actual generator source and its environment lock.
 The verifier requires that source to be a tracked, clean, reviewed file under
 `scripts/lai_bundle_v2`, matches its source, environment, and revision to the manifest,
-and proves that the verifier has distinct source bytes. If that repository-owned reviewed
-generator is not available, fixture generation and threshold selection are not ready:
-retain fail-closed behavior rather than substituting an external or self-attesting script.
+and proves that the verifier has distinct source bytes. Only that repository-owned
+reviewed generator is accepted; a source-authentication or replay failure keeps threshold
+selection fail-closed rather than permitting an external or self-attesting substitute.
 
 Verification is split-scoped. Write one schema-v2 stamp for `calibration` and, only after
 the policy is frozen, a different stamp for `final_confirmation`. Each stamp binds its
@@ -362,7 +362,140 @@ lists for `final_confirmation`; every final-split list also carries the frozen p
 its independently recorded digest so no final truth is opened before policy freeze. Then
 run the calibration stages in order:
 
+Freeze and review `simulation-design.json` before submission. Donor inputs must be
+textual VCF or VCF.gz plus their pinned indexes; BCF is not accepted. Run the real
+public-donor generation job through SLURM from a clean, full checkout because the
+autosomal inputs and output tree are large; a scripts-only rsync lacks the `.git` and
+`uv.lock` provenance required by the generator and verifier. Do not place private user
+genomic data in this workflow. The command block below is the payload of that allocated
+SLURM job or batch script, not a local-machine execution instruction. Before submission,
+provision or fast-forward an authenticated full checkout at the exact intended revision
+on the cluster and set `YELIZTLI_CHECKOUT` to its root.
+After generation, keep the final-confirmation fixture, truth, and label paths sealed from
+the calibration operators until the policy is frozen. Any input or design correction
+requires regenerating the complete output tree rather than editing generated files.
+
 ```bash
+set -euo pipefail
+
+# Generate both founder-disjoint splits from one reviewed, frozen design. Run from a
+# clean checkout of the exact revision recorded in the manifest. Do not hand-edit output.
+: "${YELIZTLI_CHECKOUT:?set YELIZTLI_CHECKOUT to the clean full-checkout root}"
+cd "$YELIZTLI_CHECKOUT"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+test -f uv.lock
+install -d -m 0700 "$VALIDATION_DIR/coverage"
+
+SIMULATION_GENERATOR_SCRIPT=scripts/lai_bundle_v2/06g_generate_simulation.py
+SIMULATION_GENERATOR_ENVIRONMENT_LOCK=uv.lock
+SIMULATION_CODE_REVISION="$(git rev-parse HEAD)"
+SIMULATION_OUTPUT_DIR="$VALIDATION_DIR/coverage/simulations"
+
+# SIMULATION_OUTPUT_DIR must not exist. Archive a prior tree or choose a fresh path
+# before intentionally regenerating; the generator never overwrites an earlier result.
+test ! -e "$SIMULATION_OUTPUT_DIR"
+
+uv run --locked python "$SIMULATION_GENERATOR_SCRIPT" \
+  --design "$VALIDATION_DIR/coverage/simulation-design.json" \
+  --donor-metadata "$VALIDATION_DIR/coverage/donor-metadata.tsv" \
+  --relationships "$VALIDATION_DIR/coverage/relationships.tsv" \
+  --model-metadata 1="$MODEL_METADATA_CHR1" \
+  --model-metadata 2="$MODEL_METADATA_CHR2" \
+  --model-metadata 3="$MODEL_METADATA_CHR3" \
+  --model-metadata 4="$MODEL_METADATA_CHR4" \
+  --model-metadata 5="$MODEL_METADATA_CHR5" \
+  --model-metadata 6="$MODEL_METADATA_CHR6" \
+  --model-metadata 7="$MODEL_METADATA_CHR7" \
+  --model-metadata 8="$MODEL_METADATA_CHR8" \
+  --model-metadata 9="$MODEL_METADATA_CHR9" \
+  --model-metadata 10="$MODEL_METADATA_CHR10" \
+  --model-metadata 11="$MODEL_METADATA_CHR11" \
+  --model-metadata 12="$MODEL_METADATA_CHR12" \
+  --model-metadata 13="$MODEL_METADATA_CHR13" \
+  --model-metadata 14="$MODEL_METADATA_CHR14" \
+  --model-metadata 15="$MODEL_METADATA_CHR15" \
+  --model-metadata 16="$MODEL_METADATA_CHR16" \
+  --model-metadata 17="$MODEL_METADATA_CHR17" \
+  --model-metadata 18="$MODEL_METADATA_CHR18" \
+  --model-metadata 19="$MODEL_METADATA_CHR19" \
+  --model-metadata 20="$MODEL_METADATA_CHR20" \
+  --model-metadata 21="$MODEL_METADATA_CHR21" \
+  --model-metadata 22="$MODEL_METADATA_CHR22" \
+  --genetic-map 1="$GENETIC_MAP_CHR1" \
+  --genetic-map 2="$GENETIC_MAP_CHR2" \
+  --genetic-map 3="$GENETIC_MAP_CHR3" \
+  --genetic-map 4="$GENETIC_MAP_CHR4" \
+  --genetic-map 5="$GENETIC_MAP_CHR5" \
+  --genetic-map 6="$GENETIC_MAP_CHR6" \
+  --genetic-map 7="$GENETIC_MAP_CHR7" \
+  --genetic-map 8="$GENETIC_MAP_CHR8" \
+  --genetic-map 9="$GENETIC_MAP_CHR9" \
+  --genetic-map 10="$GENETIC_MAP_CHR10" \
+  --genetic-map 11="$GENETIC_MAP_CHR11" \
+  --genetic-map 12="$GENETIC_MAP_CHR12" \
+  --genetic-map 13="$GENETIC_MAP_CHR13" \
+  --genetic-map 14="$GENETIC_MAP_CHR14" \
+  --genetic-map 15="$GENETIC_MAP_CHR15" \
+  --genetic-map 16="$GENETIC_MAP_CHR16" \
+  --genetic-map 17="$GENETIC_MAP_CHR17" \
+  --genetic-map 18="$GENETIC_MAP_CHR18" \
+  --genetic-map 19="$GENETIC_MAP_CHR19" \
+  --genetic-map 20="$GENETIC_MAP_CHR20" \
+  --genetic-map 21="$GENETIC_MAP_CHR21" \
+  --genetic-map 22="$GENETIC_MAP_CHR22" \
+  --donor-vcf 1="$DONOR_VCF_CHR1" \
+  --donor-vcf 2="$DONOR_VCF_CHR2" \
+  --donor-vcf 3="$DONOR_VCF_CHR3" \
+  --donor-vcf 4="$DONOR_VCF_CHR4" \
+  --donor-vcf 5="$DONOR_VCF_CHR5" \
+  --donor-vcf 6="$DONOR_VCF_CHR6" \
+  --donor-vcf 7="$DONOR_VCF_CHR7" \
+  --donor-vcf 8="$DONOR_VCF_CHR8" \
+  --donor-vcf 9="$DONOR_VCF_CHR9" \
+  --donor-vcf 10="$DONOR_VCF_CHR10" \
+  --donor-vcf 11="$DONOR_VCF_CHR11" \
+  --donor-vcf 12="$DONOR_VCF_CHR12" \
+  --donor-vcf 13="$DONOR_VCF_CHR13" \
+  --donor-vcf 14="$DONOR_VCF_CHR14" \
+  --donor-vcf 15="$DONOR_VCF_CHR15" \
+  --donor-vcf 16="$DONOR_VCF_CHR16" \
+  --donor-vcf 17="$DONOR_VCF_CHR17" \
+  --donor-vcf 18="$DONOR_VCF_CHR18" \
+  --donor-vcf 19="$DONOR_VCF_CHR19" \
+  --donor-vcf 20="$DONOR_VCF_CHR20" \
+  --donor-vcf 21="$DONOR_VCF_CHR21" \
+  --donor-vcf 22="$DONOR_VCF_CHR22" \
+  --donor-vcf-index 1="$DONOR_VCF_CHR1_INDEX" \
+  --donor-vcf-index 2="$DONOR_VCF_CHR2_INDEX" \
+  --donor-vcf-index 3="$DONOR_VCF_CHR3_INDEX" \
+  --donor-vcf-index 4="$DONOR_VCF_CHR4_INDEX" \
+  --donor-vcf-index 5="$DONOR_VCF_CHR5_INDEX" \
+  --donor-vcf-index 6="$DONOR_VCF_CHR6_INDEX" \
+  --donor-vcf-index 7="$DONOR_VCF_CHR7_INDEX" \
+  --donor-vcf-index 8="$DONOR_VCF_CHR8_INDEX" \
+  --donor-vcf-index 9="$DONOR_VCF_CHR9_INDEX" \
+  --donor-vcf-index 10="$DONOR_VCF_CHR10_INDEX" \
+  --donor-vcf-index 11="$DONOR_VCF_CHR11_INDEX" \
+  --donor-vcf-index 12="$DONOR_VCF_CHR12_INDEX" \
+  --donor-vcf-index 13="$DONOR_VCF_CHR13_INDEX" \
+  --donor-vcf-index 14="$DONOR_VCF_CHR14_INDEX" \
+  --donor-vcf-index 15="$DONOR_VCF_CHR15_INDEX" \
+  --donor-vcf-index 16="$DONOR_VCF_CHR16_INDEX" \
+  --donor-vcf-index 17="$DONOR_VCF_CHR17_INDEX" \
+  --donor-vcf-index 18="$DONOR_VCF_CHR18_INDEX" \
+  --donor-vcf-index 19="$DONOR_VCF_CHR19_INDEX" \
+  --donor-vcf-index 20="$DONOR_VCF_CHR20_INDEX" \
+  --donor-vcf-index 21="$DONOR_VCF_CHR21_INDEX" \
+  --donor-vcf-index 22="$DONOR_VCF_CHR22_INDEX" \
+  --generator-environment-lock "$SIMULATION_GENERATOR_ENVIRONMENT_LOCK" \
+  --code-revision "$SIMULATION_CODE_REVISION" \
+  --output-dir "$SIMULATION_OUTPUT_DIR"
+
+# The generator writes simulation-manifest.json, per-IID fixture/marker/tract/window
+# truth files, and exact split labels at labels/calibration.tsv and
+# labels/final_confirmation.tsv. Build each *_VERIFY_ARGS array from the manifest and
+# use only the matching label file; do not edit or rename generated artifacts.
+
 # Independently replay calibration donor alleles and write its split-scoped stamp.
 # Repeat both donor options for every autosome 1--22.
 uv run --locked python scripts/lai_bundle_v2/06g_calibrate_coverage.py \
