@@ -326,13 +326,15 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
 
             bundle_version = result.coverage_stats.get("bundle_version")
             if bundle_version is None:
-                vep_engine = (
-                    registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
+                vep_db_path = (
+                    registry.settings.vep_bundle_db_path
+                    if registry.settings.vep_bundle_db_path.is_file()
+                    else None
                 )
                 try:
                     bundle_version = resolve_effective_vep_bundle_version(
                         registry.reference_engine,
-                        vep_engine,
+                        vep_db_path,
                     )
                 except OperationalError as exc:
                     bundle_version = VERSIONLESS_VEP_BUNDLE_BASELINE

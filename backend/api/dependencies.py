@@ -113,10 +113,14 @@ def _sample_existence(sample_id: int) -> bool | None:
 
 def _read_installed_version() -> str:
     registry = get_registry()
-    vep_engine = registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
+    vep_db_path = (
+        registry.settings.vep_bundle_db_path
+        if registry.settings.vep_bundle_db_path.is_file()
+        else None
+    )
     return resolve_effective_vep_bundle_version(
         registry.reference_engine,
-        vep_engine,
+        vep_db_path,
     )
 
 

@@ -433,7 +433,6 @@ class TestRunAnnotationTask:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.slow  # nightly tier: runs real annotation to exercise the state gate
 class TestAnnotationStateGate:
     """Plan §7.3 — both reserved kv keys are written iff run_all_analyses succeeds.
 
@@ -503,6 +502,7 @@ class TestAnnotationStateGate:
         ):
             run_annotation_task.call_local(sample_id, create_annotation_job(sample_id))
 
+    @pytest.mark.slow
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
         """Happy path: both reserved keys are upserted on the success path."""
         self._seed_embedded_bundle_version(annotation_env, "v9.0.0")
@@ -534,6 +534,7 @@ class TestAnnotationStateGate:
         )
         assert only_source["vep_misses"] == coverage["vep_misses"]
 
+    @pytest.mark.slow
     def test_embedded_bundle_version_is_stamped_without_registry_row(
         self,
         annotation_env: dict,
@@ -604,6 +605,7 @@ class TestAnnotationStateGate:
             entry.get("event") == "vep_bundle_version_resolution_failed" for entry in cap_logs
         )
 
+    @pytest.mark.slow
     def test_missing_bundle_row_falls_back_to_v1(self, annotation_env: dict) -> None:
         """Defensive fallback when database_versions has no vep_bundle row."""
         sample_id = annotation_env["sample_id"]
@@ -619,6 +621,7 @@ class TestAnnotationStateGate:
 
         assert _json.loads(coverage_json)["bundle_version"] == "v1.0.0"
 
+    @pytest.mark.slow
     def test_raise_from_run_all_analyses_leaves_gate_up(self, annotation_env: dict) -> None:
         """A raise from run_all_analyses bypasses the upsert (gate stays up)."""
         from backend.db.connection import get_registry
@@ -657,6 +660,7 @@ class TestAnnotationStateGate:
             row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
         assert row.status == "complete"
 
+    @pytest.mark.slow
     def test_two_phase_sse_progress_messages(self, annotation_env: dict) -> None:
         """SSE emits a two-phase progress arc: 'Annotating…' → 'Analyzing…'."""
         sample_id = annotation_env["sample_id"]

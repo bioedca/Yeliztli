@@ -164,12 +164,14 @@ def _read_installed_major() -> int | None:
     """
     registry = get_registry()
     try:
-        vep_engine = (
-            registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
+        vep_db_path = (
+            registry.settings.vep_bundle_db_path
+            if registry.settings.vep_bundle_db_path.is_file()
+            else None
         )
         installed_version = resolve_effective_vep_bundle_version(
             registry.reference_engine,
-            vep_engine,
+            vep_db_path,
         )
     except sa.exc.OperationalError as exc:
         logger.warning(

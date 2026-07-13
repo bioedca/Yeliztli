@@ -1176,7 +1176,7 @@ def _read_bundle_version(registry: DBRegistry) -> str | None:
             return None
         return resolve_effective_vep_bundle_version(
             registry.reference_engine,
-            registry.vep_engine,
+            registry.settings.vep_bundle_db_path,
         )
     except Exception:
         logger.debug("coverage_stats_bundle_version_query_failed", exc_info=True)

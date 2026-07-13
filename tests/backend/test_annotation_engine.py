@@ -79,6 +79,7 @@ from backend.db.tables import (
     sample_metadata_table,
     update_history,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -318,6 +319,7 @@ def alphamissense_engine() -> sa.Engine:
 
 @pytest.fixture
 def mock_registry(
+    tmp_path: Path,
     reference_engine: sa.Engine,
     vep_engine_inmemory: sa.Engine,
     gnomad_engine: sa.Engine,
@@ -327,6 +329,9 @@ def mock_registry(
     """Mock DBRegistry with all annotation source engines."""
     registry = MagicMock()
     registry.reference_engine = reference_engine
+    vep_bundle_db_path = tmp_path / "vep_bundle.db"
+    vep_bundle_db_path.touch()
+    registry.settings = SimpleNamespace(vep_bundle_db_path=vep_bundle_db_path)
     type(registry).vep_engine = property(lambda self: vep_engine_inmemory)
     type(registry).gnomad_engine = property(lambda self: gnomad_engine)
     type(registry).dbnsfp_engine = property(lambda self: dbnsfp_engine)
@@ -1364,15 +1369,10 @@ class TestCoverageStatsSideEffects:
         mock_registry: MagicMock,
     ) -> None:
         """A status-copied, self-described bundle reports its embedded version."""
-        with mock_registry.vep_engine.begin() as conn:
-            conn.execute(
-                sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
-            )
-            conn.execute(
-                sa.text(
-                    "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', 'v3.0.0')"
-                )
-            )
+        seed_embedded_vep_bundle_version(
+            mock_registry.settings.vep_bundle_db_path,
+            "v3.0.0",
+        )
         _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
 
         result = run_annotation(sample_with_variants, mock_registry)
