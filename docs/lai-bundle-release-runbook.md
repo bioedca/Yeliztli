@@ -102,6 +102,11 @@ rebuild it under this contract.
 | In-repo scripts    | `scripts/lai_bundle_v2/` (this repo)                                   | source of truth |
 | On-cluster scripts | `$LAI_WORKDIR/scripts/`                                                 | rsynced from the repo per §4 |
 
+`$LAI_WORKDIR` must be on shared cluster storage and resolve to the same path
+from the login node and every SLURM compute node. The DAG passes Phase 01 outputs
+through that workdir to later, independently allocated jobs; node-local scratch
+cannot be used as the rebuild workdir.
+
 The rebuild reuses v1.1's `00_raw_downloads/` whenever the upstream gnomAD
 panel hasn't been republished — record any swap (and the new SHA-256) in
 `lai_bundle_build/v2_rebuild_log.md`.
@@ -246,10 +251,13 @@ in `lai_bundle`. **Phase 06 needs the 1000G pedigree:** place
 
 ### 6a. SLURM submission (parallel — recommended for the full run)
 
-`run_rebuild_slurm.sh` submits the rebuild as a 3-job SLURM DAG chained by
-`afterok` dependencies, with **phase 05 (gnomix training, the long pole) as a
-per-chromosome job array** so ~22 chromosomes train concurrently instead of
-sequentially:
+`run_rebuild_slurm.sh` submits the rebuild as a 4-job SLURM DAG chained by
+`afterok` dependencies. A dedicated Phase 01 job always runs first, so a clean
+workdir downloads the reference panel and produces the derived Gnomix maps and
+provenance before Phase 02 starts. Phase 01 is resumable: a retry skips complete
+panel downloads and regenerates the maps deterministically. **Phase 05 (gnomix
+training, the long pole) runs as a per-chromosome job array** so ~22 chromosomes
+train concurrently instead of sequentially:
 
 ```bash
 ssh "$LAI_BUILD_HOST"
@@ -260,11 +268,16 @@ UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
 G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
   bash "$LAI_WORKDIR/scripts/run_rebuild_slurm.sh"
-#   prep   (02 03 04)  -> job N
-#   gnomix (05 array)  -> job N+1  (after N)
-#   finish (06 07)     -> job N+2  (after N+1)
-# Watch: squeue -j N,N+1,N+2 ; logs under $LAI_WORKDIR/logs/
+#   phase01 (01)        -> job N
+#   prep    (02 03 04)  -> job N+1  (after N)
+#   gnomix  (05 array)  -> job N+2  (after N+1)
+#   finish  (06 07)     -> job N+3  (after N+2)
+# Watch: squeue -j N,N+1,N+2,N+3 ; logs under $LAI_WORKDIR/logs/
 ```
+
+If Phase 01 fails partway through, cancel the stale dependent jobs and submit the
+DAG again. The new Phase 01 job resumes from the completed downloads; no manual
+out-of-band Phase 01 invocation is required.
 
 Tunables: `SLURM_PARTITION` (cluster partition name; defaults to `gpu` in
 `run_rebuild_slurm.sh`),

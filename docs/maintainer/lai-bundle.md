@@ -41,13 +41,16 @@ so the build is cluster-portable.
 
 ## Running on a cluster (SLURM)
 
-Heavy phases run as a small SLURM DAG: a *prep* job (phases 02–04), a *train* job that
-**parallelises phase 05 across the 22 autosomes** as a job array, and a *finish* job
-(phases 06–07). The standard pattern is:
+Heavy phases run as a small SLURM DAG: a resumable *download* job (phase 01), a *prep*
+job (phases 02–04), a *train* job that **parallelises phase 05 across the 22 autosomes**
+as a job array, and a *finish* job (phases 06–07). Each downstream job uses an
+`afterok` dependency, so a clean workdir cannot reach training before Phase 01 has
+produced its panel and genetic-map inputs. The standard pattern is:
 
 1. `rsync` the `scripts/lai_bundle_v2/` directory to the cluster working directory.
 2. On the login node, activate the build environment and submit `run_rebuild_slurm.sh`.
-3. Build in node-local scratch; copy only the final tarball back.
+3. Build in a shared cluster workdir visible at the same path from every SLURM node;
+   copy only the final tarball back.
 
 Partition, CPU, and array sizing are tunable via environment variables (see the runbook).
 
