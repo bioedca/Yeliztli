@@ -8,6 +8,7 @@
 #   UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 #   WORKDIR="$LAI_WORKDIR" \
 #   G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
+#   GNOMIX_EXPECTED_COMMIT=<full-40-hex-commit> \
 #     bash scripts/lai_bundle_v2/run_rebuild_slurm.sh
 #
 # Tunables: SLURM_PARTITION (cluster partition name), GNOMIX_CPUS
@@ -25,8 +26,18 @@ export LAI_SCRIPTS_DIR="$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 
 command -v sbatch >/dev/null 2>&1 || { echo "sbatch not found — not on a SLURM cluster?" >&2; exit 1; }
+require git
+require python3
 require_file "$UNION_CATALOG_TSV"
 require_file "$G1K_PED"
+require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
+require_file "$SCRIPT_DIR/gnomix_provenance.py"
+
+# Fail before submitting the expensive prep/train/finish DAG if the requested
+# immutable Gnomix revision is absent, mismatched, or locally modified.
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
+  --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+  --expected-commit "$GNOMIX_EXPECTED_COMMIT"
 
 PART="${SLURM_PARTITION:-gpu}"
 CPUS="${GNOMIX_CPUS:-8}"

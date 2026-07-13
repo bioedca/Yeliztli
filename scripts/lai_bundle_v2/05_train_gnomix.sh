@@ -10,6 +10,7 @@
 # Output:
 #   $GNOMIX_DIR/output_chr{N}/                — pickled XGBoost models + config
 #   $GNOMIX_DIR/output_chr{N}/.../genetic_map.sha256 — model-to-map provenance binding
+#   $GNOMIX_DIR/output_chr{N}/.../training_provenance.json — source/config/model binding
 #   $LOG_DIR/gnomix_train_chr{N}.log          — per-chrom training log
 #
 # Plan §6.4: phase unchanged from v1.1; models retrain against the larger
@@ -43,11 +44,19 @@ require conda  # gnomix runs in its own env (GNOMIX_ENV) via `conda run`
 require python3
 require sha256sum
 require bcftools
+require git
+require flock
 require_file "$ADMIX_DIR/sample_map.txt"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_launcher.py"  # pandas>=2 compat shim wrapper
+require_file "$SCRIPT_DIR/gnomix_provenance.py"
 require_file "$GNOMIX_CONFIG"
 require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
+
+phase_log "verifying pinned, clean Gnomix checkout"
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
+  --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+  --expected-commit "$GNOMIX_EXPECTED_COMMIT"
 
 phase_log "verifying Gnomix genetic maps against Phase 1 provenance"
 python3 "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
@@ -66,6 +75,15 @@ python3 "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
 # are race-free, and no per-task copy is needed.
 
 cd "$GNOMIX_DIR"
+mkdir -p "$GNOMIX_DIR/.locks"
+# Multiple chromosome tasks may train concurrently, but bundle assembly holds
+# this lock exclusively. A shared lock prevents assembly from observing a
+# partially updated model generation while preserving the SLURM array fan-out.
+exec 8> "$GNOMIX_DIR/.locks/assembly.lock"
+if ! flock -s -n 8; then
+  phase_log "Phase 07 assembly is active; refusing Gnomix training" >&2
+  exit 1
+fi
 
 for chr in "${chromosomes[@]}"; do
   panel_vcf="$PANEL_DIR/ref_panel_chr${chr}.vcf.gz"
@@ -80,27 +98,70 @@ for chr in "${chromosomes[@]}"; do
   model_dir="$out_dir/models/model_chm_chr${chr}"
   model_pkl="$model_dir/model_chm_chr${chr}.pkl"
   model_map_sha="$model_dir/genetic_map.sha256"
+  model_provenance="$model_dir/training_provenance.json"
+  config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
   require_file "$panel_vcf"
   require_file "$genetic_map"
+
+  # Prevent two overlapping direct/SLURM invocations from training and
+  # publishing provenance for the same chromosome concurrently.
+  exec 9> "$GNOMIX_DIR/.locks/chr${chr}.lock"
+  if ! flock -n 9; then
+    phase_log "chr${chr}: another Phase 05 process holds the training lock" >&2
+    exit 1
+  fi
+
+  # A sequential direct run can last many hours, so re-check immediately before
+  # deciding whether this chromosome is reusable.
+  python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
+    --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+    --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
   current_map_sha=$(sha256sum "$genetic_map" | awk '{print $1}')
+  current_config_sha=$(sha256sum "$GNOMIX_CONFIG" | awk '{print $1}')
   recorded_map_sha=$(awk 'NR == 1 {print $1}' "$model_map_sha" 2>/dev/null || true)
 
-  if [ -s "$model_pkl" ] && [ "$recorded_map_sha" = "$current_map_sha" ]; then
-    phase_log "chr${chr}: gnomix model matches current genetic map, skipping"
+  if [ -s "$model_pkl" ] \
+    && [ "$recorded_map_sha" = "$current_map_sha" ] \
+    && python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
+      --record "$model_provenance" \
+      --chromosome "chr${chr}" \
+      --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+      --config "$GNOMIX_CONFIG" \
+      --genetic-map "$genetic_map" \
+      --model "$model_pkl" >/dev/null 2>&1; then
+    phase_log "chr${chr}: model matches pinned source, effective config, and genetic map; skipping"
+    flock -u 9
+    exec 9>&-
     continue
   fi
   if [ -s "$model_pkl" ]; then
-    phase_log "chr${chr}: genetic-map provenance changed or missing; retraining"
+    phase_log "chr${chr}: source/config/map/model provenance changed or missing; retraining"
   fi
 
   phase_log "chr${chr}: training gnomix"
-  mkdir -p "$model_dir"
-  # Invalidate the binding before training and move any prior model aside. A
+  mkdir -p "$model_dir" "${config_snapshot%/*}"
+  # The JSON record is the authoritative completion marker. Invalidate it and
+  # the legacy map marker before training, then move any prior model aside. A
   # failed retry can never pass the final completeness gate with stale output.
-  : > "$model_map_sha"
+  rm -f "$model_provenance" "$model_map_sha"
   if [ -s "$model_pkl" ]; then
     mv -f "$model_pkl" "${model_pkl}.stale"
   fi
+
+  # Train from an immutable, chromosome-local snapshot. The source config may
+  # be a job-specific SLURM file; hashing it before/after the copy catches a
+  # concurrent rewrite, while Gnomix only ever opens the stable snapshot.
+  config_snapshot_tmp="${config_snapshot}.tmp.$$"
+  cp -f "$GNOMIX_CONFIG" "$config_snapshot_tmp"
+  snapshot_config_sha=$(sha256sum "$config_snapshot_tmp" | awk '{print $1}')
+  source_config_sha_after_copy=$(sha256sum "$GNOMIX_CONFIG" | awk '{print $1}')
+  if [ "$snapshot_config_sha" != "$current_config_sha" ] \
+    || [ "$source_config_sha_after_copy" != "$current_config_sha" ]; then
+    rm -f "$config_snapshot_tmp"
+    phase_log "chr${chr}: effective Gnomix config changed while it was snapshotted" >&2
+    exit 1
+  fi
+  mv -f "$config_snapshot_tmp" "$config_snapshot"
   # ── BUG F fix: minimal query so the post-train inference can't hang ────────
   # Build a tiny 2-sample query (first 2 panel samples → a strict subset, so its
   # sites are identical to the reference). gnomix only uses the query for the
@@ -144,7 +205,7 @@ for chr in "${chromosomes[@]}"; do
   # which restores DataFrame.append (-> pd.concat) in-process only — no mutation of
   # the shared env or the gnomix checkout. The launcher forwards every arg after the
   # gnomix.py path verbatim, so gnomix still sees the 8 positional args + config.
-  conda run -n "$GNOMIX_ENV" --no-capture-output \
+  PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
     python "$SCRIPT_DIR/gnomix_launcher.py" \
     "$GNOMIX_DIR_INSTALL/gnomix.py" \
     "$query_vcf" \
@@ -154,7 +215,7 @@ for chr in "${chromosomes[@]}"; do
     "$genetic_map" \
     "$panel_vcf" \
     "$ADMIX_DIR/sample_map.txt" \
-    "$GNOMIX_CONFIG" \
+    "$config_snapshot" \
     2>&1 | tee "$LOG_DIR/gnomix_train_chr${chr}.log"
   # gnomix exits 0 even on the bad-argc usage path; fail loudly if that happens
   # so the orchestrator stops instead of "completing" with no model.
@@ -163,21 +224,65 @@ for chr in "${chromosomes[@]}"; do
     exit 1
   fi
   require_file "$model_pkl"
-  rm -f "${model_pkl}.stale"
+
+  # Refuse to publish provenance if any source used by training changed during
+  # the run. The snapshot is the file actually passed to Gnomix; the original
+  # config is also bracketed so an operator cannot unknowingly resume from a
+  # different requested configuration.
+  post_map_sha=$(sha256sum "$genetic_map" | awk '{print $1}')
+  post_source_config_sha=$(sha256sum "$GNOMIX_CONFIG" | awk '{print $1}')
+  post_snapshot_config_sha=$(sha256sum "$config_snapshot" | awk '{print $1}')
+  if [ "$post_map_sha" != "$current_map_sha" ]; then
+    phase_log "chr${chr}: genetic map changed during Gnomix training" >&2
+    exit 1
+  fi
+  if [ "$post_source_config_sha" != "$current_config_sha" ] \
+    || [ "$post_snapshot_config_sha" != "$current_config_sha" ]; then
+    phase_log "chr${chr}: effective Gnomix config changed during training" >&2
+    exit 1
+  fi
+  python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
+    --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+    --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
+
+  # Publish the compatibility marker first and the atomic JSON record last.
+  # Consumers only accept a generation when both records and the model agree.
   marker_tmp="${model_map_sha}.tmp.$$"
   printf '%s  %s\n' "$current_map_sha" "chr${chr}.map" > "$marker_tmp"
   mv -f "$marker_tmp" "$model_map_sha"
+  python3 "$SCRIPT_DIR/gnomix_provenance.py" write-record \
+    --output "$model_provenance" \
+    --chromosome "chr${chr}" \
+    --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+    --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+    --config "$config_snapshot" \
+    --genetic-map "$genetic_map" \
+    --model "$model_pkl"
+  rm -f "${model_pkl}.stale"
+  flock -u 9
+  exec 9>&-
 done
 
-phase_log "phase 5 complete"
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
+  --gnomix-dir "$GNOMIX_DIR_INSTALL" \
+  --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
 missing=0
 for chr in "${chromosomes[@]}"; do
   chr_model="output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
   chr_marker="output_chr${chr}/models/model_chm_chr${chr}/genetic_map.sha256"
+  chr_provenance="output_chr${chr}/models/model_chm_chr${chr}/training_provenance.json"
   chr_map="$RAW_DIR/genetic_maps_gnomix/chr${chr}.map"
   current_map_sha=$(sha256sum "$chr_map" | awk '{print $1}')
   recorded_map_sha=$(awk 'NR == 1 {print $1}' "$chr_marker" 2>/dev/null || true)
-  if [ -s "$chr_model" ] && [ "$recorded_map_sha" = "$current_map_sha" ]; then
+  if [ -s "$chr_model" ] \
+    && [ "$recorded_map_sha" = "$current_map_sha" ] \
+    && python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
+      --record "$chr_provenance" \
+      --chromosome "chr${chr}" \
+      --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+      --config "$GNOMIX_CONFIG" \
+      --genetic-map "$chr_map" \
+      --model "$chr_model" >/dev/null 2>&1; then
     phase_log "chr${chr}: OK ($(du -sh "output_chr${chr}" | awk '{print $1}'))"
   else
     phase_log "chr${chr}: MISSING OR STALE"
@@ -188,3 +293,4 @@ if [ "$missing" -ne 0 ]; then
   phase_log "phase 5 FAILED: one or more gnomix models missing or stale" >&2
   exit 1
 fi
+phase_log "phase 5 complete"

@@ -38,6 +38,9 @@
 # ─── External tool paths ─────────────────────────────────────────────────
 : "${BEAGLE_JAR:=$HOME/tools/beagle.jar}"
 : "${GNOMIX_DIR_INSTALL:=$HOME/tools/gnomix}"
+# Required by Phases 05 and 07. Deliberately no mutable/default revision: each
+# release operator must select and validate one full upstream commit explicitly.
+: "${GNOMIX_EXPECTED_COMMIT:=}"
 # gnomix reads ./config.yaml relative to CWD; pass this absolute path as its 8th
 # arg instead (CWD-independent). The SLURM array writes a per-task copy with
 # n_cores set so concurrent chromosomes don't oversubscribe the node.

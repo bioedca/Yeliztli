@@ -10,11 +10,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 from datetime import date
 from pathlib import Path
 
 import numpy as np
+
+_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_AUTOSOME_RE = re.compile(r"chr(?:[1-9]|1[0-9]|2[0-2])")
+_GNOMIX_REPOSITORY = "https://github.com/AI-sandbox/gnomix"
 
 
 def _sha256(path: Path) -> str:
@@ -33,6 +39,68 @@ def _tool_version(cmd: list[str]) -> str:
         return "unavailable"
 
 
+def _load_gnomix_training_provenance(path: Path) -> dict[str, object]:
+    """Validate the aggregate manifest before copying its summary to metadata."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid Gnomix training provenance manifest {path}: {exc}") from exc
+    expected_keys = {
+        "schema_version",
+        "gnomix_repository",
+        "gnomix_git_commit",
+        "gnomix_checkout_clean",
+        "effective_config_sha256",
+        "models",
+    }
+    if not isinstance(data, dict) or set(data) != expected_keys:
+        raise ValueError("Gnomix training provenance manifest has unexpected fields")
+    if data["schema_version"] != 1:
+        raise ValueError("unsupported Gnomix training provenance schema")
+    if data["gnomix_repository"] != _GNOMIX_REPOSITORY:
+        raise ValueError("unexpected Gnomix repository in training provenance")
+    if data["gnomix_checkout_clean"] is not True:
+        raise ValueError("Gnomix training provenance does not attest a clean checkout")
+    commit = data["gnomix_git_commit"]
+    config_sha = data["effective_config_sha256"]
+    if not isinstance(commit, str) or not _COMMIT_RE.fullmatch(commit):
+        raise ValueError("invalid Gnomix commit in training provenance")
+    if not isinstance(config_sha, str) or not _SHA256_RE.fullmatch(config_sha):
+        raise ValueError("invalid effective Gnomix config SHA-256 in training provenance")
+
+    models = data["models"]
+    if not isinstance(models, list) or not models:
+        raise ValueError("Gnomix training provenance must contain at least one model")
+    seen: set[str] = set()
+    model_keys = {
+        "chromosome",
+        "model_filename",
+        "model_sha256",
+        "genetic_map_sha256",
+        "provenance_file",
+    }
+    for model in models:
+        if not isinstance(model, dict) or set(model) != model_keys:
+            raise ValueError("Gnomix model manifest entry has unexpected fields")
+        chromosome = model["chromosome"]
+        if not isinstance(chromosome, str) or not _AUTOSOME_RE.fullmatch(chromosome):
+            raise ValueError("invalid chromosome in Gnomix training provenance")
+        if chromosome in seen:
+            raise ValueError(f"duplicate {chromosome} in Gnomix training provenance")
+        seen.add(chromosome)
+        expected_filename = f"model_chm_{chromosome}.pkl"
+        if model["model_filename"] != expected_filename:
+            raise ValueError(f"unexpected model filename for {chromosome}")
+        for field in ("model_sha256", "genetic_map_sha256"):
+            value = model[field]
+            if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
+                raise ValueError(f"invalid {field} for {chromosome}")
+        expected_record = f"metadata/gnomix_model_{chromosome}.provenance.json"
+        if model["provenance_file"] != expected_record:
+            raise ValueError(f"unexpected provenance path for {chromosome}")
+    return data
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle-dir", required=True, type=Path)
@@ -42,6 +110,7 @@ def main() -> int:
     parser.add_argument("--build-host", required=True)
     parser.add_argument("--build-date", required=True)
     parser.add_argument("--bundle-version", required=True)
+    parser.add_argument("--gnomix-provenance", required=True, type=Path)
     parser.add_argument("--admixture-seed", required=True, type=int)
     args = parser.parse_args()
 
@@ -86,6 +155,13 @@ def main() -> int:
 
     beagle_jar = bundle / "beagle" / "beagle.jar"
     beagle_sha = _sha256(beagle_jar) if beagle_jar.exists() else None
+    expected_gnomix_manifest = bundle / "metadata" / "gnomix_training_provenance.json"
+    if args.gnomix_provenance.resolve() != expected_gnomix_manifest.resolve():
+        raise ValueError(
+            "--gnomix-provenance must point to "
+            "metadata/gnomix_training_provenance.json inside the bundle"
+        )
+    gnomix_provenance = _load_gnomix_training_provenance(args.gnomix_provenance)
 
     meta = {
         "bundle_version": args.bundle_version,
@@ -99,6 +175,14 @@ def main() -> int:
             "admixture": _tool_version(["fastmixture", "--version"]),
         },
         "admixture_seed": args.admixture_seed,
+        "gnomix_training": {
+            "repository": gnomix_provenance["gnomix_repository"],
+            "git_commit": gnomix_provenance["gnomix_git_commit"],
+            "checkout_clean": gnomix_provenance["gnomix_checkout_clean"],
+            "effective_config_sha256": gnomix_provenance["effective_config_sha256"],
+            "model_count": len(gnomix_provenance["models"]),
+            "manifest": "metadata/gnomix_training_provenance.json",
+        },
         "reference_panel": "gnomAD HGDP+1KG v3.1.2 (phased SHAPEIT5)",
         "site_count": site_count,
         "window_count": window_count,
