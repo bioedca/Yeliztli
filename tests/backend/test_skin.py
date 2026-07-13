@@ -859,6 +859,16 @@ class TestPathwayLevel:
         ]
         assert _determine_pathway_level(results) == STANDARD
 
+    def test_indeterminate_snp_does_not_drive_pathway_level(self) -> None:
+        results = [
+            _make_snp_result(INDETERMINATE),
+            _make_snp_result(STANDARD),
+        ]
+        assert _determine_pathway_level(results) == STANDARD
+
+    def test_all_indeterminate_pathway_defaults_standard(self) -> None:
+        assert _determine_pathway_level([_make_snp_result(INDETERMINATE)]) == STANDARD
+
 
 # ── Cross-module findings tests ──────────────────────────────────────────
 
