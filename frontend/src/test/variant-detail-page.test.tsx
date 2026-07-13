@@ -227,6 +227,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("AG")).toBeInTheDocument() // genotype
     const overview = screen.getByTestId("tab-overview")
     expect(within(overview).getByText("Heterozygous")).toBeInTheDocument()
+    expect(within(overview).getByText("Damaging (0.001)")).toBeInTheDocument()
     expect(within(overview).queryByText("het", { exact: true })).not.toBeInTheDocument()
     expect(screen.getAllByText("missense variant").length).toBeGreaterThanOrEqual(1)
   })
@@ -376,6 +377,8 @@ describe("VariantDetailPage (P2-21a)", () => {
     // All in-silico scores
     expect(screen.getByText("28.4")).toBeInTheDocument() // CADD
     expect(screen.getByText("0.850")).toBeInTheDocument() // REVEL
+    const sift = screen.getByText("Damaging (0.001)")
+    expect(sift).toHaveClass("text-red-700")
     // PolyPhen-2: the raw dbNSFP code "D" maps to a readable "Probably Damaging"
     // label in the damaging colour (#680), not a bare "D" in the benign green.
     const polyphen = screen.getByText(/Probably Damaging/)

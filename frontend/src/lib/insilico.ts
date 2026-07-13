@@ -2,12 +2,11 @@
  * Display mapping for in-silico pathogenicity predictions.
  *
  * The backend stores the raw dbNSFP prediction codes (see
- * `backend/annotation/dbnsfp.py::_parse_dbnsfp_pred`, which keeps the first
- * non-missing per-transcript code). For PolyPhen-2 (`Polyphen2_HVAR_pred`) that
- * is a single character — `D` probably damaging, `P` possibly damaging,
- * `B` benign — NOT the full words. Matching the full words leaves every call in
- * the benign branch and prints the bare letter (issue #680). SIFT is already
- * handled inline as single-char `D`.
+ * `backend/annotation/dbnsfp.py::_parse_dbnsfp_pred_by_severity`, which keeps
+ * the most severe non-missing per-transcript code). SIFT (`SIFT4G_pred`) stores
+ * `D`/`T`, while PolyPhen-2 (`Polyphen2_HVAR_pred`) stores `D`/`P`/`B` — NOT
+ * the full words. Rendering those values directly leaves opaque bare letters
+ * in the UI (issues #680 and #1753).
  */
 export interface PredictionDisplay {
   label: string
@@ -19,6 +18,29 @@ const RED = "text-red-700 dark:text-red-400"
 const AMBER = "text-amber-700 dark:text-amber-400"
 const GREEN = "text-green-700 dark:text-green-400"
 const NEUTRAL = "text-muted-foreground"
+
+/**
+ * Map a SIFT prediction (`sift_pred`) to a readable label and severity colour.
+ * Accepts the single-char dbNSFP codes `D`/`T` and their full-word aliases.
+ * The pinned dbNSFP 5.3.1a schema and SIFT protocol expand these as
+ * `D(amaging)` / `T(olerated)`; the older narrative term "deleterious" is
+ * accepted as an alias but normalized to the source-field label.
+ * Unknown values remain visible in a neutral colour rather than being treated
+ * as tolerated.
+ */
+export function siftDisplay(pred: string): PredictionDisplay {
+  switch (pred.trim().toUpperCase()) {
+    case "D":
+    case "DAMAGING":
+    case "DELETERIOUS":
+      return { label: "Damaging", colorClass: RED }
+    case "T":
+    case "TOLERATED":
+      return { label: "Tolerated", colorClass: GREEN }
+    default:
+      return { label: pred.trim().replace(/_/g, " "), colorClass: NEUTRAL }
+  }
+}
 
 /**
  * Map a PolyPhen-2 prediction (`polyphen2_hsvar_pred`) to a readable label and

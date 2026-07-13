@@ -266,7 +266,7 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     })
   })
 
-  it("maps the single-char PolyPhen-2 code 'D' to 'Probably Damaging' in the damaging colour (#680)", async () => {
+  it("maps raw SIFT and PolyPhen-2 codes to readable damaging labels (#680, #1753)", async () => {
     // The backend stores the raw dbNSFP code ("D"), not "probably_damaging";
     // pre-fix the full-word check never matched, so a probably-damaging call
     // rendered as a bare "D" in the benign green colour.
@@ -283,6 +283,8 @@ describe("VariantDetailSidePanel (P2-21)", () => {
       expect(screen.getByText("rs100")).toBeInTheDocument()
     })
 
+    const sift = screen.getByText("Damaging", { exact: true })
+    expect(sift).toHaveClass("text-red-700")
     const polyphen = screen.getByText(/Probably Damaging/)
     expect(polyphen).toHaveClass("text-red-700")
     // The raw single-letter code must not leak through as the label.

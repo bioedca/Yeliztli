@@ -202,6 +202,32 @@ describe("VariantTable", () => {
     expect(unknown).toHaveStyle({ backgroundColor: "#6b7280" })
   })
 
+  it("renders readable SIFT and PolyPhen prediction labels instead of raw codes (#1753)", async () => {
+    const page = makeVariantPage(3)
+    page.items[0].sift_pred = "D"
+    page.items[0].polyphen2_hsvar_pred = "D"
+    page.items[1].sift_pred = "T"
+    page.items[1].polyphen2_hsvar_pred = "P"
+    page.items[2].sift_pred = null
+    page.items[2].polyphen2_hsvar_pred = "B"
+    setupFetchMock(page, makeCountResponse(3))
+
+    render(<VariantTable sampleId={1} />)
+
+    const damaging = await screen.findByText("Damaging")
+    const tolerated = screen.getByText("Tolerated")
+    const probablyDamaging = screen.getByText("Probably Damaging")
+    const possiblyDamaging = screen.getByText("Possibly Damaging")
+    const benign = screen.getByText("Benign")
+
+    expect(damaging).toHaveClass("text-red-700")
+    expect(tolerated).toHaveClass("text-green-700")
+    expect(probablyDamaging).toHaveClass("text-red-700")
+    expect(possiblyDamaging).toHaveClass("text-amber-700")
+    expect(benign).toHaveClass("text-green-700")
+    expect(screen.queryAllByText(/^(D|T|P|B)$/)).toHaveLength(0)
+  })
+
   it("renders genotype and zygosity for het and hom_alt rows", async () => {
     // A preset that surfaces the zygosity column (the default presets omit it).
     const carriagePreset: ColumnPreset[] = [
