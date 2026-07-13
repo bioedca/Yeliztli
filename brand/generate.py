@@ -18,6 +18,7 @@ Colour system (see brand/README.md):
   emblem white  #FFFFFF  — on the teal docs header bar
   emblem navy   #001B3E  — the artwork's native colour; standalone install icons
   background    #FFFFFF  — opaque white for install icons (Apple/maskable ignore alpha)
+  README bg     #000000  — white lockup on an explicit black background
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ SOURCE = Path(__file__).resolve().parent / "logo-source.svg"
 
 TEAL = "#0D9488"   # app --color-primary (light); matches existing favicon
 WHITE = "#FFFFFF"
+BLACK = "#000000"
 NAVY = "#001B3E"   # artwork native colour
 
 # Sub-paths whose starting Y is at/below this line are the "YELIZTLI" wordmark.
@@ -173,6 +175,7 @@ def main() -> None:
     emblem_cc = emblem_svg(path_d, "currentColor")
     lockup_navy = lockup_svg(svg_text, NAVY, WHITE)          # native (navy on white)
     lockup_white = lockup_svg(svg_text, WHITE, None)         # white, transparent
+    lockup_white_black = lockup_svg(svg_text, WHITE, BLACK)  # README (white on black)
 
     print("SVG variants (brand/):")
     write(ROOT / "brand" / "emblem-teal.svg", emblem_teal)
@@ -181,6 +184,7 @@ def main() -> None:
     write(ROOT / "brand" / "emblem-currentcolor.svg", emblem_cc)
     write(ROOT / "brand" / "lockup-navy-on-white.svg", lockup_navy)
     write(ROOT / "brand" / "lockup-white.svg", lockup_white)
+    write(ROOT / "brand" / "lockup-white-on-black.svg", lockup_white_black)
 
     print("App assets (frontend/public/):")
     pub = ROOT / "frontend" / "public"
@@ -201,8 +205,9 @@ def main() -> None:
     img = ROOT / "docs" / "assets" / "img"
     write(img / "logo.svg", emblem_white)                 # on the teal docs header bar
     write(img / "favicon.svg", emblem_teal)               # docs browser tab
-    write(img / "logo-lockup.svg", lockup_navy)           # README banner + docs hero (light)
+    write(img / "logo-lockup.svg", lockup_navy)           # docs hero (light)
     write(img / "logo-lockup-dark.svg", lockup_white)     # docs hero (dark backgrounds)
+    write(img / "logo-lockup-black.svg", lockup_white_black)  # README banner
 
     print("Frontend logo paths (frontend/src/components/layout/):")
     write(
