@@ -49,7 +49,8 @@ produced its panel and genetic-map inputs. The standard pattern is:
 
 1. `rsync` the `scripts/lai_bundle_v2/` directory to the cluster working directory.
 2. On the login node, activate the build environment and submit `run_rebuild_slurm.sh`.
-3. Build in node-local scratch; copy only the final tarball back.
+3. Build in a shared cluster workdir visible at the same path from every SLURM node;
+   copy only the final tarball back.
 
 Partition, CPU, and array sizing are tunable via environment variables (see the runbook).
 

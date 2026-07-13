@@ -43,6 +43,7 @@ def _load_module(filename: str, mod_name: str):
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts" / "lai_bundle_v2"
 RUNBOOK = REPO_ROOT / "docs" / "lai-bundle-release-runbook.md"
+MAINTAINER_DOC = REPO_ROOT / "docs" / "maintainer" / "lai-bundle.md"
 
 
 EXPECTED_PHASE_SCRIPTS = [
@@ -1871,3 +1872,11 @@ class TestRunbook:
         assert "gnomix  (05 array)" in slurm_section
         assert "finish  (06 07)" in slurm_section
         assert "squeue -j N,N+1,N+2,N+3" in slurm_section
+
+    def test_slurm_docs_require_a_shared_workdir(self) -> None:
+        runbook = RUNBOOK.read_text()
+        maintainer_doc = MAINTAINER_DOC.read_text()
+        assert "shared cluster storage" in runbook
+        assert "same path" in runbook
+        assert "shared cluster workdir" in maintainer_doc
+        assert "node-local scratch" not in maintainer_doc

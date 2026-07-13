@@ -102,6 +102,11 @@ rebuild it under this contract.
 | In-repo scripts    | `scripts/lai_bundle_v2/` (this repo)                                   | source of truth |
 | On-cluster scripts | `$LAI_WORKDIR/scripts/`                                                 | rsynced from the repo per §4 |
 
+`$LAI_WORKDIR` must be on shared cluster storage and resolve to the same path
+from the login node and every SLURM compute node. The DAG passes Phase 01 outputs
+through that workdir to later, independently allocated jobs; node-local scratch
+cannot be used as the rebuild workdir.
+
 The rebuild reuses v1.1's `00_raw_downloads/` whenever the upstream gnomAD
 panel hasn't been republished — record any swap (and the new SHA-256) in
 `lai_bundle_build/v2_rebuild_log.md`.
