@@ -1,15 +1,21 @@
 /** Tests for the Gene Skin UI (P3-56, T3-67). */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
+import { render, screen, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/skin/PathwayCard"
 import PathwayDetailPanel from "@/components/skin/PathwayDetailPanel"
-import { useSkinPathwayDetail } from "@/api/skin"
-import type { PathwayDetailResponse, PathwaySummary } from "@/types/skin"
+import SkinView from "@/pages/SkinView"
+import { useSkinPathwayDetail, useSkinPathways } from "@/api/skin"
+import type {
+  MC1RAggregateItem,
+  PathwayDetailResponse,
+  PathwaySummary,
+} from "@/types/skin"
 
 vi.mock("@/api/skin", () => ({
   useSkinPathwayDetail: vi.fn(),
+  useSkinPathways: vi.fn(),
 }))
 
 // ── Fixtures ──────────────────────────────────────────────────────────
@@ -89,6 +95,84 @@ const RS885479_DETAIL: PathwayDetailResponse = {
 const useSkinPathwayDetailMock = useSkinPathwayDetail as unknown as ReturnType<
   typeof vi.fn
 >
+const useSkinPathwaysMock = useSkinPathways as unknown as ReturnType<
+  typeof vi.fn
+>
+
+function renderMC1RAggregate(aggregate: MC1RAggregateItem) {
+  useSkinPathwaysMock.mockReturnValue({
+    data: {
+      items: [PIGMENTATION_PATHWAY],
+      total: 1,
+      mc1r_aggregate: aggregate,
+      cross_module: [],
+      insufficient_data: [],
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  })
+
+  return render(<SkinView />, { route: "/skin?sample_id=1" })
+}
+
+// ── MC1R summary tests ────────────────────────────────────────────────
+
+describe("MC1R allele summary tier styling (#1759)", () => {
+  beforeEach(() => {
+    useSkinPathwaysMock.mockReset()
+  })
+
+  it.each([
+    ["Low UV Sensitivity", 0, "emerald"],
+    ["Mild MC1R Variant", 0, "sky"],
+    ["Moderate UV Sensitivity", 1, "blue"],
+    ["High UV Sensitivity", 2, "amber"],
+    ["constructor", 0, "slate"],
+  ])(
+    "renders %s with the %s-count %s palette",
+    (riskLabel, rAlleleCount, tone) => {
+      renderMC1RAggregate({
+        r_allele_count: rAlleleCount,
+        r_allele_rsids: [],
+        total_mc1r_called: 4,
+        risk_label: riskLabel,
+        risk_description: `${riskLabel} description`,
+        evidence_level: 2,
+        pmids: [],
+      })
+
+      const summary = screen.getByRole("region", {
+        name: "MC1R allele summary",
+      })
+      const card = summary.querySelector(":scope > div")
+      const countBadge = within(summary).getByText(String(rAlleleCount), {
+        selector: "span",
+      })
+      const labelBox = within(summary).getByText(riskLabel, {
+        exact: true,
+      }).parentElement
+
+      expect(card).toHaveClass(
+        `bg-${tone}-50`,
+        `border-${tone}-200`,
+        `dark:bg-${tone}-950/30`,
+        `dark:border-${tone}-800`,
+      )
+      expect(countBadge).toHaveClass(
+        `bg-${tone}-100`,
+        `text-${tone}-800`,
+        `dark:bg-${tone}-900/50`,
+        `dark:text-${tone}-300`,
+      )
+      expect(labelBox).toHaveClass(
+        `bg-${tone}-100/50`,
+        `dark:bg-${tone}-900/20`,
+      )
+    },
+  )
+})
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
 
