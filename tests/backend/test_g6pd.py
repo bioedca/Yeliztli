@@ -390,7 +390,7 @@ class TestGsaArrayTypeability:
     gsa_v3_typed=False while every other variant is True.
     """
 
-    def _artifact(self) -> dict:
+    def _artifact_json(self, name: str) -> dict:
         import json
         from pathlib import Path
 
@@ -399,15 +399,61 @@ class TestGsaArrayTypeability:
             / "backend"
             / "data"
             / "array_manifests"
-            / "gsa_24v3_typeability.json"
+            / name
         )
         return json.loads(path.read_text())
 
+    def _artifact(self) -> dict:
+        return self._artifact_json("gsa_24v3_typeability.json")
+
     def test_artifact_has_provenance(self) -> None:
         prov = self._artifact()["_provenance"]
-        for key in ("source", "url", "genome_build", "accessed", "derivation"):
+        for key in (
+            "source",
+            "url",
+            "genome_build",
+            "accessed",
+            "derivation",
+            "count_definition",
+            "manifest_audit",
+            "manifest_zip_sha256",
+            "manifest_csv_sha256",
+        ):
             assert prov.get(key), f"provenance missing {key}"
         assert prov["genome_build"] == "GRCh37"
+        assert "manifest_probe_count" not in prov
+
+    def test_manifest_audit_locks_section_aware_loci_count(self) -> None:
+        prov = self._artifact()["_provenance"]
+        assert prov["manifest_audit"] == (
+            "backend/data/array_manifests/gsa_24v3_manifest_audit.json"
+        )
+        manifest_audit = self._artifact_json("gsa_24v3_manifest_audit.json")
+        source = manifest_audit["source"]
+        heading = manifest_audit["heading"]
+        sections = manifest_audit["sections"]
+
+        assert source["url"] == prov["url"]
+        assert source["archive_sha256"] == prov["manifest_zip_sha256"]
+        assert source["csv_member"] == prov["manifest_csv_member"]
+        assert source["csv_sha256"] == prov["manifest_csv_sha256"]
+        assert heading["descriptor_file_name"] == prov["manifest_descriptor"]
+        assert heading["date_manufactured"] == prov["manifest_date_manufactured"]
+        assert heading["loci_count"] == sections["assay_rows"]
+        assert sections["assay_rows"] == prov["manifest_loci_count"] == 654027
+        assert sections["control_records"] == prov["manifest_control_record_count"] == 23
+        assert sections["non_assay_physical_lines"] == prov["manifest_non_assay_line_count"] == 32
+        assert sections["physical_lines"] == prov["manifest_csv_physical_line_count"] == 654059
+        assert sections["physical_lines"] == (
+            sections["assay_rows"] + sections["non_assay_physical_lines"]
+        )
+        assert sections["heading_and_assay_header_lines"] == 8
+        assert sections["control_marker_lines"] == 1
+        assert sections["non_assay_physical_lines"] == (
+            sections["heading_and_assay_header_lines"]
+            + sections["control_marker_lines"]
+            + sections["control_records"]
+        )
 
     def test_all_g6pd_deficiency_variants_are_gsa_typed(self) -> None:
         typed = set(self._artifact()["typed"])
