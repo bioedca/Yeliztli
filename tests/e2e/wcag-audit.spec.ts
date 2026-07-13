@@ -363,7 +363,7 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
           conditions: 'Cardiovascular risk',
           diplotype: 'e3/e4',
           pmid_citations: ['12345678'],
-          detail_json: { risk_level: 'markedly elevated' },
+          detail_json: { risk_level: 'modestly_elevated' },
         },
         {
           category: 'alzheimers_risk',
@@ -466,8 +466,10 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
 
       await page.goto('/apoe?sample_id=1')
       await waitForReactHydration(page)
-      await expect(page.getByTestId('apoe-findings-list')).toBeVisible()
-      await expect(page.getByText('markedly elevated')).toBeVisible()
+      const findings = page.getByTestId('apoe-findings-list')
+      await expect(findings).toBeVisible()
+      await expect(findings).toContainText('modestly elevated')
+      await expect(findings).not.toContainText('modestly_elevated')
 
       let builder = new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
