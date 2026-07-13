@@ -325,7 +325,10 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
                 )?.value
 
               const chr = getName("Chr") ?? getName("Chromosome") ?? ""
-              const pos = parseInt(getName("Pos") ?? getName("Position") ?? "0", 10)
+              const pos = parseInt(
+                (getName("Pos") ?? getName("Position") ?? "0").replace(/,/g, ""),
+                10,
+              )
               const id = getName("ID") ?? getName("Names") ?? ""
               const refAllele = getName("Ref") ?? ""
               const alt = getName("Alt") ?? ""

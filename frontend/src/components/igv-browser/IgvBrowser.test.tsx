@@ -195,7 +195,7 @@ describe("IgvBrowser", () => {
     })
   })
 
-  it("invokes onVariantClick with parsed variant data", async () => {
+  it("parses IGV's comma-grouped position before invoking onVariantClick", async () => {
     const onVariantClick = vi.fn()
     render(<IgvBrowser onVariantClick={onVariantClick} />)
     await waitFor(() => {
@@ -208,7 +208,7 @@ describe("IgvBrowser", () => {
       { config: { type: "variant" } },
       [
         { name: "Chr", value: "chr17" },
-        { name: "Pos", value: "41196312" },
+        { name: "Pos", value: "41,196,312" },
         { name: "ID", value: "rs123" },
         { name: "Ref", value: "A" },
         { name: "Alt", value: "G" },

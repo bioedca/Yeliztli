@@ -566,7 +566,29 @@ const IGV_MODULE_STUB = `
       root.className = 'igv-root-div'
       root.dataset.mockIgv = 'true'
       div.appendChild(root)
-      return { search() {}, on() {} }
+      return {
+        search() {},
+        on(event, handler) {
+          if (event !== 'trackclick') return
+
+          const button = document.createElement('button')
+          button.type = 'button'
+          button.textContent = 'Select mock IGV variant'
+          button.addEventListener('click', () => {
+            handler(
+              { config: { type: 'variant' } },
+              [
+                { name: 'Chr', value: 'chr17' },
+                { name: 'Pos', value: '41,196,312' },
+                { name: 'ID', value: 'rs80357906' },
+                { name: 'Ref', value: 'A' },
+                { name: 'Alt', value: 'G' },
+              ],
+            )
+          })
+          root.appendChild(button)
+        },
+      }
     },
     removeBrowser() {}
   }
@@ -634,5 +656,26 @@ test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () =>
         message.includes("Failed to resolve module specifier 'igv'"),
       ),
     ).toEqual([])
+  })
+
+  test('shows the complete coordinate for comma-grouped IGV positions (#1771)', async ({
+    page,
+  }) => {
+    await mockIgvModule(page)
+
+    await page.goto('/genome-browser')
+    await waitForReactHydration(page)
+
+    await page
+      .getByRole('button', { name: /continue to the genome browser/i })
+      .click()
+    await page.getByRole('button', { name: 'Select mock IGV variant' }).click()
+
+    const indicator = page.getByTestId('variant-click-indicator')
+    await expect(indicator).toBeVisible()
+    await expect(
+      indicator.getByText('chr17:41196312', { exact: true }),
+    ).toBeVisible()
+    await expect(indicator).toContainText('rs80357906')
   })
 })
