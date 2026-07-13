@@ -270,6 +270,25 @@ class TestLoadSingleFinding:
         with pytest.raises(ValueError, match="Finding 999 not found"):
             _load_single_finding(sample_engine, finding_id=999)
 
+    def test_withholds_unqualified_local_ancestry_finding(
+        self,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=99,
+                    module="ancestry",
+                    category="local_ancestry",
+                    evidence_level=4,
+                    finding_text="Unqualified legacy chromosome painting",
+                )
+            )
+
+        with pytest.raises(ValueError, match="Finding 99 not found"):
+            _load_single_finding(sample_engine, finding_id=99)
+
     def test_clinvar_conditions_cleaned(self, sample_with_findings: tuple) -> None:
         """#918: the raw CLNDN blob is cleaned for display — no | separators, no
         not provided/not specified placeholders, no drug-response entries, and

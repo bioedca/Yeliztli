@@ -113,7 +113,11 @@ function LAIDegradedCoverageBanner() {
     readStorageValue(LAI_DEGRADED_STORAGE_KEY) === '1',
   )
 
-  if (!laiStatus?.degraded_coverage) {
+  if (
+    !laiStatus?.degraded_coverage ||
+    laiStatus.coverage_policy_available === false ||
+    laiStatus.insufficient_data_reason
+  ) {
     return null
   }
   if (dismissed) {

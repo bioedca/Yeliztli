@@ -26,6 +26,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,7 @@ async def list_findings(
     """
     engine = _get_sample_engine(sample_id)
 
-    clauses = []
+    clauses = [policy_qualified_finding_clause(findings.c.category)]
     if module:
         clauses.append(findings.c.module == module)
     if category:
@@ -260,6 +261,7 @@ async def findings_summary(
                 sa.func.count().label("cnt"),
                 sa.func.max(findings.c.evidence_level).label("max_ev"),
             )
+            .where(policy_qualified_finding_clause(findings.c.category))
             .group_by(findings.c.module)
             .order_by(sa.desc("max_ev"))
         )
@@ -268,9 +270,13 @@ async def findings_summary(
         agg_rows = conn.execute(agg_stmt).fetchall()
 
         # All findings for top finding per module
-        all_stmt = sa.select(findings).order_by(
-            sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
-            findings.c.module,
+        all_stmt = (
+            sa.select(findings)
+            .where(policy_qualified_finding_clause(findings.c.category))
+            .order_by(
+                sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
+                findings.c.module,
+            )
         )
         if hidden_modules:
             all_stmt = all_stmt.where(findings.c.module.not_in(hidden_modules))
@@ -316,7 +322,10 @@ async def get_finding_svg(
 
     with engine.connect() as conn:
         row = conn.execute(
-            sa.select(findings.c.module, findings.c.svg_path).where(findings.c.id == finding_id)
+            sa.select(findings.c.module, findings.c.svg_path).where(
+                findings.c.id == finding_id,
+                policy_qualified_finding_clause(findings.c.category),
+            )
         ).fetchone()
 
     if row is None:

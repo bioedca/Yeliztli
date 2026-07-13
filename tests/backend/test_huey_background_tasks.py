@@ -204,6 +204,26 @@ class TestRunLaiTask:
         assert row.status == "failed"
         assert "lai boom" in row.error
 
+    def test_missing_confirmed_policy_records_structured_no_call(self, huey_env: dict) -> None:
+        from backend.services.lai_production_coverage import (
+            POLICY_UNAVAILABLE_REASON,
+            LAICoveragePolicyUnavailableError,
+            decode_lai_insufficient_data_reason,
+        )
+
+        _make_job("lai-policy-blocked", "lai", sample_id=1)
+
+        with patch(
+            "backend.analysis.lai.run_lai_analysis",
+            side_effect=LAICoveragePolicyUnavailableError(),
+        ):
+            run_lai_task.call_local(1, "lai-policy-blocked")
+
+        row = _job_row("lai-policy-blocked")
+        assert row.status == "failed"
+        assert row.message == "Insufficient data for chromosome painting"
+        assert decode_lai_insufficient_data_reason(row.error) == POLICY_UNAVAILABLE_REASON
+
     def test_reports_per_chromosome_progress(self, huey_env: dict) -> None:
         """The per-chromosome progress callback updates progress_pct (SSE depends on it)."""
         _make_job("lai-prog", "lai", sample_id=1)

@@ -468,8 +468,8 @@ class TestLAICoverageMetricSchema:
 
 
 def test_run_lai_analysis_forwards_diagnostic_options(tmp_path: Path) -> None:
-    """The public entry point exposes the calibration runner options by keyword."""
-    from backend.analysis.lai import run_lai_analysis
+    """The diagnostic entry point forwards calibration options without storage."""
+    from backend.analysis.lai import run_lai_analysis_for_diagnostics
 
     runner_result = SimpleNamespace(
         global_ancestry={"EUR": {"fraction": 1.0}},
@@ -495,10 +495,10 @@ def test_run_lai_analysis_forwards_diagnostic_options(tmp_path: Path) -> None:
             "backend.analysis.lai._read_sample_genotypes",
             return_value=[{"rsid": "rs1", "chrom": "1", "genotype": "AA"}],
         ),
-        patch("backend.analysis.lai._store_lai_results"),
+        patch("backend.analysis.lai._store_lai_results") as store_results,
         patch("backend.analysis.lai_runner.LAIRunner", return_value=runner),
     ):
-        result = run_lai_analysis(
+        result = run_lai_analysis_for_diagnostics(
             sample_id=7,
             sample_engine=MagicMock(),
             diagnostic_metrics_callback=callback,
@@ -506,6 +506,7 @@ def test_run_lai_analysis_forwards_diagnostic_options(tmp_path: Path) -> None:
         )
 
     assert result.metadata == runner_result.metadata
+    store_results.assert_not_called()
     runner.run.assert_called_once_with(
         genotypes=[{"rsid": "rs1", "chrom": "1", "genotype": "AA"}],
         output_dir=str(tmp_path / "lai_work" / "sample_7"),

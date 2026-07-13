@@ -531,6 +531,22 @@ class TestGenerateSvgsForSample:
         count = generate_svgs_for_sample(sample_engine, tmp_path)
         assert count == 0
 
+    def test_unqualified_local_ancestry_is_not_rendered(self, sample_engine, tmp_path):
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="ancestry",
+                    category="local_ancestry",
+                    evidence_level=4,
+                    finding_text="Unqualified legacy chromosome painting",
+                )
+            )
+
+        assert generate_svgs_for_sample(sample_engine, tmp_path) == 0
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings)).one()
+        assert row.svg_path is None
+
     def test_multiple_modules_get_svgs(self, sample_engine, tmp_path):
         with sample_engine.begin() as conn:
             conn.execute(

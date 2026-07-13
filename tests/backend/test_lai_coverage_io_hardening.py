@@ -299,12 +299,16 @@ def test_production_adapter_inserts_variants_in_bounded_batches(tmp_path, monkey
         cal.sa.event.listen(engine, "before_cursor_execute", capture_batch)
         return engine
 
-    def fake_run_lai_analysis(**_kwargs):
+    def fake_run_lai_analysis_for_diagnostics(**_kwargs):
         return SimpleNamespace(metadata={})
 
     monkeypatch.setattr(cal, "RAW_VARIANT_INSERT_BATCH_SIZE", 2)
     monkeypatch.setattr(cal.sa, "create_engine", instrumented_create_engine)
-    monkeypatch.setattr(cal, "run_lai_analysis", fake_run_lai_analysis)
+    monkeypatch.setattr(
+        cal,
+        "run_lai_analysis_for_diagnostics",
+        fake_run_lai_analysis_for_diagnostics,
+    )
 
     cal.run_production_diagnostic(
         markers=markers,

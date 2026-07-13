@@ -96,7 +96,7 @@ import sqlalchemy as sa
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from backend.analysis.lai import run_lai_analysis  # noqa: E402
+from backend.analysis.lai import run_lai_analysis_for_diagnostics  # noqa: E402
 from backend.analysis.lai_liftover import resolve_lai_liftover_path  # noqa: E402
 from backend.db.sample_schema import create_sample_tables  # noqa: E402
 from backend.db.tables import raw_variants, sample_metadata_table  # noqa: E402
@@ -3134,7 +3134,7 @@ def run_production_diagnostic(
     os.environ.update(environment)
     get_settings.cache_clear()
     try:
-        return run_lai_analysis(
+        return run_lai_analysis_for_diagnostics(
             sample_id=sample_id,
             sample_engine=engine,
             progress_callback=None,

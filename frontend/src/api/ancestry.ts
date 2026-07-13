@@ -150,7 +150,8 @@ export function useLAIProgress(
       return data
     },
     enabled: enabled && sampleId != null,
-    refetchInterval: 3_000, // Poll every 3 seconds
+    refetchInterval: ({ state: { data } }) =>
+      data?.status === "complete" || data?.status === "failed" ? false : 3_000,
   })
 }
 

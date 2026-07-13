@@ -693,6 +693,19 @@ every one of the seven classes. Until a fully hashed audit and eligible founder-
 panel replace that state, the planner must refuse and no positive policy may be issued;
 production remains fail-closed.
 
+The application enforces that state independently of the calibration scripts. With bundle
+and Java prerequisites installed, LAI status returns the structured reason
+`lai_coverage_policy_unavailable`; triggers are refused before enqueue, legacy results are
+withheld, and Tier 1 NNLS/PCA ancestry remains available. Do not add a local threshold,
+feature flag, settings override, or bundle-version inference to bypass this gate.
+
+After a future policy passes final confirmation, cutting the data release is not enough.
+Open a separate production-enforcement PR that authenticates the frozen policy and final
+report, evaluates all seven minimum predicates, records the policy identity on accepted
+rows, proves equality-at-boundary acceptance and below-boundary rejection, and keeps
+unqualified historical rows quarantined. Only that reviewed release may change production
+from the structured no-call state.
+
 ---
 
 ## 9. Cut the GitHub Release

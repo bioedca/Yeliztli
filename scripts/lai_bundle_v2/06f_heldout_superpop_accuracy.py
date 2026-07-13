@@ -33,7 +33,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 
-from backend.analysis.lai import run_lai_analysis
+from backend.analysis.lai import run_lai_analysis_for_diagnostics
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, sample_metadata_table
 
@@ -104,7 +104,11 @@ def run_one(sample_id: int, iid: str, fixture: Path) -> dict:
             )
         )
         conn.execute(raw_variants.insert(), variants)
-    result = run_lai_analysis(sample_id=sample_id, sample_engine=engine, progress_callback=None)
+    result = run_lai_analysis_for_diagnostics(
+        sample_id=sample_id,
+        sample_engine=engine,
+        progress_callback=None,
+    )
     fracs = {pop: info["fraction"] for pop, info in result.global_ancestry.items()}
     top = max(fracs, key=fracs.get) if fracs else None
     return {"n_variants": len(variants), "fractions": fracs, "top": top}

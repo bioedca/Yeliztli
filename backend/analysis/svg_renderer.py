@@ -833,10 +833,13 @@ def generate_svgs_for_sample(
     import sqlalchemy as sa
 
     from backend.db.tables import findings
+    from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
     # 1. Read all findings from the sample DB
     with sample_engine.connect() as conn:
-        rows = conn.execute(sa.select(findings)).fetchall()
+        rows = conn.execute(
+            sa.select(findings).where(policy_qualified_finding_clause(findings.c.category))
+        ).fetchall()
 
     if not rows:
         logger.info("svg_generation_skipped", reason="no_findings")

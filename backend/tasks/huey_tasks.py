@@ -523,6 +523,10 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
     """
     from backend.analysis.lai import run_lai_analysis
     from backend.db.connection import get_registry
+    from backend.services.lai_production_coverage import (
+        LAICoveragePolicyUnavailableError,
+        encode_lai_insufficient_data_reason,
+    )
 
     registry = get_registry()
 
@@ -583,6 +587,20 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
 
     except AnnotationCancelledError:
         logger.info("lai_task_cancelled", job_id=job_id, sample_id=sample_id)
+
+    except LAICoveragePolicyUnavailableError as exc:
+        logger.info(
+            "lai_task_insufficient_validation_data",
+            job_id=job_id,
+            sample_id=sample_id,
+            reason_code=exc.reason.code,
+        )
+        _update_job(
+            job_id,
+            status="failed",
+            message="Insufficient data for chromosome painting",
+            error=encode_lai_insufficient_data_reason(exc.reason),
+        )
 
     except Exception as exc:
         logger.exception("lai_task_failed", job_id=job_id, sample_id=sample_id)
