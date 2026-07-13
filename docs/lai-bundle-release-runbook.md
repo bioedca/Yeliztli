@@ -56,7 +56,9 @@ Run on the SLURM build host in the chosen `$WORKDIR`:
 - Tool versions pinned (Plan §6.3 step 4):
   - `bcftools --version`
   - Beagle JAR (5.x) SHA-256 recorded
-  - Gnomix git commit SHA recorded
+  - Gnomix full git commit SHA selected and enforced (not a branch, tag name,
+    or short SHA), with a clean checkout from
+    `https://github.com/AI-sandbox/gnomix`
   - `fastmixture --version` (or `admixture --version`) + the locked random seed
     (`scripts/lai_bundle_v2/env.sh::ADMIXTURE_SEED` defaults to `42`).
 - ~500 GB scratch on `$WORKDIR`.
@@ -64,6 +66,29 @@ Run on the SLURM build host in the chosen `$WORKDIR`:
 
 The orchestrator script provisions the directory layout on first run; no
 manual `mkdir` is needed.
+
+Select the immutable Gnomix revision deliberately before submitting work. The
+workflow has no default because the revision used by a historical mutable
+checkout cannot be inferred safely. Replace the example SHA with the revision
+validated for the release:
+
+```bash
+export GNOMIX_DIR_INSTALL="${GNOMIX_DIR_INSTALL:-$HOME/tools/gnomix}"
+GNOMIX_SHA=0123456789abcdef0123456789abcdef01234567  # replace for this release
+git -C "$GNOMIX_DIR_INSTALL" remote set-url origin https://github.com/AI-sandbox/gnomix.git
+git -C "$GNOMIX_DIR_INSTALL" fetch --prune origin
+git -C "$GNOMIX_DIR_INSTALL" checkout --detach "$GNOMIX_SHA"
+test "$(git -C "$GNOMIX_DIR_INSTALL" rev-parse --verify 'HEAD^{commit}')" = "$GNOMIX_SHA"
+test -z "$(git -C "$GNOMIX_DIR_INSTALL" status --porcelain=v1 --untracked-files=all)"
+export GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"
+```
+
+Phases 05 and 07 independently reject a missing/short/mismatched revision or a
+dirty checkout. They also require the canonical `origin` above and a fetched
+`origin/*` ref containing the selected commit, so a local/fork-only commit cannot
+be mislabeled as official Gnomix source. Do not assign the current upstream
+`main` revision to an older model whose training checkout was not recorded;
+rebuild it under this contract.
 
 ---
 
@@ -153,6 +178,7 @@ conda activate lai_bundle
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
 LAI_BUNDLE_VERSION=v2.0.0 \
+GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash scripts/run_rebuild.sh
 ```
 
@@ -161,6 +187,7 @@ To resume from a single phase (e.g., re-train Gnomix only):
 ```bash
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
+GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash scripts/run_rebuild.sh 05
 ```
 
@@ -181,8 +208,28 @@ downloaded GRCh38 PLINK maps. It validates every requested autosome and writes
 source and derived SHA-256 values to
 `00_raw_downloads/genetic_maps_gnomix/provenance.json`; Phase 07 preserves that
 record as `metadata/gnomix_genetic_maps.json` in the bundle. Phase 05 binds each
-trained model to its chromosome map checksum, and Phase 07 verifies and ships
-those bindings as `metadata/gnomix_model_map_chrN.sha256`.
+trained model to its chromosome map checksum, the selected Gnomix commit, the
+SHA-256 of the exact effective config, and the native model SHA-256. The
+algorithm learns window-specific parameters from configurable training and
+model choices, so the paper DOI or algorithm name alone does not identify a
+trained artifact [1]. Phase 07 verifies and ships the per-model records as
+`metadata/gnomix_model_chrN.provenance.json`, the compatibility map bindings as
+`metadata/gnomix_model_map_chrN.sha256`, and an aggregate record as
+`metadata/gnomix_training_provenance.json`. `metadata.json::gnomix_training`
+publishes the common repository, full commit, effective-config SHA-256, clean
+checkout attestation, model count, and aggregate-manifest path.
+
+The effective config is snapshotted separately for every training task before
+Gnomix opens it. Existing models without the JSON record are intentionally
+stale and retrain once. The full bundle cannot assemble if chromosome records
+are missing, if their model/map hashes no longer match, or if their Gnomix
+commits/config hashes are mixed. Because `n_cores` is part of the effective
+SLURM config, changing `GNOMIX_CPUS` also changes its hash and intentionally
+invalidates reuse.
+
+Phase 07 is publication-only and requires `CHROMS` to be exactly autosomes
+1–22; it refuses subset bundles so a diagnostic rerun cannot retain stale
+chromosome artifacts from an earlier full assembly.
 
 Phases 02 and 03 operate on the union catalog (~2.0M sites; ~1.94M autosomal)
 instead of the 23andMe v5 catalog (~605k). The random seed remains locked at
@@ -208,6 +255,7 @@ conda activate lai_bundle           # submitter env; jobs re-source conda
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
 G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
+GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash "$LAI_WORKDIR/scripts/run_rebuild_slurm.sh"
 #   prep   (02 03 04)  -> job N
 #   gnomix (05 array)  -> job N+1  (after N)
@@ -227,7 +275,7 @@ slowest single chromosome (× the number of waves once cores are saturated).
 ## 7. Source data provenance
 
 For every input artifact (gnomAD HGDP+1KG BCFs, liftover chain, 1000G
-genetic map, ADMIXTURE binary, Gnomix release tag), record in
+genetic map, ADMIXTURE binary, Gnomix full commit SHA), record in
 `lai_bundle_build/v2_rebuild_log.md`:
 
 - download URL
@@ -724,7 +772,8 @@ gh release create lai-bundle-v2.0.0 \
 
 Release notes should mirror `metadata.json`: catalog source (union 23andMe
 v5 + AncestryDNA v2.0), site count, accuracy metrics, build date, SHA-256,
-and the `min_app_version` floor (`0.2.0` for v2.0.0).
+the pinned Gnomix commit/effective-config SHA-256, and the `min_app_version`
+floor (`0.2.0` for v2.0.0).
 
 The tarball is ≥500 MB on every release ≥ v2.0.0 (~700–750 MB at v2.0.0),
 so it cannot live on `raw.githubusercontent.com`. Every release ≥ v2.0.0
@@ -819,3 +868,13 @@ sequence for the v2.0.0 ship is:
 
 The cluster rebuild and the release-cut are sequenced via this runbook;
 the in-repo PRs are sequenced via Plan §18.1.
+
+---
+
+## References
+
+[1] Hilmarsson, H., Kumar, A. S., Rastogi, R., Bustamante, C. D., Mas
+Montserrat, D., & Ioannidis, A. G. (2021). [High Resolution Ancestry
+Deconvolution for Next Generation Genomic
+Data](https://doi.org/10.1101/2021.09.19.460980). *bioRxiv* (preprint, version
+1). DOI: 10.1101/2021.09.19.460980.

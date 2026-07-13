@@ -40,10 +40,29 @@ ncores="${SLURM_CPUS_PER_TASK:-8}"
 
 # Per-task gnomix config with n_cores pinned to this task's core allocation, so
 # concurrent array tasks don't each grab the whole node (gnomix defaults n_cores
-# to all CPUs it sees). Unique filename per chromosome → no write race.
-cfg="$GNOMIX_DIR/config_slurm_chr${chr}.yaml"
+# to all CPUs it sees). Include the array job ID so overlapping submissions for
+# the same chromosome never share a mutable path, and publish it atomically.
+job_id="${SLURM_ARRAY_JOB_ID:-${SLURM_JOB_ID:-manual_$$}}"
+case "$job_id" in
+  *[!A-Za-z0-9_.-]*)
+    echo "invalid SLURM job identifier for config path: $job_id" >&2
+    exit 1
+    ;;
+esac
+cfg="$GNOMIX_DIR/config_slurm_job${job_id}_chr${chr}.yaml"
+cfg_tmp="${cfg}.tmp.$$"
+trap 'rm -f "$cfg_tmp"' EXIT
+base_config="$GNOMIX_CONFIG"
+ncores_entries=$(grep -Ec '^[[:space:]]*n_cores:' \
+  "$base_config" || true)
+if [ "$ncores_entries" -ne 1 ]; then
+  echo "expected exactly one n_cores entry in Gnomix config; found $ncores_entries" >&2
+  exit 1
+fi
 sed "s/^\([[:space:]]*\)n_cores:.*/\1n_cores: ${ncores}/" \
-  "$GNOMIX_DIR_INSTALL/config.yaml" > "$cfg"
+  "$base_config" > "$cfg_tmp"
+mv -f "$cfg_tmp" "$cfg"
+trap - EXIT
 
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] gnomix array task: chr${chr}, ${ncores} cores, config=$cfg"
 CHROMS="$chr" GNOMIX_CONFIG="$cfg" bash "$SCRIPTS_DIR/05_train_gnomix.sh"

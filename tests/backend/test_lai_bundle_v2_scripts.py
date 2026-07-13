@@ -71,6 +71,7 @@ EXPECTED_HELPERS = [
     "extract_heldout_fixtures.py",
     "07_write_metadata.py",
     "gnomix_launcher.py",
+    "gnomix_provenance.py",
     "07b_reexport_gnomix_models.py",
 ]
 
@@ -217,6 +218,7 @@ class TestPythonHelpersCompile:
             "extract_heldout_fixtures.py",
             "07_write_metadata.py",
             "gnomix_launcher.py",
+            "gnomix_provenance.py",
             "07b_reexport_gnomix_models.py",
         ],
     )
@@ -229,6 +231,57 @@ class TestPhase01GnomixMaps:
     def _write_source(path: Path, text: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+
+    @staticmethod
+    def _init_git_checkout(path: Path) -> str:
+        subprocess.run(["git", "init", "-q", str(path)], check=True)
+        subprocess.run(["git", "-C", str(path), "add", "."], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(path),
+                "-c",
+                "user.name=Yeliztli Tests",
+                "-c",
+                "user.email=tests@yeliztli.invalid",
+                "commit",
+                "-q",
+                "-m",
+                "fixture",
+            ],
+            check=True,
+        )
+        commit = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(path),
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/AI-sandbox/gnomix.git",
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(path),
+                "update-ref",
+                "refs/remotes/origin/main",
+                commit,
+            ],
+            check=True,
+        )
+        return commit
 
     @staticmethod
     def _run_converter(
@@ -472,15 +525,28 @@ class TestPhase01GnomixMaps:
         self._write_source(panel_dir / "ref_panel_chr1.vcf.gz", "panel\n")
         self._write_source(install_dir / "gnomix.py", "# stub\n")
         self._write_source(install_dir / "config.yaml", "seed: 1\n")
+        gnomix_commit = self._init_git_checkout(install_dir)
+        effective_config = tmp_path / "effective-config.yaml"
+        effective_config.write_text("seed: 1\n")
         self._write_source(gnomix_dir / "minquery_chr1.vcf.gz", "query\n")
         self._write_source(gnomix_dir / "minquery_chr1.vcf.gz.tbi", "index\n")
 
         model_dir = gnomix_dir / "output_chr1" / "models" / "model_chm_chr1"
         model_path = model_dir / "model_chm_chr1.pkl"
         marker_path = model_dir / "genetic_map.sha256"
+        provenance_path = model_dir / "training_provenance.json"
         self._write_source(model_path, "old-model\n")
         first_map_sha = hashlib.sha256((map_dir / "chr1.map").read_bytes()).hexdigest()
         marker_path.write_text(f"{first_map_sha}  chr1.map\n")
+        provenance = _load_module("gnomix_provenance.py", "gnomix_provenance_map_test")
+        provenance.write_model_record(
+            provenance_path,
+            chromosome="chr1",
+            expected_commit=gnomix_commit,
+            config=effective_config,
+            genetic_map=map_dir / "chr1.map",
+            model=model_path,
+        )
 
         stub_dir = tmp_path / "bin"
         stub_dir.mkdir()
@@ -490,11 +556,17 @@ class TestPhase01GnomixMaps:
             "#!/bin/sh\n"
             "printf 'called\\n' > \"$STUB_CONDA_CALLED\"\n"
             "printf 'new-model\\n' > \"$STUB_MODEL_PATH\"\n"
+            'if [ -n "${STUB_MUTATE_CONFIG:-}" ]; then\n'
+            "  printf 'seed: mutated\\n' > \"$STUB_CONFIG_PATH\"\n"
+            "fi\n"
         )
         conda_stub.chmod(0o755)
         bcftools_stub = stub_dir / "bcftools"
         bcftools_stub.write_text("#!/bin/sh\necho unexpected bcftools call >&2\nexit 97\n")
         bcftools_stub.chmod(0o755)
+        flock_stub = stub_dir / "flock"
+        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.chmod(0o755)
 
         env = os.environ.copy()
         for variable in (
@@ -514,9 +586,11 @@ class TestPhase01GnomixMaps:
                 "WORKDIR": str(workdir),
                 "CHROMS": "1",
                 "GNOMIX_DIR_INSTALL": str(install_dir),
-                "GNOMIX_CONFIG": str(install_dir / "config.yaml"),
+                "GNOMIX_CONFIG": str(effective_config),
+                "GNOMIX_EXPECTED_COMMIT": gnomix_commit,
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_CONDA_CALLED": str(conda_called),
+                "STUB_CONFIG_PATH": str(effective_config),
                 "STUB_MODEL_PATH": str(model_path),
             }
         )
@@ -546,11 +620,139 @@ class TestPhase01GnomixMaps:
             env=env,
         )
         assert changed.returncode == 0, changed.stderr
-        assert "genetic-map provenance changed or missing; retraining" in changed.stdout
+        assert (
+            "source/config/map/model provenance changed or missing; retraining" in changed.stdout
+        )
         assert conda_called.is_file()
         assert model_path.read_text() == "new-model\n"
         assert marker_path.read_text() == f"{changed_map_sha}  chr1.map\n"
+        record = json.loads(provenance_path.read_text())
+        assert record["gnomix_git_commit"] == gnomix_commit
+        assert (
+            record["effective_config_sha256"]
+            == hashlib.sha256(effective_config.read_bytes()).hexdigest()
+        )
+        assert record["genetic_map_sha256"] == changed_map_sha
+        assert record["model_sha256"] == hashlib.sha256(model_path.read_bytes()).hexdigest()
         assert not Path(f"{model_path}.stale").exists()
+
+        conda_called.unlink()
+        effective_config.write_text("seed: 2\n")
+        changed_config = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert changed_config.returncode == 0, changed_config.stderr
+        assert conda_called.is_file()
+        record = json.loads(provenance_path.read_text())
+        assert (
+            record["effective_config_sha256"]
+            == hashlib.sha256(effective_config.read_bytes()).hexdigest()
+        )
+
+        conda_called.unlink()
+        effective_config.write_text("seed: 3\n")
+        mutating_env = env | {"STUB_MUTATE_CONFIG": "1"}
+        mutated_during_training = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=mutating_env,
+        )
+        assert mutated_during_training.returncode == 1
+        assert "effective Gnomix config changed during training" in (
+            mutated_during_training.stderr + mutated_during_training.stdout
+        )
+        assert conda_called.is_file()
+        assert not provenance_path.exists()
+        assert not marker_path.exists()
+
+    @pytest.mark.parametrize(
+        ("expected_commit", "message"),
+        [
+            ("", "must be an explicitly selected full 40-character"),
+            ("0" * 40, "checkout commit mismatch"),
+        ],
+    )
+    def test_phase05_rejects_missing_or_mismatched_revision_before_model_mutation(
+        self,
+        tmp_path: Path,
+        expected_commit: str,
+        message: str,
+    ) -> None:
+        workdir = tmp_path / "work"
+        install_dir = tmp_path / "gnomix-install"
+        self._write_source(install_dir / "gnomix.py", "# stub\n")
+        self._write_source(install_dir / "config.yaml", "seed: 1\n")
+        self._init_git_checkout(install_dir)
+        self._write_source(workdir / "04_admixture_filtering" / "sample_map.txt", "sample\tEUR\n")
+        self._write_source(
+            workdir / "00_raw_downloads" / "genetic_maps_gnomix" / "provenance.json",
+            "{}\n",
+        )
+
+        model_dir = workdir / "05_gnomix_training" / "output_chr1" / "models" / "model_chm_chr1"
+        model_path = model_dir / "model_chm_chr1.pkl"
+        marker_path = model_dir / "genetic_map.sha256"
+        provenance_path = model_dir / "training_provenance.json"
+        self._write_source(model_path, "existing-model\n")
+        marker_path.write_text("existing-map-binding\n")
+        provenance_path.write_text("existing-provenance\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        conda_called = tmp_path / "conda-called"
+        for command in ("conda", "bcftools"):
+            stub = stub_dir / command
+            stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_CONDA_CALLED\"\nexit 97\n")
+            stub.chmod(0o755)
+        flock_stub = stub_dir / "flock"
+        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "CHROMS": "1",
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_CONFIG": str(install_dir / "config.yaml"),
+                "GNOMIX_EXPECTED_COMMIT": expected_commit,
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_CONDA_CALLED": str(conda_called),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert message in result.stderr
+        assert model_path.read_text() == "existing-model\n"
+        assert marker_path.read_text() == "existing-map-binding\n"
+        assert provenance_path.read_text() == "existing-provenance\n"
+        assert not conda_called.exists()
 
     def test_phase05_missing_bcftools_fails_before_model_state_changes(
         self, tmp_path: Path
@@ -609,6 +811,274 @@ class TestPhase01GnomixMaps:
         ) in text
         assert "trained model does not match current genetic map" in text
         assert '"metadata/gnomix_model_map_chr${chr}.sha256"' in text
+        assert '"metadata/gnomix_model_chr${chr}.provenance.json"' in text
+        assert "metadata/gnomix_training_provenance.json" in text
+        assert 'gnomix_provenance.py" verify-record' in text
+        assert text.index('gnomix_provenance.py" verify-record') < text.index('cd "$BUNDLE_DIR"')
+        assert "Phase 07 publishes full autosomal bundles only" in text
+        assert (
+            'expected_autosomes="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22"' in text
+        )
+
+
+class TestGnomixTrainingProvenance:
+    @staticmethod
+    def _module():
+        return _load_module("gnomix_provenance.py", "gnomix_provenance_tests")
+
+    @staticmethod
+    def _checkout(path: Path) -> str:
+        path.mkdir()
+        (path / "gnomix.py").write_text("# fixture\n")
+        (path / "config.yaml").write_text("seed: 1\n")
+        return TestPhase01GnomixMaps._init_git_checkout(path)
+
+    def test_checkout_requires_full_matching_revision(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        checkout = tmp_path / "gnomix"
+        commit = self._checkout(checkout)
+
+        with pytest.raises(provenance.ProvenanceError, match="full 40-character"):
+            provenance.verify_checkout(checkout, "")
+        with pytest.raises(provenance.ProvenanceError, match="commit mismatch"):
+            provenance.verify_checkout(checkout, "0" * 40)
+        assert provenance.verify_checkout(checkout, commit) == commit
+
+    def test_checkout_rejects_tracked_and_untracked_changes(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        checkout = tmp_path / "gnomix"
+        commit = self._checkout(checkout)
+
+        (checkout / "gnomix.py").write_text("# modified\n")
+        with pytest.raises(provenance.ProvenanceError, match="checkout is dirty"):
+            provenance.verify_checkout(checkout, commit)
+        (checkout / "gnomix.py").write_text("# fixture\n")
+        (checkout / "untracked.py").write_text("# untracked\n")
+        with pytest.raises(provenance.ProvenanceError, match="checkout is dirty"):
+            provenance.verify_checkout(checkout, commit)
+
+    def test_checkout_rejects_missing_or_wrong_official_origin(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        checkout = tmp_path / "gnomix"
+        commit = self._checkout(checkout)
+
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "remote",
+                "set-url",
+                "origin",
+                "https://github.com/example/gnomix-fork.git",
+            ],
+            check=True,
+        )
+        with pytest.raises(provenance.ProvenanceError, match="origin mismatch"):
+            provenance.verify_checkout(checkout, commit)
+
+        subprocess.run(["git", "-C", str(checkout), "remote", "remove", "origin"], check=True)
+        with pytest.raises(provenance.ProvenanceError, match="must configure origin"):
+            provenance.verify_checkout(checkout, commit)
+
+    def test_checkout_commit_must_be_in_fetched_origin_history(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        checkout = tmp_path / "gnomix"
+        self._checkout(checkout)
+        (checkout / "config.yaml").write_text("seed: 2\n")
+        subprocess.run(["git", "-C", str(checkout), "add", "config.yaml"], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "-c",
+                "user.name=Yeliztli Tests",
+                "-c",
+                "user.email=tests@yeliztli.invalid",
+                "commit",
+                "-q",
+                "-m",
+                "local-only commit",
+            ],
+            check=True,
+        )
+        local_commit = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        with pytest.raises(provenance.ProvenanceError, match="not contained in a fetched"):
+            provenance.verify_checkout(checkout, local_commit)
+
+    def test_model_record_binds_commit_config_map_and_pickle(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        config = tmp_path / "config.yaml"
+        genetic_map = tmp_path / "chr1.map"
+        model = tmp_path / "model_chm_chr1.pkl"
+        record = tmp_path / "training_provenance.json"
+        config.write_text("seed: 1\n")
+        genetic_map.write_text("chr1\t100\t0\n")
+        model.write_bytes(b"model-v1")
+        commit = "1" * 40
+
+        written = provenance.write_model_record(
+            record,
+            chromosome="chr1",
+            expected_commit=commit,
+            config=config,
+            genetic_map=genetic_map,
+            model=model,
+        )
+        assert written["gnomix_git_commit"] == commit
+        assert (
+            written["effective_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
+        )
+        assert written["model_sha256"] == hashlib.sha256(model.read_bytes()).hexdigest()
+        provenance.verify_model_record(
+            record,
+            chromosome="chr1",
+            expected_commit=commit,
+            config=config,
+            genetic_map=genetic_map,
+            model=model,
+        )
+
+        model.write_bytes(b"model-v2")
+        with pytest.raises(provenance.ProvenanceError, match="model_sha256 mismatch"):
+            provenance.verify_model_record(
+                record,
+                chromosome="chr1",
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
+
+    def test_aggregate_rejects_mixed_effective_configs(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        commit = "2" * 40
+        genetic_map = tmp_path / "map"
+        genetic_map.write_text("chr1\t100\t0\n")
+        records = []
+        for chromosome, seed in (("chr1", 1), ("chr2", 2)):
+            config = tmp_path / f"{chromosome}.yaml"
+            model = tmp_path / f"model_chm_{chromosome}.pkl"
+            record = tmp_path / f"{chromosome}.json"
+            config.write_text(f"seed: {seed}\n")
+            model.write_bytes(chromosome.encode())
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
+            records.append(record)
+
+        second = json.loads(records[1].read_text())
+        second["gnomix_git_commit"] = "9" * 40
+        records[1].write_text(json.dumps(second))
+        with pytest.raises(provenance.ProvenanceError, match="mixed or unexpected"):
+            provenance.aggregate_records(records, commit, tmp_path / "aggregate.json")
+        second["gnomix_git_commit"] = commit
+        records[1].write_text(json.dumps(second))
+
+        with pytest.raises(provenance.ProvenanceError, match="mixed effective Gnomix"):
+            provenance.aggregate_records(records, commit, tmp_path / "aggregate.json")
+
+    def test_aggregate_publishes_common_generation_and_per_model_hashes(
+        self, tmp_path: Path
+    ) -> None:
+        provenance = self._module()
+        commit = "3" * 40
+        config = tmp_path / "config.yaml"
+        config.write_text("seed: 7\n")
+        records = []
+        for chromosome in ("chr1", "chr2"):
+            genetic_map = tmp_path / f"{chromosome}.map"
+            model = tmp_path / f"model_chm_{chromosome}.pkl"
+            record = tmp_path / f"{chromosome}.json"
+            genetic_map.write_text(f"{chromosome}\t100\t0\n")
+            model.write_bytes(chromosome.encode())
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
+            records.append(record)
+
+        output = tmp_path / "aggregate.json"
+        manifest = provenance.aggregate_records(records, commit, output)
+        assert json.loads(output.read_text()) == manifest
+        assert manifest["gnomix_git_commit"] == commit
+        assert (
+            manifest["effective_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
+        )
+        assert [model["chromosome"] for model in manifest["models"]] == ["chr1", "chr2"]
+        assert manifest["models"][0]["provenance_file"] == (
+            "metadata/gnomix_model_chr1.provenance.json"
+        )
+
+    def test_model_record_rejects_extra_or_malformed_fields(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        record = tmp_path / "record.json"
+        record.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "chromosome": "chr1",
+                    "gnomix_repository": provenance.GNOMIX_REPOSITORY,
+                    "gnomix_git_commit": "4" * 40,
+                    "gnomix_checkout_clean": True,
+                    "effective_config_sha256": "5" * 64,
+                    "genetic_map_sha256": "6" * 64,
+                    "model_filename": "model_chm_chr1.pkl",
+                    "model_sha256": "7" * 64,
+                    "unexpected": True,
+                }
+            )
+        )
+        with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
+            provenance.load_model_record(record)
+
+    def test_record_publication_is_atomic(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        provenance = self._module()
+        config = tmp_path / "config.yaml"
+        genetic_map = tmp_path / "chr1.map"
+        model = tmp_path / "model_chm_chr1.pkl"
+        record = tmp_path / "training_provenance.json"
+        config.write_text("seed: 1\n")
+        genetic_map.write_text("chr1\t100\t0\n")
+        model.write_bytes(b"model")
+        record.write_text("prior-generation\n")
+        original_replace = Path.replace
+
+        def interrupted_replace(path: Path, target: Path) -> Path:
+            if target == record:
+                raise OSError("simulated publication interruption")
+            return original_replace(path, target)
+
+        monkeypatch.setattr(Path, "replace", interrupted_replace)
+        with pytest.raises(OSError, match="simulated publication interruption"):
+            provenance.write_model_record(
+                record,
+                chromosome="chr1",
+                expected_commit="8" * 40,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
+        assert record.read_text() == "prior-generation\n"
+        assert not list(tmp_path.glob(".training_provenance.json.*.tmp"))
 
 
 class TestPhase05ModelPathCheck:
@@ -778,6 +1248,76 @@ class TestPhase07Metadata:
         text = (SCRIPTS_DIR / "07_write_metadata.py").read_text()
         assert "heldout_superpop_accuracy_report.json" in text
         assert "heldout_superpop_accuracy" in text
+
+    def test_metadata_publishes_validated_gnomix_generation(self, tmp_path: Path) -> None:
+        provenance = _load_module("gnomix_provenance.py", "gnomix_provenance_metadata_test")
+        bundle = tmp_path / "bundle"
+        validation = tmp_path / "validation"
+        metadata_dir = bundle / "metadata"
+        (bundle / "liftover").mkdir(parents=True)
+        metadata_dir.mkdir()
+        validation.mkdir()
+        (bundle / "liftover" / "array_site_mapping.tsv").write_text("rs1\t1\t100\n")
+        union_catalog = tmp_path / "union.tsv"
+        union_catalog.write_text("rs1\t1\t100\n")
+
+        config = tmp_path / "config.yaml"
+        genetic_map = tmp_path / "chr1.map"
+        model = tmp_path / "model_chm_chr1.pkl"
+        record = tmp_path / "chr1.provenance.json"
+        config.write_text("seed: 42\n")
+        genetic_map.write_text("chr1\t100\t0\n")
+        model.write_bytes(b"model")
+        commit = "a" * 40
+        provenance.write_model_record(
+            record,
+            chromosome="chr1",
+            expected_commit=commit,
+            config=config,
+            genetic_map=genetic_map,
+            model=model,
+        )
+        manifest_path = metadata_dir / "gnomix_training_provenance.json"
+        provenance.aggregate_records([record], commit, manifest_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "07_write_metadata.py"),
+                "--bundle-dir",
+                str(bundle),
+                "--union-catalog",
+                str(union_catalog),
+                "--validation-dir",
+                str(validation),
+                "--git-commit",
+                "b" * 40,
+                "--build-host",
+                "test-host",
+                "--build-date",
+                "2026-07-13",
+                "--bundle-version",
+                "v2.0.0",
+                "--gnomix-provenance",
+                str(manifest_path),
+                "--admixture-seed",
+                "42",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        metadata = json.loads((bundle / "metadata.json").read_text())
+        assert metadata["gnomix_training"] == {
+            "repository": provenance.GNOMIX_REPOSITORY,
+            "git_commit": commit,
+            "checkout_clean": True,
+            "effective_config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
+            "model_count": 1,
+            "manifest": "metadata/gnomix_training_provenance.json",
+        }
 
 
 class TestGnomixPandasAppendShim:
@@ -1067,6 +1607,10 @@ class TestSlurmRebuild:
         assert "--array=1-22" in text
         assert "SLURM_ARRAY_TASK_ID" in text  # one chromosome per task
         assert "n_cores" in text  # caps gnomix cores per task
+        assert "SLURM_ARRAY_JOB_ID" in text  # overlapping submissions get unique configs
+        assert 'cfg_tmp="${cfg}.tmp.$$"' in text
+        assert 'mv -f "$cfg_tmp" "$cfg"' in text
+        assert "expected exactly one n_cores entry" in text
 
     def test_phase05_runs_in_gnomix_env(self) -> None:
         text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
@@ -1076,6 +1620,13 @@ class TestSlurmRebuild:
         text = (SCRIPTS_DIR / "env.sh").read_text()
         assert "GNOMIX_ENV:=gnomix" in text
         assert "GNOMIX_CONFIG:=" in text
+        assert "GNOMIX_EXPECTED_COMMIT:=" in text
+
+    def test_slurm_orchestrator_verifies_revision_before_submission(self) -> None:
+        text = (SCRIPTS_DIR / "run_rebuild_slurm.sh").read_text()
+        verify_index = text.index('gnomix_provenance.py" verify-checkout')
+        submit_index = text.index("jid_prep=$(sbatch")
+        assert verify_index < submit_index
 
 
 class TestRunbook:
@@ -1108,3 +1659,7 @@ class TestRunbook:
         text = RUNBOOK.read_text()
         assert "bash scripts/run_rebuild.sh" in text
         assert "UNION_CATALOG_TSV=" in text
+        assert 'GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"' in text
+        assert "metadata/gnomix_training_provenance.json" in text
+        assert "effective-config SHA-256" in text
+        assert "10.1101/2021.09.19.460980" in text
