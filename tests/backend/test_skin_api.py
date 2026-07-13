@@ -294,6 +294,35 @@ MC1R_LEGACY_MILD_AGGREGATE_FINDING = {
     ),
 }
 
+MC1R_LEGACY_UNKNOWN_AGGREGATE_FINDING = {
+    **MC1R_LEGACY_MILD_AGGREGATE_FINDING,
+    "finding_text": "MC1R multi-allele summary: Unrecognized MC1R Tier.",
+    "detail_json": json.dumps(
+        {
+            "r_allele_count": 0,
+            "r_allele_rsids": [],
+            "total_mc1r_called": 3,
+            "risk_label": "Unrecognized MC1R Tier",
+            "risk_description": "Legacy aggregate with an unmapped display label.",
+        }
+    ),
+}
+
+MC1R_STORED_STATE_CONFLICT_FINDING = {
+    **MC1R_LEGACY_MILD_AGGREGATE_FINDING,
+    "finding_text": "MC1R aggregate with a stored state and stale display label.",
+    "detail_json": json.dumps(
+        {
+            "r_allele_count": 0,
+            "r_allele_rsids": [],
+            "total_mc1r_called": 3,
+            "risk_state": "mild_r_allele",
+            "risk_label": "Low UV Sensitivity",
+            "risk_description": "Stored state takes precedence over the legacy label.",
+        }
+    ),
+}
+
 FLG_INSUFFICIENT_DATA_FINDING = {
     "module": "skin",
     "category": "insufficient_data",
@@ -443,6 +472,20 @@ def client_legacy_mild(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], 
 
 
 @pytest.fixture
+def client_legacy_unknown(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], None, None]:
+    """Client with a pre-risk_state aggregate whose label is unmapped."""
+    yield from _setup_client(tmp_data_dir, [MC1R_LEGACY_UNKNOWN_AGGREGATE_FINDING])
+
+
+@pytest.fixture
+def client_stored_state_conflict(
+    tmp_data_dir: Path,
+) -> Generator[tuple[TestClient, int], None, None]:
+    """Client whose stored state intentionally conflicts with its display label."""
+    yield from _setup_client(tmp_data_dir, [MC1R_STORED_STATE_CONFLICT_FINDING])
+
+
+@pytest.fixture
 def client_with_variants(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], None, None]:
     """Client with raw variants for run endpoint testing."""
     variants = [
@@ -514,6 +557,26 @@ class TestListPathways:
         assert resp.status_code == 200
         mc1r = resp.json()["mc1r_aggregate"]
         assert mc1r["risk_label"] == "Mild MC1R Variant"
+        assert mc1r["risk_state"] == "mild_r_allele"
+
+    def test_legacy_unknown_mc1r_aggregate_gets_null_state(
+        self, client_legacy_unknown: tuple[TestClient, int]
+    ) -> None:
+        tc, sample_id = client_legacy_unknown
+        resp = tc.get(f"/api/analysis/skin/pathways?sample_id={sample_id}")
+        assert resp.status_code == 200
+        mc1r = resp.json()["mc1r_aggregate"]
+        assert mc1r["risk_label"] == "Unrecognized MC1R Tier"
+        assert mc1r["risk_state"] is None
+
+    def test_stored_mc1r_state_takes_precedence_over_legacy_label(
+        self, client_stored_state_conflict: tuple[TestClient, int]
+    ) -> None:
+        tc, sample_id = client_stored_state_conflict
+        resp = tc.get(f"/api/analysis/skin/pathways?sample_id={sample_id}")
+        assert resp.status_code == 200
+        mc1r = resp.json()["mc1r_aggregate"]
+        assert mc1r["risk_label"] == "Low UV Sensitivity"
         assert mc1r["risk_state"] == "mild_r_allele"
 
     def test_insufficient_data_present(self, client: tuple[TestClient, int]) -> None:
