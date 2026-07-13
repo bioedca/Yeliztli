@@ -10,7 +10,7 @@
  * MC1R allele summary and skin condition cards.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
   Sun,
@@ -77,6 +77,8 @@ const MC1R_UNKNOWN_STYLE: MC1RSummaryStyle = {
   labelBox: "bg-slate-100/50 dark:bg-slate-900/20",
 }
 
+const warnedMC1RLabels = new Set<string>()
+
 /** MC1R allele summary card — displays multi-allele aggregate result. */
 function MC1RSummaryCard({
   aggregate,
@@ -85,7 +87,21 @@ function MC1RSummaryCard({
 }) {
   // The mild and baseline tiers both deliberately report zero strong R alleles,
   // so presentation must follow the backend tier label rather than the count.
-  const style = MC1R_SUMMARY_STYLES.get(aggregate.risk_label) ?? MC1R_UNKNOWN_STYLE
+  const matchedStyle = MC1R_SUMMARY_STYLES.get(aggregate.risk_label)
+  const style = matchedStyle ?? MC1R_UNKNOWN_STYLE
+
+  useEffect(() => {
+    if (
+      import.meta.env.DEV
+      && matchedStyle === undefined
+      && !warnedMC1RLabels.has(aggregate.risk_label)
+    ) {
+      warnedMC1RLabels.add(aggregate.risk_label)
+      console.warn(
+        `[SkinView] Unknown MC1R risk label "${aggregate.risk_label}"; using neutral styling.`,
+      )
+    }
+  }, [aggregate.risk_label, matchedStyle])
 
   return (
     <div

@@ -129,7 +129,6 @@ describe("MC1R allele summary tier styling (#1759)", () => {
     ["Mild MC1R Variant", 0, "sky"],
     ["Moderate UV Sensitivity", 1, "blue"],
     ["High UV Sensitivity", 2, "amber"],
-    ["constructor", 0, "slate"],
   ])(
     "renders %s with the %s-count %s palette",
     (riskLabel, rAlleleCount, tone) => {
@@ -172,6 +171,53 @@ describe("MC1R allele summary tier styling (#1759)", () => {
       )
     },
   )
+
+  it("warns once and uses neutral styling for an unknown label", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const aggregate: MC1RAggregateItem = {
+      r_allele_count: 0,
+      r_allele_rsids: [],
+      total_mc1r_called: 4,
+      risk_label: "constructor",
+      risk_description: "Unrecognized tier description",
+      evidence_level: 2,
+      pmids: [],
+    }
+
+    renderMC1RAggregate(aggregate)
+
+    const summary = screen.getByRole("region", { name: "MC1R allele summary" })
+    const card = summary.querySelector(":scope > div")
+    const countBadge = within(summary).getByText("0", { selector: "span" })
+    const labelBox = within(summary).getByText("constructor", {
+      exact: true,
+    }).parentElement
+
+    expect(card).toHaveClass(
+      "bg-slate-50",
+      "border-slate-200",
+      "dark:bg-slate-950/30",
+      "dark:border-slate-800",
+    )
+    expect(countBadge).toHaveClass(
+      "bg-slate-100",
+      "text-slate-800",
+      "dark:bg-slate-900/50",
+      "dark:text-slate-300",
+    )
+    expect(labelBox).toHaveClass(
+      "bg-slate-100/50",
+      "dark:bg-slate-900/20",
+    )
+
+    renderMC1RAggregate(aggregate)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      '[SkinView] Unknown MC1R risk label "constructor"; using neutral styling.',
+    )
+
+    warn.mockRestore()
+  })
 })
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
