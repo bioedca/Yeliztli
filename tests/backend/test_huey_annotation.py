@@ -39,6 +39,7 @@ from backend.tasks.huey_tasks import (
     create_annotation_job,
     run_annotation_task,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Seed data ──────────────────────────────────────────────────────────
 
@@ -473,21 +474,10 @@ class TestAnnotationStateGate:
 
     def _seed_embedded_bundle_version(self, annotation_env: dict, version: str) -> None:
         """Write self-describing metadata without stamping reference.db."""
-        engine = sa.create_engine(f"sqlite:///{annotation_env['settings'].vep_bundle_db_path}")
-        try:
-            with engine.begin() as conn:
-                conn.execute(
-                    sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
-                )
-                conn.execute(
-                    sa.text(
-                        "INSERT INTO bundle_metadata (key, value) "
-                        "VALUES ('bundle_version', :version)"
-                    ),
-                    {"version": version},
-                )
-        finally:
-            engine.dispose()
+        seed_embedded_vep_bundle_version(
+            annotation_env["settings"].vep_bundle_db_path,
+            version,
+        )
 
     def _run_task_with_result(self, sample_id: int, result: object) -> None:
         with (

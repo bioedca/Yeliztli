@@ -39,6 +39,7 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Plan §7.5 lists ────────────────────────────────────────────────────
 
@@ -214,23 +215,6 @@ def _seed_installed_bundle(settings: Settings, version: str) -> None:
         engine.dispose()
 
 
-def _seed_embedded_bundle_version(settings: Settings, version: str) -> None:
-    engine = sa.create_engine(f"sqlite:///{settings.vep_bundle_db_path}")
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
-            )
-            conn.execute(
-                sa.text(
-                    "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', :version)"
-                ),
-                {"version": version},
-            )
-    finally:
-        engine.dispose()
-
-
 def _make_sample_db(
     settings: Settings,
     *,
@@ -354,7 +338,10 @@ class TestRequireFreshSample:
             "backend.api.dependencies.get_bundle_info",
             lambda name: None,
         )
-        _seed_embedded_bundle_version(gate_env["settings"], "v2.0.0")
+        seed_embedded_vep_bundle_version(
+            gate_env["settings"].vep_bundle_db_path,
+            "v2.0.0",
+        )
         _make_sample_db(gate_env["settings"], seed_version="v1.0.0")
 
         with pytest.raises(HTTPException) as exc:

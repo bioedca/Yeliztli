@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sqlalchemy as sa
 
 from backend.db.tables import database_versions, reference_metadata
@@ -69,3 +70,16 @@ def test_versionless_bundle_uses_committed_fixture_baseline() -> None:
         == VERSIONLESS_VEP_BUNDLE_BASELINE
         == "v1.0.0"
     )
+
+
+@pytest.mark.parametrize(
+    ("recorded_version", "expected"),
+    [(None, "v1.0.0"), ("v2.0.0", "v2.0.0")],
+)
+def test_missing_vep_engine_uses_reference_precedence(
+    recorded_version: str | None,
+    expected: str,
+) -> None:
+    reference_engine = _reference_engine(recorded_version)
+
+    assert resolve_effective_vep_bundle_version(reference_engine, None) == expected

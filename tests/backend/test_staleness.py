@@ -35,6 +35,7 @@ from backend.db.tables import (
     samples,
 )
 from backend.services.staleness import _parse_reference_versions, is_sample_stale
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -75,23 +76,6 @@ def _seed_installed_bundle(settings: Settings, version: str) -> None:
                     version=version,
                     downloaded_at=datetime.now(UTC),
                 )
-            )
-    finally:
-        engine.dispose()
-
-
-def _seed_embedded_bundle_version(settings: Settings, version: str) -> None:
-    engine = sa.create_engine(f"sqlite:///{settings.vep_bundle_db_path}")
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                sa.text("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
-            )
-            conn.execute(
-                sa.text(
-                    "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', :version)"
-                ),
-                {"version": version},
             )
     finally:
         engine.dispose()
@@ -246,7 +230,10 @@ class TestIsSampleStale:
 
     def test_self_described_unstamped_bundle_drives_staleness(self, staleness_env):
         """Embedded metadata is authoritative when the status copy has no row."""
-        _seed_embedded_bundle_version(staleness_env["settings"], "v2.0.0")
+        seed_embedded_vep_bundle_version(
+            staleness_env["settings"].vep_bundle_db_path,
+            "v2.0.0",
+        )
         _make_sample_db(staleness_env["settings"], seed_version="v1.0.0")
 
         assert is_sample_stale(staleness_env["sample_id"]) is True

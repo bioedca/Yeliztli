@@ -1172,6 +1172,8 @@ def _read_bundle_version(registry: DBRegistry) -> str | None:
     exists.
     """
     try:
+        if not registry.settings.vep_bundle_db_path.is_file():
+            return None
         return resolve_effective_vep_bundle_version(
             registry.reference_engine,
             registry.vep_engine,

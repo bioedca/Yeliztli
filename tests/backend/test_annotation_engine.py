@@ -21,7 +21,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 import sqlalchemy as sa
@@ -55,6 +55,7 @@ from backend.annotation.engine import (
     _lookup_gnomad,
     _lookup_vep,
     _merge_annotations,
+    _read_bundle_version,
     run_annotation,
 )
 from backend.annotation.gnomad import (
@@ -1246,6 +1247,23 @@ class TestCoverageStatsPayload:
 
         assert result.total_variants > 0
         assert result.coverage_stats["bundle_version"] is None
+
+    def test_absent_bundle_file_does_not_open_vep_engine(
+        self,
+        tmp_path: Path,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Telemetry stays unknown without materializing an empty SQLite file."""
+        missing_path = tmp_path / "missing-vep.db"
+        registry = MagicMock()
+        registry.reference_engine = reference_engine
+        registry.settings.vep_bundle_db_path = missing_path
+        vep_engine_property = PropertyMock(side_effect=AssertionError("VEP engine opened"))
+        type(registry).vep_engine = vep_engine_property
+
+        assert _read_bundle_version(registry) is None
+        vep_engine_property.assert_not_called()
+        assert not missing_path.exists()
 
     def test_missing_file_format_yields_unknown_vendor(
         self,
