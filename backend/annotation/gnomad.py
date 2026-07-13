@@ -68,9 +68,6 @@ POSITION_LOOKUP_BATCH_SIZE = max(250, (_SQLITE_VAR_LIMIT - 10) // 4)
 # Chromosomes we accept (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 
-# gnomAD annotation bitmask bit (bit 2, value 4)
-GNOMAD_BITMASK = 0b000100
-
 # Rare variant AF thresholds
 RARE_AF_THRESHOLD = 0.01
 ULTRA_RARE_AF_THRESHOLD = 0.001

@@ -30,7 +30,6 @@ from backend.annotation.dbnsfp import (
     BATCH_SIZE,
     CREATE_INDEXES_SQL,
     CREATE_LOAD_PROGRESS_SQL,
-    DBNSFP_BITMASK,
     DBNSFP_FIELDS,
     LOOKUP_BATCH_SIZE,
     DbNSFPAnnotation,
@@ -872,9 +871,6 @@ class TestDownloadDbNSFPResume:
 
 
 class TestConstants:
-    def test_bitmask_value(self):
-        assert DBNSFP_BITMASK == 8  # bit 3
-
     def test_batch_sizes(self):
         assert BATCH_SIZE == 10_000
         # LOOKUP_BATCH_SIZE is dynamically computed from SQLITE_MAX_VARIABLE_NUMBER

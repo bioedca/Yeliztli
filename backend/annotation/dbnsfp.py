@@ -82,9 +82,6 @@ POSITION_LOOKUP_BATCH_SIZE = max(249, (_SQLITE_VAR_LIMIT - 10) // 4)
 # Chromosomes we accept (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 
-# dbNSFP annotation bitmask bit (bit 3, value 8)
-DBNSFP_BITMASK = 0b001000
-
 # All dbNSFP score field names (for lookup results)
 DBNSFP_FIELDS = (
     "cadd_phred",

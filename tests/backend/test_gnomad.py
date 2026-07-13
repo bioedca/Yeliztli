@@ -25,7 +25,6 @@ from sqlalchemy.pool import StaticPool
 
 import backend.annotation.gnomad as gnomad_module
 from backend.annotation.gnomad import (
-    GNOMAD_BITMASK,
     LOOKUP_BATCH_SIZE,
     RARE_AF_THRESHOLD,
     ULTRA_RARE_AF_THRESHOLD,
@@ -854,18 +853,6 @@ class TestRareVariantFlags:
         annot = results["rs_null"]
         assert annot.rare_flag is False
         assert annot.ultra_rare_flag is False
-
-
-# ── Bitmask constant tests ──────────────────────────────────────────────
-
-
-class TestGnomadBitmask:
-    """Test gnomAD bitmask constant."""
-
-    def test_bitmask_value(self):
-        """gnomAD bitmask is bit 2 (value 4)."""
-        assert GNOMAD_BITMASK == 0b000100
-        assert GNOMAD_BITMASK == 4
 
 
 # ── Data class tests ────────────────────────────────────────────────────
