@@ -11,6 +11,11 @@ import {
   type VariantRow,
 } from "@/types/variants"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
+import {
+  polyphen2Display,
+  siftDisplay,
+  type PredictionDisplay,
+} from "@/lib/insilico"
 import { coverageTooltip, decodeCoverageSources } from "./annotation-coverage"
 
 const col = createColumnHelper<VariantRow>()
@@ -35,6 +40,15 @@ function coordinateHeader(label: string, title: string) {
       },
       label,
     )
+}
+
+function predictionCell(
+  value: string | null | undefined,
+  toDisplay: (prediction: string) => PredictionDisplay,
+) {
+  if (!value?.trim()) return ""
+  const display = toDisplay(value)
+  return createElement("span", { className: display.colorClass }, display.label)
 }
 
 /** Pinned conflict flag column — non-hideable per PRD (P2-07, P2-22).
@@ -189,7 +203,7 @@ export const allColumns = [
   col.accessor("sift_pred", {
     header: "SIFT Pred",
     size: 90,
-    cell: (info) => info.getValue() ?? "",
+    cell: (info) => predictionCell(info.getValue(), siftDisplay),
   }),
   col.accessor("polyphen2_hsvar_score", {
     header: "PolyPhen2",
@@ -199,7 +213,7 @@ export const allColumns = [
   col.accessor("polyphen2_hsvar_pred", {
     header: "PP2 Pred",
     size: 90,
-    cell: (info) => info.getValue() ?? "",
+    cell: (info) => predictionCell(info.getValue(), polyphen2Display),
   }),
   col.accessor("revel", {
     header: "REVEL",

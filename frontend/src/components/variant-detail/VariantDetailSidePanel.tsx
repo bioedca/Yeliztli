@@ -27,7 +27,7 @@ import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { formatAlleleFrequency } from "@/lib/format"
 import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
-import { polyphen2Display } from "@/lib/insilico"
+import { polyphen2Display, siftDisplay } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
 
@@ -261,16 +261,10 @@ function PanelContent({
         <DetailRow
           label="SIFT"
           value={
-            variant.sift_pred ? (
+            variant.sift_pred?.trim() ? (
               <span className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    variant.sift_pred === "D"
-                      ? "text-red-700 dark:text-red-400"
-                      : "text-green-700 dark:text-green-400",
-                  )}
-                >
-                  {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}
+                <span className={siftDisplay(variant.sift_pred).colorClass}>
+                  {siftDisplay(variant.sift_pred).label}
                 </span>
                 {variant.sift_score != null && (
                   <span className="text-muted-foreground">({variant.sift_score.toFixed(3)})</span>
@@ -282,7 +276,7 @@ function PanelContent({
         <DetailRow
           label="PolyPhen-2"
           value={
-            variant.polyphen2_hsvar_pred ? (
+            variant.polyphen2_hsvar_pred?.trim() ? (
               <span className={polyphen2Display(variant.polyphen2_hsvar_pred).colorClass}>
                 {polyphen2Display(variant.polyphen2_hsvar_pred).label}
                 {variant.polyphen2_hsvar_score != null &&

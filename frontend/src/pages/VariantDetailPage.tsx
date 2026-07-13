@@ -43,7 +43,7 @@ import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
 import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-status"
-import { polyphen2Display } from "@/lib/insilico"
+import { polyphen2Display, siftDisplay } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { formatZygosityLabel } from "@/lib/zygosity-label"
@@ -271,12 +271,12 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <DetailRow label="CADD" value={variant.cadd_phred?.toFixed(1)} />
       <DetailRow label="REVEL" value={variant.revel?.toFixed(3)} />
       <DetailRow label="SIFT" value={
-        variant.sift_pred
-          ? `${variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}${variant.sift_score != null ? ` (${variant.sift_score.toFixed(3)})` : ""}`
+        variant.sift_pred?.trim()
+          ? `${siftDisplay(variant.sift_pred).label}${variant.sift_score != null ? ` (${variant.sift_score.toFixed(3)})` : ""}`
           : null
       } />
       <DetailRow label="PolyPhen-2" value={
-        variant.polyphen2_hsvar_pred
+        variant.polyphen2_hsvar_pred?.trim()
           ? `${polyphen2Display(variant.polyphen2_hsvar_pred).label}${variant.polyphen2_hsvar_score != null ? ` (${variant.polyphen2_hsvar_score.toFixed(3)})` : ""}`
           : null
       } />
@@ -471,17 +471,15 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
       <div className="space-y-1">
         <DetailRow label="CADD (Phred)" value={variant.cadd_phred?.toFixed(1)} />
         <DetailRow label="SIFT" value={
-          variant.sift_pred ? (
-            <span className={cn(
-              variant.sift_pred === "D" ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400",
-            )}>
-              {variant.sift_pred === "D" ? "Deleterious" : "Tolerated"}
+          variant.sift_pred?.trim() ? (
+            <span className={siftDisplay(variant.sift_pred).colorClass}>
+              {siftDisplay(variant.sift_pred).label}
               {variant.sift_score != null && ` (${variant.sift_score.toFixed(3)})`}
             </span>
           ) : null
         } />
         <DetailRow label="PolyPhen-2" value={
-          variant.polyphen2_hsvar_pred ? (
+          variant.polyphen2_hsvar_pred?.trim() ? (
             <span className={polyphen2Display(variant.polyphen2_hsvar_pred).colorClass}>
               {polyphen2Display(variant.polyphen2_hsvar_pred).label}
               {variant.polyphen2_hsvar_score != null && ` (${variant.polyphen2_hsvar_score.toFixed(3)})`}

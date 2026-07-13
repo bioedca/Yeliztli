@@ -150,6 +150,32 @@ const mockVariantDetail: VariantDetail = {
   },
 }
 
+const SIFT_DISPLAY_CASES = [
+  ["D code", "D", "Damaging", "text-red-700"],
+  ["T code", "T", "Tolerated", "text-green-700"],
+  ["missing value", null, "—", null],
+  ["whitespace-only value", "   ", "—", null],
+  ["unknown value", "UNKNOWN_SIFT", "UNKNOWN SIFT", "text-muted-foreground"],
+] as const
+
+const POLYPHEN_DISPLAY_CASES = [
+  ["D code", "D", "Probably Damaging", "text-red-700"],
+  ["P code", "P", "Possibly Damaging", "text-amber-700"],
+  ["B code", "B", "Benign", "text-green-700"],
+  ["missing value", null, "—", null],
+  ["whitespace-only value", "   ", "—", null],
+  ["unknown value", "UNKNOWN_PP2", "UNKNOWN PP2", "text-muted-foreground"],
+] as const
+
+function detailValue(label: "SIFT" | "PolyPhen-2"): HTMLElement {
+  const labelNode = screen.getByText(label, { exact: true, selector: "span" })
+  const row = labelNode.parentElement
+  expect(row).not.toBeNull()
+  const value = row?.lastElementChild
+  expect(value).toBeInstanceOf(HTMLElement)
+  return value as HTMLElement
+}
+
 const defaultChromCounts: ChromosomeSummary[] = [
   { chrom: "17", count: 5000 },
 ]
@@ -266,27 +292,68 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     })
   })
 
-  it("maps the single-char PolyPhen-2 code 'D' to 'Probably Damaging' in the damaging colour (#680)", async () => {
-    // The backend stores the raw dbNSFP code ("D"), not "probably_damaging";
-    // pre-fix the full-word check never matched, so a probably-damaging call
-    // rendered as a bare "D" in the benign green colour.
+  it.each(SIFT_DISPLAY_CASES)("maps SIFT %s in its labeled prediction row (#1753)", async (
+    _caseName,
+    input,
+    expectedLabel,
+    expectedColor,
+  ) => {
     mockFetch.mockImplementation(async () => ({
       ok: true,
-      json: async () => mockVariantDetail,
+      json: async () => ({
+        ...mockVariantDetail,
+        sift_pred: input,
+        sift_score: null,
+      }),
     }))
 
     render(
       <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
     )
 
-    await waitFor(() => {
-      expect(screen.getByText("rs100")).toBeInTheDocument()
-    })
+    await screen.findByText("rs100")
 
-    const polyphen = screen.getByText(/Probably Damaging/)
-    expect(polyphen).toHaveClass("text-red-700")
-    // The raw single-letter code must not leak through as the label.
-    expect(polyphen.textContent).not.toBe("D")
+    const value = detailValue("SIFT")
+    expect(value.textContent?.trim()).toBe(expectedLabel)
+    if (expectedColor) {
+      const prediction = Array.from(value.querySelectorAll("span")).find(
+        (node) => node.classList.contains(expectedColor),
+      )
+      expect(prediction).toHaveClass(expectedColor)
+      expect(prediction).toHaveTextContent(expectedLabel)
+    }
+  })
+
+  it.each(POLYPHEN_DISPLAY_CASES)("maps PolyPhen-2 %s in its labeled prediction row (#680, #1753)", async (
+    _caseName,
+    input,
+    expectedLabel,
+    expectedColor,
+  ) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariantDetail,
+        polyphen2_hsvar_pred: input,
+        polyphen2_hsvar_score: null,
+      }),
+    }))
+
+    render(
+      <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
+    )
+
+    await screen.findByText("rs100")
+
+    const value = detailValue("PolyPhen-2")
+    expect(value.textContent?.trim()).toBe(expectedLabel)
+    if (expectedColor) {
+      const prediction = Array.from(value.querySelectorAll("span")).find(
+        (node) => node.classList.contains(expectedColor),
+      )
+      expect(prediction).toHaveClass(expectedColor)
+      expect(prediction).toHaveTextContent(expectedLabel)
+    }
   })
 
   it("shows evidence conflict section when conflict exists", async () => {

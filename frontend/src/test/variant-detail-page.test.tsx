@@ -127,6 +127,35 @@ const mockVariant: VariantDetail = {
   },
 }
 
+const SIFT_DISPLAY_CASES = [
+  ["D code", "D", "Damaging", "text-red-700"],
+  ["T code", "T", "Tolerated", "text-green-700"],
+  ["missing value", null, "—", null],
+  ["whitespace-only value", "   ", "—", null],
+  ["unknown value", "UNKNOWN_SIFT", "UNKNOWN SIFT", "text-muted-foreground"],
+] as const
+
+const POLYPHEN_DISPLAY_CASES = [
+  ["D code", "D", "Probably Damaging", "text-red-700"],
+  ["P code", "P", "Possibly Damaging", "text-amber-700"],
+  ["B code", "B", "Benign", "text-green-700"],
+  ["missing value", null, "—", null],
+  ["whitespace-only value", "   ", "—", null],
+  ["unknown value", "UNKNOWN_PP2", "UNKNOWN PP2", "text-muted-foreground"],
+] as const
+
+function detailValue(
+  container: HTMLElement,
+  label: "SIFT" | "PolyPhen-2",
+): HTMLElement {
+  const labelNode = within(container).getByText(label, { exact: true, selector: "span" })
+  const row = labelNode.parentElement
+  expect(row).not.toBeNull()
+  const value = row?.lastElementChild
+  expect(value).toBeInstanceOf(HTMLElement)
+  return value as HTMLElement
+}
+
 /** Render with route params for /variants/:rsid */
 function renderPage(rsid: string, sampleId: number | null = 1) {
   const queryClient = new QueryClient({
@@ -227,8 +256,77 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("AG")).toBeInTheDocument() // genotype
     const overview = screen.getByTestId("tab-overview")
     expect(within(overview).getByText("Heterozygous")).toBeInTheDocument()
+    expect(within(overview).getByText("Damaging (0.001)")).toBeInTheDocument()
     expect(within(overview).queryByText("het", { exact: true })).not.toBeInTheDocument()
     expect(screen.getAllByText("missense variant").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it.each(SIFT_DISPLAY_CASES)("maps SIFT %s in both labeled detail rows (#1753)", async (
+    _caseName,
+    input,
+    expectedLabel,
+    expectedColor,
+  ) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariant,
+        sift_pred: input,
+        sift_score: null,
+      }),
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    const overview = await screen.findByTestId("tab-overview")
+    expect(detailValue(overview, "SIFT").textContent?.trim()).toBe(expectedLabel)
+
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+    const clinical = screen.getByTestId("tab-clinical")
+    const clinicalValue = detailValue(clinical, "SIFT")
+    expect(clinicalValue.textContent?.trim()).toBe(expectedLabel)
+    if (expectedColor) {
+      const prediction = Array.from(clinicalValue.querySelectorAll("span")).find(
+        (node) => node.classList.contains(expectedColor),
+      )
+      expect(prediction).toHaveClass(expectedColor)
+      expect(prediction).toHaveTextContent(expectedLabel)
+    }
+  })
+
+  it.each(POLYPHEN_DISPLAY_CASES)("maps PolyPhen-2 %s in both labeled detail rows (#680, #1753)", async (
+    _caseName,
+    input,
+    expectedLabel,
+    expectedColor,
+  ) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariant,
+        polyphen2_hsvar_pred: input,
+        polyphen2_hsvar_score: null,
+      }),
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    const overview = await screen.findByTestId("tab-overview")
+    expect(detailValue(overview, "PolyPhen-2").textContent?.trim()).toBe(expectedLabel)
+
+    await user.click(screen.getByRole("tab", { name: /clinical/i }))
+    const clinical = screen.getByTestId("tab-clinical")
+    const clinicalValue = detailValue(clinical, "PolyPhen-2")
+    expect(clinicalValue.textContent?.trim()).toBe(expectedLabel)
+    if (expectedColor) {
+      const prediction = Array.from(clinicalValue.querySelectorAll("span")).find(
+        (node) => node.classList.contains(expectedColor),
+      )
+      expect(prediction).toHaveClass(expectedColor)
+      expect(prediction).toHaveTextContent(expectedLabel)
+    }
   })
 
   it("uses the API's ploidy-aware zygosity label", async () => {
@@ -376,6 +474,8 @@ describe("VariantDetailPage (P2-21a)", () => {
     // All in-silico scores
     expect(screen.getByText("28.4")).toBeInTheDocument() // CADD
     expect(screen.getByText("0.850")).toBeInTheDocument() // REVEL
+    const sift = screen.getByText("Damaging (0.001)")
+    expect(sift).toHaveClass("text-red-700")
     // PolyPhen-2: the raw dbNSFP code "D" maps to a readable "Probably Damaging"
     // label in the damaging colour (#680), not a bare "D" in the benign green.
     const polyphen = screen.getByText(/Probably Damaging/)

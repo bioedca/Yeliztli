@@ -1,17 +1,16 @@
 /**
- * Display mapping for in-silico pathogenicity predictions.
+ * Display mapping for in-silico functional-impact predictions.
  *
  * The backend stores the raw dbNSFP prediction codes (see
- * `backend/annotation/dbnsfp.py::_parse_dbnsfp_pred`, which keeps the first
- * non-missing per-transcript code). For PolyPhen-2 (`Polyphen2_HVAR_pred`) that
- * is a single character — `D` probably damaging, `P` possibly damaging,
- * `B` benign — NOT the full words. Matching the full words leaves every call in
- * the benign branch and prints the bare letter (issue #680). SIFT is already
- * handled inline as single-char `D`.
+ * `backend/annotation/dbnsfp.py::_parse_dbnsfp_pred_by_severity`, which keeps
+ * the most severe non-missing per-transcript code). SIFT (`SIFT4G_pred`) stores
+ * `D`/`T`, while PolyPhen-2 (`Polyphen2_HVAR_pred`) stores `D`/`P`/`B` — NOT
+ * the full words. Rendering those values directly leaves opaque bare letters
+ * in the UI (issues #680 and #1753).
  */
 export interface PredictionDisplay {
   label: string
-  /** Tailwind text-colour classes encoding severity. */
+  /** Tailwind text-colour classes encoding the prediction category. */
   colorClass: string
 }
 
@@ -21,13 +20,38 @@ const GREEN = "text-green-700 dark:text-green-400"
 const NEUTRAL = "text-muted-foreground"
 
 /**
+ * Map a SIFT prediction (`sift_pred`) to a readable label and category colour.
+ * Accepts the single-char dbNSFP codes `D`/`T` and their full-word aliases.
+ * The pinned dbNSFP 5.3.1a schema and SIFT protocol expand these as
+ * `D(amaging)` / `T(olerated)`; the older narrative term "deleterious" is
+ * accepted as an alias but normalized to the source-field label.
+ * Unknown values remain visible in a neutral colour rather than being treated
+ * as tolerated.
+ */
+export function siftDisplay(pred: string): PredictionDisplay {
+  switch (pred.trim().toUpperCase()) {
+    case "D":
+    case "DAMAGING":
+    case "DELETERIOUS":
+      return { label: "Damaging", colorClass: RED }
+    case "T":
+    case "TOLERATED":
+      return { label: "Tolerated", colorClass: GREEN }
+    default:
+      return { label: pred.trim().replace(/_/g, " "), colorClass: NEUTRAL }
+  }
+}
+
+/**
  * Map a PolyPhen-2 prediction (`polyphen2_hsvar_pred`) to a readable label and
- * a severity colour. Accepts the single-char dbNSFP codes `D`/`P`/`B` (the real
+ * a category colour. Accepts the single-char dbNSFP codes `D`/`P`/`B` (the real
  * stored values) and, defensively, their full-word aliases. An unrecognised
  * value is shown verbatim in a neutral colour — never silently coloured benign.
  */
 export function polyphen2Display(pred: string): PredictionDisplay {
-  switch (pred.trim().toUpperCase()) {
+  const normalized = pred.trim().toUpperCase().replace(/\s+/g, "_")
+
+  switch (normalized) {
     case "D":
     case "PROBABLY_DAMAGING":
       return { label: "Probably Damaging", colorClass: RED }

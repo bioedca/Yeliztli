@@ -1,7 +1,7 @@
 /**
- * Issue #710 — Variant Explorer table tag pills must use the user's configured
- * tag colors, matching the tag filter dropdown. Unknown tag names still fall
- * back to the neutral gray pill color.
+ * Variant Explorer table-cell rendering regressions:
+ * - #710: tag pills use configured colors, with neutral gray fallback.
+ * - #1753: SIFT/PolyPhen prediction codes render as readable colored labels.
  */
 
 import { test, expect } from '@playwright/test'
@@ -100,4 +100,13 @@ test('Variant Explorer table tag pills use configured tag colors (#710)', async 
   await expect(page.getByTitle('Pathogenic tag')).toHaveCSS('background-color', 'rgb(220, 38, 38)')
   await expect(page.getByTitle('Reviewed')).toHaveCSS('background-color', 'rgb(22, 163, 74)')
   await expect(page.getByTitle('Unknown')).toHaveCSS('background-color', 'rgb(107, 114, 128)')
+})
+
+test('Variant Explorer humanizes SIFT and PolyPhen prediction codes (#1753)', async ({ page }) => {
+  await page.goto('/variants?sample_id=1')
+  await waitForReactHydration(page)
+
+  await expect(page.getByText('Damaging', { exact: true })).toHaveClass(/text-red-700/)
+  await expect(page.getByText('Probably Damaging', { exact: true })).toHaveClass(/text-red-700/)
+  await expect(page.getByText(/^(D|T|P|B)$/)).toHaveCount(0)
 })
