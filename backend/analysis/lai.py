@@ -122,8 +122,10 @@ def _run_lai_analysis(
     if not detect_java():
         raise RuntimeError("Java 8+ is required for LAI analysis")
 
-    # Ensure lai_results table exists (CREATE TABLE IF NOT EXISTS)
-    _ensure_lai_tables(sample_engine)
+    # Diagnostics are read-only with respect to the sample database, including
+    # schema. Production initializes its result table before running.
+    if persist_results:
+        _ensure_lai_tables(sample_engine)
 
     # Read genotypes (+ optional source column on Phase 3+ sample DBs) and the
     # parent sample's file_format. Source dispatches single-key vs three-key

@@ -664,6 +664,7 @@ class TestLAIResultsStorage:
             patch("backend.analysis.lai.get_settings", return_value=settings),
             patch("backend.analysis.lai.validate_lai_bundle", return_value=True),
             patch("backend.analysis.lai.detect_java", return_value=True),
+            patch("backend.analysis.lai._ensure_lai_tables") as ensure_lai_tables,
             patch.object(LAIRunner, "__init__", init_runner),
             pytest.raises(RuntimeError, match="no usable markers remained"),
         ):
@@ -672,6 +673,7 @@ class TestLAIResultsStorage:
                 sample_engine=sample_engine,
             )
 
+        ensure_lai_tables.assert_not_called()
         with sample_engine.connect() as conn:
             assert conn.execute(sa.select(lai_results)).fetchone() is None
             assert (
