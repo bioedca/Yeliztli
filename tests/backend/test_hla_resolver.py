@@ -12,7 +12,6 @@ import sqlalchemy as sa
 
 from backend.analysis.hla_resolver import (
     ResolvedHLACall,
-    carriage_map,
     carries_allele,
     read_hla_calls,
 )
@@ -124,12 +123,3 @@ class TestCarriesAllele:
         c = carries_allele([_call("B", "57:01", "07:02", prob=0.4, low=True)], "B*57:01")
         assert c.low_confidence is True
         assert c.prob == 0.4
-
-
-class TestCarriageMap:
-    def test_batch(self) -> None:
-        calls = [_call("B", "57:01", "07:02"), _call("A", "31:01", "02:01")]
-        m = carriage_map(calls, ["B*57:01", "A*31:01", "C*06:02"])
-        assert m["B*57:01"].carried is True
-        assert m["A*31:01"].carried is True
-        assert m["C*06:02"] is None  # locus not called

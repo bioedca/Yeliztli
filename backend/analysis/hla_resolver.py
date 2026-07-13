@@ -29,7 +29,7 @@ confirmatory-typing caveat to any claim they build on a call.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import sqlalchemy as sa
@@ -156,10 +156,3 @@ def carries_allele(calls: Sequence[ResolvedHLACall], allele: str) -> HLACarriage
         low_confidence=call.low_confidence,
         source=call.source,
     )
-
-
-def carriage_map(
-    calls: Sequence[ResolvedHLACall], alleles: Iterable[str]
-) -> dict[str, HLACarriage | None]:
-    """Resolve carriage for many alleles at once (query string → carriage/None)."""
-    return {allele: carries_allele(calls, allele) for allele in alleles}
