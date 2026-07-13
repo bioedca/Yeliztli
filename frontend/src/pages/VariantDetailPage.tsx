@@ -315,7 +315,7 @@ function PopulationTab({ variant }: { variant: VariantDetail }) {
     { label: "Latino/Admixed", code: "amr", af: variant.gnomad_af_amr },
     { label: "Ashkenazi Jewish", code: "asj", af: variant.gnomad_af_asj ?? null },
     { label: "East Asian", code: "eas", af: variant.gnomad_af_eas },
-    { label: "European", code: "eur", af: variant.gnomad_af_eur },
+    { label: "European (non-Finnish)", code: "eur", af: variant.gnomad_af_eur },
     { label: "Finnish", code: "fin", af: variant.gnomad_af_fin },
     { label: "South Asian", code: "sas", af: variant.gnomad_af_sas },
   ]

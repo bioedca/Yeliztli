@@ -359,6 +359,11 @@ describe("PopulationAFChart", () => {
     expect(screen.getByTestId("plotly-chart").getAttribute("data-props")).toContain(
       "Ashkenazi Jewish",
     )
+    const plotProps = JSON.parse(
+      screen.getByTestId("plotly-chart").getAttribute("data-props") ?? "{}",
+    ) as { data: Array<{ y: string[] }> }
+    expect(plotProps.data[0].y).toContain("European (non-Finnish)")
+    expect(plotProps.data[0].y).not.toContain("European")
   })
 
   it("shows empty state when no data", () => {

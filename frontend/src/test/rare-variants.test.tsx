@@ -311,6 +311,7 @@ describe("VariantDetailPanel", () => {
     expect(screen.getByText("28.5")).toBeInTheDocument()
     expect(screen.getByText("VCV000012345")).toBeInTheDocument()
     expect(screen.getByText("Ashkenazi Jewish")).toBeInTheDocument()
+    expect(screen.getByText("European (non-Finnish)")).toBeInTheDocument()
     expect(screen.getByText("0.0269")).toBeInTheDocument()
     // het default → "Heterozygous" (the zygosity label was previously unasserted)
     expect(screen.getByText("Heterozygous")).toBeInTheDocument()
