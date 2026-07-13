@@ -8,15 +8,26 @@ import Plot from "@/components/charts/Plot"
 import type { LAIGlobalAncestryEntry } from "@/types/ancestry"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"
-import { POPULATION_LABELS, POPULATION_ORDER } from "@/components/ancestry/constants"
+import {
+  POPULATION_LABELS,
+  POPULATION_ORDER,
+  getPopulationColor,
+  resolvePopulationColors,
+} from "@/components/ancestry/constants"
+import type { PopulationColorMap } from "@/components/ancestry/constants"
 
 interface AncestryPieChartProps {
   globalAncestry: Record<string, LAIGlobalAncestryEntry>
+  populationColors?: PopulationColorMap
 }
 
-export default function AncestryPieChart({ globalAncestry }: AncestryPieChartProps) {
+export default function AncestryPieChart({
+  globalAncestry,
+  populationColors,
+}: AncestryPieChartProps) {
   const { isDark } = useThemeContext()
   const pt = getPlotlyTheme(isDark)
+  const resolvedPopulationColors = populationColors ?? resolvePopulationColors(globalAncestry)
 
   // Filter and sort by canonical order, exclude near-zero (<0.1%)
   const entries = POPULATION_ORDER
@@ -36,7 +47,7 @@ export default function AncestryPieChart({ globalAncestry }: AncestryPieChartPro
 
   const labels = entries.map((e) => POPULATION_LABELS[e.pop] ?? e.pop)
   const values = entries.map((e) => e.entry.percentage)
-  const colors = entries.map((e) => e.entry.color)
+  const colors = entries.map((e) => getPopulationColor(resolvedPopulationColors, e.pop))
 
   return (
     <div data-testid="ancestry-pie-chart">

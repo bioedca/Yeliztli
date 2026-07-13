@@ -117,7 +117,7 @@ export interface LAIGlobalAncestryEntry {
   fraction: number
   percentage: number
   display_name: string
-  color: string
+  color?: string | null
   /** Per-population window confidence from LAI (mean softmax probability). */
   confidence?: number
   /** Warning text, e.g. for MID lower-precision. */
@@ -131,8 +131,8 @@ export interface ChromosomePaintingSegment {
   n_snps: number
   hap0: string
   hap1: string
-  hap0_color: string
-  hap1_color: string
+  hap0_color?: string | null
+  hap1_color?: string | null
 }
 
 /** Per-source LAI rsID hit / drop counts (Step 24, Plan §6.6/§6.7).

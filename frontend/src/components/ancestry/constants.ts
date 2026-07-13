@@ -30,15 +30,71 @@ export function humanizeAncestryCodes(text: string): string {
   return text.replace(POPULATION_CODE_RE, (code) => POPULATION_LABELS[code] ?? code)
 }
 
-/** Population code → color mapping for charts. */
+/** Neutral color for an unknown population or missing delivered color. */
+const FALLBACK_POPULATION_COLOR = "#94A3B8"
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
+
+export type PopulationColorMap = Record<string, string>
+
+/**
+ * Population code → fallback color mapping for charts.
+ *
+ * These values mirror the backend's Paul Tol palette. LAI results can override
+ * them at runtime through `resolvePopulationColors`, but pages without LAI data
+ * still use the same population encoding.
+ */
 export const POPULATION_COLORS: Record<string, string> = {
-  AFR: "#F59E0B",  // amber-500
-  AMR: "#EF4444",  // red-500
-  CSA: "#8B5CF6",  // violet-500
-  EAS: "#10B981",  // emerald-500
-  EUR: "#3B82F6",  // blue-500
-  MID: "#14B8A6",  // teal-500
-  OCE: "#EC4899",  // pink-500
+  AFR: "#E8A838",
+  AMR: "#EE6677",
+  CSA: "#AA3377",
+  EAS: "#66CCEE",
+  EUR: "#4477AA",
+  MID: "#228833",
+  OCE: "#CCBB44",
+}
+
+export function getPopulationColor(
+  populationColors: PopulationColorMap,
+  population: string,
+): string {
+  return populationColors[population] ?? FALLBACK_POPULATION_COLOR
+}
+
+/** Resolve one page-wide palette from backend data and canonical fallbacks. */
+export function resolvePopulationColors(
+  globalAncestry?: Record<string, { color?: string | null }> | null,
+  painting?: Record<
+    string,
+    Array<{
+      hap0: string
+      hap1: string
+      hap0_color?: string | null
+      hap1_color?: string | null
+    }>
+  > | null,
+): PopulationColorMap {
+  const colors: PopulationColorMap = { ...POPULATION_COLORS }
+
+  const setDeliveredColor = (population: string, color?: string | null) => {
+    if (typeof population !== "string" || typeof color !== "string") return
+    const normalized = color.trim()
+    if (population && HEX_COLOR_RE.test(normalized)) colors[population] = normalized
+  }
+
+  for (const segments of Object.values(painting ?? {})) {
+    for (const segment of segments) {
+      setDeliveredColor(segment.hap0, segment.hap0_color)
+      setDeliveredColor(segment.hap1, segment.hap1_color)
+    }
+  }
+
+  // Global ancestry is the page-level contract and therefore wins if a legacy
+  // payload happens to disagree with a segment-level color.
+  for (const [population, entry] of Object.entries(globalAncestry ?? {})) {
+    setDeliveredColor(population, entry.color)
+  }
+
+  return colors
 }
 
 /** Canonical population order for consistent display. */

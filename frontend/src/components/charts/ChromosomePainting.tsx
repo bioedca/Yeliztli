@@ -7,7 +7,13 @@
 
 import { useState } from "react"
 import type { ChromosomePaintingSegment } from "@/types/ancestry"
-import { POPULATION_COLORS, POPULATION_LABELS, POPULATION_ORDER } from "@/components/ancestry/constants"
+import {
+  POPULATION_LABELS,
+  POPULATION_ORDER,
+  getPopulationColor,
+  resolvePopulationColors,
+} from "@/components/ancestry/constants"
+import type { PopulationColorMap } from "@/components/ancestry/constants"
 
 /** Human chromosome lengths in base pairs (GRCh38). */
 const CHROMOSOME_LENGTHS: Record<string, number> = {
@@ -34,10 +40,15 @@ interface TooltipState {
 
 interface ChromosomePaintingProps {
   painting: Record<string, ChromosomePaintingSegment[]>
+  populationColors?: PopulationColorMap
 }
 
-export default function ChromosomePainting({ painting }: ChromosomePaintingProps) {
+export default function ChromosomePainting({
+  painting,
+  populationColors,
+}: ChromosomePaintingProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const resolvedPopulationColors = populationColors ?? resolvePopulationColors(null, painting)
 
   const labelWidth = 48
   const barPadding = 2
@@ -118,7 +129,9 @@ export default function ChromosomePainting({ painting }: ChromosomePaintingProps
                     y={y}
                     width={sw}
                     height={hapHeight}
-                    fill={POPULATION_COLORS[seg.hap0] ?? "#94A3B8"}
+                    fill={getPopulationColor(resolvedPopulationColors, seg.hap0)}
+                    data-population={seg.hap0}
+                    data-haplotype="0"
                     onMouseMove={(e) => handleSegmentHover(e, chrom, seg, 0)}
                     onMouseLeave={() => setTooltip(null)}
                     className="cursor-pointer"
@@ -137,7 +150,9 @@ export default function ChromosomePainting({ painting }: ChromosomePaintingProps
                     y={y + hapHeight + barPadding}
                     width={sw}
                     height={hapHeight}
-                    fill={POPULATION_COLORS[seg.hap1] ?? "#94A3B8"}
+                    fill={getPopulationColor(resolvedPopulationColors, seg.hap1)}
+                    data-population={seg.hap1}
+                    data-haplotype="1"
                     onMouseMove={(e) => handleSegmentHover(e, chrom, seg, 1)}
                     onMouseLeave={() => setTooltip(null)}
                     className="cursor-pointer"
@@ -162,10 +177,14 @@ export default function ChromosomePainting({ painting }: ChromosomePaintingProps
       {/* Legend */}
       <div data-testid="painting-legend" className="flex flex-wrap gap-3 mt-3 px-1">
         {POPULATION_ORDER.map((pop) => (
-          <div key={pop} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div
+            key={pop}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            data-population={pop}
+          >
             <span
               className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: POPULATION_COLORS[pop] }}
+              style={{ backgroundColor: getPopulationColor(resolvedPopulationColors, pop) }}
             />
             {POPULATION_LABELS[pop]}
           </div>

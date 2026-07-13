@@ -11,15 +11,24 @@
 import { useState } from "react"
 import Plot from "@/components/charts/Plot"
 import type { PCACoordinatesResponse } from "@/types/ancestry"
-import { POPULATION_COLORS, POPULATION_LABELS } from "./constants"
+import {
+  POPULATION_COLORS,
+  POPULATION_LABELS,
+  getPopulationColor,
+} from "./constants"
+import type { PopulationColorMap } from "./constants"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"
 
 interface PCAScatterProps {
   pcaData: PCACoordinatesResponse
+  populationColors?: PopulationColorMap
 }
 
-export default function PCAScatter({ pcaData }: PCAScatterProps) {
+export default function PCAScatter({
+  pcaData,
+  populationColors = POPULATION_COLORS,
+}: PCAScatterProps) {
   const { isDark } = useThemeContext()
   const pt = getPlotlyTheme(isDark)
 
@@ -36,7 +45,7 @@ export default function PCAScatter({ pcaData }: PCAScatterProps) {
   for (const [pop, coords] of Object.entries(pcaData.reference_samples)) {
     if (coords.length === 0) continue
     const label = POPULATION_LABELS[pop] ?? pop
-    const color = POPULATION_COLORS[pop] ?? "#94A3B8"
+    const color = getPopulationColor(populationColors, pop)
 
     traces.push({
       x: coords.map((c) => c[pcX]),
@@ -70,7 +79,7 @@ export default function PCAScatter({ pcaData }: PCAScatterProps) {
       marker: {
         symbol: "diamond",
         size: 10,
-        color: centroidPops.map((p) => POPULATION_COLORS[p] ?? "#94A3B8"),
+        color: centroidPops.map((p) => getPopulationColor(populationColors, p)),
         line: { width: 1, color: isDark ? "#94A3B8" : "#1E293B" },
       },
       hovertemplate: "%{text}<br>" + `${pcaData.pc_labels[pcX] ?? `PC${pcX + 1}`}: %{x:.4f}<br>${pcaData.pc_labels[pcY] ?? `PC${pcY + 1}`}: %{y:.4f}<extra>Centroid</extra>`,
