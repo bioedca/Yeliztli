@@ -44,6 +44,19 @@ from backend.db.tables import clinvar_variants, database_versions, reference_met
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 MINI_CLINVAR_VCF = FIXTURES_DIR / "mini_clinvar.vcf"
 
+EXPECTED_REVIEW_STATUS_STARS = {
+    "practice_guideline": 4,
+    "reviewed_by_expert_panel": 3,
+    "criteria_provided,_multiple_submitters,_no_conflicts": 2,
+    "criteria_provided,_single_submitter": 1,
+    "criteria_provided,_conflicting_interpretations": 1,
+    "criteria_provided,_conflicting_classifications": 1,
+    "no_assertion_criteria_provided": 0,
+    "no_assertion_provided": 0,
+    "no_classification_provided": 0,
+    "no_classification_for_the_single_variant": 0,
+}
+
 
 def _materialize_clinvar_rows(
     vcf_path: Path, *, progress_callback=None
@@ -89,26 +102,14 @@ class TestParseInfoField:
 class TestReviewStatusToStars:
     @pytest.mark.parametrize(
         "status,expected",
-        [
-            ("practice_guideline", 4),
-            ("reviewed_by_expert_panel", 3),
-            ("criteria_provided,_multiple_submitters,_no_conflicts", 2),
-            ("criteria_provided,_single_submitter", 1),
-            ("criteria_provided,_conflicting_interpretations", 1),
-            ("criteria_provided,_conflicting_classifications", 1),
-            ("no_assertion_criteria_provided", 0),
-            ("no_assertion_provided", 0),
-            ("no_classification_provided", 0),
-            ("unknown_status", 0),
-        ],
+        [*EXPECTED_REVIEW_STATUS_STARS.items(), ("unknown_status", 0)],
     )
     def test_mapping(self, status: str, expected: int):
         assert _review_status_to_stars(status) == expected
 
-    def test_all_known_statuses_mapped(self):
-        """Every key in REVIEW_STATUS_STARS resolves correctly."""
-        for status, stars in REVIEW_STATUS_STARS.items():
-            assert _review_status_to_stars(status) == stars
+    def test_known_status_values_match_clinvar_tiers(self):
+        """Every production status has an independently pinned star value."""
+        assert REVIEW_STATUS_STARS == EXPECTED_REVIEW_STATUS_STARS
 
 
 class TestNormalizeChrom:
