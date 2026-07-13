@@ -2526,7 +2526,7 @@ describe('UploadStep', () => {
     // Should show variant stats
     expect(screen.getByText('600,123')).toBeInTheDocument()
     expect(screen.getByText('1,234')).toBeInTheDocument()
-    expect(screen.getByText('23andme_v5')).toBeInTheDocument()
+    expect(screen.getByText('23andMe v5')).toBeInTheDocument()
   })
 
   it('shows Go to Dashboard after successful upload', async () => {
@@ -2632,7 +2632,7 @@ describe('UploadStep', () => {
 
   // ── Step 45 / ADNA-12 — AncestryDNA ingest happy path ──────────
 
-  it('renders ancestrydna_v2.0 success card after AncestryDNA upload (ADNA-12)', async () => {
+  it('renders a human-readable format after AncestryDNA upload (ADNA-12)', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () =>
@@ -2664,7 +2664,7 @@ describe('UploadStep', () => {
 
     expect(screen.getByText('712,345')).toBeInTheDocument()
     expect(screen.getByText('1,234')).toBeInTheDocument()
-    expect(screen.getByText('ancestrydna_v2.0')).toBeInTheDocument()
+    expect(screen.getByText('AncestryDNA v2.0')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /go to dashboard/i }),
     ).toBeInTheDocument()
