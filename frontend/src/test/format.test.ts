@@ -19,6 +19,7 @@ describe("formatFileFormat", () => {
   it("humanizes unknown identifiers without inventing brand casing", () => {
     expect(formatFileFormat("custom_vendor_v1")).toBe("custom vendor v1")
     expect(formatFileFormat("legacy")).toBe("legacy")
+    expect(formatFileFormat("constructor_v1")).toBe("constructor v1")
   })
 
   it.each([null, undefined, "", "   "])(
