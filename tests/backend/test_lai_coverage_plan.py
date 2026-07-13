@@ -127,6 +127,32 @@ def test_descriptor_file_path_uses_first_available_namespace(tmp_path, monkeypat
         os.close(descriptor)
 
 
+def test_descriptor_file_path_authenticates_opened_target_not_namespace_metadata(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "source.json"
+    source.write_text("{}\n", encoding="utf-8")
+    unrelated = tmp_path / "unrelated.json"
+    unrelated.write_text("other\n", encoding="utf-8")
+    unrelated_metadata = unrelated.stat()
+    descriptor = os.open(source, os.O_RDONLY)
+    candidate = Path("/dev/fd") / str(descriptor)
+    original_stat = Path.stat
+
+    def namespace_stat(path: Path, *args, **kwargs):
+        if path == candidate:
+            return unrelated_metadata
+        return original_stat(path, *args, **kwargs)
+
+    try:
+        monkeypatch.setattr(plan, "DESCRIPTOR_FILE_DIRECTORIES", (Path("/dev/fd"),))
+        monkeypatch.setattr(Path, "stat", namespace_stat)
+
+        assert plan.descriptor_file_path(descriptor) == candidate
+    finally:
+        os.close(descriptor)
+
+
 def test_descriptor_file_path_rejects_unrelated_inode(tmp_path, monkeypatch):
     source = tmp_path / "source.json"
     source.write_text("{}\n", encoding="utf-8")
