@@ -191,8 +191,9 @@ class TestExpectedPrsMeanSd:
                 "per_pop_alt_af": {"gnomad_af_eur": None},
             },
         ]
-        mean, _std, n = expected_prs_mean_sd(variants, {"EUR": 1.0})
+        mean, std, n = expected_prs_mean_sd(variants, {"EUR": 1.0})
         assert n == 1 and math.isclose(mean, 2.0)  # only the first
+        assert math.isclose(std, math.sqrt(2.0))  # 2^2 * 2 * 0.5 * 0.5
 
     def test_admixed_interpolation_shifts_mean(self) -> None:
         v = [
