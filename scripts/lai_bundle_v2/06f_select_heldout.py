@@ -27,8 +27,6 @@ from pathlib import Path
 
 import numpy as np
 
-DEFAULT_REGIONS = ("AFR", "AMR", "CSA", "EAS", "EUR", "MID", "OCE")
-
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
