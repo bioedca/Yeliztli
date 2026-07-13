@@ -819,6 +819,8 @@ class TestPhase01GnomixMaps:
         assert (
             'expected_autosomes="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22"' in text
         )
+        assert "rm -rf gnomix_models/chr*" in text
+        assert "metadata/gnomix_model_map_chr*.sha256" in text
 
 
 class TestGnomixTrainingProvenance:
@@ -956,6 +958,30 @@ class TestGnomixTrainingProvenance:
                 genetic_map=genetic_map,
                 model=model,
             )
+        model.write_bytes(b"model-v1")
+
+        config.write_text("seed: 2\n")
+        with pytest.raises(provenance.ProvenanceError, match="effective_config_sha256 mismatch"):
+            provenance.verify_model_record(
+                record,
+                chromosome="chr1",
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
+        config.write_text("seed: 1\n")
+
+        genetic_map.write_text("chr1\t200\t0.1\n")
+        with pytest.raises(provenance.ProvenanceError, match="genetic_map_sha256 mismatch"):
+            provenance.verify_model_record(
+                record,
+                chromosome="chr1",
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+            )
 
     def test_aggregate_rejects_mixed_effective_configs(self, tmp_path: Path) -> None:
         provenance = self._module()
@@ -998,6 +1024,7 @@ class TestGnomixTrainingProvenance:
         config = tmp_path / "config.yaml"
         config.write_text("seed: 7\n")
         records = []
+        expected_hashes = {}
         for chromosome in ("chr1", "chr2"):
             genetic_map = tmp_path / f"{chromosome}.map"
             model = tmp_path / f"model_chm_{chromosome}.pkl"
@@ -1013,6 +1040,10 @@ class TestGnomixTrainingProvenance:
                 model=model,
             )
             records.append(record)
+            expected_hashes[chromosome] = {
+                "genetic_map_sha256": hashlib.sha256(genetic_map.read_bytes()).hexdigest(),
+                "model_sha256": hashlib.sha256(model.read_bytes()).hexdigest(),
+            }
 
         output = tmp_path / "aggregate.json"
         manifest = provenance.aggregate_records(records, commit, output)
@@ -1022,6 +1053,15 @@ class TestGnomixTrainingProvenance:
             manifest["effective_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
         )
         assert [model["chromosome"] for model in manifest["models"]] == ["chr1", "chr2"]
+        for model_entry in manifest["models"]:
+            assert (
+                model_entry["genetic_map_sha256"]
+                == expected_hashes[model_entry["chromosome"]]["genetic_map_sha256"]
+            )
+            assert (
+                model_entry["model_sha256"]
+                == expected_hashes[model_entry["chromosome"]]["model_sha256"]
+            )
         assert manifest["models"][0]["provenance_file"] == (
             "metadata/gnomix_model_chr1.provenance.json"
         )
@@ -1029,24 +1069,33 @@ class TestGnomixTrainingProvenance:
     def test_model_record_rejects_extra_or_malformed_fields(self, tmp_path: Path) -> None:
         provenance = self._module()
         record = tmp_path / "record.json"
-        record.write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "chromosome": "chr1",
-                    "gnomix_repository": provenance.GNOMIX_REPOSITORY,
-                    "gnomix_git_commit": "4" * 40,
-                    "gnomix_checkout_clean": True,
-                    "effective_config_sha256": "5" * 64,
-                    "genetic_map_sha256": "6" * 64,
-                    "model_filename": "model_chm_chr1.pkl",
-                    "model_sha256": "7" * 64,
-                    "unexpected": True,
-                }
-            )
-        )
+        valid = {
+            "schema_version": 1,
+            "chromosome": "chr1",
+            "gnomix_repository": provenance.GNOMIX_REPOSITORY,
+            "gnomix_git_commit": "4" * 40,
+            "gnomix_checkout_clean": True,
+            "effective_config_sha256": "5" * 64,
+            "genetic_map_sha256": "6" * 64,
+            "model_filename": "model_chm_chr1.pkl",
+            "model_sha256": "7" * 64,
+        }
+        record.write_text(json.dumps(valid | {"unexpected": True}))
         with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
             provenance.load_model_record(record)
+
+        invalid_cases = [
+            ({"schema_version": 2}, "unsupported.*schema"),
+            ({"chromosome": "chr23"}, "invalid autosome"),
+            ({"gnomix_git_commit": "short"}, "full 40-character"),
+            ({"gnomix_checkout_clean": False}, "does not attest a clean checkout"),
+            ({"effective_config_sha256": "not-a-sha"}, "invalid or missing"),
+            ({"model_filename": "../model.pkl"}, "invalid model_filename"),
+        ]
+        for replacement, message in invalid_cases:
+            record.write_text(json.dumps(valid | replacement))
+            with pytest.raises(provenance.ProvenanceError, match=message):
+                provenance.load_model_record(record)
 
     def test_record_publication_is_atomic(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1622,11 +1671,59 @@ class TestSlurmRebuild:
         assert "GNOMIX_CONFIG:=" in text
         assert "GNOMIX_EXPECTED_COMMIT:=" in text
 
-    def test_slurm_orchestrator_verifies_revision_before_submission(self) -> None:
-        text = (SCRIPTS_DIR / "run_rebuild_slurm.sh").read_text()
-        verify_index = text.index('gnomix_provenance.py" verify-checkout')
-        submit_index = text.index("jid_prep=$(sbatch")
-        assert verify_index < submit_index
+    def test_slurm_orchestrator_rejects_revision_before_submission(self, tmp_path: Path) -> None:
+        workdir = tmp_path / "work"
+        install_dir = tmp_path / "gnomix"
+        install_dir.mkdir()
+        (install_dir / "gnomix.py").write_text("# fixture\n")
+        union_catalog = tmp_path / "union.tsv"
+        pedigree = tmp_path / "pedigree.ped"
+        union_catalog.write_text("rs1\t1\t100\n")
+        pedigree.write_text("fixture\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        sbatch_called = tmp_path / "sbatch-called"
+        sbatch = stub_dir / "sbatch"
+        sbatch.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_SBATCH_CALLED\"\n")
+        sbatch.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "UNION_CATALOG_TSV": str(union_catalog),
+                "G1K_PED": str(pedigree),
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_EXPECTED_COMMIT": "",
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_SBATCH_CALLED": str(sbatch_called),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "run_rebuild_slurm.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "must be an explicitly selected full 40-character" in result.stderr
+        assert not sbatch_called.exists()
 
 
 class TestRunbook:
@@ -1659,7 +1756,7 @@ class TestRunbook:
         text = RUNBOOK.read_text()
         assert "bash scripts/run_rebuild.sh" in text
         assert "UNION_CATALOG_TSV=" in text
-        assert 'GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"' in text
+        assert text.count('export GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"') >= 4
         assert "metadata/gnomix_training_provenance.json" in text
         assert "effective-config SHA-256" in text
         assert "10.1101/2021.09.19.460980" in text

@@ -174,20 +174,22 @@ without re-doing earlier phases.
 ssh "$LAI_BUILD_HOST"
 cd "$LAI_WORKDIR"
 conda activate lai_bundle
+GNOMIX_SHA=0123456789abcdef0123456789abcdef01234567  # same validated SHA from §2
+export GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"
 
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
 LAI_BUNDLE_VERSION=v2.0.0 \
-GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash scripts/run_rebuild.sh
 ```
 
 To resume from a single phase (e.g., re-train Gnomix only):
 
 ```bash
+GNOMIX_SHA=0123456789abcdef0123456789abcdef01234567  # same validated SHA from §2
+export GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
-GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash scripts/run_rebuild.sh 05
 ```
 
@@ -252,10 +254,11 @@ sequentially:
 ```bash
 ssh "$LAI_BUILD_HOST"
 conda activate lai_bundle           # submitter env; jobs re-source conda
+GNOMIX_SHA=0123456789abcdef0123456789abcdef01234567  # same validated SHA from §2
+export GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA"
 UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
 WORKDIR="$LAI_WORKDIR" \
 G1K_PED="$LAI_WORKDIR/06_validation/20130606_g1k.ped" \
-GNOMIX_EXPECTED_COMMIT="$GNOMIX_SHA" \
   bash "$LAI_WORKDIR/scripts/run_rebuild_slurm.sh"
 #   prep   (02 03 04)  -> job N
 #   gnomix (05 array)  -> job N+1  (after N)

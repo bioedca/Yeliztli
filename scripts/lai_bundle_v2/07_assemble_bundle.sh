@@ -100,8 +100,12 @@ cd "$BUNDLE_DIR"
 
 phase_log "assembling bundle layout"
 mkdir -p phasing_panel genetic_maps gnomix_models liftover beagle metadata
-# A subset rerun must not leave stale records from a prior chromosome set.
+# Phase 07 regenerates every Gnomix export and provenance record. Clear only
+# these generated chromosome outputs so a rerun cannot checksum/tar an obsolete
+# pickle or auxiliary file left by an older exporter.
+rm -rf gnomix_models/chr*
 rm -f metadata/gnomix_model_chr*.provenance.json \
+  metadata/gnomix_model_map_chr*.sha256 \
   metadata/gnomix_training_provenance.json
 
 for chr in "${chromosomes[@]}"; do
