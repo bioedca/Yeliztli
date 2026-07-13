@@ -487,8 +487,8 @@ class TestTier1API:
 class TestTier2LAI:
     """LAI validation — skipped when Java is unavailable."""
 
-    def test_lai_trigger_404_without_bundle(self, tmp_data_dir: Path) -> None:
-        """LAI trigger API returns 404 when bundle not downloaded."""
+    def test_lai_trigger_policy_no_call_precedes_missing_bundle(self, tmp_data_dir: Path) -> None:
+        """LAI trigger returns the policy no-call before bundle diagnostics."""
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
         ref_path = settings.reference_db_path
         ref_engine = sa.create_engine(f"sqlite:///{ref_path}")
@@ -525,7 +525,11 @@ class TestTier2LAI:
             app = create_app()
             with TestClient(app) as tc:
                 resp = tc.post("/api/analysis/ancestry/lai/1")
-                assert resp.status_code == 404
+                assert resp.status_code == 503
+                detail = resp.json()["detail"]
+                assert detail["code"] == "lai_coverage_policy_unavailable"
+                assert detail["category"] == "insufficient_validation_data"
+                assert detail["retryable"] is False
             reset_registry()
 
     def test_lai_results_schema(self) -> None:
