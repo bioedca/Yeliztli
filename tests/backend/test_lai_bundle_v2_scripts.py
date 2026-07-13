@@ -1639,13 +1639,16 @@ class TestTrioIdentification:
 
 
 class TestSlurmRebuild:
-    """SLURM DAG: prep(02-04) -> gnomix array(05, per-chrom) -> finish(06-07),
-    and phase 05 runs gnomix in its own conda env.
+    """SLURM DAG: phase01 -> prep(02-04) -> gnomix array(05) -> finish(06-07),
+    with phase 05 running gnomix in its own conda env.
     """
 
     SLURM_DIR = SCRIPTS_DIR / "slurm"
 
-    @pytest.mark.parametrize("name", ["prep.sbatch", "05_train_gnomix.sbatch", "finish.sbatch"])
+    @pytest.mark.parametrize(
+        "name",
+        ["01_download_panel.sbatch", "prep.sbatch", "05_train_gnomix.sbatch", "finish.sbatch"],
+    )
     def test_sbatch_present_and_bash_n(self, name: str) -> None:
         path = self.SLURM_DIR / name
         assert path.is_file(), f"{path} missing"
@@ -1657,10 +1660,98 @@ class TestSlurmRebuild:
         r = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True, check=False)
         assert r.returncode == 0, r.stderr
         text = path.read_text()
-        for f in ("prep.sbatch", "05_train_gnomix.sbatch", "finish.sbatch"):
+        for f in (
+            "01_download_panel.sbatch",
+            "prep.sbatch",
+            "05_train_gnomix.sbatch",
+            "finish.sbatch",
+        ):
             assert f in text
         assert "--dependency=" in text and "afterok" in text  # chained
         assert "--array=" in text  # phase 05 is an array
+
+    def test_phase01_sbatch_runs_phase01_only(self) -> None:
+        text = (self.SLURM_DIR / "01_download_panel.sbatch").read_text()
+        assert 'bash "$SCRIPTS_DIR/run_rebuild.sh" 01' in text
+
+    def test_clean_workdir_dag_submits_phase01_before_prep(self, tmp_path: Path) -> None:
+        workdir = tmp_path / "clean-workdir"
+        install_dir = tmp_path / "gnomix"
+        install_dir.mkdir()
+        (install_dir / "gnomix.py").write_text("# fixture\n")
+        expected_commit = TestPhase01GnomixMaps._init_git_checkout(install_dir)
+
+        union_catalog = tmp_path / "union.tsv"
+        pedigree = tmp_path / "pedigree.ped"
+        union_catalog.write_text("rs1\t1\t100\n")
+        pedigree.write_text("fixture\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        sbatch_log = tmp_path / "sbatch.log"
+        sbatch = stub_dir / "sbatch"
+        sbatch.write_text(
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "job_id=1\n"
+            'if [ -f "$STUB_SBATCH_LOG" ]; then\n'
+            '  job_id=$(( $(wc -l < "$STUB_SBATCH_LOG") + 1 ))\n'
+            "fi\n"
+            'printf \'%s\\n\' "$*" >> "$STUB_SBATCH_LOG"\n'
+            "printf '%s\\n' \"$job_id\"\n"
+        )
+        sbatch.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "UNION_CATALOG_TSV": str(union_catalog),
+                "G1K_PED": str(pedigree),
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_EXPECTED_COMMIT": expected_commit,
+                "SLURM_PARTITION": "gpu",
+                "GNOMIX_CPUS": "8",
+                "GNOMIX_ARRAY": "1-22",
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_SBATCH_LOG": str(sbatch_log),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "run_rebuild_slurm.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+        calls = sbatch_log.read_text().splitlines()
+        assert [Path(call.split()[-1]).name for call in calls] == [
+            "01_download_panel.sbatch",
+            "prep.sbatch",
+            "05_train_gnomix.sbatch",
+            "finish.sbatch",
+        ]
+        assert "--dependency=" not in calls[0]
+        assert "--dependency=afterok:1" in calls[1]
+        assert "--dependency=afterok:2" in calls[2]
+        assert "--dependency=afterok:3" in calls[3]
+        assert "--array=1-22" in calls[2]
+        assert "squeue -j 1,2,3,4" in result.stdout
 
     def test_phase05_array_is_per_chromosome_and_caps_cores(self) -> None:
         text = (self.SLURM_DIR / "05_train_gnomix.sbatch").read_text()
@@ -1771,3 +1862,12 @@ class TestRunbook:
         assert "metadata/gnomix_training_provenance.json" in text
         assert "effective-config SHA-256" in text
         assert "10.1101/2021.09.19.460980" in text
+
+    def test_runbook_slurm_plan_starts_with_phase01(self) -> None:
+        slurm_section = RUNBOOK.read_text().split("### 6a.", 1)[1].split("## 7.", 1)[0]
+        assert "4-job SLURM DAG" in slurm_section
+        assert "phase01 (01)" in slurm_section
+        assert "prep    (02 03 04)" in slurm_section
+        assert "gnomix  (05 array)" in slurm_section
+        assert "finish  (06 07)" in slurm_section
+        assert "squeue -j N,N+1,N+2,N+3" in slurm_section

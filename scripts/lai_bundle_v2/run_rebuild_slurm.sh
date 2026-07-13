@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Submit the LAI v2.0.0 rebuild as a SLURM DAG:
-#   prep (02 03 04)  ->  gnomix array (05, one task per chromosome)  ->  finish (06 07)
-# chained by afterok dependencies. Phase 05 (gnomix training — the rebuild's long
-# pole) runs ~22 chromosomes concurrently as a job array instead of sequentially.
+#   phase 01 download  ->  prep (02 03 04)  ->
+#   gnomix array (05, one task per chromosome)  ->  finish (06 07)
+# chained by afterok dependencies. The separate, resumable phase 01 job initializes
+# clean workdirs before downstream jobs run. Phase 05 (gnomix training — the
+# rebuild's long pole) runs ~22 chromosomes concurrently as a job array instead of
+# sequentially.
 #
 # Usage (from anywhere; paths come from env.sh / overrides):
 #   UNION_CATALOG_TSV="$LAI_WORKDIR/00_raw_downloads/union_sites.tsv" \
@@ -33,8 +36,8 @@ require_file "$G1K_PED"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_provenance.py"
 
-# Fail before submitting the expensive prep/train/finish DAG if the requested
-# immutable Gnomix revision is absent, mismatched, or locally modified.
+# Fail before submitting the rebuild DAG if the requested immutable Gnomix
+# revision is absent, mismatched, or locally modified.
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT"
@@ -46,17 +49,20 @@ COMMON=(--parsable --export=ALL --partition="$PART" --chdir="$LOG_DIR")
 
 echo "Submitting LAI v2 rebuild DAG (partition=$PART, gnomix array=$ARRAY @ ${CPUS} cpus/task)"
 
-jid_prep=$(sbatch "${COMMON[@]}" "$SLURM_DIR/prep.sbatch")
-echo "  prep   (02 03 04)  -> job $jid_prep"
+jid_phase01=$(sbatch "${COMMON[@]}" "$SLURM_DIR/01_download_panel.sbatch")
+echo "  phase01 (01)        -> job $jid_phase01"
+
+jid_prep=$(sbatch "${COMMON[@]}" --dependency="afterok:$jid_phase01" "$SLURM_DIR/prep.sbatch")
+echo "  prep    (02 03 04)  -> job $jid_prep   (after $jid_phase01)"
 
 jid_train=$(sbatch "${COMMON[@]}" --dependency="afterok:$jid_prep" \
   --array="$ARRAY" --cpus-per-task="$CPUS" "$SLURM_DIR/05_train_gnomix.sbatch")
-echo "  gnomix (05 array)  -> job $jid_train  (after $jid_prep)"
+echo "  gnomix  (05 array)  -> job $jid_train  (after $jid_prep)"
 
 jid_finish=$(sbatch "${COMMON[@]}" --dependency="afterok:$jid_train" "$SLURM_DIR/finish.sbatch")
-echo "  finish (06 07)     -> job $jid_finish (after $jid_train)"
+echo "  finish  (06 07)     -> job $jid_finish (after $jid_train)"
 
 echo
-echo "Watch:  squeue -j ${jid_prep},${jid_train},${jid_finish}"
+echo "Watch:  squeue -j ${jid_phase01},${jid_prep},${jid_train},${jid_finish}"
 echo "Logs:   $LOG_DIR/  (SLURM *.out + per-phase *.log)"
 echo "Bundle: $WORKDIR/yeliztli_lai_bundle_${LAI_BUNDLE_VERSION}.tar.gz (after finish)"
