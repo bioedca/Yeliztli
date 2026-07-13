@@ -16,6 +16,7 @@ from pathlib import Path
 import structlog
 from huey import SqliteHuey, crontab
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import OperationalError
 
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
@@ -314,7 +315,10 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             # findings are fresh. A raise from run_all_analyses bypasses this
             # block via the except clause below, leaving annotation_state
             # untouched so the gate stays up.
-            from backend.db.vep_version import resolve_effective_vep_bundle_version
+            from backend.db.vep_version import (
+                VERSIONLESS_VEP_BUNDLE_BASELINE,
+                resolve_effective_vep_bundle_version,
+            )
             from backend.services.staleness import (
                 REFERENCE_VERSION_SNAPSHOT_KEY,
                 read_current_reference_versions,
@@ -325,10 +329,22 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                 vep_engine = (
                     registry.vep_engine if registry.settings.vep_bundle_db_path.is_file() else None
                 )
-                bundle_version = resolve_effective_vep_bundle_version(
-                    registry.reference_engine,
-                    vep_engine,
-                )
+                try:
+                    bundle_version = resolve_effective_vep_bundle_version(
+                        registry.reference_engine,
+                        vep_engine,
+                    )
+                except OperationalError as exc:
+                    bundle_version = VERSIONLESS_VEP_BUNDLE_BASELINE
+                    logger.warning(
+                        "vep_bundle_version_resolution_failed",
+                        extra={
+                            "job_id": job_id,
+                            "sample_id": sample_id,
+                            "fallback_version": bundle_version,
+                            "error": str(exc),
+                        },
+                    )
             reference_versions = read_current_reference_versions(registry.reference_engine)
             with sample_engine.begin() as conn:
                 _upsert_annotation_state(conn, "vep_bundle_version", bundle_version)

@@ -292,10 +292,6 @@ class TestRunAnnotationTask:
             patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
             patch("backend.analysis.run_all.run_all_analyses", return_value={}),
             patch(
-                "backend.services.staleness.read_current_reference_versions",
-                return_value={},
-            ),
-            patch(
                 "backend.analysis.provenance.stamp_findings_provenance",
                 return_value=0,
             ),
@@ -493,6 +489,30 @@ class TestAnnotationStateGate:
         finally:
             engine.dispose()
 
+    def _run_task_with_result(self, sample_id: int, result: object) -> None:
+        with (
+            patch("backend.annotation.engine.run_annotation", return_value=result),
+            patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
+            patch("backend.analysis.run_all.run_all_analyses", return_value={}),
+            patch(
+                "backend.services.staleness.read_current_reference_versions",
+                return_value={},
+            ),
+            patch(
+                "backend.analysis.provenance.stamp_findings_provenance",
+                return_value=0,
+            ),
+            patch(
+                "backend.analysis.finding_diff.compute_and_store_finding_diff",
+                return_value=None,
+            ),
+            patch(
+                "backend.analysis.svg_renderer.generate_svgs_for_sample",
+                return_value=0,
+            ),
+        ):
+            run_annotation_task.call_local(sample_id, create_annotation_job(sample_id))
+
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
         """Happy path: both reserved keys are upserted on the success path."""
         self._seed_embedded_bundle_version(annotation_env, "v9.0.0")
@@ -563,35 +583,36 @@ class TestAnnotationStateGate:
 
         self._seed_embedded_bundle_version(annotation_env, "v3.0.0")
         sample_id = annotation_env["sample_id"]
-        job_id = create_annotation_job(sample_id)
         result = AnnotationEngineResult(coverage_stats={})
 
-        with (
-            patch("backend.annotation.engine.run_annotation", return_value=result),
-            patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
-            patch("backend.analysis.run_all.run_all_analyses", return_value={}),
-            patch(
-                "backend.services.staleness.read_current_reference_versions",
-                return_value={},
-            ),
-            patch(
-                "backend.analysis.provenance.stamp_findings_provenance",
-                return_value=0,
-            ),
-            patch(
-                "backend.analysis.finding_diff.compute_and_store_finding_diff",
-                return_value=None,
-            ),
-            patch(
-                "backend.analysis.svg_renderer.generate_svgs_for_sample",
-                return_value=0,
-            ),
-        ):
-            run_annotation_task.call_local(sample_id, job_id)
+        self._run_task_with_result(sample_id, result)
 
         state = self._read_state(annotation_env)
         assert state.get("vep_bundle_version") == "v3.0.0"
         assert state.get("annotation_bundle_coverage_json") == "{}"
+
+    def test_unreadable_version_table_uses_task_baseline(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """A transient registry read failure preserves the successful state stamp."""
+        from structlog.testing import capture_logs
+
+        from backend.annotation.engine import AnnotationEngineResult
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        database_versions.drop(get_registry().reference_engine)
+
+        with capture_logs() as cap_logs:
+            self._run_task_with_result(sample_id, AnnotationEngineResult(coverage_stats={}))
+
+        state = self._read_state(annotation_env)
+        assert state.get("vep_bundle_version") == "v1.0.0"
+        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert any(
+            entry.get("event") == "vep_bundle_version_resolution_failed" for entry in cap_logs
+        )
 
     def test_missing_bundle_row_falls_back_to_v1(self, annotation_env: dict) -> None:
         """Defensive fallback when database_versions has no vep_bundle row."""
