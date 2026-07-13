@@ -10,7 +10,7 @@
  * MC1R allele summary and skin condition cards.
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
   Sun,
@@ -21,7 +21,11 @@ import {
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { useSkinPathways } from "@/api/skin"
-import type { InsufficientDataItem, MC1RAggregateItem } from "@/types/skin"
+import type {
+  InsufficientDataItem,
+  MC1RAggregateItem,
+  MC1RRiskState,
+} from "@/types/skin"
 import PathwayCard from "@/components/skin/PathwayCard"
 import PathwayDetailPanel from "@/components/skin/PathwayDetailPanel"
 import EvidenceStars from "@/components/ui/EvidenceStars"
@@ -36,9 +40,9 @@ interface MC1RSummaryStyle {
   labelBox: string
 }
 
-const MC1R_SUMMARY_STYLES = new Map<string, MC1RSummaryStyle>([
+const MC1R_SUMMARY_STYLES = new Map<MC1RRiskState, MC1RSummaryStyle>([
   [
-    "Low UV Sensitivity",
+    "0_R_alleles",
     {
       card: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
       countBadge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300",
@@ -46,7 +50,7 @@ const MC1R_SUMMARY_STYLES = new Map<string, MC1RSummaryStyle>([
     },
   ],
   [
-    "Mild MC1R Variant",
+    "mild_r_allele",
     {
       card: "bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800",
       countBadge: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300",
@@ -54,7 +58,7 @@ const MC1R_SUMMARY_STYLES = new Map<string, MC1RSummaryStyle>([
     },
   ],
   [
-    "Moderate UV Sensitivity",
+    "1_R_allele",
     {
       card: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
       countBadge: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
@@ -62,7 +66,7 @@ const MC1R_SUMMARY_STYLES = new Map<string, MC1RSummaryStyle>([
     },
   ],
   [
-    "High UV Sensitivity",
+    "2_R_alleles",
     {
       card: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
       countBadge: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300",
@@ -77,8 +81,6 @@ const MC1R_UNKNOWN_STYLE: MC1RSummaryStyle = {
   labelBox: "bg-slate-100/50 dark:bg-slate-900/20",
 }
 
-const warnedMC1RLabels = new Set<string>()
-
 /** MC1R allele summary card — displays multi-allele aggregate result. */
 function MC1RSummaryCard({
   aggregate,
@@ -86,22 +88,28 @@ function MC1RSummaryCard({
   aggregate: MC1RAggregateItem
 }) {
   // The mild and baseline tiers both deliberately report zero strong R alleles,
-  // so presentation must follow the backend tier label rather than the count.
-  const matchedStyle = MC1R_SUMMARY_STYLES.get(aggregate.risk_label)
+  // so presentation follows the backend's stable state key rather than count or
+  // user-facing label text.
+  const matchedStyle = aggregate.risk_state === null
+    ? undefined
+    : MC1R_SUMMARY_STYLES.get(aggregate.risk_state)
   const style = matchedStyle ?? MC1R_UNKNOWN_STYLE
+  const warnedStates = useRef(new Set<string>())
 
   useEffect(() => {
+    const stateLabel = aggregate.risk_state ?? "missing"
+    const warningKey = `${stateLabel}\u0000${aggregate.risk_label}`
     if (
       import.meta.env.DEV
       && matchedStyle === undefined
-      && !warnedMC1RLabels.has(aggregate.risk_label)
+      && !warnedStates.current.has(warningKey)
     ) {
-      warnedMC1RLabels.add(aggregate.risk_label)
+      warnedStates.current.add(warningKey)
       console.warn(
-        `[SkinView] Unknown MC1R risk label "${aggregate.risk_label}"; using neutral styling.`,
+        `[SkinView] Unknown MC1R risk state "${stateLabel}" for label "${aggregate.risk_label}"; using neutral styling.`,
       )
     }
-  }, [aggregate.risk_label, matchedStyle])
+  }, [aggregate.risk_label, aggregate.risk_state, matchedStyle])
 
   return (
     <div

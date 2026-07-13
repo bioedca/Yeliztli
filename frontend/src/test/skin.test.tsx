@@ -1,5 +1,6 @@
 /** Tests for the Gene Skin UI (P3-56, T3-67). */
 
+import { StrictMode } from "react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
@@ -9,6 +10,7 @@ import SkinView from "@/pages/SkinView"
 import { useSkinPathwayDetail, useSkinPathways } from "@/api/skin"
 import type {
   MC1RAggregateItem,
+  MC1RRiskState,
   PathwayDetailResponse,
   PathwaySummary,
 } from "@/types/skin"
@@ -99,7 +101,10 @@ const useSkinPathwaysMock = useSkinPathways as unknown as ReturnType<
   typeof vi.fn
 >
 
-function renderMC1RAggregate(aggregate: MC1RAggregateItem) {
+function renderMC1RAggregate(
+  aggregate: MC1RAggregateItem,
+  strictMode = false,
+) {
   useSkinPathwaysMock.mockReturnValue({
     data: {
       items: [PIGMENTATION_PATHWAY],
@@ -114,7 +119,10 @@ function renderMC1RAggregate(aggregate: MC1RAggregateItem) {
     refetch: vi.fn(),
   })
 
-  return render(<SkinView />, { route: "/skin?sample_id=1" })
+  const view = strictMode
+    ? <StrictMode><SkinView /></StrictMode>
+    : <SkinView />
+  return render(view, { route: "/skin?sample_id=1" })
 }
 
 // ── MC1R summary tests ────────────────────────────────────────────────
@@ -125,17 +133,18 @@ describe("MC1R allele summary tier styling (#1759)", () => {
   })
 
   it.each([
-    ["Low UV Sensitivity", 0, "emerald"],
-    ["Mild MC1R Variant", 0, "sky"],
-    ["Moderate UV Sensitivity", 1, "blue"],
-    ["High UV Sensitivity", 2, "amber"],
+    ["Low UV Sensitivity", "0_R_alleles", 0, "emerald"],
+    ["Localized mild label", "mild_r_allele", 0, "sky"],
+    ["Moderate UV Sensitivity", "1_R_allele", 1, "blue"],
+    ["High UV Sensitivity", "2_R_alleles", 2, "amber"],
   ])(
-    "renders %s with the %s-count %s palette",
-    (riskLabel, rAlleleCount, tone) => {
+    "renders %s (%s) with the %s-count %s palette",
+    (riskLabel, riskState, rAlleleCount, tone) => {
       renderMC1RAggregate({
         r_allele_count: rAlleleCount,
         r_allele_rsids: [],
         total_mc1r_called: 4,
+        risk_state: riskState as MC1RRiskState,
         risk_label: riskLabel,
         risk_description: `${riskLabel} description`,
         evidence_level: 2,
@@ -172,24 +181,25 @@ describe("MC1R allele summary tier styling (#1759)", () => {
     },
   )
 
-  it("warns once and uses neutral styling for an unknown label", () => {
+  it("warns once in Strict Mode and uses neutral styling without a state", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const aggregate: MC1RAggregateItem = {
       r_allele_count: 0,
       r_allele_rsids: [],
       total_mc1r_called: 4,
-      risk_label: "constructor",
+      risk_state: null,
+      risk_label: "Unrecognized MC1R tier",
       risk_description: "Unrecognized tier description",
       evidence_level: 2,
       pmids: [],
     }
 
-    renderMC1RAggregate(aggregate)
+    renderMC1RAggregate(aggregate, true)
 
     const summary = screen.getByRole("region", { name: "MC1R allele summary" })
     const card = summary.querySelector(":scope > div")
     const countBadge = within(summary).getByText("0", { selector: "span" })
-    const labelBox = within(summary).getByText("constructor", {
+    const labelBox = within(summary).getByText("Unrecognized MC1R tier", {
       exact: true,
     }).parentElement
 
@@ -210,10 +220,9 @@ describe("MC1R allele summary tier styling (#1759)", () => {
       "dark:bg-slate-900/20",
     )
 
-    renderMC1RAggregate(aggregate)
     expect(warn).toHaveBeenCalledOnce()
     expect(warn).toHaveBeenCalledWith(
-      '[SkinView] Unknown MC1R risk label "constructor"; using neutral styling.',
+      '[SkinView] Unknown MC1R risk state "missing" for label "Unrecognized MC1R tier"; using neutral styling.',
     )
 
     warn.mockRestore()

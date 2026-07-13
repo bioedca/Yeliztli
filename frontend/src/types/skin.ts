@@ -39,10 +39,17 @@ export interface PathwaySummary {
 }
 
 /** MC1R multi-allele aggregate result. */
+export type MC1RRiskState =
+  | "0_R_alleles"
+  | "mild_r_allele"
+  | "1_R_allele"
+  | "2_R_alleles"
+
 export interface MC1RAggregateItem {
   r_allele_count: number
   r_allele_rsids: string[]
   total_mc1r_called: number
+  risk_state: MC1RRiskState | null
   risk_label: string
   risk_description: string
   evidence_level: number

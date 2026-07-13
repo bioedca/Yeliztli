@@ -33,6 +33,7 @@ const PATHWAYS = {
     r_allele_count: 0,
     r_allele_rsids: [],
     total_mc1r_called: 1,
+    risk_state: 'mild_r_allele',
     risk_label: 'Mild MC1R Variant',
     risk_description: 'A mild-effect MC1R variant was detected.',
     evidence_level: 2,
