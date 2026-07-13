@@ -301,6 +301,48 @@ def test_plan_reader_enforces_json_artifact_size_limit(tmp_path, monkeypatch):
         plan.read_job_plan(path, result.configuration_sha256, 0)
 
 
+def test_plan_summary_supports_repeated_authenticated_row_reads(tmp_path):
+    path, matrix, result = _build(tmp_path, 3)
+
+    summary = plan.read_job_plan_summary(path, result.configuration_sha256)
+
+    assert summary.path == path
+    assert summary.plan_sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert summary.configuration_sha256 == result.configuration_sha256
+    assert summary.configuration == result.configuration
+    assert summary.input_verification == {"fixtures": {"SIM1": {"sha256": "a" * 64}}}
+    assert summary.matrix == matrix
+    assert summary.merkle_root_sha256 == result.merkle_root_sha256
+    assert summary.shards_directory == path.parent / result.shards_directory
+    assert [plan.read_job_plan_row(summary, index) for index in range(matrix.row_count)] == list(
+        matrix.iter_rows()
+    )
+
+
+def test_plan_summary_returns_defensive_metadata_copies(tmp_path):
+    path, _matrix, result = _build(tmp_path)
+    summary = plan.read_job_plan_summary(path, result.configuration_sha256)
+
+    configuration = summary.configuration
+    verification = summary.input_verification
+    configuration["dataset_id"] = "mutated"
+    verification["fixtures"] = {}
+
+    assert summary.configuration["dataset_id"] == "fixture-v1"
+    assert summary.input_verification == {"fixtures": {"SIM1": {"sha256": "a" * 64}}}
+
+
+def test_plan_summary_row_read_rejects_plan_changed_after_authentication(tmp_path):
+    path, _matrix, result = _build(tmp_path)
+    summary = plan.read_job_plan_summary(path, result.configuration_sha256)
+    payload = _read_json(path)
+    payload["configuration"]["dataset_id"] = "changed-after-summary"
+    _write_json(path, payload)
+
+    with pytest.raises(ValueError, match="job plan changed during authentication"):
+        plan.read_job_plan_row(summary, 0)
+
+
 @pytest.mark.parametrize("count", [1, 2, 3, 5, 32, 257])
 def test_rows_roots_and_proofs_match_simple_reference(tmp_path, count):
     matrix = _axes_for_count(count)

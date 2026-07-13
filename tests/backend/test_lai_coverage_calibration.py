@@ -17,6 +17,8 @@ import numpy as np
 import pytest
 import sqlalchemy as sa
 
+from scripts.lai_bundle_v2 import lai_coverage_metrics
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "lai_bundle_v2" / "06g_calibrate_coverage.py"
 
@@ -1589,6 +1591,27 @@ def test_complete_coverage_schema_is_calibration_eligible(tmp_path):
     )
 
 
+def test_shared_coverage_schema_validator_supports_authenticated_records_without_truth(tmp_path):
+    truth = _fixture(tmp_path).truth_windows
+
+    assert (
+        lai_coverage_metrics.coverage_metrics_calibration_exclusion(
+            _complete_coverage_metrics(truth)
+        )
+        is None
+    )
+
+
+def test_shared_coverage_schema_validator_rejects_boolean_schema_version(tmp_path):
+    truth = _fixture(tmp_path).truth_windows
+    metrics = _complete_coverage_metrics(truth)
+    metrics["schema_version"] = True
+
+    assert lai_coverage_metrics.coverage_metrics_calibration_exclusion(metrics)["type"] == (
+        "unsupported_lai_coverage_schema"
+    )
+
+
 def test_coverage_schema_rejects_incomplete_denominators_and_bad_invariants(tmp_path):
     truth = _fixture(tmp_path).truth_windows
 
@@ -2405,6 +2428,9 @@ def test_configuration_records_isolation_truth_and_script_provenance(tmp_path):
     )
     assert inputs["calibration_reference"]["phasing_panel"]["1"] == runtime_summary["1"]
     assert inputs["fixtures"]["SIMTEST"]["local_truth_windows"] == 22
+    assert inputs["fixtures"]["SIMTEST"]["local_truth_windows_by_autosome"] == {
+        str(chrom): 1 for chrom in range(1, 23)
+    }
     assert inputs["fixtures"]["SIMTEST"]["local_truth_sha256"] == fixture.truth_sha256
     assert inputs["fixtures"]["SIMTEST"]["marker_truth_sha256"] == ""
     assert inputs["privacy_safe_site_masks"][manifest.name]["realized_fixture_overlap"] == {
@@ -2670,6 +2696,8 @@ def _prepare_planner_case(
     isolation_path.write_text("\n".join(sorted(donor_iids)) + "\n", encoding="utf-8")
     training_path = tmp_path / "training.tsv"
     training_path.write_text("TRAIN1\tEUR\n", encoding="utf-8")
+    selection_design_path = tmp_path / "selection-design.bin"
+    selection_design_path.write_bytes(b"opaque preregistration bytes\x00\n")
     job_plan_path = tmp_path / f"{dataset_split}-plan.json"
     planner_args = [
         "--bundle-dir",
@@ -2706,7 +2734,18 @@ def _prepare_planner_case(
         str(job_plan_path),
     ]
     if dataset_split == "calibration":
-        planner_args.extend(("--fraction", "1", "--seed", "42"))
+        planner_args.extend(
+            (
+                "--fraction",
+                "1",
+                "--seed",
+                "42",
+                "--selection-design",
+                str(selection_design_path),
+                "--expected-selection-design-sha256",
+                cal.sha256_file(selection_design_path),
+            )
+        )
     else:
         assert confirmation_policy_path is not None
         planner_args.extend(
@@ -2790,6 +2829,7 @@ def _prepare_planner_case(
         "simulation_manifest": simulation_manifest,
         "simulation_verification_path": simulation_verification_path,
         "confirmation_policy_path": confirmation_policy_path,
+        "selection_design_path": selection_design_path,
         "reference_manifest_path": reference_manifest.path,
         "reference_verification_path": reference_verification.path,
         "job_plan_path": job_plan_path,
@@ -2864,6 +2904,13 @@ def test_main_lists_fully_wired_isolated_job_matrix(tmp_path, capsys, monkeypatc
     }
     assert json.loads(case["job_plan_path"].read_text(encoding="utf-8"))["schema_version"] == 3
     assert set(verification["fixtures"]) == {"SIM1", "SIM2"}
+    selection_design_path = case["selection_design_path"]
+    assert configuration["inputs"]["selection_design"] == {
+        "filename": selection_design_path.name,
+        "sha256": cal.sha256_file(selection_design_path),
+    }
+    assert verification["selection_design"]["sha256"] == cal.sha256_file(selection_design_path)
+    assert verification["selection_design"]["size_bytes"] == selection_design_path.stat().st_size
 
 
 def test_final_confirmation_matrix_comes_only_from_frozen_policy(
@@ -3118,6 +3165,116 @@ def test_calibration_planning_rejects_expected_confirmation_policy_hash(
 
     assert exc_info.value.code == 2
     assert "calibration rejects" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "missing_option",
+    ("--selection-design", "--expected-selection-design-sha256"),
+)
+def test_calibration_planning_requires_complete_selection_design_binding(
+    tmp_path,
+    capsys,
+    monkeypatch,
+    missing_option,
+):
+    case = _prepare_planner_case(tmp_path, monkeypatch)
+    arguments = _remove_option_with_value(case["planner_args"], missing_option)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main([*arguments, "--list-jobs"])
+
+    assert exc_info.value.code == 2
+    assert (
+        "requires both --selection-design and --expected-selection-design-sha256"
+        in capsys.readouterr().err
+    )
+
+
+def test_calibration_planning_authenticates_selection_design_bytes(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    case = _prepare_planner_case(tmp_path, monkeypatch)
+    arguments = _replace_option_value(
+        case["planner_args"],
+        "--expected-selection-design-sha256",
+        "0" * 64,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main([*arguments, "--list-jobs"])
+
+    assert exc_info.value.code == 2
+    assert "selection-design SHA-256 does not match expected identity" in capsys.readouterr().err
+
+
+def test_final_confirmation_rejects_selection_design_options(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    case = _prepare_planner_case(
+        tmp_path,
+        monkeypatch,
+        dataset_split="final_confirmation",
+    )
+    selection_design_path = case["selection_design_path"]
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main(
+            [
+                *case["planner_args"],
+                "--selection-design",
+                str(selection_design_path),
+                "--expected-selection-design-sha256",
+                cal.sha256_file(selection_design_path),
+                "--list-jobs",
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "only valid together for calibration --list-jobs" in capsys.readouterr().err
+
+
+def test_inference_rejects_selection_design_options(tmp_path, capsys, monkeypatch):
+    case = _prepare_planner_case(tmp_path, monkeypatch)
+    selection_design_path = case["selection_design_path"]
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main(
+            [
+                *_selected_run_args(case, "SIM1"),
+                "--selection-design",
+                str(selection_design_path),
+                "--expected-selection-design-sha256",
+                cal.sha256_file(selection_design_path),
+                "--job-index",
+                "0",
+                "--expected-configuration-sha256",
+                "0" * 64,
+                "--output",
+                str(tmp_path / "result.jsonl"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "only valid together for calibration --list-jobs" in capsys.readouterr().err
+
+
+def test_reference_verification_rejects_selection_design_options(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    case = _prepare_planner_case(tmp_path, monkeypatch)
+    arguments = _remove_option_with_value(case["planner_args"], "--job-plan")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main([*arguments, "--verify-reference"])
+
+    assert exc_info.value.code == 2
+    assert "only valid together for calibration --list-jobs" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
