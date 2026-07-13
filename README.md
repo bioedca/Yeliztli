@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/img/logo-lockup.svg" alt="Yeliztli" width="180">
+  <img src="docs/assets/img/logo-lockup-black.svg" alt="Yeliztli" width="180">
 </p>
 
 # Yeliztli

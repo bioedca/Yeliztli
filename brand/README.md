@@ -24,14 +24,16 @@ The logo adapts to the palette of wherever it lands (the app + docs identity is
 | App / docs primary | teal `#0D9488` | in-app marks, tab favicon, docs header (as white on the teal bar) |
 | App primary (dark) | teal `#14B8A6` | auto via `text-primary` / `currentColor` in dark mode |
 | On teal surfaces | white `#FFFFFF` | docs header bar, solid-teal badges |
-| Standalone icons | navy `#001B3E` on white | apple-touch / PWA install / maskable / README banner |
+| Standalone icons | navy `#001B3E` on white | apple-touch / PWA install / maskable |
+| README lockup | white `#FFFFFF` on black `#000000` | repository landing page |
 
 App palette source: `frontend/src/index.css` (`--color-primary`).
 
 ## Generated files
 
 Variants (this dir): `emblem-{teal,white,navy,currentcolor}.svg`,
-`lockup-navy-on-white.svg`, `lockup-white.svg`.
+`lockup-navy-on-white.svg`, `lockup-white.svg`,
+`lockup-white-on-black.svg`.
 
 Served app assets (`frontend/public/`): `favicon.svg` (teal emblem),
 `favicon.ico`, `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`,
@@ -39,7 +41,8 @@ Served app assets (`frontend/public/`): `favicon.svg` (teal emblem),
 
 Served docs assets (`docs/assets/img/`): `logo.svg` (white emblem, docs header),
 `favicon.svg` (teal emblem, docs tab), `logo-lockup.svg` (navy-on-white full
-lockup — README banner / docs hero), `logo-lockup-dark.svg` (white lockup).
+lockup — light docs hero), `logo-lockup-dark.svg` (white lockup), and
+`logo-lockup-black.svg` (white-on-black README lockup).
 
 ## Regenerate
 
