@@ -7,7 +7,12 @@
  */
 
 import Plot from "@/components/charts/Plot"
-import { POPULATION_COLORS, POPULATION_LABELS } from "./constants"
+import {
+  POPULATION_COLORS,
+  POPULATION_LABELS,
+  getPopulationColor,
+} from "./constants"
+import type { PopulationColorMap } from "./constants"
 import { useThemeContext } from "@/lib/ThemeContext"
 import { getPlotlyTheme } from "@/lib/plotly-theme"
 
@@ -15,6 +20,7 @@ interface AdmixtureBarProps {
   admixture_fractions: Record<string, number>
   ci_low?: Record<string, number>
   ci_high?: Record<string, number>
+  populationColors?: PopulationColorMap
 }
 
 // Narrow stacked segments can't hold an in-bar label: Plotly rotates/clips it to
@@ -26,7 +32,12 @@ interface AdmixtureBarProps {
 const MIN_LABEL_PCT = 5
 const MIN_CI_LABEL_PCT = 10
 
-export default function AdmixtureBar({ admixture_fractions, ci_low, ci_high }: AdmixtureBarProps) {
+export default function AdmixtureBar({
+  admixture_fractions,
+  ci_low,
+  ci_high,
+  populationColors = POPULATION_COLORS,
+}: AdmixtureBarProps) {
   const { isDark } = useThemeContext()
   const pt = getPlotlyTheme(isDark)
   // Sort populations by fraction descending
@@ -67,7 +78,7 @@ export default function AdmixtureBar({ admixture_fractions, ci_low, ci_high }: A
       type: "bar" as const,
       orientation: "h" as const,
       marker: {
-        color: POPULATION_COLORS[pop] ?? "#94A3B8",
+        color: getPopulationColor(populationColors, pop),
       },
       text: [label],
       // "auto" lets Plotly place a shown label inside when it fits (outside

@@ -28,7 +28,11 @@ import AnalysisDetails from "@/components/ancestry/AnalysisDetails"
 import ChromosomePainting from "@/components/charts/ChromosomePainting"
 import AncestryPieChart from "@/components/charts/AncestryPieChart"
 import LAICoverageTelemetryPanel from "@/components/ancestry/LAICoverageTelemetryPanel"
-import { POPULATION_LABELS } from "@/components/ancestry/constants"
+import {
+  POPULATION_LABELS,
+  getPopulationColor,
+  resolvePopulationColors,
+} from "@/components/ancestry/constants"
 
 export default function AncestryView() {
   const [searchParams] = useSearchParams()
@@ -42,6 +46,10 @@ export default function AncestryView() {
   const laiResultsQuery = useLAIResults(sampleId)
   const triggerDownload = useTriggerDownload()
   const triggerLAI = useTriggerLAI()
+  const populationColors = resolvePopulationColors(
+    laiResultsQuery.data?.global_ancestry,
+    laiResultsQuery.data?.chromosome_painting,
+  )
 
   const [bundleDownloadStatus, setBundleDownloadStatus] = useState<
     "idle" | "starting" | "downloading" | "extracting" | "error"
@@ -204,7 +212,10 @@ export default function AncestryView() {
         <>
           {/* Ancestry Result Summary */}
           <section aria-label="Ancestry inference summary" className="mb-8">
-            <AncestryResultCard finding={ancestryFinding} />
+            <AncestryResultCard
+              finding={ancestryFinding}
+              populationColors={populationColors}
+            />
           </section>
 
           {/* Admixture Bar Chart */}
@@ -218,6 +229,7 @@ export default function AncestryView() {
                 admixture_fractions={ancestryFinding.admixture_fractions}
                 ci_low={ancestryFinding.nnls_ci_low ?? undefined}
                 ci_high={ancestryFinding.nnls_ci_high ?? undefined}
+                populationColors={populationColors}
               />
               {/* MID lower-precision info note (threshold matches backend MID_LOW_PRECISION_THRESHOLD) */}
               {ancestryFinding.admixture_fractions.MID != null &&
@@ -251,7 +263,10 @@ export default function AncestryView() {
                 </div>
               )}
               {pcaQuery.data && (
-                <PCAScatter pcaData={pcaQuery.data} />
+                <PCAScatter
+                  pcaData={pcaQuery.data}
+                  populationColors={populationColors}
+                />
               )}
               {!pcaQuery.isLoading && !pcaQuery.isError && !pcaQuery.data && (
                 <div className="text-sm text-muted-foreground text-center py-8">
@@ -464,7 +479,10 @@ export default function AncestryView() {
                       )}
 
                       {/* Chromosome Painting */}
-                      <ChromosomePainting painting={laiResultsQuery.data.chromosome_painting} />
+                      <ChromosomePainting
+                        painting={laiResultsQuery.data.chromosome_painting}
+                        populationColors={populationColors}
+                      />
 
                       {/* LAI Global Ancestry Pie + Tier Comparison */}
                       <div data-testid="tier-comparison" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
@@ -472,7 +490,10 @@ export default function AncestryView() {
                           <h3 className="text-sm font-semibold mb-2">
                             Tier 2: Chromosome Painting
                           </h3>
-                          <AncestryPieChart globalAncestry={laiResultsQuery.data.global_ancestry} />
+                          <AncestryPieChart
+                            globalAncestry={laiResultsQuery.data.global_ancestry}
+                            populationColors={populationColors}
+                          />
                         </div>
                         <div>
                           <h3 className="text-sm font-semibold mb-2">
@@ -496,9 +517,10 @@ export default function AncestryView() {
                                   <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
                                     <div
                                       className="h-full rounded"
+                                      data-population={pop}
                                       style={{
                                         width: `${frac * 100}%`,
-                                        backgroundColor: laiResultsQuery.data!.global_ancestry[pop]?.color ?? "#94A3B8",
+                                        backgroundColor: getPopulationColor(populationColors, pop),
                                       }}
                                     />
                                   </div>
@@ -563,7 +585,7 @@ function TierConcordance({
   tier2,
 }: {
   tier1: Record<string, number>
-  tier2: Record<string, { fraction: number; percentage: number; display_name: string; color: string }>
+  tier2: Record<string, { fraction: number }>
 }) {
   // Compute max absolute difference across populations
   const allPops = new Set([...Object.keys(tier1), ...Object.keys(tier2)])

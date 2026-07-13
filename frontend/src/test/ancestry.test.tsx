@@ -7,7 +7,12 @@ import AdmixtureBar from "@/components/ancestry/AdmixtureBar"
 import PCAScatter from "@/components/ancestry/PCAScatter"
 import HaplogroupCard from "@/components/ancestry/HaplogroupCard"
 import AnalysisDetails from "@/components/ancestry/AnalysisDetails"
-import { humanizeAncestryCodes } from "@/components/ancestry/constants"
+import {
+  POPULATION_COLORS,
+  getPopulationColor,
+  humanizeAncestryCodes,
+  resolvePopulationColors,
+} from "@/components/ancestry/constants"
 import ChromosomePainting from "@/components/charts/ChromosomePainting"
 import AncestryPieChart from "@/components/charts/AncestryPieChart"
 import type {
@@ -223,6 +228,19 @@ describe("AncestryResultCard", () => {
     expect(screen.getByText("0.3200")).toBeInTheDocument()
   })
 
+  it("uses the resolved page palette for population ranking dots", () => {
+    render(
+      <AncestryResultCard
+        finding={ANCESTRY_FINDING}
+        populationColors={{ EUR: "#123456" }}
+      />,
+    )
+    const europeanDot = screen
+      .getByTestId("ancestry-result-card")
+      .querySelector('[data-population="EUR"]')
+    expect(europeanDot).toHaveStyle({ backgroundColor: "#123456" })
+  })
+
   it("labels the ranking metric and its direction (#532)", () => {
     render(<AncestryResultCard finding={ANCESTRY_FINDING} />)
     // A caption must name the metric (distance to centroid) and state which
@@ -289,6 +307,60 @@ describe("humanizeAncestryCodes (#1225)", () => {
   })
 })
 
+// ── Population color contract ──────────────────────────────────────
+
+describe("population color contract (#1764)", () => {
+  it("keeps the no-LAI fallback aligned with the backend Paul Tol palette", () => {
+    expect(POPULATION_COLORS).toEqual({
+      AFR: "#E8A838",
+      AMR: "#EE6677",
+      CSA: "#AA3377",
+      EAS: "#66CCEE",
+      EUR: "#4477AA",
+      MID: "#228833",
+      OCE: "#CCBB44",
+    })
+  })
+
+  it("prefers global colors over segment colors and fallbacks", () => {
+    const colors = resolvePopulationColors(
+      {
+        EAS: { color: "#123456" },
+        AMR: { color: "   " },
+      },
+      {
+        chr1: [
+          {
+            hap0: "EAS",
+            hap1: "EUR",
+            hap0_color: "#654321",
+            hap1_color: "#ABCDEF",
+          },
+        ],
+      },
+    )
+
+    expect(colors.EAS).toBe("#123456")
+    expect(colors.EUR).toBe("#ABCDEF")
+    expect(colors.AMR).toBe("#EE6677")
+    expect(colors.AFR).toBe("#E8A838")
+  })
+
+  it("uses a neutral fallback for unknown population codes", () => {
+    expect(getPopulationColor(POPULATION_COLORS, "NEW")).toBe("#94A3B8")
+  })
+
+  it("ignores malformed colors from legacy persisted results", () => {
+    const colors = resolvePopulationColors({
+      EAS: { color: "not-a-color" },
+      EUR: { color: 42 as unknown as string },
+    })
+
+    expect(colors.EAS).toBe("#66CCEE")
+    expect(colors.EUR).toBe("#4477AA")
+  })
+})
+
 // ── AdmixtureBar tests ──────────────────────────────────────────────
 
 describe("AdmixtureBar", () => {
@@ -307,6 +379,19 @@ describe("AdmixtureBar", () => {
     const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
     // EUR, AMR, EAS, CSA should appear (above 0.001 threshold)
     expect(traces.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it("uses the resolved page palette for Plotly traces", () => {
+    render(
+      <AdmixtureBar
+        admixture_fractions={{ EAS: 0.6, EUR: 0.4 }}
+        populationColors={{ EAS: "#123456", EUR: "#ABCDEF" }}
+      />,
+    )
+    const chart = screen.getByTestId("plotly-chart")
+    const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
+    const eastAsian = traces.find((trace: { name: string }) => trace.name === "East Asian")
+    expect(eastAsian.marker.color).toBe("#123456")
   })
 
   it("shows empty state when no fractions", () => {
@@ -427,6 +512,23 @@ describe("PCAScatter", () => {
     const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
     const names = traces.map((t: { name: string }) => t.name)
     expect(names).toContain("Centroids")
+  })
+
+  it("uses the resolved page palette for reference samples and centroids", () => {
+    const populationColors = {
+      EUR: "#123456",
+      AFR: "#ABCDEF",
+      CSA: "#FEDCBA",
+      MID: "#654321",
+    }
+    render(<PCAScatter pcaData={PCA_COORDINATES} populationColors={populationColors} />)
+    const chart = screen.getByTestId("plotly-chart")
+    const traces = JSON.parse(chart.getAttribute("data-traces") ?? "[]")
+    const european = traces.find((trace: { name: string }) => trace.name === "European")
+    const centroids = traces.find((trace: { name: string }) => trace.name === "Centroids")
+
+    expect(european.marker.color).toBe("#123456")
+    expect(centroids.marker.color).toEqual(["#123456", "#ABCDEF", "#FEDCBA", "#654321"])
   })
 
   it("renders PC selection dropdowns when n_components > 2", () => {
@@ -636,8 +738,8 @@ const PAINTING_SEGMENT: ChromosomePaintingSegment = {
   n_snps: 0,
   hap0: "EUR",
   hap1: "AFR",
-  hap0_color: "#3B82F6",
-  hap1_color: "#F59E0B",
+  hap0_color: "#4477AA",
+  hap1_color: "#E8A838",
 }
 
 const PAINTING_SEGMENT_2: ChromosomePaintingSegment = {
@@ -646,8 +748,8 @@ const PAINTING_SEGMENT_2: ChromosomePaintingSegment = {
   n_snps: 0,
   hap0: "EAS",
   hap1: "EUR",
-  hap0_color: "#10B981",
-  hap1_color: "#3B82F6",
+  hap0_color: "#66CCEE",
+  hap1_color: "#4477AA",
 }
 
 const SAMPLE_PAINTING: Record<string, ChromosomePaintingSegment[]> = Object.fromEntries(
@@ -679,6 +781,28 @@ describe("ChromosomePainting", () => {
     expect(legend.textContent).toContain("East Asian")
   })
 
+  it("uses delivered segment colors for both painting and legend", () => {
+    const sentinelPainting = {
+      chr1: [
+        {
+          ...PAINTING_SEGMENT_2,
+          hap0_color: "#123456",
+        },
+      ],
+    }
+    render(<ChromosomePainting painting={sentinelPainting} />)
+
+    const eastAsianSegment = screen
+      .getByTestId("painting-chr1")
+      .querySelector('rect[data-population="EAS"][data-haplotype="0"]')
+    const eastAsianLegend = screen
+      .getByTestId("painting-legend")
+      .querySelector('[data-population="EAS"] span')
+
+    expect(eastAsianSegment).toHaveAttribute("fill", "#123456")
+    expect(eastAsianLegend).toHaveStyle({ backgroundColor: "#123456" })
+  })
+
   it("handles empty painting data", () => {
     render(<ChromosomePainting painting={{}} />)
     expect(screen.getByTestId("chromosome-painting")).toBeInTheDocument()
@@ -699,13 +823,13 @@ describe("ChromosomePainting", () => {
 // ── AncestryPieChart tests (AMv2 Step 6) ────────────────────────────
 
 const SAMPLE_GLOBAL_ANCESTRY: Record<string, LAIGlobalAncestryEntry> = {
-  EUR: { fraction: 0.75, percentage: 75.0, display_name: "European", color: "#3B82F6" },
-  AMR: { fraction: 0.15, percentage: 15.0, display_name: "Admixed American", color: "#EF4444" },
-  AFR: { fraction: 0.08, percentage: 8.0, display_name: "African", color: "#F59E0B" },
-  EAS: { fraction: 0.02, percentage: 2.0, display_name: "East Asian", color: "#10B981" },
-  CSA: { fraction: 0.0, percentage: 0.0, display_name: "Central/South Asian", color: "#8B5CF6" },
-  MID: { fraction: 0.0, percentage: 0.0, display_name: "Middle Eastern", color: "#14B8A6" },
-  OCE: { fraction: 0.0, percentage: 0.0, display_name: "Oceanian", color: "#EC4899" },
+  EUR: { fraction: 0.75, percentage: 75.0, display_name: "European", color: "#123456" },
+  AMR: { fraction: 0.15, percentage: 15.0, display_name: "Admixed American", color: "#234567" },
+  AFR: { fraction: 0.08, percentage: 8.0, display_name: "African", color: "#345678" },
+  EAS: { fraction: 0.02, percentage: 2.0, display_name: "East Asian", color: "#456789" },
+  CSA: { fraction: 0.0, percentage: 0.0, display_name: "Central/South Asian", color: "#56789A" },
+  MID: { fraction: 0.0, percentage: 0.0, display_name: "Middle Eastern", color: "#6789AB" },
+  OCE: { fraction: 0.0, percentage: 0.0, display_name: "Oceanian", color: "#789ABC" },
 }
 
 describe("AncestryPieChart", () => {
@@ -721,6 +845,12 @@ describe("AncestryPieChart", () => {
     expect(traces).toHaveLength(1)
     // Should include EUR, AMR, AFR, EAS (>= 0.1%) but not CSA, MID, OCE (0%)
     expect(traces[0].labels).toEqual(["African", "Admixed American", "East Asian", "European"])
+    expect(traces[0].marker.colors).toEqual([
+      "#345678",
+      "#234567",
+      "#456789",
+      "#123456",
+    ])
   })
 
   it("shows empty state when all fractions near zero", () => {

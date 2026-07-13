@@ -8,10 +8,17 @@ import { cn } from "@/lib/utils"
 import { formatNumber } from "@/lib/format"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import type { AncestryFindingResponse } from "@/types/ancestry"
-import { POPULATION_COLORS, POPULATION_LABELS, humanizeAncestryCodes } from "./constants"
+import {
+  POPULATION_COLORS,
+  POPULATION_LABELS,
+  getPopulationColor,
+  humanizeAncestryCodes,
+} from "./constants"
+import type { PopulationColorMap } from "./constants"
 
 interface AncestryResultCardProps {
   finding: AncestryFindingResponse
+  populationColors?: PopulationColorMap
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
@@ -51,7 +58,10 @@ function MissingAimIndicator({ rate }: { rate: number }) {
   )
 }
 
-export default function AncestryResultCard({ finding }: AncestryResultCardProps) {
+export default function AncestryResultCard({
+  finding,
+  populationColors = POPULATION_COLORS,
+}: AncestryResultCardProps) {
   const topLabel = POPULATION_LABELS[finding.top_population] ?? finding.top_population
   const coveragePct = Math.round(finding.coverage_fraction * 100)
 
@@ -113,7 +123,7 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
           <div className="space-y-1">
             {finding.population_ranking.map((pr, index) => {
               const label = POPULATION_LABELS[pr.population] ?? pr.population
-              const color = POPULATION_COLORS[pr.population] ?? "#94A3B8"
+              const color = getPopulationColor(populationColors, pr.population)
               const rank = index + 1
               return (
                 <div
@@ -127,6 +137,7 @@ export default function AncestryResultCard({ finding }: AncestryResultCardProps)
                     <span
                       className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: color }}
+                      data-population={pr.population}
                     />
                     <span className="text-foreground truncate">{label}</span>
                   </span>

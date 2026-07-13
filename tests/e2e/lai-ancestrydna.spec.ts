@@ -89,7 +89,7 @@ const LAI_GLOBAL_ANCESTRY = {
 }
 
 const LAI_CHROMOSOME_PAINTING = {
-  '1': [
+  chr1: [
     {
       start: 0,
       end: 249_250_621,
@@ -392,6 +392,12 @@ test.describe('Step 25 — AncestryDNA LAI surfaces', () => {
 
     const telemetry = page.getByTestId('lai-coverage-telemetry')
     await expect(telemetry).toBeVisible({ timeout: 15_000 })
+
+    // Keep this fixture aligned with the backend's `chrN` painting keys so
+    // the scenario exercises real chromosome segments instead of an empty SVG.
+    await expect(
+      page.getByTestId('painting-chr1').locator('rect[data-population="EUR"]'),
+    ).toHaveCount(2)
 
     const summary = page.getByTestId('lai-coverage-summary')
     await expect(summary).toContainText('632,500 of 640,000')
