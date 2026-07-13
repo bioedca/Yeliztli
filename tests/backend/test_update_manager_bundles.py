@@ -563,8 +563,16 @@ class TestCheckEncodeCcresUpdate:
         assert result.download_size_bytes == 12345
         assert result.release_date == "20260203"
 
-    def test_matching_or_newer_recorded_version_returns_none(self, reference_engine):
+    def test_matching_recorded_version_returns_none(self, reference_engine):
         _record_version_row(reference_engine, "encode_ccres", "20260203")
+        client_patch, response = self._mock_head()
+
+        with client_patch as mock_client:
+            mock_client.return_value.__enter__.return_value.head.return_value = response
+            assert check_encode_ccres_update(reference_engine) is None
+
+    def test_newer_recorded_version_suppresses_remote_downgrade(self, reference_engine):
+        _record_version_row(reference_engine, "encode_ccres", "20270101")
         client_patch, response = self._mock_head()
 
         with client_patch as mock_client:
