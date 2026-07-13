@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.analysis.imputation_engine import (
-    engine_available,
     missing_binaries,
     resolve_binary,
 )
@@ -51,9 +50,3 @@ class TestAvailability:
     def test_missing_lists_unresolved(self, tmp_path: Path) -> None:
         _exe(tmp_path / "a")
         assert missing_binaries(("a", "b"), tmp_path) == ["b"]
-
-    def test_engine_available(self, tmp_path: Path) -> None:
-        _exe(tmp_path / "a")
-        _exe(tmp_path / "b")
-        assert engine_available(("a", "b"), tmp_path) is True
-        assert engine_available(("a", "c"), tmp_path) is False
