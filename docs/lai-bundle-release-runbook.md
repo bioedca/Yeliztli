@@ -376,6 +376,8 @@ the calibration operators until the policy is frozen. Any input or design correc
 requires regenerating the complete output tree rather than editing generated files.
 
 ```bash
+set -euo pipefail
+
 # Generate both founder-disjoint splits from one reviewed, frozen design. Run from a
 # clean checkout of the exact revision recorded in the manifest. Do not hand-edit output.
 : "${YELIZTLI_CHECKOUT:?set YELIZTLI_CHECKOUT to the clean full-checkout root}"

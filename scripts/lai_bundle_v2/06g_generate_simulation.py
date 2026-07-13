@@ -154,7 +154,6 @@ class WindowTruth:
 @dataclass(frozen=True, slots=True)
 class GeneratedSimulation:
     spec: SimulationSpec
-    accepted_attempt: int
     tracts: Mapping[tuple[str, int], tuple[Tract, ...]]
     windows: tuple[WindowTruth, ...]
     ancestry_marker_counts: Mapping[str, int]
@@ -1074,7 +1073,6 @@ def _generate_one(
             continue
         return GeneratedSimulation(
             spec=simulation,
-            accepted_attempt=candidate_attempt,
             tracts=tracts,
             windows=tuple(windows),
             ancestry_marker_counts={
