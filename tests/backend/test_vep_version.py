@@ -134,3 +134,31 @@ def test_path_resolution_failure_uses_baseline(tmp_path: Path) -> None:
     symlink_loop.symlink_to(symlink_loop)
 
     assert resolve_effective_vep_bundle_version(reference_engine, symlink_loop) == "v1.0.0"
+
+
+def test_uncheckpointed_wal_metadata_is_treated_as_unreadable(tmp_path: Path) -> None:
+    reference_engine = _reference_engine()
+    vep_db_path = tmp_path / "active-wal-vep.db"
+    wal_path = Path(f"{vep_db_path}-wal")
+    shm_path = Path(f"{vep_db_path}-shm")
+    writer = sqlite3.connect(vep_db_path)
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
+        writer.execute(
+            "INSERT INTO bundle_metadata (key, value) VALUES ('bundle_version', 'v9.0.0')"
+        )
+        writer.commit()
+        assert wal_path.is_file()
+        assert shm_path.is_file()
+        sidecars_before = {
+            path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (wal_path, shm_path)
+        }
+
+        assert resolve_effective_vep_bundle_version(reference_engine, vep_db_path) == "v1.0.0"
+        assert {
+            path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (wal_path, shm_path)
+        } == sidecars_before
+    finally:
+        writer.close()
