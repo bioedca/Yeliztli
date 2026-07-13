@@ -531,6 +531,34 @@ class TestGenerateSvgsForSample:
         count = generate_svgs_for_sample(sample_engine, tmp_path)
         assert count == 0
 
+    def test_unqualified_local_ancestry_is_not_rendered(self, sample_engine, tmp_path):
+        finding_id = 101
+        svg_dir = tmp_path / "svgs"
+        svg_dir.mkdir()
+        stale_svg = svg_dir / f"{finding_id}.svg"
+        stale_svg.write_text("stale local-ancestry artifact")
+        unrelated_svg = svg_dir / "999.svg"
+        unrelated_svg.write_text("unrelated artifact")
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=finding_id,
+                    module="ancestry",
+                    category="local_ancestry",
+                    evidence_level=4,
+                    finding_text="Unqualified legacy chromosome painting",
+                    svg_path=f"svgs/{finding_id}.svg",
+                )
+            )
+
+        assert generate_svgs_for_sample(sample_engine, tmp_path) == 0
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings)).one()
+        assert row.svg_path is None
+        assert not stale_svg.exists()
+        assert unrelated_svg.exists()
+
     def test_multiple_modules_get_svgs(self, sample_engine, tmp_path):
         with sample_engine.begin() as conn:
             conn.execute(

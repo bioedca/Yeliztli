@@ -45,30 +45,75 @@ def run_lai_analysis(
     sample_id: int,
     sample_engine: sa.Engine,
     progress_callback: Callable[[str, float], None] | None = None,
-    *,
-    diagnostic_metrics_callback: Callable[[LAICoverageMetrics], None] | None = None,
-    allow_below_minimum_for_diagnostics: bool = False,
 ) -> LAIResult:
-    """Run LAI analysis on a sample.
+    """Run production LAI analysis on a sample.
 
     Reads genotypes from the sample DB, runs the full LAI pipeline,
-    stores results in the lai_results and findings tables.
+    and stores results in the ``lai_results`` and ``findings`` tables. The
+    final-confirmed production coverage policy is required before any bundle,
+    database, work-directory, or runner side effect occurs.
 
     Args:
         sample_id: Sample ID for progress tracking.
         sample_engine: SQLAlchemy engine for the sample database.
         progress_callback: Optional function(message, fraction) for updates.
-        diagnostic_metrics_callback: Optional calibration-only callback for
-            progressive versioned coverage snapshots.
-        allow_below_minimum_for_diagnostics: Forward the calibration-only model
-            match-rate bypass to the runner. Defaults to the production hard gate.
 
     Returns:
         LAIResult with global ancestry and chromosome painting.
 
     Raises:
-        RuntimeError: If LAI bundle or Java is unavailable.
+        RuntimeError: If the confirmed coverage policy, LAI bundle, or Java is unavailable.
     """
+    from backend.services.lai_production_coverage import (
+        require_lai_production_coverage_policy,
+    )
+
+    require_lai_production_coverage_policy()
+    return _run_lai_analysis(
+        sample_id=sample_id,
+        sample_engine=sample_engine,
+        progress_callback=progress_callback,
+        diagnostic_metrics_callback=None,
+        allow_below_minimum_for_diagnostics=False,
+        persist_results=True,
+    )
+
+
+def run_lai_analysis_for_diagnostics(
+    sample_id: int,
+    sample_engine: sa.Engine,
+    progress_callback: Callable[[str, float], None] | None = None,
+    *,
+    diagnostic_metrics_callback: Callable[[LAICoverageMetrics], None] | None = None,
+    allow_below_minimum_for_diagnostics: bool = False,
+) -> LAIResult:
+    """Run repository-owned LAI calibration or held-out validation.
+
+    This entry point intentionally evaluates the underlying runner without the
+    production availability gate. It never writes ``lai_results`` or ancestry
+    findings, so diagnostic output cannot become application-visible evidence.
+    """
+    return _run_lai_analysis(
+        sample_id=sample_id,
+        sample_engine=sample_engine,
+        progress_callback=progress_callback,
+        diagnostic_metrics_callback=diagnostic_metrics_callback,
+        allow_below_minimum_for_diagnostics=allow_below_minimum_for_diagnostics,
+        persist_results=False,
+    )
+
+
+def _run_lai_analysis(
+    *,
+    sample_id: int,
+    sample_engine: sa.Engine,
+    progress_callback: Callable[[str, float], None] | None,
+    diagnostic_metrics_callback: Callable[[LAICoverageMetrics], None] | None,
+    allow_below_minimum_for_diagnostics: bool,
+    persist_results: bool,
+) -> LAIResult:
+    """Execute the shared LAI runner path for production or diagnostics."""
+
     settings = get_settings()
     bundle_path = settings.resolved_lai_bundle_path
 
@@ -77,8 +122,10 @@ def run_lai_analysis(
     if not detect_java():
         raise RuntimeError("Java 8+ is required for LAI analysis")
 
-    # Ensure lai_results table exists (CREATE TABLE IF NOT EXISTS)
-    _ensure_lai_tables(sample_engine)
+    # Diagnostics are read-only with respect to the sample database, including
+    # schema. Production initializes its result table before running.
+    if persist_results:
+        _ensure_lai_tables(sample_engine)
 
     # Read genotypes (+ optional source column on Phase 3+ sample DBs) and the
     # parent sample's file_format. Source dispatches single-key vs three-key
@@ -110,8 +157,10 @@ def run_lai_analysis(
         allow_below_minimum_for_diagnostics=allow_below_minimum_for_diagnostics,
     )
 
-    # Store results
-    _store_lai_results(sample_engine, runner_result)
+    if persist_results:
+        _store_lai_results(sample_engine, runner_result)
+    else:
+        logger.info("lai_diagnostic_result_not_stored", sample_id=sample_id)
 
     return LAIResult(
         global_ancestry=runner_result.global_ancestry,

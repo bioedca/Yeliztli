@@ -87,8 +87,18 @@ export interface LAIStatusResponse {
   bundle_downloaded: boolean
   java_available: boolean
   lai_available: boolean
+  coverage_policy_available?: boolean
   message: string
+  insufficient_data_reason?: LAIInsufficientDataReason | null
   degraded_coverage?: boolean
+}
+
+/** Structured reason that chromosome painting must return a no-call. */
+interface LAIInsufficientDataReason {
+  code: string
+  category: string
+  message: string
+  retryable: boolean
 }
 
 /** Response from triggering LAI analysis.
@@ -170,9 +180,10 @@ export interface LAIResultResponse {
 /** LAI analysis progress. */
 export interface LAIProgressResponse {
   job_id: string
-  status: "pending" | "running" | "complete" | "failed"
+  status: "pending" | "running" | "complete" | "failed" | "cancelled"
   progress_pct: number
   message: string
   error: string | null
+  insufficient_data_reason?: LAIInsufficientDataReason | null
   degraded_coverage?: boolean
 }

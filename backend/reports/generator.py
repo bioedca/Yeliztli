@@ -33,6 +33,7 @@ from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
+from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
 logger = structlog.get_logger(__name__)
 
@@ -106,7 +107,7 @@ def _load_findings(
     modules: list[str] | None,
 ) -> list[dict[str, Any]]:
     """Query reportable findings from sample DB, sorted by evidence."""
-    clauses = []
+    clauses = [policy_qualified_finding_clause(findings.c.category)]
     if modules:
         clauses.append(findings.c.module.in_(modules))
 

@@ -35,7 +35,9 @@ interface LAIStatusPayload {
   bundle_downloaded: boolean
   java_available: boolean
   lai_available: boolean
+  coverage_policy_available?: boolean
   message: string
+  insufficient_data_reason?: { message: string } | null
   degraded_coverage?: boolean
 }
 
@@ -208,6 +210,28 @@ describe('AppUpdateBanner — LAI degraded coverage advisory', () => {
 
   it('does not render when the API reports degraded_coverage=false', async () => {
     setupAppUpdateMock(UP_TO_DATE, LAI_STATUS_CLEAR)
+    render(<AppUpdateBanner />, { wrapper: createWrapper() })
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/analysis/ancestry/lai/status')
+    })
+    expect(
+      screen.queryByText(/LAI coverage degraded for AncestryDNA/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not advertise a bundle update while production policy is unavailable', async () => {
+    setupAppUpdateMock(UP_TO_DATE, {
+      bundle_downloaded: true,
+      java_available: true,
+      lai_available: false,
+      coverage_policy_available: false,
+      message: 'Chromosome painting is unavailable.',
+      insufficient_data_reason: {
+        message: 'No final-confirmed minimum-coverage policy exists.',
+      },
+      degraded_coverage: true,
+    })
     render(<AppUpdateBanner />, { wrapper: createWrapper() })
 
     await waitFor(() => {

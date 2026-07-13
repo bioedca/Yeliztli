@@ -657,11 +657,10 @@ class TestAdmixedSentinelHandling:
         assert "confidently inferred" in text.lower()
 
 
-class TestLAIPreferredOverTier1:
-    """T-PRS-04: LAI-derived ancestry preferred over Tier 1 when available."""
+class TestUnqualifiedLAIQuarantine:
+    """Pre-policy local-ancestry findings cannot override qualified Tier 1."""
 
-    def test_local_ancestry_preferred(self, sample_engine: sa.Engine) -> None:
-        """get_inferred_ancestry prefers local_ancestry over nnls_admixture."""
+    def test_unqualified_local_ancestry_falls_back_to_nnls(self, sample_engine: sa.Engine) -> None:
         with sample_engine.begin() as conn:
             # Insert nnls_admixture first
             conn.execute(
@@ -687,7 +686,48 @@ class TestLAIPreferredOverTier1:
             )
 
         result = get_inferred_ancestry(sample_engine)
-        assert result == "AFR"
+        assert result == "EUR"
+
+    def test_unqualified_local_ancestry_alone_returns_none(self, sample_engine: sa.Engine) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "ancestry",
+                    "category": "local_ancestry",
+                    "evidence_level": 2,
+                    "finding_text": "LAI: AFR",
+                    "detail_json": json.dumps(
+                        {
+                            "top_population": "AFR",
+                            "admixture_fractions": {"AFR": 1.0},
+                        }
+                    ),
+                },
+            )
+
+        assert get_inferred_ancestry(sample_engine) is None
+
+        from backend.analysis.prs_calibration import get_ancestry_fractions
+
+        assert get_ancestry_fractions(sample_engine) is None
+
+    def test_null_category_legacy_fallback_remains_available(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "ancestry",
+                    "category": None,
+                    "evidence_level": 2,
+                    "finding_text": "Legacy ancestry: EAS",
+                    "detail_json": json.dumps({"top_population": "EAS"}),
+                },
+            )
+
+        assert get_inferred_ancestry(sample_engine) == "EAS"
 
     def test_falls_back_to_nnls_without_lai(self, sample_engine: sa.Engine) -> None:
         """Without local_ancestry, falls back to nnls_admixture."""
@@ -757,7 +797,7 @@ class TestGetTopAncestryFraction:
         result = get_top_ancestry_fraction(sample_engine)
         assert result is None
 
-    def test_prefers_local_ancestry(self, sample_engine: sa.Engine) -> None:
+    def test_unqualified_local_fraction_falls_back_to_nnls(self, sample_engine: sa.Engine) -> None:
         from backend.analysis.ancestry import get_top_ancestry_fraction
 
         with sample_engine.begin() as conn:
@@ -793,7 +833,7 @@ class TestGetTopAncestryFraction:
             )
 
         result = get_top_ancestry_fraction(sample_engine)
-        assert result == pytest.approx(0.65)
+        assert result == pytest.approx(0.82)
 
     def test_admixed_sentinel_returns_max_population_fraction(
         self, sample_engine: sa.Engine

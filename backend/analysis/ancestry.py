@@ -89,6 +89,7 @@ from backend.db.tables import (
     haplogroup_assignments,
     raw_variants,
 )
+from backend.services.lai_production_coverage import policy_qualified_finding_clause
 from backend.services.sex_inference import infer_biological_sex
 
 logger = structlog.get_logger(__name__)
@@ -1335,13 +1336,15 @@ def _get_latest_ancestry_finding(
 ) -> tuple[str | None, dict | None]:
     """Return ``(top_population, detail_dict)`` from the best ancestry finding.
 
-    Preference order: ``local_ancestry`` → ``nnls_admixture`` →
-    ``pca_projection`` → any ancestry finding.
+    Preference order: ``nnls_admixture`` → ``pca_projection`` → any
+    non-LAI ancestry finding. Historical ``local_ancestry`` rows predate the
+    final-confirmed minimum-coverage contract and remain quarantined until a
+    future release can bind newly stored rows to an authenticated policy.
 
     Returns ``(None, None)`` when no usable finding exists.
     """
     with sample_engine.connect() as conn:
-        for category in ("local_ancestry", "nnls_admixture", "pca_projection", None):
+        for category in ("nnls_admixture", "pca_projection", None):
             stmt = (
                 sa.select(findings.c.detail_json)
                 .where(findings.c.module == "ancestry")
@@ -1350,6 +1353,8 @@ def _get_latest_ancestry_finding(
             )
             if category is not None:
                 stmt = stmt.where(findings.c.category == category)
+            else:
+                stmt = stmt.where(policy_qualified_finding_clause(findings.c.category))
             row = conn.execute(stmt).fetchone()
 
             if row is not None and row.detail_json:
@@ -1367,8 +1372,8 @@ def _get_latest_ancestry_finding(
 def get_inferred_ancestry(sample_engine: sa.Engine) -> str | None:
     """Retrieve the inferred top ancestry from a sample's findings.
 
-    Preference order: ``local_ancestry`` → ``nnls_admixture`` →
-    ``pca_projection``.  Extracts ``top_population`` from ``detail_json``.
+    Preference order: ``nnls_admixture`` → ``pca_projection`` → another
+    non-LAI ancestry finding. Extracts ``top_population`` from ``detail_json``.
 
     This is the canonical way to get ancestry for P3-26 (ancestry-matched AF)
     and is also used by PRS ancestry mismatch checks (P3-16).
@@ -1386,10 +1391,9 @@ def get_inferred_ancestry(sample_engine: sa.Engine) -> str | None:
 def get_top_ancestry_fraction(sample_engine: sa.Engine) -> float | None:
     """Retrieve the top ancestry fraction from a sample's findings.
 
-    Searches the same categories as :func:`get_inferred_ancestry` in the same
-    preference order (``local_ancestry`` → ``nnls_admixture`` →
-    ``pca_projection``).  Returns the fraction for the top population from
-    ``admixture_fractions`` in ``detail_json``.
+    Searches the same non-LAI categories as :func:`get_inferred_ancestry` in
+    the same preference order. Returns the fraction for the top population
+    from ``admixture_fractions`` in ``detail_json``.
 
     Args:
         sample_engine: SQLAlchemy engine for the sample database.

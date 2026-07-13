@@ -284,8 +284,32 @@ export default function AncestryView() {
                 </p>
               )}
 
+              {/* A missing confirmed policy is a scientific no-call, not an
+                  operational failure or an invitation to rerun the same data. */}
+              {laiStatusQuery.data?.insufficient_data_reason && (
+                <div
+                  data-testid="lai-insufficient-data"
+                  role="status"
+                  className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-4 py-3"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-700 dark:text-amber-400">
+                      Insufficient data for chromosome painting
+                    </p>
+                    <p className="text-muted-foreground">
+                      {laiStatusQuery.data.insufficient_data_reason.message}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Any earlier chromosome-painting output is withheld because it was not
+                      qualified by a confirmed policy.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Bundle not downloaded */}
-              {laiStatusQuery.data && !laiStatusQuery.data.bundle_downloaded && (
+              {laiStatusQuery.data && !laiStatusQuery.data.insufficient_data_reason && !laiStatusQuery.data.bundle_downloaded && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     Enable chromosome-level ancestry painting for detailed per-chromosome ancestry breakdown.
@@ -321,7 +345,7 @@ export default function AncestryView() {
               )}
 
               {/* Java missing */}
-              {laiStatusQuery.data && laiStatusQuery.data.bundle_downloaded && !laiStatusQuery.data.java_available && (
+              {laiStatusQuery.data && !laiStatusQuery.data.insufficient_data_reason && laiStatusQuery.data.bundle_downloaded && !laiStatusQuery.data.java_available && (
                 <div className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-4 py-3">
                   <Info className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -357,17 +381,47 @@ export default function AncestryView() {
 
                   {/* LAI Failed */}
                   {!laiJobActive && laiProgressQuery.data?.status === "failed" && (
-                    <div className="flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 mb-3">
-                      <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                    <div
+                      role="status"
+                      className={cn(
+                        "flex items-start gap-2 rounded-md border px-4 py-3 mb-3",
+                        laiProgressQuery.data.insufficient_data_reason
+                          ? "bg-amber-500/10 border-amber-500/30"
+                          : "bg-destructive/10 border-destructive/30",
+                      )}
+                    >
+                      <AlertTriangle
+                        className={cn(
+                          "h-4 w-4 mt-0.5 flex-shrink-0",
+                          laiProgressQuery.data.insufficient_data_reason
+                            ? "text-amber-500"
+                            : "text-destructive",
+                        )}
+                      />
                       <div className="text-sm">
-                        <p className="font-medium text-destructive">Analysis failed</p>
-                        <p className="text-muted-foreground">{laiProgressQuery.data.error ?? "Unknown error"}</p>
+                        <p
+                          className={cn(
+                            "font-medium",
+                            laiProgressQuery.data.insufficient_data_reason
+                              ? "text-amber-700 dark:text-amber-400"
+                              : "text-destructive",
+                          )}
+                        >
+                          {laiProgressQuery.data.insufficient_data_reason
+                            ? "Insufficient data for chromosome painting"
+                            : "Analysis failed"}
+                        </p>
+                        <p className="text-muted-foreground">
+                          {laiProgressQuery.data.insufficient_data_reason?.message
+                            ?? laiProgressQuery.data.error
+                            ?? "Unknown error"}
+                        </p>
                       </div>
                     </div>
                   )}
 
                   {/* Trigger button — show when no results and not running */}
-                  {!laiJobActive && !laiResultsQuery.data && (
+                  {!laiJobActive && !laiResultsQuery.data && !laiProgressQuery.data?.insufficient_data_reason && (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
                         LAI bundle is ready. Run chromosome painting to see detailed per-chromosome ancestry breakdown.

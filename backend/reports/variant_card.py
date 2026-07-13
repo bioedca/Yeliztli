@@ -32,6 +32,7 @@ from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
+from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
 logger = structlog.get_logger(__name__)
 
@@ -60,7 +61,10 @@ def _load_single_finding(
 
     Raises ValueError if the finding does not exist.
     """
-    stmt = sa.select(findings).where(findings.c.id == finding_id)
+    stmt = sa.select(findings).where(
+        findings.c.id == finding_id,
+        policy_qualified_finding_clause(findings.c.category),
+    )
 
     with engine.connect() as conn:
         row = conn.execute(stmt).fetchone()

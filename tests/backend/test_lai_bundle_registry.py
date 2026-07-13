@@ -142,6 +142,11 @@ class TestLAIBundleOptional:
         db = DATABASES["lai_bundle"]
         assert db.required is False
 
+    def test_lai_bundle_description_discloses_production_no_call(self):
+        db = DATABASES["lai_bundle"]
+        assert "maintainer diagnostics and calibration" in db.description
+        assert "final-confirmed coverage policy" in db.description
+
 
 # ── T-DL-03: Bundle extraction creates expected directory structure ───
 

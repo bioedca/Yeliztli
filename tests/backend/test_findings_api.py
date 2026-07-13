@@ -414,6 +414,76 @@ class TestFindingsSummary:
         assert cancer_mod["max_evidence_level"] == 4
 
 
+class TestLAIPolicyQuarantine:
+    """Pre-policy local ancestry must not leak through generic finding surfaces."""
+
+    async def test_list_summary_and_svg_withhold_unqualified_local_ancestry(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from fastapi import HTTPException
+
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'lai_quarantine.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        id=1,
+                        module="ancestry",
+                        category="nnls_admixture",
+                        evidence_level=2,
+                        finding_text="Qualified Tier 1 ancestry",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2,
+                        module="ancestry",
+                        category="local_ancestry",
+                        evidence_level=4,
+                        finding_text="Unqualified legacy chromosome painting",
+                        svg_path="svgs/legacy.svg",
+                    )
+                )
+
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine",
+                lambda sample_id: sample_engine,
+            )
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine_and_dir",
+                lambda sample_id: (sample_engine, tmp_path),
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            listed = await findings_route.list_findings(
+                sample_id=1,
+                module=None,
+                category=None,
+                min_stars=None,
+                limit=None,
+                offset=0,
+            )
+            assert [finding.finding_text for finding in listed] == ["Qualified Tier 1 ancestry"]
+
+            summary = await findings_route.findings_summary(sample_id=1)
+            assert summary.total_findings == 1
+            assert summary.modules[0].top_finding_text == "Qualified Tier 1 ancestry"
+            assert not summary.high_confidence_findings
+
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2, sample_id=1)
+            assert caught.value.status_code == 404
+        finally:
+            sample_engine.dispose()
+
+
 # ── SVG endpoint tests ─────────────────────────────────────────────
 
 

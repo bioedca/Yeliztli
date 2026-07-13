@@ -1426,7 +1426,7 @@ describe('DatabasesStep', () => {
     }
   }
 
-  it('seeds required + lai + encode checkboxes checked; other optional unchecked', async () => {
+  it('seeds required + encode checked; lai and other optional unchecked', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockDatabaseListWithModes()),
@@ -1445,7 +1445,7 @@ describe('DatabasesStep', () => {
 
     expect(clinvarBox.checked).toBe(true)
     expect(clinvarBox.disabled).toBe(true) // required → locked
-    expect(laiBox.checked).toBe(true)
+    expect(laiBox.checked).toBe(false)
     expect(laiBox.disabled).toBe(false)
     expect(encodeBox.checked).toBe(true)
     expect(encodeBox.disabled).toBe(false)
@@ -1526,19 +1526,19 @@ describe('DatabasesStep', () => {
       expect(screen.getByText('LAI Bundle')).toBeInTheDocument()
     })
 
-    // Initial selection: clinvar (100 MB) + lai_bundle (500 MB) + encode_ccres (10 MB) = 610 MB
-    expect(screen.getByTestId('selected-total')).toHaveTextContent('610.0 MB selected')
-
-    // Uncheck LAI → 110 MB
-    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
+    // Initial selection: clinvar (100 MB) + encode_ccres (10 MB) = 110 MB
     expect(screen.getByTestId('selected-total')).toHaveTextContent('110.0 MB selected')
 
-    // Check the other optional → 111 MB
+    // Check LAI → 610 MB
+    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
+    expect(screen.getByTestId('selected-total')).toHaveTextContent('610.0 MB selected')
+
+    // Check the other optional → 611 MB
     fireEvent.click(screen.getByTestId('db-checkbox-other_optional'))
-    expect(screen.getByTestId('selected-total')).toHaveTextContent('111.0 MB selected')
+    expect(screen.getByTestId('selected-total')).toHaveTextContent('611.0 MB selected')
   })
 
-  it('re-toggling a default-on optional returns it to the selected set', async () => {
+  it('re-toggling a default-off optional returns it to the unselected set', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockDatabaseListWithModes()),
@@ -1551,18 +1551,18 @@ describe('DatabasesStep', () => {
     })
 
     const laiBox = screen.getByTestId('db-checkbox-lai_bundle') as HTMLInputElement
-    expect(laiBox.checked).toBe(true)
-    expect(screen.getByTestId('selected-total')).toHaveTextContent('610.0 MB selected')
-
-    // Toggle off → total drops, box unchecks
-    fireEvent.click(laiBox)
     expect(laiBox.checked).toBe(false)
     expect(screen.getByTestId('selected-total')).toHaveTextContent('110.0 MB selected')
 
-    // Toggle on again → box re-checks, total returns
+    // Toggle on → total grows, box checks
     fireEvent.click(laiBox)
     expect(laiBox.checked).toBe(true)
     expect(screen.getByTestId('selected-total')).toHaveTextContent('610.0 MB selected')
+
+    // Toggle off again → box unchecks, total returns
+    fireEvent.click(laiBox)
+    expect(laiBox.checked).toBe(false)
+    expect(screen.getByTestId('selected-total')).toHaveTextContent('110.0 MB selected')
   })
 
   it('hides the running total when no databases need downloading', async () => {
@@ -1606,7 +1606,6 @@ describe('DatabasesStep', () => {
           session_id: 'dbdl-disable',
           downloads: [
             { db_name: 'clinvar', job_id: 'j-clinvar' },
-            { db_name: 'lai_bundle', job_id: 'j-lai' },
             { db_name: 'encode_ccres', job_id: 'j-encode' },
           ],
         },
@@ -1668,8 +1667,7 @@ describe('DatabasesStep', () => {
       expect(screen.getByText('Download Selected')).toBeInTheDocument()
     })
 
-    // Uncheck LAI (default-on) — leave clinvar (required) + encode_ccres selected
-    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
+    // Default selection is clinvar (required) + encode_ccres; LAI remains opt-in.
 
     fireEvent.click(screen.getByText('Download Selected'))
 
@@ -1774,8 +1772,7 @@ describe('DatabasesStep', () => {
       expect(screen.getByText('LAI Bundle')).toBeInTheDocument()
     })
 
-    // Uncheck both default-on optional bundles, leave `other_optional` already off.
-    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
+    // Uncheck default-on ENCODE; LAI and `other_optional` are already off.
     fireEvent.click(screen.getByTestId('db-checkbox-encode_ccres'))
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
@@ -1802,7 +1799,8 @@ describe('DatabasesStep', () => {
       expect(screen.getByText('LAI Bundle')).toBeInTheDocument()
     })
 
-    // Leave LAI + ENCODE checked (defaults). Only `other_optional` stays unchecked.
+    // Opt in to LAI; ENCODE is already checked. Only `other_optional` stays unchecked.
+    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
 
     expect(toastInfoMock).toHaveBeenCalledTimes(1)
@@ -1826,7 +1824,8 @@ describe('DatabasesStep', () => {
       expect(screen.getByText('LAI Bundle')).toBeInTheDocument()
     })
 
-    // Tick the remaining default-off optional so nothing is skipped.
+    // Tick both default-off optionals so nothing is skipped.
+    fireEvent.click(screen.getByTestId('db-checkbox-lai_bundle'))
     fireEvent.click(screen.getByTestId('db-checkbox-other_optional'))
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))

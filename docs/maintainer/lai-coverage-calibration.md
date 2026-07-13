@@ -570,6 +570,32 @@ means no positive confirmation policy may exist for it. Preserve fail-closed beh
 until a fully hashed audit and eligible founder-disjoint panel satisfy the complete
 contract.
 
+### Production behavior while no policy exists
+
+The released application treats the absence of a final-confirmed policy as a structured
+no-call, not as an operational failure and not as permission to reuse the runner's legacy
+5% per-chromosome guard. `GET /api/analysis/ancestry/lai/status` reports
+`lai_available=false`, `coverage_policy_available=false`, and the stable reason code
+`lai_coverage_policy_unavailable` when the bundle and Java prerequisites are present.
+Direct trigger requests that pass route-level sample validation return the same reason
+with HTTP 503 before a job is queued; an invalid or missing sample may return HTTP 404
+from that validation dependency first.
+Defense-in-depth at the analysis entry point prevents runner output, JSON files, database
+results, and ancestry findings from being produced by application jobs.
+
+Historical chromosome-painting rows remain on disk for auditability but are not returned
+by the LAI results endpoint, generic findings list/summary, SVG or variant-card routes, or
+generated reports. They cannot override Tier 1 NNLS/PCA ancestry in downstream health,
+PRS, or allele-frequency consumers. There is no settings or environment override.
+Repository-owned calibration and held-out validation tools may exercise the underlying
+runner explicitly, but those diagnostic calls do not persist production results.
+
+Re-enabling production requires a separate reviewed release that authenticates the frozen
+policy and passing final-confirmation report against the intended bundle, evaluates all
+seven predicates at their inclusive boundaries, and stores the active policy identity with
+each accepted result. Merely making a global policy available must never requalify legacy
+rows that lack that identity.
+
 ## References
 
 1. [Maples BK et al. (2013). “RFMix: A discriminative modeling approach for rapid and robust local-ancestry inference.” *American Journal of Human Genetics*.](https://doi.org/10.1016/j.ajhg.2013.06.020) DOI: 10.1016/j.ajhg.2013.06.020; PMID: 23910464.

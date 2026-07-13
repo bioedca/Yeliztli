@@ -833,23 +833,51 @@ def generate_svgs_for_sample(
     import sqlalchemy as sa
 
     from backend.db.tables import findings
+    from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
-    # 1. Read all findings from the sample DB
+    sample_dir = Path(sample_dir)
+    qualified_clause = policy_qualified_finding_clause(findings.c.category)
+
+    # 1. Reconcile artifacts for findings quarantined by the production policy.
+    # Use the canonical generated filename instead of trusting a stored relative
+    # path, and retry every quarantined ID on later runs if deletion fails.
+    with sample_engine.begin() as conn:
+        quarantined_ids = (
+            conn.execute(sa.select(findings.c.id).where(sa.not_(qualified_clause))).scalars().all()
+        )
+        if quarantined_ids:
+            conn.execute(
+                findings.update().where(findings.c.id.in_(quarantined_ids)).values(svg_path=None)
+            )
+
+    for finding_id in quarantined_ids:
+        stale_svg = sample_dir / "svgs" / f"{finding_id}.svg"
+        try:
+            stale_svg.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "quarantined_finding_svg_delete_failed",
+                finding_id=finding_id,
+                svg_path=str(stale_svg),
+                error=str(exc),
+            )
+
+    # 2. Read all qualified findings from the sample DB
     with sample_engine.connect() as conn:
-        rows = conn.execute(sa.select(findings)).fetchall()
+        rows = conn.execute(sa.select(findings).where(qualified_clause)).fetchall()
 
     if not rows:
         logger.info("svg_generation_skipped", reason="no_findings")
         return 0
 
-    # 2. Convert rows to dicts
+    # 3. Convert rows to dicts
     column_names = [c.key for c in findings.columns]
     finding_dicts = [dict(zip(column_names, row)) for row in rows]
 
-    # 3. Generate SVGs and persist to disk
+    # 4. Generate SVGs and persist to disk
     updated = save_finding_svgs(finding_dicts, sample_dir)
 
-    # 4. Update svg_path in the DB for findings that got an SVG
+    # 5. Update svg_path in the DB for findings that got an SVG
     updates = [{"_fid": f["id"], "_svg": f["svg_path"]} for f in updated if f.get("svg_path")]
     if updates:
         with sample_engine.begin() as conn:

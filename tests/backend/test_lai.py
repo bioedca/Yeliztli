@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -635,7 +636,7 @@ class TestLAIResultsStorage:
     def test_zero_marker_analysis_does_not_persist_results(
         self, sample_engine: sa.Engine, tmp_path: Path
     ) -> None:
-        from backend.analysis.lai import run_lai_analysis
+        from backend.analysis.lai import run_lai_analysis_for_diagnostics
         from backend.db.tables import raw_variants
 
         with sample_engine.begin() as conn:
@@ -663,11 +664,16 @@ class TestLAIResultsStorage:
             patch("backend.analysis.lai.get_settings", return_value=settings),
             patch("backend.analysis.lai.validate_lai_bundle", return_value=True),
             patch("backend.analysis.lai.detect_java", return_value=True),
+            patch("backend.analysis.lai._ensure_lai_tables") as ensure_lai_tables,
             patch.object(LAIRunner, "__init__", init_runner),
             pytest.raises(RuntimeError, match="no usable markers remained"),
         ):
-            run_lai_analysis(sample_id=1, sample_engine=sample_engine)
+            run_lai_analysis_for_diagnostics(
+                sample_id=1,
+                sample_engine=sample_engine,
+            )
 
+        ensure_lai_tables.assert_not_called()
         with sample_engine.connect() as conn:
             assert conn.execute(sa.select(lai_results)).fetchone() is None
             assert (
@@ -680,16 +686,8 @@ class TestLAIResultsStorage:
                 is None
             )
 
-    def test_store_lai_results_exposes_top_ancestry_fraction(self, sample_engine):
-        """#899: a real LAI store must surface its top fraction to the shared
-        ancestry consumers, not drop it to None.
-
-        ``get_top_ancestry_fraction``/``get_ancestry_fractions`` read a flat
-        ``admixture_fractions`` map, but the LAI finding only carried the nested
-        ``global_ancestry`` shape — so after an LAI run (which
-        ``_get_latest_ancestry_finding`` prefers) the dominant fraction was
-        dropped to ``None``, suppressing fraction-aware PRS/ancestry context.
-        """
+    def test_unqualified_stored_lai_result_is_quarantined_from_consumers(self, sample_engine):
+        """Legacy storage remains auditable but cannot drive downstream ancestry."""
         from backend.analysis.ancestry import (
             get_inferred_ancestry,
             get_top_ancestry_fraction,
@@ -710,15 +708,17 @@ class TestLAIResultsStorage:
         )
         _store_lai_results(sample_engine, result)
 
-        # Top population + its fraction both resolve from the LAI finding.
-        assert get_inferred_ancestry(sample_engine) == "EUR"
-        assert get_top_ancestry_fraction(sample_engine) == pytest.approx(0.5)
-
-        # The broader consumer (PRS calibration) recovers the full normalized map.
-        fracs = get_ancestry_fractions(sample_engine)
-        assert fracs is not None
-        assert fracs["EUR"] == pytest.approx(0.5)
-        assert set(fracs) == {"AFR", "EUR", "EAS"}
+        with sample_engine.connect() as conn:
+            assert conn.execute(sa.select(lai_results)).fetchone() is not None
+            assert (
+                conn.execute(
+                    sa.select(findings).where(findings.c.category == "local_ancestry")
+                ).fetchone()
+                is not None
+            )
+        assert get_inferred_ancestry(sample_engine) is None
+        assert get_top_ancestry_fraction(sample_engine) is None
+        assert get_ancestry_fractions(sample_engine) is None
 
     def test_rerun_replaces_rather_than_duplicates(self, sample_engine):
         # #494: _store_lai_results inserted without clearing prior rows, so every rerun
@@ -811,15 +811,42 @@ class TestLAIAPIStatus:
     """T-LAI-01, T-LAI-02, T-LAI-04, T-LAI-05: LAI API status checks."""
 
     def test_trigger_returns_404_no_bundle(self, test_client):
-        resp = test_client.post("/api/analysis/ancestry/lai/1")
+        from backend.services.lai_production_coverage import LAIProductionCoverageDecision
+
+        _seed_sample_one()
+        future_decision = LAIProductionCoverageDecision(
+            allowed=True,
+            confirmed_policy_id="future-confirmed-policy",
+            reason=None,
+        )
+        with (
+            patch(
+                "backend.services.lai_production_coverage._CURRENT_DECISION",
+                future_decision,
+            ),
+            patch("backend.db.database_registry.validate_lai_bundle", return_value=False),
+        ):
+            resp = test_client.post("/api/analysis/ancestry/lai/1")
+
         assert resp.status_code == 404
 
     def test_trigger_returns_503_no_java(self, test_client):
         # #453: /lai/{sample_id} is Depends(require_fresh_sample)-gated, which
         # now 404s a *missing* sample before the handler runs. Seed sample 1 so
         # this reaches the handler's own no-Java (503) path.
+        from backend.services.lai_production_coverage import LAIProductionCoverageDecision
+
         _seed_sample_one()
+        future_decision = LAIProductionCoverageDecision(
+            allowed=True,
+            confirmed_policy_id="future-confirmed-policy",
+            reason=None,
+        )
         with (
+            patch(
+                "backend.services.lai_production_coverage._CURRENT_DECISION",
+                future_decision,
+            ),
             patch(
                 "backend.db.database_registry.validate_lai_bundle",
                 return_value=True,
@@ -831,6 +858,109 @@ class TestLAIAPIStatus:
         ):
             resp = test_client.post("/api/analysis/ancestry/lai/1")
             assert resp.status_code == 503
+
+    def test_status_surfaces_confirmed_policy_no_call(self, test_client):
+        with (
+            patch("backend.db.database_registry.validate_lai_bundle", return_value=True),
+            patch("backend.db.database_registry.detect_java", return_value=True),
+        ):
+            resp = test_client.get("/api/analysis/ancestry/lai/status")
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "bundle_downloaded": True,
+            "java_available": True,
+            "lai_available": False,
+            "coverage_policy_available": False,
+            "message": (
+                "Chromosome painting is unavailable because the current LAI bundle has no "
+                "final-confirmed minimum-coverage policy. Tier 1 ancestry remains available."
+            ),
+            "insufficient_data_reason": {
+                "code": "lai_coverage_policy_unavailable",
+                "category": "insufficient_validation_data",
+                "message": (
+                    "Chromosome painting is unavailable because the current LAI bundle has no "
+                    "final-confirmed minimum-coverage policy. Tier 1 ancestry remains available."
+                ),
+                "retryable": False,
+            },
+            "degraded_coverage": False,
+        }
+
+    def test_status_checks_configured_bundle_path(self, test_client, tmp_path):
+        custom_bundle_path = tmp_path / "custom-lai-bundle"
+        settings = SimpleNamespace(resolved_lai_bundle_path=custom_bundle_path)
+        with (
+            patch("backend.config.get_settings", return_value=settings),
+            patch("backend.db.database_registry.validate_lai_bundle") as validate_bundle,
+            patch("backend.db.database_registry.detect_java", return_value=True),
+        ):
+            validate_bundle.return_value = False
+            resp = test_client.get("/api/analysis/ancestry/lai/status")
+
+        assert resp.status_code == 200
+        validate_bundle.assert_called_once_with(custom_bundle_path)
+
+    @pytest.mark.parametrize(
+        ("bundle_downloaded", "java_available"),
+        [
+            (False, False),
+            (False, True),
+            (True, False),
+        ],
+    )
+    def test_status_keeps_no_call_visible_when_prerequisite_is_missing(
+        self,
+        test_client,
+        bundle_downloaded,
+        java_available,
+    ):
+        from backend.services.lai_production_coverage import POLICY_UNAVAILABLE_REASON
+
+        with (
+            patch(
+                "backend.db.database_registry.validate_lai_bundle",
+                return_value=bundle_downloaded,
+            ),
+            patch(
+                "backend.db.database_registry.detect_java",
+                return_value=java_available,
+            ),
+        ):
+            resp = test_client.get("/api/analysis/ancestry/lai/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["lai_available"] is False
+        assert body["coverage_policy_available"] is False
+        assert body["message"] == POLICY_UNAVAILABLE_REASON.message
+        assert body["insufficient_data_reason"] == POLICY_UNAVAILABLE_REASON.as_dict()
+
+    def test_trigger_policy_no_call_never_enqueues_work(self, test_client):
+        _seed_sample_one()
+        with (
+            patch("backend.db.database_registry.validate_lai_bundle") as validate_bundle,
+            patch("backend.db.database_registry.detect_java") as detect_java,
+            patch("backend.tasks.huey_tasks.create_lai_job") as create_job,
+            patch("backend.tasks.huey_tasks.run_lai_task") as run_task,
+        ):
+            resp = test_client.post("/api/analysis/ancestry/lai/1")
+
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == {
+            "code": "lai_coverage_policy_unavailable",
+            "category": "insufficient_validation_data",
+            "message": (
+                "Chromosome painting is unavailable because the current LAI bundle has no "
+                "final-confirmed minimum-coverage policy. Tier 1 ancestry remains available."
+            ),
+            "retryable": False,
+        }
+        validate_bundle.assert_not_called()
+        detect_java.assert_not_called()
+        create_job.assert_not_called()
+        run_task.assert_not_called()
 
     def test_get_results_returns_null_when_none(self, test_client):
         # Insert a sample so the lookup works
@@ -861,6 +991,100 @@ class TestLAIAPIStatus:
         assert resp.status_code == 200
         assert resp.json() is None
 
+    def test_get_results_withholds_historical_unqualified_row(self, test_client):
+        _seed_sample_one()
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        sample_db_path = registry.settings.data_dir / "samples" / "sample_1.db"
+        sample_db_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_engine = registry.get_sample_engine(sample_db_path)
+        from backend.db.sample_schema import create_sample_tables
+
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                lai_results.insert().values(
+                    global_ancestry_json=json.dumps({"AFR": {"fraction": 1.0}}),
+                    chromosome_painting_json=json.dumps({"1": []}),
+                    metadata_json=json.dumps({"chromosomes_analyzed": 1}),
+                )
+            )
+
+        resp = test_client.get("/api/analysis/ancestry/lai/1/results")
+
+        assert resp.status_code == 200
+        assert resp.json() is None
+
+        from backend.services.lai_production_coverage import LAIProductionCoverageDecision
+
+        future_decision = LAIProductionCoverageDecision(
+            allowed=True,
+            confirmed_policy_id="future-confirmed-policy",
+            reason=None,
+        )
+        with patch(
+            "backend.services.lai_production_coverage._CURRENT_DECISION",
+            future_decision,
+        ):
+            future_resp = test_client.get("/api/analysis/ancestry/lai/1/results")
+
+        assert future_resp.status_code == 200
+        assert future_resp.json() is None
+        with sample_engine.connect() as conn:
+            assert conn.execute(sa.select(lai_results)).fetchone() is not None
+
+    def test_get_results_returns_row_bound_to_current_policy(self, sample_engine):
+        from backend.analysis.lai import _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+        from backend.api.routes.ancestry import get_lai_results
+        from backend.services.lai_production_coverage import LAIProductionCoverageDecision
+
+        policy_id = "future-confirmed-policy"
+        _store_lai_results(
+            sample_engine,
+            LAIRunnerResult(
+                global_ancestry={
+                    "AFR": {
+                        "fraction": 1.0,
+                        "percentage": 100.0,
+                        "display_name": "African",
+                    }
+                },
+                chromosome_painting={"chr1": []},
+                metadata={
+                    "chromosomes_analyzed": 1,
+                    "lai_coverage_policy_id": policy_id,
+                },
+            ),
+        )
+
+        future_decision = LAIProductionCoverageDecision(
+            allowed=True,
+            confirmed_policy_id=policy_id,
+            reason=None,
+        )
+        with (
+            patch(
+                "backend.services.lai_production_coverage._CURRENT_DECISION",
+                future_decision,
+            ),
+            patch(
+                "backend.api.routes.ancestry._get_sample_engine",
+                return_value=sample_engine,
+            ),
+            patch(
+                "backend.api.routes.ancestry.is_degraded_for_sample",
+                return_value=False,
+            ),
+        ):
+            response = get_lai_results(1)
+
+        assert response is not None
+        assert response.global_ancestry["AFR"]["fraction"] == 1.0
+        assert response.chromosome_painting == {"chr1": []}
+        assert response.metadata["lai_coverage_policy_id"] == policy_id
+
     def test_get_progress_returns_null_when_no_job(self, test_client):
         # #453: the gated progress route 404s a missing sample before the
         # handler; seed sample 1 so this reaches the handler's no-job path.
@@ -868,6 +1092,70 @@ class TestLAIAPIStatus:
         resp = test_client.get("/api/analysis/ancestry/lai/1/progress")
         assert resp.status_code == 200
         assert resp.json() is None
+
+    def test_progress_decodes_structured_insufficient_data_reason(self, test_client):
+        _seed_sample_one()
+        from backend.db.connection import get_registry
+        from backend.db.tables import jobs
+        from backend.services.lai_production_coverage import (
+            POLICY_UNAVAILABLE_REASON,
+            encode_lai_insufficient_data_reason,
+        )
+
+        now = datetime.now(UTC)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="lai-policy-blocked",
+                    sample_id=1,
+                    job_type="lai_analysis",
+                    status="failed",
+                    progress_pct=0.0,
+                    message="Insufficient data for chromosome painting",
+                    error=encode_lai_insufficient_data_reason(POLICY_UNAVAILABLE_REASON),
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        resp = test_client.get("/api/analysis/ancestry/lai/1/progress")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["error"] == POLICY_UNAVAILABLE_REASON.message
+        assert body["insufficient_data_reason"] == POLICY_UNAVAILABLE_REASON.as_dict()
+
+    def test_progress_withholds_historical_completed_job_message(self):
+        from backend.api.routes.ancestry import get_lai_progress
+        from backend.db.tables import jobs, reference_metadata
+
+        reference_engine = sa.create_engine("sqlite://")
+        reference_metadata.create_all(reference_engine)
+        now = datetime.now(UTC)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="historical-lai-complete",
+                    sample_id=1,
+                    job_type="lai_analysis",
+                    status="complete",
+                    progress_pct=100.0,
+                    message="LAI complete: 22 chromosomes analyzed, top ancestry: EUR",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        registry = SimpleNamespace(reference_engine=reference_engine)
+        with (
+            patch("backend.api.routes.ancestry.get_registry", return_value=registry),
+            patch("backend.api.routes.ancestry.is_degraded_for_sample") as degraded,
+        ):
+            response = get_lai_progress(1)
+
+        assert response is None
+        degraded.assert_not_called()
 
 
 # ── T-LAI-06: Progress callback ──────────────────────────────────────────
@@ -1042,7 +1330,7 @@ class TestRealBundleLAIAccuracy:
     def test_global_ancestry_within_one_percent_of_reference(
         self, tmp_path: Path, sample_engine: sa.Engine
     ) -> None:
-        from backend.analysis.lai import run_lai_analysis
+        from backend.analysis.lai import run_lai_analysis_for_diagnostics
         from backend.db.tables import raw_variants, sample_metadata_table
 
         fixture_dir = Path(__file__).resolve().parent.parent / "fixtures"
@@ -1073,7 +1361,7 @@ class TestRealBundleLAIAccuracy:
             )
             conn.execute(raw_variants.insert(), variants)
 
-        result = run_lai_analysis(
+        result = run_lai_analysis_for_diagnostics(
             sample_id=1,
             sample_engine=sample_engine,
         )
@@ -1123,7 +1411,7 @@ class TestRealBundleLAIAccuracy:
         MID ≥ floor) — MID's intermediate per-population fractions move too much
         across environments to band without flaking (see _MID_FIXTURE_MIN_MID_FRACTION).
         """
-        from backend.analysis.lai import run_lai_analysis
+        from backend.analysis.lai import run_lai_analysis_for_diagnostics
         from backend.db.tables import raw_variants, sample_metadata_table
 
         fixture_dir = Path(__file__).resolve().parent.parent / "fixtures"
@@ -1154,7 +1442,7 @@ class TestRealBundleLAIAccuracy:
             )
             conn.execute(raw_variants.insert(), variants)
 
-        result = run_lai_analysis(
+        result = run_lai_analysis_for_diagnostics(
             sample_id=1,
             sample_engine=sample_engine,
         )

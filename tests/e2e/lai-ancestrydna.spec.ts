@@ -12,6 +12,9 @@
  *      AncestryView LAI results carry the Step-24 `coverage_telemetry`
  *      payload so `<LAICoverageTelemetryPanel>` renders the single-source
  *      "X of Y AncestryDNA rsIDs mapped to bundle (Z% dropout)" summary.
+ *   3. **No confirmed coverage policy** — chromosome painting renders a
+ *      structured no-call while Tier 1 ancestry stays visible and no legacy
+ *      painting or rerun control is shown.
  *
  * Following the pattern of `setup-wizard-lai.spec.ts`, every backend
  * endpoint is intercepted with `page.route()` so the spec stays
@@ -120,7 +123,12 @@ const APP_UPDATE_RESPONSE = {
 
 // ── Shared route mocks ──────────────────────────────────────────────────
 
-type Scenario = 'pre_v2' | 'post_v2'
+type Scenario =
+  | 'pre_v2'
+  | 'post_v2'
+  | 'policy_unavailable'
+  | 'sample_below_minimum'
+  | 'sample_cancelled'
 
 async function setupCommonRoutes(
   page: import('@playwright/test').Page,
@@ -170,20 +178,32 @@ async function setupCommonRoutes(
 
   // ── LAI status — soft-gate flag flips by scenario ───────────────────
   await page.route('**/api/analysis/ancestry/lai/status', async (route) => {
+    const policyUnavailable = scenario === 'policy_unavailable'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         bundle_downloaded: true,
         java_available: true,
-        lai_available: true,
-        message:
-          scenario === 'pre_v2'
+        lai_available: !policyUnavailable,
+        coverage_policy_available: !policyUnavailable,
+        message: policyUnavailable
+          ? 'Chromosome painting is unavailable because no final-confirmed policy exists.'
+          : scenario === 'pre_v2'
             ? 'Chromosome painting is available (pre-v2.0.0 bundle).'
             : 'Chromosome painting is available.',
+        insufficient_data_reason: policyUnavailable
+          ? {
+              code: 'lai_coverage_policy_unavailable',
+              category: 'insufficient_validation_data',
+              message:
+                'Chromosome painting is unavailable because the current LAI bundle has no final-confirmed minimum-coverage policy. Tier 1 ancestry remains available.',
+              retryable: false,
+            }
+          : null,
         // Plan §6.7 soft-gate: degraded under v1 for AncestryDNA samples,
         // absent/false under v2.0.0.
-        ...(scenario === 'pre_v2' ? { degraded_coverage: true } : {}),
+        ...(scenario === 'pre_v2' || policyUnavailable ? { degraded_coverage: true } : {}),
       }),
     })
   })
@@ -266,19 +286,38 @@ async function setupCommonRoutes(
 async function setupLAIResultsRoutes(
   page: import('@playwright/test').Page,
   scenario: Scenario,
-): Promise<void> {
+): Promise<{ getProgressRequestCount: () => number }> {
+  let progressRequestCount = 0
+
   // Progress: report complete so AncestryView jumps straight to the
   // results panel without polling forever.
   await page.route(`**/api/analysis/ancestry/lai/${SAMPLE_ID}/progress`, async (route) => {
+    progressRequestCount += 1
+    const belowMinimum = scenario === 'sample_below_minimum'
+    const cancelled = scenario === 'sample_cancelled'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         job_id: 'job-lai-e2e',
-        status: 'complete',
-        progress_pct: 100,
-        message: 'Chromosome painting complete',
-        error: null,
+        status: belowMinimum ? 'failed' : cancelled ? 'cancelled' : 'complete',
+        progress_pct: belowMinimum ? 95 : cancelled ? 40 : 100,
+        message: belowMinimum
+          ? 'Insufficient data for chromosome painting'
+          : cancelled
+            ? 'Chromosome painting cancelled'
+            : 'Chromosome painting complete',
+        error: belowMinimum
+          ? 'lai_insufficient_data:{"message":"Encoded scheduler value must remain hidden."}'
+          : null,
+        insufficient_data_reason: belowMinimum
+          ? {
+              code: 'lai_coverage_below_confirmed_minimum',
+              category: 'insufficient_sample_coverage',
+              message: 'This sample does not meet the final-confirmed minimum coverage policy.',
+              retryable: false,
+            }
+          : null,
         ...(scenario === 'pre_v2' ? { degraded_coverage: true } : {}),
       }),
     })
@@ -289,6 +328,10 @@ async function setupLAIResultsRoutes(
   // payload predates the telemetry, so we return null to match the legacy
   // shape and let the soft-gate banner be the sole user-visible signal.
   await page.route(`**/api/analysis/ancestry/lai/${SAMPLE_ID}/results`, async (route) => {
+    if (scenario === 'sample_below_minimum' || scenario === 'sample_cancelled') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -303,6 +346,10 @@ async function setupLAIResultsRoutes(
       }),
     })
   })
+
+  return {
+    getProgressRequestCount: () => progressRequestCount,
+  }
 }
 
 // ── Specs ───────────────────────────────────────────────────────────────
@@ -354,5 +401,71 @@ test.describe('Step 25 — AncestryDNA LAI surfaces', () => {
     // Single-source payload — the three-row merged breakdown table must
     // stay hidden (Plan §6.7).
     await expect(page.getByTestId('lai-coverage-merged-table')).toHaveCount(0)
+  })
+
+  test('policy-unavailable state is a no-call and suppresses legacy painting', async ({ page }) => {
+    await setupCommonRoutes(page, 'policy_unavailable')
+    // Deliberately return a historical result: status must still suppress it.
+    await setupLAIResultsRoutes(page, 'policy_unavailable')
+
+    await page.goto('/')
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.getByTestId('lai-degraded-coverage-banner')).toHaveCount(0)
+
+    await page.goto(`/ancestry?sample_id=${SAMPLE_ID}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const noCall = page.getByTestId('lai-insufficient-data')
+    await expect(noCall).toBeVisible({ timeout: 15_000 })
+    await expect(noCall).toContainText('Insufficient data for chromosome painting')
+    await expect(noCall).toContainText('no final-confirmed minimum-coverage policy')
+    await expect(noCall).toContainText('earlier chromosome-painting output is withheld')
+    await expect(page.getByText('Admixture Proportions')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Run Chromosome Painting Analysis/i })).toHaveCount(0)
+    await expect(page.getByText('Chromosome painting complete')).toHaveCount(0)
+    await expect(page.getByTestId('lai-coverage-telemetry')).toHaveCount(0)
+    await expect(page.getByTestId('tier-comparison')).toHaveCount(0)
+  })
+
+  test('sample-level coverage rejection is an insufficient-data result, not a rerun', async ({
+    page,
+  }) => {
+    await setupCommonRoutes(page, 'sample_below_minimum')
+    const routes = await setupLAIResultsRoutes(page, 'sample_below_minimum')
+
+    await page.goto(`/ancestry?sample_id=${SAMPLE_ID}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    await expect(page.getByText('Insufficient data for chromosome painting')).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(
+      page.getByText('This sample does not meet the final-confirmed minimum coverage policy.'),
+    ).toBeVisible()
+    await expect(page.getByText(/lai_insufficient_data:/)).toHaveCount(0)
+    await expect(page.getByText('Analysis failed')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Run Chromosome Painting Analysis/i })).toHaveCount(0)
+    await expect(page.getByText('Chromosome painting complete')).toHaveCount(0)
+    await expect(page.getByTestId('tier-comparison')).toHaveCount(0)
+
+    const terminalRequestCount = routes.getProgressRequestCount()
+    await page.waitForTimeout(3_500)
+    expect(routes.getProgressRequestCount()).toBe(terminalRequestCount)
+  })
+
+  test('cancelled chromosome painting is terminal and stops progress polling', async ({ page }) => {
+    await setupCommonRoutes(page, 'sample_cancelled')
+    const routes = await setupLAIResultsRoutes(page, 'sample_cancelled')
+
+    await page.goto(`/ancestry?sample_id=${SAMPLE_ID}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    await expect(page.getByRole('button', { name: /Run Chromosome Painting Analysis/i })).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect.poll(routes.getProgressRequestCount).toBeGreaterThanOrEqual(1)
+    const terminalRequestCount = routes.getProgressRequestCount()
+    await page.waitForTimeout(3_500)
+    expect(routes.getProgressRequestCount()).toBe(terminalRequestCount)
   })
 })

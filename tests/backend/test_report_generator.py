@@ -275,6 +275,26 @@ class TestLoadFindings:
         modules = {r["module"] for r in results}
         assert modules == {"cancer", "pharmacogenomics"}
 
+    def test_withholds_unqualified_local_ancestry(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="ancestry",
+                    category="local_ancestry",
+                    evidence_level=4,
+                    finding_text="Unqualified legacy chromosome painting",
+                )
+            )
+
+        all_results = _load_findings(sample_engine, modules=None)
+        ancestry_results = _load_findings(sample_engine, modules=["ancestry"])
+
+        assert all_results
+        assert ancestry_results
+        assert all(result["category"] != "local_ancestry" for result in all_results)
+        assert all(result["category"] != "local_ancestry" for result in ancestry_results)
+
     def test_sorted_by_evidence_level_desc(
         self, tmp_data_dir: Path, sample_with_findings: tuple
     ) -> None:

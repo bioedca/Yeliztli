@@ -20,6 +20,14 @@ from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, haplogroup_assignments, samples
 from backend.services.lai_coverage_gate import is_degraded_for_sample, is_degraded_globally
+from backend.services.lai_production_coverage import (
+    LAICoveragePolicyUnavailableError,
+    LAIInsufficientDataReason,
+    decode_lai_insufficient_data_reason,
+    get_lai_production_coverage_decision,
+    lai_result_matches_current_coverage_policy,
+    require_lai_production_coverage_policy,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -120,6 +128,15 @@ class HaplogroupRunResponse(BaseModel):
     assignments: list[HaplogroupAssignmentResponse]
 
 
+class LAIInsufficientDataReasonResponse(BaseModel):
+    """Stable machine-readable reason that chromosome painting is a no-call."""
+
+    code: str
+    category: str
+    message: str
+    retryable: bool
+
+
 class LAIStatusResponse(BaseModel):
     """LAI bundle and Java availability status.
 
@@ -132,7 +149,9 @@ class LAIStatusResponse(BaseModel):
     bundle_downloaded: bool
     java_available: bool
     lai_available: bool
+    coverage_policy_available: bool = False
     message: str
+    insufficient_data_reason: LAIInsufficientDataReasonResponse | None = None
     degraded_coverage: bool = False
 
 
@@ -206,6 +225,7 @@ class LAIProgressResponse(BaseModel):
     progress_pct: float
     message: str
     error: str | None = None
+    insufficient_data_reason: LAIInsufficientDataReasonResponse | None = None
     degraded_coverage: bool = False
 
 
@@ -231,6 +251,15 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
         raise HTTPException(404, detail=f"Sample {sample_id} not found")
     sample_db_path = registry.settings.data_dir / row.db_path
     return registry.get_sample_engine(sample_db_path)
+
+
+def _lai_reason_response(
+    reason: LAIInsufficientDataReason | None,
+) -> LAIInsufficientDataReasonResponse | None:
+    """Convert the pure service-layer reason into the API model."""
+    if reason is None:
+        return None
+    return LAIInsufficientDataReasonResponse(**reason.as_dict())
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
@@ -566,13 +595,22 @@ def get_lai_status() -> LAIStatusResponse:
     from backend.db.database_registry import detect_java, validate_lai_bundle
 
     settings = get_settings()
-    lai_dir = settings.data_dir / "lai_bundle"
+    lai_dir = settings.resolved_lai_bundle_path
     bundle_downloaded = validate_lai_bundle(lai_dir)
     java_available = detect_java()
-    lai_available = bundle_downloaded and java_available
+    coverage_decision = get_lai_production_coverage_decision()
+    coverage_policy_available = coverage_decision.production_qualified
+    lai_available = bundle_downloaded and java_available and coverage_policy_available
 
-    if lai_available:
-        message = "Chromosome painting is available."
+    if not coverage_policy_available:
+        message = (
+            coverage_decision.reason.message
+            if coverage_decision.reason
+            else (
+                "Chromosome painting is unavailable because coverage policy metadata "
+                "is incomplete."
+            )
+        )
     elif not bundle_downloaded and not java_available:
         message = (
             "LAI bundle not downloaded and Java not found. "
@@ -580,17 +618,25 @@ def get_lai_status() -> LAIStatusResponse:
         )
     elif not bundle_downloaded:
         message = "LAI bundle not downloaded. Download it (~500 MB) to enable chromosome painting."
-    else:
+    elif not java_available:
         message = (
             "Java 8+ is required for chromosome-level ancestry analysis. "
             "Please install Java and restart."
+        )
+    else:
+        message = (
+            coverage_decision.reason.message
+            if coverage_decision.reason
+            else ("Chromosome painting is available.")
         )
 
     return LAIStatusResponse(
         bundle_downloaded=bundle_downloaded,
         java_available=java_available,
         lai_available=lai_available,
+        coverage_policy_available=coverage_policy_available,
         message=message,
+        insufficient_data_reason=_lai_reason_response(coverage_decision.reason),
         degraded_coverage=is_degraded_globally(),
     )
 
@@ -600,8 +646,15 @@ def trigger_lai_analysis(sample_id: int) -> LAITriggerResponse:
     """Trigger LAI analysis for a sample.
 
     Creates a background job and returns the job_id for progress polling.
-    Returns 404 if LAI bundle is not downloaded, 503 if Java unavailable.
+    Returns the structured policy no-call before checking runtime prerequisites.
+    Once a future policy is qualified, returns 404 for a missing bundle or 503
+    for unavailable Java.
     """
+    try:
+        require_lai_production_coverage_policy()
+    except LAICoveragePolicyUnavailableError as exc:
+        raise HTTPException(503, detail=exc.reason.as_dict()) from exc
+
     from backend.config import get_settings
     from backend.db.database_registry import detect_java, validate_lai_bundle
 
@@ -694,6 +747,11 @@ def get_lai_results(sample_id: int) -> LAIResultResponse | None:
     """
     from backend.db.tables import lai_results
 
+    # Historical rows predate the confirmed-policy contract. Keep them on disk
+    # for auditability, but never expose them as scientifically qualified output.
+    if not get_lai_production_coverage_decision().production_qualified:
+        return None
+
     sample_engine = _get_sample_engine(sample_id)
 
     # Ensure table exists before querying
@@ -708,6 +766,8 @@ def get_lai_results(sample_id: int) -> LAIResultResponse | None:
         return None
 
     metadata = json.loads(row.metadata_json)
+    if not lai_result_matches_current_coverage_policy(metadata):
+        return None
     return LAIResultResponse(
         global_ancestry=json.loads(row.global_ancestry_json),
         chromosome_painting=json.loads(row.chromosome_painting_json),
@@ -722,7 +782,9 @@ def get_lai_results(sample_id: int) -> LAIResultResponse | None:
 def get_lai_progress(sample_id: int) -> LAIProgressResponse | None:
     """Get LAI analysis progress for a sample.
 
-    Returns the most recent LAI job status, or null if no job exists.
+    Returns the most recent policy-qualified LAI job status, or null if none
+    exists. Historical job messages are quarantined with historical results
+    because completed messages may contain inferred ancestry labels.
     """
     from backend.db.tables import jobs
 
@@ -741,11 +803,28 @@ def get_lai_progress(sample_id: int) -> LAIProgressResponse | None:
     if row is None:
         return None
 
+    insufficient_reason = decode_lai_insufficient_data_reason(row.error)
+    coverage_decision = get_lai_production_coverage_decision()
+    if not coverage_decision.production_qualified:
+        current_reason = coverage_decision.reason
+        if current_reason is None or insufficient_reason != current_reason:
+            return None
+        return LAIProgressResponse(
+            job_id=row.job_id,
+            status="failed",
+            progress_pct=0.0,
+            message=current_reason.message,
+            error=current_reason.message,
+            insufficient_data_reason=_lai_reason_response(current_reason),
+            degraded_coverage=is_degraded_for_sample(sample_id),
+        )
+
     return LAIProgressResponse(
         job_id=row.job_id,
         status=row.status,
         progress_pct=row.progress_pct or 0.0,
         message=row.message or "",
-        error=row.error,
+        error=insufficient_reason.message if insufficient_reason else row.error,
+        insufficient_data_reason=_lai_reason_response(insufficient_reason),
         degraded_coverage=is_degraded_for_sample(sample_id),
     )

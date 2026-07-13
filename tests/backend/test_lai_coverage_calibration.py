@@ -1853,7 +1853,7 @@ def test_production_adapter_uses_merged_sample_db_and_diagnostic_contract(
     snapshots = []
     observed = {}
 
-    def fake_run_lai_analysis(**kwargs):
+    def fake_run_lai_analysis_for_diagnostics(**kwargs):
         observed.update(kwargs)
         with kwargs["sample_engine"].connect() as connection:
             observed["metadata"] = connection.execute(
@@ -1874,7 +1874,11 @@ def test_production_adapter_uses_merged_sample_db_and_diagnostic_contract(
         (sibling_dir / "keep.txt").write_bytes(b"sibling")
         return SimpleNamespace(metadata={})
 
-    monkeypatch.setattr(cal, "run_lai_analysis", fake_run_lai_analysis)
+    monkeypatch.setattr(
+        cal,
+        "run_lai_analysis_for_diagnostics",
+        fake_run_lai_analysis_for_diagnostics,
+    )
     monkeypatch.setenv("YELIZTLI_DATA_DIR", "original-data")
 
     result = cal.run_production_diagnostic(
@@ -1904,7 +1908,7 @@ def test_production_adapter_cleans_failed_job_directory_without_touching_sibling
 ):
     fixture = _fixture(tmp_path)
 
-    def failing_run_lai_analysis(**kwargs):
+    def failing_run_lai_analysis_for_diagnostics(**kwargs):
         job_dir = tmp_path / "work" / "lai_work" / "sample_9"
         sibling_dir = tmp_path / "work" / "lai_work" / "sample_10"
         job_dir.mkdir(parents=True)
@@ -1914,7 +1918,11 @@ def test_production_adapter_cleans_failed_job_directory_without_touching_sibling
         kwargs["diagnostic_metrics_callback"]({"stage": "phased"})
         raise RuntimeError("inference failed")
 
-    monkeypatch.setattr(cal, "run_lai_analysis", failing_run_lai_analysis)
+    monkeypatch.setattr(
+        cal,
+        "run_lai_analysis_for_diagnostics",
+        failing_run_lai_analysis_for_diagnostics,
+    )
 
     with pytest.raises(RuntimeError, match="inference failed"):
         cal.run_production_diagnostic(
