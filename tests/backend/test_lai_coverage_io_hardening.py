@@ -72,6 +72,46 @@ def test_stable_read_supports_dev_fd_descriptor_namespace(tmp_path, monkeypatch)
     assert snapshot["sha256"] == cal.sha256_file(source)
 
 
+def test_stable_read_parse_and_digest_share_one_darwin_style_descriptor(tmp_path, monkeypatch):
+    source = tmp_path / "source.json"
+    source.write_text('{"value":1}\n', encoding="utf-8")
+    shared_path = None
+
+    class SharedOffsetPath:
+        def __init__(self, descriptor: int) -> None:
+            self.descriptor = descriptor
+            self.open_count = 0
+
+        def open(self, mode: str):
+            assert mode == "rb"
+            self.open_count += 1
+            return os.fdopen(os.dup(self.descriptor), "rb")
+
+        def __str__(self) -> str:
+            return "<shared-offset-descriptor>"
+
+    def shared_descriptor_path(descriptor: int):
+        nonlocal shared_path
+        shared_path = SharedOffsetPath(descriptor)
+        return shared_path
+
+    monkeypatch.setattr(
+        cal.lai_coverage_plan,
+        "descriptor_file_path",
+        shared_descriptor_path,
+    )
+
+    (payload, inner_sha256), snapshot = cal.stable_read(
+        source,
+        cal._read_json_payload_and_sha256,
+    )
+
+    assert payload == {"value": 1}
+    assert inner_sha256 == snapshot["sha256"] == cal.sha256_file(source)
+    assert shared_path is not None
+    assert shared_path.open_count == 1
+
+
 def test_stable_read_fails_closed_without_descriptor_namespace(tmp_path, monkeypatch):
     source = tmp_path / "source.json"
     source.write_text('{"value":1}\n', encoding="utf-8")

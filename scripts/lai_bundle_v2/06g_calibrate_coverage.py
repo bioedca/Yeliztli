@@ -70,6 +70,7 @@ import gzip
 import hashlib
 import heapq
 import importlib.metadata
+import io
 import json
 import math
 import os
@@ -327,6 +328,20 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _read_json_payload_and_sha256(
+    path: Path,
+    *,
+    max_bytes: int | None = None,
+) -> tuple[object, str]:
+    """Read, hash, and decode JSON through exactly one open file handle."""
+    with path.open("rb") as handle:
+        encoded = handle.read() if max_bytes is None else handle.read(max_bytes + 1)
+    if max_bytes is not None and len(encoded) > max_bytes:
+        raise ValueError(f"{path}: JSON input exceeds the {max_bytes}-byte safety limit")
+    payload = json.loads(encoded.decode("utf-8"))
+    return payload, hashlib.sha256(encoded).hexdigest()
+
+
 def canonical_json_bytes(value: object) -> bytes:
     """Serialize JSON deterministically for configuration hashing."""
     return json.dumps(
@@ -463,12 +478,10 @@ def read_simulation_manifest(
     isolation_iids: frozenset[str],
 ) -> SimulationManifest:
     """Read the pinned generator/model/source contract for simulated truth."""
-    if path.stat().st_size > MAX_SIMULATION_MANIFEST_BYTES:
-        raise ValueError(
-            f"{path}: simulation manifest exceeds the "
-            f"{MAX_SIMULATION_MANIFEST_BYTES}-byte safety limit"
-        )
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload, payload_sha256 = _read_json_payload_and_sha256(
+        path,
+        max_bytes=MAX_SIMULATION_MANIFEST_BYTES,
+    )
     if not isinstance(payload, Mapping) or payload.get("schema_version") != 2:
         raise ValueError(f"{path}: expected simulation-manifest schema version 2")
     if payload.get("dataset_id") != dataset_id:
@@ -825,7 +838,7 @@ def read_simulation_manifest(
         raise ValueError(f"{path}: truth_projection does not match Gnomix semantics")
     return SimulationManifest(
         path=path,
-        sha256=sha256_file(path),
+        sha256=payload_sha256,
         dataset_id=dataset_id,
         source_bundle_artifact_sha256=source_bundle_artifact_sha256,
         generator=dict(generator),
@@ -966,7 +979,7 @@ def read_simulation_verification_report(
     expected_confirmation_policy: ConfirmationPolicy | None = None,
 ) -> SimulationVerificationReport:
     """Authenticate the repository verifier's executed allele-replay stamp."""
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload, payload_sha256 = _read_json_payload_and_sha256(path)
     if not isinstance(payload, Mapping) or payload.get("schema_version") != 2:
         raise ValueError(f"{path}: expected simulation-verification schema version 2")
     if (
@@ -1107,7 +1120,7 @@ def read_simulation_verification_report(
         raise ValueError(f"{path}: simulation verification totals are invalid")
     return SimulationVerificationReport(
         path=path,
-        sha256=sha256_file(path),
+        sha256=payload_sha256,
         verifier=dict(verifier),
         marker_rows_verified=total_rows,
     )
@@ -1120,9 +1133,6 @@ def read_donor_labels(
 ) -> dict[str, str]:
     """Resolve donor model classes from pinned metadata and enforce release QC."""
     expected_sha256 = simulation_manifest.donor_metadata["sha256"]
-    observed_sha256 = sha256_file(path)
-    if observed_sha256 != expected_sha256:
-        raise ValueError(f"{path}: donor metadata SHA-256 does not match manifest")
     fields = {
         key: str(simulation_manifest.donor_metadata[key])
         for key in (
@@ -1136,7 +1146,14 @@ def read_donor_labels(
         )
     }
     labels: dict[str, str] = {}
-    with path.open(encoding="utf-8", newline="") as handle:
+    with path.open("rb") as binary_handle:
+        digest = hashlib.sha256()
+        while chunk := binary_handle.read(1 << 20):
+            digest.update(chunk)
+        if digest.hexdigest() != expected_sha256:
+            raise ValueError(f"{path}: donor metadata SHA-256 does not match manifest")
+        binary_handle.seek(0)
+        handle = io.TextIOWrapper(binary_handle, encoding="utf-8", newline="")
         reader = csv.DictReader(handle, delimiter="\t")
         header = reader.fieldnames
         if header is None or len(header) != len(set(header)):
@@ -2274,7 +2291,7 @@ def read_calibration_reference_manifest(
     source_bundle_artifact_sha256: str,
 ) -> CalibrationReferenceManifest:
     """Read provenance for a donor-excluded calibration phasing reference."""
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload, payload_sha256 = _read_json_payload_and_sha256(path)
     if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
         raise ValueError(f"{path}: expected calibration-reference schema version 1")
     recorded_source = payload.get("source_bundle_artifact_sha256")
@@ -2374,7 +2391,7 @@ def read_calibration_reference_manifest(
         raise ValueError(f"{path}: inherited_tree_sha256 does not match inherited_files")
     return CalibrationReferenceManifest(
         path=path,
-        sha256=sha256_file(path),
+        sha256=payload_sha256,
         source_bundle_artifact_sha256=source_bundle_artifact_sha256,
         excluded_iids=frozenset(raw_excluded),
         phasing_panel=panel,
@@ -2463,7 +2480,12 @@ def _stat_signature(stat_result: os.stat_result) -> tuple[int, int, int, int, in
 
 
 def stable_read(path: Path, reader: Callable[[Path], Any]) -> tuple[Any, dict[str, object]]:
-    """Parse and hash one descriptor-pinned regular file inode."""
+    """Parse and hash one descriptor-pinned regular file inode.
+
+    The reader must open its supplied path at most once.  Darwin ``/dev/fd``
+    aliases share the held descriptor's offset, so multiple opens are not
+    independent streams; callers needing multiple passes must seek one handle.
+    """
     try:
         path_before = path.lstat()
     except OSError as exc:
@@ -2485,6 +2507,7 @@ def stable_read(path: Path, reader: Callable[[Path], Any]) -> tuple[Any, dict[st
             pinned_path = lai_coverage_plan.descriptor_file_path(fd)
         except OSError as exc:
             raise ValueError(f"{path}: no portable descriptor path is available") from exc
+        os.lseek(fd, 0, os.SEEK_SET)
         value = reader(pinned_path)
         if dataclasses.is_dataclass(value) and hasattr(value, "path"):
             value = replace(value, path=path)
@@ -2650,7 +2673,7 @@ def read_reference_verification(
     path: Path,
     reference_manifest: CalibrationReferenceManifest,
 ) -> ReferenceVerification:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload, payload_sha256 = _read_json_payload_and_sha256(path)
     if not isinstance(payload, Mapping):
         raise ValueError(f"{path}: reference verification must be a JSON object")
     # Structural validation that does not require a bundle path happens through
@@ -2659,7 +2682,7 @@ def read_reference_verification(
         raise ValueError(f"{path}: verification was built for a different manifest")
     return ReferenceVerification(
         path=path,
-        sha256=sha256_file(path),
+        sha256=payload_sha256,
         payload=dict(payload),
     )
 

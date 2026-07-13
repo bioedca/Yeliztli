@@ -63,9 +63,16 @@ def descriptor_file_path(descriptor: int) -> Path:
     for directory in DESCRIPTOR_FILE_DIRECTORIES:
         candidate = directory / str(descriptor)
         try:
-            metadata = candidate.stat()
+            candidate_fd = os.open(
+                candidate,
+                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0),
+            )
         except OSError:
             continue
+        try:
+            metadata = os.fstat(candidate_fd)
+        finally:
+            os.close(candidate_fd)
         if _descriptor_signature(metadata) == _descriptor_signature(opened):
             return candidate
     raise OSError("platform exposes no descriptor path bound to the open inode")
