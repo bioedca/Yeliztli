@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -38,12 +38,7 @@ MC1RRiskState = Literal[
     "2_R_alleles",
 ]
 
-_MC1R_RISK_STATES: dict[str, MC1RRiskState] = {
-    "0_R_alleles": "0_R_alleles",
-    "mild_r_allele": "mild_r_allele",
-    "1_R_allele": "1_R_allele",
-    "2_R_alleles": "2_R_alleles",
-}
+_MC1R_RISK_STATES: dict[str, MC1RRiskState] = {state: state for state in get_args(MC1RRiskState)}
 
 _MC1R_LEGACY_STATE_BY_LABEL: dict[str, MC1RRiskState] = {
     "Low UV Sensitivity": "0_R_alleles",
