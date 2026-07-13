@@ -1032,6 +1032,57 @@ class TestLAIAPIStatus:
         with sample_engine.connect() as conn:
             assert conn.execute(sa.select(lai_results)).fetchone() is not None
 
+    def test_get_results_returns_row_bound_to_current_policy(self, sample_engine):
+        from backend.analysis.lai import _store_lai_results
+        from backend.analysis.lai_runner import LAIRunnerResult
+        from backend.api.routes.ancestry import get_lai_results
+        from backend.services.lai_production_coverage import LAIProductionCoverageDecision
+
+        policy_id = "future-confirmed-policy"
+        _store_lai_results(
+            sample_engine,
+            LAIRunnerResult(
+                global_ancestry={
+                    "AFR": {
+                        "fraction": 1.0,
+                        "percentage": 100.0,
+                        "display_name": "African",
+                    }
+                },
+                chromosome_painting={"chr1": []},
+                metadata={
+                    "chromosomes_analyzed": 1,
+                    "lai_coverage_policy_id": policy_id,
+                },
+            ),
+        )
+
+        future_decision = LAIProductionCoverageDecision(
+            allowed=True,
+            confirmed_policy_id=policy_id,
+            reason=None,
+        )
+        with (
+            patch(
+                "backend.services.lai_production_coverage._CURRENT_DECISION",
+                future_decision,
+            ),
+            patch(
+                "backend.api.routes.ancestry._get_sample_engine",
+                return_value=sample_engine,
+            ),
+            patch(
+                "backend.api.routes.ancestry.is_degraded_for_sample",
+                return_value=False,
+            ),
+        ):
+            response = get_lai_results(1)
+
+        assert response is not None
+        assert response.global_ancestry["AFR"]["fraction"] == 1.0
+        assert response.chromosome_painting == {"chr1": []}
+        assert response.metadata["lai_coverage_policy_id"] == policy_id
+
     def test_get_progress_returns_null_when_no_job(self, test_client):
         # #453: the gated progress route 404s a missing sample before the
         # handler; seed sample 1 so this reaches the handler's no-job path.
