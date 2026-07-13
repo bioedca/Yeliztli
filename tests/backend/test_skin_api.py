@@ -749,7 +749,9 @@ class TestRunScoring:
         data = resp.json()
         mc1r = data["mc1r_aggregate"]
         assert mc1r is not None
-        assert mc1r["total_mc1r_called"] >= 1
+        # The fixture seeds three MC1R loci, but rs1805009=GG is a
+        # strand-indeterminate palindromic homozygote, leaving two in the aggregate.
+        assert mc1r["total_mc1r_called"] == 2
         assert mc1r["risk_state"] in {
             "0_R_alleles",
             "mild_r_allele",
