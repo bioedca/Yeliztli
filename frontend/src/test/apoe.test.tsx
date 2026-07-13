@@ -103,7 +103,7 @@ const CV_FINDING: APOEFinding = {
   conditions: "Cardiovascular disease, Type III hyperlipoproteinemia",
   diplotype: "e3/e4",
   pmid_citations: ["21460841", "9343467"],
-  detail_json: { risk_level: "modestly elevated" },
+  detail_json: { risk_level: "modestly_elevated" },
 }
 
 const ALZHEIMERS_FINDING: APOEFinding = {
@@ -459,9 +459,21 @@ describe("APOEFindingCard", () => {
     expect(screen.getByText(/Based on ε3\/ε4 genotype/)).toBeInTheDocument()
   })
 
-  it("renders risk level from detail_json", () => {
-    render(<APOEFindingCard finding={CV_FINDING} />)
-    expect(screen.getByText("modestly elevated")).toBeInTheDocument()
+  it.each([
+    ["modestly_elevated", "modestly elevated"],
+    ["slightly_reduced", "slightly reduced"],
+  ])("humanizes backend risk level %s", (riskLevel, expectedLabel) => {
+    render(
+      <APOEFindingCard
+        finding={{
+          ...CV_FINDING,
+          detail_json: { ...CV_FINDING.detail_json, risk_level: riskLevel },
+        }}
+      />,
+    )
+
+    expect(screen.getByText(expectedLabel)).toBeInTheDocument()
+    expect(screen.queryByText(riskLevel)).not.toBeInTheDocument()
   })
 })
 

@@ -61,6 +61,9 @@ export default function APOEFindingCard({ finding }: APOEFindingCardProps) {
   const config = CATEGORY_CONFIG[finding.category] ?? DEFAULT_CONFIG
   const Icon = config.icon
   const isNonActionable = finding.detail_json?.non_actionable === true
+  const riskLevel = typeof finding.detail_json?.risk_level === "string"
+    ? finding.detail_json.risk_level
+    : null
 
   return (
     <div
@@ -115,20 +118,20 @@ export default function APOEFindingCard({ finding }: APOEFindingCardProps) {
           )}
 
           {/* Risk level from detail_json */}
-          {typeof finding.detail_json?.risk_level === "string" && (
+          {riskLevel !== null && (
             <div className="mb-3">
               <span className="text-xs text-muted-foreground">Risk level: </span>
               <span className={cn(
                 "text-xs font-medium text-foreground",
-                String(finding.detail_json.risk_level).includes("elevated") && "text-amber-700 dark:text-amber-400",
-                String(finding.detail_json.risk_level).includes("markedly") && "text-red-700 dark:text-red-400",
-                String(finding.detail_json.risk_level).includes("enhanced") && "text-amber-700 dark:text-amber-400",
-                String(finding.detail_json.risk_level).includes("reference") && "text-green-700 dark:text-green-400",
-                String(finding.detail_json.risk_level).includes("typical") && "text-green-700 dark:text-green-400",
-                String(finding.detail_json.risk_level).includes("reduced") && "text-blue-600 dark:text-blue-400",
-                String(finding.detail_json.risk_level).includes("atypical") && "text-violet-600 dark:text-violet-400",
+                riskLevel.includes("elevated") && "text-amber-700 dark:text-amber-400",
+                riskLevel.includes("markedly") && "text-red-700 dark:text-red-400",
+                riskLevel.includes("enhanced") && "text-amber-700 dark:text-amber-400",
+                riskLevel.includes("reference") && "text-green-700 dark:text-green-400",
+                riskLevel.includes("typical") && "text-green-700 dark:text-green-400",
+                riskLevel.includes("reduced") && "text-blue-600 dark:text-blue-400",
+                riskLevel.includes("atypical") && "text-violet-600 dark:text-violet-400",
               )}>
-                {String(finding.detail_json.risk_level)}
+                {riskLevel.replace(/_/g, " ")}
               </span>
             </div>
           )}
