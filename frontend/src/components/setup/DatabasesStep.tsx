@@ -49,7 +49,7 @@ import {
   Wrench,
 } from 'lucide-react'
 
-const DEFAULT_OPTIONAL_DBS = new Set(['lai_bundle', 'encode_ccres'])
+const DEFAULT_OPTIONAL_DBS = new Set(['encode_ccres'])
 
 function isSelectable(db: { build_mode: string; downloaded: boolean; required: boolean }) {
   return (
@@ -131,9 +131,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  // Per-DB selection. Required DBs are always selected (locked). lai_bundle
-  // and encode_ccres default selected (toggleable). Other optional DBs default
-  // off. We track user overrides separately so we can recompute the effective
+  // Per-DB selection. Required DBs are always selected (locked), and
+  // encode_ccres defaults selected (toggleable). The LAI bundle and other
+  // optional DBs default off. We track user overrides separately so we can
+  // recompute the effective
   // selection whenever the database list refreshes (e.g. after a download
   // completes) without overwriting user choices.
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>(

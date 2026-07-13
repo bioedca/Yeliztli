@@ -78,6 +78,9 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           is approximately 600 MB on 0.2.0+ to cover both 23andMe v5 and
           AncestryDNA v2.0 rsIDs. Advanced installs may stage large archives on
           a separate download volume.
+          The LAI bundle is available for maintainer diagnostics, but this
+          release returns a production chromosome-painting no-call until a
+          final-confirmed coverage policy exists.
         </p>
         <ul className="text-xs text-muted-foreground space-y-1 pt-1">
           <li className="flex items-start justify-between gap-4">
@@ -97,7 +100,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
             <span className="shrink-0 text-right font-medium text-foreground">~700 MB</span>
           </li>
           <li className="flex items-start justify-between gap-4">
-            <span className="min-w-0">LAI bundle (chromosome painting, optional)</span>
+            <span className="min-w-0">LAI bundle (diagnostics only, optional)</span>
             <span className="shrink-0 text-right font-medium text-foreground">~1.7 GB</span>
           </li>
           <li className="flex items-start justify-between gap-4">

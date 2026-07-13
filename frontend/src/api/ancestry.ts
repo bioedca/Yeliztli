@@ -151,7 +151,9 @@ export function useLAIProgress(
     },
     enabled: enabled && sampleId != null,
     refetchInterval: ({ state: { data } }) =>
-      data?.status === "complete" || data?.status === "failed" ? false : 3_000,
+      data?.status === "complete" || data?.status === "failed" || data?.status === "cancelled"
+        ? false
+        : 3_000,
   })
 }
 

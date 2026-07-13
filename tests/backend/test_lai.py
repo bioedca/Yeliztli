@@ -1126,6 +1126,37 @@ class TestLAIAPIStatus:
         assert body["error"] == POLICY_UNAVAILABLE_REASON.message
         assert body["insufficient_data_reason"] == POLICY_UNAVAILABLE_REASON.as_dict()
 
+    def test_progress_withholds_historical_completed_job_message(self):
+        from backend.api.routes.ancestry import get_lai_progress
+        from backend.db.tables import jobs, reference_metadata
+
+        reference_engine = sa.create_engine("sqlite://")
+        reference_metadata.create_all(reference_engine)
+        now = datetime.now(UTC)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="historical-lai-complete",
+                    sample_id=1,
+                    job_type="lai_analysis",
+                    status="complete",
+                    progress_pct=100.0,
+                    message="LAI complete: 22 chromosomes analyzed, top ancestry: EUR",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        registry = SimpleNamespace(reference_engine=reference_engine)
+        with (
+            patch("backend.api.routes.ancestry.get_registry", return_value=registry),
+            patch("backend.api.routes.ancestry.is_degraded_for_sample") as degraded,
+        ):
+            response = get_lai_progress(1)
+
+        assert response is None
+        degraded.assert_not_called()
+
 
 # ── T-LAI-06: Progress callback ──────────────────────────────────────────
 

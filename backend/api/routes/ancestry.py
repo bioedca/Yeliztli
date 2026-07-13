@@ -782,7 +782,9 @@ def get_lai_results(sample_id: int) -> LAIResultResponse | None:
 def get_lai_progress(sample_id: int) -> LAIProgressResponse | None:
     """Get LAI analysis progress for a sample.
 
-    Returns the most recent LAI job status, or null if no job exists.
+    Returns the most recent policy-qualified LAI job status, or null if none
+    exists. Historical job messages are quarantined with historical results
+    because completed messages may contain inferred ancestry labels.
     """
     from backend.db.tables import jobs
 
@@ -802,6 +804,21 @@ def get_lai_progress(sample_id: int) -> LAIProgressResponse | None:
         return None
 
     insufficient_reason = decode_lai_insufficient_data_reason(row.error)
+    coverage_decision = get_lai_production_coverage_decision()
+    if not coverage_decision.production_qualified:
+        current_reason = coverage_decision.reason
+        if current_reason is None or insufficient_reason != current_reason:
+            return None
+        return LAIProgressResponse(
+            job_id=row.job_id,
+            status="failed",
+            progress_pct=0.0,
+            message=current_reason.message,
+            error=current_reason.message,
+            insufficient_data_reason=_lai_reason_response(current_reason),
+            degraded_coverage=is_degraded_for_sample(sample_id),
+        )
+
     return LAIProgressResponse(
         job_id=row.job_id,
         status=row.status,

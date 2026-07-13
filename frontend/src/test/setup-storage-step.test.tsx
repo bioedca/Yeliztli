@@ -114,6 +114,8 @@ describe('StorageStep — Step 15 disk-space pre-check', () => {
     expect(breakdown).toHaveTextContent(/10\+ GB/)
     expect(breakdown).toHaveTextContent(/LAI bundle/i)
     expect(breakdown).toHaveTextContent(/1\.7 GB/)
+    expect(breakdown).toHaveTextContent(/diagnostics only/i)
+    expect(breakdown).toHaveTextContent(/production chromosome-painting no-call/i)
   })
 
   it('calls out the ~600 MB VEP bundle for AncestryDNA v2.0', async () => {

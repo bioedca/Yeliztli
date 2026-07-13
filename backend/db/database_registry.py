@@ -437,8 +437,9 @@ DATABASES: dict[str, DatabaseInfo] = {
         name="lai_bundle",
         display_name="LAI Bundle (Chromosome Painting)",
         description=(
-            "Local ancestry inference models for chromosome-level ancestry painting. "
-            "Optional — requires ~1.6 GB and Java 8+."
+            "Local ancestry inference models for maintainer diagnostics and calibration. "
+            "Production chromosome painting is unavailable until a final-confirmed coverage "
+            "policy ships. Optional — requires ~1.6 GB and Java 8+."
         ),
         url="https://github.com/bioedca/Yeliztli/releases/download/lai-bundle-v2.0.0/genomeinsight_lai_bundle_v2.0.0.tar.gz",
         filename="lai_bundle.tar.gz",

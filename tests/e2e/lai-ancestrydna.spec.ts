@@ -123,7 +123,12 @@ const APP_UPDATE_RESPONSE = {
 
 // ── Shared route mocks ──────────────────────────────────────────────────
 
-type Scenario = 'pre_v2' | 'post_v2' | 'policy_unavailable' | 'sample_below_minimum'
+type Scenario =
+  | 'pre_v2'
+  | 'post_v2'
+  | 'policy_unavailable'
+  | 'sample_below_minimum'
+  | 'sample_cancelled'
 
 async function setupCommonRoutes(
   page: import('@playwright/test').Page,
@@ -289,16 +294,19 @@ async function setupLAIResultsRoutes(
   await page.route(`**/api/analysis/ancestry/lai/${SAMPLE_ID}/progress`, async (route) => {
     progressRequestCount += 1
     const belowMinimum = scenario === 'sample_below_minimum'
+    const cancelled = scenario === 'sample_cancelled'
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         job_id: 'job-lai-e2e',
-        status: belowMinimum ? 'failed' : 'complete',
-        progress_pct: belowMinimum ? 95 : 100,
+        status: belowMinimum ? 'failed' : cancelled ? 'cancelled' : 'complete',
+        progress_pct: belowMinimum ? 95 : cancelled ? 40 : 100,
         message: belowMinimum
           ? 'Insufficient data for chromosome painting'
-          : 'Chromosome painting complete',
+          : cancelled
+            ? 'Chromosome painting cancelled'
+            : 'Chromosome painting complete',
         error: belowMinimum
           ? 'lai_insufficient_data:{"message":"Encoded scheduler value must remain hidden."}'
           : null,
@@ -320,7 +328,7 @@ async function setupLAIResultsRoutes(
   // payload predates the telemetry, so we return null to match the legacy
   // shape and let the soft-gate banner be the sole user-visible signal.
   await page.route(`**/api/analysis/ancestry/lai/${SAMPLE_ID}/results`, async (route) => {
-    if (scenario === 'sample_below_minimum') {
+    if (scenario === 'sample_below_minimum' || scenario === 'sample_cancelled') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
       return
     }
@@ -440,6 +448,22 @@ test.describe('Step 25 — AncestryDNA LAI surfaces', () => {
     await expect(page.getByText('Chromosome painting complete')).toHaveCount(0)
     await expect(page.getByTestId('tier-comparison')).toHaveCount(0)
 
+    const terminalRequestCount = routes.getProgressRequestCount()
+    await page.waitForTimeout(3_500)
+    expect(routes.getProgressRequestCount()).toBe(terminalRequestCount)
+  })
+
+  test('cancelled chromosome painting is terminal and stops progress polling', async ({ page }) => {
+    await setupCommonRoutes(page, 'sample_cancelled')
+    const routes = await setupLAIResultsRoutes(page, 'sample_cancelled')
+
+    await page.goto(`/ancestry?sample_id=${SAMPLE_ID}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    await expect(page.getByRole('button', { name: /Run Chromosome Painting Analysis/i })).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect.poll(routes.getProgressRequestCount).toBeGreaterThanOrEqual(1)
     const terminalRequestCount = routes.getProgressRequestCount()
     await page.waitForTimeout(3_500)
     expect(routes.getProgressRequestCount()).toBe(terminalRequestCount)
