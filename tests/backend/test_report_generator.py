@@ -290,6 +290,8 @@ class TestLoadFindings:
         all_results = _load_findings(sample_engine, modules=None)
         ancestry_results = _load_findings(sample_engine, modules=["ancestry"])
 
+        assert all_results
+        assert ancestry_results
         assert all(result["category"] != "local_ancestry" for result in all_results)
         assert all(result["category"] != "local_ancestry" for result in ancestry_results)
 

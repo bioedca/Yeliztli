@@ -89,6 +89,7 @@ from backend.db.tables import (
     haplogroup_assignments,
     raw_variants,
 )
+from backend.services.lai_production_coverage import policy_qualified_finding_clause
 from backend.services.sex_inference import infer_biological_sex
 
 logger = structlog.get_logger(__name__)
@@ -1353,12 +1354,7 @@ def _get_latest_ancestry_finding(
             if category is not None:
                 stmt = stmt.where(findings.c.category == category)
             else:
-                stmt = stmt.where(
-                    sa.or_(
-                        findings.c.category.is_(None),
-                        findings.c.category != "local_ancestry",
-                    )
-                )
+                stmt = stmt.where(policy_qualified_finding_clause(findings.c.category))
             row = conn.execute(stmt).fetchone()
 
             if row is not None and row.detail_json:
