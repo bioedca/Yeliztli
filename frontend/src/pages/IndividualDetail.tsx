@@ -25,13 +25,11 @@ import { Link, useParams, useNavigate } from "react-router-dom"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import {
   ArrowLeft,
-  ClipboardList,
   FlaskConical,
   GitMerge,
   Star,
   User,
   Users,
-  type LucideIcon,
 } from "lucide-react"
 
 import { useIndividual } from "@/api/individuals"
@@ -42,6 +40,7 @@ import type {
   FindingsSummaryResponse,
 } from "@/types/findings"
 import { formatFileFormat, formatNumber } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { cn } from "@/lib/utils"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageEmpty from "@/components/ui/PageEmpty"
@@ -117,19 +116,9 @@ function formatTimestamp(value: string | null | undefined): string {
   return d.toLocaleDateString()
 }
 
-const MODULE_ICONS: Record<string, LucideIcon> = {
-  pharmacogenomics: ClipboardList,
-  nutrigenomics: ClipboardList,
-  cancer: ClipboardList,
-  cardiovascular: ClipboardList,
-  apoe: ClipboardList,
-  carrier: ClipboardList,
-  ancestry: ClipboardList,
-  rare_variants: ClipboardList,
-}
-
 function FindingRow({ row }: { row: AggregatedFinding }) {
-  const Icon = MODULE_ICONS[row.finding.module] ?? ClipboardList
+  const moduleMeta = getModuleMeta(row.finding.module)
+  const Icon = moduleMeta.icon
   return (
     <div
       className="flex items-start gap-3 px-4 py-3"
@@ -145,9 +134,12 @@ function FindingRow({ row }: { row: AggregatedFinding }) {
               {row.finding.gene_symbol}
             </span>
           )}
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span
+            className="flex items-center gap-1 text-xs text-muted-foreground"
+            data-testid={`aggregated-finding-module-${row.key}`}
+          >
             <Icon className="h-3 w-3" />
-            {row.finding.module.replace(/_/g, " ")}
+            {moduleMeta.label}
           </span>
           {row.finding.rsid && (
             <span className="font-mono text-xs text-muted-foreground">
