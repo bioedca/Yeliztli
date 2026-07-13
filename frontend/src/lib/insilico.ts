@@ -1,5 +1,5 @@
 /**
- * Display mapping for in-silico pathogenicity predictions.
+ * Display mapping for in-silico functional-impact predictions.
  *
  * The backend stores the raw dbNSFP prediction codes (see
  * `backend/annotation/dbnsfp.py::_parse_dbnsfp_pred_by_severity`, which keeps
@@ -10,7 +10,7 @@
  */
 export interface PredictionDisplay {
   label: string
-  /** Tailwind text-colour classes encoding severity. */
+  /** Tailwind text-colour classes encoding the prediction category. */
   colorClass: string
 }
 
@@ -20,7 +20,7 @@ const GREEN = "text-green-700 dark:text-green-400"
 const NEUTRAL = "text-muted-foreground"
 
 /**
- * Map a SIFT prediction (`sift_pred`) to a readable label and severity colour.
+ * Map a SIFT prediction (`sift_pred`) to a readable label and category colour.
  * Accepts the single-char dbNSFP codes `D`/`T` and their full-word aliases.
  * The pinned dbNSFP 5.3.1a schema and SIFT protocol expand these as
  * `D(amaging)` / `T(olerated)`; the older narrative term "deleterious" is
@@ -44,12 +44,14 @@ export function siftDisplay(pred: string): PredictionDisplay {
 
 /**
  * Map a PolyPhen-2 prediction (`polyphen2_hsvar_pred`) to a readable label and
- * a severity colour. Accepts the single-char dbNSFP codes `D`/`P`/`B` (the real
+ * a category colour. Accepts the single-char dbNSFP codes `D`/`P`/`B` (the real
  * stored values) and, defensively, their full-word aliases. An unrecognised
  * value is shown verbatim in a neutral colour — never silently coloured benign.
  */
 export function polyphen2Display(pred: string): PredictionDisplay {
-  switch (pred.trim().toUpperCase()) {
+  const normalized = pred.trim().toUpperCase().replace(/\s+/g, "_")
+
+  switch (normalized) {
     case "D":
     case "PROBABLY_DAMAGING":
       return { label: "Probably Damaging", colorClass: RED }

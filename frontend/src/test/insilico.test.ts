@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 import { polyphen2Display, siftDisplay } from "@/lib/insilico"
 
 describe("siftDisplay (#1753)", () => {
-  it("maps the single-char dbNSFP codes to readable labels + severity colours", () => {
+  it("maps the single-char dbNSFP codes to readable labels + category colours", () => {
     expect(siftDisplay("D")).toEqual({
       label: "Damaging",
       colorClass: "text-red-700 dark:text-red-400",
@@ -28,7 +28,7 @@ describe("siftDisplay (#1753)", () => {
 })
 
 describe("polyphen2Display (#680)", () => {
-  it("maps the single-char dbNSFP codes to readable labels + severity colours", () => {
+  it("maps the single-char dbNSFP codes to readable labels + category colours", () => {
     expect(polyphen2Display("D")).toEqual({
       label: "Probably Damaging",
       colorClass: "text-red-700 dark:text-red-400",
@@ -46,6 +46,8 @@ describe("polyphen2Display (#680)", () => {
   it("accepts the full-word aliases defensively", () => {
     expect(polyphen2Display("probably_damaging").label).toBe("Probably Damaging")
     expect(polyphen2Display("possibly_damaging").label).toBe("Possibly Damaging")
+    expect(polyphen2Display("probably damaging").label).toBe("Probably Damaging")
+    expect(polyphen2Display("possibly   damaging").label).toBe("Possibly Damaging")
     expect(polyphen2Display("benign").label).toBe("Benign")
   })
 

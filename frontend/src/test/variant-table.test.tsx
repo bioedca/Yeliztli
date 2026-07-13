@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor } from "./test-utils"
+import { render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import VariantTable from "@/components/variant-table/VariantTable"
 import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset, Tag } from "@/types/variants"
@@ -203,29 +203,57 @@ describe("VariantTable", () => {
   })
 
   it("renders readable SIFT and PolyPhen prediction labels instead of raw codes (#1753)", async () => {
-    const page = makeVariantPage(3)
+    const page = makeVariantPage(5)
     page.items[0].sift_pred = "D"
     page.items[0].polyphen2_hsvar_pred = "D"
     page.items[1].sift_pred = "T"
     page.items[1].polyphen2_hsvar_pred = "P"
     page.items[2].sift_pred = null
     page.items[2].polyphen2_hsvar_pred = "B"
-    setupFetchMock(page, makeCountResponse(3))
+    page.items[3].sift_pred = "   "
+    page.items[3].polyphen2_hsvar_pred = "   "
+    page.items[4].sift_pred = "UNKNOWN_SIFT"
+    page.items[4].polyphen2_hsvar_pred = "UNKNOWN_PP2"
+    setupFetchMock(page, makeCountResponse(5))
 
     render(<VariantTable sampleId={1} />)
 
-    const damaging = await screen.findByText("Damaging")
-    const tolerated = screen.getByText("Tolerated")
-    const probablyDamaging = screen.getByText("Probably Damaging")
-    const possiblyDamaging = screen.getByText("Possibly Damaging")
-    const benign = screen.getByText("Benign")
+    await screen.findByText("rs104")
 
-    expect(damaging).toHaveClass("text-red-700")
-    expect(tolerated).toHaveClass("text-green-700")
-    expect(probablyDamaging).toHaveClass("text-red-700")
-    expect(possiblyDamaging).toHaveClass("text-amber-700")
-    expect(benign).toHaveClass("text-green-700")
-    expect(screen.queryAllByText(/^(D|T|P|B)$/)).toHaveLength(0)
+    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent)
+    const predictionCell = (rsid: string, column: "SIFT Pred" | "PP2 Pred") => {
+      const row = screen.getByText(rsid, { exact: true }).closest("tr")
+      expect(row).not.toBeNull()
+      const columnIndex = headers.indexOf(column)
+      expect(columnIndex).toBeGreaterThanOrEqual(0)
+      return within(row as HTMLTableRowElement).getAllByRole("cell")[columnIndex]
+    }
+
+    const expected = [
+      ["rs100", "SIFT Pred", "Damaging", "text-red-700"],
+      ["rs100", "PP2 Pred", "Probably Damaging", "text-red-700"],
+      ["rs101", "SIFT Pred", "Tolerated", "text-green-700"],
+      ["rs101", "PP2 Pred", "Possibly Damaging", "text-amber-700"],
+      ["rs102", "PP2 Pred", "Benign", "text-green-700"],
+    ] as const
+
+    for (const [rsid, column, label, colorClass] of expected) {
+      const cell = predictionCell(rsid, column)
+      expect(cell).toHaveTextContent(label)
+      expect(cell.firstElementChild).toHaveClass(colorClass)
+      expect(cell).not.toHaveTextContent(/^(D|T|P|B)$/)
+    }
+
+    expect(predictionCell("rs102", "SIFT Pred")).toBeEmptyDOMElement()
+    expect(predictionCell("rs103", "SIFT Pred")).toBeEmptyDOMElement()
+    expect(predictionCell("rs103", "PP2 Pred")).toBeEmptyDOMElement()
+
+    const unknownSift = predictionCell("rs104", "SIFT Pred")
+    expect(unknownSift).toHaveTextContent("UNKNOWN SIFT")
+    expect(unknownSift.firstElementChild).toHaveClass("text-muted-foreground")
+    const unknownPolyphen = predictionCell("rs104", "PP2 Pred")
+    expect(unknownPolyphen).toHaveTextContent("UNKNOWN PP2")
+    expect(unknownPolyphen.firstElementChild).toHaveClass("text-muted-foreground")
   })
 
   it("renders genotype and zygosity for het and hom_alt rows", async () => {
