@@ -482,12 +482,12 @@ test.describe('Step 57 — Individuals linking E2E', () => {
     ).toBeVisible()
 
     // Both linked-samples table rows render.
-    await expect(
-      page.getByTestId(`linked-sample-row-${SAMPLE_1_ID}`),
-    ).toBeVisible()
-    await expect(
-      page.getByTestId(`linked-sample-row-${SAMPLE_2_ID}`),
-    ).toBeVisible()
+    const sample1Row = page.getByTestId(`linked-sample-row-${SAMPLE_1_ID}`)
+    const sample2Row = page.getByTestId(`linked-sample-row-${SAMPLE_2_ID}`)
+    await expect(sample1Row).toBeVisible()
+    await expect(sample1Row).toContainText('23andMe v5')
+    await expect(sample2Row).toBeVisible()
+    await expect(sample2Row).toContainText('AncestryDNA v2.0')
 
     // Aggregated findings: shared-rsid row dedupes to ONE row with TWO
     // provenance chips; unique-rsid rows render once each with one chip.

@@ -186,7 +186,7 @@ describe('UploadStep — Step 15 bundle-gate banner', () => {
     expect(await screen.findByText('Sample Uploaded')).toBeInTheDocument()
     expect(screen.getByText('712,345')).toBeInTheDocument()
     expect(screen.getByText('1,234')).toBeInTheDocument()
-    expect(screen.getByText('ancestrydna_v2.0')).toBeInTheDocument()
+    expect(screen.getByText('AncestryDNA v2.0')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /go to dashboard/i }),
     ).toBeInTheDocument()
@@ -339,7 +339,7 @@ describe('UploadStep — Step 45 / ADNA-12 (AncestryDNA accept)', () => {
     expect((uploadedFile as File).name).toBe('AncestryDNA.txt')
   })
 
-  it('renders the AncestryDNA success card with ancestrydna_v2.0 file_format', async () => {
+  it('renders the AncestryDNA success card with a human-readable file format', async () => {
     mockFetch.mockImplementation((url: string) => {
       if (typeof url === 'string' && url === '/api/ingest') {
         return jsonResponse(200, {
@@ -360,7 +360,7 @@ describe('UploadStep — Step 45 / ADNA-12 (AncestryDNA accept)', () => {
     expect(await screen.findByText('Sample Uploaded')).toBeInTheDocument()
     expect(screen.getByText('681,234')).toBeInTheDocument()
     expect(screen.getByText('945')).toBeInTheDocument()
-    expect(screen.getByText('ancestrydna_v2.0')).toBeInTheDocument()
+    expect(screen.getByText('AncestryDNA v2.0')).toBeInTheDocument()
     expect(
       screen.queryByTestId('bundle-gate-banner'),
     ).not.toBeInTheDocument()

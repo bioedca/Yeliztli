@@ -1,9 +1,19 @@
 /** Shared formatting utilities (P1-16). */
 
+const FILE_FORMAT_VENDOR_LABELS = new Map([
+  ["23andme", "23andMe"],
+  ["ancestrydna", "AncestryDNA"],
+  ["merged", "Merged"],
+])
+
 /** Format a raw file_format string (e.g. "23andme_v5") for display. */
 export function formatFileFormat(fileFormat: string | null | undefined): string {
-  if (!fileFormat) return "Unknown format"
-  return fileFormat.replace("23andme_", "23andMe ").toUpperCase()
+  const normalized = fileFormat?.trim()
+  if (!normalized) return "Unknown format"
+
+  const [vendor, ...details] = normalized.split("_")
+  const vendorLabel = FILE_FORMAT_VENDOR_LABELS.get(vendor.toLowerCase()) ?? vendor
+  return [vendorLabel, ...details].filter(Boolean).join(" ") || normalized
 }
 
 /** Parse a numeric query param safely, returning null for invalid values. */

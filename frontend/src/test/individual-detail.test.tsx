@@ -318,7 +318,8 @@ describe("IndividualDetail page", () => {
 
     expect(await screen.findByTestId("merge-progress")).toBeInTheDocument()
     await waitFor(() => expect(detailRequests).toBeGreaterThan(1))
-    expect(await screen.findByTestId("linked-sample-row-99")).toBeInTheDocument()
+    const mergedRow = await screen.findByTestId("linked-sample-row-99")
+    expect(within(mergedRow).getByText("Merged v1")).toBeInTheDocument()
     expect(screen.getByTestId("merge-wizard-overlay")).toBeInTheDocument()
     expect(screen.getByTestId("merge-source-pair")).toHaveTextContent(
       "eve_23andme.txt",
@@ -462,7 +463,9 @@ describe("IndividualDetail page", () => {
     const row11 = await screen.findByTestId("linked-sample-row-11")
     const row12 = await screen.findByTestId("linked-sample-row-12")
     expect(within(row11).getByText("23andMe")).toBeInTheDocument()
+    expect(within(row11).getByText("23andMe v5")).toBeInTheDocument()
     expect(within(row12).getByText("AncestryDNA")).toBeInTheDocument()
+    expect(within(row12).getByText("AncestryDNA v2.0")).toBeInTheDocument()
 
     await waitFor(() => {
       expect(within(row11).getByText("612,345")).toBeInTheDocument()

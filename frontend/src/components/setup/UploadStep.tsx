@@ -10,6 +10,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BundleGateError, useIngestFile } from '@/api/setup'
 import { useTriggerUpdate } from '@/api/updates'
+import { formatFileFormat } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { BundleGatePayload } from '@/types/setup'
 import {
@@ -177,7 +178,7 @@ export default function UploadStep({ onBack, onComplete }: UploadStepProps) {
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">File format</span>
             <span className="font-medium text-foreground">
-              {data.file_format}
+              {formatFileFormat(data.file_format)}
             </span>
           </div>
         </div>

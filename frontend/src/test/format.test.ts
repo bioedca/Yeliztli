@@ -1,7 +1,34 @@
-/** Tests for formatAlleleFrequency — the single gnomAD-AF display unit (#564). */
+/** Tests for shared display-formatting utilities. */
 
 import { describe, it, expect } from "vitest"
-import { formatAlleleFrequency } from "@/lib/format"
+import { formatAlleleFrequency, formatFileFormat } from "@/lib/format"
+
+describe("formatFileFormat", () => {
+  it.each([
+    ["23andme_v3", "23andMe v3"],
+    ["23andme_v4", "23andMe v4"],
+    ["23andme_v5", "23andMe v5"],
+    ["ancestrydna_v1", "AncestryDNA v1"],
+    ["ancestrydna_v2.0", "AncestryDNA v2.0"],
+    ["ancestrydna_v3.5", "AncestryDNA v3.5"],
+    ["merged_v1", "Merged v1"],
+  ])("renders %s with branded vendor casing", (raw, expected) => {
+    expect(formatFileFormat(raw)).toBe(expected)
+  })
+
+  it("humanizes unknown identifiers without inventing brand casing", () => {
+    expect(formatFileFormat("custom_vendor_v1")).toBe("custom vendor v1")
+    expect(formatFileFormat("legacy")).toBe("legacy")
+    expect(formatFileFormat("constructor_v1")).toBe("constructor v1")
+  })
+
+  it.each([null, undefined, "", "   "])(
+    "renders missing value %s as unknown",
+    (raw) => {
+      expect(formatFileFormat(raw)).toBe("Unknown format")
+    },
+  )
+})
 
 describe("formatAlleleFrequency", () => {
   it("renders null as an em-dash", () => {
