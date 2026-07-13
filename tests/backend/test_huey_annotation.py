@@ -39,6 +39,7 @@ from backend.tasks.huey_tasks import (
     create_annotation_job,
     run_annotation_task,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Seed data ──────────────────────────────────────────────────────────
 
@@ -292,10 +293,6 @@ class TestRunAnnotationTask:
             patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
             patch("backend.analysis.run_all.run_all_analyses", return_value={}),
             patch(
-                "backend.services.staleness.read_current_reference_versions",
-                return_value={},
-            ),
-            patch(
                 "backend.analysis.provenance.stamp_findings_provenance",
                 return_value=0,
             ),
@@ -436,7 +433,6 @@ class TestRunAnnotationTask:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.slow  # nightly tier: runs real annotation to exercise the state gate
 class TestAnnotationStateGate:
     """Plan §7.3 — both reserved kv keys are written iff run_all_analyses succeeds.
 
@@ -475,8 +471,41 @@ class TestAnnotationStateGate:
                 )
             )
 
+    def _seed_embedded_bundle_version(self, annotation_env: dict, version: str) -> None:
+        """Write self-describing metadata without stamping reference.db."""
+        seed_embedded_vep_bundle_version(
+            annotation_env["settings"].vep_bundle_db_path,
+            version,
+        )
+
+    def _run_task_with_result(self, sample_id: int, result: object) -> None:
+        with (
+            patch("backend.annotation.engine.run_annotation", return_value=result),
+            patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
+            patch("backend.analysis.run_all.run_all_analyses", return_value={}),
+            patch(
+                "backend.services.staleness.read_current_reference_versions",
+                return_value={},
+            ),
+            patch(
+                "backend.analysis.provenance.stamp_findings_provenance",
+                return_value=0,
+            ),
+            patch(
+                "backend.analysis.finding_diff.compute_and_store_finding_diff",
+                return_value=None,
+            ),
+            patch(
+                "backend.analysis.svg_renderer.generate_svgs_for_sample",
+                return_value=0,
+            ),
+        ):
+            run_annotation_task.call_local(sample_id, create_annotation_job(sample_id))
+
+    @pytest.mark.slow
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
         """Happy path: both reserved keys are upserted on the success path."""
+        self._seed_embedded_bundle_version(annotation_env, "v9.0.0")
         self._seed_bundle_version(annotation_env, "v2.0.0")
 
         sample_id = annotation_env["sample_id"]
@@ -505,6 +534,78 @@ class TestAnnotationStateGate:
         )
         assert only_source["vep_misses"] == coverage["vep_misses"]
 
+    @pytest.mark.slow
+    def test_embedded_bundle_version_is_stamped_without_registry_row(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """Self-described status copies drive both telemetry and the state stamp."""
+        self._seed_embedded_bundle_version(annotation_env, "v3.0.0")
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        run_annotation_task.call_local(sample_id, job_id)
+
+        state = self._read_state(annotation_env)
+        assert state.get("vep_bundle_version") == "v3.0.0"
+        coverage_json = state.get("annotation_bundle_coverage_json")
+        assert coverage_json is not None
+        import json as _json
+
+        assert _json.loads(coverage_json)["bundle_version"] == "v3.0.0"
+
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "vep_bundle"
+                )
+            ).fetchone()
+        assert row is None
+
+    def test_empty_coverage_resolves_embedded_version_for_state_stamp(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """A telemetry-free annotation still stamps the effective version."""
+        from backend.annotation.engine import AnnotationEngineResult
+
+        self._seed_embedded_bundle_version(annotation_env, "v3.0.0")
+        sample_id = annotation_env["sample_id"]
+        result = AnnotationEngineResult(coverage_stats={})
+
+        self._run_task_with_result(sample_id, result)
+
+        state = self._read_state(annotation_env)
+        assert state.get("vep_bundle_version") == "v3.0.0"
+        assert state.get("annotation_bundle_coverage_json") == "{}"
+
+    def test_unreadable_version_table_uses_task_baseline(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """A transient registry read failure preserves the successful state stamp."""
+        from structlog.testing import capture_logs
+
+        from backend.annotation.engine import AnnotationEngineResult
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        database_versions.drop(get_registry().reference_engine)
+
+        with capture_logs() as cap_logs:
+            self._run_task_with_result(sample_id, AnnotationEngineResult(coverage_stats={}))
+
+        state = self._read_state(annotation_env)
+        assert state.get("vep_bundle_version") == "v1.0.0"
+        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert any(
+            entry.get("event") == "vep_bundle_version_resolution_failed" for entry in cap_logs
+        )
+
+    @pytest.mark.slow
     def test_missing_bundle_row_falls_back_to_v1(self, annotation_env: dict) -> None:
         """Defensive fallback when database_versions has no vep_bundle row."""
         sample_id = annotation_env["sample_id"]
@@ -512,10 +613,15 @@ class TestAnnotationStateGate:
         run_annotation_task.call_local(sample_id, job_id)
 
         state = self._read_state(annotation_env)
-        # Plan §7.3 — value is the installed_version (None → "v1.0.0" fallback).
+        # Plan §7.3 — the versionless committed fixture resolves to the v1 baseline.
         assert state.get("vep_bundle_version") == "v1.0.0"
-        assert "annotation_bundle_coverage_json" in state
+        coverage_json = state.get("annotation_bundle_coverage_json")
+        assert coverage_json is not None
+        import json as _json
 
+        assert _json.loads(coverage_json)["bundle_version"] == "v1.0.0"
+
+    @pytest.mark.slow
     def test_raise_from_run_all_analyses_leaves_gate_up(self, annotation_env: dict) -> None:
         """A raise from run_all_analyses bypasses the upsert (gate stays up)."""
         from backend.db.connection import get_registry
@@ -554,6 +660,7 @@ class TestAnnotationStateGate:
             row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
         assert row.status == "complete"
 
+    @pytest.mark.slow
     def test_two_phase_sse_progress_messages(self, annotation_env: dict) -> None:
         """SSE emits a two-phase progress arc: 'Annotating…' → 'Analyzing…'."""
         sample_id = annotation_env["sample_id"]

@@ -20,6 +20,7 @@ import structlog
 from backend.analysis.lai_liftover import validate_lai_liftover_bundle
 from backend.config import Settings
 from backend.db.sqlite_engine import make_sqlite_engine
+from backend.db.vep_version import VERSIONLESS_VEP_BUNDLE_BASELINE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -731,7 +732,7 @@ def _bundle_file_version(db_info: DatabaseInfo, bundle_path: Path) -> str:
                 return str(row[0])
         except Exception:
             pass
-        return "v1.0.0"
+        return VERSIONLESS_VEP_BUNDLE_BASELINE
 
     from backend.db.manifest import get_bundle_info
 

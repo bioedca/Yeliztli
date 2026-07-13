@@ -24,12 +24,16 @@ from packaging.version import InvalidVersion, Version
 
 from backend.db.connection import get_registry
 from backend.db.tables import annotation_state, database_versions, samples
+from backend.db.vep_version import (
+    VERSIONLESS_VEP_BUNDLE_BASELINE,
+    resolve_effective_vep_bundle_version,
+)
 
 logger = structlog.get_logger(__name__)
 
 # Per Plan §7.4 — every pre-Phase-0 sample is treated as having been
 # annotated against the v1.0.0 bundle.
-_FALLBACK_SAMPLE_VERSION = "v1.0.0"
+_FALLBACK_SAMPLE_VERSION = VERSIONLESS_VEP_BUNDLE_BASELINE
 
 # Per-sample annotation_state key holding the reference database versions used
 # by the latest successful annotation + analysis run.
@@ -149,23 +153,26 @@ def find_stale_reference_versions(
 
 
 def _read_installed_major() -> int | None:
-    """Read ``database_versions['vep_bundle'].version``'s semver major.
+    """Read the effective installed VEP bundle's semver major.
 
-    A readable registry with no row uses the documented ``v1.0.0`` baseline.
-    That is the expected state when first-run setup copies the committed
-    offline-fallback bundle without claiming that the manifest's downloadable
-    release is installed. Returns ``None`` when the table is unreadable or a
-    stored version is malformed, logging the reason at the point it is known;
+    An explicit ``database_versions`` row wins; otherwise a self-described
+    installed bundle supplies ``bundle_metadata.bundle_version``; the current
+    versionless committed fallback uses the documented ``v1.0.0`` baseline.
+    Returns ``None`` when the table is unreadable or the effective version is
+    malformed, logging the reason at the point it is known;
     ``is_sample_stale`` treats ``None`` as "decline to gate".
     """
     registry = get_registry()
     try:
-        with registry.reference_engine.connect() as conn:
-            row = conn.execute(
-                sa.select(database_versions.c.version).where(
-                    database_versions.c.db_name == "vep_bundle"
-                )
-            ).fetchone()
+        vep_db_path = (
+            registry.settings.vep_bundle_db_path
+            if registry.settings.vep_bundle_db_path.is_file()
+            else None
+        )
+        installed_version = resolve_effective_vep_bundle_version(
+            registry.reference_engine,
+            vep_db_path,
+        )
     except sa.exc.OperationalError as exc:
         logger.warning(
             "database_versions_unreadable",
@@ -173,14 +180,12 @@ def _read_installed_major() -> int | None:
             error=str(exc),
         )
         return None
-    if row is None:
-        return _coerce_major(_FALLBACK_SAMPLE_VERSION)
-    major = _coerce_major(row.version)
+    major = _coerce_major(installed_version)
     if major is None:
         logger.warning(
             "vep_bundle_version_unreadable",
             reason="malformed_installed_version",
-            installed_version=row.version,
+            installed_version=installed_version,
         )
     return major
 

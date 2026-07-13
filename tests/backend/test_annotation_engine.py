@@ -21,7 +21,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 import sqlalchemy as sa
@@ -55,6 +55,7 @@ from backend.annotation.engine import (
     _lookup_gnomad,
     _lookup_vep,
     _merge_annotations,
+    _read_bundle_version,
     run_annotation,
 )
 from backend.annotation.gnomad import (
@@ -78,6 +79,7 @@ from backend.db.tables import (
     sample_metadata_table,
     update_history,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -317,6 +319,7 @@ def alphamissense_engine() -> sa.Engine:
 
 @pytest.fixture
 def mock_registry(
+    tmp_path: Path,
     reference_engine: sa.Engine,
     vep_engine_inmemory: sa.Engine,
     gnomad_engine: sa.Engine,
@@ -326,6 +329,9 @@ def mock_registry(
     """Mock DBRegistry with all annotation source engines."""
     registry = MagicMock()
     registry.reference_engine = reference_engine
+    vep_bundle_db_path = tmp_path / "vep_bundle.db"
+    vep_bundle_db_path.touch()
+    registry.settings = SimpleNamespace(vep_bundle_db_path=vep_bundle_db_path)
     type(registry).vep_engine = property(lambda self: vep_engine_inmemory)
     type(registry).gnomad_engine = property(lambda self: gnomad_engine)
     type(registry).dbnsfp_engine = property(lambda self: dbnsfp_engine)
@@ -1217,21 +1223,52 @@ class TestCoverageStatsPayload:
             == stats["total_variants"]
         )
 
-    def test_missing_bundle_version_is_none(
+    def test_versionless_bundle_reports_v1_baseline(
         self,
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """No `database_versions` row → `bundle_version` is None, payload still emitted."""
+        """No stamp or embedded version reports the committed v1 baseline."""
         _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
 
         result = run_annotation(sample_with_variants, mock_registry)
         stats = result.coverage_stats
 
-        assert stats["bundle_version"] is None
-        # Payload shape stays intact even when bundle version is unknown.
+        assert stats["bundle_version"] == "v1.0.0"
+        # Payload shape stays intact for the versionless committed fixture.
         assert set(stats.keys()) == self._REQUIRED_TOP_KEYS
         assert list(stats["by_source"].keys()) == ["23andme"]
+
+    def test_unreadable_version_table_leaves_bundle_version_unknown(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        """A query failure stays non-fatal without claiming the v1 baseline."""
+        database_versions.drop(mock_registry.reference_engine)
+        _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
+
+        result = run_annotation(sample_with_variants, mock_registry)
+
+        assert result.total_variants > 0
+        assert result.coverage_stats["bundle_version"] is None
+
+    def test_absent_bundle_file_does_not_open_vep_engine(
+        self,
+        tmp_path: Path,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Telemetry stays unknown without materializing an empty SQLite file."""
+        missing_path = tmp_path / "missing-vep.db"
+        registry = MagicMock()
+        registry.reference_engine = reference_engine
+        registry.settings.vep_bundle_db_path = missing_path
+        vep_engine_property = PropertyMock(side_effect=AssertionError("VEP engine opened"))
+        type(registry).vep_engine = vep_engine_property
+
+        assert _read_bundle_version(registry) is None
+        vep_engine_property.assert_not_called()
+        assert not missing_path.exists()
 
     def test_missing_file_format_yields_unknown_vendor(
         self,
@@ -1325,6 +1362,29 @@ class TestCoverageStatsSideEffects:
         assert len(after_rows) == len(before_rows) == 1
         assert before_rows[0].version == after_rows[0].version == "v2.0.0"
         assert before_rows[0].downloaded_at == after_rows[0].downloaded_at
+
+    def test_embedded_bundle_version_populates_unstamped_telemetry(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        """A status-copied, self-described bundle reports its embedded version."""
+        seed_embedded_vep_bundle_version(
+            mock_registry.settings.vep_bundle_db_path,
+            "v3.0.0",
+        )
+        _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
+
+        result = run_annotation(sample_with_variants, mock_registry)
+
+        assert result.coverage_stats["bundle_version"] == "v3.0.0"
+        with mock_registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "vep_bundle"
+                )
+            ).fetchone()
+        assert row is None
 
     def test_annotation_state_untouched_by_engine(
         self,
