@@ -110,6 +110,87 @@ def _shard_path(path: Path, result, index: int) -> Path:
     return path.parent / result.shards_directory / f"{index:08d}.json"
 
 
+def test_descriptor_file_path_uses_first_available_namespace(tmp_path, monkeypatch):
+    source = tmp_path / "source.json"
+    source.write_text("{}\n", encoding="utf-8")
+    descriptor = os.open(source, os.O_RDONLY)
+    try:
+        missing = tmp_path / "missing"
+        monkeypatch.setattr(
+            plan,
+            "DESCRIPTOR_FILE_DIRECTORIES",
+            (missing, Path("/dev/fd")),
+        )
+
+        assert plan.descriptor_file_path(descriptor) == Path("/dev/fd") / str(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def test_descriptor_file_path_rejects_unrelated_inode(tmp_path, monkeypatch):
+    source = tmp_path / "source.json"
+    source.write_text("{}\n", encoding="utf-8")
+    descriptor = os.open(source, os.O_RDONLY)
+    unrelated_namespace = tmp_path / "fd"
+    unrelated_namespace.mkdir()
+    (unrelated_namespace / str(descriptor)).write_text("other\n", encoding="utf-8")
+    monkeypatch.setattr(
+        plan,
+        "DESCRIPTOR_FILE_DIRECTORIES",
+        (unrelated_namespace,),
+    )
+    try:
+        with pytest.raises(OSError, match="no descriptor path bound"):
+            plan.descriptor_file_path(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def test_plan_build_restores_process_working_directory(tmp_path):
+    before = Path.cwd()
+
+    _build(tmp_path)
+
+    assert Path.cwd() == before
+
+
+def test_plan_build_restores_working_directory_after_failure(tmp_path, monkeypatch):
+    before = Path.cwd()
+
+    def fail_build(*_args, **_kwargs):
+        raise RuntimeError("simulated build failure")
+
+    monkeypatch.setattr(plan, "_build_merkle_levels", fail_build)
+
+    with pytest.raises(RuntimeError, match="simulated build failure"):
+        _build(tmp_path)
+
+    assert Path.cwd() == before
+    assert not (tmp_path / "jobs.json").exists()
+    assert not list(tmp_path.glob("jobs.*.shards"))
+    assert not list(tmp_path.glob(".jobs.json.v3.*"))
+
+
+def test_relative_plan_path_is_normalized_before_pinned_build(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    matrix = _axes_for_count(1)
+
+    result = plan.build_job_plan(
+        Path("plans/jobs.json"),
+        configuration={"dataset_id": "fixture-v1"},
+        input_verification={},
+        dataset_split=matrix.dataset_split,
+        fixture_masks=matrix.fixture_masks,
+        drop_scenarios=matrix.drop_scenarios,
+        fractions=matrix.fractions,
+        seeds=matrix.seeds,
+        disk_reserve_bytes=0,
+    )
+
+    assert (tmp_path / "plans" / "jobs.json").is_file()
+    assert (tmp_path / "plans" / result.shards_directory).is_dir()
+
+
 def test_plan_publication_is_idempotent_but_rejects_different_identity(tmp_path):
     path, matrix, first = _build(tmp_path)
     second = plan.build_job_plan(
@@ -147,6 +228,7 @@ def test_plan_publication_rejects_concurrent_destination_lock(tmp_path):
 
 
 def test_plan_publication_rejects_parent_inode_swap(tmp_path, monkeypatch):
+    before = Path.cwd()
     parent = tmp_path / "plans"
     parent.mkdir()
     moved_parent = tmp_path / "moved-plans"
@@ -180,6 +262,9 @@ def test_plan_publication_rejects_parent_inode_swap(tmp_path, monkeypatch):
     assert not (parent / "jobs.json").exists()
     assert not (moved_parent / "jobs.json").exists()
     assert not list(moved_parent.glob("jobs.*.shards"))
+    assert not list(parent.glob(".jobs.json.v3.*"))
+    assert not list(moved_parent.glob(".jobs.json.v3.*"))
+    assert Path.cwd() == before
 
 
 def test_plan_reader_enforces_json_artifact_size_limit(tmp_path, monkeypatch):

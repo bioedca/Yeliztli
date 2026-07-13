@@ -54,6 +54,37 @@ def test_stable_read_rejects_pathname_replacement_during_parse(tmp_path):
         cal.stable_read(source, replace_path)
 
 
+def test_stable_read_supports_dev_fd_descriptor_namespace(tmp_path, monkeypatch):
+    source = tmp_path / "source.json"
+    source.write_text('{"value":1}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        cal.lai_coverage_plan,
+        "DESCRIPTOR_FILE_DIRECTORIES",
+        (Path("/dev/fd"),),
+    )
+
+    parsed, snapshot = cal.stable_read(
+        source,
+        lambda pinned_path: json.loads(pinned_path.read_text(encoding="utf-8")),
+    )
+
+    assert parsed == {"value": 1}
+    assert snapshot["sha256"] == cal.sha256_file(source)
+
+
+def test_stable_read_fails_closed_without_descriptor_namespace(tmp_path, monkeypatch):
+    source = tmp_path / "source.json"
+    source.write_text('{"value":1}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        cal.lai_coverage_plan,
+        "DESCRIPTOR_FILE_DIRECTORIES",
+        (tmp_path / "missing-fd-namespace",),
+    )
+
+    with pytest.raises(ValueError, match="no portable descriptor path"):
+        cal.stable_read(source, Path.read_bytes)
+
+
 def test_destination_rejects_path_hardlink_and_protected_tree_aliases(tmp_path):
     authenticated_input = tmp_path / "input.json"
     authenticated_input.write_text("{}\n", encoding="utf-8")
