@@ -25,7 +25,7 @@ const variantRow = {
   consequence: 'missense_variant',
   clinvar_significance: 'Uncertain significance',
   clinvar_review_stars: 1,
-  gnomad_af_global: 0.001,
+  gnomad_af_global: 0.42,
   rare_flag: false,
   cadd_phred: 24.7,
   sift_score: null,
@@ -140,4 +140,18 @@ test('Query Builder results CADD and REVEL headers use the shared score tooltips
     'title',
     REVEL_TOOLTIP,
   )
+})
+
+test('Query Builder renders common gnomAD AF as a plain fraction (#1776)', async ({ page }) => {
+  await stubQueryBuilder(page)
+  await page.goto('/query-builder?sample_id=1')
+  await waitForReactHydration(page)
+
+  await page.getByRole('button', { name: '+ Rule' }).click()
+  const runButton = page.getByTestId('run-query-btn')
+  await expect(runButton).toBeEnabled()
+  await runButton.click()
+
+  const resultRow = page.getByTestId('query-result-row')
+  await expect(resultRow.getByRole('cell').nth(8)).toHaveText('0.4200')
 })
