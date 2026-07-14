@@ -1,13 +1,14 @@
 {
   "module": "haplogroup",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
     "Y": {
       "min_internal_terminal_specific_snps": 2,
       "trusted_missing_internal_passthrough_rsids": [
-        "rs2032599"
+        "rs2032599",
+        "rs2033003"
       ],
       "trusted_single_marker_terminal_rsids": [
         "i702668",
