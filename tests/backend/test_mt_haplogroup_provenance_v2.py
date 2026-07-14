@@ -42,13 +42,13 @@ LOCKED_EXACT_COVERAGE_SHA256 = "daffdcdad072e09ff49ce22247d4e7e4e686b5cf0ed86bcd
 BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
 )
-DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
+LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "992b76e60aa16aa2939bee8645638c24811723a7e3de899ecd88a93e41d0918d"
 )
 BASELINE_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
-DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
+LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
     "042c7b21dba02902247797c372e66629ee3e1db304bf2c17e9d98bb74470323f"
 )
 INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
@@ -506,7 +506,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256
     )
     assert _canonical_sha256(migration["locked_direct_motif_exact_nodes"]) == (
-        DIRECT_MOTIF_EXACT_NAMES_SHA256
+        LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256
     )
     assert _canonical_sha256(migration["initial_direct_motif_pending_nodes"]) == (
         INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256
@@ -589,7 +589,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
                 _MT_SOURCE, migration["locked_direct_motif_exact_nodes"]
             )
         )
-        == DIRECT_MOTIF_EXACT_SEMANTIC_SHA256
+        == LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256
     )
 
     expected_literals = {
@@ -606,8 +606,8 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         "locked_exact_coverage_membership_sha256": LOCKED_EXACT_COVERAGE_SHA256,
         "baseline_direct_motif_exact_nodes_sha256": BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256,
         "baseline_direct_motif_semantic_sha256": BASELINE_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256,
-        "locked_direct_motif_exact_nodes_sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
-        "locked_direct_motif_semantic_sha256": DIRECT_MOTIF_EXACT_SEMANTIC_SHA256,
+        "locked_direct_motif_exact_nodes_sha256": LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        "locked_direct_motif_semantic_sha256": LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256,
         "initial_direct_motif_pending_nodes_sha256": (INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256),
         "initial_pending_nodes_sha256": INITIAL_PENDING_NAMES_SHA256,
         "array_manifest_sha256": ARRAY_MANIFEST_SHA256,
@@ -1590,6 +1590,10 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
             "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
         },
     }
+    marker_exact_count = summary["marker_exact_nodes"]["count"]
+    direct_exact_count = summary["direct_source_motif_nodes"]["exact"]["count"]
+    assert f"{marker_exact_count} marker-exact nodes" in _MT_SOURCE["audit_scope"]
+    assert f"classifies {direct_exact_count} direct motifs as exact" in _MT_SOURCE["audit_scope"]
     assert summary["structural_nodes"] == {
         "count": 2,
         "names": ["R0", "mt-MRCA"],
@@ -1626,7 +1630,7 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     }
     assert summary["locked_direct_motif_frontier"] == {
         "count": 29,
-        "sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        "sha256": LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
     assert summary["digests"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
     assert summary["digests"]["locked_emitted_tree_sha256"] == LOCKED_EMITTED_TREE_SHA256
