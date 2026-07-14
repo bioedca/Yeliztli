@@ -557,19 +557,6 @@ def parse_gnomad_vcf_records(line: str) -> tuple[list[GnomADRecord], str | None]
     return records, None
 
 
-def parse_gnomad_vcf_line(line: str) -> tuple[GnomADRecord | None, str | None]:
-    """Parse a gnomAD VCF data line and return the first ALT record.
-
-    This compatibility wrapper is for callers/tests that expect a single record.
-    The loader uses :func:`parse_gnomad_vcf_records` so multi-allelic rows are
-    preserved as one record per ALT allele.
-    """
-    records, skip_reason = parse_gnomad_vcf_records(line)
-    if not records:
-        return None, skip_reason
-    return records[0], skip_reason
-
-
 def iter_gnomad_vcf(
     vcf_path: Path,
     *,
