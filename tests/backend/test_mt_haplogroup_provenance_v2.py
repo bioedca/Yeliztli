@@ -6,9 +6,11 @@ import hashlib
 import json
 from copy import deepcopy
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
+import scripts.build_haplogroup_bundle as haplogroup_builder
 from scripts.build_haplogroup_bundle import (
     _MT_SOURCE,
     _index_mt_tree,
@@ -49,8 +51,9 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "93227229ec35249659fbec5c753470ca6b7d562cfbc23e5079b89a05295d7114"
-EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
+STATE_PARTITION_SHA256 = "b3d0bb0497e61b3bbc7b282526273d738deeee8c6694a7982071fddf5e7ace83"
+BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
+LOCKED_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -525,7 +528,8 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         )
         == STATE_PARTITION_SHA256
     )
-    assert _canonical_sha256(_tree_projection(build_mt_tree())) == EMITTED_TREE_SHA256
+    emitted_tree_digest = _canonical_sha256(_tree_projection(build_mt_tree()))
+    assert emitted_tree_digest == LOCKED_EMITTED_TREE_SHA256
 
     assert (
         _canonical_sha256(
@@ -601,10 +605,54 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         "array_manifest_sha256": ARRAY_MANIFEST_SHA256,
         "source_metadata_sha256": SOURCE_METADATA_SHA256,
         "state_partition_sha256": STATE_PARTITION_SHA256,
-        "baseline_emitted_tree_sha256": EMITTED_TREE_SHA256,
+        "baseline_emitted_tree_sha256": BASELINE_EMITTED_TREE_SHA256,
+        "locked_emitted_tree_sha256": LOCKED_EMITTED_TREE_SHA256,
     }
     for field, expected in expected_literals.items():
         assert migration[field] == expected
+
+
+def test_reviewed_live_tree_lock_can_advance_without_rewriting_baseline() -> None:
+    source = deepcopy(_MT_SOURCE)
+    tree = build_mt_tree()
+    tree["children"][0], tree["children"][1] = tree["children"][1], tree["children"][0]
+    advanced_live_digest = _canonical_sha256(_tree_projection(tree))
+    source["migration"]["locked_emitted_tree_sha256"] = advanced_live_digest
+
+    assert advanced_live_digest != BASELINE_EMITTED_TREE_SHA256
+    assert source["migration"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
+    with patch.object(
+        haplogroup_builder,
+        "_MT_LOCKED_EMITTED_TREE_SHA256",
+        advanced_live_digest,
+    ):
+        assert _validate_mt_source_schema(source) == []
+        assert _validate_mt_registry_against_tree(source, _index_mt_tree(tree)) == []
+
+
+def test_live_tree_digest_requires_registry_and_builder_lock_agreement() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["migration"]["locked_emitted_tree_sha256"] = "0" * 64
+
+    schema_text = _issues_text(_validate_mt_source_schema(source))
+    assert "locked_emitted_tree_sha256 differs from the review-locked live tree" in schema_text
+    registry_text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert "emitted tree differs from its live locked fingerprint" in registry_text
+
+
+def test_coherent_tree_and_stored_live_lock_change_still_requires_builder_review() -> None:
+    source = deepcopy(_MT_SOURCE)
+    tree = build_mt_tree()
+    tree["children"][0], tree["children"][1] = tree["children"][1], tree["children"][0]
+    advanced_live_digest = _canonical_sha256(_tree_projection(tree))
+    source["migration"]["locked_emitted_tree_sha256"] = advanced_live_digest
+
+    registry_text = _issues_text(_validate_mt_registry_against_tree(source, _index_mt_tree(tree)))
+    assert "emitted tree differs from its live locked fingerprint" not in registry_text
+    assert "emitted tree differs from the review-locked live tree" in registry_text
+    assert source["migration"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
 
 
 @pytest.mark.parametrize("destination", ["pending", "structural"])
@@ -822,7 +870,7 @@ def test_new_marker_bearing_tree_node_cannot_enter_pending_frontier() -> None:
     schema_text = _issues_text(_validate_mt_source_schema(source))
     assert "pending frontier grew beyond the initial audited tree" in schema_text
     registry_text = _issues_text(_validate_mt_registry_against_tree(source, _index_mt_tree(tree)))
-    assert "locked issue-1798 baseline" in registry_text
+    assert "review-locked live tree" in registry_text
 
 
 @pytest.mark.parametrize(
@@ -858,7 +906,7 @@ def test_moving_copied_z_from_m8_to_m_is_detected_as_topology_drift() -> None:
     issues = _validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree))
     text = _issues_text(issues)
     assert "Marker-exact mtDNA node Z declares parent 'M8'; emitted parent is 'M'" in text
-    assert "locked issue-1798 baseline" in text
+    assert "review-locked live tree" in text
 
 
 def test_structural_exceptions_are_narrow_and_markerless() -> None:
@@ -867,6 +915,7 @@ def test_structural_exceptions_are_narrow_and_markerless() -> None:
             "type": "root",
             "emitted_parent": None,
             "source_status": "synthetic",
+            "source_topology_anchor": "mt-MRCA",
             "reason": "Synthetic tree-walk root; it emits no defining marker.",
         },
         "R0": {
@@ -900,6 +949,158 @@ def test_synthetic_root_cannot_be_retyped_or_reparented() -> None:
     )
     assert "Structural mtDNA pass-through mt-MRCA cannot be the root" in text
     assert "declares parent 'L3'; emitted parent is None" in text
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("missing", "Synthetic mtDNA root mt-MRCA has no source-topology anchor"),
+        ("blank", "Synthetic mtDNA root mt-MRCA has no source-topology anchor"),
+        ("mismatch", "must equal canonical emitted root name 'mt-MRCA'"),
+        ("non-root", "Structural mtDNA node R0 has invalid provenance fields"),
+    ],
+)
+def test_synthetic_root_topology_anchor_is_root_only_and_nonblank(
+    mutation: str, expected: str
+) -> None:
+    source = deepcopy(_MT_SOURCE)
+    if mutation == "missing":
+        source["structural_exceptions"]["mt-MRCA"].pop("source_topology_anchor")
+    elif mutation == "blank":
+        source["structural_exceptions"]["mt-MRCA"]["source_topology_anchor"] = " "
+    elif mutation == "mismatch":
+        source["structural_exceptions"]["mt-MRCA"]["source_topology_anchor"] = "wrong-root"
+    else:
+        source["structural_exceptions"]["R0"]["source_topology_anchor"] = "R0"
+
+    assert expected in _issues_text(_validate_mt_source_schema(source))
+
+
+@pytest.mark.parametrize("collision", ["direct", "omission", "flattened-path"])
+def test_synthetic_root_topology_anchor_cannot_collide_with_source_identity(
+    collision: str,
+) -> None:
+    source = deepcopy(_MT_SOURCE)
+    if collision == "direct":
+        source["nodes"]["G"]["source_node"] = "mt-MRCA"
+    elif collision == "omission":
+        source["omitted_nodes"]["mt-MRCA"] = {
+            "type": "unreportable_source_node",
+            "reason": "test-only synthetic-anchor collision",
+        }
+    else:
+        source["nodes"]["G1"]["source_topology"] = {
+            "status": "exact",
+            "emitted_parent_source_node": "G",
+            "source_parent": "mt-MRCA",
+            "flattened_source_path": [
+                {
+                    "source_node": "mt-MRCA",
+                    "source_parent": "G",
+                    "reason": "test-only synthetic-anchor collision",
+                    "direct_source_motif": [],
+                }
+            ],
+        }
+
+    text = _issues_text(_validate_mt_source_schema(source))
+    assert "root source-topology anchors collide with source-node identities: mt-MRCA" in text
+
+
+def _source_with_exact_root_child(
+    child_anchor: str = "mt-MRCA", root_anchor: str = "mt-MRCA"
+) -> dict[str, Any]:
+    source = deepcopy(_MT_SOURCE)
+    source["structural_exceptions"]["mt-MRCA"]["source_topology_anchor"] = root_anchor
+    source["pending_nodes"].pop("L0")
+    l0 = _find_node(build_mt_tree(), "L0")
+    source["nodes"]["L0"] = {
+        "source_node": "L0",
+        "emitted_parent": "mt-MRCA",
+        "source_topology": {
+            "status": "exact",
+            "emitted_parent_source_node": child_anchor,
+            "source_parent": "mt-MRCA",
+            "flattened_source_path": [],
+        },
+        "emitted_snps": [
+            {key: marker[key] for key in ("rsid", "pos", "allele")}
+            for marker in l0["defining_snps"]
+        ],
+    }
+    return source
+
+
+def test_synthetic_root_can_anchor_exact_child_source_topology() -> None:
+    source = _source_with_exact_root_child()
+
+    assert (
+        source["structural_exceptions"]["mt-MRCA"]
+        == (_MT_SOURCE["structural_exceptions"]["mt-MRCA"])
+    )
+    assert _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree())) == []
+
+
+def test_exact_root_child_rejects_wrong_declared_parent_anchor() -> None:
+    source = _source_with_exact_root_child(child_anchor="not-mt-MRCA")
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert "names emitted-parent source 'not-mt-MRCA'; expected 'mt-MRCA'" in text
+
+
+def test_exact_root_child_rejects_invalid_registry_root_anchor() -> None:
+    source = _source_with_exact_root_child(child_anchor="not-mt-MRCA", root_anchor="not-mt-MRCA")
+
+    schema_text = _issues_text(_validate_mt_source_schema(source))
+    assert "must equal canonical emitted root name 'mt-MRCA'" in schema_text
+    registry_text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert (
+        "source-topology anchor 'not-mt-MRCA' must equal canonical emitted root name 'mt-MRCA'"
+        in registry_text
+    )
+
+
+def test_coherent_synthetic_root_rename_cannot_advance_with_the_live_tree_lock() -> None:
+    source = deepcopy(_MT_SOURCE)
+    tree = build_mt_tree()
+    old_name = "mt-MRCA"
+    new_name = "renamed-root"
+    tree["haplogroup"] = new_name
+    root_record = source["structural_exceptions"].pop(old_name)
+    root_record["source_topology_anchor"] = new_name
+    source["structural_exceptions"][new_name] = root_record
+    for category in ("nodes", "pending_nodes", "structural_exceptions"):
+        for record in source[category].values():
+            if record.get("emitted_parent") == old_name:
+                record["emitted_parent"] = new_name
+
+    state_partition_digest = _canonical_sha256(
+        {
+            "direct_source_motif_states": source["direct_source_motif_states"],
+            "omitted_nodes": source["omitted_nodes"],
+            "structural_exceptions": source["structural_exceptions"],
+            "pending_nodes": source["pending_nodes"],
+        }
+    )
+    live_tree_digest = _canonical_sha256(_tree_projection(tree))
+    source["migration"]["state_partition_sha256"] = state_partition_digest
+    source["migration"]["locked_emitted_tree_sha256"] = live_tree_digest
+
+    with (
+        patch.object(haplogroup_builder, "_MT_STATE_PARTITION_SHA256", state_partition_digest),
+        patch.object(haplogroup_builder, "_MT_LOCKED_EMITTED_TREE_SHA256", live_tree_digest),
+    ):
+        schema_text = _issues_text(_validate_mt_source_schema(source))
+        registry_text = _issues_text(
+            _validate_mt_registry_against_tree(source, _index_mt_tree(tree))
+        )
+
+    assert "must use canonical root name 'mt-MRCA'" in schema_text
+    assert "must use canonical root name 'mt-MRCA'" in registry_text
 
 
 def test_six_export_manifest_and_two_23andme_cohorts_are_pinned() -> None:
@@ -993,28 +1194,55 @@ def test_migration_status_cannot_claim_complete_with_pending_nodes() -> None:
     assert "migration status must be 'in_progress'" in text
 
 
-def test_migration_completion_requires_every_direct_source_motif_to_be_exact() -> None:
-    tree = {
-        "haplogroup": "root",
+def _completion_tree(*children: str) -> dict[str, Any]:
+    return {
+        "haplogroup": "mt-MRCA",
         "defining_snps": [],
         "children": [
             {
-                "haplogroup": "child",
-                "defining_snps": [{"rsid": "test", "pos": 1, "allele": "G"}],
+                "haplogroup": name,
+                "defining_snps": [{"rsid": f"test-{name}", "pos": pos, "allele": "G"}],
             }
+            for pos, name in enumerate(children or ("child",), start=1)
         ],
     }
-    inventory = _index_mt_tree(tree)
-    source = {
+
+
+def _completion_source(*children: str) -> dict[str, Any]:
+    names = list(children or ("child",))
+    return {
         "pending_nodes": {},
-        "nodes": {"child": {"source_topology": {"status": "exact"}}},
+        "nodes": {
+            name: {
+                "source_topology": {
+                    "status": "exact",
+                    "flattened_source_path": [],
+                }
+            }
+            for name in names
+        },
         "structural_exceptions": {
-            "root": {"source_status": "synthetic"},
+            "mt-MRCA": {
+                "type": "root",
+                "emitted_parent": None,
+                "source_status": "synthetic",
+                "source_topology_anchor": "mt-MRCA",
+            }
         },
         "direct_source_motif_states": {
-            "exact_nodes": [],
-            "legacy_partial_nodes": ["child"],
+            "exact_nodes": names,
+            "legacy_partial_nodes": [],
         },
+        "omitted_nodes": {},
+    }
+
+
+def test_migration_completion_requires_every_direct_source_motif_to_be_exact() -> None:
+    inventory = _index_mt_tree(_completion_tree())
+    source = _completion_source()
+    source["direct_source_motif_states"] = {
+        "exact_nodes": [],
+        "legacy_partial_nodes": ["child"],
     }
 
     assert not _mt_migration_complete_ready(source, inventory)
@@ -1023,6 +1251,71 @@ def test_migration_completion_requires_every_direct_source_motif_to_be_exact() -
         "legacy_partial_nodes": [],
     }
     assert _mt_migration_complete_ready(source, inventory)
+    source["structural_exceptions"]["mt-MRCA"]["source_topology_anchor"] = "wrong-root"
+    assert not _mt_migration_complete_ready(source, inventory)
+
+
+def test_migration_completion_requires_flattened_omissions_on_an_exact_path() -> None:
+    inventory = _index_mt_tree(_completion_tree())
+    source = _completion_source()
+    source["omitted_nodes"]["middle"] = {
+        "type": "flattened_unreportable_source_intermediate",
+        "reason": "test-only unreportable source intermediate",
+    }
+
+    assert not _mt_migration_complete_ready(source, inventory)
+    source["nodes"]["child"]["source_topology"]["flattened_source_path"] = [
+        {"source_node": "middle"}
+    ]
+    assert _mt_migration_complete_ready(source, inventory)
+
+
+def test_migration_completion_ignores_ordinary_unreportable_omissions() -> None:
+    source = _completion_source()
+    source["omitted_nodes"]["pruned"] = {
+        "type": "unreportable_source_node",
+        "reason": "test-only ordinary omission",
+    }
+
+    assert _mt_migration_complete_ready(source, _index_mt_tree(_completion_tree()))
+
+
+def test_migration_completion_allows_consistently_shared_flattened_reference() -> None:
+    shared_step = {
+        "source_node": "middle",
+        "source_parent": "mt-MRCA",
+        "reason": "test-only shared unreportable source intermediate",
+        "direct_source_motif": [],
+    }
+    source = _completion_source("left", "right")
+    for record in source["nodes"].values():
+        record["source_topology"]["flattened_source_path"] = [deepcopy(shared_step)]
+    source["omitted_nodes"]["middle"] = {
+        "type": "flattened_unreportable_source_intermediate",
+        "reason": shared_step["reason"],
+    }
+
+    assert _mt_migration_complete_ready(source, _index_mt_tree(_completion_tree("left", "right")))
+
+
+def test_claimed_complete_migration_rejects_orphan_flattened_omission() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["migration"]["status"] = "complete"
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert (
+        "flattened source omissions that are not referenced by an exact flattened path: CZ" in text
+    )
+
+
+def test_in_progress_migration_allows_predeclared_cz_flattening() -> None:
+    assert _MT_SOURCE["migration"]["status"] == "in_progress"
+    assert _MT_SOURCE["omitted_nodes"]["CZ"]["type"] == (
+        "flattened_unreportable_source_intermediate"
+    )
+    assert _validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(build_mt_tree())) == []
 
 
 def test_clearing_pending_map_without_migrating_nodes_fails_closed() -> None:
@@ -1232,6 +1525,8 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "count": 27,
         "sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
+    assert summary["digests"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
+    assert summary["digests"]["locked_emitted_tree_sha256"] == LOCKED_EMITTED_TREE_SHA256
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
