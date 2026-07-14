@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.9",
+  "version": "1.1.10",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,7 +74,7 @@
       ],
       "audit": {
         "schema_version": 2,
-        "scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 39 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 27 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
+        "scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 41 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 29 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
         "audited_nodes": [
           "C",
           "G",
@@ -99,6 +99,8 @@
           "M8a",
           "N9",
           "S",
+          "S1",
+          "S2",
           "T2a",
           "U2",
           "U2e",
@@ -125,7 +127,7 @@
           "emitted_nodes": 194,
           "marker_bearing_nodes": 192,
           "marker_exact_nodes": {
-            "count": 39,
+            "count": 41,
             "names": [
               "C",
               "G",
@@ -150,6 +152,8 @@
               "M8a",
               "N9",
               "S",
+              "S1",
+              "S2",
               "T2a",
               "U2",
               "U2e",
@@ -170,7 +174,7 @@
           },
           "direct_source_motif_nodes": {
             "exact": {
-              "count": 27,
+              "count": 29,
               "names": [
                 "C",
                 "G1",
@@ -189,6 +193,8 @@
                 "M8a",
                 "N9",
                 "S",
+                "S1",
+                "S2",
                 "T2a",
                 "U2",
                 "U3a",
@@ -227,7 +233,7 @@
             ]
           },
           "pending_nodes": {
-            "count": 153,
+            "count": 151,
             "names": [
               "A",
               "A2",
@@ -344,8 +350,6 @@
               "N9b",
               "P",
               "R",
-              "S1",
-              "S2",
               "T",
               "T1",
               "T1a",
@@ -385,18 +389,18 @@
             ]
           },
           "marker_records": {
-            "emitted": 395,
-            "marker_exact": 87,
+            "emitted": 398,
+            "marker_exact": 92,
             "marker_exact_by_cohort": {
-              "historical_five_23andme_including_2014": 6,
-              "primary_four_23andme": 81
+              "historical_five_23andme_including_2014": 8,
+              "primary_four_23andme": 84
             }
           },
           "source_mutation_decisions": {
-            "total": 117,
-            "emitted": 87,
+            "total": 122,
+            "emitted": 92,
             "omitted": 30,
-            "direct_motif_exact": 80,
+            "direct_motif_exact": 85,
             "direct_motif_legacy_partial": 37,
             "recurrent_or_uncertain_events": 0,
             "reversion_events": 11,
@@ -407,8 +411,8 @@
             "validated_declarations": 193
           },
           "source_parent_edges": {
-            "validated": 0,
-            "pending": 193
+            "validated": 2,
+            "pending": 191
           },
           "omitted_source_nodes": {
             "count": 2,
@@ -422,17 +426,17 @@
             "cohorts": 2
           },
           "locked_exact_frontier": {
-            "count": 39,
-            "sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9"
+            "count": 41,
+            "sha256": "8d613b83048c5fece0983084544114c869273e3dec4057c6098a7945b6ee2226"
           },
           "locked_direct_motif_frontier": {
-            "count": 27,
-            "sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
+            "count": 29,
+            "sha256": "992b76e60aa16aa2939bee8645638c24811723a7e3de899ecd88a93e41d0918d"
           },
           "digests": {
             "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
             "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-            "locked_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
+            "locked_emitted_tree_sha256": "91a1c2c8f8bd34a5bdd1d3aace4ecb60041b128dcdc737d5fd25e50d4d4455bb",
             "baseline_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
             "baseline_v1_coverage_sha256": "d88d4491671f99175bea3c6188affb3b0bbbd31681e0f7c35103ac4f194da6e6",
             "baseline_v1_semantic_sha256": "c044b73c08b339d0be782306b84d593982b13242d995d541522da6f5bc9fc7c6",
@@ -442,12 +446,12 @@
             "baseline_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
             "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
             "initial_direct_motif_pending_nodes_sha256": "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb",
-            "locked_direct_motif_exact_nodes_sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61",
-            "locked_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
-            "locked_exact_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
-            "locked_exact_semantic_sha256": "4d1b8376a376df3eca9fd84cbaa912e994429d04890f3699db588cbf53fe1c66",
+            "locked_direct_motif_exact_nodes_sha256": "992b76e60aa16aa2939bee8645638c24811723a7e3de899ecd88a93e41d0918d",
+            "locked_direct_motif_semantic_sha256": "042c7b21dba02902247797c372e66629ee3e1db304bf2c17e9d98bb74470323f",
+            "locked_exact_coverage_membership_sha256": "daffdcdad072e09ff49ce22247d4e7e4e686b5cf0ed86bcdfd26b8daec4f0eeb",
+            "locked_exact_semantic_sha256": "9757ab026210b06d5b04e8e021c6a10d3fd7ca5618a0542f55d0a90f10d97236",
             "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-            "state_partition_sha256": "b3d0bb0497e61b3bbc7b282526273d738deeee8c6694a7982071fddf5e7ace83"
+            "state_partition_sha256": "b8875e25f61a197502c8ab1e85917e9923e3a454da885b7feb6100caf345107f"
           },
           "baseline_commit": "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
         }
@@ -1943,8 +1947,13 @@
                       "haplogroup": "S1",
                       "defining_snps": [
                         {
-                          "rsid": "i5010238",
-                          "pos": 10238,
+                          "rsid": "i5014384",
+                          "pos": 14384,
+                          "allele": "C"
+                        },
+                        {
+                          "rsid": "i5016075",
+                          "pos": 16075,
                           "allele": "C"
                         }
                       ]
@@ -1953,9 +1962,19 @@
                       "haplogroup": "S2",
                       "defining_snps": [
                         {
-                          "rsid": "i5014364",
-                          "pos": 14364,
+                          "rsid": "i5002380",
+                          "pos": 2380,
                           "allele": "T"
+                        },
+                        {
+                          "rsid": "i5003438",
+                          "pos": 3438,
+                          "allele": "A"
+                        },
+                        {
+                          "rsid": "i5006167",
+                          "pos": 6167,
+                          "allele": "C"
                         }
                       ]
                     }
@@ -5047,8 +5066,8 @@
   },
   "stats": {
     "mt_haplogroups": 194,
-    "mt_defining_snps": 395,
-    "mt_unique_snps": 315,
+    "mt_defining_snps": 398,
+    "mt_unique_snps": 318,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
     "y_defining_snps": 154,
@@ -5057,7 +5076,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 301,
-    "total_defining_snps": 549,
-    "total_unique_snps": 469
+    "total_defining_snps": 552,
+    "total_unique_snps": 472
   }
 }

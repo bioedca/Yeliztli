@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 39 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 27 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 41 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 29 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -140,6 +140,8 @@
       "M8a",
       "N9",
       "S",
+      "S1",
+      "S2",
       "T2a",
       "U2",
       "U3a",
@@ -2102,6 +2104,174 @@
         }
       ]
     },
+    "S1": {
+      "source_node": "S1",
+      "emitted_parent": "S",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "S",
+        "source_parent": "S",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "G14384c",
+          "mutation_type": "substitution",
+          "pos": 14384,
+          "ancestral_allele": "G",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "T16075C",
+          "mutation_type": "substitution",
+          "pos": 16075,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5014384",
+          "pos": 14384,
+          "ancestral_allele": "G",
+          "allele": "C",
+          "motif_owner": "S1",
+          "array_coverage": {
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_1050"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016075",
+          "pos": 16075,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "S1",
+          "array_coverage": {
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_1050"
+            ]
+          }
+        }
+      ]
+    },
+    "S2": {
+      "source_node": "S2",
+      "emitted_parent": "S",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "S",
+        "source_parent": "S",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "C2380T",
+          "mutation_type": "substitution",
+          "pos": 2380,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "G3438A",
+          "mutation_type": "substitution",
+          "pos": 3438,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "T6167C",
+          "mutation_type": "substitution",
+          "pos": 6167,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5002380",
+          "pos": 2380,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "S2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5003438",
+          "pos": 3438,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "S2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5006167",
+          "pos": 6167,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "S2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
     "T2a": {
       "source_node": "T2a",
       "emitted_parent": "T2",
@@ -3855,12 +4025,6 @@
     "R": {
       "emitted_parent": "N"
     },
-    "S1": {
-      "emitted_parent": "S"
-    },
-    "S2": {
-      "emitted_parent": "S"
-    },
     "T": {
       "emitted_parent": "JT"
     },
@@ -4078,6 +4242,8 @@
       "M8a",
       "N9",
       "S",
+      "S1",
+      "S2",
       "T2a",
       "U2",
       "U2e",
@@ -4095,9 +4261,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
-    "locked_exact_semantic_sha256": "4d1b8376a376df3eca9fd84cbaa912e994429d04890f3699db588cbf53fe1c66",
-    "locked_exact_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
+    "locked_exact_nodes_sha256": "8d613b83048c5fece0983084544114c869273e3dec4057c6098a7945b6ee2226",
+    "locked_exact_semantic_sha256": "9757ab026210b06d5b04e8e021c6a10d3fd7ca5618a0542f55d0a90f10d97236",
+    "locked_exact_coverage_membership_sha256": "daffdcdad072e09ff49ce22247d4e7e4e686b5cf0ed86bcdfd26b8daec4f0eeb",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -4147,6 +4313,8 @@
       "M8a",
       "N9",
       "S",
+      "S1",
+      "S2",
       "T2a",
       "U2",
       "U3a",
@@ -4158,8 +4326,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61",
-    "locked_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
+    "locked_direct_motif_exact_nodes_sha256": "992b76e60aa16aa2939bee8645638c24811723a7e3de899ecd88a93e41d0918d",
+    "locked_direct_motif_semantic_sha256": "042c7b21dba02902247797c372e66629ee3e1db304bf2c17e9d98bb74470323f",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -4333,8 +4501,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "b3d0bb0497e61b3bbc7b282526273d738deeee8c6694a7982071fddf5e7ace83",
+    "state_partition_sha256": "b8875e25f61a197502c8ab1e85917e9923e3a454da885b7feb6100caf345107f",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
+    "locked_emitted_tree_sha256": "91a1c2c8f8bd34a5bdd1d3aace4ecb60041b128dcdc737d5fd25e50d4d4455bb"
   }
 }
