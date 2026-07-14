@@ -102,5 +102,10 @@ test.describe('Variant detail ASJ population frequency', () => {
     await expect(asjRow).toBeVisible()
     await expect(asjRow).toContainText('Ashkenazi Jewish')
     await expect(asjRow).toContainText('0.0269')
+
+    const nfeRow = page.getByTestId('pop-bar-eur')
+    await expect(nfeRow).toBeVisible()
+    await expect(nfeRow).toContainText('European (non-Finnish)')
+    await expect(page.getByTestId('pop-bar-fin')).toContainText('Finnish')
   })
 })

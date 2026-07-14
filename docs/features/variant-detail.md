@@ -9,8 +9,8 @@ summary, then **Open full detail** for the full page, organised into tabs:
    transcript is flagged), a ClinVar summary, and a **Key Scores** block: gnomAD global allele
    frequency with a rare / ultra-rare flag, plus CADD, REVEL, SIFT, and PolyPhen-2.
 2. **Population** — gnomAD allele frequencies across subpopulations (Global, African,
-   Latino/Admixed, Ashkenazi Jewish, East Asian, European, Finnish, South Asian), the gnomAD
-   homozygote count, and a rarity note.
+   Latino/Admixed, Ashkenazi Jewish, East Asian, European (non-Finnish), Finnish, South Asian),
+   the gnomAD homozygote count, and a rarity note.[1]
 3. **Protein** — the variant's protein change (HGVS p.) and a link to the gene's full
    **[Gene Detail](gene-detail.md)** page, where the Nightingale protein-domain diagram is
    rendered. The diagram is not shown inline here, and this page does not mark the variant's
@@ -49,3 +49,10 @@ so the same change can carry different `c.` / `p.` numbers on different transcri
 [HGVS nomenclature reference](https://hgvs-nomenclature.org/) for the full rules.
 
 [^hgvs]: [HGVS Recommendations for the Description of Sequence Variants: 2016 Update](https://doi.org/10.1002/humu.22981) (den Dunnen et al., 2016, *Human Mutation*; [PMID 26931183](https://pubmed.ncbi.nlm.nih.gov/26931183/)) defines the international standard nomenclature for sequence variants, including the `c.` (coding-DNA) and `p.` (protein) prefixes.
+
+## References
+
+[1] Karczewski KJ, et al. [The mutational constraint spectrum quantified from variation in
+141,456 humans](https://doi.org/10.1038/s41586-020-2308-7). *Nature*. 2020;581:434–443.
+[PMID 32461654](https://pubmed.ncbi.nlm.nih.gov/32461654/); [PMCID
+PMC7334197](https://pmc.ncbi.nlm.nih.gov/articles/PMC7334197/).

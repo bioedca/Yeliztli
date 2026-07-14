@@ -401,6 +401,8 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByTestId("pop-bar-afr")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-asj")).toBeInTheDocument()
     expect(screen.getByTestId("pop-bar-eur")).toBeInTheDocument()
+    expect(screen.getByTestId("pop-bar-eur")).toHaveTextContent("European (non-Finnish)")
+    expect(screen.getByTestId("pop-bar-fin")).toHaveTextContent("Finnish")
 
     // Per-population AF must render as a raw FRACTION (the shared
     // formatAlleleFrequency unit), not a percentage — matching the other

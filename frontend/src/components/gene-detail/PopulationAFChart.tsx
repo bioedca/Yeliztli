@@ -13,7 +13,11 @@ import { formatAlleleFrequency } from "@/lib/format"
 
 const POPULATIONS = [
   { key: "gnomad_af_global" as const, label: "Global", color: "#0D9488" },
-  { key: "gnomad_af_eur" as const, label: "European", color: "#2563EB" },
+  {
+    key: "gnomad_af_eur" as const,
+    label: "European (non-Finnish)",
+    color: "#2563EB",
+  },
   { key: "gnomad_af_afr" as const, label: "African", color: "#7C3AED" },
   { key: "gnomad_af_asj" as const, label: "Ashkenazi Jewish", color: "#DB2777" },
   { key: "gnomad_af_eas" as const, label: "East Asian", color: "#059669" },
@@ -80,7 +84,7 @@ export default function PopulationAFChart({ data, selectedVariant }: PopulationA
         ]}
         layout={{
           height: 240,
-          margin: { l: 110, r: 60, t: 10, b: 30 },
+          margin: { l: 150, r: 60, t: 10, b: 30 },
           xaxis: {
             title: { text: "Allele Frequency", font: { size: 11 } },
             type: "log",
