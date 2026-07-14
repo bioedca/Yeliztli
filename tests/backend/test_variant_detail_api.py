@@ -6,6 +6,7 @@ evidence conflict data.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    findings,
     gene_phenotype,
     reference_metadata,
     samples,
@@ -481,6 +483,35 @@ class TestGetVariantDetail:
         assert data["gnomad_homozygous_count"] == 0
         assert data["rare_flag"] is True
         assert data["ultra_rare_flag"] is True
+
+    def test_returns_ancestry_matched_af_from_inferred_population(
+        self,
+        client,
+        tmp_data_dir: Path,
+    ):
+        tc, sid = client
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="ancestry",
+                    category="nnls_admixture",
+                    evidence_level=2,
+                    finding_text="Inferred ancestry: ASJ",
+                    detail_json=json.dumps({"top_population": "ASJ"}),
+                )
+            )
+        sample_engine.dispose()
+
+        resp = tc.get(f"/api/variants/rs80357906?sample_id={sid}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["gnomad_af_global"] == pytest.approx(0.000003)
+        assert data["gnomad_af_asj"] == pytest.approx(0.000004)
+        assert data["ancestry_matched_population"] == "ASJ"
+        assert data["ancestry_matched_af"] == pytest.approx(0.000004)
+        assert data["ancestry_matched_af"] != data["gnomad_af_global"]
 
     def test_returns_dbnsfp_fields(self, client):
         tc, sid = client
