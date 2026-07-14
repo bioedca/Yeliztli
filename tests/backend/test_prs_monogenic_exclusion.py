@@ -100,6 +100,25 @@ class TestAnnotateMonogenicExclusion:
         assert "You carry a reportable monogenic finding in BRCA2" in out.monogenic_note
         assert "dominant result" in out.monogenic_note
 
+    def test_hom_alt_carrier_flagged(self, sample_engine: sa.Engine) -> None:
+        """A homozygous alternate monogenic finding must retain the escalation."""
+        _insert_monogenic(sample_engine, module="cancer", gene="BRCA2", zygosity="hom_alt")
+        result = PRSResult(
+            weight_set_name="x",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="s",
+            source_pmid="1",
+            sample_size=1,
+            raw_score=0.0,
+            monogenic_genes=["BRCA2"],
+        )
+        out = annotate_monogenic_exclusion(result, sample_engine)
+        assert out.monogenic_carrier_genes == ["BRCA2"]
+        assert "You carry a reportable monogenic finding in BRCA2" in out.monogenic_note
+        assert "dominant result" in out.monogenic_note
+
     def test_homref_carrier_excluded(self, sample_engine: sa.Engine) -> None:
         # A non-carrier zygosity must not count as a carrier overlap.
         _insert_monogenic(sample_engine, module="cancer", gene="BRCA1", zygosity="hom_ref")
