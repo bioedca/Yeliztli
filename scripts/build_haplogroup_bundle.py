@@ -43,7 +43,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.7"
+BUNDLE_VERSION = "1.1.8"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -53,6 +53,7 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "G",
         "G1",
         "G2",
+        "H10",
         "H13",
         "H13a",
         "H6",
@@ -65,8 +66,11 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "K2",
         "K2a",
         "K2b",
+        "L2c",
+        "M1",
         "M8",
         "M8a",
+        "S",
         "T2a",
         "U2",
         "U2e",
@@ -74,6 +78,7 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "U3b",
         "U5b2",
         "W1",
+        "X",
         "X2",
         "X2a",
         "X2b",
@@ -630,9 +635,13 @@ def build_mt_tree() -> dict[str, Any]:
     l2c = _node(
         "L2c",
         [
-            _mt_snp("i5003010", 3010, "A"),
-            _mt_snp("i5011944", 11944, "C"),
-            _mt_snp("i5013958", 13958, "T"),
+            _mt_snp("i5000093", 93, "G"),
+            _mt_snp("i5000325", 325, "T"),
+            _mt_snp("i5000680", 680, "C"),
+            _mt_snp("i5003200", 3200, "A"),
+            _mt_snp("i5013928", 13928, "C"),
+            _mt_snp("i5013958", 13958, "C"),
+            _mt_snp("i5015849", 15849, "T"),
         ],
     )
     l2d = _node(
@@ -874,9 +883,11 @@ def build_mt_tree() -> dict[str, Any]:
     m1 = _node(
         "M1",
         [
-            _mt_snp("i5006446", 6446, "G"),
-            _mt_snp("i5012403", 12403, "T"),
-            _mt_snp("i5014110", 14110, "C"),
+            _mt_snp("i5006446", 6446, "A"),
+            _mt_snp("i5006680", 6680, "C"),
+            _mt_snp("i5012950", 12950, "C"),
+            _mt_snp("i5016129", 16129, "A"),
+            _mt_snp("i5016249", 16249, "C"),
         ],
     )
     m7a = _node(
@@ -1058,8 +1069,7 @@ def build_mt_tree() -> dict[str, Any]:
     s = _node(
         "S",
         [
-            _mt_snp("i5001359", 1359, "C"),
-            _mt_snp("i5008404", 8404, "T"),
+            _mt_snp("i5008404", 8404, "C"),
         ],
         [s1, s2],
     )
@@ -1117,8 +1127,9 @@ def build_mt_tree() -> dict[str, Any]:
         "X",
         [
             _mt_snp("i5006221", 6221, "C"),
-            _mt_snp("i5006371", 6371, "C"),
+            _mt_snp("i5006371", 6371, "T"),
             _mt_snp("i5013966", 13966, "G"),
+            _mt_snp("i5014470", 14470, "C"),
         ],
         [x1, x2],
     )
@@ -1390,7 +1401,7 @@ def build_mt_tree() -> dict[str, Any]:
     h10 = _node(
         "H10",
         [
-            _mt_snp("i5014470", 14470, "C"),
+            _mt_snp("i5014470", 14470, "A"),
         ],
     )
     h11 = _node(
