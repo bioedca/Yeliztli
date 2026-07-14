@@ -343,7 +343,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.7"
+        assert bundle.version == "1.1.8"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1755,6 +1755,283 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == "M"
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "trunk", "node_rows", "expected_path"),
+        [
+            pytest.param(
+                "L2c",
+                _derived_mt_path_genotypes("L2"),
+                [
+                    {"pos": 93, "genotype": "GG"},
+                    {"pos": 325, "genotype": "TT"},
+                    {"pos": 680, "genotype": "CC"},
+                    {"pos": 3200, "genotype": "AA"},
+                    {"pos": 13928, "genotype": "CC"},
+                    {"pos": 13958, "genotype": "CC"},
+                    {"pos": 15849, "genotype": "TT"},
+                ],
+                ["L2", "L2c"],
+                id="L2c",
+            ),
+            pytest.param(
+                "M1",
+                _derived_mt_path_genotypes("M"),
+                [
+                    {"pos": 6446, "genotype": "AA"},
+                    {"pos": 6680, "genotype": "CC"},
+                    {"pos": 12950, "genotype": "CC"},
+                    {"pos": 16129, "genotype": "AA"},
+                    {"pos": 16249, "genotype": "CC"},
+                ],
+                ["L3", "M", "M1"],
+                id="M1",
+            ),
+            pytest.param(
+                "S",
+                _derived_mt_path_genotypes("N"),
+                [{"pos": 8404, "genotype": "CC"}],
+                ["L3", "N", "S"],
+                id="S",
+            ),
+            pytest.param(
+                "X",
+                _derived_mt_path_genotypes("N"),
+                [
+                    {"pos": 6221, "genotype": "CC"},
+                    {"pos": 6371, "genotype": "TT"},
+                    {"pos": 13966, "genotype": "GG"},
+                    {"pos": 14470, "genotype": "CC"},
+                ],
+                ["L3", "N", "X"],
+                id="X",
+            ),
+            pytest.param(
+                "H10",
+                _derived_mt_path_genotypes("H"),
+                [{"pos": 14470, "genotype": "AA"}],
+                ["L3", "N", "R", "R0", "HV", "H", "H10"],
+                id="H10",
+            ),
+        ],
+    )
+    def test_issue_1798_direct_motifs_assign_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected_path: list[str],
+    ) -> None:
+        """Each corrected motif resolves through raw and annotated position joins."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*trunk, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "trunk", "node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                "L2c",
+                _derived_mt_path_genotypes("L2"),
+                [
+                    {"pos": 93, "genotype": "GG"},
+                    {"pos": 325, "genotype": "TT"},
+                    {"pos": 680, "genotype": "CC"},
+                    {"pos": 13928, "genotype": "CC"},
+                    {"pos": 13958, "genotype": "TT"},
+                    {"pos": 15849, "genotype": "TT"},
+                ],
+                "L2",
+                ["L2"],
+                id="L2c-old-G13958T",
+            ),
+            pytest.param(
+                "M1",
+                _derived_mt_path_genotypes("M"),
+                [
+                    {"pos": 6446, "genotype": "GG"},
+                    {"pos": 6680, "genotype": "CC"},
+                    {"pos": 12950, "genotype": "CC"},
+                    {"pos": 16129, "genotype": "AA"},
+                    {"pos": 16249, "genotype": "CC"},
+                ],
+                "M",
+                ["L3", "M"],
+                id="M1-old-G6446G",
+            ),
+            pytest.param(
+                "S",
+                _derived_mt_path_genotypes("N"),
+                [{"pos": 8404, "genotype": "TT"}],
+                "N",
+                ["L3", "N"],
+                id="S-old-T8404T",
+            ),
+            pytest.param(
+                "X",
+                _derived_mt_path_genotypes("N"),
+                [
+                    {"pos": 6221, "genotype": "CC"},
+                    {"pos": 6371, "genotype": "CC"},
+                    {"pos": 13966, "genotype": "GG"},
+                    {"pos": 14470, "genotype": "CC"},
+                ],
+                "N",
+                ["L3", "N"],
+                id="X-old-C6371C",
+            ),
+            pytest.param(
+                "H10",
+                _derived_mt_path_genotypes("H"),
+                [{"pos": 14470, "genotype": "CC"}],
+                "H",
+                ["L3", "N", "R", "R0", "HV", "H"],
+                id="H10-old-T14470C",
+            ),
+        ],
+    )
+    def test_issue_1798_old_wrong_alleles_block_descent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """A pre-fix allele conflicts even when the rest of the motif is derived."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_old_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*trunk, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("selected_positions", "expected", "expected_path", "expected_counts"),
+        [
+            pytest.param(
+                {6680, 12950, 16129, 16249},
+                "M1",
+                ["L3", "M", "M1"],
+                (4, 5),
+                id="missing-6446",
+            ),
+            pytest.param(
+                {6446, 6680, 12950, 16249},
+                "M1",
+                ["L3", "M", "M1"],
+                (4, 5),
+                id="missing-16129",
+            ),
+            pytest.param(
+                {6446, 6680, 12950, 16129},
+                "M1",
+                ["L3", "M", "M1"],
+                (4, 5),
+                id="missing-16249",
+            ),
+            pytest.param(
+                {6446, 16129, 16249},
+                "M1",
+                ["L3", "M", "M1"],
+                (3, 5),
+                id="three-of-five",
+            ),
+            pytest.param(
+                {6446, 16129},
+                "M",
+                ["L3", "M"],
+                None,
+                id="two-of-five",
+            ),
+        ],
+    )
+    def test_issue_1798_m1_remains_assignable_with_primary_array_gaps(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        selected_positions: set[int],
+        expected: str,
+        expected_path: list[str],
+        expected_counts: tuple[int, int] | None,
+    ) -> None:
+        """Observed one-marker gaps and the production descent threshold stay safe."""
+        allele_by_position = {
+            6446: "A",
+            6680: "C",
+            12950: "C",
+            16129: "A",
+            16249: "C",
+        }
+        node_rows = [
+            {
+                "rsid": f"vendor_issue_1798_m1_{position}",
+                "chrom": "MT",
+                "pos": position,
+                "genotype": allele_by_position[position] * 2,
+            }
+            for position in sorted(selected_positions)
+        ]
+        rows = [
+            {**row, "rsid": f"vendor_issue_1798_m1_path_{index}"}
+            for index, row in enumerate([*_derived_mt_path_genotypes("M"), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        if expected_counts is not None:
+            terminal = mt.traversal_path[-1]
+            assert (terminal.snps_present, terminal.snps_total) == expected_counts
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

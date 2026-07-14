@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.7"
+        assert bundle["version"] == "1.1.8"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -165,6 +165,7 @@ class TestBundleStructure:
             "G",
             "G1",
             "G2",
+            "H10",
             "H13",
             "H13a",
             "H6",
@@ -177,8 +178,11 @@ class TestBundleStructure:
             "K2",
             "K2a",
             "K2b",
+            "L2c",
+            "M1",
             "M8",
             "M8a",
+            "S",
             "T2a",
             "U2",
             "U2e",
@@ -186,6 +190,7 @@ class TestBundleStructure:
             "U3b",
             "U5b2",
             "W1",
+            "X",
             "X2",
             "X2a",
             "X2b",
@@ -475,6 +480,38 @@ class TestMtDNATree:
             14318: "C",
         }
         assert allele_map("Z") == {6752: "G", 9090: "C", 15784: "C"}
+
+    def test_issue_1798_nodes_use_exact_reportable_build17_motifs(self, mt_tree: dict) -> None:
+        """The five direct-row conflicts retain only their source-backed alleles."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        assert allele_map("L2c") == {
+            93: "G",
+            325: "T",
+            680: "C",
+            3200: "A",
+            13928: "C",
+            13958: "C",
+            15849: "T",
+        }
+        assert allele_map("M1") == {
+            6446: "A",
+            6680: "C",
+            12950: "C",
+            16129: "A",
+            16249: "C",
+        }
+        assert allele_map("S") == {8404: "C"}
+        assert allele_map("X") == {6221: "C", 6371: "T", 13966: "G", 14470: "C"}
+        assert allele_map("H10") == {14470: "A"}
+
+        assert allele_map("I")[16129] == allele_map("M1")[16129] == "A"
+        assert allele_map("M8a")[14470] == allele_map("X")[14470] == "C"
+        assert allele_map("H10")[14470] == "A"
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
@@ -847,6 +884,36 @@ class TestBuildScript:
         assert any("U3b" in issue and "expected" in issue for issue in issues)
         assert any("K1b" in issue and "expected" in issue for issue in issues)
 
+    @pytest.mark.parametrize(
+        ("node_name", "position", "old_allele"),
+        [
+            pytest.param("L2c", 13958, "T", id="L2c-G13958c"),
+            pytest.param("M1", 6446, "G", id="M1-G6446A"),
+            pytest.param("S", 8404, "T", id="S-T8404C"),
+            pytest.param("X", 6371, "C", id="X-C6371T"),
+            pytest.param("H10", 14470, "C", id="H10-T14470a"),
+        ],
+    )
+    def test_issue_1798_audited_mt_guard_rejects_old_wrong_alleles(
+        self, node_name: str, position: int, old_allele: str
+    ) -> None:
+        """Restoring any pre-fix allele breaks the exact source-backed set."""
+        from scripts.build_haplogroup_bundle import (
+            _validate_audited_mt_markers,
+            build_mt_tree,
+        )
+
+        mt_tree = build_mt_tree()
+        node = find_node(mt_tree, node_name)
+        assert node is not None
+        marker = next(snp for snp in node["defining_snps"] if snp["pos"] == position)
+        marker["allele"] = old_allele
+
+        issues = _validate_audited_mt_markers(mt_tree)
+        assert any(
+            f"Audited mtDNA node {node_name}" in issue and "expected" in issue for issue in issues
+        )
+
     def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
         """A fresh rsID at an old locus or an old rsID at a fresh locus is insufficient."""
         from scripts.build_haplogroup_bundle import _validate_mt_reportability, build_mt_tree
@@ -887,6 +954,33 @@ class TestBuildScript:
         assert any("no array coverage" in issue for issue in issues)
         assert any(
             "substitution U5b2:13637 must have an omission reason" in issue for issue in issues
+        )
+
+    def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
+        self,
+    ) -> None:
+        """The new direct rows fail closed on omitted evidence and marker direction."""
+        from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
+
+        source = copy.deepcopy(_MT_SOURCE)
+        omitted = next(
+            mutation
+            for mutation in source["audited_nodes"]["M1"]["source_motif"]
+            if mutation["pos"] == 195
+        )
+        omitted.pop("omission_reason")
+        direction = next(
+            mutation
+            for mutation in source["audited_nodes"]["L2c"]["source_motif"]
+            if mutation["pos"] == 13958
+        )
+        direction["derived_allele"] = "T"
+
+        issues = _validate_mt_source(source)
+        assert any("substitution M1:195 must have an omission reason" in issue for issue in issues)
+        assert any(
+            "i5013958 at L2c does not match its source mutation direction" in issue
+            for issue in issues
         )
 
     def test_y_source_guard_rejects_stale_current_record_alleles(self) -> None:
