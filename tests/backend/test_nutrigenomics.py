@@ -479,13 +479,11 @@ class TestSNPScoring:
         rs7041 is c.1296T>G on the chr4 minus-strand GC gene, so the plus strand the
         array reports maps A = c.1296T = Asp432 and C = c.1296G = Glu432. Complete GC
         isoforms also depend on rs4588, so this single-locus test pins only the level
-        direction. Ensembl GRCh37 gives chr4:72618334 ancestral A. Two studies reporting
-        directly in plus-strand A/C terms (Zhao 2021, Li 2025) confirm CC has the *higher*
-        25(OH)D / protective direction while AA is the deficiency-risk genotype:
-        c.1296T (Asp432) lowers circulating 25(OH)D and c.1296G (Glu432) raises it. So
-        plus-strand A — not C — must carry the lower-25(OH)D
-        concern. Guards against re-inverting the direction (the bug this row had: risk=C,
-        CC -> "lower circulating 25(OH)D"; same direction-swap class as #581/#332).
+        direction established in #588: plus-strand A carries the lower-25(OH)D concern,
+        while C carries the higher-25(OH)D direction. The row's PMID 20541252 supports
+        the circulating-level association, not an affinity mechanism. This guards against
+        re-inverting the direction (the bug this row had: risk=C, CC -> "lower circulating
+        25(OH)D"; same direction-swap class as #581/#332).
         """
         snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs7041")
 
