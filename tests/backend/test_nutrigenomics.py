@@ -477,12 +477,13 @@ class TestSNPScoring:
         """GC rs7041 (Asp432Glu): plus-strand A is the lower-25(OH)D allele (#588).
 
         rs7041 is c.1296T>G on the chr4 minus-strand GC gene, so the plus strand the
-        array reports maps A = c.1296T = Asp432 (Gc1F) and C = c.1296G = Glu432 (Gc1S);
-        Ensembl GRCh37 gives chr4:72618334 ancestral A. The literature is unanimous, and
-        two studies reporting directly in plus-strand A/C terms (Zhao 2021, Li 2025)
-        confirm CC has the *higher* 25(OH)D / protective direction while AA is the
-        deficiency-risk genotype: c.1296T (Asp432) lowers circulating 25(OH)D, c.1296G
-        (Glu432, Gc1S) raises it. So plus-strand A — not C — must carry the lower-25(OH)D
+        array reports maps A = c.1296T = Asp432 and C = c.1296G = Glu432. Complete GC
+        isoforms also depend on rs4588, so this single-locus test pins only the level
+        direction. Ensembl GRCh37 gives chr4:72618334 ancestral A. Two studies reporting
+        directly in plus-strand A/C terms (Zhao 2021, Li 2025) confirm CC has the *higher*
+        25(OH)D / protective direction while AA is the deficiency-risk genotype:
+        c.1296T (Asp432) lowers circulating 25(OH)D and c.1296G (Glu432) raises it. So
+        plus-strand A — not C — must carry the lower-25(OH)D
         concern. Guards against re-inverting the direction (the bug this row had: risk=C,
         CC -> "lower circulating 25(OH)D"; same direction-swap class as #581/#332).
         """
@@ -498,15 +499,27 @@ class TestSNPScoring:
         ca = _score_snp(snp, "CA")
         cc = _score_snp(snp, "CC")
 
-        # AA (Asp432/Asp432, Gc1F) carries the reduced-affinity / lower-25(OH)D concern.
+        # AA (Asp432/Asp432) carries the lower-25(OH)D concern.
         assert aa.category == ELEVATED
         assert "lower circulating 25(oh)d" in aa.effect_summary.lower()
         assert "20541252" in aa.pmids
-        # Heterozygotes: one Asp432 allele, modestly reduced (strand/order invariant).
+        # Heterozygotes: one Asp432 allele, with strand/order-invariant scoring.
         assert ac.category == ca.category == MODERATE
-        # CC (Glu432/Glu432, Gc1S) is the higher/normal-25(OH)D common genotype.
+        # CC (Glu432/Glu432) is the higher/normal-25(OH)D common genotype.
         assert cc.category == STANDARD
         assert "lower circulating 25(oh)d" not in cc.effect_summary.lower()
+
+    @pytest.mark.parametrize("genotype", ["AA", "AC", "CA", "CC"])
+    def test_gc_rs7041_effect_text_avoids_unsupported_mechanism_or_isoform(
+        self, panel: NutrigenomicsPanel, genotype: str
+    ) -> None:
+        """Do not infer affinity or a two-locus GC isoform from rs7041 alone (#1809)."""
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs7041")
+
+        result = _score_snp(snp, genotype)
+        summary = result.effect_summary.lower()
+        for unsupported_claim in ("affinity", "isoform", "gc1f", "gc1s", "gc2"):
+            assert unsupported_claim not in summary
 
     def test_cyp2r1_rs12794714_direction_is_marked_unsettled(
         self, panel: NutrigenomicsPanel

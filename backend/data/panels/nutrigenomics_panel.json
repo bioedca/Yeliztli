@@ -141,19 +141,19 @@
           "genotype_effects": {
             "AA": {
               "category": "Elevated",
-              "effect_summary": "Asp432/Asp432 (c.1296T/T; Gc1F isoform). Reduced vitamin D binding affinity, associated with lower circulating 25(OH)D."
+              "effect_summary": "Asp432/Asp432 (c.1296T/T). Associated with lower circulating 25(OH)D."
             },
             "AC": {
               "category": "Moderate",
-              "effect_summary": "One Asp432 (c.1296T) allele; modestly reduced binding affinity and lower circulating 25(OH)D."
+              "effect_summary": "One Asp432 (c.1296T) allele; associated with modestly lower circulating 25(OH)D."
             },
             "CA": {
               "category": "Moderate",
-              "effect_summary": "One Asp432 (c.1296T) allele; modestly reduced binding affinity and lower circulating 25(OH)D."
+              "effect_summary": "One Asp432 (c.1296T) allele; associated with modestly lower circulating 25(OH)D."
             },
             "CC": {
               "category": "Standard",
-              "effect_summary": "Glu432/Glu432 (c.1296G/G; Gc1S isoform). Higher/normal vitamin D binding protein affinity and circulating 25(OH)D (common European allele)."
+              "effect_summary": "Glu432/Glu432 (c.1296G/G). Associated with higher circulating 25(OH)D (common European allele)."
             }
           },
           "evidence_level": 2,
