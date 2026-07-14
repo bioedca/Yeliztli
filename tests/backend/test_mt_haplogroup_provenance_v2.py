@@ -36,20 +36,20 @@ BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
     "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553"
 )
 BASELINE_V2_COVERAGE_SHA256 = "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
-LOCKED_EXACT_NAMES_SHA256 = "d2db948869e3665313460b5832711ef97b9d8299864f6474d64efd131f80c29b"
-LOCKED_EXACT_SEMANTIC_SHA256 = "92a9cab40c53f8c31a6ba2cb976e83e37ec89fd50c2bad7687e98f133b76ad86"
-LOCKED_EXACT_COVERAGE_SHA256 = "deffb77fb0c0df2e60107cdaf527aa3e76ca5e5252f4e0609e2a47f2e7e5a9ca"
+LOCKED_EXACT_NAMES_SHA256 = "b803987a0ef051eb5517ba62c6638420451d1053cffe6dcf7f821795d8d3ca86"
+LOCKED_EXACT_SEMANTIC_SHA256 = "331d8a318278a39e4c3cb93eec5230478a4a565e6a33cdd9c4e40d89d4fb99a3"
+LOCKED_EXACT_COVERAGE_SHA256 = "54bf23af6b996db6183999c44d8e6400d51042ccfdba8327016f327334536ba0"
 BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
 )
 LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "8619d8457139be7b47d8d8e5bbfb8660be5c274dc5e1f33e3622bb7837350304"
+    "886f57e5cbc1979df55b969f4174cf087efa4f0139d232458435749645ee7af5"
 )
 BASELINE_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
-    "2af064763a1fefa8efe86c255c236cc8f57474ae087955fc4cd3797925001982"
+    "8e4eff59c975f3712dc799780177a3cfe0925d08486b469f0e07f73133ab042a"
 )
 INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -57,9 +57,9 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "bc194a2383d9f1e14f32b4476c12b9dd5f945a469a9a33221e451ebf8cbcf539"
+STATE_PARTITION_SHA256 = "87cb21318649ba2d88cd955c7b4e88e9bba74d6006eebd1afad75ddb1ebec214"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
-LOCKED_EMITTED_TREE_SHA256 = "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
+LOCKED_EMITTED_TREE_SHA256 = "17c0d787a58cbb5a01f0f6c2699386b8e580aaece45fcda667de2d085fee3415"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -138,7 +138,23 @@ DIRECT_MOTIF_EXACT_NODES = [
     "K1b",
     "K2",
     "K2b",
+    "L0",
+    "L0a",
+    "L0a1",
+    "L0a2",
+    "L0b",
+    "L0d",
+    "L0d1",
+    "L0d2",
+    "L0f",
+    "L0k",
+    "L1",
+    "L2",
     "L2c",
+    "L3",
+    "L4",
+    "L5",
+    "L6",
     "M1",
     "M8",
     "M8a",
@@ -173,6 +189,560 @@ DIRECT_MOTIF_LEGACY_PARTIAL_NODES = [
     "Y2",
     "Y_mt",
 ]
+
+ROOT_L0_NODES = [
+    "L0",
+    "L0a",
+    "L0a1",
+    "L0a2",
+    "L0b",
+    "L0d",
+    "L0d1",
+    "L0d2",
+    "L0f",
+    "L0k",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6",
+]
+
+HISTORICAL_ONLY_REASON = (
+    "absent from the primary four; callable only in the historical five-export cohort"
+)
+UNAVAILABLE_REASON = "absent or non-callable in all pinned 23andMe exports"
+NON_SUBSTITUTION_REASON = "non-substitution event is unsupported by the substitution-only caller"
+SHARED_INTERMEDIATE_REASON = (
+    "shared source intermediate spans multiple emitted siblings; duplicating it would create "
+    "non-specific sibling evidence"
+)
+
+ROOT_L0_DIRECT_MOTIFS = {
+    "L0": [
+        (
+            "G263A",
+            False,
+            "omitted because downstream L0a/b/f source path reverses m.263 and would conflict "
+            "before descendant traversal",
+        ),
+        ("C1048T", True, None),
+        ("C3516a", True, None),
+        ("T5442C", True, None),
+        ("T6185C", True, None),
+        ("C9042T", False, HISTORICAL_ONLY_REASON),
+        ("A9347G", True, None),
+        ("G10589A", True, None),
+        ("G12007A", True, None),
+        ("A12720G", True, None),
+    ],
+    "L0a": [
+        (
+            "C146T",
+            False,
+            "omitted so pgp_4162 can satisfy 2/4 callable L0a markers; retaining this untyped "
+            "denominator would block L0a and its descendants on that primary export",
+        ),
+        ("G5231A", True, None),
+        ("G5460A", True, None),
+        ("T14308C", True, None),
+        ("T16278C", False, HISTORICAL_ONLY_REASON),
+        ("C16320T", False, HISTORICAL_ONLY_REASON),
+    ],
+    "L0a1": [("T5096C", True, None)],
+    "L0a2": [
+        ("C64T", True, None),
+        ("A185G!", False, HISTORICAL_ONLY_REASON),
+        ("G5147A", True, None),
+        ("A5711G", True, None),
+        ("G6257A", True, None),
+        ("8281-8289d", False, NON_SUBSTITUTION_REASON),
+        ("A8460G", True, None),
+        ("A11172G", True, None),
+        ("A16129G", True, None),
+    ],
+    "L0b": [
+        ("T6719C", True, None),
+        ("G15106A", True, None),
+        ("T15622C", True, None),
+        ("A16051G", True, None),
+        ("A16164G", True, None),
+        ("T16187C", False, HISTORICAL_ONLY_REASON),
+    ],
+    "L0d": [
+        ("G1438A", True, None),
+        ("T4232C", True, None),
+        ("T6815C", False, HISTORICAL_ONLY_REASON),
+        ("C8113a", False, HISTORICAL_ONLY_REASON),
+        ("G8152A", True, None),
+        ("G8251A", True, None),
+        ("T12121C", True, None),
+        ("G15466A", True, None),
+        ("G15930A", True, None),
+        ("T15941C", True, None),
+        ("T16243C", True, None),
+    ],
+    "L0d1": [
+        ("G719A", True, None),
+        ("G2706A", True, None),
+        ("G3438A", True, None),
+        ("A6266G", True, None),
+        ("G13759A", True, None),
+    ],
+    "L0d2": [
+        ("A3981G", True, None),
+        ("C4025T", True, None),
+        ("A4044G", True, None),
+        ("A7154G", True, None),
+        ("T11854C", True, None),
+        ("A15766G", True, None),
+    ],
+    "L0f": [
+        ("(G207A)", True, None),
+        ("C4964T", True, None),
+        ("T7148C", False, UNAVAILABLE_REASON),
+        ("T9581C", True, None),
+        ("C9620T", True, None),
+        ("A13470G", True, None),
+        ("C14109T", True, None),
+        ("C14620T", False, HISTORICAL_ONLY_REASON),
+        ("T15852C", True, None),
+        ("C16169T", True, None),
+        ("C16327T", True, None),
+        ("T16368C", False, HISTORICAL_ONLY_REASON),
+    ],
+    "L0k": [
+        ("T199C", True, None),
+        ("T850C", True, None),
+        ("T1243C", True, None),
+        ("G4541A", True, None),
+        ("T4907C", True, None),
+        ("A5811G", True, None),
+        ("A7257G", False, UNAVAILABLE_REASON),
+        ("T8911C", True, None),
+        ("C8922T", False, UNAVAILABLE_REASON),
+        ("G8994A", True, None),
+        ("A9136G", True, None),
+        ("A10499G", True, None),
+        ("A10876G", False, HISTORICAL_ONLY_REASON),
+        ("C10920T", True, None),
+        ("C11296T", False, HISTORICAL_ONLY_REASON),
+        ("T11299C", True, None),
+        ("A11653G", True, None),
+        ("G13590A", True, None),
+        ("T13819C", False, UNAVAILABLE_REASON),
+        ("G13928c", True, None),
+        ("T14020C", True, None),
+        ("T14182C", True, None),
+        ("T14371C", True, None),
+        ("T14374C", False, UNAVAILABLE_REASON),
+        ("A16129G", True, None),
+        ("A16166c", False, HISTORICAL_ONLY_REASON),
+        ("C16214T", False, HISTORICAL_ONLY_REASON),
+        ("C16291g", True, None),
+    ],
+    "L1": [
+        ("G3666A", True, None),
+        ("A7055G", False, HISTORICAL_ONLY_REASON),
+        ("T7389C", True, None),
+        ("T13789C", True, None),
+        ("T14178C", True, None),
+        ("G14560A", True, None),
+    ],
+    "L2": [
+        ("T146C!", True, None),
+        ("C150T", False, HISTORICAL_ONLY_REASON),
+        ("T152C!", False, HISTORICAL_ONLY_REASON),
+        ("T2416C", True, None),
+        ("G8206A", True, None),
+        ("A9221G", True, None),
+        ("T10115C", True, None),
+        ("G13590A", True, None),
+        ("C16311T", False, HISTORICAL_ONLY_REASON),
+        ("G16390A", True, None),
+    ],
+    "L3": [
+        ("A769G", False, HISTORICAL_ONLY_REASON),
+        ("A1018G", True, None),
+        ("C16311T", False, HISTORICAL_ONLY_REASON),
+    ],
+    "L4": [
+        ("T195C!", False, UNAVAILABLE_REASON),
+        ("G5460A", True, None),
+        ("T16362C", True, None),
+    ],
+    "L5": [
+        ("459.1C", False, NON_SUBSTITUTION_REASON),
+        ("T3423C", True, None),
+        ("A7972G", True, None),
+        (
+            "C12432T",
+            False,
+            "omitted so pgp_huA08F4D can satisfy 2/4 callable L5 markers; retaining this untyped "
+            "denominator would block L5 on that primary export",
+        ),
+        ("A12950G", True, None),
+        ("C16148T", True, None),
+        ("A16166G", False, HISTORICAL_ONLY_REASON),
+    ],
+    "L6": [
+        ("T146C!", True, None),
+        ("T152C!", False, HISTORICAL_ONLY_REASON),
+        ("G185c", False, HISTORICAL_ONLY_REASON),
+        ("G709A", False, HISTORICAL_ONLY_REASON),
+        ("C770T", False, HISTORICAL_ONLY_REASON),
+        ("T961C", True, None),
+        ("A1461G", True, None),
+        ("C4964T", True, None),
+        ("T5267C", True, None),
+        ("A6002G", True, None),
+        ("A6284G", True, None),
+        ("C9332T", True, None),
+        ("A10978G", True, None),
+        ("T11116C", True, None),
+        ("C11743T", False, UNAVAILABLE_REASON),
+        ("G12771A", True, None),
+        ("A13710G", True, None),
+        ("C14791T", False, UNAVAILABLE_REASON),
+        ("A14959G", False, UNAVAILABLE_REASON),
+        ("A15244G", True, None),
+        ("T15289C", True, None),
+        ("C15499T", False, HISTORICAL_ONLY_REASON),
+        ("G16048A", True, None),
+        ("T16224C", False, HISTORICAL_ONLY_REASON),
+    ],
+}
+
+ROOT_L0_TOPOLOGY = {
+    "L0": ("mt-MRCA", "mt-MRCA", "mt-MRCA", []),
+    "L0a": ("L0", "L0", "L0a'g", ["L0a'b'f'g'k", "L0a'b'f'g", "L0a'b'g", "L0a'g"]),
+    "L0a1": ("L0a", "L0a", "L0a1'4", ["L0a1'4"]),
+    "L0a2": ("L0a", "L0a", "L0a", []),
+    "L0b": ("L0", "L0", "L0a'b'g", ["L0a'b'f'g'k", "L0a'b'f'g", "L0a'b'g"]),
+    "L0d": ("L0", "L0", "L0", []),
+    "L0d1": ("L0d", "L0d", "L0d1'2", ["L0d1'2"]),
+    "L0d2": ("L0d", "L0d", "L0d1'2", ["L0d1'2"]),
+    "L0f": ("L0", "L0", "L0a'b'f'g", ["L0a'b'f'g'k", "L0a'b'f'g"]),
+    "L0k": ("L0", "L0", "L0a'b'f'g'k", ["L0a'b'f'g'k"]),
+    "L1": ("mt-MRCA", "mt-MRCA", "L1'2'3'4'5'6", ["L1'2'3'4'5'6"]),
+    "L2": (
+        "mt-MRCA",
+        "mt-MRCA",
+        "L2'3'4'6",
+        ["L1'2'3'4'5'6", "L2'3'4'5'6", "L2'3'4'6"],
+    ),
+    "L3": (
+        "mt-MRCA",
+        "mt-MRCA",
+        "L3'4",
+        ["L1'2'3'4'5'6", "L2'3'4'5'6", "L2'3'4'6", "L3'4'6", "L3'4"],
+    ),
+    "L4": (
+        "mt-MRCA",
+        "mt-MRCA",
+        "L3'4",
+        ["L1'2'3'4'5'6", "L2'3'4'5'6", "L2'3'4'6", "L3'4'6", "L3'4"],
+    ),
+    "L5": (
+        "mt-MRCA",
+        "mt-MRCA",
+        "L2'3'4'5'6",
+        ["L1'2'3'4'5'6", "L2'3'4'5'6"],
+    ),
+    "L6": (
+        "mt-MRCA",
+        "mt-MRCA",
+        "L3'4'6",
+        ["L1'2'3'4'5'6", "L2'3'4'5'6", "L2'3'4'6", "L3'4'6"],
+    ),
+}
+
+ROOT_L0_EMITTED_MARKER_POSITIONS = {
+    "L0": [1048, 3516, 5442, 6185, 9347, 10589, 12007, 12720],
+    "L0a": [11176, 5231, 5460, 14308],
+    "L0a1": [5096],
+    "L0a2": [64, 5147, 5711, 6257, 8460, 11172, 16129],
+    "L0b": [6719, 15106, 15622, 16051, 16164],
+    "L0d": [1438, 4232, 8152, 8251, 12121, 15466, 15930, 15941, 16243],
+    "L0d1": [719, 2706, 3438, 6266, 13759],
+    "L0d2": [3981, 4025, 4044, 7154, 11854, 15766],
+    "L0f": [207, 4964, 9581, 9620, 13470, 14109, 15852, 16169, 16327],
+    "L0k": [
+        199,
+        850,
+        1243,
+        4541,
+        4907,
+        5811,
+        8911,
+        8994,
+        9136,
+        10499,
+        10920,
+        11299,
+        11653,
+        13590,
+        13928,
+        14020,
+        14182,
+        14371,
+        16129,
+        16291,
+    ],
+    "L1": [3666, 7389, 13789, 14178, 14560],
+    "L2": [146, 2416, 8206, 9221, 10115, 13590, 16390],
+    "L3": [1018],
+    "L4": [5460, 16362],
+    "L5": [3423, 7972, 12950, 16148],
+    "L6": [
+        146,
+        961,
+        1461,
+        4964,
+        5267,
+        6002,
+        6284,
+        9332,
+        10978,
+        11116,
+        12771,
+        13710,
+        15244,
+        15289,
+        16048,
+    ],
+}
+
+ROOT_L0_EMITTED_MARKER_SHA256 = {
+    "L0": "06e8682c1e9b7781be931a6a46daba2bd85b2d4a68e68457744df38779d40f0d",
+    "L0a": "e44d9812edc7ba84d5252e87642f4313bb9e53476ca9ffb99fd9ba1f156dd79b",
+    "L0a1": "e4c12dba5c51ff9ba8d2ad49f416cb84e89fbdf1b40327ecc10027fc32d4c269",
+    "L0a2": "d8a90d843491bbf9b3a767e1c26dd164543b9dc96f09b9dc7cb27571d90752cf",
+    "L0b": "8a8c368f1b32f4413760b7d6966048964638e7b300de20d0ccb7b99b5f58ca9f",
+    "L0d": "e484c9f6fc6d528ceb112b2693fe16221a491e64e0fa99fdca4ad68bd48ab393",
+    "L0d1": "24f5a60c8d62e5656c167113479e350da0c58d08754a7e8ce0f4469dc5bd95a4",
+    "L0d2": "1d786c15eff0e8caa20d76fe705fecd975e5ab7b386662175e0d6cb85d64c068",
+    "L0f": "1b1d008b5f4e391ffb6645521e3d612c2227d0e4f1d7c70b462bab55563cc99a",
+    "L0k": "46d2aa34f5eebfc7630ad370bc58a4ba0fefc415861410921f89a35054571bab",
+    "L1": "9fbd2313e58f9bd3b625a8d983f7dfdc06bffec22dafdd69421cae45f4806f2f",
+    "L2": "9ed67ac9660841bb5673d77fee668e0e5e923b4766a7d261b8ebaf7257daed0a",
+    "L3": "9f0b35f3cbc5d53e09266e297f3a81a283b8ce26490464a622681a8ab8d430ca",
+    "L4": "fd9c43faa5ff74507e5f6427279eaf9b48f37ed44885340a908ed868bb7783a1",
+    "L5": "6e142259997703726ec8adaa7bcaa81600024a93eb3677d3576e41e0de96ac73",
+    "L6": "f5b5eed6e63dfea0474b4357a7cf0585a8e7c0d48b79211db4a4093ae115bdc4",
+}
+
+ROOT_L0_OLD_MARKERS = {
+    "L0": [(1048, "T"), (5442, "C"), (6185, "C"), (9042, "T"), (10589, "A")],
+    "L0a": [(1438, "G"), (5231, "A"), (9042, "T")],
+    "L0a1": [(7158, "G"), (9818, "C"), (14308, "A")],
+    "L0a2": [(7256, "T"), (11899, "C")],
+    "L0b": [(3693, "A"), (5580, "C"), (12171, "G")],
+    "L0d": [(1715, "C"), (8251, "A"), (9755, "A")],
+    "L0d1": [(8113, "T"), (15466, "G")],
+    "L0d2": [(2969, "A"), (10394, "T")],
+    "L0f": [(3396, "G"), (10586, "A")],
+    "L0k": [(2352, "C"), (11176, "A")],
+    "L1": [(3666, "A"), (7055, "G"), (7389, "C"), (10589, "A"), (10810, "C")],
+    "L2": [(2789, "C"), (7175, "C"), (7771, "G"), (9221, "G"), (16390, "A")],
+    "L3": [(769, "G"), (1018, "G"), (16311, "T")],
+    "L4": [(5108, "C"), (10685, "A")],
+    "L5": [(5108, "C"), (15301, "A")],
+    "L6": [(3396, "G"), (7146, "G"), (10589, "A")],
+}
+
+ROOT_L0_FLATTENED_STEPS = {
+    "L0a'b'f'g'k": {
+        "source_parent": "L0",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate below L0 for L0a, L0b, L0f, and L0k. Its exact motif is retained "
+            "as source provenance, but shared mutations are not duplicated onto emitted "
+            "siblings because that creates non-specific runtime evidence."
+        ),
+        "motif": [
+            ("A189G", False, HISTORICAL_ONLY_REASON),
+            ("T4586C", False, HISTORICAL_ONLY_REASON),
+            ("C9818T", False, SHARED_INTERMEDIATE_REASON),
+            ("T16172C", False, SHARED_INTERMEDIATE_REASON),
+        ],
+    },
+    "L0a'b'f'g": {
+        "source_parent": "L0a'b'f'g'k",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate below L0a'b'f'g'k for L0a, L0b, and L0f. Its exact motif is retained "
+            "as source provenance, but shared mutations are not duplicated onto emitted "
+            "siblings because that creates non-specific runtime evidence."
+        ),
+        "motif": [
+            ("G73A", False, SHARED_INTERMEDIATE_REASON),
+            ("G185A", False, HISTORICAL_ONLY_REASON),
+            ("C195T", False, UNAVAILABLE_REASON),
+            ("A263G!", False, SHARED_INTERMEDIATE_REASON),
+            ("A2245G", False, SHARED_INTERMEDIATE_REASON),
+            ("C5603T", False, SHARED_INTERMEDIATE_REASON),
+            ("A11641G", False, SHARED_INTERMEDIATE_REASON),
+            ("C15136T", False, SHARED_INTERMEDIATE_REASON),
+            ("G15431A", False, SHARED_INTERMEDIATE_REASON),
+        ],
+    },
+    "L0a'b'g": {
+        "source_parent": "L0a'b'f'g",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate below L0a'b'f'g for L0a and L0b. Its exact motif is retained as "
+            "source provenance, but shared mutations are not duplicated onto emitted siblings "
+            "because that creates non-specific runtime evidence."
+        ),
+        "motif": [
+            ("A93G", False, SHARED_INTERMEDIATE_REASON),
+            ("(A95c)", False, SHARED_INTERMEDIATE_REASON),
+            ("T236C", False, SHARED_INTERMEDIATE_REASON),
+            ("C8428T", False, SHARED_INTERMEDIATE_REASON),
+            ("A8566G", False, SHARED_INTERMEDIATE_REASON),
+            ("G9755A", False, SHARED_INTERMEDIATE_REASON),
+            ("C16148T", False, SHARED_INTERMEDIATE_REASON),
+        ],
+    },
+    "L0a'g": {
+        "source_parent": "L0a'b'g",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this source intermediate "
+            "between L0a'b'g and L0a. Its primary-callable m.11176 event is attached to L0a "
+            "with L0a'g ownership; historical-only m.16188 remains non-emitted."
+        ),
+        "motif": [
+            ("G11176A", True, None),
+            ("C16188g", False, HISTORICAL_ONLY_REASON),
+        ],
+    },
+    "L0a1'4": {
+        "source_parent": "L0a",
+        "type": "flattened_unreportable_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this source intermediate "
+            "between L0a and L0a1 only by m.16168C>T, which is absent from the four primary "
+            "exports and callable only in the historical 2014 export."
+        ),
+        "motif": [
+            (
+                "C16168T",
+                False,
+                "absent from the primary four and callable only in the historical 2014 export",
+            )
+        ],
+    },
+    "L0d1'2": {
+        "source_parent": "L0d",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate below L0d for L0d1 and L0d2. Its exact motif is retained as source "
+            "provenance, but its deletion is unsupported and shared substitutions are not "
+            "duplicated onto emitted siblings."
+        ),
+        "motif": [
+            ("C498d", False, NON_SUBSTITUTION_REASON),
+            ("A3756G", False, SHARED_INTERMEDIATE_REASON),
+            ("G9755A", False, SHARED_INTERMEDIATE_REASON),
+            ("T16278C", False, HISTORICAL_ONLY_REASON),
+        ],
+    },
+    "L1'2'3'4'5'6": {
+        "source_parent": "mt-MRCA",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this root-common source "
+            "intermediate for L1 through L6. Its exact motif is retained as source provenance, "
+            "but shared mutations are not duplicated across root siblings because that creates "
+            "tree-order-dependent runtime calls."
+        ),
+        "motif": [
+            ("C146T", False, SHARED_INTERMEDIATE_REASON),
+            ("C182T", False, SHARED_INTERMEDIATE_REASON),
+            ("T4312C", False, SHARED_INTERMEDIATE_REASON),
+            ("T10664C", False, SHARED_INTERMEDIATE_REASON),
+            ("C10915T", False, SHARED_INTERMEDIATE_REASON),
+            ("A11914G", False, SHARED_INTERMEDIATE_REASON),
+            ("G13276A", False, SHARED_INTERMEDIATE_REASON),
+            ("G16230A", False, HISTORICAL_ONLY_REASON),
+        ],
+    },
+    "L2'3'4'5'6": {
+        "source_parent": "L1'2'3'4'5'6",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate for L2 through L6 except L1. Its exact motif is retained as source "
+            "provenance, but shared mutations are not duplicated across emitted root siblings."
+        ),
+        "motif": [
+            ("C152T", False, HISTORICAL_ONLY_REASON),
+            ("A2758G", False, SHARED_INTERMEDIATE_REASON),
+            ("C2885T", False, SHARED_INTERMEDIATE_REASON),
+            ("G7146A", False, HISTORICAL_ONLY_REASON),
+            ("T8468C", False, SHARED_INTERMEDIATE_REASON),
+        ],
+    },
+    "L2'3'4'6": {
+        "source_parent": "L2'3'4'5'6",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate for L2, L3, L4, and L6. Its exact motif is retained as source "
+            "provenance, but shared mutations are not duplicated across emitted root siblings."
+        ),
+        "motif": [
+            ("C195T", False, UNAVAILABLE_REASON),
+            ("A247G", False, HISTORICAL_ONLY_REASON),
+            ("A825t", False, SHARED_INTERMEDIATE_REASON),
+            ("T8655C", False, SHARED_INTERMEDIATE_REASON),
+            ("A10688G", False, SHARED_INTERMEDIATE_REASON),
+            ("C10810T", False, SHARED_INTERMEDIATE_REASON),
+            ("G13105A", False, SHARED_INTERMEDIATE_REASON),
+            ("T13506C", False, SHARED_INTERMEDIATE_REASON),
+            ("G15301A", False, SHARED_INTERMEDIATE_REASON),
+            ("A16129G", False, SHARED_INTERMEDIATE_REASON),
+            ("T16187C", False, HISTORICAL_ONLY_REASON),
+            ("C16189T", False, UNAVAILABLE_REASON),
+        ],
+    },
+    "L3'4'6": {
+        "source_parent": "L2'3'4'6",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate for L3, L4, and L6. Its exact motif is retained as source provenance, "
+            "but shared mutations are not duplicated across emitted root siblings."
+        ),
+        "motif": [
+            ("G4104A", False, SHARED_INTERMEDIATE_REASON),
+            ("A7521G", False, HISTORICAL_ONLY_REASON),
+        ],
+    },
+    "L3'4": {
+        "source_parent": "L3'4'6",
+        "type": "flattened_source_intermediate",
+        "reason": (
+            "Flattened in issue 1798 batch 01: Build 17 defines this shared source "
+            "intermediate for L3 and L4. Its exact motif is retained as source provenance, but "
+            "shared mutations are not duplicated across emitted root siblings."
+        ),
+        "motif": [
+            ("T182C!", False, SHARED_INTERMEDIATE_REASON),
+            ("T3594C", False, SHARED_INTERMEDIATE_REASON),
+            ("T7256C", False, SHARED_INTERMEDIATE_REASON),
+            ("T13650C", False, SHARED_INTERMEDIATE_REASON),
+            ("T16278C", False, HISTORICAL_ONLY_REASON),
+        ],
+    },
+}
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -383,7 +953,7 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
     assert not inventory.duplicates
     assert len(inventory.marker_bearing_names) == 192
     assert len(inventory.markerless_names) == 2
-    assert inventory.marker_count == 403
+    assert inventory.marker_count == 464
     assert inventory.edge_count == 193
     assert set(_MT_SOURCE["nodes"]) | set(_MT_SOURCE["structural_exceptions"]) | set(
         _MT_SOURCE["pending_nodes"]
@@ -1028,22 +1598,7 @@ def _source_with_exact_root_child(
 ) -> dict[str, Any]:
     source = deepcopy(_MT_SOURCE)
     source["structural_exceptions"]["mt-MRCA"]["source_topology_anchor"] = root_anchor
-    source["pending_nodes"].pop("L0")
-    l0 = _find_node(build_mt_tree(), "L0")
-    source["nodes"]["L0"] = {
-        "source_node": "L0",
-        "emitted_parent": "mt-MRCA",
-        "source_topology": {
-            "status": "exact",
-            "emitted_parent_source_node": child_anchor,
-            "source_parent": "mt-MRCA",
-            "flattened_source_path": [],
-        },
-        "emitted_snps": [
-            {key: marker[key] for key in ("rsid", "pos", "allele")}
-            for marker in l0["defining_snps"]
-        ],
-    }
+    source["nodes"]["L0"]["source_topology"]["emitted_parent_source_node"] = child_anchor
     return source
 
 
@@ -1564,6 +2119,230 @@ def test_issue_1834_w_records_and_flattened_w3_topology_are_exact() -> None:
     assert names.isdisjoint(migration["baseline_exact_nodes"])
     assert names.isdisjoint(migration["baseline_direct_motif_exact_nodes"])
     assert names <= set(migration["initial_pending_nodes"])
+
+
+def _motif_decision_projection(motif: list[dict[str, Any]]) -> list[tuple[str, bool, str | None]]:
+    return [
+        (mutation["notation"], mutation["emitted"], mutation.get("omission_reason"))
+        for mutation in motif
+    ]
+
+
+def _root_l0_flattened_occurrences(
+    source: dict[str, Any], identity: str
+) -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (name, step)
+        for name in ROOT_L0_NODES
+        for step in source["nodes"][name]["source_topology"]["flattened_source_path"]
+        if step["source_node"] == identity
+    ]
+
+
+def test_issue_1798_batch_01_root_l0_records_are_literal_and_coverage_locked() -> None:
+    assert set(ROOT_L0_DIRECT_MOTIFS) == set(ROOT_L0_NODES)
+    assert set(ROOT_L0_TOPOLOGY) == set(ROOT_L0_NODES)
+    assert set(ROOT_L0_EMITTED_MARKER_POSITIONS) == set(ROOT_L0_NODES)
+    assert set(ROOT_L0_EMITTED_MARKER_SHA256) == set(ROOT_L0_NODES)
+
+    tree_inventory = _index_mt_tree(build_mt_tree())
+    for name in ROOT_L0_NODES:
+        record = _MT_SOURCE["nodes"][name]
+        emitted_parent, parent_source, source_parent, path = ROOT_L0_TOPOLOGY[name]
+
+        assert record["source_node"] == name
+        assert record["emitted_parent"] == emitted_parent
+        assert record["source_motif_status"] == "exact"
+        assert record["source_topology"]["status"] == "exact"
+        assert record["source_topology"]["emitted_parent_source_node"] == parent_source
+        assert record["source_topology"]["source_parent"] == source_parent
+        assert [
+            step["source_node"] for step in record["source_topology"]["flattened_source_path"]
+        ] == path
+        assert (
+            _motif_decision_projection(record["direct_source_motif"])
+            == (ROOT_L0_DIRECT_MOTIFS[name])
+        )
+
+        markers = record["emitted_snps"]
+        assert [marker["pos"] for marker in markers] == ROOT_L0_EMITTED_MARKER_POSITIONS[name]
+        assert _canonical_sha256(markers) == ROOT_L0_EMITTED_MARKER_SHA256[name]
+        expected_owners = (
+            ["L0a'g", "L0a", "L0a", "L0a"] if name == "L0a" else [name] * len(markers)
+        )
+        assert [marker["motif_owner"] for marker in markers] == expected_owners
+        assert all(
+            marker["array_coverage"]["cohort_id"] == "primary_four_23andme" for marker in markers
+        )
+        assert all(marker["array_coverage"]["callable_snv_in"] for marker in markers)
+        assert all(
+            set(marker["array_coverage"]["callable_snv_in"])
+            <= set(marker["array_coverage"]["position_present_in"])
+            <= set(PRIMARY_EXPORTS)
+            for marker in markers
+        )
+        assert [
+            {key: marker[key] for key in ("rsid", "pos", "allele")} for marker in markers
+        ] == tree_inventory.by_name[name].node["defining_snps"]
+
+    assert _MT_SOURCE["nodes"]["L0a"]["emitted_snps"][0] == {
+        "rsid": "i5011176",
+        "pos": 11176,
+        "ancestral_allele": "G",
+        "allele": "A",
+        "motif_owner": "L0a'g",
+        "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": PRIMARY_EXPORTS,
+            "callable_snv_in": ["pgp_4139", "pgp_4162", "pgp_4187"],
+        },
+    }
+
+
+def test_issue_1798_batch_01_flattened_identities_and_shared_bytes_are_exact() -> None:
+    expected_occurrence_counts = {
+        "L0a'b'f'g'k": 4,
+        "L0a'b'f'g": 3,
+        "L0a'b'g": 2,
+        "L0a'g": 1,
+        "L0a1'4": 1,
+        "L0d1'2": 2,
+        "L1'2'3'4'5'6": 6,
+        "L2'3'4'5'6": 5,
+        "L2'3'4'6": 4,
+        "L3'4'6": 3,
+        "L3'4": 2,
+    }
+    assert set(ROOT_L0_FLATTENED_STEPS) == set(expected_occurrence_counts)
+
+    for identity, expected in ROOT_L0_FLATTENED_STEPS.items():
+        occurrences = _root_l0_flattened_occurrences(_MT_SOURCE, identity)
+        assert len(occurrences) == expected_occurrence_counts[identity]
+        assert _MT_SOURCE["omitted_nodes"][identity] == {
+            "type": expected["type"],
+            "reason": expected["reason"],
+        }
+        assert {
+            json.dumps(step, sort_keys=True, separators=(",", ":")) for _, step in occurrences
+        } == {json.dumps(occurrences[0][1], sort_keys=True, separators=(",", ":"))}
+
+        for _, step in occurrences:
+            assert step["source_node"] == identity
+            assert step["source_parent"] == expected["source_parent"]
+            assert step["reason"] == expected["reason"]
+            assert _motif_decision_projection(step["direct_source_motif"]) == expected["motif"]
+
+    serialized = json.dumps(_MT_SOURCE, sort_keys=True, separators=(",", ":"))
+    assert "L2'3'4'6+" not in serialized
+    assert [
+        (mutation["notation"], mutation["emitted"])
+        for expected in ROOT_L0_FLATTENED_STEPS.values()
+        for mutation in (
+            {"notation": notation, "emitted": emitted}
+            for notation, emitted, _ in expected["motif"]
+        )
+        if mutation["emitted"]
+    ] == [("G11176A", True)]
+
+
+def test_issue_1798_batch_01_advances_only_live_frontiers() -> None:
+    names = set(ROOT_L0_NODES)
+    migration = _MT_SOURCE["migration"]
+
+    assert names.isdisjoint(_MT_SOURCE["pending_nodes"])
+    assert names <= set(_MT_SOURCE["direct_source_motif_states"]["exact_nodes"])
+    assert names <= set(migration["locked_exact_nodes"])
+    assert names <= set(migration["locked_direct_motif_exact_nodes"])
+    assert names.isdisjoint(migration["baseline_exact_nodes"])
+    assert names.isdisjoint(migration["baseline_direct_motif_exact_nodes"])
+    assert names <= set(migration["initial_pending_nodes"])
+    assert _canonical_sha256(migration["baseline_exact_nodes"]) == BASELINE_EXACT_NAMES_SHA256
+    assert _canonical_sha256(migration["baseline_direct_motif_exact_nodes"]) == (
+        BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256
+    )
+    assert _canonical_sha256(migration["initial_pending_nodes"]) == INITIAL_PENDING_NAMES_SHA256
+    assert _canonical_sha256(migration["initial_direct_motif_pending_nodes"]) == (
+        INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256
+    )
+
+
+@pytest.mark.parametrize("name", ROOT_L0_NODES)
+def test_issue_1798_batch_01_old_marker_sets_cannot_be_restored(name: str) -> None:
+    tree = build_mt_tree()
+    _index_mt_tree(tree).by_name[name].node["defining_snps"] = [
+        {"rsid": f"i5{pos:06d}", "pos": pos, "allele": allele}
+        for pos, allele in ROOT_L0_OLD_MARKERS[name]
+    ]
+
+    text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
+    assert f"Marker-exact mtDNA node {name} has markers" in text
+
+
+@pytest.mark.parametrize("name", ROOT_L0_NODES)
+def test_issue_1798_batch_01_direct_motif_mutations_fail_closed(name: str) -> None:
+    source = deepcopy(_MT_SOURCE)
+    record = source["nodes"][name]
+    mutation = next(
+        item for item in record["direct_source_motif"] if item["mutation_type"] == "substitution"
+    )
+    mutation["derived_allele"] = "A" if mutation["derived_allele"] != "A" else "C"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        name,
+        record,
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert f"mtDNA substitution {name}:" in _issues_text(issues)
+    assert "notation disagrees with its declared allele direction" in _issues_text(issues)
+
+
+@pytest.mark.parametrize("name", ROOT_L0_NODES)
+def test_issue_1798_batch_01_topology_mutations_fail_closed(name: str) -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["nodes"][name]["source_topology"]["emitted_parent_source_node"] = "wrong-parent"
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert f"Exact source topology for mtDNA node {name} names emitted-parent source" in text
+
+
+@pytest.mark.parametrize("identity", list(ROOT_L0_FLATTENED_STEPS))
+@pytest.mark.parametrize("mutation", ["path", "reason", "motif"])
+def test_issue_1798_batch_01_flattened_path_mutations_fail_closed(
+    identity: str, mutation: str
+) -> None:
+    source = deepcopy(_MT_SOURCE)
+    owner, step = _root_l0_flattened_occurrences(source, identity)[0]
+    if mutation == "path":
+        step["source_parent"] = "wrong-parent"
+        expected = f"breaks adjacency at {identity}"
+    elif mutation == "reason":
+        step["reason"] = "test-only altered source reason"
+        expected = f"source path node {identity} disagrees with its omission reason"
+    else:
+        source_mutation = next(
+            item for item in step["direct_source_motif"] if item["mutation_type"] == "substitution"
+        )
+        source_mutation["derived_allele"] = (
+            "A" if source_mutation["derived_allele"] != "A" else "C"
+        )
+        expected = f"mtDNA substitution {identity}:"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        owner,
+        source["nodes"][owner],
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert expected in _issues_text(issues)
 
 
 @pytest.mark.parametrize(
@@ -2254,9 +3033,9 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["migration_status"] == "in_progress"
     assert summary["emitted_nodes"] == 194
     assert summary["marker_bearing_nodes"] == 192
-    assert summary["marker_exact_nodes"]["count"] == 46
+    assert summary["marker_exact_nodes"]["count"] == 62
     assert summary["direct_source_motif_nodes"] == {
-        "exact": {"count": 34, "names": DIRECT_MOTIF_EXACT_NODES},
+        "exact": {"count": 50, "names": DIRECT_MOTIF_EXACT_NODES},
         "legacy_partial": {
             "count": 12,
             "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
@@ -2270,46 +3049,62 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "count": 2,
         "names": ["R0", "mt-MRCA"],
     }
-    assert summary["pending_nodes"]["count"] == 146
+    assert summary["pending_nodes"]["count"] == 130
     assert summary["retired_emitted_nodes"] == {"count": 0, "names": []}
     assert summary["marker_records"] == {
-        "emitted": 403,
-        "marker_exact": 107,
+        "emitted": 464,
+        "marker_exact": 215,
         "marker_exact_by_cohort": {
             "historical_five_23andme_including_2014": 8,
-            "primary_four_23andme": 99,
+            "primary_four_23andme": 207,
         },
     }
     assert summary["source_mutation_decisions"] == {
-        "total": 140,
-        "emitted": 107,
-        "omitted": 33,
-        "direct_motif_exact": 102,
+        "total": 346,
+        "emitted": 215,
+        "omitted": 131,
+        "direct_motif_exact": 249,
         "direct_motif_legacy_partial": 37,
-        "recurrent_or_uncertain_events": 0,
-        "reversion_events": 14,
-        "reversion_marks": 14,
+        "recurrent_or_uncertain_events": 2,
+        "reversion_events": 22,
+        "reversion_marks": 22,
     }
     assert summary["emitted_parent_edges"] == {
         "total": 193,
         "validated_declarations": 193,
     }
-    assert summary["source_parent_edges"] == {"validated": 4, "pending": 189}
+    assert summary["source_parent_edges"] == {"validated": 20, "pending": 173}
     assert summary["omitted_source_nodes"] == {
-        "count": 3,
-        "names": ["CZ", "K1c", "W+194"],
+        "count": 14,
+        "names": [
+            "CZ",
+            "K1c",
+            "L0a'b'f'g",
+            "L0a'b'f'g'k",
+            "L0a'b'g",
+            "L0a'g",
+            "L0a1'4",
+            "L0d1'2",
+            "L1'2'3'4'5'6",
+            "L2'3'4'5'6",
+            "L2'3'4'6",
+            "L3'4",
+            "L3'4'6",
+            "W+194",
+        ],
         "by_type": {
-            "flattened_unreportable_source_intermediate": 2,
+            "flattened_source_intermediate": 10,
+            "flattened_unreportable_source_intermediate": 3,
             "unreportable_source_node": 1,
         },
     }
     assert summary["arrays"] == {"exports": 6, "cohorts": 2}
     assert summary["locked_exact_frontier"] == {
-        "count": 46,
+        "count": 62,
         "sha256": LOCKED_EXACT_NAMES_SHA256,
     }
     assert summary["locked_direct_motif_frontier"] == {
-        "count": 34,
+        "count": 50,
         "sha256": LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
     assert summary["digests"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
@@ -2317,12 +3112,12 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.14"
+    assert bundle["version"] == "1.1.15"
     assert bundle["stats"]["mt_haplogroups"] == 194
-    assert bundle["stats"]["mt_defining_snps"] == 403
-    assert bundle["stats"]["mt_unique_snps"] == 324
-    assert bundle["stats"]["total_defining_snps"] == 557
-    assert bundle["stats"]["total_unique_snps"] == 478
+    assert bundle["stats"]["mt_defining_snps"] == 464
+    assert bundle["stats"]["mt_unique_snps"] == 370
+    assert bundle["stats"]["total_defining_snps"] == 618
+    assert bundle["stats"]["total_unique_snps"] == 524
     assert mt_audit["schema_version"] == 3
     assert mt_audit["audited_nodes"] == sorted(_MT_SOURCE["nodes"])
     assert mt_audit["omitted_nodes"] == {

@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.14"
+        assert bundle["version"] == "1.1.15"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -185,7 +185,23 @@ class TestBundleStructure:
             "K2",
             "K2a",
             "K2b",
+            "L0",
+            "L0a",
+            "L0a1",
+            "L0a2",
+            "L0b",
+            "L0d",
+            "L0d1",
+            "L0d2",
+            "L0f",
+            "L0k",
+            "L1",
+            "L2",
             "L2c",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
             "M1",
             "M8",
             "M8a",
@@ -215,8 +231,8 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 46
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 34
+        assert provenance["marker_exact_nodes"]["count"] == 62
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 50
         assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
@@ -225,43 +241,102 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 146
+        assert provenance["pending_nodes"]["count"] == 130
         assert provenance["retired_emitted_nodes"] == {"count": 0, "names": []}
         assert provenance["marker_records"] == {
-            "emitted": 403,
-            "marker_exact": 107,
+            "emitted": 464,
+            "marker_exact": 215,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 8,
-                "primary_four_23andme": 99,
+                "primary_four_23andme": 207,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 140,
-            "emitted": 107,
-            "omitted": 33,
-            "direct_motif_exact": 102,
+            "total": 346,
+            "emitted": 215,
+            "omitted": 131,
+            "direct_motif_exact": 249,
             "direct_motif_legacy_partial": 37,
-            "recurrent_or_uncertain_events": 0,
-            "reversion_events": 14,
-            "reversion_marks": 14,
+            "recurrent_or_uncertain_events": 2,
+            "reversion_events": 22,
+            "reversion_marks": 22,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 193,
             "validated_declarations": 193,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 4,
-            "pending": 189,
+            "validated": 20,
+            "pending": 173,
         }
         assert provenance["omitted_source_nodes"] == {
-            "count": 3,
-            "names": ["CZ", "K1c", "W+194"],
+            "count": 14,
+            "names": [
+                "CZ",
+                "K1c",
+                "L0a'b'f'g",
+                "L0a'b'f'g'k",
+                "L0a'b'g",
+                "L0a'g",
+                "L0a1'4",
+                "L0d1'2",
+                "L1'2'3'4'5'6",
+                "L2'3'4'5'6",
+                "L2'3'4'6",
+                "L3'4",
+                "L3'4'6",
+                "W+194",
+            ],
             "by_type": {
-                "flattened_unreportable_source_intermediate": 2,
+                "flattened_source_intermediate": 10,
+                "flattened_unreportable_source_intermediate": 3,
                 "unreportable_source_node": 1,
             },
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
+        assert provenance["locked_exact_frontier"] == {
+            "count": 62,
+            "sha256": "b803987a0ef051eb5517ba62c6638420451d1053cffe6dcf7f821795d8d3ca86",
+        }
+        assert provenance["locked_direct_motif_frontier"] == {
+            "count": 50,
+            "sha256": "886f57e5cbc1979df55b969f4174cf087efa4f0139d232458435749645ee7af5",
+        }
+        digests = provenance["digests"]
+        assert {
+            key: digests[key]
+            for key in {
+                "locked_emitted_tree_sha256",
+                "locked_direct_motif_exact_nodes_sha256",
+                "locked_direct_motif_semantic_sha256",
+                "locked_exact_coverage_membership_sha256",
+                "locked_exact_semantic_sha256",
+                "source_metadata_sha256",
+                "state_partition_sha256",
+            }
+        } == {
+            "locked_emitted_tree_sha256": (
+                "17c0d787a58cbb5a01f0f6c2699386b8e580aaece45fcda667de2d085fee3415"
+            ),
+            "locked_direct_motif_exact_nodes_sha256": (
+                "886f57e5cbc1979df55b969f4174cf087efa4f0139d232458435749645ee7af5"
+            ),
+            "locked_direct_motif_semantic_sha256": (
+                "8e4eff59c975f3712dc799780177a3cfe0925d08486b469f0e07f73133ab042a"
+            ),
+            "locked_exact_coverage_membership_sha256": (
+                "54bf23af6b996db6183999c44d8e6400d51042ccfdba8327016f327334536ba0"
+            ),
+            "locked_exact_semantic_sha256": (
+                "331d8a318278a39e4c3cb93eec5230478a4a565e6a33cdd9c4e40d89d4fb99a3"
+            ),
+            "source_metadata_sha256": (
+                "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
+            ),
+            "state_partition_sha256": (
+                "87cb21318649ba2d88cd955c7b4e88e9bba74d6006eebd1afad75ddb1ebec214"
+            ),
+        }
 
         # The registry uses typed omission records, while the bundle retains
         # the original name -> reason compatibility mapping.
@@ -459,18 +534,168 @@ class TestMtDNATree:
 
         assert allele_map("L0") == {
             1048: "T",
+            3516: "A",
             5442: "C",
             6185: "C",
-            9042: "T",
+            9347: "G",
             10589: "A",
+            12007: "A",
+            12720: "G",
         }
-        assert allele_map("L3") == {769: "G", 1018: "G", 16311: "T"}
+        assert allele_map("L3") == {1018: "G"}
         assert allele_map("N") == {
             8701: "A",
             9540: "T",
             10873: "T",
         }
         assert allele_map("R") == {12705: "C", 16223: "C"}
+
+    def test_issue_1798_root_l0_batch_uses_exact_build17_marker_sets(self, mt_tree: dict) -> None:
+        """All 16 batch-01 nodes retain only their reviewed reportable markers."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        expected_markers = {
+            "L0": {
+                1048: "T",
+                3516: "A",
+                5442: "C",
+                6185: "C",
+                9347: "G",
+                10589: "A",
+                12007: "A",
+                12720: "G",
+            },
+            "L0a": {5231: "A", 5460: "A", 11176: "A", 14308: "C"},
+            "L0a1": {5096: "C"},
+            "L0a2": {
+                64: "T",
+                5147: "A",
+                5711: "G",
+                6257: "A",
+                8460: "G",
+                11172: "G",
+                16129: "G",
+            },
+            "L0b": {
+                6719: "C",
+                15106: "A",
+                15622: "C",
+                16051: "G",
+                16164: "G",
+            },
+            "L0d": {
+                1438: "A",
+                4232: "C",
+                8152: "A",
+                8251: "A",
+                12121: "C",
+                15466: "A",
+                15930: "A",
+                15941: "C",
+                16243: "C",
+            },
+            "L0d1": {719: "A", 2706: "A", 3438: "A", 6266: "G", 13759: "A"},
+            "L0d2": {
+                3981: "G",
+                4025: "T",
+                4044: "G",
+                7154: "G",
+                11854: "C",
+                15766: "G",
+            },
+            "L0f": {
+                207: "A",
+                4964: "T",
+                9581: "C",
+                9620: "T",
+                13470: "G",
+                14109: "T",
+                15852: "C",
+                16169: "T",
+                16327: "T",
+            },
+            "L0k": {
+                199: "C",
+                850: "C",
+                1243: "C",
+                4541: "A",
+                4907: "C",
+                5811: "G",
+                8911: "C",
+                8994: "A",
+                9136: "G",
+                10499: "G",
+                10920: "T",
+                11299: "C",
+                11653: "G",
+                13590: "A",
+                13928: "C",
+                14020: "C",
+                14182: "C",
+                14371: "C",
+                16129: "G",
+                16291: "G",
+            },
+            "L1": {3666: "A", 7389: "C", 13789: "C", 14178: "C", 14560: "A"},
+            "L2": {
+                146: "C",
+                2416: "C",
+                8206: "A",
+                9221: "G",
+                10115: "C",
+                13590: "A",
+                16390: "A",
+            },
+            "L3": {1018: "G"},
+            "L4": {5460: "A", 16362: "C"},
+            "L5": {3423: "C", 7972: "G", 12950: "G", 16148: "T"},
+            "L6": {
+                146: "C",
+                961: "C",
+                1461: "G",
+                4964: "T",
+                5267: "C",
+                6002: "G",
+                6284: "G",
+                9332: "T",
+                10978: "G",
+                11116: "C",
+                12771: "A",
+                13710: "G",
+                15244: "G",
+                15289: "C",
+                16048: "A",
+            },
+        }
+        assert {name: allele_map(name) for name in expected_markers} == expected_markers
+
+        obsolete_positions = {
+            "L0": {9042},
+            "L0a": {1438, 9042},
+            "L0a1": {7158, 9818, 14308},
+            "L0a2": {7256, 11899},
+            "L0b": {3693, 5580, 12171},
+            "L0d": {1715, 9755},
+            "L0d1": {8113, 15466},
+            "L0d2": {2969, 10394},
+            "L0f": {3396, 10586},
+            "L0k": {2352, 11176},
+            "L1": {7055, 10589},
+            "L2": {2789, 7175, 7771},
+            "L3": {769, 16311},
+            "L4": {5108, 10685},
+            "L5": {5108, 15301},
+            "L6": {3396, 7146, 10589},
+        }
+        assert all(
+            obsolete_positions[name].isdisjoint(allele_map(name)) for name in obsolete_positions
+        )
+        assert allele_map("L0a")[11176] == "A"
+        assert 11176 not in allele_map("L0k")
 
     def test_issue_1742_nodes_use_exact_reportable_build17_motifs(self, mt_tree: dict) -> None:
         """U5b2, W1, and U3b must not regress to ancestral or sibling markers."""
@@ -699,6 +924,7 @@ class TestMtDNATree:
         nodes = collect_all_nodes(mt_tree)
         snps = collect_all_snps(mt_tree)
         unique_rsids = {s["rsid"] for s in snps}
+        assert (len(snps), len(unique_rsids)) == (464, 370)
         assert bundle["stats"]["mt_haplogroups"] == len(nodes)
         assert bundle["stats"]["mt_defining_snps"] == len(snps)
         assert bundle["stats"]["mt_unique_snps"] == len(unique_rsids)
