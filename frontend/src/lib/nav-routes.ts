@@ -1,10 +1,13 @@
 /**
  * Single source of truth for the app's primary navigation routes (#638).
  *
- * Both navigation surfaces and route announcements derive from this one list:
+ * Both navigation surfaces and primary-route announcements derive from this one list:
  *   - the Sidebar (full vertical nav, `components/layout/Sidebar.tsx`)
  *   - the Command Palette (⌘/Ctrl-K quick-jump "Pages" group, `components/CommandPalette.tsx`)
  *   - the screen-reader live region (`components/layout/RouteAnnouncer.tsx`)
+ *
+ * RouteAnnouncer keeps the standalone `/setup` and `/login` titles alongside
+ * this registry because those full-screen routes are not primary navigation.
  *
  * They used to be two independent hand-maintained arrays that drifted silently —
  * the Command Palette was missing 5 routes the Sidebar had (/findings,
