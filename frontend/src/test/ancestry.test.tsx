@@ -1,6 +1,6 @@
 /** Tests for the Ancestry UI (P3-27, P3-34, AMv2 Steps 5-6). */
 
-import { describe, it, expect, vi } from "vitest"
+import { afterEach, describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "./test-utils"
 import AncestryResultCard from "@/components/ancestry/AncestryResultCard"
 import AdmixtureBar from "@/components/ancestry/AdmixtureBar"
@@ -25,8 +25,12 @@ import type {
 
 // Mock react-plotly.js to avoid canvas issues in tests
 vi.mock("react-plotly.js", () => ({
-  default: (props: { data: unknown[]; "data-testid"?: string }) => (
-    <div data-testid="plotly-chart" data-traces={JSON.stringify(props.data)} />
+  default: (props: { data: unknown[]; layout?: unknown; "data-testid"?: string }) => (
+    <div
+      data-testid="plotly-chart"
+      data-traces={JSON.stringify(props.data)}
+      data-layout={JSON.stringify(props.layout)}
+    />
   ),
 }))
 
@@ -477,6 +481,11 @@ describe("AdmixtureBar", () => {
 // ── PCAScatter tests ────────────────────────────────────────────────
 
 describe("PCAScatter", () => {
+  afterEach(() => {
+    localStorage.removeItem("gi-theme")
+    document.documentElement.classList.remove("dark")
+  })
+
   it("renders the chart container", () => {
     render(<PCAScatter pcaData={PCA_COORDINATES} />)
     expect(screen.getByTestId("pca-scatter")).toBeInTheDocument()
@@ -485,6 +494,20 @@ describe("PCAScatter", () => {
   it("renders plotly chart", () => {
     render(<PCAScatter pcaData={PCA_COORDINATES} />)
     expect(screen.getByTestId("plotly-chart")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["light", "rgba(100,116,139,0.15)"],
+    ["dark", "rgba(148,163,184,0.15)"],
+  ])("uses the %s theme grid color on both axes", (theme, expectedGridColor) => {
+    localStorage.setItem("gi-theme", theme)
+    render(<PCAScatter pcaData={PCA_COORDINATES} />)
+
+    const layout = JSON.parse(
+      screen.getByTestId("plotly-chart").getAttribute("data-layout") ?? "{}",
+    )
+    expect(layout.xaxis.gridcolor).toBe(expectedGridColor)
+    expect(layout.yaxis.gridcolor).toBe(expectedGridColor)
   })
 
   it("includes reference population traces", () => {

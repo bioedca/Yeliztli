@@ -168,3 +168,20 @@ test.describe('Ancestry population color contract (#1764)', () => {
     await expect(piePath).toHaveCSS('fill', DELIVERED_COLOR_RGB)
   })
 })
+
+test.describe('PCA dark-mode grid theme (#1786)', () => {
+  test('uses the faint themed grid color on both axes', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('gi-theme', 'dark'))
+    await page.goto('/ancestry?sample_id=1')
+    await waitForReactHydration(page)
+
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    const pca = page.getByTestId('pca-scatter')
+    for (const selector of ['.gridlayer path.xgrid', '.gridlayer path.ygrid']) {
+      const gridline = pca.locator(selector).first()
+      await expect(gridline).toBeAttached()
+      await expect(gridline).toHaveCSS('stroke', 'rgb(148, 163, 184)')
+      await expect(gridline).toHaveCSS('stroke-opacity', '0.15')
+    }
+  })
+})

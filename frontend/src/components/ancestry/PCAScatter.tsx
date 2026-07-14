@@ -150,10 +150,12 @@ export default function PCAScatter({
           xaxis: {
             title: { text: pcaData.pc_labels[pcX] ?? `PC${pcX + 1}`, font: { size: 12 } },
             zeroline: false,
+            gridcolor: pt.gridColor,
           },
           yaxis: {
             title: { text: pcaData.pc_labels[pcY] ?? `PC${pcY + 1}`, font: { size: 12 } },
             zeroline: false,
+            gridcolor: pt.gridColor,
           },
           showlegend: true,
           legend: {
