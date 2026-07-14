@@ -876,6 +876,7 @@ class TestConstants:
         # (P4-22 optimization) — at least 500, but may be higher on Linux.
         assert LOOKUP_BATCH_SIZE >= 500
 
+
 # ── Data class tests ─────────────────────────────────────────────────────
 
 
