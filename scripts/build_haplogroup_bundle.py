@@ -38,6 +38,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -47,49 +49,109 @@ BUNDLE_VERSION = "1.1.9"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
-_REQUIRED_AUDITED_MT_NODES = frozenset(
-    {
-        "C",
-        "G",
-        "G1",
-        "G2",
-        "H10",
-        "H13",
-        "H13a",
-        "H6",
-        "H6a",
-        "J1d",
-        "K",
-        "K1",
-        "K1a",
-        "K1b",
-        "K2",
-        "K2a",
-        "K2b",
-        "L2c",
-        "M1",
-        "M8",
-        "M8a",
-        "N9",
-        "S",
-        "T2a",
-        "U2",
-        "U2e",
-        "U3a",
-        "U3b",
-        "U5b2",
-        "W1",
-        "X",
-        "X2",
-        "X2a",
-        "X2b",
-        "Y1",
-        "Y2",
-        "Y_mt",
-        "Z",
-        "Z1",
-    }
+
+_MT_SCHEMA_VERSION = 2
+_MT_BASELINE_COMMIT = "bd9b1175315153bcef83df2464937e1bc80de763"
+_MT_PHYLOTREE_ARCHIVE_SHA256 = "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
+_MT_RCRS_SHA256 = "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92"
+_MT_LEGACY_EXACT_NAMES_SHA256 = "7d968626b02229ba77f7e58a32b337621c71a1a071e4564d5e815d5c3dee4d5d"
+_MT_LEGACY_V1_SEMANTIC_SHA256 = "521dedbac66952e7df628dda8da495b6e03f640b3b6765006835d805cd32d63a"
+_MT_LEGACY_V1_COVERAGE_SHA256 = "375c6a5af32e22bd71026391b5a0552bfa260bac09cf6666f84bab6ea52b7947"
+_MT_BASELINE_EXACT_NAMES_SHA256 = (
+    "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
 )
+_MT_BASELINE_V1_SEMANTIC_SHA256 = (
+    "9228fe0e2158acc8afc324227860c33031c1e1fda8d256f807e19d10eff44972"
+)
+_MT_BASELINE_V1_COVERAGE_SHA256 = (
+    "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e"
+)
+_MT_BASELINE_V2_DIRECT_SEMANTIC_SHA256 = (
+    "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e"
+)
+_MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
+    "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
+)
+_MT_LOCKED_EXACT_NAMES_SHA256 = _MT_BASELINE_EXACT_NAMES_SHA256
+_MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
+    "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
+)
+_MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
+    "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
+)
+_MT_INITIAL_PENDING_NAMES_SHA256 = (
+    "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde"
+)
+_MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
+_MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
+_MT_STATE_PARTITION_SHA256 = "bedc610cd57aec4ede72a3832bf5e03247fae471ea66fb764dc6792d2ef3673d"
+_MT_BASELINE_EMITTED_TREE_SHA256 = (
+    "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
+)
+
+_MT_EXPECTED_ARRAY_EXPORTS: dict[str, dict[str, Any]] = {
+    "pgp_4139": {
+        "filename": "pgp_4139.txt",
+        "vendor": "23andMe",
+        "generated": "2020-09-10",
+        "role": "primary_modern_23andme",
+        "sha256": "f4a37d23e75d7406afef22b55fe723eb5c8c7901823365410fd2abf988fd4619",
+        "line_count": 638564,
+    },
+    "pgp_4162": {
+        "filename": "pgp_4162.txt",
+        "vendor": "23andMe",
+        "generated": "2024-07-30",
+        "role": "primary_modern_23andme",
+        "sha256": "2e9cbdd1a69ad7b226751d2741c0b56a7d1f1625a4e6e10384239783dadefa94",
+        "line_count": 643555,
+    },
+    "pgp_4187": {
+        "filename": "pgp_4187.txt",
+        "vendor": "23andMe",
+        "generated": "2017-12-21",
+        "role": "primary_modern_23andme",
+        "sha256": "19481e7e2e94f441ce25d2d98ecbe90b3de59533c40b52242ed9572d3cb91127",
+        "line_count": 638483,
+    },
+    "pgp_huA08F4D": {
+        "filename": "pgp_huA08F4D.txt",
+        "vendor": "23andMe",
+        "generated": "2026-04-29",
+        "role": "primary_modern_23andme",
+        "sha256": "8663f40f503b4a2873ef152095d88762c6d739af72876c637e38727693bf251c",
+        "line_count": 631479,
+    },
+    "pgp_ancestry_4190": {
+        "filename": "pgp_ancestry_4190.txt",
+        "vendor": "AncestryDNA",
+        "generated": "2018-04-22",
+        "role": "other_vendor_comparator_only",
+        "sha256": "9ccba5275793a6e07fe191e1ce92eb9ea3c7095159f0a4572a3de2990d984e58",
+        "line_count": 650429,
+    },
+    "pgp_1050": {
+        "filename": "pgp_1050.txt",
+        "vendor": "23andMe",
+        "generated": "2014-02-01",
+        "role": "historical_fifth_23andme_only",
+        "sha256": "30b6e03db180e17b097e06aa94d9352ca195b2948e38bde28ced3285fb8921c7",
+        "line_count": 1001437,
+    },
+}
+_MT_EXPECTED_ARRAY_COHORTS: dict[str, dict[str, Any]] = {
+    "primary_four_23andme": {"export_ids": ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]},
+    "historical_five_23andme_including_2014": {
+        "extends": "primary_four_23andme",
+        "export_ids": [
+            "pgp_4139",
+            "pgp_4162",
+            "pgp_4187",
+            "pgp_huA08F4D",
+            "pgp_1050",
+        ],
+    },
+}
 
 # ── mtDNA haplogroup tree (PhyloTree Build 17) ─────────────────────────
 #
@@ -2065,198 +2127,1391 @@ def _validate_tree(node: dict[str, Any], path: str = "") -> list[str]:
     return issues
 
 
-def _validate_mt_source(source: dict[str, Any]) -> list[str]:
-    """Validate the provenance and array reportability of audited mtDNA motifs."""
+@dataclass(frozen=True)
+class MtTreeOccurrence:
+    """One ordered mtDNA tree occurrence, before names are deduplicated."""
+
+    name: str
+    node: dict[str, Any]
+    parent: str | None
+    path: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MtTreeInventory:
+    """Duplicate-safe inventory of the emitted mtDNA tree."""
+
+    occurrences: tuple[MtTreeOccurrence, ...]
+    by_name: dict[str, MtTreeOccurrence]
+    duplicates: dict[str, tuple[MtTreeOccurrence, ...]]
+    marker_bearing_names: frozenset[str]
+    markerless_names: frozenset[str]
+    marker_count: int
+    edge_count: int
+
+
+def _canonical_json_sha256(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _sorted_tsv_sha256(rows: list[tuple[Any, ...]]) -> str:
+    payload = "".join("\t".join(str(value) for value in row) + "\n" for row in sorted(rows))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _is_nonblank(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _index_mt_tree(root: dict[str, Any]) -> MtTreeInventory:
+    """Index ordered occurrences without allowing duplicate names to disappear."""
+    occurrences: list[MtTreeOccurrence] = []
+
+    def visit(current: dict[str, Any], parent: str | None, parent_path: tuple[str, ...]) -> None:
+        raw_name = current.get("haplogroup")
+        name = raw_name if isinstance(raw_name, str) else repr(raw_name)
+        path = (*parent_path, name)
+        occurrences.append(MtTreeOccurrence(name, current, parent, path))
+        children = current.get("children", [])
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    visit(child, name, path)
+
+    visit(root, None, ())
+    grouped: dict[str, list[MtTreeOccurrence]] = {}
+    for occurrence in occurrences:
+        grouped.setdefault(occurrence.name, []).append(occurrence)
+    duplicates = {name: tuple(matches) for name, matches in grouped.items() if len(matches) != 1}
+    by_name = {name: matches[0] for name, matches in grouped.items() if len(matches) == 1}
+    marker_bearing = frozenset(
+        occurrence.name
+        for occurrence in occurrences
+        if isinstance(occurrence.node.get("defining_snps"), list)
+        and occurrence.node["defining_snps"]
+    )
+    markerless = frozenset(
+        occurrence.name
+        for occurrence in occurrences
+        if isinstance(occurrence.node.get("defining_snps"), list)
+        and not occurrence.node["defining_snps"]
+    )
+    return MtTreeInventory(
+        occurrences=tuple(occurrences),
+        by_name=by_name,
+        duplicates=duplicates,
+        marker_bearing_names=marker_bearing,
+        markerless_names=markerless,
+        marker_count=sum(
+            len(occurrence.node.get("defining_snps", []))
+            for occurrence in occurrences
+            if isinstance(occurrence.node.get("defining_snps"), list)
+        ),
+        edge_count=sum(occurrence.parent is not None for occurrence in occurrences),
+    )
+
+
+def _sorted_unique_string_list(value: Any, label: str, issues: list[str]) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        issues.append(f"mtDNA migration {label} must be a list of node names")
+        return []
+    if value != sorted(value) or len(value) != len(set(value)):
+        issues.append(f"mtDNA migration {label} must be sorted and unique")
+    return value
+
+
+def _mt_validate_mutation_list(
+    owner: str, value: Any, issues: list[str]
+) -> dict[int, tuple[str, str]]:
+    """Validate one source-local motif and return its emitted substitutions."""
+    if not isinstance(value, list) or not value:
+        issues.append(f"Marker-exact mtDNA source node {owner} has no direct source motif")
+        return {}
+
+    emitted_substitutions: dict[int, tuple[str, str]] = {}
+    seen_positions: set[int] = set()
+    for mutation in value:
+        if not isinstance(mutation, dict):
+            issues.append(f"mtDNA source motif {owner} contains a non-object decision")
+            continue
+        notation = mutation.get("notation")
+        mutation_type = mutation.get("mutation_type")
+        pos = mutation.get("pos")
+        emitted = mutation.get("emitted")
+        if not _is_nonblank(notation):
+            issues.append(f"mtDNA source mutation {owner}:{pos!r} has no notation")
+        common_mutation_fields = {
+            "notation",
+            "mutation_type",
+            "pos",
+            "emitted",
+            "omission_reason",
+        }
+        if mutation_type == "substitution":
+            allowed_mutation_fields = common_mutation_fields | {
+                "ancestral_allele",
+                "derived_allele",
+            }
+        elif mutation_type == "insertion":
+            allowed_mutation_fields = common_mutation_fields | {"inserted_sequence"}
+        elif mutation_type == "deletion":
+            allowed_mutation_fields = common_mutation_fields | {"deleted_sequence"}
+        else:
+            allowed_mutation_fields = common_mutation_fields
+        if set(mutation) - allowed_mutation_fields:
+            issues.append(f"mtDNA source mutation {owner}:{pos!r} has unknown fields")
+        if not isinstance(pos, int) or not 1 <= pos <= 16569:
+            issues.append(f"mtDNA source node {owner} has invalid source position {pos!r}")
+            continue
+        if pos in seen_positions:
+            issues.append(f"mtDNA source node {owner} repeats source position {pos}")
+        seen_positions.add(pos)
+        if isinstance(notation, str) and str(pos) not in notation:
+            issues.append(f"mtDNA source mutation {owner}:{pos} notation omits its position")
+        if (
+            isinstance(notation, str)
+            and notation.endswith("!")
+            and mutation_type != "substitution"
+        ):
+            issues.append(f"mtDNA recurrent event {owner}:{pos} must be a substitution")
+        if not isinstance(emitted, bool):
+            issues.append(f"mtDNA source mutation {owner}:{pos} has no emission decision")
+        elif emitted and "omission_reason" in mutation:
+            issues.append(
+                f"Emitted mtDNA source mutation {owner}:{pos} retains an omission reason"
+            )
+        elif not emitted and not _is_nonblank(mutation.get("omission_reason")):
+            issues.append(f"mtDNA source mutation {owner}:{pos} must have an omission reason")
+
+        if mutation_type == "substitution":
+            ancestral = mutation.get("ancestral_allele")
+            derived = mutation.get("derived_allele")
+            notation_match = (
+                re.fullmatch(r"([ACGT])(\d+)([ACGTacgt])(!?)", notation)
+                if isinstance(notation, str)
+                else None
+            )
+            if notation_match is None:
+                issues.append(f"mtDNA substitution {owner}:{pos} has invalid Build-17 notation")
+            elif (
+                notation_match.group(1) != ancestral
+                or int(notation_match.group(2)) != pos
+                or notation_match.group(3).upper() != derived
+            ):
+                issues.append(
+                    f"mtDNA substitution {owner}:{pos} notation disagrees with its "
+                    "declared allele direction"
+                )
+            if ancestral not in {"A", "C", "G", "T"}:
+                issues.append(
+                    f"mtDNA source node {owner} position {pos} has invalid ancestral "
+                    f"allele {ancestral!r}"
+                )
+            if derived not in {"A", "C", "G", "T"} or derived == ancestral:
+                issues.append(
+                    f"mtDNA source node {owner} position {pos} has invalid derived "
+                    f"allele {derived!r}"
+                )
+            if (
+                emitted is True
+                and ancestral in {"A", "C", "G", "T"}
+                and derived
+                in {
+                    "A",
+                    "C",
+                    "G",
+                    "T",
+                }
+            ):
+                emitted_substitutions[pos] = (ancestral, derived)
+        elif mutation_type in {"insertion", "deletion"}:
+            if emitted is not False:
+                issues.append(
+                    f"mtDNA {mutation_type} {owner}:{pos} cannot be emitted by the "
+                    "substitution-only classifier"
+                )
+        else:
+            issues.append(
+                f"mtDNA source node {owner} position {pos} has unsupported mutation "
+                f"type {mutation_type!r}"
+            )
+    return emitted_substitutions
+
+
+def _mt_validate_coverage(
+    node_name: str,
+    marker: dict[str, Any],
+    cohorts: dict[str, Any],
+    issues: list[str],
+) -> None:
+    rsid = marker.get("rsid")
+    coverage = marker.get("array_coverage")
+    if not isinstance(coverage, dict):
+        issues.append(f"Marker-exact mtDNA marker {rsid} at {node_name} has no array coverage")
+        return
+    expected_coverage_fields = {
+        "cohort_id",
+        "position_present_in",
+        "callable_snv_in",
+    }
+    if set(coverage) != expected_coverage_fields:
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} has invalid coverage fields"
+        )
+    if {"modern_exports_tested", "modern_exports_with_position"} & set(coverage):
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} retains ambiguous numeric coverage"
+        )
+    cohort_id = coverage.get("cohort_id")
+    if not _is_nonblank(cohort_id):
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} has an invalid array cohort"
+        )
+        return
+    cohort = cohorts.get(cohort_id)
+    if not isinstance(cohort, dict) or not isinstance(cohort.get("export_ids"), list):
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} names an unknown array cohort"
+        )
+        return
+    members = cohort["export_ids"]
+    present = coverage.get("position_present_in")
+    callable_snv = coverage.get("callable_snv_in")
+    for label, selected in (
+        ("position-present", present),
+        ("callable-SNV", callable_snv),
+    ):
+        if not isinstance(selected, list) or not all(
+            isinstance(export_id, str) for export_id in selected
+        ):
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} has invalid {label} membership"
+            )
+            return
+        if len(selected) != len(set(selected)):
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} repeats {label} exports"
+            )
+        if any(export_id not in members for export_id in selected):
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} has {label} exports "
+                "outside its cohort"
+            )
+        expected_order = [export_id for export_id in members if export_id in selected]
+        if selected != expected_order:
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} has unordered {label} exports"
+            )
+    if isinstance(present, list) and not present:
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} is absent from its whole cohort"
+        )
+    if (
+        isinstance(present, list)
+        and isinstance(callable_snv, list)
+        and not set(callable_snv).issubset(present)
+    ):
+        issues.append(
+            f"Marker-exact mtDNA marker {rsid} at {node_name} is callable where its "
+            "position is absent"
+        )
+
+
+def _mt_owner_motifs(
+    node_name: str,
+    record: dict[str, Any],
+    omitted_nodes: dict[str, Any],
+    issues: list[str],
+) -> dict[str, Any]:
+    source_node = record.get("source_node")
+    if not _is_nonblank(source_node):
+        issues.append(f"Marker-exact mtDNA node {node_name} has no source-node identity")
+        return {}
+    owner_motifs: dict[str, Any] = {source_node: record.get("direct_source_motif")}
+    topology = record.get("source_topology")
+    if not isinstance(topology, dict):
+        issues.append(f"Marker-exact mtDNA node {node_name} has no source-topology state")
+        return owner_motifs
+    status = topology.get("status")
+    if status == "pending":
+        if set(topology) != {"status"}:
+            issues.append(
+                f"Pending source topology for mtDNA node {node_name} contains partial exact fields"
+            )
+        return owner_motifs
+    if status != "exact":
+        issues.append(
+            f"Marker-exact mtDNA node {node_name} has invalid source-topology status {status!r}"
+        )
+        return owner_motifs
+
+    expected_topology_fields = {
+        "status",
+        "emitted_parent_source_node",
+        "source_parent",
+        "flattened_source_path",
+    }
+    if set(topology) != expected_topology_fields:
+        issues.append(f"Exact source topology for mtDNA node {node_name} has invalid fields")
+
+    emitted_parent_source = topology.get("emitted_parent_source_node")
+    source_parent = topology.get("source_parent")
+    flattened_path = topology.get("flattened_source_path")
+    if not _is_nonblank(emitted_parent_source):
+        issues.append(
+            f"Exact source topology for mtDNA node {node_name} has no emitted-parent source node"
+        )
+    if not _is_nonblank(source_parent):
+        issues.append(f"Exact source topology for mtDNA node {node_name} has no source parent")
+    if not isinstance(flattened_path, list):
+        issues.append(
+            f"Exact source topology for mtDNA node {node_name} has no ordered flattened path"
+        )
+        return owner_motifs
+
+    prior = emitted_parent_source
+    seen_path_nodes: set[str] = set()
+    for index, path_record in enumerate(flattened_path):
+        if not isinstance(path_record, dict):
+            issues.append(
+                f"Exact source topology for mtDNA node {node_name} has a non-object path step"
+            )
+            continue
+        expected_path_fields = {
+            "source_node",
+            "source_parent",
+            "reason",
+            "direct_source_motif",
+        }
+        if set(path_record) != expected_path_fields:
+            issues.append(
+                f"Exact source topology for mtDNA node {node_name} path step {index} "
+                "has invalid fields"
+            )
+        path_node = path_record.get("source_node")
+        path_parent = path_record.get("source_parent")
+        if not _is_nonblank(path_node):
+            issues.append(
+                f"Exact source topology for mtDNA node {node_name} path step {index} has no name"
+            )
+            continue
+        if path_node in seen_path_nodes or path_node == source_node:
+            issues.append(
+                f"Exact source topology for mtDNA node {node_name} repeats source path node "
+                f"{path_node}"
+            )
+        seen_path_nodes.add(path_node)
+        if path_parent != prior:
+            issues.append(
+                f"Exact source topology for mtDNA node {node_name} breaks adjacency at "
+                f"{path_node}: parent {path_parent!r}, expected {prior!r}"
+            )
+        if not _is_nonblank(path_record.get("reason")):
+            issues.append(f"Flattened mtDNA source path node {path_node} has no omission reason")
+        omission = omitted_nodes.get(path_node)
+        if not isinstance(omission, dict) or omission.get("type") != (
+            "flattened_unreportable_source_intermediate"
+        ):
+            issues.append(
+                f"Flattened mtDNA source path node {path_node} has no typed top-level omission"
+            )
+        elif path_record.get("reason") != omission.get("reason"):
+            issues.append(
+                f"Flattened mtDNA source path node {path_node} disagrees with its omission reason"
+            )
+        owner_motifs[path_node] = path_record.get("direct_source_motif")
+        prior = path_node
+    if source_parent != prior:
+        issues.append(
+            f"Exact source topology for mtDNA node {node_name} ends at {prior!r}; "
+            f"declared source parent is {source_parent!r}"
+        )
+    return owner_motifs
+
+
+def _mt_validate_exact_record(
+    node_name: str,
+    record: dict[str, Any],
+    omitted_nodes: dict[str, Any],
+    cohorts: dict[str, Any],
+    issues: list[str],
+) -> None:
+    expected_keys = {
+        "source_node",
+        "emitted_parent",
+        "source_topology",
+        "direct_source_motif",
+        "emitted_snps",
+    }
+    if set(record) != expected_keys:
+        issues.append(f"Marker-exact mtDNA node {node_name} has invalid provenance fields")
+    owner_motifs = _mt_owner_motifs(node_name, record, omitted_nodes, issues)
+    emitted_decisions: dict[tuple[str, int], tuple[str, str]] = {}
+    for owner, motif in owner_motifs.items():
+        for pos, direction in _mt_validate_mutation_list(owner, motif, issues).items():
+            emitted_decisions[(owner, pos)] = direction
+
+    markers = record.get("emitted_snps")
+    if not isinstance(markers, list) or not markers:
+        issues.append(f"Marker-exact mtDNA node {node_name} has no emitted SNPs")
+        return
+    seen_positions: set[int] = set()
+    matched_decisions: set[tuple[str, int]] = set()
+    for marker in markers:
+        if not isinstance(marker, dict):
+            issues.append(f"Marker-exact mtDNA node {node_name} contains a non-object marker")
+            continue
+        expected_marker_fields = {
+            "rsid",
+            "pos",
+            "ancestral_allele",
+            "allele",
+            "motif_owner",
+            "array_coverage",
+        }
+        if set(marker) != expected_marker_fields:
+            issues.append(f"Marker-exact mtDNA node {node_name} has a marker with invalid fields")
+        rsid = marker.get("rsid")
+        pos = marker.get("pos")
+        ancestral = marker.get("ancestral_allele")
+        derived = marker.get("allele")
+        owner = marker.get("motif_owner")
+        if not _is_nonblank(rsid):
+            issues.append(
+                f"Marker-exact mtDNA node {node_name} has a marker without an identifier"
+            )
+        if not isinstance(pos, int) or not 1 <= pos <= 16569:
+            issues.append(
+                f"Marker-exact mtDNA node {node_name} has invalid emitted position {pos!r}"
+            )
+            continue
+        if pos in seen_positions:
+            issues.append(f"Marker-exact mtDNA node {node_name} repeats emitted position {pos}")
+        seen_positions.add(pos)
+        key = (owner, pos) if _is_nonblank(owner) else None
+        if key is None:
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} has an invalid motif owner"
+            )
+        elif owner not in owner_motifs:
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} has outside motif owner "
+                f"{owner!r}"
+            )
+        elif emitted_decisions.get(key) != (ancestral, derived):
+            issues.append(
+                f"Marker-exact mtDNA marker {rsid} at {node_name} does not match its "
+                "source mutation direction"
+            )
+        if key is not None:
+            matched_decisions.add(key)
+        _mt_validate_coverage(node_name, marker, cohorts, issues)
+    if matched_decisions != set(emitted_decisions):
+        issues.append(
+            f"Marker-exact mtDNA node {node_name} emitted markers do not match every "
+            "source emission decision"
+        )
+
+
+def _mt_v1_semantic_projection(source: dict[str, Any], names: list[str]) -> list[dict[str, Any]]:
+    nodes = source["nodes"]
+    cohorts = source["array_cohorts"]
+    projection: list[dict[str, Any]] = []
+    for name in names:
+        record = nodes[name]
+        emitted_snps = []
+        for marker in record["emitted_snps"]:
+            coverage = marker["array_coverage"]
+            cohort_members = cohorts[coverage["cohort_id"]]["export_ids"]
+            emitted_snps.append(
+                {
+                    "rsid": marker["rsid"],
+                    "pos": marker["pos"],
+                    "ancestral_allele": marker["ancestral_allele"],
+                    "allele": marker["allele"],
+                    "array_coverage": {
+                        "modern_exports_tested": len(cohort_members),
+                        "modern_exports_with_position": len(coverage["position_present_in"]),
+                    },
+                }
+            )
+        projection.append(
+            {
+                "node": name,
+                "emitted_snps": emitted_snps,
+                "source_motif": record["direct_source_motif"],
+            }
+        )
+    return sorted(projection, key=lambda item: item["node"])
+
+
+def _mt_v1_coverage_rows(source: dict[str, Any], names: list[str]) -> list[tuple[Any, ...]]:
+    rows: list[tuple[Any, ...]] = []
+    cohorts = source["array_cohorts"]
+    for name in names:
+        for marker in source["nodes"][name]["emitted_snps"]:
+            coverage = marker["array_coverage"]
+            rows.append(
+                (
+                    name,
+                    marker["rsid"],
+                    marker["pos"],
+                    coverage["cohort_id"],
+                    len(cohorts[coverage["cohort_id"]]["export_ids"]),
+                    len(coverage["position_present_in"]),
+                )
+            )
+    return rows
+
+
+def _mt_baseline_v2_direct_projection(
+    source: dict[str, Any], names: list[str]
+) -> list[dict[str, Any]]:
+    """Project immutable direct provenance while excluding migratable topology."""
+    nodes = source["nodes"]
+    return [
+        {
+            "node": name,
+            "source_node": nodes[name]["source_node"],
+            "emitted_parent": nodes[name]["emitted_parent"],
+            "direct_source_motif": nodes[name]["direct_source_motif"],
+            "emitted_snps": [
+                {
+                    key: marker[key]
+                    for key in (
+                        "rsid",
+                        "pos",
+                        "ancestral_allele",
+                        "allele",
+                        "motif_owner",
+                    )
+                }
+                for marker in nodes[name]["emitted_snps"]
+            ],
+        }
+        for name in names
+    ]
+
+
+def _mt_locked_semantic_projection(
+    source: dict[str, Any], names: list[str]
+) -> list[dict[str, Any]]:
+    nodes = source["nodes"]
+    return [
+        {
+            "node": name,
+            "source_node": nodes[name]["source_node"],
+            "emitted_parent": nodes[name]["emitted_parent"],
+            "source_topology": nodes[name]["source_topology"],
+            "direct_source_motif": nodes[name]["direct_source_motif"],
+            "emitted_snps": [
+                {
+                    key: marker[key]
+                    for key in (
+                        "rsid",
+                        "pos",
+                        "ancestral_allele",
+                        "allele",
+                        "motif_owner",
+                    )
+                }
+                for marker in nodes[name]["emitted_snps"]
+            ],
+        }
+        for name in names
+    ]
+
+
+def _mt_locked_coverage_rows(source: dict[str, Any], names: list[str]) -> list[tuple[Any, ...]]:
+    return [
+        (
+            name,
+            marker["rsid"],
+            marker["pos"],
+            marker["array_coverage"]["cohort_id"],
+            ",".join(marker["array_coverage"]["position_present_in"]),
+            ",".join(marker["array_coverage"]["callable_snv_in"]),
+        )
+        for name in names
+        for marker in source["nodes"][name]["emitted_snps"]
+    ]
+
+
+def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
+    """Validate schema-v2 mtDNA provenance independently of the emitted tree."""
     issues: list[str] = []
-    if source.get("schema_version") != 1:
+    if not isinstance(source, dict):
+        return ["mtDNA source registry must be an object"]
+    expected_top_level = {
+        "schema_version",
+        "audit_scope",
+        "source",
+        "references",
+        "array_exports",
+        "array_cohorts",
+        "omitted_nodes",
+        "nodes",
+        "structural_exceptions",
+        "pending_nodes",
+        "migration",
+    }
+    if set(source) != expected_top_level:
+        issues.append("mtDNA source registry has unexpected or missing top-level fields")
+    if source.get("schema_version") != _MT_SCHEMA_VERSION:
         issues.append("mtDNA source registry has an unsupported schema version")
-    audit_scope = source.get("audit_scope")
-    if not isinstance(audit_scope, str) or not audit_scope.strip():
+    if not _is_nonblank(source.get("audit_scope")):
         issues.append("mtDNA source registry has no valid audit scope")
 
-    source_metadata = source.get("source", {})
+    source_metadata = source.get("source")
+    if not isinstance(source_metadata, dict):
+        source_metadata = {}
+        issues.append("mtDNA source registry has no source metadata")
     if source_metadata.get("version") != "Build 17":
         issues.append("mtDNA source registry is not pinned to PhyloTree Build 17")
-    reference_sequence = source_metadata.get("reference_sequence", {})
+    if source_metadata.get("archive_sha256") != _MT_PHYLOTREE_ARCHIVE_SHA256:
+        issues.append("mtDNA source registry has the wrong PhyloTree archive SHA-256")
+    reference_sequence = source_metadata.get("reference_sequence")
+    if not isinstance(reference_sequence, dict):
+        reference_sequence = {}
     if reference_sequence.get("accession") != "NC_012920.1":
         issues.append("mtDNA source registry is not pinned to rCRS NC_012920.1")
-    for label, digest in (
-        ("PhyloTree archive", source_metadata.get("archive_sha256")),
-        ("rCRS FASTA", reference_sequence.get("sha256")),
-    ):
-        if not isinstance(digest, str) or len(digest) != 64:
-            issues.append(f"mtDNA source registry has no valid {label} SHA-256")
-
+    if reference_sequence.get("sha256") != _MT_RCRS_SHA256:
+        issues.append("mtDNA source registry has the wrong rCRS FASTA SHA-256")
     references = source.get("references")
-    if not isinstance(references, list) or not references:
+    if (
+        not isinstance(references, list)
+        or not references
+        or not all(isinstance(reference, dict) for reference in references)
+    ):
         issues.append("mtDNA source registry has no paper references")
 
-    audited_nodes = source.get("audited_nodes", {})
-    if not isinstance(audited_nodes, dict):
-        return [*issues, "mtDNA source registry has no audited node mapping"]
-    if set(audited_nodes) != _REQUIRED_AUDITED_MT_NODES:
+    category_maps: dict[str, dict[str, Any]] = {}
+    for key in (
+        "array_exports",
+        "array_cohorts",
+        "omitted_nodes",
+        "nodes",
+        "structural_exceptions",
+        "pending_nodes",
+        "migration",
+    ):
+        value = source.get(key)
+        if not isinstance(value, dict):
+            issues.append(f"mtDNA source registry has no valid {key.replace('_', '-')} mapping")
+            category_maps[key] = {}
+        else:
+            category_maps[key] = value
+
+    exports = category_maps["array_exports"]
+    cohorts = category_maps["array_cohorts"]
+    if exports != _MT_EXPECTED_ARRAY_EXPORTS:
+        issues.append("mtDNA array export manifest differs from the pinned six-export inventory")
+    if cohorts != _MT_EXPECTED_ARRAY_COHORTS:
+        issues.append("mtDNA array cohorts differ from the pinned 23andMe cohorts")
+    for export_id, export in exports.items():
+        if not isinstance(export, dict):
+            issues.append(f"mtDNA array export {export_id} is not an object")
+            continue
+        digest = export.get("sha256")
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in "0123456789abcdef" for char in digest)
+        ):
+            issues.append(f"mtDNA array export {export_id} has no lowercase SHA-256")
+        if not isinstance(export.get("line_count"), int) or export["line_count"] <= 0:
+            issues.append(f"mtDNA array export {export_id} has no positive line count")
+    for cohort_id, cohort in cohorts.items():
+        if not isinstance(cohort, dict) or not isinstance(cohort.get("export_ids"), list):
+            issues.append(f"mtDNA array cohort {cohort_id} has no export membership")
+            continue
+        members = cohort["export_ids"]
+        if not all(isinstance(member, str) for member in members):
+            issues.append(f"mtDNA array cohort {cohort_id} has a non-string export member")
+            continue
+        if len(members) != len(set(members)):
+            issues.append(f"mtDNA array cohort {cohort_id} repeats an export")
+        if any(member not in exports for member in members):
+            issues.append(f"mtDNA array cohort {cohort_id} names an unknown export")
+        if "pgp_ancestry_4190" in members:
+            issues.append(f"mtDNA array cohort {cohort_id} includes the Ancestry comparator")
+
+    nodes = category_maps["nodes"]
+    structural = category_maps["structural_exceptions"]
+    pending = category_maps["pending_nodes"]
+    omitted = category_maps["omitted_nodes"]
+    categories = {
+        "marker-exact": set(nodes),
+        "structural": set(structural),
+        "pending": set(pending),
+    }
+    category_names = list(categories)
+    for index, left_name in enumerate(category_names):
+        for right_name in category_names[index + 1 :]:
+            overlap = categories[left_name] & categories[right_name]
+            if overlap:
+                issues.append(
+                    f"mtDNA {left_name} and {right_name} states overlap: "
+                    + ", ".join(sorted(overlap))
+                )
+    emitted_categories = set().union(*categories.values())
+    omitted_overlap = set(omitted) & emitted_categories
+    if omitted_overlap:
         issues.append(
-            "mtDNA audited node set does not match the required targeted audit scope: "
-            + ", ".join(sorted(_REQUIRED_AUDITED_MT_NODES))
+            "mtDNA source nodes are both omitted and emitted: "
+            + ", ".join(sorted(omitted_overlap))
         )
-    if "omitted_nodes" not in source:
-        issues.append("mtDNA source registry is missing the omitted-node mapping")
-        omitted_nodes: Any = {}
+
+    allowed_omission_types = {
+        "unreportable_source_node",
+        "flattened_unreportable_source_intermediate",
+    }
+    for name, omission in omitted.items():
+        if not _is_nonblank(name) or not isinstance(omission, dict):
+            issues.append(f"mtDNA omitted source node {name!r} has no typed record")
+            continue
+        if set(omission) != {"type", "reason"}:
+            issues.append(f"mtDNA omitted source node {name} has invalid fields")
+        if omission.get("type") not in allowed_omission_types:
+            issues.append(f"mtDNA omitted source node {name} has an invalid omission type")
+        if not _is_nonblank(omission.get("reason")):
+            issues.append(f"mtDNA omitted source node {name} has no reason")
+
+    for name, record in nodes.items():
+        if not _is_nonblank(name) or not isinstance(record, dict):
+            issues.append(f"Marker-exact mtDNA node {name!r} has no provenance record")
+            continue
+        if record.get("emitted_parent") is not None and not _is_nonblank(
+            record.get("emitted_parent")
+        ):
+            issues.append(f"Marker-exact mtDNA node {name} has an invalid emitted parent")
+        _mt_validate_exact_record(name, record, omitted, cohorts, issues)
+    direct_source_nodes = [
+        record.get("source_node")
+        for record in nodes.values()
+        if isinstance(record, dict) and isinstance(record.get("source_node"), str)
+    ]
+    for name, record in pending.items():
+        if not _is_nonblank(name) or not isinstance(record, dict):
+            issues.append(f"Pending mtDNA node {name!r} has no state record")
+            continue
+        if set(record) != {"emitted_parent"} or not _is_nonblank(record.get("emitted_parent")):
+            issues.append(f"Pending mtDNA node {name} has an invalid emitted-parent state")
+    for name, record in structural.items():
+        if not _is_nonblank(name) or not isinstance(record, dict):
+            issues.append(f"Structural mtDNA node {name!r} has no state record")
+            continue
+        if record.get("type") not in {"root", "markerless_passthrough"}:
+            issues.append(f"Structural mtDNA node {name} has an invalid exception type")
+        if not _is_nonblank(record.get("reason")):
+            issues.append(f"Structural mtDNA node {name} has no reason")
+        if record.get("source_status") not in {"synthetic", "pending", "exact"}:
+            issues.append(f"Structural mtDNA node {name} has an invalid source status")
+        base_structural_fields = {
+            "type",
+            "emitted_parent",
+            "source_status",
+            "reason",
+        }
+        expected_structural_fields = (
+            base_structural_fields
+            | {
+                "source_node",
+                "source_topology",
+                "direct_source_motif",
+                "emitted_snps",
+            }
+            if record.get("source_status") == "exact"
+            else base_structural_fields
+        )
+        if set(record) != expected_structural_fields:
+            issues.append(f"Structural mtDNA node {name} has invalid provenance fields")
+        if record.get("source_status") == "exact" and not _is_nonblank(record.get("source_node")):
+            issues.append(f"Exact structural mtDNA node {name} has no source identity")
+
+    exact_structural_source_nodes = [
+        record.get("source_node")
+        for record in structural.values()
+        if isinstance(record, dict)
+        and record.get("source_status") == "exact"
+        and isinstance(record.get("source_node"), str)
+    ]
+    all_direct_source_nodes = [*direct_source_nodes, *exact_structural_source_nodes]
+    if len(all_direct_source_nodes) != len(set(all_direct_source_nodes)):
+        issues.append("mtDNA exact records repeat a direct source-node identity")
+    all_direct_source_omissions = set(all_direct_source_nodes) & set(omitted)
+    if all_direct_source_omissions:
+        issues.append(
+            "mtDNA exact direct source nodes are also globally omitted: "
+            + ", ".join(sorted(all_direct_source_omissions))
+        )
+
+    migration = category_maps["migration"]
+    expected_migration_fields = {
+        "status",
+        "baseline_commit",
+        "legacy_locked_exact_nodes",
+        "legacy_locked_exact_nodes_sha256",
+        "legacy_v1_semantic_sha256",
+        "legacy_v1_coverage_sha256",
+        "baseline_exact_nodes",
+        "baseline_exact_nodes_sha256",
+        "baseline_v1_semantic_sha256",
+        "baseline_v1_coverage_sha256",
+        "baseline_v2_direct_semantic_sha256",
+        "baseline_v2_coverage_membership_sha256",
+        "locked_exact_nodes",
+        "locked_exact_nodes_sha256",
+        "locked_exact_semantic_sha256",
+        "locked_exact_coverage_membership_sha256",
+        "initial_pending_nodes",
+        "initial_pending_nodes_sha256",
+        "array_manifest_sha256",
+        "source_metadata_sha256",
+        "state_partition_sha256",
+        "baseline_emitted_tree_sha256",
+    }
+    if set(migration) != expected_migration_fields:
+        issues.append("mtDNA migration has unexpected or missing fields")
+    legacy = _sorted_unique_string_list(
+        migration.get("legacy_locked_exact_nodes"),
+        "legacy_locked_exact_nodes",
+        issues,
+    )
+    baseline = _sorted_unique_string_list(
+        migration.get("baseline_exact_nodes"), "baseline_exact_nodes", issues
+    )
+    locked = _sorted_unique_string_list(
+        migration.get("locked_exact_nodes"), "locked_exact_nodes", issues
+    )
+    initial_pending = _sorted_unique_string_list(
+        migration.get("initial_pending_nodes"), "initial_pending_nodes", issues
+    )
+    if migration.get("baseline_commit") != _MT_BASELINE_COMMIT:
+        issues.append("mtDNA migration has the wrong baseline commit")
+    if migration.get("status") not in {"in_progress", "complete"}:
+        issues.append("mtDNA migration has an invalid status")
+    if not set(legacy).issubset(baseline):
+        issues.append("mtDNA legacy exact frontier is not contained in the baseline frontier")
+    if not set(baseline).issubset(locked):
+        issues.append("mtDNA baseline exact frontier regressed")
+    if set(locked) != set(nodes):
+        issues.append("mtDNA locked exact frontier does not equal the live marker-exact nodes")
+    if not set(pending).issubset(initial_pending):
+        issues.append("mtDNA pending frontier grew beyond the initial audited tree")
+    dispositions = set(nodes) | set(structural) | set(pending) | set(omitted)
+    if not set(initial_pending).issubset(dispositions):
+        issues.append("mtDNA initial pending frontier contains nodes with no current disposition")
+
+    array_manifest_digest = _canonical_json_sha256(
+        {"array_exports": exports, "array_cohorts": cohorts}
+    )
+    source_metadata_digest = _canonical_json_sha256(
+        {"source": source_metadata, "references": references}
+    )
+    state_partition_digest = _canonical_json_sha256(
+        {
+            "omitted_nodes": omitted,
+            "structural_exceptions": structural,
+            "pending_nodes": pending,
+        }
+    )
+    simple_digest_checks = (
+        (
+            "legacy_locked_exact_nodes_sha256",
+            _canonical_json_sha256(legacy),
+            _MT_LEGACY_EXACT_NAMES_SHA256,
+        ),
+        (
+            "baseline_exact_nodes_sha256",
+            _canonical_json_sha256(baseline),
+            _MT_BASELINE_EXACT_NAMES_SHA256,
+        ),
+        (
+            "locked_exact_nodes_sha256",
+            _canonical_json_sha256(locked),
+            _MT_LOCKED_EXACT_NAMES_SHA256,
+        ),
+        (
+            "initial_pending_nodes_sha256",
+            _canonical_json_sha256(initial_pending),
+            _MT_INITIAL_PENDING_NAMES_SHA256,
+        ),
+        ("array_manifest_sha256", array_manifest_digest, _MT_ARRAY_MANIFEST_SHA256),
+        (
+            "source_metadata_sha256",
+            source_metadata_digest,
+            _MT_SOURCE_METADATA_SHA256,
+        ),
+        (
+            "state_partition_sha256",
+            state_partition_digest,
+            _MT_STATE_PARTITION_SHA256,
+        ),
+    )
+    for field, calculated, expected in simple_digest_checks:
+        if migration.get(field) != calculated:
+            issues.append(f"mtDNA migration {field} does not match its registry projection")
+        if calculated != expected:
+            issues.append(f"mtDNA migration {field} differs from the locked baseline")
+
+    stored_constant_checks = (
+        ("legacy_v1_semantic_sha256", _MT_LEGACY_V1_SEMANTIC_SHA256),
+        ("legacy_v1_coverage_sha256", _MT_LEGACY_V1_COVERAGE_SHA256),
+        ("baseline_v1_semantic_sha256", _MT_BASELINE_V1_SEMANTIC_SHA256),
+        ("baseline_v1_coverage_sha256", _MT_BASELINE_V1_COVERAGE_SHA256),
+        (
+            "baseline_v2_direct_semantic_sha256",
+            _MT_BASELINE_V2_DIRECT_SEMANTIC_SHA256,
+        ),
+        (
+            "baseline_v2_coverage_membership_sha256",
+            _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256,
+        ),
+        ("locked_exact_semantic_sha256", _MT_LOCKED_EXACT_SEMANTIC_SHA256),
+        (
+            "locked_exact_coverage_membership_sha256",
+            _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256,
+        ),
+        ("baseline_emitted_tree_sha256", _MT_BASELINE_EMITTED_TREE_SHA256),
+    )
+    for field, expected in stored_constant_checks:
+        if migration.get(field) != expected:
+            issues.append(f"mtDNA migration {field} differs from the locked baseline")
+
+    try:
+        projection_checks = (
+            (
+                "legacy_v1_semantic_sha256",
+                _canonical_json_sha256(_mt_v1_semantic_projection(source, legacy)),
+            ),
+            (
+                "legacy_v1_coverage_sha256",
+                _sorted_tsv_sha256(_mt_v1_coverage_rows(source, legacy)),
+            ),
+            (
+                "baseline_v1_semantic_sha256",
+                _canonical_json_sha256(_mt_v1_semantic_projection(source, baseline)),
+            ),
+            (
+                "baseline_v1_coverage_sha256",
+                _sorted_tsv_sha256(_mt_v1_coverage_rows(source, baseline)),
+            ),
+            (
+                "baseline_v2_direct_semantic_sha256",
+                _canonical_json_sha256(_mt_baseline_v2_direct_projection(source, baseline)),
+            ),
+            (
+                "baseline_v2_coverage_membership_sha256",
+                _sorted_tsv_sha256(_mt_locked_coverage_rows(source, baseline)),
+            ),
+            (
+                "locked_exact_semantic_sha256",
+                _canonical_json_sha256(_mt_locked_semantic_projection(source, locked)),
+            ),
+            (
+                "locked_exact_coverage_membership_sha256",
+                _sorted_tsv_sha256(_mt_locked_coverage_rows(source, locked)),
+            ),
+        )
+    except (KeyError, TypeError, ValueError):
+        issues.append("mtDNA exact-frontier provenance projections cannot be computed")
     else:
-        omitted_nodes = source["omitted_nodes"]
-    if not isinstance(omitted_nodes, dict):
-        issues.append("mtDNA source registry has no valid omitted-node mapping")
-    elif set(omitted_nodes) & set(audited_nodes):
-        issues.append("mtDNA source registry both emits and omits the same node")
+        for field, calculated in projection_checks:
+            if migration.get(field) != calculated:
+                issues.append(f"mtDNA migration {field} does not match its registry projection")
+    return issues
 
-    for node_name, node in audited_nodes.items():
-        source_motif = node.get("source_motif")
-        emitted_snps = node.get("emitted_snps")
-        if not isinstance(source_motif, list) or not source_motif:
-            issues.append(f"Audited mtDNA node {node_name} has no source motif")
-            continue
-        if not isinstance(emitted_snps, list) or not emitted_snps:
-            issues.append(f"Audited mtDNA node {node_name} has no emitted SNPs")
-            continue
 
-        emitted_source: dict[int, tuple[str, str]] = {}
-        seen_source_positions: set[int] = set()
-        for mutation in source_motif:
-            pos = mutation.get("pos")
-            mutation_type = mutation.get("mutation_type")
-            emitted = mutation.get("emitted")
-            if not isinstance(pos, int) or not 1 <= pos <= 16569:
-                issues.append(
-                    f"Audited mtDNA node {node_name} has invalid source position {pos!r}"
-                )
-                continue
-            if pos in seen_source_positions:
-                issues.append(f"Audited mtDNA node {node_name} repeats source position {pos}")
-            seen_source_positions.add(pos)
-            if mutation_type == "substitution":
-                ancestral = mutation.get("ancestral_allele")
-                derived = mutation.get("derived_allele")
-                if not isinstance(emitted, bool):
-                    issues.append(
-                        f"Audited mtDNA substitution {node_name}:{pos} has no emission decision"
-                    )
-                elif not emitted and not mutation.get("omission_reason"):
-                    issues.append(
-                        f"Audited mtDNA substitution {node_name}:{pos} must have "
-                        "an omission reason"
-                    )
-                if ancestral not in {"A", "C", "G", "T"}:
-                    issues.append(
-                        f"Audited mtDNA node {node_name} position {pos} has invalid "
-                        f"ancestral allele {ancestral!r}"
-                    )
-                if derived not in {"A", "C", "G", "T"} or derived == ancestral:
-                    issues.append(
-                        f"Audited mtDNA node {node_name} position {pos} has invalid "
-                        f"derived allele {derived!r}"
-                    )
-                if (
-                    emitted is True
-                    and ancestral in {"A", "C", "G", "T"}
-                    and derived
-                    in {
-                        "A",
-                        "C",
-                        "G",
-                        "T",
-                    }
-                ):
-                    emitted_source[pos] = (ancestral, derived)
-            elif mutation_type == "insertion":
-                if emitted is not False or not mutation.get("omission_reason"):
-                    issues.append(
-                        f"Audited mtDNA insertion {node_name}:{pos} must have an omission reason"
-                    )
-            else:
-                issues.append(
-                    f"Audited mtDNA node {node_name} position {pos} has unsupported "
-                    f"mutation type {mutation_type!r}"
-                )
+def _mt_tree_projection(inventory: MtTreeInventory) -> list[dict[str, Any]]:
+    return [
+        {
+            "node": occurrence.name,
+            "parent": occurrence.parent,
+            "defining_snps": occurrence.node.get("defining_snps", []),
+        }
+        for occurrence in inventory.occurrences
+    ]
 
-        seen_emitted_positions: set[int] = set()
-        for marker in emitted_snps:
-            rsid = marker.get("rsid")
-            pos = marker.get("pos")
-            ancestral = marker.get("ancestral_allele")
-            derived = marker.get("allele")
-            if not isinstance(rsid, str) or not rsid:
-                issues.append(f"Audited mtDNA node {node_name} has a marker without an identifier")
-            if not isinstance(pos, int):
-                issues.append(
-                    f"Audited mtDNA node {node_name} has invalid emitted position {pos!r}"
-                )
-                continue
-            if pos in seen_emitted_positions:
-                issues.append(f"Audited mtDNA node {node_name} repeats emitted position {pos}")
-            seen_emitted_positions.add(pos)
-            if emitted_source.get(pos) != (ancestral, derived):
-                issues.append(
-                    f"Audited mtDNA marker {rsid} at {node_name} does not match its "
-                    "source mutation direction"
-                )
-            coverage = marker.get("array_coverage", {})
-            tested = coverage.get("modern_exports_tested")
-            covered = coverage.get("modern_exports_with_position")
-            if (
-                not isinstance(tested, int)
-                or not isinstance(covered, int)
-                or tested <= 0
-                or not 0 < covered <= tested
-            ):
-                issues.append(f"Audited mtDNA marker {rsid} at {node_name} has no array coverage")
 
-        if seen_emitted_positions != set(emitted_source):
+def _validate_exact_mt_markers(source: dict[str, Any], inventory: MtTreeInventory) -> list[str]:
+    """Require every marker-exact record to equal its emitted tree marker multiset."""
+    issues: list[str] = []
+    nodes = source.get("nodes", {})
+    if not isinstance(nodes, dict):
+        return ["mtDNA source registry has no marker-exact node mapping"]
+    for node_name, audit in nodes.items():
+        occurrence = inventory.by_name.get(node_name)
+        if occurrence is None:
             issues.append(
-                f"Audited mtDNA node {node_name} emitted positions do not match its "
-                "reportable source substitutions"
+                f"Marker-exact mtDNA node {node_name} does not occur exactly once in the tree"
+            )
+            continue
+        actual = sorted(
+            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
+            for snp in occurrence.node.get("defining_snps", [])
+        )
+        expected = sorted(
+            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
+            for snp in audit.get("emitted_snps", [])
+            if isinstance(snp, dict)
+        )
+        if actual != expected:
+            issues.append(
+                f"Marker-exact mtDNA node {node_name} has markers {actual!r}; "
+                f"expected {expected!r}"
+            )
+    return issues
+
+
+def _validate_mt_structural_records(
+    source: dict[str, Any], inventory: MtTreeInventory
+) -> list[str]:
+    issues: list[str] = []
+    structural = source["structural_exceptions"]
+    for name, record in structural.items():
+        occurrence = inventory.by_name.get(name)
+        if occurrence is None:
+            continue
+        exception_type = record.get("type")
+        if exception_type == "root":
+            if occurrence.parent is not None or occurrence.path != (name,):
+                issues.append(f"Structural mtDNA root {name} is not the actual tree root")
+            if record.get("emitted_parent") is not None:
+                issues.append(f"Structural mtDNA root {name} must have a null emitted parent")
+            if record.get("source_status") != "synthetic":
+                issues.append(f"Structural mtDNA root {name} must have synthetic source status")
+            if occurrence.node.get("defining_snps"):
+                issues.append(f"Structural mtDNA root {name} must be markerless")
+        elif exception_type == "markerless_passthrough":
+            if occurrence.parent is None:
+                issues.append(f"Structural mtDNA pass-through {name} cannot be the root")
+            if record.get("emitted_parent") != occurrence.parent:
+                issues.append(
+                    f"Structural mtDNA node {name} declares parent "
+                    f"{record.get('emitted_parent')!r}; emitted parent is {occurrence.parent!r}"
+                )
+            if occurrence.node.get("defining_snps"):
+                issues.append(f"Structural mtDNA pass-through {name} must be markerless")
+            if record.get("source_status") == "exact":
+                required = {
+                    "type",
+                    "emitted_parent",
+                    "source_status",
+                    "reason",
+                    "source_node",
+                    "source_topology",
+                    "direct_source_motif",
+                    "emitted_snps",
+                }
+                if set(record) != required:
+                    issues.append(
+                        f"Exact structural mtDNA node {name} lacks complete source provenance"
+                    )
+                else:
+                    synthetic_record = {
+                        key: record[key]
+                        for key in (
+                            "source_node",
+                            "emitted_parent",
+                            "source_topology",
+                            "direct_source_motif",
+                            "emitted_snps",
+                        )
+                    }
+                    if record["emitted_snps"]:
+                        issues.append(
+                            f"Markerless structural mtDNA node {name} cannot emit source markers"
+                        )
+                    owner_motifs = _mt_owner_motifs(
+                        name,
+                        synthetic_record,
+                        source["omitted_nodes"],
+                        issues,
+                    )
+                    for owner, motif in owner_motifs.items():
+                        if _mt_validate_mutation_list(owner, motif, issues):
+                            issues.append(
+                                f"Markerless structural mtDNA node {name} has an emitted "
+                                "source decision"
+                            )
+    return issues
+
+
+def _validate_mt_registry_against_tree(
+    source: dict[str, Any], inventory: MtTreeInventory
+) -> list[str]:
+    """Validate the complete dynamic mtDNA state partition against the tree."""
+    if inventory.duplicates:
+        return [
+            "Duplicate emitted mtDNA node "
+            + name
+            + " occurs at "
+            + ", ".join("/".join(match.path) for match in matches)
+            for name, matches in sorted(inventory.duplicates.items())
+        ]
+
+    issues: list[str] = []
+    nodes = source["nodes"]
+    structural = source["structural_exceptions"]
+    pending = source["pending_nodes"]
+    omitted = source["omitted_nodes"]
+    exact_names = set(nodes)
+    structural_names = set(structural)
+    pending_names = set(pending)
+    emitted_names = set(inventory.by_name)
+    partition = exact_names | structural_names | pending_names
+    if partition != emitted_names:
+        missing = sorted(emitted_names - partition)
+        extra = sorted(partition - emitted_names)
+        issues.append(
+            f"mtDNA provenance partition differs from the emitted tree; missing={missing!r}, "
+            f"extra={extra!r}"
+        )
+    if exact_names | pending_names != set(inventory.marker_bearing_names):
+        issues.append("mtDNA marker-bearing nodes do not equal exact plus pending states")
+    if structural_names != set(inventory.markerless_names):
+        issues.append("mtDNA markerless nodes do not equal the structural exceptions")
+    emitted_omissions = set(omitted) & emitted_names
+    if emitted_omissions:
+        issues.append(
+            "Omitted mtDNA source nodes are emitted in the tree: "
+            + ", ".join(sorted(emitted_omissions))
+        )
+
+    for category, records in (
+        ("Marker-exact", nodes),
+        ("Pending", pending),
+        ("Structural", structural),
+    ):
+        for name, record in records.items():
+            occurrence = inventory.by_name.get(name)
+            if occurrence is None or not isinstance(record, dict):
+                continue
+            if record.get("emitted_parent") != occurrence.parent:
+                issues.append(
+                    f"{category} mtDNA node {name} declares parent "
+                    f"{record.get('emitted_parent')!r}; emitted parent is "
+                    f"{occurrence.parent!r}"
+                )
+
+    tree_digest = _canonical_json_sha256(_mt_tree_projection(inventory))
+    if tree_digest != source["migration"].get("baseline_emitted_tree_sha256"):
+        issues.append("mtDNA emitted tree differs from its schema-v2 baseline fingerprint")
+    if tree_digest != _MT_BASELINE_EMITTED_TREE_SHA256:
+        issues.append("mtDNA emitted tree differs from the locked issue-1798 baseline")
+
+    issues.extend(_validate_exact_mt_markers(source, inventory))
+    issues.extend(_validate_mt_structural_records(source, inventory))
+
+    source_nodes_by_emitted: dict[str, str] = {}
+    for name, record in nodes.items():
+        source_node = record.get("source_node")
+        if isinstance(source_node, str):
+            source_nodes_by_emitted[name] = source_node
+    for name, record in structural.items():
+        source_node = record.get("source_node")
+        if record.get("source_status") == "exact" and isinstance(source_node, str):
+            source_nodes_by_emitted[name] = source_node
+    source_topology_records = list(nodes.items()) + [
+        (name, record)
+        for name, record in structural.items()
+        if record.get("source_status") == "exact"
+    ]
+    direct_source_identities = set(source_nodes_by_emitted.values())
+    flattened_path_records: dict[str, dict[str, Any]] = {}
+    for name, record in source_topology_records:
+        topology = record.get("source_topology")
+        if not isinstance(topology, dict) or topology.get("status") != "exact":
+            continue
+        source_node = record.get("source_node")
+        if topology.get("source_parent") == source_node:
+            issues.append(f"Exact source topology for mtDNA node {name} is self-parented")
+        for path_record in topology.get("flattened_source_path", []):
+            if not isinstance(path_record, dict):
+                continue
+            path_node = path_record.get("source_node")
+            if path_node in direct_source_identities:
+                issues.append(
+                    f"Exact source topology for mtDNA node {name} flattens the direct "
+                    f"source node {path_node} of another emitted record"
+                )
+            if isinstance(path_node, str):
+                prior_path_record = flattened_path_records.get(path_node)
+                if prior_path_record is not None and prior_path_record != path_record:
+                    issues.append(
+                        f"Flattened mtDNA source node {path_node} has inconsistent "
+                        "provenance across emitted paths"
+                    )
+                flattened_path_records[path_node] = path_record
+        emitted_parent = record.get("emitted_parent")
+        if emitted_parent is None:
+            continue
+        expected_parent_source = source_nodes_by_emitted.get(emitted_parent)
+        if expected_parent_source is None:
+            issues.append(
+                f"Exact source topology for mtDNA node {name} has a parent whose source "
+                "identity is still pending"
+            )
+        elif topology.get("emitted_parent_source_node") != expected_parent_source:
+            issues.append(
+                f"Exact source topology for mtDNA node {name} names emitted-parent source "
+                f"{topology.get('emitted_parent_source_node')!r}; expected "
+                f"{expected_parent_source!r}"
             )
 
+    # Marker provenance and source-edge topology migrate independently. An empty
+    # marker-pending map alone is therefore not complete if any source edge or
+    # markerless structural record is still pending.
+    complete_ready = _mt_migration_complete_ready(source, inventory)
+    expected_status = "complete" if complete_ready else "in_progress"
+    if source["migration"].get("status") != expected_status:
+        issues.append(
+            f"mtDNA migration status must be {expected_status!r} for its live provenance state"
+        )
+    return issues
+
+
+def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInventory) -> bool:
+    if source["pending_nodes"]:
+        return False
+    for name, occurrence in inventory.by_name.items():
+        if occurrence.parent is None:
+            continue
+        if name in source["nodes"]:
+            topology = source["nodes"][name].get("source_topology")
+            if not isinstance(topology, dict) or topology.get("status") != "exact":
+                return False
+        elif name in source["structural_exceptions"]:
+            if source["structural_exceptions"][name].get("source_status") != "exact":
+                return False
+        else:
+            return False
+    return True
+
+
+def _validate_mt_source(
+    source: dict[str, Any], mt_tree: dict[str, Any] | None = None
+) -> list[str]:
+    """Compatibility entry point for complete schema and emitted-tree validation."""
+    issues = _validate_mt_source_schema(source)
+    if not issues:
+        issues.extend(
+            _validate_mt_registry_against_tree(
+                source,
+                _index_mt_tree(build_mt_tree() if mt_tree is None else mt_tree),
+            )
+        )
     return issues
 
 
 def _validate_audited_mt_markers(
     node: dict[str, Any], source: dict[str, Any] = _MT_SOURCE
 ) -> list[str]:
-    """Require each audited mtDNA node to match its exact source-backed SNP set."""
-    issues: list[str] = []
-    audited_nodes = source.get("audited_nodes", {})
-    found: dict[str, list[dict[str, Any]]] = {name: [] for name in audited_nodes}
+    """Compatibility wrapper for the schema-v2 marker-exact tree guard."""
+    inventory = _index_mt_tree(node)
+    if inventory.duplicates:
+        return _validate_mt_registry_against_tree(source, inventory)
+    return _validate_exact_mt_markers(source, inventory)
 
-    def collect(current: dict[str, Any]) -> None:
-        name = current.get("haplogroup")
-        if name in found:
-            found[name].append(current)
-        for child in current.get("children", []):
-            collect(child)
 
-    collect(node)
-    for node_name, audit in audited_nodes.items():
-        matches = found[node_name]
-        if len(matches) != 1:
-            issues.append(
-                f"Audited mtDNA node {node_name} occurs {len(matches)} times; "
-                "expected exactly once"
-            )
+def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory) -> dict[str, Any]:
+    """Derive inspectable schema-v2 coverage metadata from validated records."""
+    exact_names = sorted(source["nodes"])
+    structural_names = sorted(source["structural_exceptions"])
+    pending_names = sorted(source["pending_nodes"])
+    omitted_names = sorted(source["omitted_nodes"])
+    exact_markers = [
+        marker for record in source["nodes"].values() for marker in record["emitted_snps"]
+    ]
+    motifs_by_owner: dict[str, list[dict[str, Any]]] = {}
+    for record in source["nodes"].values():
+        motifs_by_owner[record["source_node"]] = record["direct_source_motif"]
+        topology = record["source_topology"]
+        if topology["status"] == "exact":
+            for step in topology["flattened_source_path"]:
+                motifs_by_owner.setdefault(step["source_node"], step["direct_source_motif"])
+    for record in source["structural_exceptions"].values():
+        if record.get("source_status") != "exact":
             continue
-        actual = sorted(
-            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
-            for snp in matches[0].get("defining_snps", [])
-        )
-        expected = sorted(
-            (snp.get("rsid"), snp.get("pos"), snp.get("allele"))
-            for snp in audit.get("emitted_snps", [])
-        )
-        if actual != expected:
-            issues.append(
-                f"Audited mtDNA node {node_name} has markers {actual!r}; expected {expected!r}"
+        motifs_by_owner[record["source_node"]] = record["direct_source_motif"]
+        for step in record["source_topology"]["flattened_source_path"]:
+            motifs_by_owner.setdefault(step["source_node"], step["direct_source_motif"])
+    motif_decisions = [mutation for motif in motifs_by_owner.values() for mutation in motif]
+    source_edges_validated = sum(
+        record["source_topology"]["status"] == "exact" for record in source["nodes"].values()
+    ) + sum(
+        record.get("source_status") == "exact"
+        for name, record in source["structural_exceptions"].items()
+        if inventory.by_name[name].parent is not None
+    )
+    cohort_counts: dict[str, int] = {}
+    for marker in exact_markers:
+        cohort_id = marker["array_coverage"]["cohort_id"]
+        cohort_counts[cohort_id] = cohort_counts.get(cohort_id, 0) + 1
+    emitted_decisions = sum(mutation["emitted"] is True for mutation in motif_decisions)
+    recurrence_events = sum(
+        isinstance(mutation.get("notation"), str) and mutation["notation"].endswith("!")
+        for mutation in motif_decisions
+    )
+    return {
+        "migration_status": source["migration"]["status"],
+        "emitted_nodes": len(inventory.occurrences),
+        "marker_bearing_nodes": len(inventory.marker_bearing_names),
+        "marker_exact_nodes": {"count": len(exact_names), "names": exact_names},
+        "structural_nodes": {
+            "count": len(structural_names),
+            "names": structural_names,
+        },
+        "pending_nodes": {"count": len(pending_names), "names": pending_names},
+        "marker_records": {
+            "emitted": inventory.marker_count,
+            "marker_exact": len(exact_markers),
+            "marker_exact_by_cohort": dict(sorted(cohort_counts.items())),
+        },
+        "source_mutation_decisions": {
+            "total": len(motif_decisions),
+            "emitted": emitted_decisions,
+            "omitted": len(motif_decisions) - emitted_decisions,
+            "recurrent_events": recurrence_events,
+        },
+        "emitted_parent_edges": {
+            "total": inventory.edge_count,
+            "validated_declarations": inventory.edge_count,
+        },
+        "source_parent_edges": {
+            "validated": source_edges_validated,
+            "pending": inventory.edge_count - source_edges_validated,
+        },
+        "omitted_source_nodes": {"count": len(omitted_names), "names": omitted_names},
+        "arrays": {
+            "exports": len(source["array_exports"]),
+            "cohorts": len(source["array_cohorts"]),
+        },
+        "locked_exact_frontier": {
+            "count": len(source["migration"]["locked_exact_nodes"]),
+            "sha256": source["migration"]["locked_exact_nodes_sha256"],
+        },
+        "digests": {
+            key: source["migration"][key]
+            for key in (
+                "array_manifest_sha256",
+                "baseline_emitted_tree_sha256",
+                "baseline_exact_nodes_sha256",
+                "baseline_v1_coverage_sha256",
+                "baseline_v1_semantic_sha256",
+                "baseline_v2_coverage_membership_sha256",
+                "baseline_v2_direct_semantic_sha256",
+                "initial_pending_nodes_sha256",
+                "locked_exact_coverage_membership_sha256",
+                "locked_exact_semantic_sha256",
+                "source_metadata_sha256",
+                "state_partition_sha256",
             )
-
-    return issues
+        },
+        "baseline_commit": source["migration"]["baseline_commit"],
+    }
 
 
 def _iter_snps_with_path(
@@ -2431,8 +3686,11 @@ def build_bundle() -> dict[str, Any]:
 
     # Validate trees
     mt_issues = _validate_tree(mt_tree)
-    mt_source_issues = _validate_mt_source(_MT_SOURCE)
-    mt_reference_issues = _validate_audited_mt_markers(mt_tree)
+    mt_inventory = _index_mt_tree(mt_tree)
+    mt_source_issues = _validate_mt_source_schema(_MT_SOURCE)
+    mt_reference_issues = (
+        [] if mt_source_issues else _validate_mt_registry_against_tree(_MT_SOURCE, mt_inventory)
+    )
     mt_reportability_issues = _validate_mt_reportability(mt_tree)
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
@@ -2464,6 +3722,8 @@ def build_bundle() -> dict[str, Any]:
             + "\n".join(f"  - {i}" for i in all_issues)
         )
 
+    mt_provenance = _summarize_mt_provenance(_MT_SOURCE, mt_inventory)
+
     mt_snp_rsids = _collect_snp_rsids(mt_tree)
     y_snp_rsids = _collect_snp_rsids(y_tree)
 
@@ -2487,8 +3747,12 @@ def build_bundle() -> dict[str, Any]:
                 "audit": {
                     "schema_version": _MT_SOURCE["schema_version"],
                     "scope": _MT_SOURCE["audit_scope"],
-                    "audited_nodes": sorted(_MT_SOURCE["audited_nodes"]),
-                    "omitted_nodes": _MT_SOURCE.get("omitted_nodes", {}),
+                    "audited_nodes": sorted(_MT_SOURCE["nodes"]),
+                    "omitted_nodes": {
+                        name: record["reason"]
+                        for name, record in sorted(_MT_SOURCE["omitted_nodes"].items())
+                    },
+                    "provenance": mt_provenance,
                 },
             },
             "Y": {

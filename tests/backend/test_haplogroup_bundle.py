@@ -160,7 +160,11 @@ class TestBundleStructure:
             "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
         )
         assert mt_source["reference_sequence"]["accession"] == "NC_012920.1"
-        assert set(mt_source["audit"]["audited_nodes"]) == {
+        audit = mt_source["audit"]
+        provenance = audit["provenance"]
+        assert audit["schema_version"] == 2
+        assert audit["audited_nodes"] == provenance["marker_exact_nodes"]["names"]
+        assert set(provenance["marker_exact_nodes"]["names"]) == {
             "C",
             "G",
             "G1",
@@ -201,8 +205,48 @@ class TestBundleStructure:
             "Z",
             "Z1",
         }
-        assert "CZ" in mt_source["audit"]["omitted_nodes"]
-        assert "K1c" in mt_source["audit"]["omitted_nodes"]
+        assert provenance["migration_status"] == "in_progress"
+        assert provenance["emitted_nodes"] == 194
+        assert provenance["marker_bearing_nodes"] == 192
+        assert provenance["marker_exact_nodes"]["count"] == 38
+        assert provenance["structural_nodes"] == {
+            "count": 2,
+            "names": ["R0", "mt-MRCA"],
+        }
+        assert provenance["pending_nodes"]["count"] == 154
+        assert provenance["marker_records"] == {
+            "emitted": 396,
+            "marker_exact": 86,
+            "marker_exact_by_cohort": {
+                "historical_five_23andme_including_2014": 6,
+                "primary_four_23andme": 80,
+            },
+        }
+        assert provenance["source_mutation_decisions"] == {
+            "total": 116,
+            "emitted": 86,
+            "omitted": 30,
+            "recurrent_events": 11,
+        }
+        assert provenance["emitted_parent_edges"] == {
+            "total": 193,
+            "validated_declarations": 193,
+        }
+        assert provenance["source_parent_edges"] == {
+            "validated": 0,
+            "pending": 193,
+        }
+        assert provenance["omitted_source_nodes"] == {
+            "count": 2,
+            "names": ["CZ", "K1c"],
+        }
+        assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
+
+        # The registry uses typed omission records, while the bundle retains
+        # the original name -> reason compatibility mapping.
+        omitted = audit["omitted_nodes"]
+        assert set(omitted) == set(provenance["omitted_source_nodes"]["names"])
+        assert all(isinstance(reason, str) and reason for reason in omitted.values())
         assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
     def test_sources_y(self, bundle: dict) -> None:
@@ -832,7 +876,6 @@ class TestBuildScript:
         from scripts.build_haplogroup_bundle import (
             _MT_SOURCE,
             _Y_SOURCE,
-            _validate_audited_mt_markers,
             _validate_audited_y_rsids,
             _validate_mt_reportability,
             _validate_mt_source,
@@ -844,10 +887,10 @@ class TestBuildScript:
             build_y_tree,
         )
 
-        mt_issues = _validate_tree(build_mt_tree())
-        mt_source_issues = _validate_mt_source(_MT_SOURCE)
-        mt_reference_issues = _validate_audited_mt_markers(build_mt_tree())
-        mt_reportability_issues = _validate_mt_reportability(build_mt_tree())
+        mt_tree = build_mt_tree()
+        mt_issues = _validate_tree(mt_tree)
+        mt_source_issues = _validate_mt_source(_MT_SOURCE, mt_tree)
+        mt_reportability_issues = _validate_mt_reportability(mt_tree)
         y_tree = build_y_tree()
         y_issues = _validate_tree(y_tree)
         y_reference_issues = _validate_audited_y_rsids(y_tree)
@@ -857,9 +900,6 @@ class TestBuildScript:
         y_reportability_issues = _validate_y_reportability(y_tree, trusted)
         assert mt_issues == [], f"mtDNA validation issues: {mt_issues}"
         assert mt_source_issues == [], f"mtDNA source validation issues: {mt_source_issues}"
-        assert mt_reference_issues == [], (
-            f"mtDNA reference validation issues: {mt_reference_issues}"
-        )
         assert mt_reportability_issues == [], (
             f"mtDNA reportability validation issues: {mt_reportability_issues}"
         )
@@ -871,10 +911,11 @@ class TestBuildScript:
             f"Y reportability validation issues: {y_reportability_issues}"
         )
 
-    def test_audited_mt_guard_rejects_wrong_exact_marker_sets(self) -> None:
-        """Audited nodes reject polarity, position, and unregistered-marker drift."""
+    def test_marker_exact_mt_guard_rejects_wrong_exact_marker_sets(self) -> None:
+        """Marker-exact nodes reject polarity, position, and extra-marker drift."""
         from scripts.build_haplogroup_bundle import (
-            _validate_audited_mt_markers,
+            _MT_SOURCE,
+            _validate_mt_source,
             build_mt_tree,
         )
 
@@ -890,7 +931,7 @@ class TestBuildScript:
         u3b["defining_snps"].append({"rsid": "i5009266", "pos": 9266, "allele": "G"})
         k1b["defining_snps"][0]["pos"] = 14167
 
-        issues = _validate_audited_mt_markers(mt_tree)
+        issues = _validate_mt_source(_MT_SOURCE, mt_tree)
         assert any("U5b2" in issue and "expected" in issue for issue in issues)
         assert any("W1" in issue and "expected" in issue for issue in issues)
         assert any("U3b" in issue and "expected" in issue for issue in issues)
@@ -906,12 +947,13 @@ class TestBuildScript:
             pytest.param("H10", 14470, "C", id="H10-T14470a"),
         ],
     )
-    def test_issue_1798_audited_mt_guard_rejects_old_wrong_alleles(
+    def test_issue_1798_marker_exact_mt_guard_rejects_old_wrong_alleles(
         self, node_name: str, position: int, old_allele: str
     ) -> None:
         """Restoring any pre-fix allele breaks the exact source-backed set."""
         from scripts.build_haplogroup_bundle import (
-            _validate_audited_mt_markers,
+            _MT_SOURCE,
+            _validate_mt_source,
             build_mt_tree,
         )
 
@@ -921,9 +963,10 @@ class TestBuildScript:
         marker = next(snp for snp in node["defining_snps"] if snp["pos"] == position)
         marker["allele"] = old_allele
 
-        issues = _validate_audited_mt_markers(mt_tree)
+        issues = _validate_mt_source(_MT_SOURCE, mt_tree)
         assert any(
-            f"Audited mtDNA node {node_name}" in issue and "expected" in issue for issue in issues
+            f"Marker-exact mtDNA node {node_name}" in issue and "expected" in issue
+            for issue in issues
         )
 
     def test_issue_1808_audited_mt_guard_rejects_r_marker_on_n9(self) -> None:
@@ -964,47 +1007,58 @@ class TestBuildScript:
 
     def test_mt_source_guard_rejects_unreportable_or_reversed_markers(self) -> None:
         """Provenance records must retain direction and observed array coverage."""
-        from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
 
         source = copy.deepcopy(_MT_SOURCE)
         source["audit_scope"] = ""
         source.pop("omitted_nodes")
-        marker = source["audited_nodes"]["U5b2"]["emitted_snps"][0]
+        marker = source["nodes"]["U5b2"]["emitted_snps"][0]
         marker["allele"] = marker["ancestral_allele"]
-        marker["array_coverage"]["modern_exports_with_position"] = 0
-        source["audited_nodes"]["U5b2"]["source_motif"][1]["emitted"] = False
+        marker["array_coverage"]["position_present_in"] = []
+        marker["array_coverage"]["callable_snv_in"] = []
+        source["nodes"]["U5b2"]["direct_source_motif"][1]["emitted"] = False
 
-        issues = _validate_mt_source(source)
+        issues = _validate_mt_source(source, build_mt_tree())
         assert any("no valid audit scope" in issue for issue in issues)
-        assert any("missing the omitted-node mapping" in issue for issue in issues)
+        assert any("no valid omitted-nodes mapping" in issue for issue in issues)
         assert any("source mutation direction" in issue for issue in issues)
-        assert any("no array coverage" in issue for issue in issues)
+        assert any("absent from its whole cohort" in issue for issue in issues)
         assert any(
-            "substitution U5b2:13637 must have an omission reason" in issue for issue in issues
+            "source mutation U5b2:13637 must have an omission reason" in issue for issue in issues
         )
 
     def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
         self,
     ) -> None:
         """The new direct rows fail closed on omitted evidence and marker direction."""
-        from scripts.build_haplogroup_bundle import _MT_SOURCE, _validate_mt_source
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
 
         source = copy.deepcopy(_MT_SOURCE)
         omitted = next(
             mutation
-            for mutation in source["audited_nodes"]["M1"]["source_motif"]
+            for mutation in source["nodes"]["M1"]["direct_source_motif"]
             if mutation["pos"] == 195
         )
         omitted.pop("omission_reason")
         direction = next(
             mutation
-            for mutation in source["audited_nodes"]["L2c"]["source_motif"]
+            for mutation in source["nodes"]["L2c"]["direct_source_motif"]
             if mutation["pos"] == 13958
         )
         direction["derived_allele"] = "T"
 
-        issues = _validate_mt_source(source)
-        assert any("substitution M1:195 must have an omission reason" in issue for issue in issues)
+        issues = _validate_mt_source(source, build_mt_tree())
+        assert any(
+            "source mutation M1:195 must have an omission reason" in issue for issue in issues
+        )
         assert any(
             "i5013958 at L2c does not match its source mutation direction" in issue
             for issue in issues

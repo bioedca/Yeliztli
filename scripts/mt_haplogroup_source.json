@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, the K1b direct-marker correction in issue 1796, the M8/CZ ancestry correction in issue 1797, the L2c, M1, S, X, and H10 exact-row allele corrections in issue 1798, and the N9/R cross-clade marker correction in issue 1808. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+  "schema_version": 2,
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. Marker-exact nodes retain their direct source motifs and emitted marker sets; all other emitted nodes have explicit pending or structural states. Source topology remains pending until separately evidenced.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -51,13 +51,94 @@
       "pmid": "10508508"
     }
   ],
-  "omitted_nodes": {
-    "CZ": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step.",
-    "K1c": "Pruned from the array-reportable tree in issue 1743: its direct Build-17 motif is limited to recurrent control-region substitutions (m.146/m.152) plus m.498d, while the former emitted m.9716 belongs to K2."
+  "array_exports": {
+    "pgp_4139": {
+      "filename": "pgp_4139.txt",
+      "vendor": "23andMe",
+      "generated": "2020-09-10",
+      "role": "primary_modern_23andme",
+      "sha256": "f4a37d23e75d7406afef22b55fe723eb5c8c7901823365410fd2abf988fd4619",
+      "line_count": 638564
+    },
+    "pgp_4162": {
+      "filename": "pgp_4162.txt",
+      "vendor": "23andMe",
+      "generated": "2024-07-30",
+      "role": "primary_modern_23andme",
+      "sha256": "2e9cbdd1a69ad7b226751d2741c0b56a7d1f1625a4e6e10384239783dadefa94",
+      "line_count": 643555
+    },
+    "pgp_4187": {
+      "filename": "pgp_4187.txt",
+      "vendor": "23andMe",
+      "generated": "2017-12-21",
+      "role": "primary_modern_23andme",
+      "sha256": "19481e7e2e94f441ce25d2d98ecbe90b3de59533c40b52242ed9572d3cb91127",
+      "line_count": 638483
+    },
+    "pgp_huA08F4D": {
+      "filename": "pgp_huA08F4D.txt",
+      "vendor": "23andMe",
+      "generated": "2026-04-29",
+      "role": "primary_modern_23andme",
+      "sha256": "8663f40f503b4a2873ef152095d88762c6d739af72876c637e38727693bf251c",
+      "line_count": 631479
+    },
+    "pgp_ancestry_4190": {
+      "filename": "pgp_ancestry_4190.txt",
+      "vendor": "AncestryDNA",
+      "generated": "2018-04-22",
+      "role": "other_vendor_comparator_only",
+      "sha256": "9ccba5275793a6e07fe191e1ce92eb9ea3c7095159f0a4572a3de2990d984e58",
+      "line_count": 650429
+    },
+    "pgp_1050": {
+      "filename": "pgp_1050.txt",
+      "vendor": "23andMe",
+      "generated": "2014-02-01",
+      "role": "historical_fifth_23andme_only",
+      "sha256": "30b6e03db180e17b097e06aa94d9352ca195b2948e38bde28ced3285fb8921c7",
+      "line_count": 1001437
+    }
   },
-  "audited_nodes": {
+  "array_cohorts": {
+    "primary_four_23andme": {
+      "export_ids": [
+        "pgp_4139",
+        "pgp_4162",
+        "pgp_4187",
+        "pgp_huA08F4D"
+      ]
+    },
+    "historical_five_23andme_including_2014": {
+      "extends": "primary_four_23andme",
+      "export_ids": [
+        "pgp_4139",
+        "pgp_4162",
+        "pgp_4187",
+        "pgp_huA08F4D",
+        "pgp_1050"
+      ]
+    }
+  },
+  "omitted_nodes": {
+    "CZ": {
+      "type": "flattened_unreportable_source_intermediate",
+      "reason": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step."
+    },
+    "K1c": {
+      "type": "unreportable_source_node",
+      "reason": "Pruned from the array-reportable tree in issue 1743: its direct Build-17 motif is limited to recurrent control-region substitutions (m.146/m.152) plus m.498d, while the former emitted m.9716 belongs to K2."
+    }
+  },
+  "nodes": {
     "C": {
-      "source_motif": [
+      "source_node": "C",
+      "emitted_parent": "M8",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T3552a",
           "mutation_type": "substitution",
@@ -114,9 +195,21 @@
           "pos": 3552,
           "ancestral_allele": "T",
           "allele": "A",
+          "motif_owner": "C",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -124,9 +217,21 @@
           "pos": 9545,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "C",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -134,9 +239,21 @@
           "pos": 11914,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "C",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -144,9 +261,21 @@
           "pos": 13263,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "C",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -154,15 +283,32 @@
           "pos": 14318,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "C",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "G": {
-      "source_motif": [
+      "source_node": "G",
+      "emitted_parent": "M",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A4833G",
           "mutation_type": "substitution",
@@ -186,9 +332,21 @@
           "pos": 4833,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "G",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -196,15 +354,30 @@
           "pos": 5108,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "G",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162"
+            ]
           }
         }
       ]
     },
     "G1": {
-      "source_motif": [
+      "source_node": "G1",
+      "emitted_parent": "G",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T8200C",
           "mutation_type": "substitution",
@@ -236,9 +409,21 @@
           "pos": 8200,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "G1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -246,9 +431,21 @@
           "pos": 15323,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "G1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -256,15 +453,31 @@
           "pos": 15497,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "G1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "G2": {
-      "source_motif": [
+      "source_node": "G2",
+      "emitted_parent": "G",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C5601T",
           "mutation_type": "substitution",
@@ -288,9 +501,21 @@
           "pos": 5601,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "G2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -298,15 +523,30 @@
           "pos": 13563,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "G2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "H10": {
-      "source_motif": [
+      "source_node": "H10",
+      "emitted_parent": "H",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T14470a",
           "mutation_type": "substitution",
@@ -322,15 +562,32 @@
           "pos": 14470,
           "ancestral_allele": "T",
           "allele": "A",
+          "motif_owner": "H10",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "H13": {
-      "source_motif": [
+      "source_node": "H13",
+      "emitted_parent": "H",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C14872T",
           "mutation_type": "substitution",
@@ -346,15 +603,32 @@
           "pos": 14872,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "H13",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "H13a": {
-      "source_motif": [
+      "source_node": "H13a",
+      "emitted_parent": "H13",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C2259T",
           "mutation_type": "substitution",
@@ -370,15 +644,30 @@
           "pos": 2259,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "H13a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "H6": {
-      "source_motif": [
+      "source_node": "H6",
+      "emitted_parent": "H",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T239C",
           "mutation_type": "substitution",
@@ -410,9 +699,21 @@
           "pos": 239,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "H6",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -420,9 +721,19 @@
           "pos": 16362,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "H6",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -430,15 +741,32 @@
           "pos": 16482,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "H6",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "H6a": {
-      "source_motif": [
+      "source_node": "H6a",
+      "emitted_parent": "H6",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G3915A",
           "mutation_type": "substitution",
@@ -463,15 +791,32 @@
           "pos": 3915,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "H6a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "J1d": {
-      "source_motif": [
+      "source_node": "J1d",
+      "emitted_parent": "J1",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T152C!",
           "mutation_type": "substitution",
@@ -505,15 +850,32 @@
           "pos": 7963,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "J1d",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "K": {
-      "source_motif": [
+      "source_node": "K",
+      "emitted_parent": "U8",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A10550G",
           "mutation_type": "substitution",
@@ -563,9 +925,21 @@
           "pos": 10550,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "K",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -573,9 +947,21 @@
           "pos": 11299,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "K",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -583,15 +969,26 @@
           "pos": 14798,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "K",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 1
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4162"
+            ],
+            "callable_snv_in": [
+              "pgp_4162"
+            ]
           }
         }
       ]
     },
     "K1": {
-      "source_motif": [
+      "source_node": "K1",
+      "emitted_parent": "K",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T1189C",
           "mutation_type": "substitution",
@@ -615,9 +1012,21 @@
           "pos": 1189,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "K1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -625,15 +1034,32 @@
           "pos": 10398,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "K1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "K1a": {
-      "source_motif": [
+      "source_node": "K1a",
+      "emitted_parent": "K1",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C497T",
           "mutation_type": "substitution",
@@ -658,15 +1084,30 @@
           "pos": 497,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "K1a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "K1b": {
-      "source_motif": [
+      "source_node": "K1b",
+      "emitted_parent": "K1",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G5913A",
           "mutation_type": "substitution",
@@ -682,15 +1123,25 @@
           "pos": 5913,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "K1b",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 2
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187"
+            ],
+            "callable_snv_in": []
           }
         }
       ]
     },
     "K2": {
-      "source_motif": [
+      "source_node": "K2",
+      "emitted_parent": "K",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T146C!",
           "mutation_type": "substitution",
@@ -715,15 +1166,32 @@
           "pos": 9716,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "K2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "K2a": {
-      "source_motif": [
+      "source_node": "K2a",
+      "emitted_parent": "K2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T4561C",
           "mutation_type": "substitution",
@@ -739,15 +1207,32 @@
           "pos": 4561,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "K2a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "K2b": {
-      "source_motif": [
+      "source_node": "K2b",
+      "emitted_parent": "K2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C2217T",
           "mutation_type": "substitution",
@@ -780,9 +1265,18 @@
           "pos": 5231,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "K2b",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -790,15 +1284,32 @@
           "pos": 14037,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "K2b",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "L2c": {
-      "source_motif": [
+      "source_node": "L2c",
+      "emitted_parent": "L2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A93G",
           "mutation_type": "substitution",
@@ -871,9 +1382,21 @@
           "pos": 93,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -881,9 +1404,21 @@
           "pos": 325,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -891,9 +1426,21 @@
           "pos": 680,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -901,9 +1448,21 @@
           "pos": 3200,
           "ancestral_allele": "T",
           "allele": "A",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -911,9 +1470,21 @@
           "pos": 13928,
           "ancestral_allele": "G",
           "allele": "C",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -921,9 +1492,21 @@
           "pos": 13958,
           "ancestral_allele": "G",
           "allele": "C",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -931,15 +1514,32 @@
           "pos": 15849,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "L2c",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "M1": {
-      "source_motif": [
+      "source_node": "M1",
+      "emitted_parent": "M",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T195C!",
           "mutation_type": "substitution",
@@ -1023,9 +1623,20 @@
           "pos": 6446,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "M1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187"
+            ]
           }
         },
         {
@@ -1033,9 +1644,21 @@
           "pos": 6680,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "M1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1043,9 +1666,21 @@
           "pos": 12950,
           "ancestral_allele": "A",
           "allele": "C",
+          "motif_owner": "M1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1053,9 +1688,20 @@
           "pos": 16129,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "M1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1063,15 +1709,30 @@
           "pos": 16249,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "M1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "M8": {
-      "source_motif": [
+      "source_node": "M8",
+      "emitted_parent": "M",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A4715G",
           "mutation_type": "substitution",
@@ -1121,9 +1782,20 @@
           "pos": 4715,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "M8",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1131,9 +1803,21 @@
           "pos": 8584,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "M8",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1141,15 +1825,32 @@
           "pos": 15487,
           "ancestral_allele": "A",
           "allele": "T",
+          "motif_owner": "M8",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "M8a": {
-      "source_motif": [
+      "source_node": "M8a",
+      "emitted_parent": "M8",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G6179A",
           "mutation_type": "substitution",
@@ -1190,9 +1891,21 @@
           "pos": 6179,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "M8a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1200,9 +1913,21 @@
           "pos": 8684,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "M8a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1210,9 +1935,21 @@
           "pos": 14470,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "M8a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
@@ -1242,7 +1979,12 @@
       ]
     },
     "S": {
-      "source_motif": [
+      "source_node": "S",
+      "emitted_parent": "N",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T8404C",
           "mutation_type": "substitution",
@@ -1258,15 +2000,32 @@
           "pos": 8404,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "S",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "T2a": {
-      "source_motif": [
+      "source_node": "T2a",
+      "emitted_parent": "T2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T13965C",
           "mutation_type": "substitution",
@@ -1282,15 +2041,32 @@
           "pos": 13965,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "T2a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "U2": {
-      "source_motif": [
+      "source_node": "U2",
+      "emitted_parent": "U",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A16051G",
           "mutation_type": "substitution",
@@ -1306,15 +2082,32 @@
           "pos": 16051,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "U2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "U2e": {
-      "source_motif": [
+      "source_node": "U2e",
+      "emitted_parent": "U2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A508G",
           "mutation_type": "substitution",
@@ -1347,9 +2140,21 @@
           "pos": 508,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "U2e",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1357,15 +2162,32 @@
           "pos": 13020,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "U2e",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "U3a": {
-      "source_motif": [
+      "source_node": "U3a",
+      "emitted_parent": "U3",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C6518T",
           "mutation_type": "substitution",
@@ -1405,9 +2227,21 @@
           "pos": 6518,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "U3a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1415,9 +2249,21 @@
           "pos": 10506,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "U3a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1425,9 +2271,21 @@
           "pos": 13934,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "U3a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1435,15 +2293,32 @@
           "pos": 16390,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "U3a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "U3b": {
-      "source_motif": [
+      "source_node": "U3b",
+      "emitted_parent": "U3",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A4188G",
           "mutation_type": "substitution",
@@ -1482,9 +2357,23 @@
           "pos": 4188,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "U3b",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 5
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         },
         {
@@ -1492,9 +2381,23 @@
           "pos": 9656,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "U3b",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 5
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         },
         {
@@ -1502,15 +2405,32 @@
           "pos": 13743,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "U3b",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 4
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         }
       ]
     },
     "U5b2": {
-      "source_motif": [
+      "source_node": "U5b2",
+      "emitted_parent": "U5b",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C1721T",
           "mutation_type": "substitution",
@@ -1534,9 +2454,23 @@
           "pos": 1721,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "U5b2",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 5
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         },
         {
@@ -1544,15 +2478,32 @@
           "pos": 13637,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "U5b2",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 4
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         }
       ]
     },
     "W1": {
-      "source_motif": [
+      "source_node": "W1",
+      "emitted_parent": "W",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C7864T",
           "mutation_type": "substitution",
@@ -1568,15 +2519,34 @@
           "pos": 7864,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "W1",
           "array_coverage": {
-            "modern_exports_tested": 5,
-            "modern_exports_with_position": 5
+            "cohort_id": "historical_five_23andme_including_2014",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D",
+              "pgp_1050"
+            ]
           }
         }
       ]
     },
     "X": {
-      "source_motif": [
+      "source_node": "X",
+      "emitted_parent": "N",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T6221C",
           "mutation_type": "substitution",
@@ -1634,9 +2604,21 @@
           "pos": 6221,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "X",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1644,9 +2626,21 @@
           "pos": 6371,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "X",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1654,9 +2648,21 @@
           "pos": 13966,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "X",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1664,15 +2670,32 @@
           "pos": 14470,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "X",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "X2": {
-      "source_motif": [
+      "source_node": "X2",
+      "emitted_parent": "X",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T195C",
           "mutation_type": "substitution",
@@ -1697,15 +2720,32 @@
           "pos": 1719,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "X2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "X2a": {
-      "source_motif": [
+      "source_node": "X2a",
+      "emitted_parent": "X2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T200C",
           "mutation_type": "substitution",
@@ -1747,9 +2787,21 @@
           "pos": 8913,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "X2a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1757,15 +2809,32 @@
           "pos": 14502,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "X2a",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "X2b": {
-      "source_motif": [
+      "source_node": "X2b",
+      "emitted_parent": "X2",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "C8393T",
           "mutation_type": "substitution",
@@ -1790,15 +2859,30 @@
           "pos": 8393,
           "ancestral_allele": "C",
           "allele": "T",
+          "motif_owner": "X2b",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162"
+            ]
           }
         }
       ]
     },
     "Y1": {
-      "source_motif": [
+      "source_node": "Y1",
+      "emitted_parent": "Y_mt",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T146C!",
           "mutation_type": "substitution",
@@ -1832,15 +2916,32 @@
           "pos": 3834,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "Y1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "Y2": {
-      "source_motif": [
+      "source_node": "Y2",
+      "emitted_parent": "Y_mt",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "T482C",
           "mutation_type": "substitution",
@@ -1905,9 +3006,21 @@
           "pos": 482,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1915,9 +3028,19 @@
           "pos": 5147,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1925,9 +3048,21 @@
           "pos": 6941,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1935,9 +3070,21 @@
           "pos": 7859,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1945,9 +3092,21 @@
           "pos": 14914,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -1955,15 +3114,32 @@
           "pos": 15244,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "Y2",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "Y_mt": {
-      "source_motif": [
+      "source_node": "Y",
+      "emitted_parent": "N",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G8392A",
           "mutation_type": "substitution",
@@ -1995,9 +3171,21 @@
           "pos": 8392,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "Y",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -2005,9 +3193,21 @@
           "pos": 10398,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "Y",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -2015,15 +3215,32 @@
           "pos": 14178,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "Y",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "Z": {
-      "source_motif": [
+      "source_node": "Z",
+      "emitted_parent": "M8",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "A6752G",
           "mutation_type": "substitution",
@@ -2073,9 +3290,21 @@
           "pos": 6752,
           "ancestral_allele": "A",
           "allele": "G",
+          "motif_owner": "Z",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -2083,9 +3312,21 @@
           "pos": 9090,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "Z",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         },
         {
@@ -2093,15 +3334,32 @@
           "pos": 15784,
           "ancestral_allele": "T",
           "allele": "C",
+          "motif_owner": "Z",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     },
     "Z1": {
-      "source_motif": [
+      "source_node": "Z1",
+      "emitted_parent": "Z",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G15261A",
           "mutation_type": "substitution",
@@ -2117,12 +3375,790 @@
           "pos": 15261,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "Z1",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 4
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
     }
+  },
+  "structural_exceptions": {
+    "mt-MRCA": {
+      "type": "root",
+      "emitted_parent": null,
+      "source_status": "synthetic",
+      "reason": "Synthetic tree-walk root; it emits no defining marker."
+    },
+    "R0": {
+      "type": "markerless_passthrough",
+      "emitted_parent": "R",
+      "source_status": "pending",
+      "reason": "Retained to preserve the emitted tree path while its direct Build-17 motif and source topology remain pending; it emits no defining marker."
+    }
+  },
+  "pending_nodes": {
+    "A": {
+      "emitted_parent": "N"
+    },
+    "A2": {
+      "emitted_parent": "A"
+    },
+    "A4": {
+      "emitted_parent": "A"
+    },
+    "A5": {
+      "emitted_parent": "A"
+    },
+    "B": {
+      "emitted_parent": "R"
+    },
+    "B4": {
+      "emitted_parent": "B"
+    },
+    "B4a": {
+      "emitted_parent": "B4"
+    },
+    "B4b": {
+      "emitted_parent": "B4"
+    },
+    "B4c": {
+      "emitted_parent": "B4"
+    },
+    "B5": {
+      "emitted_parent": "B"
+    },
+    "C1": {
+      "emitted_parent": "C"
+    },
+    "C4": {
+      "emitted_parent": "C"
+    },
+    "C5": {
+      "emitted_parent": "C"
+    },
+    "D": {
+      "emitted_parent": "M"
+    },
+    "D1": {
+      "emitted_parent": "D"
+    },
+    "D2": {
+      "emitted_parent": "D"
+    },
+    "D3": {
+      "emitted_parent": "D"
+    },
+    "D4": {
+      "emitted_parent": "D"
+    },
+    "D4a": {
+      "emitted_parent": "D4"
+    },
+    "D4b": {
+      "emitted_parent": "D4"
+    },
+    "D5": {
+      "emitted_parent": "D"
+    },
+    "E": {
+      "emitted_parent": "M"
+    },
+    "F": {
+      "emitted_parent": "R"
+    },
+    "F1": {
+      "emitted_parent": "F"
+    },
+    "F1a": {
+      "emitted_parent": "F1"
+    },
+    "F1b": {
+      "emitted_parent": "F1"
+    },
+    "F2": {
+      "emitted_parent": "F"
+    },
+    "G2a": {
+      "emitted_parent": "G2"
+    },
+    "H": {
+      "emitted_parent": "HV"
+    },
+    "H1": {
+      "emitted_parent": "H"
+    },
+    "H11": {
+      "emitted_parent": "H"
+    },
+    "H1a": {
+      "emitted_parent": "H1"
+    },
+    "H1a1": {
+      "emitted_parent": "H1a"
+    },
+    "H1b": {
+      "emitted_parent": "H1"
+    },
+    "H1c": {
+      "emitted_parent": "H1"
+    },
+    "H1e": {
+      "emitted_parent": "H1"
+    },
+    "H2": {
+      "emitted_parent": "H"
+    },
+    "H2a": {
+      "emitted_parent": "H2"
+    },
+    "H2a1": {
+      "emitted_parent": "H2a"
+    },
+    "H2a2": {
+      "emitted_parent": "H2a"
+    },
+    "H2a2a": {
+      "emitted_parent": "H2a2"
+    },
+    "H2a2a1": {
+      "emitted_parent": "H2a2a"
+    },
+    "H3": {
+      "emitted_parent": "H"
+    },
+    "H4": {
+      "emitted_parent": "H"
+    },
+    "H5": {
+      "emitted_parent": "H"
+    },
+    "H5a": {
+      "emitted_parent": "H5"
+    },
+    "H7": {
+      "emitted_parent": "H"
+    },
+    "HV": {
+      "emitted_parent": "R0"
+    },
+    "HV0": {
+      "emitted_parent": "HV"
+    },
+    "HV1": {
+      "emitted_parent": "HV"
+    },
+    "I": {
+      "emitted_parent": "N"
+    },
+    "J": {
+      "emitted_parent": "JT"
+    },
+    "J1": {
+      "emitted_parent": "J"
+    },
+    "J1b": {
+      "emitted_parent": "J1"
+    },
+    "J1c": {
+      "emitted_parent": "J1"
+    },
+    "J2": {
+      "emitted_parent": "J"
+    },
+    "J2a": {
+      "emitted_parent": "J2"
+    },
+    "J2b": {
+      "emitted_parent": "J2"
+    },
+    "JT": {
+      "emitted_parent": "R"
+    },
+    "L0": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L0a": {
+      "emitted_parent": "L0"
+    },
+    "L0a1": {
+      "emitted_parent": "L0a"
+    },
+    "L0a2": {
+      "emitted_parent": "L0a"
+    },
+    "L0b": {
+      "emitted_parent": "L0"
+    },
+    "L0d": {
+      "emitted_parent": "L0"
+    },
+    "L0d1": {
+      "emitted_parent": "L0d"
+    },
+    "L0d2": {
+      "emitted_parent": "L0d"
+    },
+    "L0f": {
+      "emitted_parent": "L0"
+    },
+    "L0k": {
+      "emitted_parent": "L0"
+    },
+    "L1": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L1b": {
+      "emitted_parent": "L1"
+    },
+    "L1b1": {
+      "emitted_parent": "L1b"
+    },
+    "L1b2": {
+      "emitted_parent": "L1b"
+    },
+    "L1c": {
+      "emitted_parent": "L1"
+    },
+    "L1c1": {
+      "emitted_parent": "L1c"
+    },
+    "L1c2": {
+      "emitted_parent": "L1c"
+    },
+    "L1c3": {
+      "emitted_parent": "L1c"
+    },
+    "L2": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L2a": {
+      "emitted_parent": "L2"
+    },
+    "L2a1": {
+      "emitted_parent": "L2a"
+    },
+    "L2a2": {
+      "emitted_parent": "L2a"
+    },
+    "L2b": {
+      "emitted_parent": "L2"
+    },
+    "L2b1": {
+      "emitted_parent": "L2b"
+    },
+    "L2d": {
+      "emitted_parent": "L2"
+    },
+    "L2e": {
+      "emitted_parent": "L2"
+    },
+    "L3": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L3a": {
+      "emitted_parent": "L3"
+    },
+    "L3b": {
+      "emitted_parent": "L3"
+    },
+    "L3b1": {
+      "emitted_parent": "L3b"
+    },
+    "L3d": {
+      "emitted_parent": "L3"
+    },
+    "L3e": {
+      "emitted_parent": "L3"
+    },
+    "L3e1": {
+      "emitted_parent": "L3e"
+    },
+    "L3e2": {
+      "emitted_parent": "L3e"
+    },
+    "L3f": {
+      "emitted_parent": "L3"
+    },
+    "L4": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L4a": {
+      "emitted_parent": "L4"
+    },
+    "L4b": {
+      "emitted_parent": "L4"
+    },
+    "L5": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "L5a": {
+      "emitted_parent": "L5"
+    },
+    "L5b": {
+      "emitted_parent": "L5"
+    },
+    "L6": {
+      "emitted_parent": "mt-MRCA"
+    },
+    "M": {
+      "emitted_parent": "L3"
+    },
+    "M7": {
+      "emitted_parent": "M"
+    },
+    "M7a": {
+      "emitted_parent": "M7"
+    },
+    "M7b": {
+      "emitted_parent": "M7"
+    },
+    "M7c": {
+      "emitted_parent": "M7"
+    },
+    "M9": {
+      "emitted_parent": "M"
+    },
+    "N": {
+      "emitted_parent": "L3"
+    },
+    "N1": {
+      "emitted_parent": "N"
+    },
+    "N1a": {
+      "emitted_parent": "N1"
+    },
+    "N1b": {
+      "emitted_parent": "N1"
+    },
+    "N9": {
+      "emitted_parent": "N"
+    },
+    "N9a": {
+      "emitted_parent": "N9"
+    },
+    "N9b": {
+      "emitted_parent": "N9"
+    },
+    "P": {
+      "emitted_parent": "R"
+    },
+    "R": {
+      "emitted_parent": "N"
+    },
+    "S1": {
+      "emitted_parent": "S"
+    },
+    "S2": {
+      "emitted_parent": "S"
+    },
+    "T": {
+      "emitted_parent": "JT"
+    },
+    "T1": {
+      "emitted_parent": "T"
+    },
+    "T1a": {
+      "emitted_parent": "T1"
+    },
+    "T2": {
+      "emitted_parent": "T"
+    },
+    "T2b": {
+      "emitted_parent": "T2"
+    },
+    "T2c": {
+      "emitted_parent": "T2"
+    },
+    "T2e": {
+      "emitted_parent": "T2"
+    },
+    "T2f": {
+      "emitted_parent": "T2"
+    },
+    "U": {
+      "emitted_parent": "R"
+    },
+    "U1": {
+      "emitted_parent": "U"
+    },
+    "U1a": {
+      "emitted_parent": "U1"
+    },
+    "U1b": {
+      "emitted_parent": "U1"
+    },
+    "U3": {
+      "emitted_parent": "U"
+    },
+    "U4": {
+      "emitted_parent": "U"
+    },
+    "U4a": {
+      "emitted_parent": "U4"
+    },
+    "U4b": {
+      "emitted_parent": "U4"
+    },
+    "U4c": {
+      "emitted_parent": "U4"
+    },
+    "U5": {
+      "emitted_parent": "U"
+    },
+    "U5a": {
+      "emitted_parent": "U5"
+    },
+    "U5a1": {
+      "emitted_parent": "U5a"
+    },
+    "U5a2": {
+      "emitted_parent": "U5a"
+    },
+    "U5b": {
+      "emitted_parent": "U5"
+    },
+    "U5b1": {
+      "emitted_parent": "U5b"
+    },
+    "U6": {
+      "emitted_parent": "U"
+    },
+    "U6a": {
+      "emitted_parent": "U6"
+    },
+    "U7": {
+      "emitted_parent": "U"
+    },
+    "U8": {
+      "emitted_parent": "U"
+    },
+    "U8a": {
+      "emitted_parent": "U8"
+    },
+    "U8b": {
+      "emitted_parent": "U8"
+    },
+    "U9": {
+      "emitted_parent": "U"
+    },
+    "V": {
+      "emitted_parent": "HV0"
+    },
+    "V1": {
+      "emitted_parent": "V"
+    },
+    "V7": {
+      "emitted_parent": "V"
+    },
+    "W": {
+      "emitted_parent": "N"
+    },
+    "W3": {
+      "emitted_parent": "W"
+    },
+    "X1": {
+      "emitted_parent": "X"
+    }
+  },
+  "migration": {
+    "status": "in_progress",
+    "baseline_commit": "bd9b1175315153bcef83df2464937e1bc80de763",
+    "legacy_locked_exact_nodes": [
+      "G",
+      "G1",
+      "G2",
+      "H13",
+      "H13a",
+      "H6",
+      "H6a",
+      "J1d",
+      "K",
+      "K1",
+      "K1a",
+      "K1b",
+      "K2",
+      "K2a",
+      "K2b",
+      "T2a",
+      "U2",
+      "U2e",
+      "U3a",
+      "U3b",
+      "U5b2",
+      "W1",
+      "X2",
+      "X2a",
+      "X2b",
+      "Y1",
+      "Y2",
+      "Y_mt",
+      "Z",
+      "Z1"
+    ],
+    "legacy_locked_exact_nodes_sha256": "7d968626b02229ba77f7e58a32b337621c71a1a071e4564d5e815d5c3dee4d5d",
+    "legacy_v1_semantic_sha256": "521dedbac66952e7df628dda8da495b6e03f640b3b6765006835d805cd32d63a",
+    "legacy_v1_coverage_sha256": "375c6a5af32e22bd71026391b5a0552bfa260bac09cf6666f84bab6ea52b7947",
+    "baseline_exact_nodes": [
+      "C",
+      "G",
+      "G1",
+      "G2",
+      "H10",
+      "H13",
+      "H13a",
+      "H6",
+      "H6a",
+      "J1d",
+      "K",
+      "K1",
+      "K1a",
+      "K1b",
+      "K2",
+      "K2a",
+      "K2b",
+      "L2c",
+      "M1",
+      "M8",
+      "M8a",
+      "S",
+      "T2a",
+      "U2",
+      "U2e",
+      "U3a",
+      "U3b",
+      "U5b2",
+      "W1",
+      "X",
+      "X2",
+      "X2a",
+      "X2b",
+      "Y1",
+      "Y2",
+      "Y_mt",
+      "Z",
+      "Z1"
+    ],
+    "baseline_exact_nodes_sha256": "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885",
+    "baseline_v1_semantic_sha256": "9228fe0e2158acc8afc324227860c33031c1e1fda8d256f807e19d10eff44972",
+    "baseline_v1_coverage_sha256": "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e",
+    "baseline_v2_direct_semantic_sha256": "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e",
+    "baseline_v2_coverage_membership_sha256": "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a",
+    "locked_exact_nodes": [
+      "C",
+      "G",
+      "G1",
+      "G2",
+      "H10",
+      "H13",
+      "H13a",
+      "H6",
+      "H6a",
+      "J1d",
+      "K",
+      "K1",
+      "K1a",
+      "K1b",
+      "K2",
+      "K2a",
+      "K2b",
+      "L2c",
+      "M1",
+      "M8",
+      "M8a",
+      "S",
+      "T2a",
+      "U2",
+      "U2e",
+      "U3a",
+      "U3b",
+      "U5b2",
+      "W1",
+      "X",
+      "X2",
+      "X2a",
+      "X2b",
+      "Y1",
+      "Y2",
+      "Y_mt",
+      "Z",
+      "Z1"
+    ],
+    "locked_exact_nodes_sha256": "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885",
+    "locked_exact_semantic_sha256": "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa",
+    "locked_exact_coverage_membership_sha256": "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a",
+    "initial_pending_nodes": [
+      "A",
+      "A2",
+      "A4",
+      "A5",
+      "B",
+      "B4",
+      "B4a",
+      "B4b",
+      "B4c",
+      "B5",
+      "C1",
+      "C4",
+      "C5",
+      "D",
+      "D1",
+      "D2",
+      "D3",
+      "D4",
+      "D4a",
+      "D4b",
+      "D5",
+      "E",
+      "F",
+      "F1",
+      "F1a",
+      "F1b",
+      "F2",
+      "G2a",
+      "H",
+      "H1",
+      "H11",
+      "H1a",
+      "H1a1",
+      "H1b",
+      "H1c",
+      "H1e",
+      "H2",
+      "H2a",
+      "H2a1",
+      "H2a2",
+      "H2a2a",
+      "H2a2a1",
+      "H3",
+      "H4",
+      "H5",
+      "H5a",
+      "H7",
+      "HV",
+      "HV0",
+      "HV1",
+      "I",
+      "J",
+      "J1",
+      "J1b",
+      "J1c",
+      "J2",
+      "J2a",
+      "J2b",
+      "JT",
+      "L0",
+      "L0a",
+      "L0a1",
+      "L0a2",
+      "L0b",
+      "L0d",
+      "L0d1",
+      "L0d2",
+      "L0f",
+      "L0k",
+      "L1",
+      "L1b",
+      "L1b1",
+      "L1b2",
+      "L1c",
+      "L1c1",
+      "L1c2",
+      "L1c3",
+      "L2",
+      "L2a",
+      "L2a1",
+      "L2a2",
+      "L2b",
+      "L2b1",
+      "L2d",
+      "L2e",
+      "L3",
+      "L3a",
+      "L3b",
+      "L3b1",
+      "L3d",
+      "L3e",
+      "L3e1",
+      "L3e2",
+      "L3f",
+      "L4",
+      "L4a",
+      "L4b",
+      "L5",
+      "L5a",
+      "L5b",
+      "L6",
+      "M",
+      "M7",
+      "M7a",
+      "M7b",
+      "M7c",
+      "M9",
+      "N",
+      "N1",
+      "N1a",
+      "N1b",
+      "N9",
+      "N9a",
+      "N9b",
+      "P",
+      "R",
+      "S1",
+      "S2",
+      "T",
+      "T1",
+      "T1a",
+      "T2",
+      "T2b",
+      "T2c",
+      "T2e",
+      "T2f",
+      "U",
+      "U1",
+      "U1a",
+      "U1b",
+      "U3",
+      "U4",
+      "U4a",
+      "U4b",
+      "U4c",
+      "U5",
+      "U5a",
+      "U5a1",
+      "U5a2",
+      "U5b",
+      "U5b1",
+      "U6",
+      "U6a",
+      "U7",
+      "U8",
+      "U8a",
+      "U8b",
+      "U9",
+      "V",
+      "V1",
+      "V7",
+      "W",
+      "W3",
+      "X1"
+    ],
+    "initial_pending_nodes_sha256": "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde",
+    "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
+    "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
+    "state_partition_sha256": "bedc610cd57aec4ede72a3832bf5e03247fae471ea66fb764dc6792d2ef3673d",
+    "baseline_emitted_tree_sha256": "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
   }
 }
