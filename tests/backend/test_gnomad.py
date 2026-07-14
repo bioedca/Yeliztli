@@ -40,7 +40,6 @@ from backend.annotation.gnomad import (
     load_gnomad_from_vcf,
     lookup_gnomad_by_positions,
     lookup_gnomad_by_rsids,
-    parse_gnomad_vcf_line,
     parse_gnomad_vcf_records,
 )
 from backend.db.tables import reference_metadata, sample_metadata_obj
@@ -86,8 +85,8 @@ def reference_engine() -> sa.Engine:
 # ── VCF line parsing tests ──────────────────────────────────────────────
 
 
-class TestParseGnomadVcfLine:
-    """Test VCF line parsing."""
+class TestParseGnomadVcfRecords:
+    """Test VCF line parsing into ALT records."""
 
     def test_valid_line_with_rsid(self):
         """Parse a standard gnomAD VCF line with rsid and AF fields."""
@@ -98,10 +97,11 @@ class TestParseGnomadVcfLine:
             "AN=120000;AN_afr=18000;AN_amr=16000;AN_eas=14000;AN_nfe=60000;"
             "AN_fin=12000;AN_asj=10000;AN_sas=15000;nhomalt=2543"
         )
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.rsid == "rs429358"
         assert record.chrom == "19"
         assert record.pos == 44908684
@@ -124,19 +124,21 @@ class TestParseGnomadVcfLine:
     def test_chr_prefix_normalization(self):
         """Chromosome names with 'chr' prefix are normalized."""
         line = "chr1\t100\trs12345\tA\tG\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.chrom == "1"
 
     def test_no_rsid_loaded_for_coordinate_lookup(self):
         """Lines without an rsid are loaded with a NULL rsid."""
         line = "1\t100\t.\tA\tG\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.rsid is None
         assert record.chrom == "1"
         assert record.pos == 100
@@ -207,26 +209,27 @@ class TestParseGnomadVcfLine:
     def test_invalid_chrom_skipped(self):
         """Invalid chromosomes are skipped."""
         line = "chrUn_gl000220\t100\trs12345\tA\tG\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
-        assert record is None
+        assert records == []
         assert skip == "invalid_chrom"
 
     def test_malformed_line(self):
         """Lines with too few columns are skipped."""
         line = "1\t100\trs12345"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
-        assert record is None
+        assert records == []
         assert skip == "malformed"
 
     def test_missing_af_fields_are_none(self):
         """Missing AF fields result in None values."""
         line = "1\t100\trs12345\tA\tG\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.af_global == pytest.approx(0.05)
         assert record.af_afr is None
         assert record.af_asj is None
@@ -235,19 +238,21 @@ class TestParseGnomadVcfLine:
     def test_multiple_ids_picks_rsid(self):
         """When ID column has multiple IDs, picks the one starting with rs."""
         line = "1\t100\tvar123;rs99999\tA\tG\t.\tPASS\tAF=0.05"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.rsid == "rs99999"
 
     def test_x_chromosome(self):
         """X chromosome is accepted."""
         line = "X\t1000\trs55555\tC\tT\t.\tPASS\tAF=0.02"
-        record, skip = parse_gnomad_vcf_line(line)
+        records, skip = parse_gnomad_vcf_records(line)
 
         assert skip is None
-        assert record is not None
+        assert len(records) == 1
+        record = records[0]
         assert record.chrom == "X"
 
 
