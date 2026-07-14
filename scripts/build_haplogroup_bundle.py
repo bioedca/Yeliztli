@@ -853,6 +853,8 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5016325", 16325, "C"),
         ],
     )
+    # Direct Build 17 motif (C8703T + G16129A!); the prior D2 record reused
+    # inherited D (m.4883) and R-lineage (m.12705) markers (#1907).
     d2 = _node(
         "D2",
         [
