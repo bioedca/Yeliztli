@@ -72,7 +72,9 @@ _MT_BASELINE_V2_DIRECT_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = _MT_BASELINE_EXACT_NAMES_SHA256
+_MT_LOCKED_EXACT_NAMES_SHA256 = (
+    "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
+)
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
     "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
 )
@@ -3404,16 +3406,6 @@ def _validate_mt_source(
             )
         )
     return issues
-
-
-def _validate_audited_mt_markers(
-    node: dict[str, Any], source: dict[str, Any] = _MT_SOURCE
-) -> list[str]:
-    """Compatibility wrapper for the schema-v2 marker-exact tree guard."""
-    inventory = _index_mt_tree(node)
-    if inventory.duplicates:
-        return _validate_mt_registry_against_tree(source, inventory)
-    return _validate_exact_mt_markers(source, inventory)
 
 
 def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory) -> dict[str, Any]:

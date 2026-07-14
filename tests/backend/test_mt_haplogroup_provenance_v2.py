@@ -31,6 +31,7 @@ BASELINE_V2_DIRECT_SEMANTIC_SHA256 = (
     "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e"
 )
 BASELINE_V2_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
+LOCKED_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
 LOCKED_EXACT_SEMANTIC_SHA256 = "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
 LOCKED_EXACT_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
 INITIAL_PENDING_NAMES_SHA256 = "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde"
@@ -349,7 +350,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
 
     assert _canonical_sha256(migration["legacy_locked_exact_nodes"]) == (LEGACY_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["baseline_exact_nodes"]) == (BASELINE_EXACT_NAMES_SHA256)
-    assert _canonical_sha256(migration["locked_exact_nodes"]) == (BASELINE_EXACT_NAMES_SHA256)
+    assert _canonical_sha256(migration["locked_exact_nodes"]) == (LOCKED_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["initial_pending_nodes"]) == (INITIAL_PENDING_NAMES_SHA256)
     assert (
         _canonical_sha256(
@@ -422,7 +423,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         "baseline_v1_coverage_sha256": BASELINE_V1_COVERAGE_SHA256,
         "baseline_v2_direct_semantic_sha256": BASELINE_V2_DIRECT_SEMANTIC_SHA256,
         "baseline_v2_coverage_membership_sha256": BASELINE_V2_COVERAGE_SHA256,
-        "locked_exact_nodes_sha256": BASELINE_EXACT_NAMES_SHA256,
+        "locked_exact_nodes_sha256": LOCKED_EXACT_NAMES_SHA256,
         "locked_exact_semantic_sha256": LOCKED_EXACT_SEMANTIC_SHA256,
         "locked_exact_coverage_membership_sha256": LOCKED_EXACT_COVERAGE_SHA256,
         "initial_pending_nodes_sha256": INITIAL_PENDING_NAMES_SHA256,
