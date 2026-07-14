@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 46 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 34 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
+  "schema_version": 3,
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 46 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 34 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -187,6 +187,7 @@
       "reason": "Flattened mutation-only Build 17 intermediate between W and W3: its sole direct C194T event is absent from all four primary export exemplars and callable only in the historical 2014 export."
     }
   },
+  "retired_emitted_nodes": {},
   "nodes": {
     "C": {
       "source_node": "C",
@@ -5042,7 +5043,7 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "7cbbdeff9a91637ae58f3a198a8a2c3fd96050c54a494e967acec52ad6fa1f8c",
+    "state_partition_sha256": "bc194a2383d9f1e14f32b4476c12b9dd5f945a469a9a33221e451ebf8cbcf539",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
     "locked_emitted_tree_sha256": "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
   }
