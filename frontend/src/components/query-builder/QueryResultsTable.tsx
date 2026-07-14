@@ -6,7 +6,7 @@
 
 import { Loader2 } from "lucide-react"
 import type { QueryResultPage, QueryVariantRow } from "@/types/query-builder"
-import { formatNumber } from "@/lib/format"
+import { formatAlleleFrequency, formatNumber } from "@/lib/format"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { cn } from "@/lib/utils"
 import { CADD_TOOLTIP, REVEL_TOOLTIP, SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
@@ -32,7 +32,7 @@ const DISPLAY_COLUMNS: Array<{
     key: "gnomad_af_global",
     label: "gnomAD AF",
     align: "right",
-    format: (v) => (v != null ? (v as number).toExponential(2) : "—"),
+    format: (v) => formatAlleleFrequency(v as number | null),
   },
   {
     key: "cadd_phred",

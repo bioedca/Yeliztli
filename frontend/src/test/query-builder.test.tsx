@@ -159,6 +159,21 @@ describe("QueryResultsTable", () => {
     expect(screen.getByText("APOE")).toBeInTheDocument()
   })
 
+  it("uses the shared fraction format for common gnomAD allele frequencies", () => {
+    render(
+      <QueryResultsTable
+        pages={[MOCK_RESULT]}
+        totalMatching={1}
+        hasMore={false}
+        isFetchingMore={false}
+        onLoadMore={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText("0.1500")).toBeInTheDocument()
+    expect(screen.queryByText("1.50e-1")).not.toBeInTheDocument()
+  })
+
   it("explains compact CADD and REVEL result headers", () => {
     render(
       <QueryResultsTable
