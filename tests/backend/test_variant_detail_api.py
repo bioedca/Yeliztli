@@ -482,6 +482,22 @@ class TestGetVariantDetail:
         assert data["rare_flag"] is True
         assert data["ultra_rare_flag"] is True
 
+    def test_returns_ancestry_matched_af_from_inferred_population(self, client):
+        tc, sid = client
+        with patch(
+            "backend.api.routes.variant_detail.get_inferred_ancestry",
+            return_value="ASJ",
+        ):
+            resp = tc.get(f"/api/variants/rs80357906?sample_id={sid}")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["gnomad_af_global"] == pytest.approx(0.000003)
+        assert data["gnomad_af_asj"] == pytest.approx(0.000004)
+        assert data["ancestry_matched_population"] == "ASJ"
+        assert data["ancestry_matched_af"] == pytest.approx(0.000004)
+        assert data["ancestry_matched_af"] != data["gnomad_af_global"]
+
     def test_returns_dbnsfp_fields(self, client):
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
