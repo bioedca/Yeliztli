@@ -99,10 +99,12 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "93227229ec35249659fbec5c753470ca6b7d562cfbc23e5079b89a05295d7114"
+_MT_STATE_PARTITION_SHA256 = "b3d0bb0497e61b3bbc7b282526273d738deeee8c6694a7982071fddf5e7ace83"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
+_MT_LOCKED_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
+_MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 
 _MT_EXPECTED_ARRAY_EXPORTS: dict[str, dict[str, Any]] = {
     "pgp_4139": {
@@ -3011,17 +3013,30 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             "source_status",
             "reason",
         }
-        expected_structural_fields = (
-            base_structural_fields
-            | {
+        if record.get("type") == "root" and record.get("source_status") == "synthetic":
+            expected_structural_fields = base_structural_fields | {"source_topology_anchor"}
+            anchor = record.get("source_topology_anchor")
+            if name != _MT_SYNTHETIC_ROOT_NAME:
+                issues.append(
+                    f"Synthetic mtDNA root {name} must use canonical root name "
+                    f"{_MT_SYNTHETIC_ROOT_NAME!r}"
+                )
+            if not _is_nonblank(anchor):
+                issues.append(f"Synthetic mtDNA root {name} has no source-topology anchor")
+            elif anchor != _MT_SYNTHETIC_ROOT_NAME:
+                issues.append(
+                    f"Synthetic mtDNA root {name} source-topology anchor {anchor!r} "
+                    f"must equal canonical emitted root name {_MT_SYNTHETIC_ROOT_NAME!r}"
+                )
+        elif record.get("source_status") == "exact":
+            expected_structural_fields = base_structural_fields | {
                 "source_node",
                 "source_topology",
                 "direct_source_motif",
                 "emitted_snps",
             }
-            if record.get("source_status") == "exact"
-            else base_structural_fields
-        )
+        else:
+            expected_structural_fields = base_structural_fields
         if set(record) != expected_structural_fields:
             issues.append(f"Structural mtDNA node {name} has invalid provenance fields")
         if record.get("source_status") == "exact" and not _is_nonblank(record.get("source_node")):
@@ -3042,6 +3057,23 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         issues.append(
             "mtDNA exact direct source nodes are also globally omitted: "
             + ", ".join(sorted(all_direct_source_omissions))
+        )
+    synthetic_root_anchors = {
+        record.get("source_topology_anchor")
+        for record in structural.values()
+        if isinstance(record, dict)
+        and record.get("type") == "root"
+        and record.get("source_status") == "synthetic"
+        and _is_nonblank(record.get("source_topology_anchor"))
+    }
+    flattened_source_identities = _mt_referenced_flattened_source_nodes(source)
+    colliding_root_anchors = synthetic_root_anchors & (
+        set(all_direct_source_nodes) | set(omitted) | flattened_source_identities
+    )
+    if colliding_root_anchors:
+        issues.append(
+            "mtDNA synthetic root source-topology anchors collide with source-node "
+            "identities: " + ", ".join(sorted(colliding_root_anchors))
         )
 
     migration = category_maps["migration"]
@@ -3076,6 +3108,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         "source_metadata_sha256",
         "state_partition_sha256",
         "baseline_emitted_tree_sha256",
+        "locked_emitted_tree_sha256",
     }
     if set(migration) != expected_migration_fields:
         issues.append("mtDNA migration has unexpected or missing fields")
@@ -3237,6 +3270,10 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     for field, expected in stored_constant_checks:
         if migration.get(field) != expected:
             issues.append(f"mtDNA migration {field} differs from the locked baseline")
+    if migration.get("locked_emitted_tree_sha256") != _MT_LOCKED_EMITTED_TREE_SHA256:
+        issues.append(
+            "mtDNA migration locked_emitted_tree_sha256 differs from the review-locked live tree"
+        )
 
     try:
         projection_checks = (
@@ -3348,13 +3385,30 @@ def _validate_mt_structural_records(
         if exception_type == "root":
             if occurrence.parent is not None or occurrence.path != (name,):
                 issues.append(f"Structural mtDNA root {name} is not the actual tree root")
+            if name != _MT_SYNTHETIC_ROOT_NAME:
+                issues.append(
+                    f"Structural mtDNA root {name} must use canonical root name "
+                    f"{_MT_SYNTHETIC_ROOT_NAME!r}"
+                )
             if record.get("emitted_parent") is not None:
                 issues.append(f"Structural mtDNA root {name} must have a null emitted parent")
             if record.get("source_status") != "synthetic":
                 issues.append(f"Structural mtDNA root {name} must have synthetic source status")
+            if not _is_nonblank(record.get("source_topology_anchor")):
+                issues.append(f"Structural mtDNA root {name} has no source-topology anchor")
+            elif record.get("source_topology_anchor") != _MT_SYNTHETIC_ROOT_NAME:
+                issues.append(
+                    f"Structural mtDNA root {name} source-topology anchor "
+                    f"{record.get('source_topology_anchor')!r} must equal canonical emitted "
+                    f"root name {_MT_SYNTHETIC_ROOT_NAME!r}"
+                )
             if occurrence.node.get("defining_snps"):
                 issues.append(f"Structural mtDNA root {name} must be markerless")
         elif exception_type == "markerless_passthrough":
+            if "source_topology_anchor" in record:
+                issues.append(
+                    f"Structural mtDNA non-root {name} cannot carry a source-topology anchor"
+                )
             if occurrence.parent is None:
                 issues.append(f"Structural mtDNA pass-through {name} cannot be the root")
             if record.get("emitted_parent") != occurrence.parent:
@@ -3467,10 +3521,10 @@ def _validate_mt_registry_against_tree(
                 )
 
     tree_digest = _canonical_json_sha256(_mt_tree_projection(inventory))
-    if tree_digest != source["migration"].get("baseline_emitted_tree_sha256"):
-        issues.append("mtDNA emitted tree differs from its schema-v2 baseline fingerprint")
-    if tree_digest != _MT_BASELINE_EMITTED_TREE_SHA256:
-        issues.append("mtDNA emitted tree differs from the locked issue-1798 baseline")
+    if tree_digest != source["migration"].get("locked_emitted_tree_sha256"):
+        issues.append("mtDNA emitted tree differs from its live locked fingerprint")
+    if tree_digest != _MT_LOCKED_EMITTED_TREE_SHA256:
+        issues.append("mtDNA emitted tree differs from the review-locked live tree")
 
     issues.extend(_validate_exact_mt_markers(source, inventory))
     issues.extend(_validate_mt_structural_records(source, inventory))
@@ -3484,6 +3538,10 @@ def _validate_mt_registry_against_tree(
         source_node = record.get("source_node")
         if record.get("source_status") == "exact" and isinstance(source_node, str):
             source_nodes_by_emitted[name] = source_node
+        elif record.get("type") == "root" and record.get("source_status") == "synthetic":
+            anchor = record.get("source_topology_anchor")
+            if _is_nonblank(anchor):
+                source_nodes_by_emitted[name] = anchor
     source_topology_records = list(nodes.items()) + [
         (name, record)
         for name, record in structural.items()
@@ -3534,6 +3592,14 @@ def _validate_mt_registry_against_tree(
     # Marker provenance and source-edge topology migrate independently. An empty
     # marker-pending map alone is therefore not complete if any source edge or
     # markerless structural record is still pending.
+    orphan_flattened_omissions = _mt_orphan_flattened_omissions(source)
+    if source["migration"].get("status") == "complete" and orphan_flattened_omissions:
+        issues.append(
+            "Complete mtDNA migration has flattened source omissions that are not "
+            "referenced by an exact flattened path: "
+            + ", ".join(sorted(orphan_flattened_omissions))
+        )
+
     complete_ready = _mt_migration_complete_ready(source, inventory)
     expected_status = "complete" if complete_ready else "in_progress"
     if source["migration"].get("status") != expected_status:
@@ -3541,6 +3607,51 @@ def _validate_mt_registry_against_tree(
             f"mtDNA migration status must be {expected_status!r} for its live provenance state"
         )
     return issues
+
+
+def _mt_referenced_flattened_source_nodes(source: dict[str, Any]) -> set[str]:
+    referenced: set[str] = set()
+    topology_records: list[Any] = []
+    nodes = source.get("nodes", {})
+    if isinstance(nodes, dict):
+        topology_records.extend(nodes.values())
+    structural = source.get("structural_exceptions", {})
+    if isinstance(structural, dict):
+        topology_records.extend(
+            record
+            for record in structural.values()
+            if isinstance(record, dict) and record.get("source_status") == "exact"
+        )
+    for record in topology_records:
+        if not isinstance(record, dict):
+            continue
+        topology = record.get("source_topology")
+        if not isinstance(topology, dict) or topology.get("status") != "exact":
+            continue
+        path = topology.get("flattened_source_path")
+        if not isinstance(path, list):
+            continue
+        for step in path:
+            if not isinstance(step, dict):
+                continue
+            source_node = step.get("source_node")
+            if isinstance(source_node, str):
+                referenced.add(source_node)
+    return referenced
+
+
+def _mt_orphan_flattened_omissions(source: dict[str, Any]) -> set[str]:
+    omitted = source.get("omitted_nodes", {})
+    if not isinstance(omitted, dict):
+        return set()
+    flattened_omissions = {
+        name
+        for name, record in omitted.items()
+        if isinstance(name, str)
+        and isinstance(record, dict)
+        and record.get("type") == "flattened_unreportable_source_intermediate"
+    }
+    return flattened_omissions - _mt_referenced_flattened_source_nodes(source)
 
 
 def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInventory) -> bool:
@@ -3551,6 +3662,23 @@ def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInvent
         not isinstance(motif_states, dict)
         or motif_states.get("legacy_partial_nodes")
         or set(motif_states.get("exact_nodes", ())) != set(source["nodes"])
+    ):
+        return False
+    root_occurrences = [
+        occurrence for occurrence in inventory.occurrences if occurrence.parent is None
+    ]
+    if len(root_occurrences) != 1:
+        return False
+    root = root_occurrences[0]
+    root_record = source.get("structural_exceptions", {}).get(root.name)
+    if (
+        not isinstance(root_record, dict)
+        or root.name != _MT_SYNTHETIC_ROOT_NAME
+        or root_record.get("type") != "root"
+        or root_record.get("emitted_parent") is not None
+        or root_record.get("source_status") != "synthetic"
+        or root_record.get("source_topology_anchor") != _MT_SYNTHETIC_ROOT_NAME
+        or bool(root.node.get("defining_snps"))
     ):
         return False
     for name, occurrence in inventory.by_name.items():
@@ -3565,7 +3693,7 @@ def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInvent
                 return False
         else:
             return False
-    return True
+    return not _mt_orphan_flattened_omissions(source)
 
 
 def _validate_mt_source(
@@ -3696,6 +3824,7 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             for key in (
                 "array_manifest_sha256",
                 "baseline_emitted_tree_sha256",
+                "locked_emitted_tree_sha256",
                 "baseline_exact_nodes_sha256",
                 "baseline_v1_coverage_sha256",
                 "baseline_v1_semantic_sha256",
