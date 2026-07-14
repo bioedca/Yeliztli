@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.11"
+        assert bundle["version"] == "1.1.12"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -169,9 +169,11 @@ class TestBundleStructure:
             "G",
             "G1",
             "G2",
+            "H1",
             "H10",
             "H13",
             "H13a",
+            "H1a",
             "H6",
             "H6a",
             "J1d",
@@ -212,8 +214,8 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 43
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 31
+        assert provenance["marker_exact_nodes"]["count"] == 45
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 33
         assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
@@ -222,32 +224,32 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 149
+        assert provenance["pending_nodes"]["count"] == 147
         assert provenance["marker_records"] == {
             "emitted": 403,
-            "marker_exact": 102,
+            "marker_exact": 105,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 8,
-                "primary_four_23andme": 94,
+                "primary_four_23andme": 97,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 135,
-            "emitted": 102,
+            "total": 138,
+            "emitted": 105,
             "omitted": 33,
-            "direct_motif_exact": 97,
+            "direct_motif_exact": 100,
             "direct_motif_legacy_partial": 37,
             "recurrent_or_uncertain_events": 0,
-            "reversion_events": 12,
-            "reversion_marks": 12,
+            "reversion_events": 13,
+            "reversion_marks": 13,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 193,
             "validated_declarations": 193,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 3,
-            "pending": 190,
+            "validated": 4,
+            "pending": 189,
         }
         assert provenance["omitted_source_nodes"] == {
             "count": 3,
@@ -629,6 +631,32 @@ class TestMtDNATree:
         assert 204 not in allele_map("W")
         assert 5460 not in allele_map("W3")
 
+    def test_issue_1849_h1a_uses_exact_build17_motif(self, mt_tree: dict) -> None:
+        """H1a is H1's direct child and carries only m.73G and m.16162G."""
+        h1 = find_node(mt_tree, "H1")
+        h1a = find_node(mt_tree, "H1a")
+        assert h1 is not None
+        assert h1a is not None
+
+        assert get_path_to(mt_tree, "H1a") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H1",
+            "H1a",
+        ]
+        assert "H1a" in {child["haplogroup"] for child in h1["children"]}
+        assert {child["haplogroup"] for child in h1a["children"]} == {"H1a1"}
+        assert h1a["defining_snps"] == [
+            {"rsid": "i5000073", "pos": 73, "allele": "G"},
+            {"rsid": "i5016162", "pos": 16162, "allele": "G"},
+        ]
+        assert {13290, 13404}.isdisjoint(snp["pos"] for snp in h1a["defining_snps"])
+
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
         snps = collect_all_snps(mt_tree)
@@ -655,10 +683,9 @@ class TestMtDNATree:
         """Every non-root node should have at least one defining SNP.
 
         Exception: R0 is retained as a structural pass-through node with no
-        defining SNP — its only array-typeable marker (the recurrent m.73) was
-        removed in #1579 because m.73 (A73G) recurs across sub-branches and so
-        cannot serve as a single R0 discriminator; descent is scored on HV's
-        m.14766 and below.
+        defining SNP. Emitting its source m.73A state would conflict with H1a's
+        direct m.73G back mutation under the current zero-conflict walker, so
+        descendant scoring starts at HV until recurrence-aware traversal exists.
         """
         nodes = collect_all_nodes(mt_tree)
         for node in nodes[1:]:  # Skip root
@@ -876,8 +903,9 @@ class TestFixtureIntegration:
         bundle_rsids = {s["rsid"] for s in collect_all_snps(mt_tree)}
         fixture_rsids = set(self.FIXTURE_MT_SNPS.keys())
         overlap = fixture_rsids & bundle_rsids
-        # At least some fixture SNPs should be in the bundle (for testability)
-        assert len(overlap) >= 3, f"Only {len(overlap)} fixture MT SNPs found in bundle: {overlap}"
+        # H1a no longer borrows fixture rs1000390; assignment uses rCRS positions,
+        # while these two source-backed rsIDs remain useful fixture overlap.
+        assert overlap == {"rs1000361", "rs1000731"}
 
     def test_fixture_y_snps_in_bundle(self, y_tree: dict) -> None:
         """The compact fixture retains its canonical R-M207 probe in the tree."""
@@ -1122,6 +1150,27 @@ class TestBuildScript:
         assert any(
             f"Marker-exact mtDNA node {node_name}" in issue and "expected" in issue
             for issue in issues
+        )
+
+    def test_issue_1849_audited_mt_guard_rejects_legacy_h1a_marker_set(self) -> None:
+        """Restoring the unsupported H1a pair breaks the exact marker lock."""
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
+
+        mt_tree = build_mt_tree()
+        h1a = find_node(mt_tree, "H1a")
+        assert h1a is not None
+        h1a["defining_snps"] = [
+            {"rsid": "rs1000390", "pos": 13290, "allele": "T"},
+            {"rsid": "i5013404", "pos": 13404, "allele": "C"},
+        ]
+
+        issues = _validate_mt_source(_MT_SOURCE, mt_tree)
+        assert any(
+            "Marker-exact mtDNA node H1a" in issue and "expected" in issue for issue in issues
         )
 
     def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
