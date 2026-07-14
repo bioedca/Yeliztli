@@ -66,27 +66,40 @@ _MT_BASELINE_V1_SEMANTIC_SHA256 = (
 _MT_BASELINE_V1_COVERAGE_SHA256 = (
     "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e"
 )
-_MT_BASELINE_V2_DIRECT_SEMANTIC_SHA256 = (
+_MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
     "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e"
 )
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = (
-    "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
-)
+_MT_LOCKED_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
     "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
     "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
 )
+_MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
+    "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4"
+)
+_MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
+    "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1"
+)
+_MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
+    "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4"
+)
+_MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
+    "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1"
+)
+_MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
+    "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
+)
 _MT_INITIAL_PENDING_NAMES_SHA256 = (
     "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde"
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "bedc610cd57aec4ede72a3832bf5e03247fae471ea66fb764dc6792d2ef3673d"
+_MT_STATE_PARTITION_SHA256 = "bf289fb2dd3bfb03740cf7c34c332dfca4511d82523b3388962ffa330e227999"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
 )
@@ -2214,13 +2227,48 @@ def _index_mt_tree(root: dict[str, Any]) -> MtTreeInventory:
     )
 
 
-def _sorted_unique_string_list(value: Any, label: str, issues: list[str]) -> list[str]:
+def _sorted_unique_string_list(
+    value: Any,
+    label: str,
+    issues: list[str],
+    subject: str = "mtDNA migration",
+) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        issues.append(f"mtDNA migration {label} must be a list of node names")
+        issues.append(f"{subject} {label} must be a list of node names")
         return []
     if value != sorted(value) or len(value) != len(set(value)):
-        issues.append(f"mtDNA migration {label} must be sorted and unique")
+        issues.append(f"{subject} {label} must be sorted and unique")
     return value
+
+
+def _mt_parse_substitution_notation(
+    notation: Any,
+) -> tuple[str, int, str, bool, int] | None:
+    """Parse one Build-17 substitution token without globalizing event semantics."""
+    if not isinstance(notation, str) or not notation:
+        return None
+    starts_group = notation.startswith("(")
+    ends_group = notation.endswith(")")
+    if starts_group != ends_group:
+        return None
+    recurrent_or_uncertain = starts_group
+    token = notation[1:-1] if recurrent_or_uncertain else notation
+    reversion_count = len(token) - len(token.rstrip("!"))
+    if reversion_count:
+        token = token[:-reversion_count]
+    match = re.fullmatch(r"([ACGT])(\d+)([ACGTacgt])", token)
+    if match is None:
+        return None
+    pos = int(match.group(2))
+    if not 1 <= pos <= 16569:
+        return None
+    return (
+        match.group(1),
+        pos,
+        match.group(3).upper(),
+        recurrent_or_uncertain,
+        reversion_count,
+    )
 
 
 def _mt_validate_mutation_list(
@@ -2289,17 +2337,13 @@ def _mt_validate_mutation_list(
         if mutation_type == "substitution":
             ancestral = mutation.get("ancestral_allele")
             derived = mutation.get("derived_allele")
-            notation_match = (
-                re.fullmatch(r"([ACGT])(\d+)([ACGTacgt])(!?)", notation)
-                if isinstance(notation, str)
-                else None
-            )
-            if notation_match is None:
+            notation_parts = _mt_parse_substitution_notation(notation)
+            if notation_parts is None:
                 issues.append(f"mtDNA substitution {owner}:{pos} has invalid Build-17 notation")
             elif (
-                notation_match.group(1) != ancestral
-                or int(notation_match.group(2)) != pos
-                or notation_match.group(3).upper() != derived
+                notation_parts[0] != ancestral
+                or notation_parts[1] != pos
+                or notation_parts[2] != derived
             ):
                 issues.append(
                     f"mtDNA substitution {owner}:{pos} notation disagrees with its "
@@ -2542,12 +2586,15 @@ def _mt_validate_exact_record(
     expected_keys = {
         "source_node",
         "emitted_parent",
+        "source_motif_status",
         "source_topology",
         "direct_source_motif",
         "emitted_snps",
     }
     if set(record) != expected_keys:
         issues.append(f"Marker-exact mtDNA node {node_name} has invalid provenance fields")
+    if record.get("source_motif_status") not in {"exact", "legacy_partial"}:
+        issues.append(f"Marker-exact mtDNA node {node_name} has an invalid source-motif status")
     owner_motifs = _mt_owner_motifs(node_name, record, omitted_nodes, issues)
     emitted_decisions: dict[tuple[str, int], tuple[str, str]] = {}
     for owner, motif in owner_motifs.items():
@@ -2667,10 +2714,10 @@ def _mt_v1_coverage_rows(source: dict[str, Any], names: list[str]) -> list[tuple
     return rows
 
 
-def _mt_baseline_v2_direct_projection(
+def _mt_baseline_v2_registry_projection(
     source: dict[str, Any], names: list[str]
 ) -> list[dict[str, Any]]:
-    """Project immutable direct provenance while excluding migratable topology."""
+    """Project the immutable schema-v2 registry snapshot without claiming motif parity."""
     nodes = source["nodes"]
     return [
         {
@@ -2691,6 +2738,21 @@ def _mt_baseline_v2_direct_projection(
                 }
                 for marker in nodes[name]["emitted_snps"]
             ],
+        }
+        for name in names
+    ]
+
+
+def _mt_direct_motif_semantic_projection(
+    source: dict[str, Any], names: list[str]
+) -> list[dict[str, Any]]:
+    """Project only independently checked direct Build-17 motif evidence."""
+    nodes = source["nodes"]
+    return [
+        {
+            "node": name,
+            "source_node": nodes[name]["source_node"],
+            "direct_source_motif": nodes[name]["direct_source_motif"],
         }
         for name in names
     ]
@@ -2752,6 +2814,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         "references",
         "array_exports",
         "array_cohorts",
+        "direct_source_motif_states",
         "omitted_nodes",
         "nodes",
         "structural_exceptions",
@@ -2843,6 +2906,32 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     structural = category_maps["structural_exceptions"]
     pending = category_maps["pending_nodes"]
     omitted = category_maps["omitted_nodes"]
+    direct_motif_states = source.get("direct_source_motif_states")
+    if not isinstance(direct_motif_states, dict):
+        issues.append("mtDNA source registry has no direct-source motif states")
+        direct_motif_states = {}
+    if set(direct_motif_states) != {"exact_nodes", "legacy_partial_nodes"}:
+        issues.append("mtDNA direct-source motif states have unexpected or missing fields")
+    direct_motif_exact = _sorted_unique_string_list(
+        direct_motif_states.get("exact_nodes"),
+        "exact_nodes",
+        issues,
+        "mtDNA direct-source motif state",
+    )
+    direct_motif_partial = _sorted_unique_string_list(
+        direct_motif_states.get("legacy_partial_nodes"),
+        "legacy_partial_nodes",
+        issues,
+        "mtDNA direct-source motif state",
+    )
+    direct_motif_overlap = set(direct_motif_exact) & set(direct_motif_partial)
+    if direct_motif_overlap:
+        issues.append(
+            "mtDNA exact and legacy-partial direct-source motif states overlap: "
+            + ", ".join(sorted(direct_motif_overlap))
+        )
+    if set(direct_motif_exact) | set(direct_motif_partial) != set(nodes):
+        issues.append("mtDNA direct-source motif states do not partition the marker-exact nodes")
     categories = {
         "marker-exact": set(nodes),
         "structural": set(structural),
@@ -2888,6 +2977,12 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             record.get("emitted_parent")
         ):
             issues.append(f"Marker-exact mtDNA node {name} has an invalid emitted parent")
+        expected_motif_status = "exact" if name in set(direct_motif_exact) else "legacy_partial"
+        if record.get("source_motif_status") != expected_motif_status:
+            issues.append(
+                f"Marker-exact mtDNA node {name} source-motif status disagrees with "
+                "the direct-source motif frontier"
+            )
         _mt_validate_exact_record(name, record, omitted, cohorts, issues)
     direct_source_nodes = [
         record.get("source_node")
@@ -2961,12 +3056,20 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         "baseline_exact_nodes_sha256",
         "baseline_v1_semantic_sha256",
         "baseline_v1_coverage_sha256",
-        "baseline_v2_direct_semantic_sha256",
+        "baseline_v2_registry_semantic_sha256",
         "baseline_v2_coverage_membership_sha256",
         "locked_exact_nodes",
         "locked_exact_nodes_sha256",
         "locked_exact_semantic_sha256",
         "locked_exact_coverage_membership_sha256",
+        "baseline_direct_motif_exact_nodes",
+        "baseline_direct_motif_exact_nodes_sha256",
+        "baseline_direct_motif_semantic_sha256",
+        "locked_direct_motif_exact_nodes",
+        "locked_direct_motif_exact_nodes_sha256",
+        "locked_direct_motif_semantic_sha256",
+        "initial_direct_motif_pending_nodes",
+        "initial_direct_motif_pending_nodes_sha256",
         "initial_pending_nodes",
         "initial_pending_nodes_sha256",
         "array_manifest_sha256",
@@ -2987,6 +3090,21 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     locked = _sorted_unique_string_list(
         migration.get("locked_exact_nodes"), "locked_exact_nodes", issues
     )
+    baseline_direct_motif_exact = _sorted_unique_string_list(
+        migration.get("baseline_direct_motif_exact_nodes"),
+        "baseline_direct_motif_exact_nodes",
+        issues,
+    )
+    locked_direct_motif_exact = _sorted_unique_string_list(
+        migration.get("locked_direct_motif_exact_nodes"),
+        "locked_direct_motif_exact_nodes",
+        issues,
+    )
+    initial_direct_motif_pending = _sorted_unique_string_list(
+        migration.get("initial_direct_motif_pending_nodes"),
+        "initial_direct_motif_pending_nodes",
+        issues,
+    )
     initial_pending = _sorted_unique_string_list(
         migration.get("initial_pending_nodes"), "initial_pending_nodes", issues
     )
@@ -3000,6 +3118,20 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         issues.append("mtDNA baseline exact frontier regressed")
     if set(locked) != set(nodes):
         issues.append("mtDNA locked exact frontier does not equal the live marker-exact nodes")
+    if not set(baseline_direct_motif_exact).issubset(locked_direct_motif_exact):
+        issues.append("mtDNA baseline direct-source motif frontier regressed")
+    if set(locked_direct_motif_exact) != set(direct_motif_exact):
+        issues.append(
+            "mtDNA locked direct-source motif frontier does not equal the live exact state"
+        )
+    if not set(direct_motif_partial).issubset(initial_direct_motif_pending):
+        issues.append("mtDNA direct-source motif pending frontier grew beyond its baseline")
+    if set(baseline_direct_motif_exact) & set(initial_direct_motif_pending):
+        issues.append("mtDNA baseline direct-source motif states overlap")
+    if set(baseline_direct_motif_exact) | set(initial_direct_motif_pending) != set(baseline):
+        issues.append(
+            "mtDNA baseline direct-source motif states do not partition the marker baseline"
+        )
     if not set(pending).issubset(initial_pending):
         issues.append("mtDNA pending frontier grew beyond the initial audited tree")
     dispositions = set(nodes) | set(structural) | set(pending) | set(omitted)
@@ -3014,6 +3146,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     )
     state_partition_digest = _canonical_json_sha256(
         {
+            "direct_source_motif_states": direct_motif_states,
             "omitted_nodes": omitted,
             "structural_exceptions": structural,
             "pending_nodes": pending,
@@ -3034,6 +3167,21 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             "locked_exact_nodes_sha256",
             _canonical_json_sha256(locked),
             _MT_LOCKED_EXACT_NAMES_SHA256,
+        ),
+        (
+            "baseline_direct_motif_exact_nodes_sha256",
+            _canonical_json_sha256(baseline_direct_motif_exact),
+            _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        ),
+        (
+            "locked_direct_motif_exact_nodes_sha256",
+            _canonical_json_sha256(locked_direct_motif_exact),
+            _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        ),
+        (
+            "initial_direct_motif_pending_nodes_sha256",
+            _canonical_json_sha256(initial_direct_motif_pending),
+            _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256,
         ),
         (
             "initial_pending_nodes_sha256",
@@ -3064,14 +3212,22 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         ("baseline_v1_semantic_sha256", _MT_BASELINE_V1_SEMANTIC_SHA256),
         ("baseline_v1_coverage_sha256", _MT_BASELINE_V1_COVERAGE_SHA256),
         (
-            "baseline_v2_direct_semantic_sha256",
-            _MT_BASELINE_V2_DIRECT_SEMANTIC_SHA256,
+            "baseline_v2_registry_semantic_sha256",
+            _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256,
         ),
         (
             "baseline_v2_coverage_membership_sha256",
             _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256,
         ),
         ("locked_exact_semantic_sha256", _MT_LOCKED_EXACT_SEMANTIC_SHA256),
+        (
+            "baseline_direct_motif_semantic_sha256",
+            _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256,
+        ),
+        (
+            "locked_direct_motif_semantic_sha256",
+            _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256,
+        ),
         (
             "locked_exact_coverage_membership_sha256",
             _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256,
@@ -3101,8 +3257,8 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
                 _sorted_tsv_sha256(_mt_v1_coverage_rows(source, baseline)),
             ),
             (
-                "baseline_v2_direct_semantic_sha256",
-                _canonical_json_sha256(_mt_baseline_v2_direct_projection(source, baseline)),
+                "baseline_v2_registry_semantic_sha256",
+                _canonical_json_sha256(_mt_baseline_v2_registry_projection(source, baseline)),
             ),
             (
                 "baseline_v2_coverage_membership_sha256",
@@ -3111,6 +3267,18 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             (
                 "locked_exact_semantic_sha256",
                 _canonical_json_sha256(_mt_locked_semantic_projection(source, locked)),
+            ),
+            (
+                "baseline_direct_motif_semantic_sha256",
+                _canonical_json_sha256(
+                    _mt_direct_motif_semantic_projection(source, baseline_direct_motif_exact)
+                ),
+            ),
+            (
+                "locked_direct_motif_semantic_sha256",
+                _canonical_json_sha256(
+                    _mt_direct_motif_semantic_projection(source, locked_direct_motif_exact)
+                ),
             ),
             (
                 "locked_exact_coverage_membership_sha256",
@@ -3378,6 +3546,13 @@ def _validate_mt_registry_against_tree(
 def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInventory) -> bool:
     if source["pending_nodes"]:
         return False
+    motif_states = source.get("direct_source_motif_states")
+    if (
+        not isinstance(motif_states, dict)
+        or motif_states.get("legacy_partial_nodes")
+        or set(motif_states.get("exact_nodes", ())) != set(source["nodes"])
+    ):
+        return False
     for name, occurrence in inventory.by_name.items():
         if occurrence.parent is None:
             continue
@@ -3411,6 +3586,8 @@ def _validate_mt_source(
 def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory) -> dict[str, Any]:
     """Derive inspectable schema-v2 coverage metadata from validated records."""
     exact_names = sorted(source["nodes"])
+    direct_motif_exact_names = source["direct_source_motif_states"]["exact_nodes"]
+    direct_motif_partial_names = source["direct_source_motif_states"]["legacy_partial_nodes"]
     structural_names = sorted(source["structural_exceptions"])
     pending_names = sorted(source["pending_nodes"])
     omitted_names = sorted(source["omitted_nodes"])
@@ -3431,6 +3608,16 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
         for step in record["source_topology"]["flattened_source_path"]:
             motifs_by_owner.setdefault(step["source_node"], step["direct_source_motif"])
     motif_decisions = [mutation for motif in motifs_by_owner.values() for mutation in motif]
+    exact_direct_motif_decisions = [
+        mutation
+        for name in direct_motif_exact_names
+        for mutation in source["nodes"][name]["direct_source_motif"]
+    ]
+    partial_direct_motif_decisions = [
+        mutation
+        for name in direct_motif_partial_names
+        for mutation in source["nodes"][name]["direct_source_motif"]
+    ]
     source_edges_validated = sum(
         record["source_topology"]["status"] == "exact" for record in source["nodes"].values()
     ) + sum(
@@ -3443,15 +3630,26 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
         cohort_id = marker["array_coverage"]["cohort_id"]
         cohort_counts[cohort_id] = cohort_counts.get(cohort_id, 0) + 1
     emitted_decisions = sum(mutation["emitted"] is True for mutation in motif_decisions)
-    recurrence_events = sum(
-        isinstance(mutation.get("notation"), str) and mutation["notation"].endswith("!")
+    parsed_substitutions = [
+        parsed
         for mutation in motif_decisions
-    )
+        if (parsed := _mt_parse_substitution_notation(mutation.get("notation"))) is not None
+    ]
     return {
         "migration_status": source["migration"]["status"],
         "emitted_nodes": len(inventory.occurrences),
         "marker_bearing_nodes": len(inventory.marker_bearing_names),
         "marker_exact_nodes": {"count": len(exact_names), "names": exact_names},
+        "direct_source_motif_nodes": {
+            "exact": {
+                "count": len(direct_motif_exact_names),
+                "names": direct_motif_exact_names,
+            },
+            "legacy_partial": {
+                "count": len(direct_motif_partial_names),
+                "names": direct_motif_partial_names,
+            },
+        },
         "structural_nodes": {
             "count": len(structural_names),
             "names": structural_names,
@@ -3466,7 +3664,11 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             "total": len(motif_decisions),
             "emitted": emitted_decisions,
             "omitted": len(motif_decisions) - emitted_decisions,
-            "recurrent_events": recurrence_events,
+            "direct_motif_exact": len(exact_direct_motif_decisions),
+            "direct_motif_legacy_partial": len(partial_direct_motif_decisions),
+            "recurrent_or_uncertain_events": sum(parsed[3] for parsed in parsed_substitutions),
+            "reversion_events": sum(parsed[4] > 0 for parsed in parsed_substitutions),
+            "reversion_marks": sum(parsed[4] for parsed in parsed_substitutions),
         },
         "emitted_parent_edges": {
             "total": inventory.edge_count,
@@ -3485,6 +3687,10 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             "count": len(source["migration"]["locked_exact_nodes"]),
             "sha256": source["migration"]["locked_exact_nodes_sha256"],
         },
+        "locked_direct_motif_frontier": {
+            "count": len(source["migration"]["locked_direct_motif_exact_nodes"]),
+            "sha256": source["migration"]["locked_direct_motif_exact_nodes_sha256"],
+        },
         "digests": {
             key: source["migration"][key]
             for key in (
@@ -3494,8 +3700,13 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
                 "baseline_v1_coverage_sha256",
                 "baseline_v1_semantic_sha256",
                 "baseline_v2_coverage_membership_sha256",
-                "baseline_v2_direct_semantic_sha256",
+                "baseline_v2_registry_semantic_sha256",
+                "baseline_direct_motif_exact_nodes_sha256",
+                "baseline_direct_motif_semantic_sha256",
                 "initial_pending_nodes_sha256",
+                "initial_direct_motif_pending_nodes_sha256",
+                "locked_direct_motif_exact_nodes_sha256",
+                "locked_direct_motif_semantic_sha256",
                 "locked_exact_coverage_membership_sha256",
                 "locked_exact_semantic_sha256",
                 "source_metadata_sha256",

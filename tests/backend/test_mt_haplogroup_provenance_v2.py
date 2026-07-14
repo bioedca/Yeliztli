@@ -12,6 +12,8 @@ import pytest
 from scripts.build_haplogroup_bundle import (
     _MT_SOURCE,
     _index_mt_tree,
+    _mt_migration_complete_ready,
+    _mt_parse_substitution_notation,
     _mt_validate_exact_record,
     _summarize_mt_provenance,
     _validate_mt_registry_against_tree,
@@ -27,17 +29,26 @@ LEGACY_V1_COVERAGE_SHA256 = "375c6a5af32e22bd71026391b5a0552bfa260bac09cf6666f84
 BASELINE_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
 BASELINE_V1_SEMANTIC_SHA256 = "9228fe0e2158acc8afc324227860c33031c1e1fda8d256f807e19d10eff44972"
 BASELINE_V1_COVERAGE_SHA256 = "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e"
-BASELINE_V2_DIRECT_SEMANTIC_SHA256 = (
+BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
     "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e"
 )
 BASELINE_V2_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
 LOCKED_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
 LOCKED_EXACT_SEMANTIC_SHA256 = "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
 LOCKED_EXACT_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
+DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
+    "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4"
+)
+DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
+    "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1"
+)
+INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
+    "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
+)
 INITIAL_PENDING_NAMES_SHA256 = "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "bedc610cd57aec4ede72a3832bf5e03247fae471ea66fb764dc6792d2ef3673d"
+STATE_PARTITION_SHA256 = "bf289fb2dd3bfb03740cf7c34c332dfca4511d82523b3388962ffa330e227999"
 EMITTED_TREE_SHA256 = "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
@@ -101,6 +112,49 @@ EXPECTED_COHORTS = {
         "export_ids": HISTORICAL_EXPORTS,
     },
 }
+
+DIRECT_MOTIF_EXACT_NODES = [
+    "C",
+    "G1",
+    "G2",
+    "H10",
+    "H13",
+    "H13a",
+    "H6a",
+    "J1d",
+    "K1b",
+    "K2",
+    "K2b",
+    "L2c",
+    "M1",
+    "M8",
+    "M8a",
+    "S",
+    "T2a",
+    "U2",
+    "U3a",
+    "U3b",
+    "U5b2",
+    "W1",
+    "X",
+    "X2b",
+    "Z",
+    "Z1",
+]
+DIRECT_MOTIF_LEGACY_PARTIAL_NODES = [
+    "G",
+    "H6",
+    "K",
+    "K1",
+    "K1a",
+    "K2a",
+    "U2e",
+    "X2",
+    "X2a",
+    "Y1",
+    "Y2",
+    "Y_mt",
+]
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -188,17 +242,31 @@ def _locked_semantic_projection(source: dict[str, Any], names: list[str]) -> lis
     ]
 
 
-def _baseline_v2_direct_projection(
+def _baseline_v2_registry_projection(
     source: dict[str, Any], names: list[str]
 ) -> list[dict[str, Any]]:
     return [
-        {key: value for key, value in record.items() if key != "source_topology"}
-        | {
+        {
             "node": name,
+            "source_node": source["nodes"][name]["source_node"],
+            "emitted_parent": source["nodes"][name]["emitted_parent"],
+            "direct_source_motif": source["nodes"][name]["direct_source_motif"],
             "emitted_snps": _locked_semantic_projection(source, [name])[0]["emitted_snps"],
         }
         for name in names
-        for record in [source["nodes"][name]]
+    ]
+
+
+def _direct_motif_semantic_projection(
+    source: dict[str, Any], names: list[str]
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "node": name,
+            "source_node": source["nodes"][name]["source_node"],
+            "direct_source_motif": source["nodes"][name]["direct_source_motif"],
+        }
+        for name in names
     ]
 
 
@@ -258,11 +326,17 @@ def _refresh_semantic_projection_digests(source: dict[str, Any]) -> None:
     migration["baseline_v1_semantic_sha256"] = _canonical_sha256(
         _v1_semantic_projection(source, migration["baseline_exact_nodes"])
     )
-    migration["baseline_v2_direct_semantic_sha256"] = _canonical_sha256(
-        _baseline_v2_direct_projection(source, migration["baseline_exact_nodes"])
+    migration["baseline_v2_registry_semantic_sha256"] = _canonical_sha256(
+        _baseline_v2_registry_projection(source, migration["baseline_exact_nodes"])
     )
     migration["locked_exact_semantic_sha256"] = _canonical_sha256(
         _locked_semantic_projection(source, migration["locked_exact_nodes"])
+    )
+    migration["baseline_direct_motif_semantic_sha256"] = _canonical_sha256(
+        _direct_motif_semantic_projection(source, migration["baseline_direct_motif_exact_nodes"])
+    )
+    migration["locked_direct_motif_semantic_sha256"] = _canonical_sha256(
+        _direct_motif_semantic_projection(source, migration["locked_direct_motif_exact_nodes"])
     )
 
 
@@ -300,6 +374,22 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
         inventory.marker_bearing_names
     )
     assert set(_MT_SOURCE["structural_exceptions"]) == set(inventory.markerless_names)
+    assert _MT_SOURCE["direct_source_motif_states"] == {
+        "exact_nodes": DIRECT_MOTIF_EXACT_NODES,
+        "legacy_partial_nodes": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
+    }
+    assert set(DIRECT_MOTIF_EXACT_NODES).isdisjoint(DIRECT_MOTIF_LEGACY_PARTIAL_NODES)
+    assert set(DIRECT_MOTIF_EXACT_NODES) | set(DIRECT_MOTIF_LEGACY_PARTIAL_NODES) == set(
+        _MT_SOURCE["nodes"]
+    )
+    assert all(
+        _MT_SOURCE["nodes"][name]["source_motif_status"] == "exact"
+        for name in DIRECT_MOTIF_EXACT_NODES
+    )
+    assert all(
+        _MT_SOURCE["nodes"][name]["source_motif_status"] == "legacy_partial"
+        for name in DIRECT_MOTIF_LEGACY_PARTIAL_NODES
+    )
     assert _validate_mt_source_schema(_MT_SOURCE) == []
     assert _validate_mt_registry_against_tree(_MT_SOURCE, inventory) == []
     assert _validate_mt_source(_MT_SOURCE) == []
@@ -331,6 +421,53 @@ def test_partition_rejects_missing_overlap_and_orphan(mutation: str, expected: s
     assert expected in _issues_text(issues)
 
 
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("overlap", "exact and legacy-partial direct-source motif states overlap: G"),
+        ("missing", "direct-source motif states do not partition the marker-exact nodes"),
+        ("orphan", "direct-source motif states do not partition the marker-exact nodes"),
+    ],
+)
+def test_direct_source_motif_states_are_disjoint_and_exhaustive(
+    mutation: str, expected: str
+) -> None:
+    source = deepcopy(_MT_SOURCE)
+    states = source["direct_source_motif_states"]
+    if mutation == "overlap":
+        states["exact_nodes"].append("G")
+        states["exact_nodes"].sort()
+    elif mutation == "missing":
+        states["legacy_partial_nodes"].remove("G")
+    else:
+        states["exact_nodes"].append("not-an-emitted-node")
+        states["exact_nodes"].sort()
+
+    assert expected in _issues_text(_validate_mt_source_schema(source))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("missing", "invalid provenance fields"),
+        ("unknown", "invalid source-motif status"),
+        ("disagrees", "source-motif status disagrees with the direct-source motif frontier"),
+    ],
+)
+def test_per_record_source_motif_status_is_explicit_and_agrees_with_frontier(
+    mutation: str, expected: str
+) -> None:
+    source = deepcopy(_MT_SOURCE)
+    if mutation == "missing":
+        source["nodes"]["C"].pop("source_motif_status")
+    elif mutation == "unknown":
+        source["nodes"]["C"]["source_motif_status"] = "assumed"
+    else:
+        source["nodes"]["C"]["source_motif_status"] = "legacy_partial"
+
+    assert expected in _issues_text(_validate_mt_source_schema(source))
+
+
 def test_duplicate_tree_occurrence_is_reported_before_name_deduplication() -> None:
     tree = build_mt_tree()
     duplicated_name = tree["children"][0]["haplogroup"]
@@ -351,6 +488,15 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
     assert _canonical_sha256(migration["legacy_locked_exact_nodes"]) == (LEGACY_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["baseline_exact_nodes"]) == (BASELINE_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["locked_exact_nodes"]) == (LOCKED_EXACT_NAMES_SHA256)
+    assert _canonical_sha256(migration["baseline_direct_motif_exact_nodes"]) == (
+        DIRECT_MOTIF_EXACT_NAMES_SHA256
+    )
+    assert _canonical_sha256(migration["locked_direct_motif_exact_nodes"]) == (
+        DIRECT_MOTIF_EXACT_NAMES_SHA256
+    )
+    assert _canonical_sha256(migration["initial_direct_motif_pending_nodes"]) == (
+        INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256
+    )
     assert _canonical_sha256(migration["initial_pending_nodes"]) == (INITIAL_PENDING_NAMES_SHA256)
     assert (
         _canonical_sha256(
@@ -368,6 +514,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
     assert (
         _canonical_sha256(
             {
+                "direct_source_motif_states": _MT_SOURCE["direct_source_motif_states"],
                 "omitted_nodes": _MT_SOURCE["omitted_nodes"],
                 "structural_exceptions": _MT_SOURCE["structural_exceptions"],
                 "pending_nodes": _MT_SOURCE["pending_nodes"],
@@ -397,9 +544,9 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
     )
     assert (
         _canonical_sha256(
-            _baseline_v2_direct_projection(_MT_SOURCE, migration["baseline_exact_nodes"])
+            _baseline_v2_registry_projection(_MT_SOURCE, migration["baseline_exact_nodes"])
         )
-        == BASELINE_V2_DIRECT_SEMANTIC_SHA256
+        == BASELINE_V2_REGISTRY_SEMANTIC_SHA256
     )
     assert (
         _tsv_sha256(_locked_coverage_rows(_MT_SOURCE, migration["baseline_exact_nodes"]))
@@ -413,6 +560,22 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         _tsv_sha256(_locked_coverage_rows(_MT_SOURCE, migration["locked_exact_nodes"]))
         == LOCKED_EXACT_COVERAGE_SHA256
     )
+    assert (
+        _canonical_sha256(
+            _direct_motif_semantic_projection(
+                _MT_SOURCE, migration["baseline_direct_motif_exact_nodes"]
+            )
+        )
+        == DIRECT_MOTIF_EXACT_SEMANTIC_SHA256
+    )
+    assert (
+        _canonical_sha256(
+            _direct_motif_semantic_projection(
+                _MT_SOURCE, migration["locked_direct_motif_exact_nodes"]
+            )
+        )
+        == DIRECT_MOTIF_EXACT_SEMANTIC_SHA256
+    )
 
     expected_literals = {
         "legacy_locked_exact_nodes_sha256": LEGACY_EXACT_NAMES_SHA256,
@@ -421,11 +584,16 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
         "baseline_exact_nodes_sha256": BASELINE_EXACT_NAMES_SHA256,
         "baseline_v1_semantic_sha256": BASELINE_V1_SEMANTIC_SHA256,
         "baseline_v1_coverage_sha256": BASELINE_V1_COVERAGE_SHA256,
-        "baseline_v2_direct_semantic_sha256": BASELINE_V2_DIRECT_SEMANTIC_SHA256,
+        "baseline_v2_registry_semantic_sha256": BASELINE_V2_REGISTRY_SEMANTIC_SHA256,
         "baseline_v2_coverage_membership_sha256": BASELINE_V2_COVERAGE_SHA256,
         "locked_exact_nodes_sha256": LOCKED_EXACT_NAMES_SHA256,
         "locked_exact_semantic_sha256": LOCKED_EXACT_SEMANTIC_SHA256,
         "locked_exact_coverage_membership_sha256": LOCKED_EXACT_COVERAGE_SHA256,
+        "baseline_direct_motif_exact_nodes_sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        "baseline_direct_motif_semantic_sha256": DIRECT_MOTIF_EXACT_SEMANTIC_SHA256,
+        "locked_direct_motif_exact_nodes_sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        "locked_direct_motif_semantic_sha256": DIRECT_MOTIF_EXACT_SEMANTIC_SHA256,
+        "initial_direct_motif_pending_nodes_sha256": (INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256),
         "initial_pending_nodes_sha256": INITIAL_PENDING_NAMES_SHA256,
         "array_manifest_sha256": ARRAY_MANIFEST_SHA256,
         "source_metadata_sha256": SOURCE_METADATA_SHA256,
@@ -465,7 +633,7 @@ def test_baseline_exact_node_cannot_regress_to_a_weaker_state(destination: str) 
 
 def test_coherent_semantic_drift_cannot_rewrite_locked_digests() -> None:
     source = deepcopy(_MT_SOURCE)
-    source["nodes"]["G"]["direct_source_motif"][0]["notation"] = "A4833g"
+    source["nodes"]["G1"]["direct_source_motif"][0]["notation"] = "T8200c"
     _refresh_semantic_projection_digests(source)
 
     issues = _validate_mt_source_schema(source)
@@ -473,8 +641,25 @@ def test_coherent_semantic_drift_cannot_rewrite_locked_digests() -> None:
     assert "does not match its registry projection" not in text
     assert "legacy_v1_semantic_sha256 differs from the locked baseline" in text
     assert "baseline_v1_semantic_sha256 differs from the locked baseline" in text
-    assert "baseline_v2_direct_semantic_sha256 differs from the locked baseline" in text
+    assert "baseline_v2_registry_semantic_sha256 differs from the locked baseline" in text
     assert "locked_exact_semantic_sha256 differs from the locked baseline" in text
+    assert "baseline_direct_motif_semantic_sha256 differs from the locked baseline" in text
+    assert "locked_direct_motif_semantic_sha256 differs from the locked baseline" in text
+
+
+def test_direct_source_motif_exact_frontier_cannot_regress() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["direct_source_motif_states"]["exact_nodes"].remove("C")
+    source["direct_source_motif_states"]["legacy_partial_nodes"].append("C")
+    source["direct_source_motif_states"]["legacy_partial_nodes"].sort()
+    source["migration"]["locked_direct_motif_exact_nodes"].remove("C")
+    source["migration"]["locked_direct_motif_exact_nodes_sha256"] = _canonical_sha256(
+        source["migration"]["locked_direct_motif_exact_nodes"]
+    )
+
+    text = _issues_text(_validate_mt_source_schema(source))
+    assert "baseline direct-source motif frontier regressed" in text
+    assert "direct-source motif pending frontier grew beyond its baseline" in text
 
 
 def test_coherent_coverage_drift_cannot_rewrite_locked_digests() -> None:
@@ -565,6 +750,25 @@ def test_substitution_notation_must_match_declared_direction() -> None:
     assert "notation disagrees with its declared allele direction" in _issues_text(
         _validate_mt_source_schema(source)
     )
+
+
+@pytest.mark.parametrize(
+    ("notation", "expected"),
+    [
+        ("T146C!", ("T", 146, "C", False, 1)),
+        ("C146T!!", ("C", 146, "T", False, 2)),
+        ("(T146C!!!)", ("T", 146, "C", True, 3)),
+    ],
+)
+def test_substitution_notation_preserves_lineage_local_event_marks(
+    notation: str, expected: tuple[str, int, str, bool, int]
+) -> None:
+    assert _mt_parse_substitution_notation(notation) == expected
+
+
+@pytest.mark.parametrize("notation", ["(T146C", "T146C)", "T146C!?", "A0G"])
+def test_invalid_substitution_notation_is_rejected(notation: str) -> None:
+    assert _mt_parse_substitution_notation(notation) is None
 
 
 def test_exact_structural_source_identity_cannot_alias_marker_exact_source() -> None:
@@ -786,6 +990,38 @@ def test_migration_status_cannot_claim_complete_with_pending_nodes() -> None:
     assert "migration status must be 'in_progress'" in text
 
 
+def test_migration_completion_requires_every_direct_source_motif_to_be_exact() -> None:
+    tree = {
+        "haplogroup": "root",
+        "defining_snps": [],
+        "children": [
+            {
+                "haplogroup": "child",
+                "defining_snps": [{"rsid": "test", "pos": 1, "allele": "G"}],
+            }
+        ],
+    }
+    inventory = _index_mt_tree(tree)
+    source = {
+        "pending_nodes": {},
+        "nodes": {"child": {"source_topology": {"status": "exact"}}},
+        "structural_exceptions": {
+            "root": {"source_status": "synthetic"},
+        },
+        "direct_source_motif_states": {
+            "exact_nodes": [],
+            "legacy_partial_nodes": ["child"],
+        },
+    }
+
+    assert not _mt_migration_complete_ready(source, inventory)
+    source["direct_source_motif_states"] = {
+        "exact_nodes": ["child"],
+        "legacy_partial_nodes": [],
+    }
+    assert _mt_migration_complete_ready(source, inventory)
+
+
 def test_clearing_pending_map_without_migrating_nodes_fails_closed() -> None:
     source = deepcopy(_MT_SOURCE)
     source["pending_nodes"].clear()
@@ -800,21 +1036,24 @@ def test_clearing_pending_map_without_migrating_nodes_fails_closed() -> None:
     assert "marker-bearing nodes do not equal exact plus pending states" in registry_text
 
 
-def test_source_aware_recurrence_allows_same_position_for_distinct_motif_owners() -> None:
-    k1_marker = next(
-        marker for marker in _MT_SOURCE["nodes"]["K1"]["emitted_snps"] if marker["pos"] == 10398
+def test_source_aware_recurrence_allows_same_direction_for_distinct_exact_owners() -> None:
+    m8a_marker = next(
+        marker for marker in _MT_SOURCE["nodes"]["M8a"]["emitted_snps"] if marker["pos"] == 14470
     )
-    y_marker = next(
-        marker for marker in _MT_SOURCE["nodes"]["Y_mt"]["emitted_snps"] if marker["pos"] == 10398
+    x_marker = next(
+        marker for marker in _MT_SOURCE["nodes"]["X"]["emitted_snps"] if marker["pos"] == 14470
     )
 
-    assert k1_marker["rsid"] == y_marker["rsid"] == "i5010398"
-    assert k1_marker["motif_owner"] == "K1"
-    assert _MT_SOURCE["nodes"]["Y_mt"]["source_node"] == "Y"
-    assert y_marker["motif_owner"] == "Y"
-    assert any(
-        mutation["notation"] == "A10398G!"
-        for mutation in _MT_SOURCE["nodes"]["Y_mt"]["direct_source_motif"]
+    assert m8a_marker["rsid"] == x_marker["rsid"] == "i5014470"
+    assert m8a_marker["motif_owner"] == "M8a"
+    assert x_marker["motif_owner"] == "X"
+    assert {"M8a", "X"} <= set(DIRECT_MOTIF_EXACT_NODES)
+    assert all(
+        any(
+            mutation["notation"] == "T14470C"
+            for mutation in _MT_SOURCE["nodes"][owner]["direct_source_motif"]
+        )
+        for owner in ("M8a", "X")
     )
     assert _validate_mt_source_schema(_MT_SOURCE) == []
 
@@ -822,15 +1061,15 @@ def test_source_aware_recurrence_allows_same_position_for_distinct_motif_owners(
 @pytest.mark.parametrize(
     ("field", "value", "expected"),
     [
-        ("motif_owner", "K1", "outside motif owner 'K1'"),
-        ("allele", "T", "does not match its source mutation direction"),
+        ("motif_owner", "M8a", "outside motif owner 'M8a'"),
+        ("allele", "A", "does not match its source mutation direction"),
     ],
 )
-def test_recurrence_marker_rejects_wrong_owner_and_direction(
+def test_recurrent_marker_rejects_wrong_owner_and_direction(
     field: str, value: str, expected: str
 ) -> None:
     source = deepcopy(_MT_SOURCE)
-    marker = next(item for item in source["nodes"]["Y_mt"]["emitted_snps"] if item["pos"] == 10398)
+    marker = next(item for item in source["nodes"]["X"]["emitted_snps"] if item["pos"] == 14470)
     marker[field] = value
 
     assert expected in _issues_text(_validate_mt_source_schema(source))
@@ -945,6 +1184,13 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["emitted_nodes"] == 194
     assert summary["marker_bearing_nodes"] == 192
     assert summary["marker_exact_nodes"]["count"] == 38
+    assert summary["direct_source_motif_nodes"] == {
+        "exact": {"count": 26, "names": DIRECT_MOTIF_EXACT_NODES},
+        "legacy_partial": {
+            "count": 12,
+            "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
+        },
+    }
     assert summary["structural_nodes"] == {
         "count": 2,
         "names": ["R0", "mt-MRCA"],
@@ -962,7 +1208,11 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "total": 116,
         "emitted": 86,
         "omitted": 30,
-        "recurrent_events": 11,
+        "direct_motif_exact": 79,
+        "direct_motif_legacy_partial": 37,
+        "recurrent_or_uncertain_events": 0,
+        "reversion_events": 11,
+        "reversion_marks": 11,
     }
     assert summary["emitted_parent_edges"] == {
         "total": 193,
@@ -974,6 +1224,10 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["locked_exact_frontier"] == {
         "count": 38,
         "sha256": BASELINE_EXACT_NAMES_SHA256,
+    }
+    assert summary["locked_direct_motif_frontier"] == {
+        "count": 26,
+        "sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
 
     bundle = build_bundle()

@@ -209,6 +209,11 @@ class TestBundleStructure:
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
         assert provenance["marker_exact_nodes"]["count"] == 38
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 26
+        assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
+        assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
+            provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
+        )
         assert provenance["structural_nodes"] == {
             "count": 2,
             "names": ["R0", "mt-MRCA"],
@@ -226,7 +231,11 @@ class TestBundleStructure:
             "total": 116,
             "emitted": 86,
             "omitted": 30,
-            "recurrent_events": 11,
+            "direct_motif_exact": 79,
+            "direct_motif_legacy_partial": 37,
+            "recurrent_or_uncertain_events": 0,
+            "reversion_events": 11,
+            "reversion_marks": 11,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 193,
