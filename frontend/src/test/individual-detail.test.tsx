@@ -190,6 +190,34 @@ function installMocks(individual: MockIndividual) {
   })
 }
 
+function failFindingsSummaryBeforeSuccess(
+  failedSampleId: number,
+  failedAttempts = 1,
+): Map<number, number> {
+  const successfulFetch = mockFetch.getMockImplementation()
+  if (!successfulFetch) {
+    throw new Error("installMocks must run before configuring summary failures")
+  }
+
+  const summaryCalls = new Map<number, number>()
+  mockFetch.mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString()
+    const summaryMatch =
+      /^\/api\/analysis\/findings\/summary\?sample_id=(\d+)/.exec(url)
+    if (summaryMatch) {
+      const sampleId = Number(summaryMatch[1])
+      const calls = (summaryCalls.get(sampleId) ?? 0) + 1
+      summaryCalls.set(sampleId, calls)
+      if (sampleId === failedSampleId && calls <= failedAttempts) {
+        return Promise.resolve(jsonResponse({ detail: "summary unavailable" }, 500))
+      }
+    }
+    return successfulFetch(input)
+  })
+
+  return summaryCalls
+}
+
 function individualPayload(individual: MockIndividual) {
   return {
     id: individual.id,
@@ -573,6 +601,133 @@ describe("IndividualDetail page", () => {
     expect(
       within(cftrRow).queryByText("bob_23andme.txt"),
     ).not.toBeInTheDocument()
+  })
+
+  it("shows a named error instead of the benign empty state and retries the failed summary", async () => {
+    installMocks({
+      id: 15,
+      display_name: "Erin",
+      aggregated_findings_count: 1,
+      linked_samples: [
+        {
+          id: 41,
+          name: "erin_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [
+            {
+              id: 4101,
+              module: "apoe",
+              rsid: "rs429358",
+              finding_text: "APOE ε4 carrier",
+              evidence_level: 4,
+              gene_symbol: "APOE",
+            },
+          ],
+        },
+      ],
+    })
+    const summaryCalls = failFindingsSummaryBeforeSuccess(41)
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/15"]),
+    })
+
+    const section = await screen.findByRole("region", {
+      name: "Aggregated high-confidence findings",
+    })
+    const alert = await within(section).findByRole("alert")
+    expect(alert).toHaveTextContent("Couldn’t load high-confidence findings")
+    expect(alert).toHaveTextContent("erin_23andme.txt")
+    expect(
+      within(section).queryByText("No high-confidence findings yet"),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(alert).getByRole("button", { name: /retry/i }))
+
+    expect(
+      await within(section).findByTestId("aggregated-finding-rsid:rs429358"),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(section).queryByRole("alert")).not.toBeInTheDocument()
+    })
+    expect(summaryCalls.get(41)).toBe(2)
+  })
+
+  it("surfaces a named partial failure without hiding successful findings", async () => {
+    installMocks({
+      id: 16,
+      display_name: "Fran",
+      aggregated_findings_count: 2,
+      linked_samples: [
+        {
+          id: 51,
+          name: "fran_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [
+            {
+              id: 5101,
+              module: "pharmacogenomics",
+              rsid: "rs1057910",
+              finding_text: "CYP2C9 intermediate metabolizer",
+              evidence_level: 3,
+              gene_symbol: "CYP2C9",
+            },
+          ],
+        },
+        {
+          id: 52,
+          name: "fran_ancestry.txt",
+          file_format: "ancestrydna_v2.0",
+          vendor: "ancestrydna",
+          variantCount: 700000,
+          highConfidenceFindings: [
+            {
+              id: 5201,
+              module: "carrier",
+              rsid: "rs113993960",
+              finding_text: "CFTR ΔF508 carrier",
+              evidence_level: 4,
+              gene_symbol: "CFTR",
+            },
+          ],
+        },
+      ],
+    })
+    const summaryCalls = failFindingsSummaryBeforeSuccess(52)
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/16"]),
+    })
+
+    const section = await screen.findByRole("region", {
+      name: "Aggregated high-confidence findings",
+    })
+    const alert = await within(section).findByRole("alert")
+    expect(alert).toHaveTextContent("fran_ancestry.txt")
+    expect(alert).not.toHaveTextContent("fran_23andme.txt")
+    expect(
+      await within(section).findByTestId("aggregated-finding-rsid:rs1057910"),
+    ).toBeInTheDocument()
+    expect(within(section).queryByText("No high-confidence findings yet")).toBeNull()
+    expect(within(section).getByText("1 loaded (partial)")).toBeInTheDocument()
+    expect(
+      within(section).queryByTestId("aggregated-findings-overflow"),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(alert).getByRole("button", { name: /retry/i }))
+
+    expect(
+      await within(section).findByTestId("aggregated-finding-rsid:rs113993960"),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(section).queryByRole("alert")).not.toBeInTheDocument()
+    })
+    expect(summaryCalls.get(51)).toBe(1)
+    expect(summaryCalls.get(52)).toBe(2)
   })
 
   it("reconciles the header total with the capped preview via 'showing X of N' + an overflow row (#827)", async () => {
