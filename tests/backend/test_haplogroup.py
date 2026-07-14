@@ -355,7 +355,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.12"
+        assert bundle.version == "1.1.13"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1821,6 +1821,168 @@ class TestAssignHaplogroups:
             if result.tree_type == "mt"
         )
         assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "node_rows", "expected_terminal_counts"),
+        [
+            pytest.param(
+                "exact",
+                [
+                    {"pos": 8703, "genotype": "TT"},
+                    {"pos": 12705, "genotype": "TT"},
+                    {"pos": 16129, "genotype": "AA"},
+                ],
+                (2, 2),
+                id="exact-2-of-2-with-ancestral-R-locus",
+            ),
+            pytest.param(
+                "missing-8703",
+                [
+                    {"pos": 12705, "genotype": "TT"},
+                    {"pos": 16129, "genotype": "AA"},
+                ],
+                (1, 2),
+                id="missing-8703-1-of-2",
+            ),
+            pytest.param(
+                "missing-16129",
+                [
+                    {"pos": 8703, "genotype": "TT"},
+                    {"pos": 12705, "genotype": "TT"},
+                ],
+                (1, 2),
+                id="missing-16129-1-of-2",
+            ),
+        ],
+    )
+    def test_issue_1907_d2_exact_and_partial_motifs_assign_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        node_rows: list[dict[str, object]],
+        expected_terminal_counts: tuple[int, int],
+    ) -> None:
+        """D2 resolves from its direct Build 17 row through either position join."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1907_positive_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("D"), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "D2"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M", "D", "D2"]
+        terminal = mt.traversal_path[-1]
+        assert (terminal.snps_present, terminal.snps_total) == expected_terminal_counts
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "trunk_target", "node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                "ancestral-8703",
+                "D",
+                [
+                    {"pos": 8703, "genotype": "CC"},
+                    {"pos": 12705, "genotype": "TT"},
+                    {"pos": 16129, "genotype": "AA"},
+                ],
+                "D",
+                ["L3", "M", "D"],
+                id="ancestral-8703-blocks",
+            ),
+            pytest.param(
+                "ancestral-16129",
+                "D",
+                [
+                    {"pos": 8703, "genotype": "TT"},
+                    {"pos": 12705, "genotype": "TT"},
+                    {"pos": 16129, "genotype": "GG"},
+                ],
+                "D",
+                ["L3", "M", "D"],
+                id="ancestral-16129-blocks",
+            ),
+            pytest.param(
+                "legacy-pair",
+                "D",
+                [{"pos": 12705, "genotype": "CC"}],
+                "D",
+                ["L3", "M", "D"],
+                id="legacy-4883-and-12705-stop-D",
+            ),
+            pytest.param(
+                "cross-clade-with-new-loci-ancestral",
+                "D",
+                [
+                    {"pos": 8703, "genotype": "CC"},
+                    {"pos": 12705, "genotype": "CC"},
+                    {"pos": 16129, "genotype": "GG"},
+                ],
+                "D",
+                ["L3", "M", "D"],
+                id="R-locus-cannot-divert-non-D2-D",
+            ),
+            pytest.param(
+                "ungated",
+                "M",
+                [
+                    {"pos": 8703, "genotype": "TT"},
+                    {"pos": 12705, "genotype": "TT"},
+                    {"pos": 16129, "genotype": "AA"},
+                ],
+                "M",
+                ["L3", "M"],
+                id="leaf-pair-cannot-bypass-D",
+            ),
+        ],
+    )
+    def test_issue_1907_ancestral_legacy_and_ungated_controls_stop_descent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        trunk_target: str,
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """Typed ancestry, the obsolete pair, and an absent D gateway reject D2."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1907_negative_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes(trunk_target), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
         assert [step.haplogroup for step in mt.traversal_path] == expected_path
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
