@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,7 +74,7 @@
       ],
       "audit": {
         "schema_version": 1,
-        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, the K1b direct-marker correction in issue 1796, the M8/CZ ancestry correction in issue 1797, and the L2c, M1, S, X, and H10 exact-row allele corrections in issue 1798. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, the K1b direct-marker correction in issue 1796, the M8/CZ ancestry correction in issue 1797, the L2c, M1, S, X, and H10 exact-row allele corrections in issue 1798, and the N9/R cross-clade marker correction in issue 1808. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
         "audited_nodes": [
           "C",
           "G",
@@ -97,6 +97,7 @@
           "M1",
           "M8",
           "M8a",
+          "N9",
           "S",
           "T2a",
           "U2",
@@ -1562,11 +1563,6 @@
                       "rsid": "i5005417",
                       "pos": 5417,
                       "allele": "A"
-                    },
-                    {
-                      "rsid": "i5012705",
-                      "pos": 12705,
-                      "allele": "C"
                     }
                   ],
                   "children": [
@@ -4720,7 +4716,7 @@
   },
   "stats": {
     "mt_haplogroups": 194,
-    "mt_defining_snps": 396,
+    "mt_defining_snps": 395,
     "mt_unique_snps": 315,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
@@ -4730,7 +4726,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 301,
-    "total_defining_snps": 550,
+    "total_defining_snps": 549,
     "total_unique_snps": 469
   }
 }

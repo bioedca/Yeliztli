@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.8"
+        assert bundle["version"] == "1.1.9"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -182,6 +182,7 @@ class TestBundleStructure:
             "M1",
             "M8",
             "M8a",
+            "N9",
             "S",
             "T2a",
             "U2",
@@ -512,6 +513,17 @@ class TestMtDNATree:
         assert allele_map("I")[16129] == allele_map("M1")[16129] == "A"
         assert allele_map("M8a")[14470] == allele_map("X")[14470] == "C"
         assert allele_map("H10")[14470] == "A"
+
+    def test_issue_1808_n9_does_not_borrow_r_defining_mutation(self, mt_tree: dict) -> None:
+        """N9 retains only G5417A while R owns T12705C and T16223C."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        assert allele_map("N9") == {5417: "A"}
+        assert allele_map("R") == {12705: "C", 16223: "C"}
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
@@ -913,6 +925,21 @@ class TestBuildScript:
         assert any(
             f"Audited mtDNA node {node_name}" in issue and "expected" in issue for issue in issues
         )
+
+    def test_issue_1808_audited_mt_guard_rejects_r_marker_on_n9(self) -> None:
+        """The exact N9 audit rejects the pre-fix borrowed R marker."""
+        from scripts.build_haplogroup_bundle import (
+            _validate_audited_mt_markers,
+            build_mt_tree,
+        )
+
+        mt_tree = build_mt_tree()
+        n9 = find_node(mt_tree, "N9")
+        assert n9 is not None
+        n9["defining_snps"].append({"rsid": "i5012705", "pos": 12705, "allele": "C"})
+
+        issues = _validate_audited_mt_markers(mt_tree)
+        assert any("Audited mtDNA node N9" in issue and "expected" in issue for issue in issues)
 
     def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
         """A fresh rsID at an old locus or an old rsID at a fresh locus is insufficient."""
