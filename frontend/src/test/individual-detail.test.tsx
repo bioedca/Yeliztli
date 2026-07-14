@@ -190,6 +190,34 @@ function installMocks(individual: MockIndividual) {
   })
 }
 
+function failFindingsSummaryBeforeSuccess(
+  failedSampleId: number,
+  failedAttempts = 1,
+): Map<number, number> {
+  const successfulFetch = mockFetch.getMockImplementation()
+  if (!successfulFetch) {
+    throw new Error("installMocks must run before configuring summary failures")
+  }
+
+  const summaryCalls = new Map<number, number>()
+  mockFetch.mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString()
+    const summaryMatch =
+      /^\/api\/analysis\/findings\/summary\?sample_id=(\d+)/.exec(url)
+    if (summaryMatch) {
+      const sampleId = Number(summaryMatch[1])
+      const calls = (summaryCalls.get(sampleId) ?? 0) + 1
+      summaryCalls.set(sampleId, calls)
+      if (sampleId === failedSampleId && calls <= failedAttempts) {
+        return Promise.resolve(jsonResponse({ detail: "summary unavailable" }, 500))
+      }
+    }
+    return successfulFetch(input)
+  })
+
+  return summaryCalls
+}
+
 function individualPayload(individual: MockIndividual) {
   return {
     id: individual.id,
@@ -600,18 +628,7 @@ describe("IndividualDetail page", () => {
         },
       ],
     })
-    const successfulFetch = mockFetch.getMockImplementation()
-    let summaryAttempts = 0
-    mockFetch.mockImplementation((input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString()
-      if (
-        url === "/api/analysis/findings/summary?sample_id=41" &&
-        summaryAttempts++ === 0
-      ) {
-        return Promise.resolve(jsonResponse({ detail: "summary unavailable" }, 500))
-      }
-      return successfulFetch!(input)
-    })
+    const summaryCalls = failFindingsSummaryBeforeSuccess(41)
 
     render(<IndividualDetail />, {
       wrapper: createWrapper(["/individuals/15"]),
@@ -635,7 +652,7 @@ describe("IndividualDetail page", () => {
     await waitFor(() => {
       expect(within(section).queryByRole("alert")).not.toBeInTheDocument()
     })
-    expect(summaryAttempts).toBe(2)
+    expect(summaryCalls.get(41)).toBe(2)
   })
 
   it("surfaces a named partial failure without hiding successful findings", async () => {
@@ -680,25 +697,7 @@ describe("IndividualDetail page", () => {
         },
       ],
     })
-    const successfulFetch = mockFetch.getMockImplementation()
-    const summaryCalls = new Map<number, number>()
-    mockFetch.mockImplementation((input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString()
-      const summaryMatch =
-        /^\/api\/analysis\/findings\/summary\?sample_id=(\d+)/.exec(url)
-      if (summaryMatch) {
-        const sampleId = Number(summaryMatch[1])
-        const calls = (summaryCalls.get(sampleId) ?? 0) + 1
-        summaryCalls.set(sampleId, calls)
-      }
-      if (
-        url === "/api/analysis/findings/summary?sample_id=52" &&
-        summaryCalls.get(52) === 1
-      ) {
-        return Promise.resolve(jsonResponse({ detail: "summary unavailable" }, 500))
-      }
-      return successfulFetch!(input)
-    })
+    const summaryCalls = failFindingsSummaryBeforeSuccess(52)
 
     render(<IndividualDetail />, {
       wrapper: createWrapper(["/individuals/16"]),
