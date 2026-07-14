@@ -384,7 +384,20 @@ class TestOtherCriteria:
     def test_bs1_skipped_for_common_pathogenic_frequency_exception(
         self, rsid: str, af: float
     ) -> None:
-        assert criterion_bs1(AcmgEvidence(rsid=rsid, gnomad_af_popmax=af)) is None
+        exception = AcmgEvidence(
+            rsid=rsid,
+            gnomad_af_popmax=af,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+        )
+        control = AcmgEvidence(
+            gnomad_af_popmax=af,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+        )
+
+        assert criterion_bs1(exception) is None
+        control_criterion = criterion_bs1(control)
+        assert control_criterion is not None
+        assert control_criterion.points == -4
 
     def test_bs1_not_applied_in_ba1_range(self) -> None:
         assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
