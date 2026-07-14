@@ -46,6 +46,7 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageEmpty from "@/components/ui/PageEmpty"
 import PageError from "@/components/ui/PageError"
 import PageLoading from "@/components/ui/PageLoading"
+import SectionError from "@/components/ui/SectionError"
 
 interface AggregatedFinding {
   /** Stable key — `rsid` when present, otherwise `module:sampleId:findingId`. */
@@ -107,6 +108,11 @@ function vendorLabel(vendor: string | null | undefined): string {
   if (vendor === "23andme") return "23andMe"
   if (vendor === "ancestrydna") return "AncestryDNA"
   return vendor.charAt(0).toUpperCase() + vendor.slice(1)
+}
+
+function sampleLabel(sample: LinkedSample): string {
+  const name = sample.name.trim()
+  return name ? `${name} (sample #${sample.id})` : `Sample #${sample.id}`
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -354,18 +360,35 @@ export default function IndividualDetail() {
   }
 
   const anyFindingsLoading = findingsQueries.some(
-    (q) => linkedSamples.length > 0 && q.isLoading,
+    (q) => linkedSamples.length > 0 && q.isPending,
   )
+  const failedFindingsQueries = findingsQueries.flatMap((query, index) => {
+    const sample = linkedSamples[index]
+    return query.isError && sample ? [{ query, sample }] : []
+  })
+  const hasFindingsErrors = failedFindingsQueries.length > 0
+  const failedSampleLabels = failedFindingsQueries
+    .map(({ sample }) => sampleLabel(sample))
+    .join(", ")
+  const retryFailedFindings = () => {
+    for (const { query } of failedFindingsQueries) {
+      void query.refetch()
+    }
+  }
 
   // The aggregated section is built from each sample's /findings/summary
   // high_confidence_findings, which the backend caps at a top-N preview per
   // sample, whereas the header `aggregated_findings_count` is the uncapped
   // deduplicated total. Surface that gap rather than presenting two
   // contradictory totals with the preview list silently truncated (#827).
-  const hiddenFindingsCount = Math.max(
-    0,
-    individual.aggregated_findings_count - aggregated.length,
-  )
+  const hiddenFindingsCount = hasFindingsErrors
+    ? 0
+    : Math.max(0, individual.aggregated_findings_count - aggregated.length)
+  const aggregateCountLabel = hasFindingsErrors
+    ? `${aggregated.length} loaded (partial)`
+    : hiddenFindingsCount > 0
+      ? `showing ${aggregated.length} of ${individual.aggregated_findings_count}`
+      : `${aggregated.length} unique`
 
   return (
     <div
@@ -495,9 +518,7 @@ export default function IndividualDetail() {
           </h2>
           {aggregated.length > 0 && (
             <span className="text-xs text-muted-foreground tabular-nums">
-              {hiddenFindingsCount > 0
-                ? `showing ${aggregated.length} of ${individual.aggregated_findings_count}`
-                : `${aggregated.length} unique`}
+              {aggregateCountLabel}
             </span>
           )}
         </div>
@@ -510,26 +531,39 @@ export default function IndividualDetail() {
           />
         ) : anyFindingsLoading ? (
           <PageLoading message="Aggregating findings…" />
-        ) : aggregated.length === 0 ? (
-          <PageEmpty
-            icon={Star}
-            title="No high-confidence findings yet"
-            description="Findings appear here once linked samples finish annotation."
-          />
         ) : (
-          <div className="rounded-lg border bg-card divide-y">
-            {aggregated.map((row) => (
-              <FindingRow key={row.key} row={row} />
-            ))}
-            {hiddenFindingsCount > 0 && (
-              <p
-                className="px-4 py-2 text-xs text-muted-foreground"
-                data-testid="aggregated-findings-overflow"
-              >
-                and {hiddenFindingsCount} more high-confidence finding
-                {hiddenFindingsCount === 1 ? "" : "s"} not shown — this section is a
-                top-findings preview per sample; open each sample to see all.
-              </p>
+          <div className="space-y-3">
+            {hasFindingsErrors && (
+              <SectionError
+                label="high-confidence findings"
+                message={`The latest findings for ${failedSampleLabels} could not be loaded, so this aggregate may be incomplete.`}
+                onRetry={retryFailedFindings}
+              />
+            )}
+            {aggregated.length === 0 ? (
+              !hasFindingsErrors && (
+                <PageEmpty
+                  icon={Star}
+                  title="No high-confidence findings yet"
+                  description="Findings appear here once linked samples finish annotation."
+                />
+              )
+            ) : (
+              <div className="rounded-lg border bg-card divide-y">
+                {aggregated.map((row) => (
+                  <FindingRow key={row.key} row={row} />
+                ))}
+                {hiddenFindingsCount > 0 && (
+                  <p
+                    className="px-4 py-2 text-xs text-muted-foreground"
+                    data-testid="aggregated-findings-overflow"
+                  >
+                    and {hiddenFindingsCount} more high-confidence finding
+                    {hiddenFindingsCount === 1 ? "" : "s"} not shown — this section is a
+                    top-findings preview per sample; open each sample to see all.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

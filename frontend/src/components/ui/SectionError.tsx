@@ -28,7 +28,9 @@ export default function SectionError({ label, message, onRetry }: SectionErrorPr
       <div className="flex items-start gap-2">
         <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
         <div className="flex-1 text-sm">
-          <p className="font-medium text-destructive">Couldn&rsquo;t load {label}</p>
+          <p className="font-medium text-red-700 dark:text-red-400">
+            Couldn&rsquo;t load {label}
+          </p>
           {message && <p className="text-muted-foreground mt-0.5">{message}</p>}
           <p className="text-muted-foreground mt-0.5">
             The rest of this page is unaffected.
