@@ -43,7 +43,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.4"
+BUNDLE_VERSION = "1.1.5"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -975,10 +975,14 @@ def build_mt_tree() -> dict[str, Any]:
     ii = _node(
         "I",
         [
+            # The simplified tree flattens I directly below N, so retain the
+            # inherited G1719A (N1'5) and G15043A (N1a1) lineage markers beside
+            # I's direct T10034C and G16129A! events.  A back mutation still ends
+            # in the right-hand A allele (#1795).
             _mt_snp("i5001719", 1719, "A"),
             _mt_snp("i5010034", 10034, "C"),
             _mt_snp("i5015043", 15043, "A"),
-            _mt_snp("i5016129", 16129, "C"),
+            _mt_snp("i5016129", 16129, "A"),
         ],
     )
 
