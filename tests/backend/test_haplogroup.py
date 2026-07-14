@@ -307,15 +307,8 @@ def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
 
 
 _W_DIRECT_POSITION_GENOTYPES = [
-    {"pos": 207, "genotype": "AA"},
-    {"pos": 1243, "genotype": "CC"},
-    {"pos": 3505, "genotype": "GG"},
-    {"pos": 5460, "genotype": "AA"},
-    {"pos": 8251, "genotype": "AA"},
-    {"pos": 8994, "genotype": "AA"},
-    {"pos": 11947, "genotype": "GG"},
-    {"pos": 15884, "genotype": "CC"},
-    {"pos": 16292, "genotype": "TT"},
+    {"pos": row["pos"], "genotype": row["genotype"]}
+    for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
 ]
 
 
