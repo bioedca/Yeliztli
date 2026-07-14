@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,7 +74,7 @@
       ],
       "audit": {
         "schema_version": 1,
-        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, plus source-backed parent/child marker placement and array-reportable direct motifs for issue 1743. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, and the U3a direct-motif correction in issue 1794. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
         "audited_nodes": [
           "G",
           "G1",
@@ -93,6 +93,7 @@
           "T2a",
           "U2",
           "U2e",
+          "U3a",
           "U3b",
           "U5b2",
           "W1",
@@ -2763,8 +2764,23 @@
                               "haplogroup": "U3a",
                               "defining_snps": [
                                 {
-                                  "rsid": "i5003834",
-                                  "pos": 3834,
+                                  "rsid": "i5006518",
+                                  "pos": 6518,
+                                  "allele": "T"
+                                },
+                                {
+                                  "rsid": "i5010506",
+                                  "pos": 10506,
+                                  "allele": "G"
+                                },
+                                {
+                                  "rsid": "i5013934",
+                                  "pos": 13934,
+                                  "allele": "T"
+                                },
+                                {
+                                  "rsid": "i5016390",
+                                  "pos": 16390,
                                   "allele": "A"
                                 }
                               ]
@@ -4649,8 +4665,8 @@
   },
   "stats": {
     "mt_haplogroups": 194,
-    "mt_defining_snps": 384,
-    "mt_unique_snps": 307,
+    "mt_defining_snps": 387,
+    "mt_unique_snps": 310,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
     "y_defining_snps": 154,
@@ -4659,7 +4675,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 301,
-    "total_defining_snps": 538,
-    "total_unique_snps": 461
+    "total_defining_snps": 541,
+    "total_unique_snps": 464
   }
 }

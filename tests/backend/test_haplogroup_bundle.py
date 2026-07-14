@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.3"
+        assert bundle["version"] == "1.1.4"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -178,6 +178,7 @@ class TestBundleStructure:
             "T2a",
             "U2",
             "U2e",
+            "U3a",
             "U3b",
             "U5b2",
             "W1",
@@ -407,6 +408,19 @@ class TestMtDNATree:
         assert allele_map("U3b") == {4188: "G", 9656: "C", 13743: "C"}
         assert 12669 not in allele_map("W1")
         assert 9266 not in allele_map("U3b")
+
+    def test_issue_1794_u3a_uses_exact_reportable_build17_motif(self, mt_tree: dict) -> None:
+        """U3a uses its direct motif while remote m.3834 homoplasy remains elsewhere."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        assert allele_map("U3a") == {6518: "T", 10506: "G", 13934: "T", 16390: "A"}
+        assert 3834 not in allele_map("U3a")
+        assert allele_map("U9")[3834] == "A"
+        assert allele_map("Y1")[3834] == "A"
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""

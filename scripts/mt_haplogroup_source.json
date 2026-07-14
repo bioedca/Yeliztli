@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, plus source-backed parent/child marker placement and array-reportable direct motifs for issue 1743. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, and the U3a direct-motif correction in issue 1794. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -735,6 +735,84 @@
           "pos": 13020,
           "ancestral_allele": "T",
           "allele": "C",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    },
+    "U3a": {
+      "source_motif": [
+        {
+          "notation": "C6518T",
+          "mutation_type": "substitution",
+          "pos": 6518,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "A10506G",
+          "mutation_type": "substitution",
+          "pos": 10506,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "C13934T",
+          "mutation_type": "substitution",
+          "pos": 13934,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "G16390A",
+          "mutation_type": "substitution",
+          "pos": 16390,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5006518",
+          "pos": 6518,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5010506",
+          "pos": 10506,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5013934",
+          "pos": 13934,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5016390",
+          "pos": 16390,
+          "ancestral_allele": "G",
+          "allele": "A",
           "array_coverage": {
             "modern_exports_tested": 4,
             "modern_exports_with_position": 4

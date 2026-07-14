@@ -43,7 +43,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.3"
+BUNDLE_VERSION = "1.1.4"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -66,6 +66,7 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "T2a",
         "U2",
         "U2e",
+        "U3a",
         "U3b",
         "U5b2",
         "W1",
@@ -1633,7 +1634,10 @@ def build_mt_tree() -> dict[str, Any]:
     u3a = _node(
         "U3a",
         [
-            _mt_snp("i5003834", 3834, "A"),
+            _mt_snp("i5006518", 6518, "T"),
+            _mt_snp("i5010506", 10506, "G"),
+            _mt_snp("i5013934", 13934, "T"),
+            _mt_snp("i5016390", 16390, "A"),
         ],
     )
     u3b = _node(
