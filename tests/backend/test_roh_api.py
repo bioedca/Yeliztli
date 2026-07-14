@@ -43,18 +43,50 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
     sample_db = data_dir / "samples" / "sample_1.db"
     sample_engine = sa.create_engine(f"sqlite:///{sample_db}")
     create_sample_tables(sample_engine)
-    # A clean long homozygous run → one ROH segment.
+    # Two unequal clean homozygous runs plus one typed non-ROH autosomal SNP,
+    # with an autosomal no-call and chrX call that must be excluded.
+    # This makes total length, longest length, and typed-SNP count independently
+    # discriminating at the API boundary.
     with sample_engine.begin() as conn:
         conn.execute(
             sa.insert(raw_variants),
             [
                 {
-                    "rsid": f"r{i}",
+                    "rsid": f"r1_{i}",
                     "chrom": "1",
+                    "pos": 1_000_000 + i * 10_000,
+                    "genotype": "CC",
+                }
+                for i in range(160)
+            ]
+            + [
+                {
+                    "rsid": f"r2_{i}",
+                    "chrom": "2",
                     "pos": 1_000_000 + i * 10_000,
                     "genotype": "AA",
                 }
                 for i in range(200)
+            ]
+            + [
+                {
+                    "rsid": "r3_het",
+                    "chrom": "3",
+                    "pos": 1_000_000,
+                    "genotype": "AG",
+                },
+                {
+                    "rsid": "r4_no_call",
+                    "chrom": "4",
+                    "pos": 1_000_000,
+                    "genotype": "--",
+                },
+                {
+                    "rsid": "rx_hom",
+                    "chrom": "X",
+                    "pos": 1_000_000,
+                    "genotype": "GG",
+                },
             ],
         )
 
@@ -95,10 +127,16 @@ class TestRunAndList:
         listing = client.get("/api/analysis/roh/findings?sample_id=1")
         assert listing.status_code == 200
         data = listing.json()
-        assert data["n_segments"] == 1
+        assert data["n_segments"] == 2
+        # Independent fixture-derived literals pin the populated API fields
+        # against zeroing or cross-field mapping regressions: chr1 contributes
+        # 1590 kb, chr2 contributes 1990 kb, and the 360 ROH calls plus one
+        # typed heterozygous call make 361 autosomal SNPs used.
+        assert data["total_roh_kb"] == 3580.0
+        assert data["longest_kb"] == 1990.0
+        assert data["autosomal_snps_used"] == 361
         assert data["froh"] > 0
-        assert len(data["segments"]) == 1
-        assert data["segments"][0]["chrom"] == "1"
+        assert [segment["chrom"] for segment in data["segments"]] == ["2", "1"]
 
     def test_list_before_run_is_null(self, client: TestClient) -> None:
         listing = client.get("/api/analysis/roh/findings?sample_id=1")
