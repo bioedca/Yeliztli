@@ -336,7 +336,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.3"
+        assert bundle.version == "1.1.4"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1591,6 +1591,32 @@ class TestAssignHaplogroups:
                 "U3b",
                 id="U3b",
             ),
+            pytest.param(
+                _MT_U3_TRUNK_GENOTYPES,
+                [
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 6518, "genotype": "TT"},
+                    {
+                        "rsid": "placeholder",
+                        "chrom": "MT",
+                        "pos": 10506,
+                        "genotype": "GG",
+                    },
+                    {
+                        "rsid": "placeholder",
+                        "chrom": "MT",
+                        "pos": 13934,
+                        "genotype": "TT",
+                    },
+                    {
+                        "rsid": "placeholder",
+                        "chrom": "MT",
+                        "pos": 16390,
+                        "genotype": "AA",
+                    },
+                ],
+                "U3a",
+                id="U3a",
+            ),
         ],
     )
     def test_corrected_mt_nodes_match_direct_derived_motifs_by_position(
@@ -1602,7 +1628,7 @@ class TestAssignHaplogroups:
         node_rows: list[dict[str, object]],
         expected: str,
     ) -> None:
-        """#1742: direct derived motifs resolve through both production MT tables."""
+        """#1742/#1794: direct motifs resolve through both production MT tables."""
         rows = [
             {**row, "rsid": f"vendor_mt_{index}"} for index, row in enumerate([*trunk, *node_rows])
         ]
@@ -1615,6 +1641,33 @@ class TestAssignHaplogroups:
 
         mt = next(result for result in results if result.tree_type == "mt")
         assert mt.haplogroup == expected
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_remote_m3834_homoplasy_does_not_refine_u3_to_u3a(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """#1794: U9/Y1 homoplasy m.3834 is not a direct U3a marker."""
+        rows = [
+            {**row, "rsid": f"vendor_u3_{index}"}
+            for index, row in enumerate(
+                [
+                    *_MT_U3_TRUNK_GENOTYPES,
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 3834, "genotype": "AA"},
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == "U3"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U", "U3"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
