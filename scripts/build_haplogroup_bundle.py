@@ -43,12 +43,13 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.6"
+BUNDLE_VERSION = "1.1.7"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
 _REQUIRED_AUDITED_MT_NODES = frozenset(
     {
+        "C",
         "G",
         "G1",
         "G2",
@@ -64,6 +65,8 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "K2",
         "K2a",
         "K2b",
+        "M8",
+        "M8a",
         "T2a",
         "U2",
         "U2e",
@@ -749,6 +752,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5009545", 9545, "G"),
             _mt_snp("i5011914", 11914, "A"),
             _mt_snp("i5013263", 13263, "G"),
+            _mt_snp("i5014318", 14318, "C"),
         ],
         [c1, c4, c5],
     )
@@ -908,17 +912,22 @@ def build_mt_tree() -> dict[str, Any]:
     m8a = _node(
         "M8a",
         [
+            _mt_snp("i5006179", 6179, "A"),
             _mt_snp("i5008684", 8684, "T"),
-            _mt_snp("i5015487", 15487, "T"),
+            _mt_snp("i5014470", 14470, "C"),
         ],
     )
     m8 = _node(
         "M8",
         [
-            _mt_snp("i5007196", 7196, "A"),
-            _mt_snp("i5008684", 8684, "T"),
+            _mt_snp("i5004715", 4715, "G"),
+            _mt_snp("i5008584", 8584, "A"),
+            _mt_snp("i5015487", 15487, "T"),
         ],
-        [m8a],
+        # Build 17 inserts deletion-only CZ (A249d) between M8 and C/Z.  The
+        # substitution-only caller cannot score that event, so flatten only CZ
+        # while preserving the inherited M8 path (#1797).
+        [m8a, c, z],
     )
 
     m9 = _node(
@@ -938,7 +947,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5014783", 14783, "C"),
             _mt_snp("i5015043", 15043, "A"),
         ],
-        [c, d, e, g, z, m1, m7, m8, m9],
+        [d, e, g, m1, m7, m8, m9],
     )
 
     # ── N branch (out-of-Africa via L3) ────────────────────────────

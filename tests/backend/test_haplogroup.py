@@ -120,6 +120,13 @@ _MT_U_TRUNK_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
 
 _MT_N_TRUNK_GENOTYPES = _H1A_GENOTYPES[:6]
 
+_MT_M_TRUNK_GENOTYPES = _H1A_GENOTYPES[:3] + [
+    {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
+    {"rsid": "rs1000361", "chrom": "MT", "pos": 10951, "genotype": "AA"},
+    {"rsid": "i5014783", "chrom": "MT", "pos": 14783, "genotype": "CC"},
+    {"rsid": "i5015043", "chrom": "MT", "pos": 15043, "genotype": "AA"},
+]
+
 _MT_W_TRUNK_GENOTYPES = _MT_N_TRUNK_GENOTYPES + [
     {"rsid": "i5000189", "chrom": "MT", "pos": 189, "genotype": "GG"},
     {"rsid": "i5000204", "chrom": "MT", "pos": 204, "genotype": "CC"},
@@ -336,7 +343,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.6"
+        assert bundle.version == "1.1.7"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1595,6 +1602,159 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == expected
         assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                [
+                    {"pos": 4715, "genotype": "GG"},
+                    {"pos": 8584, "genotype": "AA"},
+                    {"pos": 15487, "genotype": "TT"},
+                ],
+                "M8",
+                ["L3", "M", "M8"],
+                id="M8",
+            ),
+            pytest.param(
+                [
+                    {"pos": 4715, "genotype": "GG"},
+                    {"pos": 8584, "genotype": "AA"},
+                    {"pos": 15487, "genotype": "TT"},
+                    {"pos": 6179, "genotype": "AA"},
+                    {"pos": 8684, "genotype": "TT"},
+                    {"pos": 14470, "genotype": "CC"},
+                ],
+                "M8a",
+                ["L3", "M", "M8", "M8a"],
+                id="M8a",
+            ),
+            pytest.param(
+                [
+                    {"pos": 4715, "genotype": "GG"},
+                    {"pos": 8584, "genotype": "AA"},
+                    {"pos": 15487, "genotype": "TT"},
+                    {"pos": 3552, "genotype": "AA"},
+                    {"pos": 9545, "genotype": "GG"},
+                    {"pos": 11914, "genotype": "AA"},
+                    {"pos": 13263, "genotype": "GG"},
+                    {"pos": 14318, "genotype": "CC"},
+                ],
+                "C",
+                ["L3", "M", "M8", "C"],
+                id="C-via-M8",
+            ),
+            pytest.param(
+                [
+                    {"pos": 4715, "genotype": "GG"},
+                    {"pos": 8584, "genotype": "AA"},
+                    {"pos": 15487, "genotype": "TT"},
+                    {"pos": 6752, "genotype": "GG"},
+                    {"pos": 9090, "genotype": "CC"},
+                    {"pos": 15784, "genotype": "CC"},
+                ],
+                "Z",
+                ["L3", "M", "M8", "Z"],
+                id="Z-via-M8",
+            ),
+        ],
+    )
+    def test_issue_1797_m8_descendants_resolve_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """M8, M8a, C, and Z follow their Build-17 ancestry in both tables."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1797_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_MT_M_TRUNK_GENOTYPES, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("node_rows", "case"),
+        [
+            pytest.param(
+                [
+                    {"pos": 3552, "genotype": "AA"},
+                    {"pos": 9545, "genotype": "GG"},
+                    {"pos": 11914, "genotype": "AA"},
+                    {"pos": 13263, "genotype": "GG"},
+                    {"pos": 14318, "genotype": "CC"},
+                ],
+                "C",
+                id="C-without-M8",
+            ),
+            pytest.param(
+                [
+                    {"pos": 6752, "genotype": "GG"},
+                    {"pos": 9090, "genotype": "CC"},
+                    {"pos": 15784, "genotype": "CC"},
+                ],
+                "Z",
+                id="Z-without-M8",
+            ),
+            pytest.param(
+                [
+                    {"pos": 7196, "genotype": "AA"},
+                    {"pos": 8684, "genotype": "TT"},
+                    {"pos": 15487, "genotype": "TT"},
+                ],
+                "legacy-M8-markers",
+                id="legacy-M8-markers",
+            ),
+        ],
+    )
+    def test_issue_1797_requires_current_m8_ancestral_evidence(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        node_rows: list[dict[str, object]],
+        case: str,
+    ) -> None:
+        """Direct descendants and obsolete markers cannot bypass current M8."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1797_negative_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_MT_M_TRUNK_GENOTYPES, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "M"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

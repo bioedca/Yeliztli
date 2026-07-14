@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,8 +74,9 @@
       ],
       "audit": {
         "schema_version": 1,
-        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, and the K1b direct-marker correction in issue 1796. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, the K1b direct-marker correction in issue 1796, and the M8/CZ ancestry correction in issue 1797. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
         "audited_nodes": [
+          "C",
           "G",
           "G1",
           "G2",
@@ -91,6 +92,8 @@
           "K2",
           "K2a",
           "K2b",
+          "M8",
+          "M8a",
           "T2a",
           "U2",
           "U2e",
@@ -108,6 +111,7 @@
           "Z1"
         ],
         "omitted_nodes": {
+          "CZ": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step.",
           "K1c": "Pruned from the array-reportable tree in issue 1743: its direct Build-17 motif is limited to recurrent control-region substitutions (m.146/m.152) plus m.498d, while the former emitted m.9716 belongs to K2."
         }
       }
@@ -885,83 +889,6 @@
               ],
               "children": [
                 {
-                  "haplogroup": "C",
-                  "defining_snps": [
-                    {
-                      "rsid": "i5003552",
-                      "pos": 3552,
-                      "allele": "A"
-                    },
-                    {
-                      "rsid": "i5009545",
-                      "pos": 9545,
-                      "allele": "G"
-                    },
-                    {
-                      "rsid": "i5011914",
-                      "pos": 11914,
-                      "allele": "A"
-                    },
-                    {
-                      "rsid": "i5013263",
-                      "pos": 13263,
-                      "allele": "G"
-                    }
-                  ],
-                  "children": [
-                    {
-                      "haplogroup": "C1",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5006026",
-                          "pos": 6026,
-                          "allele": "T"
-                        },
-                        {
-                          "rsid": "i5011969",
-                          "pos": 11969,
-                          "allele": "A"
-                        },
-                        {
-                          "rsid": "i5013263",
-                          "pos": 13263,
-                          "allele": "G"
-                        }
-                      ]
-                    },
-                    {
-                      "haplogroup": "C4",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5005979",
-                          "pos": 5979,
-                          "allele": "T"
-                        },
-                        {
-                          "rsid": "i5011365",
-                          "pos": 11365,
-                          "allele": "C"
-                        }
-                      ]
-                    },
-                    {
-                      "haplogroup": "C5",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5001607",
-                          "pos": 1607,
-                          "allele": "G"
-                        },
-                        {
-                          "rsid": "i5009545",
-                          "pos": 9545,
-                          "allele": "G"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
                   "haplogroup": "D",
                   "defining_snps": [
                     {
@@ -1170,38 +1097,6 @@
                   ]
                 },
                 {
-                  "haplogroup": "Z",
-                  "defining_snps": [
-                    {
-                      "rsid": "i5006752",
-                      "pos": 6752,
-                      "allele": "G"
-                    },
-                    {
-                      "rsid": "i5009090",
-                      "pos": 9090,
-                      "allele": "C"
-                    },
-                    {
-                      "rsid": "i5015784",
-                      "pos": 15784,
-                      "allele": "C"
-                    }
-                  ],
-                  "children": [
-                    {
-                      "haplogroup": "Z1",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5015261",
-                          "pos": 15261,
-                          "allele": "A"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
                   "haplogroup": "M1",
                   "defining_snps": [
                     {
@@ -1287,13 +1182,18 @@
                   "haplogroup": "M8",
                   "defining_snps": [
                     {
-                      "rsid": "i5007196",
-                      "pos": 7196,
+                      "rsid": "i5004715",
+                      "pos": 4715,
+                      "allele": "G"
+                    },
+                    {
+                      "rsid": "i5008584",
+                      "pos": 8584,
                       "allele": "A"
                     },
                     {
-                      "rsid": "i5008684",
-                      "pos": 8684,
+                      "rsid": "i5015487",
+                      "pos": 15487,
                       "allele": "T"
                     }
                   ],
@@ -1302,14 +1202,133 @@
                       "haplogroup": "M8a",
                       "defining_snps": [
                         {
+                          "rsid": "i5006179",
+                          "pos": 6179,
+                          "allele": "A"
+                        },
+                        {
                           "rsid": "i5008684",
                           "pos": 8684,
                           "allele": "T"
                         },
                         {
-                          "rsid": "i5015487",
-                          "pos": 15487,
-                          "allele": "T"
+                          "rsid": "i5014470",
+                          "pos": 14470,
+                          "allele": "C"
+                        }
+                      ]
+                    },
+                    {
+                      "haplogroup": "C",
+                      "defining_snps": [
+                        {
+                          "rsid": "i5003552",
+                          "pos": 3552,
+                          "allele": "A"
+                        },
+                        {
+                          "rsid": "i5009545",
+                          "pos": 9545,
+                          "allele": "G"
+                        },
+                        {
+                          "rsid": "i5011914",
+                          "pos": 11914,
+                          "allele": "A"
+                        },
+                        {
+                          "rsid": "i5013263",
+                          "pos": 13263,
+                          "allele": "G"
+                        },
+                        {
+                          "rsid": "i5014318",
+                          "pos": 14318,
+                          "allele": "C"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "haplogroup": "C1",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5006026",
+                              "pos": 6026,
+                              "allele": "T"
+                            },
+                            {
+                              "rsid": "i5011969",
+                              "pos": 11969,
+                              "allele": "A"
+                            },
+                            {
+                              "rsid": "i5013263",
+                              "pos": 13263,
+                              "allele": "G"
+                            }
+                          ]
+                        },
+                        {
+                          "haplogroup": "C4",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5005979",
+                              "pos": 5979,
+                              "allele": "T"
+                            },
+                            {
+                              "rsid": "i5011365",
+                              "pos": 11365,
+                              "allele": "C"
+                            }
+                          ]
+                        },
+                        {
+                          "haplogroup": "C5",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5001607",
+                              "pos": 1607,
+                              "allele": "G"
+                            },
+                            {
+                              "rsid": "i5009545",
+                              "pos": 9545,
+                              "allele": "G"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "haplogroup": "Z",
+                      "defining_snps": [
+                        {
+                          "rsid": "i5006752",
+                          "pos": 6752,
+                          "allele": "G"
+                        },
+                        {
+                          "rsid": "i5009090",
+                          "pos": 9090,
+                          "allele": "C"
+                        },
+                        {
+                          "rsid": "i5015784",
+                          "pos": 15784,
+                          "allele": "C"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "haplogroup": "Z1",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5015261",
+                              "pos": 15261,
+                              "allele": "A"
+                            }
+                          ]
                         }
                       ]
                     }
@@ -4666,8 +4685,8 @@
   },
   "stats": {
     "mt_haplogroups": 194,
-    "mt_defining_snps": 387,
-    "mt_unique_snps": 310,
+    "mt_defining_snps": 390,
+    "mt_unique_snps": 313,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
     "y_defining_snps": 154,
@@ -4676,7 +4695,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 301,
-    "total_defining_snps": 541,
-    "total_unique_snps": 464
+    "total_defining_snps": 544,
+    "total_unique_snps": 467
   }
 }

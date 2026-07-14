@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, and the K1b direct-marker correction in issue 1796. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+  "audit_scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, the K1b direct-marker correction in issue 1796, and the M8/CZ ancestry correction in issue 1797. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -52,9 +52,115 @@
     }
   ],
   "omitted_nodes": {
+    "CZ": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step.",
     "K1c": "Pruned from the array-reportable tree in issue 1743: its direct Build-17 motif is limited to recurrent control-region substitutions (m.146/m.152) plus m.498d, while the former emitted m.9716 belongs to K2."
   },
   "audited_nodes": {
+    "C": {
+      "source_motif": [
+        {
+          "notation": "T3552a",
+          "mutation_type": "substitution",
+          "pos": 3552,
+          "ancestral_allele": "T",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A9545G",
+          "mutation_type": "substitution",
+          "pos": 9545,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "G11914A!",
+          "mutation_type": "substitution",
+          "pos": 11914,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A13263G",
+          "mutation_type": "substitution",
+          "pos": 13263,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "T14318C",
+          "mutation_type": "substitution",
+          "pos": 14318,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "C16327T",
+          "mutation_type": "substitution",
+          "pos": 16327,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "Present in all four modern export exemplars but omitted as a recurrent control-region marker; stronger direct coding-region markers are retained."
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5003552",
+          "pos": 3552,
+          "ancestral_allele": "T",
+          "allele": "A",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5009545",
+          "pos": 9545,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5011914",
+          "pos": 11914,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5013263",
+          "pos": 13263,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5014318",
+          "pos": 14318,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    },
     "G": {
       "source_motif": [
         {
@@ -660,6 +766,153 @@
           "pos": 14037,
           "ancestral_allele": "A",
           "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    },
+    "M8": {
+      "source_motif": [
+        {
+          "notation": "A4715G",
+          "mutation_type": "substitution",
+          "pos": 4715,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "C7196a",
+          "mutation_type": "substitution",
+          "pos": 7196,
+          "ancestral_allele": "C",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+        },
+        {
+          "notation": "G8584A",
+          "mutation_type": "substitution",
+          "pos": 8584,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A15487t",
+          "mutation_type": "substitution",
+          "pos": 15487,
+          "ancestral_allele": "A",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "T16298C",
+          "mutation_type": "substitution",
+          "pos": 16298,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": false,
+          "omission_reason": "Control-region position absent from all four post-2017 v5-era export exemplars."
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5004715",
+          "pos": 4715,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5008584",
+          "pos": 8584,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5015487",
+          "pos": 15487,
+          "ancestral_allele": "A",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        }
+      ]
+    },
+    "M8a": {
+      "source_motif": [
+        {
+          "notation": "G6179A",
+          "mutation_type": "substitution",
+          "pos": 6179,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "C8684T",
+          "mutation_type": "substitution",
+          "pos": 8684,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "T14470C",
+          "mutation_type": "substitution",
+          "pos": 14470,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "G16319A",
+          "mutation_type": "substitution",
+          "pos": 16319,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "Control-region position absent from all four post-2017 v5-era export exemplars."
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5006179",
+          "pos": 6179,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5008684",
+          "pos": 8684,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "array_coverage": {
+            "modern_exports_tested": 4,
+            "modern_exports_with_position": 4
+          }
+        },
+        {
+          "rsid": "i5014470",
+          "pos": 14470,
+          "ancestral_allele": "T",
+          "allele": "C",
           "array_coverage": {
             "modern_exports_tested": 4,
             "modern_exports_with_position": 4
@@ -1353,6 +1606,24 @@
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": true
+        },
+        {
+          "notation": "C16185T",
+          "mutation_type": "substitution",
+          "pos": 16185,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "Control-region position absent from all four post-2017 v5-era export exemplars."
+        },
+        {
+          "notation": "C16260T",
+          "mutation_type": "substitution",
+          "pos": 16260,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "Present in three of four modern export exemplars but omitted as a recurrent control-region marker; three stronger direct coding-region markers are retained."
         }
       ],
       "emitted_snps": [

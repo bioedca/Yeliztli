@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.6"
+        assert bundle["version"] == "1.1.7"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -161,6 +161,7 @@ class TestBundleStructure:
         )
         assert mt_source["reference_sequence"]["accession"] == "NC_012920.1"
         assert set(mt_source["audit"]["audited_nodes"]) == {
+            "C",
             "G",
             "G1",
             "G2",
@@ -176,6 +177,8 @@ class TestBundleStructure:
             "K2",
             "K2a",
             "K2b",
+            "M8",
+            "M8a",
             "T2a",
             "U2",
             "U2e",
@@ -192,6 +195,7 @@ class TestBundleStructure:
             "Z",
             "Z1",
         }
+        assert "CZ" in mt_source["audit"]["omitted_nodes"]
         assert "K1c" in mt_source["audit"]["omitted_nodes"]
         assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
@@ -440,6 +444,37 @@ class TestMtDNATree:
         k1b = find_node(mt_tree, "K1b")
         assert k1b is not None
         assert k1b["defining_snps"] == [{"rsid": "i5005913", "pos": 5913, "allele": "A"}]
+
+    def test_issue_1797_m8_ancestry_and_marker_placement(self, mt_tree: dict) -> None:
+        """M8 owns its direct motif and routes M8a, C, and Z around omitted CZ."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        m = find_node(mt_tree, "M")
+        m8 = find_node(mt_tree, "M8")
+        assert m is not None
+        assert m8 is not None
+
+        assert {child["haplogroup"] for child in m["children"]}.isdisjoint({"C", "Z"})
+        assert {child["haplogroup"] for child in m8["children"]} == {"M8a", "C", "Z"}
+        assert "CZ" not in collect_haplogroup_names(mt_tree)
+        assert get_path_to(mt_tree, "M8a") == ["mt-MRCA", "L3", "M", "M8", "M8a"]
+        assert get_path_to(mt_tree, "C") == ["mt-MRCA", "L3", "M", "M8", "C"]
+        assert get_path_to(mt_tree, "Z") == ["mt-MRCA", "L3", "M", "M8", "Z"]
+
+        assert allele_map("M8") == {4715: "G", 8584: "A", 15487: "T"}
+        assert allele_map("M8a") == {6179: "A", 8684: "T", 14470: "C"}
+        assert allele_map("C") == {
+            3552: "A",
+            9545: "G",
+            11914: "A",
+            13263: "G",
+            14318: "C",
+        }
+        assert allele_map("Z") == {6752: "G", 9090: "C", 15784: "C"}
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
