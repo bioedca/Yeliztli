@@ -39,18 +39,19 @@ import argparse
 import hashlib
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.13"
+BUNDLE_VERSION = "1.1.14"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
 
-_MT_SCHEMA_VERSION = 2
+_MT_SCHEMA_VERSION = 3
 _MT_BASELINE_COMMIT = "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
 _MT_PHYLOTREE_ARCHIVE_SHA256 = "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
 _MT_RCRS_SHA256 = "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92"
@@ -99,12 +100,28 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "7cbbdeff9a91637ae58f3a198a8a2c3fd96050c54a494e967acec52ad6fa1f8c"
+_MT_STATE_PARTITION_SHA256 = "bc194a2383d9f1e14f32b4476c12b9dd5f945a469a9a33221e451ebf8cbcf539"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
 _MT_LOCKED_EMITTED_TREE_SHA256 = "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
+_MT_FLATTENED_OMISSION_TYPES = frozenset(
+    {
+        "flattened_source_intermediate",
+        "flattened_unreportable_source_intermediate",
+    }
+)
+_MT_RETIRED_NODE_TYPE = "retired_unmapped_emitted_node"
+_MT_RETIRED_NODE_BASELINES: dict[str, dict[str, Any]] = {
+    "A4": {
+        "former_emitted_parent": "A",
+        "former_defining_snps": [
+            {"rsid": "i5009347", "pos": 9347, "allele": "G"},
+            {"rsid": "i5014308", "pos": 14308, "allele": "A"},
+        ],
+    }
+}
 
 _MT_EXPECTED_ARRAY_EXPORTS: dict[str, dict[str, Any]] = {
     "pgp_4139": {
@@ -2568,9 +2585,8 @@ def _mt_owner_motifs(
         if not _is_nonblank(path_record.get("reason")):
             issues.append(f"Flattened mtDNA source path node {path_node} has no omission reason")
         omission = omitted_nodes.get(path_node)
-        if not isinstance(omission, dict) or omission.get("type") != (
-            "flattened_unreportable_source_intermediate"
-        ):
+        omission_type = omission.get("type") if isinstance(omission, dict) else None
+        if omission_type not in _MT_FLATTENED_OMISSION_TYPES:
             issues.append(
                 f"Flattened mtDNA source path node {path_node} has no typed top-level omission"
             )
@@ -2578,7 +2594,19 @@ def _mt_owner_motifs(
             issues.append(
                 f"Flattened mtDNA source path node {path_node} disagrees with its omission reason"
             )
-        owner_motifs[path_node] = path_record.get("direct_source_motif")
+        path_motif = path_record.get("direct_source_motif")
+        if omission_type == "flattened_unreportable_source_intermediate" and isinstance(
+            path_motif, list
+        ):
+            if any(
+                isinstance(mutation, dict) and mutation.get("emitted") is True
+                for mutation in path_motif
+            ):
+                issues.append(
+                    f"Flattened-unreportable mtDNA source node {path_node} has an "
+                    "emitted source decision"
+                )
+        owner_motifs[path_node] = path_motif
         prior = path_node
     if source_parent != prior:
         issues.append(
@@ -2815,7 +2843,7 @@ def _mt_locked_coverage_rows(source: dict[str, Any], names: list[str]) -> list[t
 
 
 def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
-    """Validate schema-v2 mtDNA provenance independently of the emitted tree."""
+    """Validate schema-v3 mtDNA provenance independently of the emitted tree."""
     issues: list[str] = []
     if not isinstance(source, dict):
         return ["mtDNA source registry must be an object"]
@@ -2828,6 +2856,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         "array_cohorts",
         "direct_source_motif_states",
         "omitted_nodes",
+        "retired_emitted_nodes",
         "nodes",
         "structural_exceptions",
         "pending_nodes",
@@ -2868,6 +2897,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         "array_exports",
         "array_cohorts",
         "omitted_nodes",
+        "retired_emitted_nodes",
         "nodes",
         "structural_exceptions",
         "pending_nodes",
@@ -2918,6 +2948,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     structural = category_maps["structural_exceptions"]
     pending = category_maps["pending_nodes"]
     omitted = category_maps["omitted_nodes"]
+    retired = category_maps["retired_emitted_nodes"]
     direct_motif_states = source.get("direct_source_motif_states")
     if not isinstance(direct_motif_states, dict):
         issues.append("mtDNA source registry has no direct-source motif states")
@@ -2965,10 +2996,23 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             "mtDNA source nodes are both omitted and emitted: "
             + ", ".join(sorted(omitted_overlap))
         )
+    retired_names = set(retired)
+    retired_live_overlap = retired_names & emitted_categories
+    if retired_live_overlap:
+        issues.append(
+            "mtDNA retired-emitted state overlaps current states: "
+            + ", ".join(sorted(retired_live_overlap))
+        )
+    retired_omitted_overlap = retired_names & set(omitted)
+    if retired_omitted_overlap:
+        issues.append(
+            "mtDNA retired-emitted state overlaps omitted source nodes: "
+            + ", ".join(sorted(retired_omitted_overlap))
+        )
 
     allowed_omission_types = {
         "unreportable_source_node",
-        "flattened_unreportable_source_intermediate",
+        *_MT_FLATTENED_OMISSION_TYPES,
     }
     for name, omission in omitted.items():
         if not _is_nonblank(name) or not isinstance(omission, dict):
@@ -2980,6 +3024,70 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             issues.append(f"mtDNA omitted source node {name} has an invalid omission type")
         if not _is_nonblank(omission.get("reason")):
             issues.append(f"mtDNA omitted source node {name} has no reason")
+
+    for name, tombstone in retired.items():
+        if not _is_nonblank(name) or not isinstance(tombstone, dict):
+            issues.append(f"Retired mtDNA node {name!r} has no typed tombstone")
+            continue
+        expected_tombstone_fields = {
+            "type",
+            "former_emitted_parent",
+            "former_defining_snps",
+            "reason",
+        }
+        if set(tombstone) != expected_tombstone_fields:
+            issues.append(f"Retired mtDNA node {name} has invalid fields")
+        if tombstone.get("type") != _MT_RETIRED_NODE_TYPE:
+            issues.append(f"Retired mtDNA node {name} has an invalid retirement type")
+        former_parent = tombstone.get("former_emitted_parent")
+        if not _is_nonblank(former_parent) or former_parent == name:
+            issues.append(f"Retired mtDNA node {name} has an invalid former emitted parent")
+        if not _is_nonblank(tombstone.get("reason")):
+            issues.append(f"Retired mtDNA node {name} has no reason")
+        former_markers = tombstone.get("former_defining_snps")
+        if not isinstance(former_markers, list) or not former_markers:
+            issues.append(f"Retired mtDNA node {name} has no former defining markers")
+            continue
+        seen_marker_ids: set[str] = set()
+        seen_marker_positions: set[int] = set()
+        for marker in former_markers:
+            if not isinstance(marker, dict):
+                issues.append(f"Retired mtDNA node {name} has a non-object former marker")
+                continue
+            if set(marker) != {"rsid", "pos", "allele"}:
+                issues.append(f"Retired mtDNA node {name} has a former marker with invalid fields")
+            rsid = marker.get("rsid")
+            pos = marker.get("pos")
+            allele = marker.get("allele")
+            if not _is_nonblank(rsid) or rsid in seen_marker_ids:
+                issues.append(f"Retired mtDNA node {name} has an invalid former marker identifier")
+            elif isinstance(rsid, str):
+                seen_marker_ids.add(rsid)
+            if (
+                not isinstance(pos, int)
+                or isinstance(pos, bool)
+                or not 1 <= pos <= 16569
+                or pos in seen_marker_positions
+            ):
+                issues.append(f"Retired mtDNA node {name} has an invalid former marker position")
+            else:
+                seen_marker_positions.add(pos)
+            if allele not in {"A", "C", "G", "T"}:
+                issues.append(f"Retired mtDNA node {name} has an invalid former marker allele")
+        baseline = _MT_RETIRED_NODE_BASELINES.get(name)
+        if baseline is None:
+            issues.append(f"Retired mtDNA node {name} has no locked historical baseline")
+        else:
+            if former_parent != baseline["former_emitted_parent"]:
+                issues.append(
+                    f"Retired mtDNA node {name} former emitted parent differs from its "
+                    "locked historical baseline"
+                )
+            if former_markers != baseline["former_defining_snps"]:
+                issues.append(
+                    f"Retired mtDNA node {name} former defining markers differ from its "
+                    "locked historical baseline"
+                )
 
     for name, record in nodes.items():
         if not _is_nonblank(name) or not isinstance(record, dict):
@@ -3177,7 +3285,13 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         )
     if not set(pending).issubset(initial_pending):
         issues.append("mtDNA pending frontier grew beyond the initial audited tree")
-    dispositions = set(nodes) | set(structural) | set(pending) | set(omitted)
+    retired_outside_initial = retired_names - set(initial_pending)
+    if retired_outside_initial:
+        issues.append(
+            "mtDNA retired emitted nodes were not in the initial pending frontier: "
+            + ", ".join(sorted(retired_outside_initial))
+        )
+    dispositions = set(nodes) | set(structural) | set(pending) | retired_names
     if not set(initial_pending).issubset(dispositions):
         issues.append("mtDNA initial pending frontier contains nodes with no current disposition")
 
@@ -3191,6 +3305,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         {
             "direct_source_motif_states": direct_motif_states,
             "omitted_nodes": omitted,
+            "retired_emitted_nodes": retired,
             "structural_exceptions": structural,
             "pending_nodes": pending,
         }
@@ -3491,10 +3606,18 @@ def _validate_mt_registry_against_tree(
     structural = source["structural_exceptions"]
     pending = source["pending_nodes"]
     omitted = source["omitted_nodes"]
+    retired = source["retired_emitted_nodes"]
     exact_names = set(nodes)
     structural_names = set(structural)
     pending_names = set(pending)
     emitted_names = set(inventory.by_name)
+    retired_names = set(retired)
+    retired_emitted_overlap = retired_names & emitted_names
+    if retired_emitted_overlap:
+        issues.append(
+            "Retired mtDNA nodes are still emitted in the tree: "
+            + ", ".join(sorted(retired_emitted_overlap))
+        )
     partition = exact_names | structural_names | pending_names
     if partition != emitted_names:
         missing = sorted(emitted_names - partition)
@@ -3605,7 +3728,7 @@ def _validate_mt_registry_against_tree(
     orphan_flattened_omissions = _mt_orphan_flattened_omissions(source)
     if source["migration"].get("status") == "complete" and orphan_flattened_omissions:
         issues.append(
-            "Complete mtDNA migration has flattened source omissions that are not "
+            "Complete mtDNA migration has flattened source intermediates that are not "
             "referenced by an exact flattened path: "
             + ", ".join(sorted(orphan_flattened_omissions))
         )
@@ -3659,13 +3782,16 @@ def _mt_orphan_flattened_omissions(source: dict[str, Any]) -> set[str]:
         for name, record in omitted.items()
         if isinstance(name, str)
         and isinstance(record, dict)
-        and record.get("type") == "flattened_unreportable_source_intermediate"
+        and record.get("type") in _MT_FLATTENED_OMISSION_TYPES
     }
     return flattened_omissions - _mt_referenced_flattened_source_nodes(source)
 
 
 def _mt_migration_complete_ready(source: dict[str, Any], inventory: MtTreeInventory) -> bool:
     if source["pending_nodes"]:
+        return False
+    retired = source.get("retired_emitted_nodes")
+    if not isinstance(retired, dict) or set(retired) & set(inventory.by_name):
         return False
     motif_states = source.get("direct_source_motif_states")
     if (
@@ -3722,13 +3848,14 @@ def _validate_mt_source(
 
 
 def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory) -> dict[str, Any]:
-    """Derive inspectable schema-v2 coverage metadata from validated records."""
+    """Derive inspectable schema-v3 coverage metadata from validated records."""
     exact_names = sorted(source["nodes"])
     direct_motif_exact_names = source["direct_source_motif_states"]["exact_nodes"]
     direct_motif_partial_names = source["direct_source_motif_states"]["legacy_partial_nodes"]
     structural_names = sorted(source["structural_exceptions"])
     pending_names = sorted(source["pending_nodes"])
     omitted_names = sorted(source["omitted_nodes"])
+    retired_names = sorted(source["retired_emitted_nodes"])
     exact_markers = [
         marker for record in source["nodes"].values() for marker in record["emitted_snps"]
     ]
@@ -3793,6 +3920,7 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             "names": structural_names,
         },
         "pending_nodes": {"count": len(pending_names), "names": pending_names},
+        "retired_emitted_nodes": {"count": len(retired_names), "names": retired_names},
         "marker_records": {
             "emitted": inventory.marker_count,
             "marker_exact": len(exact_markers),
@@ -3816,7 +3944,15 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             "validated": source_edges_validated,
             "pending": inventory.edge_count - source_edges_validated,
         },
-        "omitted_source_nodes": {"count": len(omitted_names), "names": omitted_names},
+        "omitted_source_nodes": {
+            "count": len(omitted_names),
+            "names": omitted_names,
+            "by_type": dict(
+                sorted(
+                    Counter(record["type"] for record in source["omitted_nodes"].values()).items()
+                )
+            ),
+        },
         "arrays": {
             "exports": len(source["array_exports"]),
             "cohorts": len(source["array_cohorts"]),
@@ -4094,6 +4230,7 @@ def build_bundle() -> dict[str, Any]:
                         name: record["reason"]
                         for name, record in sorted(_MT_SOURCE["omitted_nodes"].items())
                     },
+                    "retired_emitted_nodes": _MT_SOURCE["retired_emitted_nodes"],
                     "provenance": mt_provenance,
                 },
             },

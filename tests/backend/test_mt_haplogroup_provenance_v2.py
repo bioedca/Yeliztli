@@ -1,4 +1,4 @@
-"""Fail-closed tests for the schema-v2 mtDNA provenance frontier."""
+"""Fail-closed tests for the schema-v3 mtDNA provenance frontier."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "7cbbdeff9a91637ae58f3a198a8a2c3fd96050c54a494e967acec52ad6fa1f8c"
+STATE_PARTITION_SHA256 = "bc194a2383d9f1e14f32b4476c12b9dd5f945a469a9a33221e451ebf8cbcf539"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 LOCKED_EMITTED_TREE_SHA256 = "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
 
@@ -392,6 +392,8 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
         inventory.marker_bearing_names
     )
     assert set(_MT_SOURCE["structural_exceptions"]) == set(inventory.markerless_names)
+    assert _MT_SOURCE["schema_version"] == 3
+    assert _MT_SOURCE["retired_emitted_nodes"] == {}
     assert _MT_SOURCE["direct_source_motif_states"] == {
         "exact_nodes": DIRECT_MOTIF_EXACT_NODES,
         "legacy_partial_nodes": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
@@ -535,6 +537,7 @@ def test_frontier_and_registry_digests_match_independent_canonicalizers() -> Non
             {
                 "direct_source_motif_states": _MT_SOURCE["direct_source_motif_states"],
                 "omitted_nodes": _MT_SOURCE["omitted_nodes"],
+                "retired_emitted_nodes": _MT_SOURCE["retired_emitted_nodes"],
                 "structural_exceptions": _MT_SOURCE["structural_exceptions"],
                 "pending_nodes": _MT_SOURCE["pending_nodes"],
             }
@@ -1095,6 +1098,7 @@ def test_coherent_synthetic_root_rename_cannot_advance_with_the_live_tree_lock()
         {
             "direct_source_motif_states": source["direct_source_motif_states"],
             "omitted_nodes": source["omitted_nodes"],
+            "retired_emitted_nodes": source["retired_emitted_nodes"],
             "structural_exceptions": source["structural_exceptions"],
             "pending_nodes": source["pending_nodes"],
         }
@@ -1625,6 +1629,211 @@ def test_omissions_require_typed_reasons_and_cannot_overlap_emitted_nodes(
     assert expected in _issues_text(_validate_mt_source_schema(source))
 
 
+def _a4_retirement_tombstone() -> dict[str, Any]:
+    a4 = _find_node(build_mt_tree(), "A4")
+    return {
+        "type": "retired_unmapped_emitted_node",
+        "former_emitted_parent": "A",
+        "former_defining_snps": [
+            {key: marker[key] for key in ("rsid", "pos", "allele")}
+            for marker in a4["defining_snps"]
+        ],
+        "reason": "Test-only retirement after finding no Build 17 source identity.",
+    }
+
+
+def _source_with_a4_retired() -> dict[str, Any]:
+    source = deepcopy(_MT_SOURCE)
+    source["pending_nodes"].pop("A4")
+    source["retired_emitted_nodes"]["A4"] = _a4_retirement_tombstone()
+    return source
+
+
+def test_retired_node_accepts_exact_tombstone_with_nonempty_former_markers() -> None:
+    source = _source_with_a4_retired()
+    tombstone = source["retired_emitted_nodes"]["A4"]
+
+    assert set(tombstone) == {
+        "type",
+        "former_emitted_parent",
+        "former_defining_snps",
+        "reason",
+    }
+    assert tombstone["former_defining_snps"]
+    assert all(
+        set(marker) == {"rsid", "pos", "allele"} for marker in tombstone["former_defining_snps"]
+    )
+    assert _validate_mt_source_schema(source) == [
+        "mtDNA migration state_partition_sha256 does not match its registry projection",
+        "mtDNA migration state_partition_sha256 differs from the locked baseline",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("tombstone-fields", "Retired mtDNA node A4 has invalid fields"),
+        ("missing-fields", "Retired mtDNA node A4 has invalid fields"),
+        ("type", "Retired mtDNA node A4 has an invalid retirement type"),
+        ("parent", "Retired mtDNA node A4 has an invalid former emitted parent"),
+        ("reason", "Retired mtDNA node A4 has no reason"),
+        ("empty-markers", "Retired mtDNA node A4 has no former defining markers"),
+        ("non-object-marker", "Retired mtDNA node A4 has a non-object former marker"),
+        ("marker-fields", "Retired mtDNA node A4 has a former marker with invalid fields"),
+        ("rsid", "Retired mtDNA node A4 has an invalid former marker identifier"),
+        ("position", "Retired mtDNA node A4 has an invalid former marker position"),
+        ("boolean-position", "Retired mtDNA node A4 has an invalid former marker position"),
+        ("allele", "Retired mtDNA node A4 has an invalid former marker allele"),
+        ("duplicate-rsid", "Retired mtDNA node A4 has an invalid former marker identifier"),
+        ("duplicate-position", "Retired mtDNA node A4 has an invalid former marker position"),
+    ],
+)
+def test_retired_node_rejects_malformed_tombstone(mutation: str, expected: str) -> None:
+    source = _source_with_a4_retired()
+    tombstone = source["retired_emitted_nodes"]["A4"]
+    markers = tombstone["former_defining_snps"]
+    if mutation == "tombstone-fields":
+        tombstone["unreviewed_field"] = True
+    elif mutation == "missing-fields":
+        tombstone.pop("former_emitted_parent")
+    elif mutation == "type":
+        tombstone["type"] = "retired_without_review"
+    elif mutation == "parent":
+        tombstone["former_emitted_parent"] = "A4"
+    elif mutation == "reason":
+        tombstone["reason"] = " "
+    elif mutation == "empty-markers":
+        tombstone["former_defining_snps"] = []
+    elif mutation == "non-object-marker":
+        markers.append("not-a-marker")
+    elif mutation == "marker-fields":
+        markers[0]["motif_owner"] = "A4"
+    elif mutation == "rsid":
+        markers[0]["rsid"] = " "
+    elif mutation == "position":
+        markers[0]["pos"] = 0
+    elif mutation == "boolean-position":
+        markers[0]["pos"] = True
+    elif mutation == "allele":
+        markers[0]["allele"] = "N"
+    elif mutation == "duplicate-rsid":
+        markers[1]["rsid"] = markers[0]["rsid"]
+    else:
+        markers[1]["pos"] = markers[0]["pos"]
+
+    assert expected in _issues_text(_validate_mt_source_schema(source))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (
+            "parent",
+            "Retired mtDNA node A4 former emitted parent differs from its locked historical "
+            "baseline",
+        ),
+        (
+            "markers",
+            "Retired mtDNA node A4 former defining markers differ from its locked historical "
+            "baseline",
+        ),
+    ],
+)
+def test_retired_node_must_preserve_locked_historical_record(mutation: str, expected: str) -> None:
+    source = _source_with_a4_retired()
+    tombstone = source["retired_emitted_nodes"]["A4"]
+    if mutation == "parent":
+        tombstone["former_emitted_parent"] = "never-existed"
+    else:
+        tombstone["former_defining_snps"][0] = {
+            "rsid": "fabricated-marker",
+            "pos": 9348,
+            "allele": "G",
+        }
+
+    assert expected in _issues_text(_validate_mt_source_schema(source))
+
+
+@pytest.mark.parametrize(
+    ("name", "tombstone"),
+    [
+        ("", _a4_retirement_tombstone()),
+        ("A4", "not-a-tombstone"),
+    ],
+)
+def test_retired_node_requires_named_object_tombstone(name: str, tombstone: Any) -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["pending_nodes"].pop("A4")
+    source["retired_emitted_nodes"] = {name: tombstone}
+
+    assert "has no typed tombstone" in _issues_text(_validate_mt_source_schema(source))
+
+
+def test_retired_node_cannot_overlap_current_or_omitted_state() -> None:
+    current_overlap = deepcopy(_MT_SOURCE)
+    current_overlap["retired_emitted_nodes"]["A4"] = _a4_retirement_tombstone()
+    assert "retired-emitted state overlaps current states: A4" in _issues_text(
+        _validate_mt_source_schema(current_overlap)
+    )
+
+    omitted_overlap = _source_with_a4_retired()
+    omitted_overlap["omitted_nodes"]["A4"] = {
+        "type": "unreportable_source_node",
+        "reason": "Test-only source omission must remain distinct from emitted retirement.",
+    }
+    assert "retired-emitted state overlaps omitted source nodes: A4" in _issues_text(
+        _validate_mt_source_schema(omitted_overlap)
+    )
+
+
+def test_retired_node_must_come_from_initial_emitted_pending_frontier() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["retired_emitted_nodes"]["never-emitted"] = _a4_retirement_tombstone()
+
+    assert (
+        "retired emitted nodes were not in the initial pending frontier: never-emitted"
+        in _issues_text(_validate_mt_source_schema(source))
+    )
+    assert "Retired mtDNA node never-emitted has no locked historical baseline" in _issues_text(
+        _validate_mt_source_schema(source)
+    )
+
+
+def test_omitted_source_node_cannot_dispose_of_initial_emitted_frontier() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["pending_nodes"].pop("A4")
+    source["omitted_nodes"]["A4"] = {
+        "type": "unreportable_source_node",
+        "reason": "Test-only source omission cannot retire a formerly emitted identity.",
+    }
+
+    assert "initial pending frontier contains nodes with no current disposition" in _issues_text(
+        _validate_mt_source_schema(source)
+    )
+
+
+def test_retired_node_is_rejected_while_it_is_still_emitted() -> None:
+    source = _source_with_a4_retired()
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert "Retired mtDNA nodes are still emitted in the tree: A4" in text
+    assert "provenance partition differs from the emitted tree; missing=['A4']" in text
+
+
+def test_future_a4_removal_is_covered_by_its_retirement_tombstone() -> None:
+    source = _source_with_a4_retired()
+    future_tree = build_mt_tree()
+    a = _find_node(future_tree, "A")
+    a["children"] = [child for child in a["children"] if child["haplogroup"] != "A4"]
+
+    assert _validate_mt_registry_against_tree(source, _index_mt_tree(future_tree)) == [
+        "mtDNA emitted tree differs from its live locked fingerprint",
+        "mtDNA emitted tree differs from the review-locked live tree",
+    ]
+
+
 def test_migration_status_cannot_claim_complete_with_pending_nodes() -> None:
     source = deepcopy(_MT_SOURCE)
     source["migration"]["status"] = "complete"
@@ -1675,6 +1884,7 @@ def _completion_source(*children: str) -> dict[str, Any]:
             "legacy_partial_nodes": [],
         },
         "omitted_nodes": {},
+        "retired_emitted_nodes": {},
     }
 
 
@@ -1696,12 +1906,31 @@ def test_migration_completion_requires_every_direct_source_motif_to_be_exact() -
     assert not _mt_migration_complete_ready(source, inventory)
 
 
-def test_migration_completion_requires_flattened_omissions_on_an_exact_path() -> None:
+def test_migration_completion_rejects_only_retired_identities_still_live() -> None:
+    inventory = _index_mt_tree(_completion_tree())
+    source = _completion_source()
+    source["retired_emitted_nodes"]["formerly-emitted"] = {}
+
+    assert _mt_migration_complete_ready(source, inventory)
+    source["retired_emitted_nodes"]["child"] = {}
+    assert not _mt_migration_complete_ready(source, inventory)
+
+
+@pytest.mark.parametrize(
+    "omission_type",
+    [
+        "flattened_source_intermediate",
+        "flattened_unreportable_source_intermediate",
+    ],
+)
+def test_migration_completion_requires_flattened_omissions_on_an_exact_path(
+    omission_type: str,
+) -> None:
     inventory = _index_mt_tree(_completion_tree())
     source = _completion_source()
     source["omitted_nodes"]["middle"] = {
-        "type": "flattened_unreportable_source_intermediate",
-        "reason": "test-only unreportable source intermediate",
+        "type": omission_type,
+        "reason": "test-only flattened source intermediate",
     }
 
     assert not _mt_migration_complete_ready(source, inventory)
@@ -1721,33 +1950,53 @@ def test_migration_completion_ignores_ordinary_unreportable_omissions() -> None:
     assert _mt_migration_complete_ready(source, _index_mt_tree(_completion_tree()))
 
 
-def test_migration_completion_allows_consistently_shared_flattened_reference() -> None:
+@pytest.mark.parametrize(
+    "omission_type",
+    [
+        "flattened_source_intermediate",
+        "flattened_unreportable_source_intermediate",
+    ],
+)
+def test_migration_completion_allows_consistently_shared_flattened_reference(
+    omission_type: str,
+) -> None:
     shared_step = {
         "source_node": "middle",
         "source_parent": "mt-MRCA",
-        "reason": "test-only shared unreportable source intermediate",
+        "reason": "test-only shared flattened source intermediate",
         "direct_source_motif": [],
     }
     source = _completion_source("left", "right")
     for record in source["nodes"].values():
         record["source_topology"]["flattened_source_path"] = [deepcopy(shared_step)]
     source["omitted_nodes"]["middle"] = {
-        "type": "flattened_unreportable_source_intermediate",
+        "type": omission_type,
         "reason": shared_step["reason"],
     }
 
     assert _mt_migration_complete_ready(source, _index_mt_tree(_completion_tree("left", "right")))
 
 
-def test_claimed_complete_migration_rejects_orphan_flattened_omission() -> None:
+@pytest.mark.parametrize(
+    "omission_type",
+    [
+        "flattened_source_intermediate",
+        "flattened_unreportable_source_intermediate",
+    ],
+)
+def test_claimed_complete_migration_rejects_orphan_flattened_omission(
+    omission_type: str,
+) -> None:
     source = deepcopy(_MT_SOURCE)
     source["migration"]["status"] = "complete"
+    source["omitted_nodes"]["CZ"]["type"] = omission_type
 
     text = _issues_text(
         _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
     )
     assert (
-        "flattened source omissions that are not referenced by an exact flattened path: CZ" in text
+        "flattened source intermediates that are not referenced by an exact flattened path: CZ"
+        in text
     )
 
 
@@ -1819,7 +2068,7 @@ def _flattened_g1_source() -> dict[str, Any]:
     record["emitted_snps"][0]["motif_owner"] = "G-flat"
     reason = "test-only source intermediate omitted from the emitted tree"
     source["omitted_nodes"]["G-flat"] = {
-        "type": "flattened_unreportable_source_intermediate",
+        "type": "flattened_source_intermediate",
         "reason": reason,
     }
     record["source_topology"] = {
@@ -1853,6 +2102,91 @@ def test_flattened_source_path_accepts_ordered_adjacency_and_marker_ownership() 
     # The topology-only registry guard can validate this state without changing
     # the locked emitted-tree fingerprint; schema digest locks intentionally remain.
     assert _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree())) == []
+
+
+def test_flattened_unreportable_source_path_rejects_emitted_source_decision() -> None:
+    source = _flattened_g1_source()
+    source["omitted_nodes"]["G-flat"]["type"] = "flattened_unreportable_source_intermediate"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        "G1",
+        source["nodes"]["G1"],
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert (
+        "Flattened-unreportable mtDNA source node G-flat has an emitted source decision" in issues
+    )
+
+
+def test_general_flattened_source_path_can_omit_every_owned_decision() -> None:
+    source = _flattened_g1_source()
+    record = source["nodes"]["G1"]
+    flattened_mutation = record["source_topology"]["flattened_source_path"][0][
+        "direct_source_motif"
+    ][0]
+    flattened_mutation["emitted"] = False
+    flattened_mutation["omission_reason"] = "Test-only explicit non-emission policy."
+    record["emitted_snps"] = [marker for marker in record["emitted_snps"] if marker["pos"] != 8200]
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        "G1",
+        record,
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert issues == []
+
+
+@pytest.mark.parametrize(
+    "omission_type",
+    [
+        "flattened_source_intermediate",
+        "flattened_unreportable_source_intermediate",
+    ],
+)
+def test_flattened_identity_cannot_also_be_an_emitted_direct_source(
+    omission_type: str,
+) -> None:
+    source = _flattened_g1_source()
+    source["omitted_nodes"]["G-flat"]["type"] = omission_type
+    source["nodes"]["G2"]["source_node"] = "G-flat"
+
+    schema_text = _issues_text(_validate_mt_source_schema(source))
+    assert "exact direct source nodes are also globally omitted: G-flat" in schema_text
+    registry_text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert "flattens the direct source node G-flat of another emitted record" in registry_text
+
+
+@pytest.mark.parametrize("mutation", ["source_parent", "reason", "direct_source_motif"])
+def test_shared_flattened_identity_requires_identical_path_provenance(mutation: str) -> None:
+    source = _flattened_g1_source()
+    shared_step = deepcopy(source["nodes"]["G1"]["source_topology"]["flattened_source_path"][0])
+    source["nodes"]["G2"]["source_topology"] = {
+        "status": "exact",
+        "emitted_parent_source_node": "G",
+        "source_parent": "G-flat",
+        "flattened_source_path": [shared_step],
+    }
+    if mutation == "source_parent":
+        shared_step["source_parent"] = "wrong-parent"
+    elif mutation == "reason":
+        shared_step["reason"] = "A conflicting shared-path reason."
+    else:
+        shared_step["direct_source_motif"][0]["notation"] = "T8200A"
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert "Flattened mtDNA source node G-flat has inconsistent provenance" in text
 
 
 @pytest.mark.parametrize(
@@ -1937,6 +2271,7 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "names": ["R0", "mt-MRCA"],
     }
     assert summary["pending_nodes"]["count"] == 146
+    assert summary["retired_emitted_nodes"] == {"count": 0, "names": []}
     assert summary["marker_records"] == {
         "emitted": 403,
         "marker_exact": 107,
@@ -1963,6 +2298,10 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["omitted_source_nodes"] == {
         "count": 3,
         "names": ["CZ", "K1c", "W+194"],
+        "by_type": {
+            "flattened_unreportable_source_intermediate": 2,
+            "unreportable_source_node": 1,
+        },
     }
     assert summary["arrays"] == {"exports": 6, "cohorts": 2}
     assert summary["locked_exact_frontier"] == {
@@ -1978,16 +2317,17 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.13"
+    assert bundle["version"] == "1.1.14"
     assert bundle["stats"]["mt_haplogroups"] == 194
     assert bundle["stats"]["mt_defining_snps"] == 403
     assert bundle["stats"]["mt_unique_snps"] == 324
     assert bundle["stats"]["total_defining_snps"] == 557
     assert bundle["stats"]["total_unique_snps"] == 478
-    assert mt_audit["schema_version"] == 2
+    assert mt_audit["schema_version"] == 3
     assert mt_audit["audited_nodes"] == sorted(_MT_SOURCE["nodes"])
     assert mt_audit["omitted_nodes"] == {
         name: record["reason"] for name, record in sorted(_MT_SOURCE["omitted_nodes"].items())
     }
+    assert mt_audit["retired_emitted_nodes"] == {}
     assert mt_audit["provenance"] == summary
     assert bundle["trees"]["mt"] == tree

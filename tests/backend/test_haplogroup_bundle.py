@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.13"
+        assert bundle["version"] == "1.1.14"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -162,7 +162,7 @@ class TestBundleStructure:
         assert mt_source["reference_sequence"]["accession"] == "NC_012920.1"
         audit = mt_source["audit"]
         provenance = audit["provenance"]
-        assert audit["schema_version"] == 2
+        assert audit["schema_version"] == 3
         assert audit["audited_nodes"] == provenance["marker_exact_nodes"]["names"]
         assert set(provenance["marker_exact_nodes"]["names"]) == {
             "C",
@@ -226,6 +226,7 @@ class TestBundleStructure:
             "names": ["R0", "mt-MRCA"],
         }
         assert provenance["pending_nodes"]["count"] == 146
+        assert provenance["retired_emitted_nodes"] == {"count": 0, "names": []}
         assert provenance["marker_records"] == {
             "emitted": 403,
             "marker_exact": 107,
@@ -255,6 +256,10 @@ class TestBundleStructure:
         assert provenance["omitted_source_nodes"] == {
             "count": 3,
             "names": ["CZ", "K1c", "W+194"],
+            "by_type": {
+                "flattened_unreportable_source_intermediate": 2,
+                "unreportable_source_node": 1,
+            },
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
 
@@ -263,6 +268,7 @@ class TestBundleStructure:
         omitted = audit["omitted_nodes"]
         assert set(omitted) == set(provenance["omitted_source_nodes"]["names"])
         assert all(isinstance(reason, str) and reason for reason in omitted.values())
+        assert audit["retired_emitted_nodes"] == {}
         assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
     def test_sources_y(self, bundle: dict) -> None:
