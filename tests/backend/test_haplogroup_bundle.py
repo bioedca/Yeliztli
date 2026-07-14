@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.2"
+        assert bundle["version"] == "1.1.3"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -210,7 +210,10 @@ class TestBundleStructure:
     def test_y_assignment_policy_is_bundled(self, bundle: dict) -> None:
         policy = bundle["assignment"]["Y"]
         assert policy["min_internal_terminal_specific_snps"] == 2
-        assert policy["trusted_missing_internal_passthrough_rsids"] == ["rs2032599"]
+        assert policy["trusted_missing_internal_passthrough_rsids"] == [
+            "rs2032599",
+            "rs2033003",
+        ]
         assert set(policy["trusted_single_marker_terminal_rsids"])
 
     def test_trees_has_mt_and_y(self, bundle: dict) -> None:

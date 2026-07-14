@@ -3346,7 +3346,7 @@
       "final_node_type": "internal",
       "markers": [
         {
-          "all_four_arrays": true,
+          "all_four_arrays": false,
           "allele": "C",
           "ancestral_allele": "A",
           "count_derived": 83,
@@ -6041,7 +6041,8 @@
   "assignment": {
     "min_internal_terminal_specific_snps": 2,
     "trusted_missing_internal_passthrough_rsids": [
-      "rs2032599"
+      "rs2032599",
+      "rs2033003"
     ],
     "trusted_single_marker_terminal_rsids": [
       "i702668",

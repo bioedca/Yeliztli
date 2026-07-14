@@ -336,7 +336,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.2"
+        assert bundle.version == "1.1.3"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -357,7 +357,9 @@ class TestLoadHaplogroupBundle:
 
     def test_y_trusted_single_markers_loaded_from_bundle(self, bundle: HaplogroupBundle) -> None:
         assert bundle.y_min_internal_terminal_specific_snps == 2
-        assert bundle.y_trusted_missing_internal_passthrough_rsids == frozenset({"rs2032599"})
+        assert bundle.y_trusted_missing_internal_passthrough_rsids == frozenset(
+            {"rs2032599", "rs2033003"}
+        )
         assert bundle.y_trusted_single_marker_terminal_rsids
         assert bundle.y_trusted_single_marker_terminal_rsids <= bundle.y_snp_rsids
 
@@ -1402,6 +1404,56 @@ class TestYTreeSelfConsistency:
             ("B", 0, 1),
             ("B2", 2, 2),
         ]
+
+    def test_missing_k2_gateway_marker_can_route_to_supported_r_descendant(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """An absent M526 must not collapse a supported P/R lineage to K."""
+        genotypes = {
+            row["rsid"]: row["genotype"]
+            for row in _derived_y_path_genotypes("R")
+            if row["rsid"] != "rs2033003"
+        }
+
+        terminal, traversal = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+            trusted_missing_internal_passthrough_rsids=(
+                bundle.y_trusted_missing_internal_passthrough_rsids
+            ),
+        )
+
+        assert terminal.haplogroup == "R"
+        assert [(step.haplogroup, step.snps_present, step.snps_total) for step in traversal] == [
+            ("CT", 2, 2),
+            ("F", 2, 2),
+            ("K", 2, 2),
+            ("K2", 0, 1),
+            ("P", 2, 2),
+            ("R", 2, 2),
+        ]
+
+    def test_ancestral_k2_gateway_marker_blocks_r_descent(self, bundle: HaplogroupBundle) -> None:
+        """The missing-marker exception must not bypass conflicting M526 evidence."""
+        genotypes = {row["rsid"]: row["genotype"] for row in _derived_y_path_genotypes("R")}
+        genotypes["rs2033003"] = "AA"
+
+        terminal, traversal = _tree_walk(
+            bundle.y_tree,
+            genotypes,
+            [],
+            min_internal_terminal_specific_snps=(bundle.y_min_internal_terminal_specific_snps),
+            trusted_single_marker_terminal_rsids=(bundle.y_trusted_single_marker_terminal_rsids),
+            trusted_missing_internal_passthrough_rsids=(
+                bundle.y_trusted_missing_internal_passthrough_rsids
+            ),
+        )
+
+        assert terminal.haplogroup == "K"
+        assert [step.haplogroup for step in traversal] == ["CT", "F", "K"]
 
     def test_isolated_m269_cannot_jump_untyped_y_ancestors(self, bundle: HaplogroupBundle) -> None:
         terminal, traversal = _tree_walk(
