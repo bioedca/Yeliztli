@@ -5,41 +5,24 @@
  */
 
 import { useLocation } from "react-router-dom"
+import { navRoutes } from "@/lib/nav-routes"
 
-/** Map pathname to a human-readable page title for screen reader announcements. */
+const routeTitles = new Map<string, string>([
+  ...navRoutes.map(
+    ({ to, label, announcementLabel }) =>
+      [to, announcementLabel ?? label] as const,
+  ),
+  ["/setup", "Setup Wizard"],
+  ["/login", "Login"],
+])
+
+/** Resolve a pathname to a human-readable page title for screen reader announcements. */
 function getPageTitle(pathname: string): string {
-  const routes: Record<string, string> = {
-    "/": "Dashboard",
-    "/findings": "All Findings",
-    "/variants": "Variant Explorer",
-    "/pharmacogenomics": "Pharmacogenomics",
-    "/nutrigenomics": "Nutrigenomics",
-    "/cancer": "Cancer",
-    "/cardiovascular": "Cardiovascular",
-    "/apoe": "APOE",
-    "/carrier-status": "Carrier Status",
-    "/fitness": "Gene Fitness",
-    "/sleep": "Gene Sleep",
-    "/methylation": "MTHFR & Methylation",
-    "/skin": "Gene Skin",
-    "/allergy": "Gene Allergy & Immune Sensitivities",
-    "/traits": "Traits & Personality",
-    "/gene-health": "Gene Health",
-    "/ancestry": "Ancestry",
-    "/rare-variants": "Rare Variants",
-    "/genome-browser": "Genome Browser",
-    "/query-builder": "Query Builder",
-    "/overlays": "Overlays",
-    "/reports": "Reports",
-    "/settings": "Settings",
-    "/setup": "Setup Wizard",
-    "/login": "Login",
-  }
-
   // Check exact match first, then try parent path for nested routes (e.g. /settings/updates → Settings)
-  if (routes[pathname]) return routes[pathname]
+  const exactTitle = routeTitles.get(pathname)
+  if (exactTitle) return exactTitle
   const parent = pathname.split("/").slice(0, 2).join("/")
-  return routes[parent] ?? "Page"
+  return routeTitles.get(parent) ?? "Page"
 }
 
 export default function RouteAnnouncer() {
