@@ -336,7 +336,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.4"
+        assert bundle.version == "1.1.5"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1551,6 +1551,50 @@ class TestAssignHaplogroups:
         # Assigned by rCRS position despite zero rsid matches (pre-#498 this was mt-MRCA).
         assert results[0].haplogroup == "H1a"
         assert results[0].defining_snps_present > 0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("allele_16129", "expected", "expected_path"),
+        [
+            pytest.param("A", "I", ["L3", "N", "I"], id="derived-A-calls-I"),
+            pytest.param("C", "N", ["L3", "N"], id="old-C-stops-at-N"),
+        ],
+    )
+    def test_issue_1795_i_back_mutation_uses_a_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        allele_16129: str,
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """Direct T10034C/G16129A! evidence resolves I without untyped path markers."""
+        direct_i_rows = [
+            {"rsid": "vendor_i_10034", "chrom": "MT", "pos": 10034, "genotype": "CC"},
+            {
+                "rsid": "vendor_i_16129",
+                "chrom": "MT",
+                "pos": 16129,
+                "genotype": allele_16129 * 2,
+            },
+        ]
+        rows = [
+            {**row, "rsid": f"vendor_issue_1795_{index}"}
+            for index, row in enumerate([*_MT_N_TRUNK_GENOTYPES, *direct_i_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

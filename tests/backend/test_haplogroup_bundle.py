@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.4"
+        assert bundle["version"] == "1.1.5"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -421,6 +421,17 @@ class TestMtDNATree:
         assert 3834 not in allele_map("U3a")
         assert allele_map("U9")[3834] == "A"
         assert allele_map("Y1")[3834] == "A"
+
+    def test_issue_1795_i_uses_the_cumulative_build17_lineage_motif(self, mt_tree: dict) -> None:
+        """Flattened I keeps inherited path markers and ends G16129A! at A."""
+        node = find_node(mt_tree, "I")
+        assert node is not None
+        assert {snp["pos"]: snp["allele"] for snp in node["defining_snps"]} == {
+            1719: "A",
+            10034: "C",
+            15043: "A",
+            16129: "A",
+        }
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""

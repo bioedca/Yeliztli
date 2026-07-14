@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -1444,7 +1444,7 @@
                     {
                       "rsid": "i5016129",
                       "pos": 16129,
-                      "allele": "C"
+                      "allele": "A"
                     }
                   ]
                 },
