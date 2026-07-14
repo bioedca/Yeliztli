@@ -18,6 +18,7 @@ PAR-aware algorithm needs to confirm XY.
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -76,12 +77,14 @@ def sample_engine() -> sa.Engine:
 
 # Known genotype fixture for H1a path:
 # mt-MRCA → L3 → N → R → R0 → HV → H → H1 → H1a
-_H1A_GENOTYPES = [
-    # L3 defining SNPs (PhyloTree Build 17 forward-direction labels:
-    # A769G, A1018G, C16311T).
-    {"rsid": "i5000769", "chrom": "MT", "pos": 769, "genotype": "GG"},
+_MT_L3_TRUNK_GENOTYPES = [
+    # L3's primary-array-callable Build 17 substitution. The other two direct
+    # events (A769G and C16311T) are retained as non-emitted source provenance.
     {"rsid": "i5001018", "chrom": "MT", "pos": 1018, "genotype": "GG"},
-    {"rsid": "i5016311", "chrom": "MT", "pos": 16311, "genotype": "TT"},
+]
+
+_MT_N_TRUNK_GENOTYPES = [
+    *_MT_L3_TRUNK_GENOTYPES,
     # N defining SNPs (source-direction non-colliding subset: G8701A, C9540T,
     # C10873T). Source positions 10398 and 15301 are modeled on downstream
     # clades with opposite alleles, so they stay off the N ancestor in this
@@ -89,9 +92,17 @@ _H1A_GENOTYPES = [
     {"rsid": "i5008701", "chrom": "MT", "pos": 8701, "genotype": "AA"},
     {"rsid": "i5009540", "chrom": "MT", "pos": 9540, "genotype": "TT"},
     {"rsid": "i5010873", "chrom": "MT", "pos": 10873, "genotype": "TT"},
+]
+
+_MT_R_TRUNK_GENOTYPES = [
+    *_MT_N_TRUNK_GENOTYPES,
     # R defining SNPs (T12705C, T16223C).
     {"rsid": "i5012705", "chrom": "MT", "pos": 12705, "genotype": "CC"},
     {"rsid": "i5016223", "chrom": "MT", "pos": 16223, "genotype": "CC"},
+]
+
+_H1A_GENOTYPES = [
+    *_MT_R_TRUNK_GENOTYPES,
     # HV0 sibling marker: Build 17 HV0 is T72C. A true H carrier carries the
     # rCRS base 72=T, so TT keeps this H path out of the HV0 branch (#1648).
     {"rsid": "i5000072", "chrom": "MT", "pos": 72, "genotype": "TT"},
@@ -111,17 +122,14 @@ _H1A_GENOTYPES = [
     {"rsid": "i5016162", "chrom": "MT", "pos": 16162, "genotype": "GG"},
 ]
 
-_MT_R_TRUNK_GENOTYPES = _H1A_GENOTYPES[:8]
-
 _MT_U_TRUNK_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "rs1000731", "chrom": "MT", "pos": 13133, "genotype": "TT"},
     {"rsid": "i5012308", "chrom": "MT", "pos": 12308, "genotype": "GG"},
     {"rsid": "i5012372", "chrom": "MT", "pos": 12372, "genotype": "AA"},
 ]
 
-_MT_N_TRUNK_GENOTYPES = _H1A_GENOTYPES[:6]
-
-_MT_M_TRUNK_GENOTYPES = _H1A_GENOTYPES[:3] + [
+_MT_M_TRUNK_GENOTYPES = [
+    *_MT_L3_TRUNK_GENOTYPES,
     {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
     {"rsid": "rs1000361", "chrom": "MT", "pos": 10951, "genotype": "AA"},
     {"rsid": "i5014783", "chrom": "MT", "pos": 14783, "genotype": "CC"},
@@ -193,7 +201,7 @@ _HV0_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5000072", "chrom": "MT", "pos": 72, "genotype": "CC"},
 ]
 
-_MT_N1_REVERSAL_GENOTYPES = _H1A_GENOTYPES[:6] + [
+_MT_N1_REVERSAL_GENOTYPES = _MT_N_TRUNK_GENOTYPES + [
     {"rsid": "i5006365", "chrom": "MT", "pos": 6365, "genotype": "CC"},
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
 ]
@@ -280,9 +288,15 @@ def _derived_y_path_genotypes(target: str) -> list[dict[str, object]]:
     ]
 
 
+@lru_cache(maxsize=1)
+def _mt_tree_json() -> dict:
+    """Load the generated mtDNA tree once for path-derived test fixtures."""
+    return json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["mt"]
+
+
 def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
     """Build derived calls for one emitted mtDNA path from the generated bundle."""
-    tree = json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["mt"]
+    tree = _mt_tree_json()
 
     def find_path(node: dict) -> list[dict] | None:
         if node["haplogroup"] == target:
@@ -305,6 +319,82 @@ def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
         for node in path
         for snp in node["defining_snps"]
     ]
+
+
+_ROOT_L0_BATCH_DIRECT_POSITIONS = {
+    "L0": (1048, 3516, 5442, 6185, 9347, 10589, 12007, 12720),
+    "L0a": (5231, 5460, 11176, 14308),
+    "L0a1": (5096,),
+    "L0a2": (64, 5147, 5711, 6257, 8460, 11172, 16129),
+    "L0b": (6719, 15106, 15622, 16051, 16164),
+    "L0d": (1438, 4232, 8152, 8251, 12121, 15466, 15930, 15941, 16243),
+    "L0d1": (719, 2706, 3438, 6266, 13759),
+    "L0d2": (3981, 4025, 4044, 7154, 11854, 15766),
+    "L0f": (207, 4964, 9581, 9620, 13470, 14109, 15852, 16169, 16327),
+    "L0k": (
+        199,
+        850,
+        1243,
+        4541,
+        4907,
+        5811,
+        8911,
+        8994,
+        9136,
+        10499,
+        10920,
+        11299,
+        11653,
+        13590,
+        13928,
+        14020,
+        14182,
+        14371,
+        16129,
+        16291,
+    ),
+    "L1": (3666, 7389, 13789, 14178, 14560),
+    "L2": (146, 2416, 8206, 9221, 10115, 13590, 16390),
+    "L3": (1018,),
+    "L4": (5460, 16362),
+    "L5": (3423, 7972, 12950, 16148),
+    "L6": (
+        146,
+        961,
+        1461,
+        4964,
+        5267,
+        6002,
+        6284,
+        9332,
+        10978,
+        11116,
+        12771,
+        13710,
+        15244,
+        15289,
+        16048,
+    ),
+}
+
+_ROOT_L0_BATCH_EXPECTED_STEPS = {
+    "L0": (("L0", 8, 8),),
+    "L0a": (("L0", 8, 8), ("L0a", 4, 4)),
+    "L0a1": (("L0", 8, 8), ("L0a", 4, 4), ("L0a1", 1, 1)),
+    "L0a2": (("L0", 8, 8), ("L0a", 4, 4), ("L0a2", 7, 7)),
+    "L0b": (("L0", 8, 8), ("L0b", 5, 5)),
+    "L0d": (("L0", 8, 8), ("L0d", 9, 9)),
+    "L0d1": (("L0", 8, 8), ("L0d", 9, 9), ("L0d1", 5, 5)),
+    "L0d2": (("L0", 8, 8), ("L0d", 9, 9), ("L0d2", 6, 6)),
+    "L0f": (("L0", 8, 8), ("L0f", 9, 9)),
+    "L0k": (("L0", 8, 8), ("L0k", 20, 20)),
+    "L1": (("L1", 5, 5),),
+    "L2": (("L2", 7, 7),),
+    "L3": (("L3", 1, 1),),
+    "L4": (("L4", 2, 2),),
+    "L5": (("L5", 4, 4),),
+    "L6": (("L6", 15, 15),),
+}
 
 
 _W_DIRECT_POSITION_GENOTYPES = [
@@ -355,7 +445,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.14"
+        assert bundle.version == "1.1.15"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -787,6 +877,15 @@ class TestTreeWalk:
         assert "H" in haplogroups_in_path
         assert "H1" in haplogroups_in_path
         assert "H1a" in haplogroups_in_path
+
+    def test_issue_1798_m11176_is_owned_by_l0a_not_l0k(self, bundle: HaplogroupBundle) -> None:
+        """The flattened L0a'g marker is attached only to its L0a descendant."""
+        l0a = _find_mt_node(bundle.mt_tree, "L0a")
+        l0k = _find_mt_node(bundle.mt_tree, "L0k")
+        assert l0a is not None
+        assert l0k is not None
+        assert _mt_snp_map(l0a)[11176] == "A"
+        assert 11176 not in _mt_snp_map(l0k)
 
     def test_true_h_carrier_reaches_h_and_ancestral_is_blocked(
         self, bundle: HaplogroupBundle
@@ -1570,6 +1669,604 @@ class TestAssignHaplogroups:
         # Assigned by rCRS position despite zero rsid matches (pre-#498 this was mt-MRCA).
         assert results[0].haplogroup == "H1a"
         assert results[0].defining_snps_present > 0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", list(_ROOT_L0_BATCH_DIRECT_POSITIONS))
+    def test_issue_1798_root_l0_batch_exact_motifs_assign_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+    ) -> None:
+        """All batch-01 nodes resolve through both production MT position joins."""
+        node = _find_mt_node(bundle.mt_tree, target)
+        assert node is not None
+        assert tuple(sorted(_mt_snp_map(node))) == _ROOT_L0_BATCH_DIRECT_POSITIONS[target]
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_root_l0_exact_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(_derived_mt_path_genotypes(target))
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        expected_steps = _ROOT_L0_BATCH_EXPECTED_STEPS[target]
+        assert mt.haplogroup == target
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == list(expected_steps)
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (
+            sum(step[1] for step in expected_steps),
+            sum(step[2] for step in expected_steps),
+        )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "conflict_position", "ancestral_allele", "expected", "expected_steps"),
+        [
+            pytest.param("L0", 1048, "C", "mt-MRCA", (), id="L0"),
+            pytest.param("L0a", 11176, "G", "L0", (("L0", 8, 8),), id="L0a"),
+            pytest.param(
+                "L0a1",
+                5096,
+                "T",
+                "L0a",
+                (("L0", 8, 8), ("L0a", 4, 4)),
+                id="L0a1",
+            ),
+            pytest.param(
+                "L0a2",
+                64,
+                "C",
+                "L0a",
+                (("L0", 8, 8), ("L0a", 4, 4)),
+                id="L0a2",
+            ),
+            pytest.param("L0b", 6719, "T", "L0", (("L0", 8, 8),), id="L0b"),
+            pytest.param("L0d", 1438, "G", "L0", (("L0", 8, 8),), id="L0d"),
+            pytest.param(
+                "L0d1",
+                719,
+                "G",
+                "L0d",
+                (("L0", 8, 8), ("L0d", 9, 9)),
+                id="L0d1",
+            ),
+            pytest.param(
+                "L0d2",
+                3981,
+                "A",
+                "L0d",
+                (("L0", 8, 8), ("L0d", 9, 9)),
+                id="L0d2",
+            ),
+            pytest.param("L0f", 207, "G", "L0", (("L0", 8, 8),), id="L0f"),
+            pytest.param("L0k", 199, "T", "L0", (("L0", 8, 8),), id="L0k"),
+            pytest.param("L1", 3666, "G", "mt-MRCA", (), id="L1"),
+            pytest.param("L2", 146, "T", "mt-MRCA", (), id="L2"),
+            pytest.param("L3", 1018, "A", "mt-MRCA", (), id="L3"),
+            pytest.param("L4", 5460, "G", "mt-MRCA", (), id="L4"),
+            pytest.param("L5", 3423, "T", "mt-MRCA", (), id="L5"),
+            pytest.param("L6", 146, "T", "mt-MRCA", (), id="L6"),
+        ],
+    )
+    def test_issue_1798_root_l0_batch_typed_ancestral_calls_block_descent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        conflict_position: int,
+        ancestral_allele: str,
+        expected: str,
+        expected_steps: tuple[tuple[str, int, int], ...],
+    ) -> None:
+        """One typed ancestral direct marker rejects a node despite its other calls."""
+        path_rows = _derived_mt_path_genotypes(target)
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_root_l0_conflict_{target}_{index}",
+                "chrom": "MT",
+                "genotype": (
+                    ancestral_allele * 2
+                    if int(row["pos"]) == conflict_position
+                    else row["genotype"]
+                ),
+            }
+            for index, row in enumerate(path_rows)
+        ]
+        assert sum(int(row["pos"]) == conflict_position for row in rows) == 1
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == list(expected_steps)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        "target",
+        ["L0a", "L0a1", "L0a2", "L0b", "L0d", "L0d1", "L0d2", "L0f", "L0k"],
+    )
+    def test_issue_1798_root_l0_batch_children_cannot_bypass_parent_gateways(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+    ) -> None:
+        """A complete child motif cannot jump its nearest untyped emitted parent."""
+        expected_steps = _ROOT_L0_BATCH_EXPECTED_STEPS[target]
+        parent = expected_steps[-2][0]
+        parent_positions = set(_ROOT_L0_BATCH_DIRECT_POSITIONS[parent])
+        path_rows = [
+            row
+            for row in _derived_mt_path_genotypes(target)
+            if int(row["pos"]) not in parent_positions
+        ]
+        if target == "L0a":
+            # L0a's recurrent m.5460A is also one of L4's two direct markers,
+            # so a parent-free L0a motif exposes the separately documented L4
+            # singleton ambiguity. Type L4's other locus ancestral here to keep
+            # this test focused on the missing-L0 gateway.
+            path_rows.append({"pos": 16362, "genotype": "TT"})
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_root_l0_gateway_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(path_rows)
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        expected_ancestor_steps = expected_steps[:-2]
+        expected = expected_ancestor_steps[-1][0] if expected_ancestor_steps else "mt-MRCA"
+        assert mt.haplogroup == expected
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == list(expected_ancestor_steps)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("source_prefix", "ancestor", "prefix_rows", "expected", "expected_steps"),
+        [
+            pytest.param(
+                "L0a'b'f'g'k",
+                "L0",
+                [(189, "G"), (4586, "C"), (9818, "T"), (16172, "C")],
+                "L0",
+                (("L0", 8, 8),),
+                id="L0abfgk-stops-L0",
+            ),
+            pytest.param(
+                "L0a'b'f'g",
+                "L0",
+                [
+                    (73, "A"),
+                    (185, "A"),
+                    (195, "T"),
+                    (263, "G"),
+                    (2245, "G"),
+                    (5603, "T"),
+                    (11641, "G"),
+                    (15136, "A"),
+                    (15431, "A"),
+                ],
+                "L0",
+                (("L0", 8, 8),),
+                id="L0abfg-stops-L0",
+            ),
+            pytest.param(
+                "L0a'b'g",
+                "L0",
+                [
+                    (93, "G"),
+                    (95, "C"),
+                    (236, "C"),
+                    (8428, "T"),
+                    (8566, "G"),
+                    (9755, "A"),
+                    (16148, "T"),
+                ],
+                "L0",
+                (("L0", 8, 8),),
+                id="L0abg-stops-L0",
+            ),
+            pytest.param(
+                "L0a'g",
+                "L0",
+                [(11176, "A"), (16188, "G")],
+                "L0",
+                (("L0", 8, 8),),
+                id="L0ag-one-of-four-stops-L0",
+            ),
+            pytest.param(
+                "L0a1'4",
+                "L0a",
+                [(16168, "T")],
+                "L0a",
+                (("L0", 8, 8), ("L0a", 4, 4)),
+                id="L0a14-stops-L0a",
+            ),
+            pytest.param(
+                "L0d1'2",
+                "L0d",
+                [(3756, "G"), (9755, "A"), (16278, "C")],
+                "L0d",
+                (("L0", 8, 8), ("L0d", 9, 9)),
+                id="L0d12-stops-L0d",
+            ),
+            pytest.param(
+                "L1'2'3'4'5'6",
+                None,
+                [
+                    (146, "T"),
+                    (182, "T"),
+                    (4312, "C"),
+                    (10664, "C"),
+                    (10915, "T"),
+                    (11914, "G"),
+                    (13276, "A"),
+                    (16230, "A"),
+                ],
+                "mt-MRCA",
+                (),
+                id="L123456-stops-root",
+            ),
+            pytest.param(
+                "L2'3'4'5'6",
+                None,
+                [(152, "T"), (2758, "G"), (2885, "T"), (7146, "A"), (8468, "C")],
+                "mt-MRCA",
+                (),
+                id="L23456-stops-root",
+            ),
+            pytest.param(
+                "L2'3'4'6",
+                None,
+                [
+                    (195, "T"),
+                    (247, "G"),
+                    (825, "T"),
+                    (8655, "C"),
+                    (10688, "G"),
+                    (10810, "T"),
+                    (13105, "A"),
+                    (13506, "C"),
+                    (15301, "A"),
+                    (16129, "G"),
+                    (16187, "C"),
+                    (16189, "T"),
+                ],
+                "mt-MRCA",
+                (),
+                id="L2346-stops-root",
+            ),
+            pytest.param(
+                "L3'4'6",
+                None,
+                [(4104, "A"), (7521, "G")],
+                "mt-MRCA",
+                (),
+                id="L346-stops-root",
+            ),
+            pytest.param(
+                "L3'4",
+                None,
+                [(182, "C"), (3594, "C"), (7256, "C"), (13650, "C"), (16278, "C")],
+                "mt-MRCA",
+                (),
+                id="L34-stops-root",
+            ),
+        ],
+    )
+    def test_issue_1798_flattened_source_prefixes_stop_at_honest_ancestor(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        source_prefix: str,
+        ancestor: str | None,
+        prefix_rows: list[tuple[int, str]],
+        expected: str,
+        expected_steps: tuple[tuple[str, int, int], ...],
+    ) -> None:
+        """Shared source-only motifs cannot manufacture a flattened sibling call."""
+        ancestor_rows = [] if ancestor is None else _derived_mt_path_genotypes(ancestor)
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_prefix_{source_prefix}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *ancestor_rows,
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in prefix_rows
+                    ),
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == list(expected_steps)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("with_l0_gateway", [False, True])
+    def test_issue_1798_m11176_alone_does_not_overresolve_l0a_or_l0k(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        with_l0_gateway: bool,
+    ) -> None:
+        """The one L0a'g call is only 1/4 L0a evidence and is no longer an L0k SNP."""
+        trunk = _derived_mt_path_genotypes("L0") if with_l0_gateway else []
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_m11176_{with_l0_gateway}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*trunk, {"pos": 11176, "genotype": "AA"}])
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        expected = "L0" if with_l0_gateway else "mt-MRCA"
+        assert mt.haplogroup == expected
+        assert "L0a" not in [step.haplogroup for step in mt.traversal_path]
+        assert "L0k" not in [step.haplogroup for step in mt.traversal_path]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "ancestor", "legacy_rows", "expected", "expected_path"),
+        [
+            pytest.param("L0", None, [(9042, "T")], "mt-MRCA", [], id="L0"),
+            pytest.param("L0a", "L0", [(1438, "G"), (9042, "T")], "L0", ["L0"], id="L0a"),
+            pytest.param(
+                "L0a1",
+                "L0a",
+                [(7158, "G"), (9818, "C")],
+                "L0a",
+                ["L0", "L0a"],
+                id="L0a1",
+            ),
+            pytest.param(
+                "L0a2",
+                "L0a",
+                [(7256, "T"), (11899, "C")],
+                "L0a",
+                ["L0", "L0a"],
+                id="L0a2",
+            ),
+            pytest.param(
+                "L0b",
+                "L0",
+                [(3693, "A"), (5580, "C"), (12171, "G")],
+                "L0",
+                ["L0"],
+                id="L0b",
+            ),
+            pytest.param("L0d", "L0", [(1715, "C"), (9755, "A")], "L0", ["L0"], id="L0d"),
+            pytest.param("L0d1", "L0d", [(8113, "T")], "L0d", ["L0", "L0d"], id="L0d1"),
+            pytest.param(
+                "L0d2",
+                "L0d",
+                [(2969, "A"), (10394, "T")],
+                "L0d",
+                ["L0", "L0d"],
+                id="L0d2",
+            ),
+            pytest.param("L0f", "L0", [(3396, "G"), (10586, "A")], "L0", ["L0"], id="L0f"),
+            pytest.param("L0k", "L0", [(2352, "C")], "L0", ["L0"], id="L0k"),
+            pytest.param(
+                "L1",
+                None,
+                [(7055, "G"), (10589, "A"), (10810, "C")],
+                "mt-MRCA",
+                [],
+                id="L1",
+            ),
+            pytest.param(
+                "L2",
+                None,
+                [(2789, "C"), (7175, "C"), (7771, "G")],
+                "mt-MRCA",
+                [],
+                id="L2",
+            ),
+            pytest.param("L3", None, [(769, "G"), (16311, "T")], "mt-MRCA", [], id="L3"),
+            pytest.param("L4", None, [(5108, "C"), (10685, "A")], "mt-MRCA", [], id="L4"),
+            pytest.param("L5", None, [(5108, "C"), (15301, "A")], "mt-MRCA", [], id="L5"),
+            pytest.param(
+                "L6",
+                None,
+                [(3396, "G"), (7146, "G"), (10589, "A")],
+                "mt-MRCA",
+                [],
+                id="L6",
+            ),
+        ],
+    )
+    def test_issue_1798_obsolete_root_l0_markers_do_not_restore_old_assignments(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        ancestor: str | None,
+        legacy_rows: list[tuple[int, str]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """Removed pre-audit markers cannot refine the nearest supported ancestor."""
+        assert not (
+            {position for position, _ in legacy_rows}
+            & set(_ROOT_L0_BATCH_DIRECT_POSITIONS[target])
+        )
+        trunk = [] if ancestor is None else _derived_mt_path_genotypes(ancestor)
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_legacy_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *trunk,
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in legacy_rows
+                    ),
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("positions", "expected_counts"),
+        [
+            pytest.param((5460,), (1, 2), id="m5460-only"),
+            pytest.param((16362,), (1, 2), id="m16362-only"),
+            pytest.param((5460, 16362), (2, 2), id="complete-pair"),
+        ],
+    )
+    def test_issue_1798_l4_sparse_recurrent_marker_ambiguity_is_explicit(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        positions: tuple[int, ...],
+        expected_counts: tuple[int, int],
+    ) -> None:
+        """L4's pair is exact, while either recurrent singleton meets today's 1/2 floor."""
+        # This documents a known sparse-data ambiguity, not marker uniqueness:
+        # m.5460 and m.16362 recur elsewhere in Build 17. Tightening the general
+        # mtDNA descent policy is deliberately outside this source-migration batch.
+        allele_by_position = {5460: "A", 16362: "C"}
+        rows = [
+            {
+                "rsid": f"vendor_issue_1798_l4_sparse_{position}",
+                "chrom": "MT",
+                "pos": position,
+                "genotype": allele_by_position[position] * 2,
+            }
+            for position in positions
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "L4"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L4"]
+        terminal = mt.traversal_path[-1]
+        assert (terminal.snps_present, terminal.snps_total) == expected_counts
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_historical_2014_l0f_layout_stops_at_l0(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The pinned 2014 layout has only 3/9 L0f SNPs, below the descent floor."""
+        allele_by_position = {
+            207: "A",
+            1048: "T",
+            5442: "C",
+            6185: "C",
+            9347: "G",
+            10589: "A",
+            12007: "A",
+            12720: "G",
+            16169: "T",
+            16327: "T",
+        }
+        rows = [
+            {
+                "rsid": f"vendor_issue_1798_historical_l0f_{position}",
+                "chrom": "MT",
+                "pos": position,
+                "genotype": allele * 2,
+            }
+            for position, allele in allele_by_position.items()
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "L0"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [("L0", 7, 8)]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
@@ -3106,13 +3803,18 @@ class TestAssignHaplogroups:
     ) -> None:
         """#1388: discordant duplicate MT probes must not depend on row order.
 
-        Position 769 defines the L3 step in the H1a fixture. A second, non-alias
-        probe at the same rCRS position but with an ancestral call is ambiguous
-        evidence for that coordinate, not evidence against L3. The position is
-        therefore treated as missing, leaving the rest of the H1a motif to drive
-        a stable result regardless of insertion order or source table.
+        Position 8701 is one of the three N markers in the H1a fixture. A second,
+        non-alias probe at the same rCRS position but with an ancestral call is
+        ambiguous evidence for that coordinate, not evidence against N. The
+        position is therefore treated as missing; the other two N calls still
+        clear the descent floor regardless of insertion order or source table.
         """
-        conflict = {"rsid": "i_conflict_769", "chrom": "MT", "pos": 769, "genotype": "AA"}
+        conflict = {
+            "rsid": "i_conflict_8701",
+            "chrom": "MT",
+            "pos": 8701,
+            "genotype": "GG",
+        }
         rows = [conflict, *_H1A_GENOTYPES] if conflict_first else [*_H1A_GENOTYPES, conflict]
         with sample_engine.begin() as conn:
             conn.execute(sa.insert(source_table), rows)
@@ -3123,11 +3825,11 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.tree_type == "mt"
         assert mt.haplogroup == "H1a"
-        # 13 H1a-path defining SNPs: R0 remains markerless, while H1a now
+        # Eleven H1a-path defining SNPs: R0 remains markerless, while H1a
         # legitimately reintroduces m.73 as a back mutation. The ambiguous
-        # duplicate at m.769 is treated as missing, so 12 of 13 are present.
-        assert mt.defining_snps_present == 12
-        assert mt.defining_snps_total == 13
+        # duplicate at m.8701 is treated as missing, so 10 of 11 are present.
+        assert mt.defining_snps_present == 10
+        assert mt.defining_snps_total == 11
 
     def test_both_mt_and_y(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
         """XY sample gets both mt and Y haplogroup assignments."""
@@ -3214,11 +3916,11 @@ class TestAssignHaplogroups:
         to INDEPENDENTLY-derived literals (#640).
 
         The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
-        HV → H → H1 → H1a, with 3 + 3 + 2 + 0 + 1 + 1 + 1 + 2 = 13 defining SNPs
+        HV → H → H1 → H1a, with 1 + 3 + 2 + 0 + 1 + 1 + 1 + 2 = 11 defining SNPs
         (R0 remains markerless and H1a reintroduces m.73 as its direct back
         mutation; H's spurious autosomal rs1000687 was removed in #1579), all
-        13 derived in the fixture — so the expected
-        present/total/confidence are knowable offline (13 / 13 → 1.0). Asserting
+        11 derived in the fixture — so the expected
+        present/total/confidence are knowable offline (11 / 11 → 1.0). Asserting
         those literals, rather
         than recomputing from the result's own ``defining_snps_present`` /
         ``defining_snps_total`` (the old self-derivation tautology), means a
@@ -3231,8 +3933,8 @@ class TestAssignHaplogroups:
 
         mt = results[0]
         assert mt.haplogroup == "H1a"
-        assert mt.defining_snps_present == 13
-        assert mt.defining_snps_total == 13
+        assert mt.defining_snps_present == 11
+        assert mt.defining_snps_total == 11
         assert mt.confidence == 1.0
 
     def test_traversal_path_populated(

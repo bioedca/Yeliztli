@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.14"
+BUNDLE_VERSION = "1.1.15"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -73,12 +73,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "d2db948869e3665313460b5832711ef97b9d8299864f6474d64efd131f80c29b"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "b803987a0ef051eb5517ba62c6638420451d1053cffe6dcf7f821795d8d3ca86"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "92a9cab40c53f8c31a6ba2cb976e83e37ec89fd50c2bad7687e98f133b76ad86"
+    "331d8a318278a39e4c3cb93eec5230478a4a565e6a33cdd9c4e40d89d4fb99a3"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "deffb77fb0c0df2e60107cdaf527aa3e76ca5e5252f4e0609e2a47f2e7e5a9ca"
+    "54bf23af6b996db6183999c44d8e6400d51042ccfdba8327016f327334536ba0"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -87,10 +87,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "8619d8457139be7b47d8d8e5bbfb8660be5c274dc5e1f33e3622bb7837350304"
+    "886f57e5cbc1979df55b969f4174cf087efa4f0139d232458435749645ee7af5"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "2af064763a1fefa8efe86c255c236cc8f57474ae087955fc4cd3797925001982"
+    "8e4eff59c975f3712dc799780177a3cfe0925d08486b469f0e07f73133ab042a"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -100,11 +100,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "bc194a2383d9f1e14f32b4476c12b9dd5f945a469a9a33221e451ebf8cbcf539"
+_MT_STATE_PARTITION_SHA256 = "87cb21318649ba2d88cd955c7b4e88e9bba74d6006eebd1afad75ddb1ebec214"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "17c0d787a58cbb5a01f0f6c2699386b8e580aaece45fcda667de2d085fee3415"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -536,24 +536,31 @@ def build_mt_tree() -> dict[str, Any]:
     l0a1 = _node(
         "L0a1",
         [
-            _mt_snp("i5007158", 7158, "G"),
-            _mt_snp("i5009818", 9818, "C"),
-            _mt_snp("i5014308", 14308, "A"),
+            _mt_snp("i5005096", 5096, "C"),
         ],
     )
     l0a2 = _node(
         "L0a2",
         [
-            _mt_snp("i5007256", 7256, "T"),
-            _mt_snp("i5011899", 11899, "C"),
+            _mt_snp("i5000064", 64, "T"),
+            _mt_snp("i5005147", 5147, "A"),
+            _mt_snp("i5005711", 5711, "G"),
+            _mt_snp("i5006257", 6257, "A"),
+            _mt_snp("i5008460", 8460, "G"),
+            _mt_snp("i5011172", 11172, "G"),
+            _mt_snp("i5016129", 16129, "G"),
         ],
     )
     l0a = _node(
         "L0a",
         [
-            _mt_snp("i5001438", 1438, "G"),
+            # Build 17 places m.11176 on the flattened L0a'g source segment.
+            # It is retained here with source ownership in the provenance
+            # registry; the shared earlier L0 source segments stay non-emitted.
+            _mt_snp("i5011176", 11176, "A"),
             _mt_snp("i5005231", 5231, "A"),
-            _mt_snp("i5009042", 9042, "T"),
+            _mt_snp("i5005460", 5460, "A"),
+            _mt_snp("i5014308", 14308, "C"),
         ],
         [l0a1, l0a2],
     )
@@ -561,31 +568,46 @@ def build_mt_tree() -> dict[str, Any]:
     l0b = _node(
         "L0b",
         [
-            _mt_snp("i5003693", 3693, "A"),
-            _mt_snp("i5005580", 5580, "C"),
-            _mt_snp("i5012171", 12171, "G"),
+            _mt_snp("i5006719", 6719, "C"),
+            _mt_snp("i5015106", 15106, "A"),
+            _mt_snp("i5015622", 15622, "C"),
+            _mt_snp("i5016051", 16051, "G"),
+            _mt_snp("i5016164", 16164, "G"),
         ],
     )
     l0d1 = _node(
         "L0d1",
         [
-            _mt_snp("i5008113", 8113, "T"),
-            _mt_snp("i5015466", 15466, "G"),
+            _mt_snp("i5000719", 719, "A"),
+            _mt_snp("i5002706", 2706, "A"),
+            _mt_snp("i5003438", 3438, "A"),
+            _mt_snp("i5006266", 6266, "G"),
+            _mt_snp("i5013759", 13759, "A"),
         ],
     )
     l0d2 = _node(
         "L0d2",
         [
-            _mt_snp("i5002969", 2969, "A"),
-            _mt_snp("i5010394", 10394, "T"),
+            _mt_snp("i5003981", 3981, "G"),
+            _mt_snp("i5004025", 4025, "T"),
+            _mt_snp("i5004044", 4044, "G"),
+            _mt_snp("i5007154", 7154, "G"),
+            _mt_snp("i5011854", 11854, "C"),
+            _mt_snp("i5015766", 15766, "G"),
         ],
     )
     l0d = _node(
         "L0d",
         [
-            _mt_snp("i5001715", 1715, "C"),
+            _mt_snp("i5001438", 1438, "A"),
+            _mt_snp("i5004232", 4232, "C"),
+            _mt_snp("i5008152", 8152, "A"),
             _mt_snp("i5008251", 8251, "A"),
-            _mt_snp("i5009755", 9755, "A"),
+            _mt_snp("i5012121", 12121, "C"),
+            _mt_snp("i5015466", 15466, "A"),
+            _mt_snp("i5015930", 15930, "A"),
+            _mt_snp("i5015941", 15941, "C"),
+            _mt_snp("i5016243", 16243, "C"),
         ],
         [l0d1, l0d2],
     )
@@ -593,28 +615,54 @@ def build_mt_tree() -> dict[str, Any]:
     l0f = _node(
         "L0f",
         [
-            _mt_snp("i5003396", 3396, "G"),
-            _mt_snp("i5010586", 10586, "A"),
+            _mt_snp("i5000207", 207, "A"),
+            _mt_snp("i5004964", 4964, "T"),
+            _mt_snp("i5009581", 9581, "C"),
+            _mt_snp("i5009620", 9620, "T"),
+            _mt_snp("i5013470", 13470, "G"),
+            _mt_snp("i5014109", 14109, "T"),
+            _mt_snp("i5015852", 15852, "C"),
+            _mt_snp("i5016169", 16169, "T"),
+            _mt_snp("i5016327", 16327, "T"),
         ],
     )
     l0k = _node(
         "L0k",
         [
-            _mt_snp("i5002352", 2352, "C"),
-            _mt_snp("i5011176", 11176, "A"),
+            _mt_snp("i5000199", 199, "C"),
+            _mt_snp("i5000850", 850, "C"),
+            _mt_snp("i5001243", 1243, "C"),
+            _mt_snp("i5004541", 4541, "A"),
+            _mt_snp("i5004907", 4907, "C"),
+            _mt_snp("i5005811", 5811, "G"),
+            _mt_snp("i5008911", 8911, "C"),
+            _mt_snp("i5008994", 8994, "A"),
+            _mt_snp("i5009136", 9136, "G"),
+            _mt_snp("i5010499", 10499, "G"),
+            _mt_snp("i5010920", 10920, "T"),
+            _mt_snp("i5011299", 11299, "C"),
+            _mt_snp("i5011653", 11653, "G"),
+            _mt_snp("i5013590", 13590, "A"),
+            _mt_snp("i5013928", 13928, "C"),
+            _mt_snp("i5014020", 14020, "C"),
+            _mt_snp("i5014182", 14182, "C"),
+            _mt_snp("i5014371", 14371, "C"),
+            _mt_snp("i5016129", 16129, "G"),
+            _mt_snp("i5016291", 16291, "G"),
         ],
     )
 
     l0 = _node(
         "L0",
         [
-            # PhyloTree Build 17 gives mutations in forward evolutionary direction;
-            # keep an array-covered subset of the L0 motif here.
             _mt_snp("i5001048", 1048, "T"),
+            _mt_snp("i5003516", 3516, "A"),
             _mt_snp("i5005442", 5442, "C"),
             _mt_snp("i5006185", 6185, "C"),
-            _mt_snp("i5009042", 9042, "T"),
+            _mt_snp("i5009347", 9347, "G"),
             _mt_snp("i5010589", 10589, "A"),
+            _mt_snp("i5012007", 12007, "A"),
+            _mt_snp("i5012720", 12720, "G"),
         ],
         [l0a, l0b, l0d, l0f, l0k],
     )
@@ -679,10 +727,10 @@ def build_mt_tree() -> dict[str, Any]:
         "L1",
         [
             _mt_snp("i5003666", 3666, "A"),
-            _mt_snp("i5007055", 7055, "G"),
             _mt_snp("i5007389", 7389, "C"),
-            _mt_snp("i5010589", 10589, "A"),
-            _mt_snp("i5010810", 10810, "C"),
+            _mt_snp("i5013789", 13789, "C"),
+            _mt_snp("i5014178", 14178, "C"),
+            _mt_snp("i5014560", 14560, "A"),
         ],
         [l1b, l1c],
     )
@@ -759,10 +807,12 @@ def build_mt_tree() -> dict[str, Any]:
     l2 = _node(
         "L2",
         [
-            _mt_snp("i5002789", 2789, "C"),
-            _mt_snp("i5007175", 7175, "C"),
-            _mt_snp("i5007771", 7771, "G"),
+            _mt_snp("i5000146", 146, "C"),
+            _mt_snp("i5002416", 2416, "C"),
+            _mt_snp("i5008206", 8206, "A"),
             _mt_snp("i5009221", 9221, "G"),
+            _mt_snp("i5010115", 10115, "C"),
+            _mt_snp("i5013590", 13590, "A"),
             _mt_snp("i5016390", 16390, "A"),
         ],
         [l2a, l2b, l2c, l2d, l2e],
@@ -2049,8 +2099,10 @@ def build_mt_tree() -> dict[str, Any]:
     l4 = _node(
         "L4",
         [
-            _mt_snp("i5005108", 5108, "C"),
-            _mt_snp("i5010685", 10685, "A"),
+            # Build 17 also places m.5460G>A on L0a; keep this homoplasy
+            # explicit because either sparse L4 marker meets the 1/2 floor.
+            _mt_snp("i5005460", 5460, "A"),
+            _mt_snp("i5016362", 16362, "C"),
         ],
         [l4a, l4b],
     )
@@ -2070,8 +2122,10 @@ def build_mt_tree() -> dict[str, Any]:
     l5 = _node(
         "L5",
         [
-            _mt_snp("i5005108", 5108, "C"),
-            _mt_snp("i5015301", 15301, "A"),
+            _mt_snp("i5003423", 3423, "C"),
+            _mt_snp("i5007972", 7972, "G"),
+            _mt_snp("i5012950", 12950, "G"),
+            _mt_snp("i5016148", 16148, "T"),
         ],
         [l5a, l5b],
     )
@@ -2079,9 +2133,21 @@ def build_mt_tree() -> dict[str, Any]:
     l6 = _node(
         "L6",
         [
-            _mt_snp("i5003396", 3396, "G"),
-            _mt_snp("i5007146", 7146, "G"),
-            _mt_snp("i5010589", 10589, "A"),
+            _mt_snp("i5000146", 146, "C"),
+            _mt_snp("i5000961", 961, "C"),
+            _mt_snp("i5001461", 1461, "G"),
+            _mt_snp("i5004964", 4964, "T"),
+            _mt_snp("i5005267", 5267, "C"),
+            _mt_snp("i5006002", 6002, "G"),
+            _mt_snp("i5006284", 6284, "G"),
+            _mt_snp("i5009332", 9332, "T"),
+            _mt_snp("i5010978", 10978, "G"),
+            _mt_snp("i5011116", 11116, "C"),
+            _mt_snp("i5012771", 12771, "A"),
+            _mt_snp("i5013710", 13710, "G"),
+            _mt_snp("i5015244", 15244, "G"),
+            _mt_snp("i5015289", 15289, "C"),
+            _mt_snp("i5016048", 16048, "A"),
         ],
     )
 
@@ -2089,9 +2155,7 @@ def build_mt_tree() -> dict[str, Any]:
     l3 = _node(
         "L3",
         [
-            _mt_snp("i5000769", 769, "G"),
             _mt_snp("i5001018", 1018, "G"),
-            _mt_snp("i5016311", 16311, "T"),
         ],
         [l3a, l3b, l3d, l3e, l3f, m_branch, n_branch],
     )
