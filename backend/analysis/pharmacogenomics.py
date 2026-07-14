@@ -984,16 +984,6 @@ def call_all_star_alleles(
 # Prescribing Alert Generation (P3-04)
 # ═══════════════════════════════════════════════════════════════════════
 
-# CPIC classification → evidence star level mapping per PRD §6 evidence
-# star criteria: CPIC Tier A → ★★★★ (4), CPIC Tier B → ★★★ (3),
-# Tier C/D → ★★ (2).
-_CPIC_CLASSIFICATION_STARS: dict[str | None, int] = {
-    "A": 4,
-    "B": 3,
-    "C": 2,
-    "D": 2,
-}
-
 # Coarse keyword signals for classifying a CPIC prescribing recommendation's
 # actionability (SW-E4 medication-safety report). A recommendation is treated as
 # "routine" (standard label dosing, no PGx-driven change) when it matches a routine

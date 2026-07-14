@@ -353,5 +353,5 @@ class TestSharedModuleSemantics:
         ],
     )
     def test_cpic_mapping(self, classification: str | None, expected: int):
-        """Match old _CPIC_CLASSIFICATION_STARS dict behavior."""
+        """Pin the centralized CPIC tier-to-evidence mapping."""
         assert assign_cpic_evidence_level(classification) == expected
