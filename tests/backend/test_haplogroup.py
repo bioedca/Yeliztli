@@ -105,9 +105,10 @@ _H1A_GENOTYPES = [
     {"rsid": "i5002706", "chrom": "MT", "pos": 2706, "genotype": "AA"},
     # H1 defining SNPs
     {"rsid": "i5003010", "chrom": "MT", "pos": 3010, "genotype": "AA"},
-    # H1a defining SNPs
-    {"rsid": "rs1000390", "chrom": "MT", "pos": 13290, "genotype": "TT"},
-    {"rsid": "i5013404", "chrom": "MT", "pos": 13404, "genotype": "CC"},
+    # H1a defining SNPs (A73G! is the direct H1a back mutation; A16162G is
+    # its second direct Build 17 substitution).
+    {"rsid": "i5000073", "chrom": "MT", "pos": 73, "genotype": "GG"},
+    {"rsid": "i5016162", "chrom": "MT", "pos": 16162, "genotype": "GG"},
 ]
 
 _MT_R_TRUNK_GENOTYPES = _H1A_GENOTYPES[:8]
@@ -354,7 +355,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.11"
+        assert bundle.version == "1.1.12"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1493,7 +1494,7 @@ class TestYTreeSelfConsistency:
     ) -> None:
         terminal, traversal = _tree_walk(
             bundle.mt_tree,
-            {"rs1000390": "TT", "i5013404": "CC"},
+            {"i5000073": "GG", "i5016162": "GG"},
             [],
         )
 
@@ -2184,6 +2185,201 @@ class TestAssignHaplogroups:
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1849_h1a_assigns_by_exact_direct_motif_and_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """Raw and annotated position joins resolve exact H1a below H1."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1849_positive_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("H1"),
+                    # The former markers are ancestral and must not matter.
+                    {"pos": 13290, "genotype": "CC"},
+                    {"pos": 13404, "genotype": "TT"},
+                    {"pos": 73, "genotype": "GG"},
+                    {"pos": 16162, "genotype": "GG"},
+                ]
+            )
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "H1a"
+        assert [step.haplogroup for step in mt.traversal_path] == [
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H1",
+            "H1a",
+        ]
+        terminal = mt.traversal_path[-1]
+        assert (terminal.snps_present, terminal.snps_total) == (2, 2)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "h1a_rows", "expected", "expected_counts"),
+        [
+            pytest.param(
+                "missing-m73",
+                [{"pos": 16162, "genotype": "GG"}],
+                "H1a",
+                (1, 2),
+                id="missing-m73-still-resolves",
+            ),
+            pytest.param(
+                "ancestral-m16162",
+                [
+                    {"pos": 73, "genotype": "GG"},
+                    {"pos": 16162, "genotype": "AA"},
+                ],
+                "H1",
+                None,
+                id="ancestral-m16162-blocks",
+            ),
+        ],
+    )
+    def test_issue_1849_h1a_partial_coverage_and_conflict_behavior(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        h1a_rows: list[dict[str, object]],
+        expected: str,
+        expected_counts: tuple[int, int] | None,
+    ) -> None:
+        """A missing m.73 is tolerated, while an ancestral typed marker conflicts."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1849_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("H1"), *h1a_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        if expected_counts is not None:
+            terminal = mt.traversal_path[-1]
+            assert terminal.haplogroup == "H1a"
+            assert (terminal.snps_present, terminal.snps_total) == expected_counts
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1849_legacy_h1a_markers_stop_at_h1(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The unsupported pre-correction pair cannot refine H1 to H1a."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1849_legacy_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("H1"),
+                    {"pos": 13290, "genotype": "TT"},
+                    {"pos": 13404, "genotype": "CC"},
+                    {"pos": 73, "genotype": "AA"},
+                    {"pos": 16162, "genotype": "AA"},
+                ]
+            )
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "H1"
+        assert [step.haplogroup for step in mt.traversal_path] == [
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H1",
+        ]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1849_h1a_markers_cannot_bypass_h1_parent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The complete H1a motif cannot jump an ancestral m.3010 H1 gate."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1849_parent_gate_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("H"),
+                    {"pos": 3010, "genotype": "GG"},
+                    {"pos": 73, "genotype": "GG"},
+                    {"pos": 16162, "genotype": "GG"},
+                ]
+            )
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "H"
+        assert [step.haplogroup for step in mt.traversal_path] == [
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+        ]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
         ("target", "node_rows", "expected_path", "expected_counts"),
         [
@@ -2765,8 +2961,9 @@ class TestAssignHaplogroups:
         mt = results[0]
         assert mt.tree_type == "mt"
         assert mt.haplogroup == "H1a"
-        # 13 H1a-path defining SNPs (#1579 removed R0's m.73 + H's rs1000687); the
-        # ambiguous duplicate at m.769 is treated as missing, so 12 of 13 present.
+        # 13 H1a-path defining SNPs: R0 remains markerless, while H1a now
+        # legitimately reintroduces m.73 as a back mutation. The ambiguous
+        # duplicate at m.769 is treated as missing, so 12 of 13 are present.
         assert mt.defining_snps_present == 12
         assert mt.defining_snps_total == 13
 
@@ -2856,8 +3053,9 @@ class TestAssignHaplogroups:
 
         The ``_seed_mt_h1a`` path is deterministic — mt-MRCA → L3 → N → R → R0 →
         HV → H → H1 → H1a, with 3 + 3 + 2 + 0 + 1 + 1 + 1 + 2 = 13 defining SNPs
-        (R0's recurrent m.73 marker and H's spurious autosomal rs1000687 were
-        removed in #1579), all 13 derived in the fixture — so the expected
+        (R0 remains markerless and H1a reintroduces m.73 as its direct back
+        mutation; H's spurious autosomal rs1000687 was removed in #1579), all
+        13 derived in the fixture — so the expected
         present/total/confidence are knowable offline (13 / 13 → 1.0). Asserting
         those literals, rather
         than recomputing from the result's own ``defining_snps_present`` /
@@ -2887,8 +3085,9 @@ class TestAssignHaplogroups:
         for step in mt.traversal_path:
             assert isinstance(step.haplogroup, str)
             assert step.snps_present >= 0
-            # R0 is a structural pass-through node with no defining SNP (its only
-            # marker, the recurrent m.73, was removed in #1579), so total may be 0.
+            # R0 is a structural pass-through node with no defining SNP. Its
+            # source m.73A state would conflict with H1a's direct m.73G back
+            # mutation under the current walker, so total may be 0.
             assert step.snps_total >= 0
 
     def test_empty_sample(self, bundle: HaplogroupBundle, sample_engine: sa.Engine) -> None:
