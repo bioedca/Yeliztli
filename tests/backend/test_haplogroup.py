@@ -343,7 +343,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.8"
+        assert bundle.version == "1.1.9"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1755,6 +1755,61 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == "M"
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "trunk", "node_rows", "expected_path"),
+        [
+            pytest.param(
+                "N9",
+                _derived_mt_path_genotypes("N"),
+                [
+                    {"pos": 5417, "genotype": "AA"},
+                    {"pos": 12705, "genotype": "TT"},
+                ],
+                ["L3", "N", "N9"],
+                id="real-N9-with-ancestral-12705T",
+            ),
+            pytest.param(
+                "R",
+                _derived_mt_path_genotypes("N"),
+                [{"pos": 12705, "genotype": "CC"}],
+                ["L3", "N", "R"],
+                id="sparse-R-does-not-divert-to-N9",
+            ),
+        ],
+    )
+    def test_issue_1808_cross_clade_12705_does_not_block_or_divert_assignment(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        trunk: list[dict[str, object]],
+        node_rows: list[dict[str, object]],
+        expected_path: list[str],
+    ) -> None:
+        """Real N9 resolves and sparse R evidence stays on the R branch."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1808_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*trunk, *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
