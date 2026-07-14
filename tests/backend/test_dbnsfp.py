@@ -30,7 +30,6 @@ from backend.annotation.dbnsfp import (
     BATCH_SIZE,
     CREATE_INDEXES_SQL,
     CREATE_LOAD_PROGRESS_SQL,
-    DBNSFP_FIELDS,
     LOOKUP_BATCH_SIZE,
     DbNSFPAnnotation,
     DbNSFPRecord,
@@ -876,12 +875,6 @@ class TestConstants:
         # LOOKUP_BATCH_SIZE is dynamically computed from SQLITE_MAX_VARIABLE_NUMBER
         # (P4-22 optimization) — at least 500, but may be higher on Linux.
         assert LOOKUP_BATCH_SIZE >= 500
-
-    def test_fields_tuple(self):
-        assert len(DBNSFP_FIELDS) == 14
-        assert "cadd_phred" in DBNSFP_FIELDS
-        assert "revel" in DBNSFP_FIELDS
-        assert "primateai" in DBNSFP_FIELDS
 
 
 # ── Data class tests ─────────────────────────────────────────────────────

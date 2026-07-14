@@ -82,25 +82,6 @@ POSITION_LOOKUP_BATCH_SIZE = max(249, (_SQLITE_VAR_LIMIT - 10) // 4)
 # Chromosomes we accept (matching 23andMe scope)
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 
-# All dbNSFP score field names (for lookup results)
-DBNSFP_FIELDS = (
-    "cadd_phred",
-    "sift_score",
-    "sift_pred",
-    "polyphen2_hsvar_score",
-    "polyphen2_hsvar_pred",
-    "revel",
-    "mutpred2",
-    "vest4",
-    "metasvm",
-    "metalr",
-    "gerp_rs",
-    "phylop",
-    "mpc",
-    "primateai",
-)
-
-
 # ── SQL for dbnsfp_scores table creation ──────────────────────────────────
 
 CREATE_TABLE_SQL = """\
