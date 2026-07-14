@@ -259,7 +259,7 @@ class TestCompoundHeterozygosity:
         result = _assess_compound_heterozygosity(panel, genotypes)
         assert result.is_compound_het is False
         assert result.is_double_homozygous is True
-        assert result.label is not None
+        assert result.label == "MTHFR double variant"
 
     def test_no_compound_het_when_both_wild_type(self, panel: MethylationPanel) -> None:
         """GG + AA = both wild type, no compound het."""
@@ -324,7 +324,7 @@ class TestCompoundHeterozygosity:
         result = _assess_compound_heterozygosity(panel, genotypes)
         assert result.is_compound_het is False
         assert result.is_double_homozygous is True
-        assert result.label is not None
+        assert result.label == "MTHFR double variant"
 
     def test_no_compound_het_plus_strand_both_wild_type(self, panel: MethylationPanel) -> None:
         """Plus-strand wild types stay negative: C677T ``GG`` + A1298C ``TT``."""
