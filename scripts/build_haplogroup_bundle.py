@@ -1634,6 +1634,7 @@ def build_mt_tree() -> dict[str, Any]:
     u3a = _node(
         "U3a",
         [
+            # Direct Build 17 motif; m.3834A is remote U9/Y1 homoplasy (#1794).
             _mt_snp("i5006518", 6518, "T"),
             _mt_snp("i5010506", 10506, "G"),
             _mt_snp("i5013934", 13934, "T"),
