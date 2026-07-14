@@ -1,9 +1,13 @@
 /**
  * Single source of truth for the app's primary navigation routes (#638).
  *
- * Both navigation surfaces render from this one list:
+ * Both navigation surfaces and primary-route announcements derive from this one list:
  *   - the Sidebar (full vertical nav, `components/layout/Sidebar.tsx`)
  *   - the Command Palette (⌘/Ctrl-K quick-jump "Pages" group, `components/CommandPalette.tsx`)
+ *   - the screen-reader live region (`components/layout/RouteAnnouncer.tsx`)
+ *
+ * RouteAnnouncer keeps the standalone `/setup` and `/login` titles alongside
+ * this registry because those full-screen routes are not primary navigation.
  *
  * They used to be two independent hand-maintained arrays that drifted silently —
  * the Command Palette was missing 5 routes the Sidebar had (/findings,
@@ -50,6 +54,8 @@ export interface NavRoute {
   icon: LucideIcon
   /** Human-readable label shown in both surfaces. */
   label: string
+  /** Optional longer title spoken after client-side navigation. */
+  announcementLabel?: string
 }
 
 export const navRoutes: NavRoute[] = [
@@ -68,9 +74,19 @@ export const navRoutes: NavRoute[] = [
   { to: '/carrier-status', icon: Baby, label: 'Carrier Status' },
   { to: '/fitness', icon: Dumbbell, label: 'Gene Fitness' },
   { to: '/sleep', icon: Moon, label: 'Gene Sleep' },
-  { to: '/methylation', icon: FlaskConical, label: 'Methylation' },
+  {
+    to: '/methylation',
+    icon: FlaskConical,
+    label: 'Methylation',
+    announcementLabel: 'MTHFR & Methylation',
+  },
   { to: '/skin', icon: Sun, label: 'Gene Skin' },
-  { to: '/allergy', icon: Flower2, label: 'Gene Allergy' },
+  {
+    to: '/allergy',
+    icon: Flower2,
+    label: 'Gene Allergy',
+    announcementLabel: 'Gene Allergy & Immune Sensitivities',
+  },
   { to: '/traits', icon: Fingerprint, label: 'Traits & Personality' },
   { to: '/gene-health', icon: Activity, label: 'Gene Health' },
   { to: '/ancestry', icon: Globe, label: 'Ancestry' },

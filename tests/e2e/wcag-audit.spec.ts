@@ -51,6 +51,14 @@ const STANDALONE_PAGES = [
   { path: '/login', title: 'Login' },
 ] as const
 
+// Primary routes that previously fell through to the generic "Page" announcement (#1781).
+const ROUTE_ANNOUNCER_REGRESSION_PAGES = [
+  { path: '/metabolic', title: 'Metabolic (T2D & Obesity)' },
+  { path: '/fh', title: 'Familial Hypercholesterolemia' },
+  { path: '/ebmd', title: 'Bone Density (eBMD)' },
+  { path: '/hla', title: 'HLA (imputed)' },
+] as const
+
 test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
   // Third-party component selectors excluded from axe scans
   // (IGV.js, Nightingale, Monaco Editor render their own DOM we cannot control)
@@ -661,13 +669,17 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await expect(announcer).toContainText('Navigated to')
     })
 
-    test('aria-live region updates on client-side navigation', async ({ page }) => {
-      await page.goto('/settings')
-      await page.waitForLoadState('networkidle')
+    test('aria-live region announces exact titles after client-side navigation', async ({ page }) => {
+      await page.goto('/')
+      await waitForReactHydration(page)
 
+      const navigation = page.getByRole('navigation', { name: 'Main navigation' })
       const announcer = page.getByTestId('route-announcer')
-      // Allow extra time for the announcement to update across browsers
-      await expect(announcer).toContainText('Navigated to Settings', { timeout: 10000 })
+      for (const route of ROUTE_ANNOUNCER_REGRESSION_PAGES) {
+        await navigation.getByRole('link', { name: route.title, exact: true }).click()
+        await expect(page).toHaveURL(new RegExp(`${route.path}$`))
+        await expect(announcer).toHaveText(`Navigated to ${route.title}`)
+      }
     })
   })
 
