@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,7 +74,7 @@
       ],
       "audit": {
         "schema_version": 1,
-        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, and the U3a direct-motif correction in issue 1794. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
+        "scope": "PhyloTree Build 17 direct motifs for the U5b2, W1, and U3b corrections in issue 1742, source-backed parent/child marker placement and array-reportable direct motifs for issue 1743, the U3a direct-motif correction in issue 1794, and the K1b direct-marker correction in issue 1796. Issue-1743 motifs were cross-checked against YFull MTree 1.02.23997; this remains a targeted audit rather than a full-tree audit.",
         "audited_nodes": [
           "G",
           "G1",
@@ -87,6 +87,7 @@
           "K",
           "K1",
           "K1a",
+          "K1b",
           "K2",
           "K2a",
           "K2b",
@@ -3066,9 +3067,9 @@
                                       "haplogroup": "K1b",
                                       "defining_snps": [
                                         {
-                                          "rsid": "i5014167",
-                                          "pos": 14167,
-                                          "allele": "T"
+                                          "rsid": "i5005913",
+                                          "pos": 5913,
+                                          "allele": "A"
                                         }
                                       ]
                                     }

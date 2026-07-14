@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.5"
+        assert bundle["version"] == "1.1.6"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -172,6 +172,7 @@ class TestBundleStructure:
             "K",
             "K1",
             "K1a",
+            "K1b",
             "K2",
             "K2a",
             "K2b",
@@ -432,6 +433,13 @@ class TestMtDNATree:
             15043: "A",
             16129: "A",
         }
+
+    def test_issue_1796_k1b_uses_exact_reportable_build17_marker(self, mt_tree: dict) -> None:
+        """K1b uses direct G5913A rather than unsupported C14167T."""
+
+        k1b = find_node(mt_tree, "K1b")
+        assert k1b is not None
+        assert k1b["defining_snps"] == [{"rsid": "i5005913", "pos": 5913, "allele": "A"}]
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
@@ -790,16 +798,19 @@ class TestBuildScript:
         u5b2 = find_node(mt_tree, "U5b2")
         w1 = find_node(mt_tree, "W1")
         u3b = find_node(mt_tree, "U3b")
-        assert u5b2 is not None and w1 is not None and u3b is not None
+        k1b = find_node(mt_tree, "K1b")
+        assert u5b2 is not None and w1 is not None and u3b is not None and k1b is not None
 
         u5b2["defining_snps"][0]["allele"] = "C"
         w1["defining_snps"][0]["pos"] = 12669
         u3b["defining_snps"].append({"rsid": "i5009266", "pos": 9266, "allele": "G"})
+        k1b["defining_snps"][0]["pos"] = 14167
 
         issues = _validate_audited_mt_markers(mt_tree)
         assert any("U5b2" in issue and "expected" in issue for issue in issues)
         assert any("W1" in issue and "expected" in issue for issue in issues)
         assert any("U3b" in issue and "expected" in issue for issue in issues)
+        assert any("K1b" in issue and "expected" in issue for issue in issues)
 
     def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
         """A fresh rsID at an old locus or an old rsID at a fresh locus is insufficient."""
