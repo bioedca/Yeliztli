@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. Thirty-eight marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 26 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 39 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 27 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -138,6 +138,7 @@
       "M1",
       "M8",
       "M8a",
+      "N9",
       "S",
       "T2a",
       "U2",
@@ -2020,7 +2021,13 @@
       ]
     },
     "N9": {
-      "source_motif": [
+      "source_node": "N9",
+      "emitted_parent": "N",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
         {
           "notation": "G5417A",
           "mutation_type": "substitution",
@@ -2036,9 +2043,19 @@
           "pos": 5417,
           "ancestral_allele": "G",
           "allele": "A",
+          "motif_owner": "N9",
           "array_coverage": {
-            "modern_exports_tested": 4,
-            "modern_exports_with_position": 3
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
           }
         }
       ]
@@ -3825,9 +3842,6 @@
     "N1b": {
       "emitted_parent": "N1"
     },
-    "N9": {
-      "emitted_parent": "N"
-    },
     "N9a": {
       "emitted_parent": "N9"
     },
@@ -3957,7 +3971,7 @@
   },
   "migration": {
     "status": "in_progress",
-    "baseline_commit": "bd9b1175315153bcef83df2464937e1bc80de763",
+    "baseline_commit": "e463604fc5b4af4d5887c9e9a76c2f54598ef312",
     "legacy_locked_exact_nodes": [
       "G",
       "G1",
@@ -4015,6 +4029,7 @@
       "M1",
       "M8",
       "M8a",
+      "N9",
       "S",
       "T2a",
       "U2",
@@ -4033,11 +4048,11 @@
       "Z",
       "Z1"
     ],
-    "baseline_exact_nodes_sha256": "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885",
-    "baseline_v1_semantic_sha256": "9228fe0e2158acc8afc324227860c33031c1e1fda8d256f807e19d10eff44972",
-    "baseline_v1_coverage_sha256": "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e",
-    "baseline_v2_registry_semantic_sha256": "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e",
-    "baseline_v2_coverage_membership_sha256": "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a",
+    "baseline_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
+    "baseline_v1_semantic_sha256": "c044b73c08b339d0be782306b84d593982b13242d995d541522da6f5bc9fc7c6",
+    "baseline_v1_coverage_sha256": "d88d4491671f99175bea3c6188affb3b0bbbd31681e0f7c35103ac4f194da6e6",
+    "baseline_v2_registry_semantic_sha256": "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553",
+    "baseline_v2_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
     "locked_exact_nodes": [
       "C",
       "G",
@@ -4060,6 +4075,7 @@
       "M1",
       "M8",
       "M8a",
+      "N9",
       "S",
       "T2a",
       "U2",
@@ -4078,9 +4094,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885",
-    "locked_exact_semantic_sha256": "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa",
-    "locked_exact_coverage_membership_sha256": "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a",
+    "locked_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
+    "locked_exact_semantic_sha256": "4d1b8376a376df3eca9fd84cbaa912e994429d04890f3699db588cbf53fe1c66",
+    "locked_exact_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -4097,6 +4113,7 @@
       "M1",
       "M8",
       "M8a",
+      "N9",
       "S",
       "T2a",
       "U2",
@@ -4109,8 +4126,8 @@
       "Z",
       "Z1"
     ],
-    "baseline_direct_motif_exact_nodes_sha256": "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4",
-    "baseline_direct_motif_semantic_sha256": "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1",
+    "baseline_direct_motif_exact_nodes_sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61",
+    "baseline_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
     "locked_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -4127,6 +4144,7 @@
       "M1",
       "M8",
       "M8a",
+      "N9",
       "S",
       "T2a",
       "U2",
@@ -4139,8 +4157,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4",
-    "locked_direct_motif_semantic_sha256": "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1",
+    "locked_direct_motif_exact_nodes_sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61",
+    "locked_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -4268,7 +4286,6 @@
       "N1",
       "N1a",
       "N1b",
-      "N9",
       "N9a",
       "N9b",
       "P",
@@ -4312,10 +4329,10 @@
       "W3",
       "X1"
     ],
-    "initial_pending_nodes_sha256": "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde",
+    "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "bf289fb2dd3bfb03740cf7c34c332dfca4511d82523b3388962ffa330e227999",
-    "baseline_emitted_tree_sha256": "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
+    "state_partition_sha256": "93227229ec35249659fbec5c753470ca6b7d562cfbc23e5079b89a05295d7114",
+    "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
   }
 }

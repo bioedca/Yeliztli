@@ -26,30 +26,31 @@ from scripts.build_haplogroup_bundle import (
 LEGACY_EXACT_NAMES_SHA256 = "7d968626b02229ba77f7e58a32b337621c71a1a071e4564d5e815d5c3dee4d5d"
 LEGACY_V1_SEMANTIC_SHA256 = "521dedbac66952e7df628dda8da495b6e03f640b3b6765006835d805cd32d63a"
 LEGACY_V1_COVERAGE_SHA256 = "375c6a5af32e22bd71026391b5a0552bfa260bac09cf6666f84bab6ea52b7947"
-BASELINE_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
-BASELINE_V1_SEMANTIC_SHA256 = "9228fe0e2158acc8afc324227860c33031c1e1fda8d256f807e19d10eff44972"
-BASELINE_V1_COVERAGE_SHA256 = "4a6ceb1fe2210316d8121c67715d7da2277d56f6714910102cc4d6a92d0eff2e"
+BASELINE_COMMIT = "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
+BASELINE_EXACT_NAMES_SHA256 = "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9"
+BASELINE_V1_SEMANTIC_SHA256 = "c044b73c08b339d0be782306b84d593982b13242d995d541522da6f5bc9fc7c6"
+BASELINE_V1_COVERAGE_SHA256 = "d88d4491671f99175bea3c6188affb3b0bbbd31681e0f7c35103ac4f194da6e6"
 BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
-    "156762467005af2445abe582258a22384b56a3bc80fd8a147669963c32147a7e"
+    "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553"
 )
-BASELINE_V2_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
-LOCKED_EXACT_NAMES_SHA256 = "e1acb0428d22ecfd4549614c92acc4987fed3c6c735c679c354957ad0cf5b885"
-LOCKED_EXACT_SEMANTIC_SHA256 = "e370e48564a5e1ec51960f24608c1d1edd4891e4be9f68b7e001db6ea4a19faa"
-LOCKED_EXACT_COVERAGE_SHA256 = "036b43c4e5e4e41fd80c1ca17e4c6b53f9e7ff5fc40c4408cb4179a8328a3d3a"
+BASELINE_V2_COVERAGE_SHA256 = "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
+LOCKED_EXACT_NAMES_SHA256 = "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9"
+LOCKED_EXACT_SEMANTIC_SHA256 = "4d1b8376a376df3eca9fd84cbaa912e994429d04890f3699db588cbf53fe1c66"
+LOCKED_EXACT_COVERAGE_SHA256 = "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "3abef254d38d6c544a02b5295c39ccbcca93c5569010762697491a18943c4eb4"
+    "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
 )
 DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
-    "8bf434da93903cf3d5e5de153b4bd0dcfb5d3ccd43450e489b8ea2e72a17d3d1"
+    "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
 )
-INITIAL_PENDING_NAMES_SHA256 = "c782d49b4b2d4e3e4fa3034615ead6e2eb647b60f4dff0564dd59493b44f4cde"
+INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "bf289fb2dd3bfb03740cf7c34c332dfca4511d82523b3388962ffa330e227999"
-EMITTED_TREE_SHA256 = "2088185a21395806d8ce6b9d7a33b4c1056ff7985e46308bbf2432a9f10b3f63"
+STATE_PARTITION_SHA256 = "93227229ec35249659fbec5c753470ca6b7d562cfbc23e5079b89a05295d7114"
+EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -129,6 +130,7 @@ DIRECT_MOTIF_EXACT_NODES = [
     "M1",
     "M8",
     "M8a",
+    "N9",
     "S",
     "T2a",
     "U2",
@@ -365,7 +367,7 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
     assert not inventory.duplicates
     assert len(inventory.marker_bearing_names) == 192
     assert len(inventory.markerless_names) == 2
-    assert inventory.marker_count == 396
+    assert inventory.marker_count == 395
     assert inventory.edge_count == 193
     assert set(_MT_SOURCE["nodes"]) | set(_MT_SOURCE["structural_exceptions"]) | set(
         _MT_SOURCE["pending_nodes"]
@@ -485,6 +487,7 @@ def test_duplicate_tree_occurrence_is_reported_before_name_deduplication() -> No
 def test_frontier_and_registry_digests_match_independent_canonicalizers() -> None:
     migration = _MT_SOURCE["migration"]
 
+    assert migration["baseline_commit"] == BASELINE_COMMIT
     assert _canonical_sha256(migration["legacy_locked_exact_nodes"]) == (LEGACY_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["baseline_exact_nodes"]) == (BASELINE_EXACT_NAMES_SHA256)
     assert _canonical_sha256(migration["locked_exact_nodes"]) == (LOCKED_EXACT_NAMES_SHA256)
@@ -1183,9 +1186,9 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["migration_status"] == "in_progress"
     assert summary["emitted_nodes"] == 194
     assert summary["marker_bearing_nodes"] == 192
-    assert summary["marker_exact_nodes"]["count"] == 38
+    assert summary["marker_exact_nodes"]["count"] == 39
     assert summary["direct_source_motif_nodes"] == {
-        "exact": {"count": 26, "names": DIRECT_MOTIF_EXACT_NODES},
+        "exact": {"count": 27, "names": DIRECT_MOTIF_EXACT_NODES},
         "legacy_partial": {
             "count": 12,
             "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
@@ -1195,20 +1198,20 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "count": 2,
         "names": ["R0", "mt-MRCA"],
     }
-    assert summary["pending_nodes"]["count"] == 154
+    assert summary["pending_nodes"]["count"] == 153
     assert summary["marker_records"] == {
-        "emitted": 396,
-        "marker_exact": 86,
+        "emitted": 395,
+        "marker_exact": 87,
         "marker_exact_by_cohort": {
             "historical_five_23andme_including_2014": 6,
-            "primary_four_23andme": 80,
+            "primary_four_23andme": 81,
         },
     }
     assert summary["source_mutation_decisions"] == {
-        "total": 116,
-        "emitted": 86,
+        "total": 117,
+        "emitted": 87,
         "omitted": 30,
-        "direct_motif_exact": 79,
+        "direct_motif_exact": 80,
         "direct_motif_legacy_partial": 37,
         "recurrent_or_uncertain_events": 0,
         "reversion_events": 11,
@@ -1222,11 +1225,11 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["omitted_source_nodes"] == {"count": 2, "names": ["CZ", "K1c"]}
     assert summary["arrays"] == {"exports": 6, "cohorts": 2}
     assert summary["locked_exact_frontier"] == {
-        "count": 38,
+        "count": 39,
         "sha256": BASELINE_EXACT_NAMES_SHA256,
     }
     assert summary["locked_direct_motif_frontier"] == {
-        "count": 26,
+        "count": 27,
         "sha256": DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
 
@@ -1234,7 +1237,7 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     mt_audit = bundle["sources"]["mt"]["audit"]
     assert bundle["version"] == "1.1.9"
     assert bundle["stats"]["mt_haplogroups"] == 194
-    assert bundle["stats"]["mt_defining_snps"] == 396
+    assert bundle["stats"]["mt_defining_snps"] == 395
     assert mt_audit["schema_version"] == 2
     assert mt_audit["audited_nodes"] == sorted(_MT_SOURCE["nodes"])
     assert mt_audit["omitted_nodes"] == {

@@ -208,8 +208,8 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 38
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 26
+        assert provenance["marker_exact_nodes"]["count"] == 39
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 27
         assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
@@ -218,20 +218,20 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 154
+        assert provenance["pending_nodes"]["count"] == 153
         assert provenance["marker_records"] == {
-            "emitted": 396,
-            "marker_exact": 86,
+            "emitted": 395,
+            "marker_exact": 87,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 6,
-                "primary_four_23andme": 80,
+                "primary_four_23andme": 81,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 116,
-            "emitted": 86,
+            "total": 117,
+            "emitted": 87,
             "omitted": 30,
-            "direct_motif_exact": 79,
+            "direct_motif_exact": 80,
             "direct_motif_legacy_partial": 37,
             "recurrent_or_uncertain_events": 0,
             "reversion_events": 11,
@@ -981,7 +981,8 @@ class TestBuildScript:
     def test_issue_1808_audited_mt_guard_rejects_r_marker_on_n9(self) -> None:
         """The exact N9 audit rejects the pre-fix borrowed R marker."""
         from scripts.build_haplogroup_bundle import (
-            _validate_audited_mt_markers,
+            _MT_SOURCE,
+            _validate_mt_source,
             build_mt_tree,
         )
 
@@ -990,8 +991,10 @@ class TestBuildScript:
         assert n9 is not None
         n9["defining_snps"].append({"rsid": "i5012705", "pos": 12705, "allele": "C"})
 
-        issues = _validate_audited_mt_markers(mt_tree)
-        assert any("Audited mtDNA node N9" in issue and "expected" in issue for issue in issues)
+        issues = _validate_mt_source(_MT_SOURCE, mt_tree)
+        assert any(
+            "Marker-exact mtDNA node N9" in issue and "expected" in issue for issue in issues
+        )
 
     def test_mt_reportability_guard_requires_new_identifier_and_locus(self) -> None:
         """A fresh rsID at an old locus or an old rsID at a fresh locus is insufficient."""
