@@ -2099,6 +2099,8 @@ def build_mt_tree() -> dict[str, Any]:
     l4 = _node(
         "L4",
         [
+            # Build 17 also places m.5460G>A on L0a; keep this homoplasy
+            # explicit because either sparse L4 marker meets the 1/2 floor.
             _mt_snp("i5005460", 5460, "A"),
             _mt_snp("i5016362", 16362, "C"),
         ],

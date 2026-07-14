@@ -18,6 +18,7 @@ PAR-aware algorithm needs to confirm XY.
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -287,9 +288,15 @@ def _derived_y_path_genotypes(target: str) -> list[dict[str, object]]:
     ]
 
 
+@lru_cache(maxsize=1)
+def _mt_tree_json() -> dict:
+    """Load the generated mtDNA tree once for path-derived test fixtures."""
+    return json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["mt"]
+
+
 def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
     """Build derived calls for one emitted mtDNA path from the generated bundle."""
-    tree = json.loads(BUNDLE_PATH.read_text(encoding="utf-8"))["trees"]["mt"]
+    tree = _mt_tree_json()
 
     def find_path(node: dict) -> list[dict] | None:
         if node["haplogroup"] == target:

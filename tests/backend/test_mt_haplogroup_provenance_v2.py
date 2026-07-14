@@ -2122,6 +2122,7 @@ def test_issue_1834_w_records_and_flattened_w3_topology_are_exact() -> None:
 
 
 def _motif_decision_projection(motif: list[dict[str, Any]]) -> list[tuple[str, bool, str | None]]:
+    """Project a motif to its literal notation, emission, and omission contract."""
     return [
         (mutation["notation"], mutation["emitted"], mutation.get("omission_reason"))
         for mutation in motif
@@ -2131,6 +2132,7 @@ def _motif_decision_projection(motif: list[dict[str, Any]]) -> list[tuple[str, b
 def _root_l0_flattened_occurrences(
     source: dict[str, Any], identity: str
 ) -> list[tuple[str, dict[str, Any]]]:
+    """Collect every batch-01 occurrence of one flattened source identity."""
     return [
         (name, step)
         for name in ROOT_L0_NODES
@@ -2140,6 +2142,8 @@ def _root_l0_flattened_occurrences(
 
 
 def test_issue_1798_batch_01_root_l0_records_are_literal_and_coverage_locked() -> None:
+    """Lock all 16 exact records to reviewed motifs, topology, and array coverage."""
+    assert ROOT_L0_NODES
     assert set(ROOT_L0_DIRECT_MOTIFS) == set(ROOT_L0_NODES)
     assert set(ROOT_L0_TOPOLOGY) == set(ROOT_L0_NODES)
     assert set(ROOT_L0_EMITTED_MARKER_POSITIONS) == set(ROOT_L0_NODES)
@@ -2200,6 +2204,7 @@ def test_issue_1798_batch_01_root_l0_records_are_literal_and_coverage_locked() -
 
 
 def test_issue_1798_batch_01_flattened_identities_and_shared_bytes_are_exact() -> None:
+    """Lock all 11 flattened identities and their repeated source bytes."""
     expected_occurrence_counts = {
         "L0a'b'f'g'k": 4,
         "L0a'b'f'g": 3,
@@ -2213,6 +2218,7 @@ def test_issue_1798_batch_01_flattened_identities_and_shared_bytes_are_exact() -
         "L3'4'6": 3,
         "L3'4": 2,
     }
+    assert ROOT_L0_FLATTENED_STEPS
     assert set(ROOT_L0_FLATTENED_STEPS) == set(expected_occurrence_counts)
 
     for identity, expected in ROOT_L0_FLATTENED_STEPS.items():
@@ -2246,6 +2252,7 @@ def test_issue_1798_batch_01_flattened_identities_and_shared_bytes_are_exact() -
 
 
 def test_issue_1798_batch_01_advances_only_live_frontiers() -> None:
+    """Advance live locks without rewriting immutable migration baselines."""
     names = set(ROOT_L0_NODES)
     migration = _MT_SOURCE["migration"]
 
@@ -2268,6 +2275,7 @@ def test_issue_1798_batch_01_advances_only_live_frontiers() -> None:
 
 @pytest.mark.parametrize("name", ROOT_L0_NODES)
 def test_issue_1798_batch_01_old_marker_sets_cannot_be_restored(name: str) -> None:
+    """Reject every pre-audit marker set for a promoted batch-01 node."""
     tree = build_mt_tree()
     _index_mt_tree(tree).by_name[name].node["defining_snps"] = [
         {"rsid": f"i5{pos:06d}", "pos": pos, "allele": allele}
@@ -2280,6 +2288,7 @@ def test_issue_1798_batch_01_old_marker_sets_cannot_be_restored(name: str) -> No
 
 @pytest.mark.parametrize("name", ROOT_L0_NODES)
 def test_issue_1798_batch_01_direct_motif_mutations_fail_closed(name: str) -> None:
+    """Reject an allele-direction mutation in every promoted direct motif."""
     source = deepcopy(_MT_SOURCE)
     record = source["nodes"][name]
     mutation = next(
@@ -2302,6 +2311,7 @@ def test_issue_1798_batch_01_direct_motif_mutations_fail_closed(name: str) -> No
 
 @pytest.mark.parametrize("name", ROOT_L0_NODES)
 def test_issue_1798_batch_01_topology_mutations_fail_closed(name: str) -> None:
+    """Reject a source-parent mutation in every promoted exact topology."""
     source = deepcopy(_MT_SOURCE)
     source["nodes"][name]["source_topology"]["emitted_parent_source_node"] = "wrong-parent"
 
@@ -2316,6 +2326,7 @@ def test_issue_1798_batch_01_topology_mutations_fail_closed(name: str) -> None:
 def test_issue_1798_batch_01_flattened_path_mutations_fail_closed(
     identity: str, mutation: str
 ) -> None:
+    """Reject adjacency, reason, and motif drift for each flattened identity."""
     source = deepcopy(_MT_SOURCE)
     owner, step = _root_l0_flattened_occurrences(source, identity)[0]
     if mutation == "path":

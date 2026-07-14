@@ -554,6 +554,7 @@ class TestMtDNATree:
         """All 16 batch-01 nodes retain only their reviewed reportable markers."""
 
         def allele_map(haplogroup: str) -> dict[int, str]:
+            """Return the emitted position-to-allele contract for one mtDNA node."""
             node = find_node(mt_tree, haplogroup)
             assert node is not None, f"{haplogroup} not found"
             return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
