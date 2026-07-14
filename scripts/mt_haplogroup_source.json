@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 45 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 33 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 46 marker-exact nodes retain their emitted-marker and coverage locks; independent raw-row comparison classifies 34 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -124,6 +124,7 @@
   "direct_source_motif_states": {
     "exact_nodes": [
       "C",
+      "D2",
       "G1",
       "G2",
       "H1",
@@ -350,6 +351,75 @@
             ],
             "callable_snv_in": [
               "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "D2": {
+      "source_node": "D2",
+      "emitted_parent": "D",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "pending"
+      },
+      "direct_source_motif": [
+        {
+          "notation": "C8703T",
+          "mutation_type": "substitution",
+          "pos": 8703,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "G16129A!",
+          "mutation_type": "substitution",
+          "pos": 16129,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5008703",
+          "pos": 8703,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "D2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016129",
+          "pos": 16129,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "D2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
               "pgp_4162",
               "pgp_4187",
               "pgp_huA08F4D"
@@ -4201,9 +4271,6 @@
     "D1": {
       "emitted_parent": "D"
     },
-    "D2": {
-      "emitted_parent": "D"
-    },
     "D3": {
       "emitted_parent": "D"
     },
@@ -4684,6 +4751,7 @@
     "baseline_v2_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
     "locked_exact_nodes": [
       "C",
+      "D2",
       "G",
       "G1",
       "G2",
@@ -4729,9 +4797,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "849cf2075c1bcd17b62e44d56592cbba4ae516f145857b77ce641152034a267d",
-    "locked_exact_semantic_sha256": "31d069902dc6bd21d4e96faa05b136223bd70931e9c7a41b1cd3bceda22c8710",
-    "locked_exact_coverage_membership_sha256": "aa6a9eab728d8dda7c9e616c3f667801992bce8c1cb7abff77b15de4830f3f53",
+    "locked_exact_nodes_sha256": "d2db948869e3665313460b5832711ef97b9d8299864f6474d64efd131f80c29b",
+    "locked_exact_semantic_sha256": "92a9cab40c53f8c31a6ba2cb976e83e37ec89fd50c2bad7687e98f133b76ad86",
+    "locked_exact_coverage_membership_sha256": "deffb77fb0c0df2e60107cdaf527aa3e76ca5e5252f4e0609e2a47f2e7e5a9ca",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -4765,6 +4833,7 @@
     "baseline_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
     "locked_direct_motif_exact_nodes": [
       "C",
+      "D2",
       "G1",
       "G2",
       "H1",
@@ -4798,8 +4867,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "aa6778588f791cb9e290652712753fbbc8865a29c27899aa9b493cff4972dc8d",
-    "locked_direct_motif_semantic_sha256": "ad2fb64725da5017f58773d46e6a6259a06b6d076f19e39d6445ce734522189b",
+    "locked_direct_motif_exact_nodes_sha256": "8619d8457139be7b47d8d8e5bbfb8660be5c274dc5e1f33e3622bb7837350304",
+    "locked_direct_motif_semantic_sha256": "2af064763a1fefa8efe86c255c236cc8f57474ae087955fc4cd3797925001982",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -4973,8 +5042,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "d7090b65b8c37162f61d0188e961fa6a48162667f5878f5aa08eaf2574639f25",
+    "state_partition_sha256": "7cbbdeff9a91637ae58f3a198a8a2c3fd96050c54a494e967acec52ad6fa1f8c",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "58244a5ebb62a2e0f029c2e9526b621dfd9b52e6e858a874b3231c8b791d8dab"
+    "locked_emitted_tree_sha256": "969f4c04fdf8b1b02898b225bcd76e2f9c86e21ba60af7484f053364c0308a72"
   }
 }

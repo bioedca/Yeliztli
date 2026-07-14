@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.12"
+        assert bundle["version"] == "1.1.13"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -166,6 +166,7 @@ class TestBundleStructure:
         assert audit["audited_nodes"] == provenance["marker_exact_nodes"]["names"]
         assert set(provenance["marker_exact_nodes"]["names"]) == {
             "C",
+            "D2",
             "G",
             "G1",
             "G2",
@@ -214,8 +215,8 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 45
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 33
+        assert provenance["marker_exact_nodes"]["count"] == 46
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 34
         assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
@@ -224,24 +225,24 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 147
+        assert provenance["pending_nodes"]["count"] == 146
         assert provenance["marker_records"] == {
             "emitted": 403,
-            "marker_exact": 105,
+            "marker_exact": 107,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 8,
-                "primary_four_23andme": 97,
+                "primary_four_23andme": 99,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 138,
-            "emitted": 105,
+            "total": 140,
+            "emitted": 107,
             "omitted": 33,
-            "direct_motif_exact": 100,
+            "direct_motif_exact": 102,
             "direct_motif_legacy_partial": 37,
             "recurrent_or_uncertain_events": 0,
-            "reversion_events": 13,
-            "reversion_marks": 13,
+            "reversion_events": 14,
+            "reversion_marks": 14,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 193,
@@ -583,6 +584,23 @@ class TestMtDNATree:
 
         assert allele_map("N9") == {5417: "A"}
         assert allele_map("R") == {12705: "C", 16223: "C"}
+
+    def test_issue_1907_d2_uses_exact_build17_motif(self, mt_tree: dict) -> None:
+        """D2 uses its direct row while inherited D and R markers stay at their owners."""
+
+        def marker_map(haplogroup: str) -> dict[int, tuple[str, str]]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: (snp["rsid"], snp["allele"]) for snp in node["defining_snps"]}
+
+        assert marker_map("D2") == {
+            8703: ("i5008703", "T"),
+            16129: ("i5016129", "A"),
+        }
+        assert marker_map("D")[4883] == ("i5004883", "T")
+        assert marker_map("R")[12705] == ("i5012705", "C")
+        assert 4883 not in marker_map("D2")
+        assert 12705 not in marker_map("D2")
 
     def test_issue_1814_s_children_use_exact_build17_motifs(self, mt_tree: dict) -> None:
         """S1 and S2 retain only their direct child-of-S substitutions."""
