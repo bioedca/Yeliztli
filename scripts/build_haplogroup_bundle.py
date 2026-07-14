@@ -45,7 +45,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.10"
+BUNDLE_VERSION = "1.1.11"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -72,12 +72,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "8d613b83048c5fece0983084544114c869273e3dec4057c6098a7945b6ee2226"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "b805457fe34a0e69378a8730d811fbee6ef5a032b775e358c67af76d080a3a4b"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "9757ab026210b06d5b04e8e021c6a10d3fd7ca5618a0542f55d0a90f10d97236"
+    "09d0c57ab0d3b1cb336b951b27e8939298162d5537750f8e752c3b286c4706e6"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "daffdcdad072e09ff49ce22247d4e7e4e686b5cf0ed86bcdfd26b8daec4f0eeb"
+    "9c4b0a56ebf6fdb980513a6446e6af2bdca16ef00a240f5fa114513d7ed6b746"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -86,10 +86,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "992b76e60aa16aa2939bee8645638c24811723a7e3de899ecd88a93e41d0918d"
+    "66f9b1ee3bc97de48c05fcb54b66d81f88026745f35024aa16f2c29d92e56027"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "042c7b21dba02902247797c372e66629ee3e1db304bf2c17e9d98bb74470323f"
+    "e9838ecb0f7c367a99f1173980876c15298cb0da61b4a16481f642708d6ea99a"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -99,11 +99,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "b8875e25f61a197502c8ab1e85917e9923e3a454da885b7feb6100caf345107f"
+_MT_STATE_PARTITION_SHA256 = "60b216f4ee6fa8f65b73e687bd8b8ff21ea4d9d39ee783a2a7b1c13c044fa13a"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "91a1c2c8f8bd34a5bdd1d3aace4ecb60041b128dcdc737d5fd25e50d4d4455bb"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "649178928bba9e91e3a269cf82b3c47df0f533a5d688e5374d9df7b95043e415"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 
 _MT_EXPECTED_ARRAY_EXPORTS: dict[str, dict[str, Any]] = {
@@ -1165,16 +1165,21 @@ def build_mt_tree() -> dict[str, Any]:
     w3 = _node(
         "W3",
         [
-            _mt_snp("i5005460", 5460, "A"),
+            _mt_snp("i5001406", 1406, "C"),
         ],
     )
     w = _node(
         "W",
         [
-            _mt_snp("i5000189", 189, "G"),
-            _mt_snp("i5000204", 204, "C"),
             _mt_snp("i5000207", 207, "A"),
             _mt_snp("i5001243", 1243, "C"),
+            _mt_snp("i5003505", 3505, "G"),
+            _mt_snp("i5005460", 5460, "A"),
+            _mt_snp("i5008251", 8251, "A"),
+            _mt_snp("i5008994", 8994, "A"),
+            _mt_snp("i5011947", 11947, "G"),
+            _mt_snp("i5015884", 15884, "C"),
+            _mt_snp("i5016292", 16292, "T"),
         ],
         [w1, w3],
     )

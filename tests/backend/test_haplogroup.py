@@ -128,10 +128,15 @@ _MT_M_TRUNK_GENOTYPES = _H1A_GENOTYPES[:3] + [
 ]
 
 _MT_W_TRUNK_GENOTYPES = _MT_N_TRUNK_GENOTYPES + [
-    {"rsid": "i5000189", "chrom": "MT", "pos": 189, "genotype": "GG"},
-    {"rsid": "i5000204", "chrom": "MT", "pos": 204, "genotype": "CC"},
     {"rsid": "i5000207", "chrom": "MT", "pos": 207, "genotype": "AA"},
     {"rsid": "i5001243", "chrom": "MT", "pos": 1243, "genotype": "CC"},
+    {"rsid": "i5003505", "chrom": "MT", "pos": 3505, "genotype": "GG"},
+    {"rsid": "i5005460", "chrom": "MT", "pos": 5460, "genotype": "AA"},
+    {"rsid": "i5008251", "chrom": "MT", "pos": 8251, "genotype": "AA"},
+    {"rsid": "i5008994", "chrom": "MT", "pos": 8994, "genotype": "AA"},
+    {"rsid": "i5011947", "chrom": "MT", "pos": 11947, "genotype": "GG"},
+    {"rsid": "i5015884", "chrom": "MT", "pos": 15884, "genotype": "CC"},
+    {"rsid": "i5016292", "chrom": "MT", "pos": 16292, "genotype": "TT"},
 ]
 
 _MT_U3_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
@@ -301,6 +306,12 @@ def _derived_mt_path_genotypes(target: str) -> list[dict[str, object]]:
     ]
 
 
+_W_DIRECT_POSITION_GENOTYPES = [
+    {"pos": row["pos"], "genotype": row["genotype"]}
+    for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
+]
+
+
 # Reportable R-M269 path after unsupported R1b1a1 is pruned and its child promoted.
 _R1B1A_GENOTYPES = _derived_y_path_genotypes("R1b1a1a")
 
@@ -343,7 +354,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.10"
+        assert bundle.version == "1.1.11"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -2171,6 +2182,164 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == "N"
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "node_rows", "expected_path", "expected_counts"),
+        [
+            pytest.param(
+                "W",
+                [
+                    {"pos": 189, "genotype": "AA"},
+                    {"pos": 195, "genotype": "CC"},
+                    {"pos": 204, "genotype": "CC"},
+                    *_W_DIRECT_POSITION_GENOTYPES,
+                ],
+                ["L3", "N", "W"],
+                (9, 9),
+                id="W",
+            ),
+            pytest.param(
+                "W3",
+                [*_W_DIRECT_POSITION_GENOTYPES, {"pos": 1406, "genotype": "CC"}],
+                ["L3", "N", "W", "W3"],
+                (1, 1),
+                id="W3",
+            ),
+        ],
+    )
+    def test_issue_1834_w_and_w3_assign_by_exact_direct_motifs(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        node_rows: list[dict[str, object]],
+        expected_path: list[str],
+        expected_counts: tuple[int, int],
+    ) -> None:
+        """Exact motifs resolve W/W3 without treating ancestral m.189 as conflicting."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1834_positive_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("N"), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        terminal = mt.traversal_path[-1]
+        assert (terminal.snps_present, terminal.snps_total) == expected_counts
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                "W-legacy-189-204",
+                [
+                    {"pos": 189, "genotype": "GG"},
+                    {"pos": 204, "genotype": "CC"},
+                    {"pos": 207, "genotype": "AA"},
+                    {"pos": 1243, "genotype": "CC"},
+                ],
+                "N",
+                ["L3", "N"],
+                id="W-legacy-189-204",
+            ),
+            pytest.param(
+                "W3-legacy-5460",
+                _W_DIRECT_POSITION_GENOTYPES,
+                "W",
+                ["L3", "N", "W"],
+                id="W3-legacy-5460",
+            ),
+        ],
+    )
+    def test_issue_1834_legacy_markers_cannot_restore_old_w_assignments(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """The old W motif stops at N, and m.5460 alone cannot refine W to W3."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1834_legacy_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("N"), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "node_rows"),
+        [
+            pytest.param("W", _W_DIRECT_POSITION_GENOTYPES, id="W-without-N"),
+            pytest.param(
+                "W3",
+                [*_W_DIRECT_POSITION_GENOTYPES, {"pos": 1406, "genotype": "CC"}],
+                id="W3-without-N",
+            ),
+        ],
+    )
+    def test_issue_1834_w_markers_cannot_bypass_n_parent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        node_rows: list[dict[str, object]],
+    ) -> None:
+        """Complete W or W3 motifs cannot jump an untyped N gateway."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1834_parent_gate_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("L3"), *node_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "L3"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

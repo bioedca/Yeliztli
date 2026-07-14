@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.10"
+        assert bundle["version"] == "1.1.11"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -196,7 +196,9 @@ class TestBundleStructure:
             "U3a",
             "U3b",
             "U5b2",
+            "W",
             "W1",
+            "W3",
             "X",
             "X2",
             "X2a",
@@ -210,8 +212,8 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 194
         assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 41
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 29
+        assert provenance["marker_exact_nodes"]["count"] == 43
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 31
         assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 12
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
@@ -220,36 +222,36 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 151
+        assert provenance["pending_nodes"]["count"] == 149
         assert provenance["marker_records"] == {
-            "emitted": 398,
-            "marker_exact": 92,
+            "emitted": 403,
+            "marker_exact": 102,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 8,
-                "primary_four_23andme": 84,
+                "primary_four_23andme": 94,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 122,
-            "emitted": 92,
-            "omitted": 30,
-            "direct_motif_exact": 85,
+            "total": 135,
+            "emitted": 102,
+            "omitted": 33,
+            "direct_motif_exact": 97,
             "direct_motif_legacy_partial": 37,
             "recurrent_or_uncertain_events": 0,
-            "reversion_events": 11,
-            "reversion_marks": 11,
+            "reversion_events": 12,
+            "reversion_marks": 12,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 193,
             "validated_declarations": 193,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 2,
-            "pending": 191,
+            "validated": 3,
+            "pending": 190,
         }
         assert provenance["omitted_source_nodes"] == {
-            "count": 2,
-            "names": ["CZ", "K1c"],
+            "count": 3,
+            "names": ["CZ", "K1c", "W+194"],
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
 
@@ -596,6 +598,36 @@ class TestMtDNATree:
         assert allele_map("S2") == {2380: "T", 3438: "A", 6167: "C"}
         assert 10238 not in allele_map("S1")
         assert 14364 not in allele_map("S2")
+
+    def test_issue_1834_w_and_w3_use_exact_build17_motifs(self, mt_tree: dict) -> None:
+        """W owns its nine callable direct markers and W3 owns only m.1406."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        w = find_node(mt_tree, "W")
+        assert w is not None
+        assert {child["haplogroup"] for child in w["children"]} == {"W1", "W3"}
+        assert get_path_to(mt_tree, "W") == ["mt-MRCA", "L3", "N", "W"]
+        assert get_path_to(mt_tree, "W3") == ["mt-MRCA", "L3", "N", "W", "W3"]
+        assert allele_map("W") == {
+            207: "A",
+            1243: "C",
+            3505: "G",
+            5460: "A",
+            8251: "A",
+            8994: "A",
+            11947: "G",
+            15884: "C",
+            16292: "T",
+        }
+        assert allele_map("W3") == {1406: "C"}
+        assert 189 not in allele_map("W")
+        assert 195 not in allele_map("W")
+        assert 204 not in allele_map("W")
+        assert 5460 not in allele_map("W3")
 
     def test_mt_snp_positions_in_valid_range(self, mt_tree: dict) -> None:
         """mtDNA positions must be within rCRS range (1-16569)."""
@@ -1034,6 +1066,47 @@ class TestBuildScript:
         self, node_name: str, legacy_markers: list[dict[str, object]]
     ) -> None:
         """Restoring either unsupported child marker breaks the exact lock."""
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
+
+        mt_tree = build_mt_tree()
+        node = find_node(mt_tree, node_name)
+        assert node is not None
+        node["defining_snps"] = legacy_markers
+
+        issues = _validate_mt_source(_MT_SOURCE, mt_tree)
+        assert any(
+            f"Marker-exact mtDNA node {node_name}" in issue and "expected" in issue
+            for issue in issues
+        )
+
+    @pytest.mark.parametrize(
+        ("node_name", "legacy_markers"),
+        [
+            pytest.param(
+                "W",
+                [
+                    {"rsid": "i5000189", "pos": 189, "allele": "G"},
+                    {"rsid": "i5000204", "pos": 204, "allele": "C"},
+                    {"rsid": "i5000207", "pos": 207, "allele": "A"},
+                    {"rsid": "i5001243", "pos": 1243, "allele": "C"},
+                ],
+                id="W-legacy-189G-204C",
+            ),
+            pytest.param(
+                "W3",
+                [{"rsid": "i5005460", "pos": 5460, "allele": "A"}],
+                id="W3-legacy-5460A",
+            ),
+        ],
+    )
+    def test_issue_1834_audited_mt_guard_rejects_legacy_marker_sets(
+        self, node_name: str, legacy_markers: list[dict[str, object]]
+    ) -> None:
+        """Restoring either pre-correction W marker set breaks the exact lock."""
         from scripts.build_haplogroup_bundle import (
             _MT_SOURCE,
             _validate_mt_source,
