@@ -43,7 +43,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.5"
+BUNDLE_VERSION = "1.1.6"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
@@ -60,6 +60,7 @@ _REQUIRED_AUDITED_MT_NODES = frozenset(
         "K",
         "K1",
         "K1a",
+        "K1b",
         "K2",
         "K2a",
         "K2b",
@@ -1807,7 +1808,8 @@ def build_mt_tree() -> dict[str, Any]:
     k1b = _node(
         "K1b",
         [
-            _mt_snp("i5014167", 14167, "T"),
+            # Direct Build 17 motif; m.14167 is not assigned to K1b (#1796).
+            _mt_snp("i5005913", 5913, "A"),
         ],
     )
     # K1c is not emitted: its direct Build-17 motif is limited to recurrent

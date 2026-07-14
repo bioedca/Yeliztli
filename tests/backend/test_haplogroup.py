@@ -336,7 +336,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.5"
+        assert bundle.version == "1.1.6"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1601,6 +1601,12 @@ class TestAssignHaplogroups:
         ("trunk", "node_rows", "expected"),
         [
             pytest.param(
+                _MT_K1_REVERSAL_GENOTYPES,
+                [{"rsid": "placeholder", "chrom": "MT", "pos": 5913, "genotype": "AA"}],
+                "K1b",
+                id="K1b",
+            ),
+            pytest.param(
                 _MT_U5B_TRUNK_GENOTYPES,
                 [
                     {"rsid": "placeholder", "chrom": "MT", "pos": 1721, "genotype": "TT"},
@@ -1672,7 +1678,7 @@ class TestAssignHaplogroups:
         node_rows: list[dict[str, object]],
         expected: str,
     ) -> None:
-        """#1742/#1794: direct motifs resolve through both production MT tables."""
+        """#1742/#1794/#1796: direct motifs resolve through both production MT tables."""
         rows = [
             {**row, "rsid": f"vendor_mt_{index}"} for index, row in enumerate([*trunk, *node_rows])
         ]
@@ -1712,6 +1718,41 @@ class TestAssignHaplogroups:
         mt = next(result for result in results if result.tree_type == "mt")
         assert mt.haplogroup == "U3"
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U", "U3"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_m14167_does_not_refine_k1_to_k1b(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """#1796: m.14167 is not the direct Build 17 K1b marker."""
+        rows = [
+            {**row, "rsid": f"vendor_k1_{index}"}
+            for index, row in enumerate(
+                [
+                    *_MT_K1_REVERSAL_GENOTYPES,
+                    {"rsid": "placeholder", "chrom": "MT", "pos": 14167, "genotype": "TT"},
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        results = assign_haplogroups(bundle, sample_engine)
+
+        mt = next(result for result in results if result.tree_type == "mt")
+        assert mt.haplogroup == "K1"
+        assert [step.haplogroup for step in mt.traversal_path] == [
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U8",
+            "K",
+            "K1",
+        ]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
