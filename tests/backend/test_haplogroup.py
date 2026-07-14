@@ -343,7 +343,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.9"
+        assert bundle.version == "1.1.10"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1999,6 +1999,178 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == expected
         assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "child_rows", "expected_path", "expected_counts"),
+        [
+            pytest.param(
+                "S1",
+                [
+                    {"pos": 14384, "genotype": "CC"},
+                    {"pos": 16075, "genotype": "CC"},
+                ],
+                ["L3", "N", "S", "S1"],
+                (2, 2),
+                id="S1",
+            ),
+            pytest.param(
+                "S2",
+                [
+                    {"pos": 2380, "genotype": "TT"},
+                    {"pos": 3438, "genotype": "AA"},
+                    {"pos": 6167, "genotype": "CC"},
+                ],
+                ["L3", "N", "S", "S2"],
+                (3, 3),
+                id="S2",
+            ),
+        ],
+    )
+    def test_issue_1814_s_children_assign_by_direct_motif_and_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        child_rows: list[dict[str, object]],
+        expected_path: list[str],
+        expected_counts: tuple[int, int],
+    ) -> None:
+        """Raw and annotated position joins resolve both exact children of S."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1814_positive_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("N"),
+                    {"pos": 8404, "genotype": "CC"},
+                    *child_rows,
+                ]
+            )
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        terminal = mt.traversal_path[-1]
+        assert (terminal.snps_present, terminal.snps_total) == expected_counts
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "legacy_row"),
+        [
+            pytest.param(
+                "S1",
+                {"pos": 10238, "genotype": "CC"},
+                id="S1-legacy-10238C",
+            ),
+            pytest.param(
+                "S2",
+                {"pos": 14364, "genotype": "TT"},
+                id="S2-legacy-14364T",
+            ),
+        ],
+    )
+    def test_issue_1814_legacy_child_markers_stop_at_s(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        legacy_row: dict[str, object],
+    ) -> None:
+        """Neither unsupported pre-fix position can refine a real S lineage."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1814_legacy_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("N"),
+                    {"pos": 8404, "genotype": "CC"},
+                    legacy_row,
+                ]
+            )
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "S"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "S"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "child_rows"),
+        [
+            pytest.param(
+                "S1",
+                [
+                    {"pos": 14384, "genotype": "CC"},
+                    {"pos": 16075, "genotype": "CC"},
+                ],
+                id="S1-without-S",
+            ),
+            pytest.param(
+                "S2",
+                [
+                    {"pos": 2380, "genotype": "TT"},
+                    {"pos": 3438, "genotype": "AA"},
+                    {"pos": 6167, "genotype": "CC"},
+                ],
+                id="S2-without-S",
+            ),
+        ],
+    )
+    def test_issue_1814_child_markers_cannot_bypass_s_parent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        child_rows: list[dict[str, object]],
+    ) -> None:
+        """Complete child motifs cannot jump an untyped m.8404 S gateway."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1814_parent_gate_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("N"), *child_rows])
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "N"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
