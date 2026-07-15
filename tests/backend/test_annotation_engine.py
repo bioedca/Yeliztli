@@ -613,8 +613,26 @@ class TestMergeAnnotations:
         assert merged[0]["gnomad_source_status"] == GNOMAD_SOURCE_OBSERVED
         assert merged[0]["cadd_phred"] == 25.0
 
-    def test_noncoding_gnomad_miss_marks_source_uncovered(self) -> None:
-        """A non-coding variant outside the exome AF source is not plain absence."""
+    # Keep this contract independent of the production set so a dropped or
+    # misspelled member fails its own derivation case.
+    @pytest.mark.parametrize(
+        "consequence",
+        (
+            "3_prime_UTR_variant",
+            "5_prime_UTR_variant",
+            "downstream_gene_variant",
+            "intergenic_variant",
+            "intron_variant",
+            "mature_miRNA_variant",
+            "non_coding_transcript_exon_variant",
+            "non_coding_transcript_variant",
+            "regulatory_region_variant",
+            "TF_binding_site_variant",
+            "upstream_gene_variant",
+        ),
+    )
+    def test_noncoding_gnomad_miss_marks_source_uncovered(self, consequence: str) -> None:
+        """Every known out-of-scope consequence derives source-uncovered status."""
         engine = sa.create_engine("sqlite://")
         with engine.begin() as conn:
             conn.execute(
@@ -623,7 +641,7 @@ class TestMergeAnnotations:
             conn.execute(sa.text("INSERT INTO t VALUES ('rs1799963', '11', 46761055, 'AG')"))
             row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
 
-        vep = {"rs1799963": {"gene_symbol": "F2", "consequence": "3_prime_UTR_variant"}}
+        vep = {"rs1799963": {"gene_symbol": "F2", "consequence": consequence}}
         merged = _merge_annotations([row], vep, {}, {}, {})
 
         assert merged[0]["annotation_coverage"] == VEP_BIT
