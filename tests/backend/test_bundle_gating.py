@@ -102,6 +102,7 @@ def _make_client(
 
     app = create_app()
     client = TestClient(app)
+    client.__settings__ = settings
 
     def _close() -> None:
         client.close()
@@ -181,7 +182,6 @@ def test_ancestrydna_with_v2_bundle_returns_202(manifest_env, client_factory) ->
 def test_ancestrydna_with_embedded_v2_and_no_registry_row_returns_202(
     manifest_env,
     client_factory,
-    tmp_data_dir: Path,
 ) -> None:
     client = client_factory(None, embedded_vep_bundle_version="v2.0.0")
     with open(ANCESTRY_FILE, "rb") as f:
@@ -191,7 +191,7 @@ def test_ancestrydna_with_embedded_v2_and_no_registry_row_returns_202(
         )
 
     assert response.status_code == 202, response.text
-    reference_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+    reference_engine = sa.create_engine(f"sqlite:///{client.__settings__.reference_db_path}")
     try:
         with reference_engine.connect() as conn:
             row = conn.execute(
@@ -249,7 +249,6 @@ def test_malformed_embedded_version_fails_safe(manifest_env, client_factory) -> 
 def test_unreadable_embedded_bundle_fails_safe(
     manifest_env,
     client_factory,
-    tmp_data_dir: Path,
 ) -> None:
     client = client_factory(None, unreadable_vep_bundle=True)
     with open(ANCESTRY_FILE, "rb") as f:
@@ -260,7 +259,7 @@ def test_unreadable_embedded_bundle_fails_safe(
 
     assert response.status_code == 409, response.text
     assert response.json()["detail"]["installed_version"] == "v1.0.0"
-    assert (tmp_data_dir / "vep_bundle.db").read_bytes() == b"not a SQLite database"
+    assert client.__settings__.vep_bundle_db_path.read_bytes() == b"not a SQLite database"
 
 
 def test_23andme_with_v1_bundle_returns_202(manifest_env, client_factory) -> None:
