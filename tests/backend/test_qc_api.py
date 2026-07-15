@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.analysis.qc import CALL_RATE_PASS
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -135,6 +136,38 @@ class TestRunAndMetrics:
         assert m["sex_check"] == "concordant"
         # Single account sample → no cohort for outlier detection.
         assert m["het_outlier_status"] == "insufficient_samples"
+
+
+class TestCallRatePassBoundary:
+    def test_threshold_is_98_percent(self) -> None:
+        assert CALL_RATE_PASS == 0.98
+
+    @pytest.mark.parametrize(("called", "expected_pass"), [(97, False), (98, True)])
+    def test_run_and_stored_metrics_pin_boundary(
+        self, _env: sa.Engine, called: int, expected_pass: bool
+    ) -> None:
+        rows = [
+            {
+                "rsid": f"call_rate_{i}",
+                "chrom": "1",
+                "pos": i + 1,
+                "genotype": "AA" if i < called else "--",
+            }
+            for i in range(100)
+        ]
+        with _env.begin() as conn:
+            conn.execute(sa.delete(raw_variants))
+            conn.execute(sa.insert(raw_variants), rows)
+
+        from backend.api.routes.qc import get_metrics, run
+
+        fresh = run(sample_id=1)
+        assert fresh.call_rate == called / 100
+        assert fresh.call_rate_pass is expected_pass
+
+        stored = get_metrics(sample_id=1)
+        assert stored.call_rate == called / 100
+        assert stored.call_rate_pass is expected_pass
 
 
 # ── Het-outlier cohort must be stratified by genotyping array (#563) ──────
