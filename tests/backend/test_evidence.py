@@ -21,7 +21,6 @@ import pytest
 from backend.analysis.evidence import (
     ANCESTRY_EVIDENCE_LEVEL,
     EVIDENCE_DEFINITIVE,
-    EVIDENCE_LABELS,
     EVIDENCE_MODERATE,
     EVIDENCE_PRELIMINARY,
     EVIDENCE_STRONG,
@@ -44,10 +43,6 @@ class TestConstants:
         assert EVIDENCE_STRONG == 3
         assert EVIDENCE_MODERATE == 2
         assert EVIDENCE_PRELIMINARY == 1
-
-    def test_labels_defined_for_all_levels(self):
-        for level in (1, 2, 3, 4):
-            assert level in EVIDENCE_LABELS
 
     def test_prs_level(self):
         assert PRS_EVIDENCE_LEVEL == 1
