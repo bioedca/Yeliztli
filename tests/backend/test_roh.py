@@ -2,13 +2,16 @@
 
 Exercises the clean-room sliding-run detector: a clean long homozygous run is
 detected as an ROH segment; FROH = segment length / fixed autosomal denominator;
+scattered genotype-error hets survive under a local 50-SNP rule, while
 heterozygous-rich regions and too-short runs produce nothing; a large
-position-gap breaks a run; a single het within tolerance does not; and the
-finding is framed as a genomic estimate ("not a diagnosis", "not a statement
-about whether your parents are related"), stored at evidence_level 1.
+position-gap breaks a run; and the finding is framed as a genomic estimate
+("not a diagnosis", "not a statement about whether your parents are related"),
+stored at evidence_level 1.
 """
 
 from __future__ import annotations
+
+import json
 
 import pytest
 import sqlalchemy as sa
@@ -122,12 +125,47 @@ class TestDetection:
 
     def test_single_het_within_tolerance_keeps_run(self, sample_engine: sa.Engine) -> None:
         rows = _run("1", 1_000_000, 200)
-        rows[100]["genotype"] = "AG"  # one het embedded; tolerance is 1
+        rows[100]["genotype"] = "AG"  # one isolated het is valid in its local window
         _seed(sample_engine, rows)
         result = detect_roh(sample_engine)
         assert len(result.segments) == 1
         # The single het is not counted as a homozygous SNP.
         assert result.segments[0].n_snps == 199
+
+    def test_scattered_het_errors_preserve_long_roh(self, sample_engine: sa.Engine) -> None:
+        # A 12 Mb run at 5 kb spacing has 2,401 typed SNPs. Seven evenly
+        # scattered error hets (~0.29%) must not fragment the true long ROH.
+        rows = _run("1", 1_000_000, 2401, spacing=5_000)
+        for index in range(300, 2400, 300):
+            rows[index]["genotype"] = "AG"
+        _seed(sample_engine, rows)
+
+        result = detect_roh(sample_engine)
+
+        assert len(result.segments) == 1
+        segment = result.segments[0]
+        assert segment.start == 1_000_000
+        assert segment.end == 13_000_000
+        assert segment.length_kb == 12_000.0
+        assert segment.n_snps == 2394
+        assert result.longest_kb == 12_000.0
+        assert result.total_roh_kb == 12_000.0
+
+    def test_dense_heterozygous_stretch_splits_roh(self, sample_engine: sa.Engine) -> None:
+        # Two ~2 Mb homozygous blocks flank a 2 Mb heterozygous stretch. The
+        # local allowance must keep the error tolerance from bridging that
+        # genuinely non-autozygous region into one apparent 6 Mb ROH.
+        rows = _run("1", 1_000_000, 1201, spacing=5_000)
+        for index in range(400, 801):
+            rows[index]["genotype"] = "AG"
+        _seed(sample_engine, rows)
+
+        result = detect_roh(sample_engine)
+
+        assert len(result.segments) == 2
+        assert [segment.length_kb for segment in result.segments] == [1995.0, 1995.0]
+        assert result.segments[0].end < rows[400]["pos"]
+        assert result.segments[1].start > rows[800]["pos"]
 
     def test_large_gap_breaks_run(self, sample_engine: sa.Engine) -> None:
         # Two qualifying blocks (each ~1990 kb, 200 SNPs) separated by a 2 Mb gap
@@ -165,6 +203,10 @@ class TestStorage:
         assert row.evidence_level == 1
         assert row.clinvar_significance is None
         assert row.category == "autozygosity"
+        params = json.loads(row.detail_json)["params"]
+        assert params["het_window_snps"] == 50
+        assert params["het_window_tolerance"] == 1
+        assert "het_tolerance" not in params
         corpus = row.finding_text.lower()
         assert "not a diagnosis" in corpus
         assert "parents are related" in corpus
